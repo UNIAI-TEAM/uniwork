@@ -3,17 +3,9 @@
 import { Ban, ShieldOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 
 export function BlockConversationSection({
   blockedByMe,
@@ -43,8 +35,8 @@ export function BlockConversationSection({
 
   return (
     <>
-      <div className="space-y-2 border-t border-border pt-4">
-        <p className="text-caption text-muted-foreground">
+      <div className="space-y-2.5">
+        <p className="text-caption text-pretty text-muted-foreground">
           {blockedByMe
             ? t("chat.block_active_hint")
             : blockedMe
@@ -55,7 +47,7 @@ export function BlockConversationSection({
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-start gap-2"
+            className="h-10 w-full gap-2 rounded-full font-semibold"
             disabled={disabled || unblocking}
             onClick={() => void onUnblock()}
           >
@@ -66,7 +58,7 @@ export function BlockConversationSection({
           <Button
             type="button"
             variant="destructive"
-            className="w-full justify-start gap-2"
+            className="h-10 w-full gap-2 rounded-full font-semibold"
             disabled={disabled || blocking || blockedMe}
             onClick={() => setConfirmOpen(true)}
           >
@@ -76,20 +68,19 @@ export function BlockConversationSection({
         )}
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("chat.block_confirm_title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("chat.block_confirm_description")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={blocking}>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={blocking} onClick={handleConfirm}>
-              {blocking ? t("chat.blocking_user") : t("chat.block_user")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("chat.block_confirm_title")}
+        description={t("chat.block_confirm_description")}
+        confirmLabel={blocking ? t("chat.blocking_user") : t("chat.block_user")}
+        pending={blocking}
+        icon={Ban}
+        solid
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
+        onConfirm={handleConfirm}
+      />
     </>
   );
 }

@@ -3,6 +3,28 @@ package sdi
 // EnsureWorkspaceChatRoomSDI is POST /workspaces/{workspaceID}/chat/room.
 type EnsureWorkspaceChatRoomSDI struct{}
 
+// ListChatMessagesSDI documents GET .../chat/messages and .../chat/rooms/{roomID}/messages query params.
+type ListChatMessagesSDI struct {
+	Cursor   string `query:"cursor" description:"Trường cursor của tin cũ nhất đang có, gửi lại nguyên văn để lấy trang cũ hơn" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	After    string `query:"after" description:"Trường cursor của tin mới nhất đang có: trả các tin mới hơn, cũ trước (bắt kịp sau khi kết nối lại); không dùng cùng cursor/before" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Before   string `query:"before" description:"Cũ: mốc RFC3339, có thể bỏ sót tin cùng giây; dùng cursor thay thế" example:"2026-03-26T10:00:00Z"`
+	Limit    int    `query:"limit" description:"Số tin mỗi trang" example:"50"`
+	MarkRead string `query:"mark_read" description:"0 giữ nguyên last_read_at (CatchUp sau khi mở phòng chưa đọc)" example:"0"`
+}
+
+// ListChatThreadMessagesSDI documents GET .../chat/rooms/{roomID}/threads/{messageID}/messages query params.
+type ListChatThreadMessagesSDI struct {
+	Cursor string `query:"cursor" description:"Trường cursor của câu trả lời cũ nhất đang có (không phải tin gốc), gửi lại nguyên văn để lấy trang cũ hơn" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Before string `query:"before" description:"Cũ: mốc RFC3339, có thể bỏ sót tin cùng giây; dùng cursor thay thế" example:"2026-03-26T10:00:00Z"`
+	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
+}
+
+// ListChatCallLogsSDI documents GET .../chat/call-logs query params.
+type ListChatCallLogsSDI struct {
+	Cursor string `query:"cursor" description:"next_cursor của trang trước, gửi lại nguyên văn; bỏ trống để lấy trang mới nhất" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Limit  int    `query:"limit" description:"Số cuộc gọi mỗi trang (mặc định 30, tối đa 100)" example:"30"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`
@@ -30,6 +52,39 @@ type SendChatFileMessageSDI struct {
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
+// SendChatDocumentMessageSDI is multipart POST .../messages/document
+// (UNI-1966 §2.1; UNI-2012 D1a/D1b). The bytes become a Document at the root
+// of the workspace the sender stands in and every current human room member
+// gets a share at ShareLevel; the message carries the reference. share_level
+// defaults to comment; manage is refused with 400.
+type SendChatDocumentMessageSDI struct {
+	File             []byte  `formData:"file" description:"Document (PDF, TXT, Markdown, HTML, DOC, DOCX, XLS, XLSX, PPT, PPTX, or ODT; max DOCUMENT_MAX_BYTES)"`
+	ShareLevel       string  `formData:"share_level" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`
+	Title            string  `formData:"title" description:"Deprecated and ignored: the document title is always the sanitized filename (UNI-2012 D1a)" example:"Kế hoạch sprint 12"`
+	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
+// SendChatDocumentLinkSDI is POST .../messages/document-link (UNI-2012 D5):
+// sends a document that already lives in Documents. The sender must be able
+// to share it; the document is not moved or copied, and every current human
+// room member gets a share at ShareLevel.
+type SendChatDocumentLinkSDI struct {
+	DocumentID       string  `json:"document_id" description:"Existing document (page or file) the sender may share; folders, the trash, shelved and work-product documents are refused" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
+	ShareLevel       string  `json:"share_level,omitempty" description:"view, comment, or edit granted to room members (default comment; manage is refused; a member who already holds more keeps it)" example:"comment"`
+	ClientMsgID      string  `json:"client_msg_id,omitempty" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `json:"reply_to_message_id,omitempty" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
+// ShareChatMessageAsDocumentSDI is POST
+// .../chat/rooms/{roomID}/messages/{messageID}/share-as-document (UNI-1966
+// §2.2, S10): converts the caller's existing file attachment message into a
+// shared document in place.
+type ShareChatMessageAsDocumentSDI struct {
+	ShareLevel  string `json:"share_level,omitempty" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`
+	ClientMsgID string `json:"client_msg_id,omitempty" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
 // CreateChatPollSDI creates a poll in a chat room.
 type CreateChatPollSDI struct {
 	Question string              `json:"question" description:"Poll question" example:"Ăn trưa ở đâu?"`
@@ -50,6 +105,11 @@ type ChatPollSettingsSDI struct {
 // VoteChatPollSDI is POST .../messages/{messageID}/poll/vote.
 type VoteChatPollSDI struct {
 	OptionID string `json:"option_id" description:"Selected poll option id" example:"01J8X4OPT0N1P2Q3R4S5T6U7V8"`
+}
+
+// AddChatPollOptionSDI is POST .../messages/{messageID}/poll/options.
+type AddChatPollOptionSDI struct {
+	Label string `json:"label" description:"New poll option label" example:"Quán phở"`
 }
 
 // CreateChatReminderSDI creates a reminder in a chat room.
@@ -74,7 +134,7 @@ type CreateChatPostSDI struct {
 
 // CreateGroupSDI is POST /workspaces/{workspaceID}/chat/groups.
 type CreateGroupSDI struct {
-	Name          string   `json:"name" description:"Group display name" example:"Team Alpha"`
+	Name          string   `json:"name" maxLength:"80" description:"Group display name (up to 80 characters; empty takes a default)" example:"Team Alpha"`
 	MemberUserIDs []string `json:"member_user_ids" description:"Other member UniWork user ids (min 2)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\",\"01J8X4USR0N1P2Q3R4S5T6U7V9\"]"`
 }
 
@@ -91,18 +151,19 @@ type InviteGroupMembersSDI struct {
 // MintChatVoiceTokenSDI is POST /chat/voice/token.
 type MintChatVoiceTokenSDI struct {
 	RoomID string `json:"room_id" description:"Native UniWork chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	CallID string `json:"call_id" description:"Active voice call id from invite" example:"550e8400-e29b-41d4-a716-446655440000"`
+	CallID string `json:"call_id" maxLength:"64" description:"Active voice call id from invite" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // VoiceSignalSDI is POST voice invite/hangup on a chat room.
 type VoiceSignalSDI struct {
-	CallID          string `json:"call_id" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	DurationSeconds *int   `json:"duration_seconds,omitempty" description:"Connected call duration in seconds (hangup only)" example:"125"`
+	CallID string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Video  bool   `json:"video,omitempty" description:"True when the caller started with the camera on" example:"true"`
 }
 
 // ChatPresenceSDI is POST .../chat/presence.
 type ChatPresenceSDI struct {
-	State string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	State   string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+	Visible bool   `json:"visible,omitempty" description:"True when the beating page is visible; only a visible beat holds back chat pushes to this user" example:"true"`
 }
 
 // ToggleChatReactionSDI is POST .../messages/{messageID}/reactions.
@@ -124,7 +185,29 @@ type PatchChatRoomMemberSDI struct {
 // PatchChatRoomSDI is PATCH .../rooms/{roomID}.
 type PatchChatRoomSDI struct {
 	Name              *string                       `json:"name,omitempty" description:"Group or workspace room display name" example:"Team Alpha"`
+	Topic             *string                       `json:"topic,omitempty" description:"Room description, ≤280 chars; empty clears it" example:"Nơi team thiết kế trao đổi hằng ngày"`
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
+	Wallpaper         *PatchChatRoomWallpaperSDI    `json:"wallpaper,omitempty" description:"Shared room wallpaper preset for every member"`
+}
+
+// PatchChatRoomWallpaperSDI sets a built-in wallpaper preset (not custom upload).
+type PatchChatRoomWallpaperSDI struct {
+	Preset string `json:"preset" description:"default, a built-in preset id, or custom after upload" example:"sky"`
+}
+
+// ListChatRoomLinkedTasksSDI is GET .../chat/rooms/{roomID}/linked-tasks.
+type ListChatRoomLinkedTasksSDI struct {
+	Limit int `query:"limit" description:"Số task tối đa (mặc định 20, tối đa 50)" example:"3"`
+}
+
+// UploadChatRoomAvatarSDI is POST .../chat/rooms/{roomID}/avatar (multipart).
+type UploadChatRoomAvatarSDI struct {
+	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
+}
+
+// UploadChatRoomWallpaperSDI is POST .../chat/rooms/{roomID}/wallpaper (multipart).
+type UploadChatRoomWallpaperSDI struct {
+	File []byte `formData:"file" description:"Ảnh nền PNG, JPEG, GIF hoặc WebP, tối đa 900 KB"`
 }
 
 // CreateChatChannelSDI is POST .../chat/channels.
@@ -133,7 +216,7 @@ type CreateChatChannelSDI struct {
 	Visibility    string   `json:"visibility" description:"public or private" example:"public"`
 	Topic         string   `json:"topic,omitempty" description:"One-line topic ≤280 chars" example:"Chiến dịch Q3"`
 	ProjectID     string   `json:"project_id,omitempty" description:"Optional project to attach" example:"01J8X4PROJ0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs []string `json:"member_user_ids,omitempty" description:"Initial members (creator always included)"`
+	MemberUserIDs []string `json:"member_user_ids,omitempty" maxItems:"100" description:"Initial members (creator always included; max 100 per request)"`
 }
 
 // UpdateChatChannelSDI is PATCH .../chat/channels/{roomID}.
@@ -152,6 +235,13 @@ type ChatRoomMemberPermissionsSDI struct {
 	AllowCreateNotes   *bool `json:"allow_create_notes,omitempty" description:"Members may create notes and reminders" example:"true"`
 	AllowCreatePolls   *bool `json:"allow_create_polls,omitempty" description:"Members may create polls" example:"true"`
 	AllowSendMessages  *bool `json:"allow_send_messages,omitempty" description:"Members may send chat messages" example:"true"`
+	AllowForward       *bool `json:"allow_forward,omitempty" description:"Members may forward this room's messages to other rooms" example:"true"`
+}
+
+// ForwardChatMessageSDI is POST .../chat/messages/{messageID}/forward.
+type ForwardChatMessageSDI struct {
+	TargetRoomIDs []string `json:"target_room_ids" description:"1–10 rooms the caller may send in" example:"[\"01J8X4ROOM0N1P2Q3R4S5T6U7V8\"]"`
+	Comment       string   `json:"comment,omitempty" description:"Optional text sent by the caller just before the forwarded copy in each room" example:"Mọi người xem giúp"`
 }
 
 // SetChatNicknameSDI is PUT .../users/{userID}/nickname.

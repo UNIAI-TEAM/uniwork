@@ -2,13 +2,20 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
+import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
+import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatPageContentProps = {
+  /** Which list the sidebar shows: the organization's DMs and groups, or this workspace's channels. */
+  scope: ChatScope;
   target: ChatSidebarTarget;
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   currentUserId: string;
@@ -16,12 +23,10 @@ export type ChatPageContentProps = {
   contacts: ChatContact[];
   groups: GroupChat[];
   channels: ChatRoomRecord[];
-  workHubEnabled: boolean;
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
   workspaceId: string;
-  messageRefreshKey?: number;
   activeRoomId: string | null;
   showLoading: boolean;
   connectError: string | null;
@@ -33,19 +38,32 @@ export type ChatPageContentProps = {
   mentionUnreadByRoomId: Record<string, number>;
   roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
   unreadBadgesReady: boolean;
+  /** The workspace room's display name ("Chung" until renamed). */
+  workspaceRoomTitle: string;
   nicknamesByUserId: Record<string, string>;
   nameContext: ChatNameContextEntry[];
   replyTo: ChatMessage | null;
   onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
+  activeThreadRootId?: string | null;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
-  draft: string;
-  onDraftChange: React.Dispatch<React.SetStateAction<string>>;
+  /** Which conversation's draft the composer edits (chat composer draft store). */
+  composerDraftKey: string;
   composerPriority: ComposerMessagePriority | null;
   onComposerPriorityChange: React.Dispatch<React.SetStateAction<ComposerMessagePriority | null>>;
   onSend: () => void;
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
+  /** Sends the side thread composer's draft (stored under `draftKey`) into the thread. */
+  onSendThreadReply: (draftKey: string, threadRootId: string) => void;
+  /** Sends a sticker or GIF from the side thread composer into the thread. */
+  onSendThreadMedia: (threadRootId: string, body: string) => void;
+  /** UNI-1966: present while document sends are wired; the picker also needs canSendDocument. */
+  onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => Promise<void>;
+  /** The room detail's can_send_document flag; absent/false hides the picker. */
+  canSendDocument?: boolean;
+  /** Host wiring for a document card's "Chỉnh sửa trong UniWork Office" menu entry; absent → hidden (UNI-1966, UNI-2012). */
+  desktopOpen?: ChatDocumentDesktopOpen;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;
@@ -64,7 +82,7 @@ export type ChatPageContentProps = {
   channelSettingsOpen: boolean;
   onChannelSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   creatingGroup: boolean;
-  onCreateGroup: (members: ChatContact[], name: string) => void;
+  onCreateGroup: (members: ChatContact[], name: string, avatar: File | null) => void;
   invitingMembers: boolean;
   onAddGroupMembers: (members: ChatContact[]) => void;
   leavingConversation: boolean;
@@ -72,12 +90,15 @@ export type ChatPageContentProps = {
   onLeaveDm: () => void;
   onLeaveChannel: () => void;
   groupMemberProfiles: Record<string, GroupMemberProfile>;
+  /** Built once in the page view and shared by the composer and the send path. */
+  mentionCandidates: ChatMentionCandidate[];
   typingLabel: string | null;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;
   onVideoCall: () => void;
   videoCallDisabled: boolean;
   workspaceMembers: Member[];
+  memberAvatarByUserId: MemberAvatarUrlMap;
   workspaceSettingsOpen: boolean;
   onWorkspaceSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   messageSearchOpen: boolean;
@@ -87,6 +108,7 @@ export type ChatPageContentProps = {
   chatSendRestricted: boolean;
   chatSendMutedByModerator: boolean;
   canPinMessages: boolean;
+  canModerate: boolean;
   canCreatePolls: boolean;
   canCreateNotes: boolean;
   peerLastReadAt?: string | null;

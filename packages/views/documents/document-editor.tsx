@@ -1,0 +1,343 @@
+"use client";
+
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { createDocument, type JSONContent } from "@tiptap/core";
+import { EditorContent, useEditor } from "@tiptap/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useCurrentMember } from "@uniwork/core/permissions";
+import { sanitizePageContent } from "@uniwork/core/documents/schema";
+import { EditorBubbleMenu } from "../editor/bubble-menu";
+import { createPageDocumentExtensions } from "../editor/extensions";
+import { createMentionSuggestion } from "../editor/extensions/mention-suggestion";
+import {
+  createDocumentAssetUploadExtension,
+  type DocumentAssetUploader,
+} from "./document-asset-upload";
+import { fetchBodyMentionItems } from "./document-body-mention-items";
+import { DocumentImageExtension } from "./document-image-extension";
+import { DocumentAssetScopeProvider } from "./document-asset-context";
+import { PageFirstUseHint } from "./page-toolbar/page-first-use-hint";
+import { PageToolbar } from "./page-toolbar/page-toolbar";
+
+/**
+ * The page editor: TipTap over the G1-01 page schema, persisted as JSON.
+ *
+ * It is deliberately NOT the Markdown ContentEditor. Task and chat content is
+ * stored as Markdown and the two paths must not be mixed — a page is parsed and
+ * serialized as `{type:"doc"}` JSON, so nothing ever round-trips through
+ * Markdown (`JSON → Markdown → JSON` loses marks and attrs the page schema
+ * allows). The extension stack comes from `createPageDocumentExtensions`, the
+ * toolbar is the shared `EditorBubbleMenu`, and the chunk is mounted through
+ * React.lazy by the detail view so the library route stays light.
+ */
+
+export interface DocumentEditorHandle {
+  /**
+   * Land `content` in the editor, bypassing the dirty guard. The caller owns
+   * that decision: only call it once the local draft has been resolved (saved,
+   * discarded, or the user chose the server copy).
+   */
+  adoptContent: (content: unknown, revision: string) => void;
+  focus: (position?: "start" | "end") => void;
+  /** The live editor HTML, unsaved edits included ("Download my copy", UNI-1645 §9); "" before mount. */
+  getHTML: () => string;
+  /**
+   * Scrolls to the first mention node naming `userId` — a notification's
+   * `?mention=1` deep link (UNI-1968) — and flashes it. A reader with no
+   * mention keeps the top of the page: this is a no-op then. Returns whether
+   * a mention was found.
+   */
+  revealMention: (userId: string) => boolean;
+}
+
+export interface DocumentEditorProps {
+  wsId: string;
+  documentId: string;
+  /** Working-copy JSON, read once at mount. */
+  initialContent: unknown;
+  /** Latest server content; adopted only while the editor is clean. */
+  content: unknown;
+  /** Revision of `content` — the change signal for the sync below. */
+  contentRevision: string;
+  /**
+   * True while a local edit has not been proven saved. Realtime and refetches
+   * never overwrite a dirty editor; the user's own bytes win until they are
+   * acknowledged.
+   */
+  dirty: boolean;
+  editable: boolean;
+  onChange: (content: unknown) => void;
+  /** Uploads one pasted/dropped image; resolves with the asset that lands in the JSON. */
+  onUploadAsset: DocumentAssetUploader;
+  onAssetError?: (error: unknown) => void;
+  /** How many image uploads are in flight — the save indicator gates on this. */
+  onPendingUploadsChange?: (pending: number) => void;
+  onContentError?: (error: unknown) => void;
+  onReady?: () => void;
+  onFocusTitle?: () => void;
+  /**
+   * Where the formatting toolbar is mounted: a sticky slot above the scrolling
+   * page. Without one (version preview, public view) the editor shows no toolbar
+   * and no first-use hint.
+   */
+  toolbarHost?: HTMLElement | null;
+}
+
+export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(
+  function DocumentEditor(
+    {
+      wsId,
+      documentId,
+      initialContent,
+      content,
+      contentRevision,
+      dirty,
+      editable,
+      onChange,
+      onUploadAsset,
+      onAssetError,
+      onPendingUploadsChange,
+      onContentError,
+      onReady,
+      onFocusTitle,
+      toolbarHost,
+    },
+    ref,
+  ) {
+    const { t } = useTranslation();
+    const queryClient = useQueryClient();
+    // `include=no_access` is only offered to callers who may list members (G8-18), like the comment picker.
+    const includeNoAccessRef = useRef(false);
+    includeNoAccessRef.current = useCurrentMember(wsId).role !== null;
+    const translateRef = useRef(t);
+    translateRef.current = t;
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
+    const focusTitleRef = useRef(onFocusTitle);
+    focusTitleRef.current = onFocusTitle;
+    const onChangeRef = useRef(onChange);
+    const onAssetErrorRef = useRef(onAssetError);
+    const onContentErrorRef = useRef(onContentError);
+    const onReadyRef = useRef(onReady);
+    const onPendingUploadsChangeRef = useRef(onPendingUploadsChange);
+    const uploaderRef = useRef<DocumentAssetUploader | undefined>(undefined);
+    const dirtyRef = useRef(dirty);
+    const pendingUploadsRef = useRef(0);
+    const adoptedRevisionRef = useRef(contentRevision);
+    const [pendingUploads, setPendingUploads] = useState(0);
+    // Fires `is-mention-reveal` removal once; a second reveal retriggers it.
+    const revealTimerRef = useRef<number | null>(null);
+    const revealedRef = useRef<HTMLElement | null>(null);
+
+    onChangeRef.current = onChange;
+    onAssetErrorRef.current = onAssetError;
+    onContentErrorRef.current = onContentError;
+    onReadyRef.current = onReady;
+    onPendingUploadsChangeRef.current = onPendingUploadsChange;
+    uploaderRef.current = onUploadAsset;
+    dirtyRef.current = dirty;
+
+    const handlePendingChange = useCallback((pending: number) => {
+      pendingUploadsRef.current = pending;
+      setPendingUploads(pending);
+      onPendingUploadsChangeRef.current?.(pending);
+    }, []);
+
+    const extensions = useMemo(
+      () =>
+        createPageDocumentExtensions({
+          image: DocumentImageExtension,
+          assetUpload: createDocumentAssetUploadExtension({
+            getUploader: () => uploaderRef.current,
+            onPendingChange: handlePendingChange,
+            onError: (error) => onAssetErrorRef.current?.(error),
+          }),
+          placeholder: ({ editor: instance }) => translateRef.current(instance.isEmpty
+            ? "documents.page_ui.empty_placeholder" : "documents.page_ui.line_placeholder"),
+          slash: { translate: (key, options) => translateRef.current(key, options), chooseImage: () => imageInputRef.current?.click() },
+          mention: {
+            ...createMentionSuggestion(queryClient, { mode: "context" }),
+            // Same people and rows as the comment picker (mention candidates).
+            items: ({ query }) => fetchBodyMentionItems(queryClient, {
+              wsId, documentId, query, includeNoAccess: includeNoAccessRef.current,
+            }),
+            // Keep the shared typed-trigger guard. Replacing a typed slash
+            // with @ preserves its armed anchor; paste and undo stay literal.
+            command: ({ editor: instance, range, props }) => {
+              instance.chain().focus().insertContentAt(range, [
+                { type: "mention", attrs: { id: props.id, label: props.label, kind: "user" } },
+                { type: "text", text: " " },
+              ]).run();
+            },
+          },
+        }),
+      // Built once per mount on purpose: Tiptap reads its extension set at
+      // creation, like every other editor in this package.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
+    );
+
+    const editor = useEditor({
+      immediatelyRender: false,
+      editable,
+      content: initialContent as JSONContent | undefined,
+      extensions,
+      onUpdate: ({ editor: instance }) => {
+        // Only the closed vocabulary may reach the save machine: unknown
+        // nodes/marks are dropped here, so nothing the server would reject is
+        // ever queued as a draft.
+        try {
+          const sanitized = sanitizePageContent(instance.getJSON());
+          onChangeRef.current(sanitized.content);
+        } catch (error) {
+          onContentErrorRef.current?.(error);
+        }
+      },
+      editorProps: {
+        attributes: {
+          class:
+            "rich-text-editor document-page-prose min-h-64 text-body leading-relaxed",
+          role: "textbox",
+          "aria-multiline": "true",
+          "aria-label": t("documents.editor.aria_label"),
+        },
+        handleKeyDown: (view, event) => {
+          if (!editable || event.isComposing || !focusTitleRef.current) return false;
+          if (event.key !== "ArrowUp" && event.key !== "Backspace") return false;
+          const { selection, doc: body } = view.state;
+          if (!selection.empty || selection.from !== 1 || !body.firstChild?.isTextblock || body.firstChild.content.size !== 0) return false;
+          event.preventDefault();
+          focusTitleRef.current();
+          return true;
+        },
+      },
+    });
+
+    const readyFiredRef = useRef(false);
+    useEffect(() => {
+      if (!editor || readyFiredRef.current) return;
+      readyFiredRef.current = true;
+      onReadyRef.current?.();
+    }, [editor]);
+
+    // Read-only is a permission, not a mount-time decision: losing edit keeps
+    // the committed copy on screen, so the flag has to reach the live instance.
+    useEffect(() => {
+      if (!editor || editor.isDestroyed) return;
+      if (editor.isEditable !== editable) {
+        editor.setEditable(editable, false);
+        // Notify node-view subscribers without queuing a body save or undo step.
+        editor.view.dispatch(editor.state.tr
+          .setMeta("preventUpdate", true)
+          .setMeta("addToHistory", false));
+      }
+    }, [editor, editable]);
+    useEffect(
+      () => () => {
+        if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+      },
+      [],
+    );
+
+    // Adopt server content only while clean. `contentRevision` is the signal:
+    // a refetch that carries the revision the editor already shows is a no-op.
+    // Upload placeholders are local work even after their sanitized body ACK.
+    // Equivalent server bodies must preserve the live selection and history.
+    useEffect(() => {
+      if (!editor || editor.isDestroyed) return;
+      if (dirtyRef.current || pendingUploadsRef.current > 0) return;
+      if (contentRevision === adoptedRevisionRef.current) return;
+      const next = createDocument(content as JSONContent, editor.schema);
+      if (!editor.state.doc.eq(next)) editor.commands.setContent(next, { emitUpdate: false });
+      adoptedRevisionRef.current = contentRevision;
+    }, [content, contentRevision, editor]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        adoptContent: (next: unknown, revision: string) => {
+          if (!editor || editor.isDestroyed) return;
+          editor.commands.setContent(next as JSONContent, { emitUpdate: false });
+          adoptedRevisionRef.current = revision;
+        },
+        focus: (position) => editor?.commands.focus(position),
+        getHTML: () => (editor && !editor.isDestroyed ? editor.getHTML() : ""),
+        revealMention: (userId: string) => {
+          if (!editor || editor.isDestroyed) return false;
+          let pos = -1;
+          // NodeViews can match on any type; only member mentions name a person.
+          editor.state.doc.descendants((node, nodePos) => {
+            if (pos >= 0) return false;
+            if (node.type.name === "mention" && node.attrs.id === userId && node.attrs.type !== "agent") {
+              pos = nodePos;
+              return false;
+            }
+            return true;
+          });
+          if (pos < 0) return false;
+          const target = editor.view.nodeDOM(pos);
+          // The node selection marks the mention. ProseMirror's own
+          // scrollIntoView starts from the DOM selection, which sits outside an
+          // unfocused read-only editor and so never reaches the page scroller;
+          // scroll the node itself, which finds whichever ancestor scrolls.
+          editor.chain().setNodeSelection(pos).run();
+          if (!(target instanceof HTMLElement)) return true;
+          target.scrollIntoView({ block: "center" });
+          // The flash goes on the node view's outer element, the one the editor
+          // selects: its inner `.mention` span paints after the first commit, so
+          // a class put there at reveal time would find nothing to land on.
+          if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+          revealedRef.current?.classList.remove("is-mention-reveal");
+          target.classList.add("is-mention-reveal");
+          revealedRef.current = target;
+          revealTimerRef.current = window.setTimeout(() => target.classList.remove("is-mention-reveal"), 2000);
+          return true;
+        },
+      }),
+      [editor],
+    );
+
+    useEffect(() => {
+      if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr);
+    }, [editor, t]);
+
+    if (!editor) return <div className="flex-1" data-testid="document-editor-loading" />;
+
+    return (
+      <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
+        {editable && toolbarHost ? <PageFirstUseHint onShowShortcuts={() => setHelpOpen(true)} onDismissed={() => editor.commands.focus()} /> : null}
+        {editable && toolbarHost ? createPortal(
+          <PageToolbar editor={editor} chooseImage={() => imageInputRef.current?.click()}
+            helpOpen={helpOpen} onHelpOpenChange={setHelpOpen} />, toolbarHost) : null}
+        <DocumentAssetScopeProvider scope={{ wsId, documentId }}>
+          <EditorContent editor={editor} className="flex flex-1 flex-col" />
+        </DocumentAssetScopeProvider>
+        {editable ? <input ref={imageInputRef} type="file" accept="image/*" className="hidden"
+          aria-label={t("documents.page_ui.choose_image")} onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = "";
+            if (!files.length || !editor.isEditable) return;
+            // Run the existing paste asset handler, including its pending/save
+            // accounting and asset:// replacement, for the chosen local file.
+            const paste = new Event("paste", { bubbles: true, cancelable: true });
+            Object.defineProperty(paste, "clipboardData", { value: { files, getData: () => "" } });
+            editor.view.dom.dispatchEvent(paste);
+          }} /> : null}
+        {editable ? <EditorBubbleMenu editor={editor} variant="page" /> : null}
+        <span className="sr-only" role="status" aria-live="polite">
+          {pendingUploads > 0 ? t("documents.save.asset_uploading") : ""}
+        </span>
+      </div>
+    );
+  },
+);

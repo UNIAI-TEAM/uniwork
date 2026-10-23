@@ -1,0 +1,205 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useChatRooms, useChatVoiceToken } from "@uniwork/core/chat";
+import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "../layout/workspace-context";
+import { useNativeVoiceCall } from "./use-native-voice-call";
+import { useCallNotification } from "./use-call-notification";
+import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
+import { voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
+import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
+import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
+import { acceptVoiceCallWithFallback } from "./voice-call-accept";
+import type { VoiceCallDeviceError, VoiceCallOverlayState } from "./voice-call-overlay-types";
+
+type ChatVoiceCallContextValue = {
+  voiceCall: VoiceCallOverlayState;
+  /** Warms up the devices, then rings; every failure lands on the call panel. */
+  startCall: (
+    roomId: string,
+    label: string,
+    callKind: VoiceCallKind,
+    options?: { withCamera?: boolean },
+  ) => Promise<boolean>;
+  acceptCall: () => Promise<boolean>;
+  declineCall: () => Promise<void>;
+  inCall: boolean;
+  /** Panel, pill or fullscreen; the chat's call bar shows while it is the pill. */
+  panelMode: VoiceCallPanelMode;
+  /** Brings the call panel back from the pill. */
+  expandCall: () => void;
+  /** The panel's own hang-up: ends a DM (or a group call you started) for everyone, else leaves. */
+  hangUp: () => void;
+};
+
+const ChatVoiceCallContext = createContext<ChatVoiceCallContextValue | null>(null);
+
+export function useChatVoiceCall(): ChatVoiceCallContextValue {
+  const ctx = useContext(ChatVoiceCallContext);
+  if (!ctx) {
+    throw new Error("useChatVoiceCall must be used within ChatVoiceCallHost");
+  }
+  return ctx;
+}
+
+/**
+ * Hosts the native chat voice/video call above workspace routes so a call
+ * survives navigation (chat → tasks → …) and stays reachable for incoming
+ * invites while the user is on another screen.
+ */
+export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
+  const { workspace, user } = useWorkspace();
+  const workspaceId = workspace.id;
+  const currentUserId = user.id;
+  const { data: rooms = [] } = useChatRooms(workspaceId);
+  const allowedRoomIds = useMemo(
+    () =>
+      new Set(
+        rooms
+          .filter((room) => room.kind === "dm" || room.kind === "group" || room.kind === "channel")
+          .map((room) => room.id),
+      ),
+    [rooms],
+  );
+  const mutedRoomIds = useMemo(
+    () => new Set(rooms.filter((room) => room.notifications_muted).map((room) => room.id)),
+    [rooms],
+  );
+  const roomKindById = useMemo(() => {
+    const map = new Map<string, VoiceCallKind>();
+    for (const room of rooms) {
+      if (room.kind === "dm" || room.kind === "group" || room.kind === "channel") {
+        map.set(room.id, room.kind);
+      }
+    }
+    return map;
+  }, [rooms]);
+  // mutateAsync is stable across renders; the mutation object is not.
+  const { mutateAsync: mintVoiceTokenAsync } = useChatVoiceToken();
+  const mintVoiceToken = useCallback(
+    async (roomId: string, callId: string) => mintVoiceTokenAsync({ roomId, callId }),
+    [mintVoiceTokenAsync],
+  );
+  const voice = useNativeVoiceCall({
+    workspaceId,
+    currentUserId,
+    mintToken: mintVoiceToken,
+    allowedRoomIds,
+    mutedRoomIds,
+    roomKindById,
+  });
+  const { startCall: ringCall, acceptCall: answerCall, reportStartFailure } = voice;
+  const incoming = voice.voiceCall.status === "incoming" ? voice.voiceCall : null;
+  useCallNotification(voice.voiceCall, incoming
+    ? `${paths.workspace(workspace.organization_slug, workspace.slug).chatConversation(incoming.roomId)}&call=${encodeURIComponent(incoming.callId)}`
+    : "");
+  // A device that would not start while answering: the call keeps ringing
+  // and the panel says which device and why, so answering again is the retry.
+  const [acceptError, setAcceptError] = useState<{ callId: string; device: VoiceCallDeviceError } | null>(null);
+
+  const startingRef = useRef(false);
+
+  const startCall = useCallback(
+    async (roomId: string, label: string, callKind: VoiceCallKind, options?: { withCamera?: boolean }) => {
+      // A second press while devices warm up or the invite is in flight would
+      // ring twice, and the callee's busy decline of it reads as "declined" here.
+      if (startingRef.current) return false;
+      startingRef.current = true;
+      const withCamera = options?.withCamera ?? false;
+      const target = { roomId, peerName: label, callKind, withCamera };
+      try {
+        const prep = withCamera ? await prepareVideoCapture() : await prepareVoiceCapture();
+        if (!prep.ok) {
+          reportStartFailure({ ...target, reason: "device", device: prep.device });
+          return false;
+        }
+        return await ringCall(roomId, label, callKind, { withCamera });
+      } catch (err) {
+        reportStartFailure({ ...target, reason: "start_failed", error: err });
+        return false;
+      } finally {
+        startingRef.current = false;
+      }
+    },
+    [ringCall, reportStartFailure],
+  );
+
+  const acceptCall = useCallback(async () => {
+    const current = voice.voiceCall;
+    if (current.status !== "incoming") return false;
+    const prep = await prepareVoiceCapture();
+    if (!prep.ok) {
+      setAcceptError({ callId: current.callId, device: prep.device });
+      return false;
+    }
+    setAcceptError(null);
+    return answerCall();
+  }, [voice.voiceCall, answerCall]);
+
+  const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
+  const expandCall = useCallback(() => setPanelMode("expanded"), []);
+  const { leaveCall, endCallForAll } = voice;
+  const current = voice.voiceCall;
+  const hangUp = useCallback(() => {
+    if (current.status === "idle" || current.status === "ended" || current.status === "incoming") return;
+    if (voiceCallPrimaryLeaveEndsForAll(current.callKind, current.outgoing)) void endCallForAll();
+    else leaveCall();
+  }, [current, endCallForAll, leaveCall]);
+
+  const retryEnded = useCallback(() => {
+    const current = voice.voiceCall;
+    if (current.status !== "ended") return;
+    void startCall(current.roomId, current.peerName, current.callKind, {
+      withCamera: current.withCamera ?? false,
+    });
+  }, [voice.voiceCall, startCall]);
+
+  const value = useMemo<ChatVoiceCallContextValue>(
+    () => ({
+      voiceCall: voice.voiceCall,
+      startCall,
+      acceptCall,
+      declineCall: voice.declineCall,
+      inCall: voice.inCall,
+      panelMode,
+      expandCall,
+      hangUp,
+    }),
+    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall, panelMode, expandCall, hangUp],
+  );
+
+  const incomingDeviceError =
+    acceptError && voice.voiceCall.status === "incoming" && voice.voiceCall.callId === acceptError.callId
+      ? acceptError.device
+      : null;
+
+  return (
+    <ChatVoiceCallContext.Provider value={value}>
+      {children}
+      <VoiceCallOverlay
+        workspaceId={workspaceId}
+        state={voice.voiceCall}
+        incomingDeviceError={incomingDeviceError}
+        onAccept={() => void acceptVoiceCallWithFallback(acceptCall, voice.declineCall)}
+        onDecline={() => void voice.declineCall()}
+        onLeave={voice.leaveCall}
+        onDisconnected={voice.finalizeCallOnDisconnect}
+        onEndForAll={(init) => void voice.endCallForAll(init)}
+        onConnected={voice.markVoiceConnected}
+        onRetryEnded={retryEnded}
+        onDismissEnded={voice.dismissEnded}
+        panelMode={panelMode}
+        onPanelModeChange={setPanelMode}
+      />
+    </ChatVoiceCallContext.Provider>
+  );
+}

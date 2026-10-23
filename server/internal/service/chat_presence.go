@@ -1,0 +1,247 @@
+package service
+
+import (
+	"context"
+	"log/slog"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+// Presence is state, not a stream of heartbeats. Every shell page beats every
+// 15s; the tracker records the beat with a TTL and publishes to the workspace
+// only when the caller's state changes: offline → online on the first beat,
+// online → offline when the entry expires. The beat
+// answers with who is online, so a page that opens late learns its peers from
+// that answer rather than from a frame per peer per beat.
+const (
+	// presenceTTL outlives a beat from a backgrounded tab: Chrome wakes the
+	// timers of a tab hidden for five minutes once a minute, so its 15s beat
+	// arrives every ~60s, and a late request on top must not flap it offline.
+	// A closed tab says so (pagehide) and shortens the entry to
+	// presenceLeaveGrace; only a crash or a lost network waits out the TTL.
+	presenceTTL = 90 * time.Second
+	// presenceLeaveGrace: a closed tab shortens its person's entry instead of
+	// dropping it, so another open tab's next beat (every 15s) keeps them
+	// online without a frame; with no tab left the sweep announces the expiry.
+	presenceLeaveGrace = 20 * time.Second
+	// presenceSweepInterval bounds how often one process looks for expired
+	// entries; an expiry is published within TTL + interval + one beat.
+	presenceSweepInterval = 5 * time.Second
+	// presenceSweepBatch caps one sweep; the next one takes the rest.
+	presenceSweepBatch = 500
+	// presenceSnapshotLimit caps the online list one beat returns (the
+	// product's largest team is 1,000 people).
+	presenceSnapshotLimit = 1000
+)
+
+// presenceEntry is one person online in one workspace.
+type presenceEntry struct {
+	workspaceID string
+	userID      string
+}
+
+// presenceStore keeps who is online where until when. Each operation is
+// atomic, so two processes seeing the same beat or the same expiry agree on
+// which one of them saw the transition.
+type presenceStore interface {
+	// beat marks the user online until now + presenceTTL; true when they
+	// were not (no entry, or one that lapsed before a sweep removed it).
+	// Only a visible beat (the page is in front of someone) moves lastBeat.
+	beat(ctx context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error)
+	// leave brings an existing entry's expiry forward to until (never later,
+	// never creating one): presence is per person, so one tab closing must
+	// not end what another tab of theirs keeps alive.
+	leave(ctx context.Context, workspaceID, userID string, until time.Time) error
+	// online lists the users whose entry outlives now.
+	online(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
+	// expire removes and returns the entries that lapsed by now.
+	expire(ctx context.Context, now time.Time) ([]presenceEntry, error)
+	// lastBeat is the user's latest visible beat in any workspace; false when
+	// they never beat visibly (or, in Redis, not within presenceLastBeatTTL).
+	// A hidden tab keeps beating, so it keeps presence but not this.
+	lastBeat(ctx context.Context, userID string) (time.Time, bool, error)
+}
+
+type presenceTracker struct {
+	store     presenceStore
+	pub       EventPublisher
+	now       func() time.Time
+	lastSweep atomic.Int64 // unix nanos of the last sweep this process ran
+}
+
+func newPresenceTracker(store presenceStore, pub EventPublisher) *presenceTracker {
+	return &presenceTracker{store: store, pub: pub, now: time.Now}
+}
+
+// SetPresenceStore keeps presence in Redis, shared by every replica. Without
+// Redis (nil) it stays in this process, which is right only for a single
+// replica — the same condition under which events fan out in-process only.
+func (s *ChatService) SetPresenceStore(rdb *redis.Client) {
+	var store presenceStore = newMemoryPresenceStore()
+	if rdb != nil {
+		store = newRedisPresenceStore(rdb, redisPresencePrefix)
+	}
+	s.presenceTracker.Store(newPresenceTracker(store, s.pub))
+}
+
+// LastPresenceBeat is when the user last beat from a visible page in any
+// workspace; the push consumer skips a chat push to someone who is at a
+// keyboard already. A tab left open in the background does not count.
+func (s *ChatService) LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error) {
+	return s.presence().store.lastBeat(ctx, userID)
+}
+
+// presence returns the tracker SetPresenceStore installed, or an in-process
+// one for a service that was never given a store (tests, single replica).
+func (s *ChatService) presence() *presenceTracker {
+	if t := s.presenceTracker.Load(); t != nil {
+		return t
+	}
+	s.presenceTracker.CompareAndSwap(nil, newPresenceTracker(newMemoryPresenceStore(), s.pub))
+	return s.presenceTracker.Load()
+}
+
+// beat records a heartbeat and returns who is online in the workspace, the
+// caller included. A store error costs the beat its frame and its snapshot
+// (nil), never the request: presence is best-effort.
+func (t *presenceTracker) beat(ctx context.Context, workspaceID, userID string, visible bool) ([]string, error) {
+	now := t.now()
+	cameOnline, err := t.store.beat(ctx, workspaceID, userID, now, visible)
+	if err != nil {
+		slog.WarnContext(ctx, "presence: beat not recorded", "error", err, "workspace_id", workspaceID, "user_id", userID)
+		return nil, nil
+	}
+	online, err := t.store.online(ctx, workspaceID, now)
+	if err != nil {
+		slog.WarnContext(ctx, "presence: snapshot unavailable", "error", err, "workspace_id", workspaceID)
+		online = nil
+	}
+	if cameOnline {
+		t.publish(ctx, "user.presence", presenceEntry{workspaceID: workspaceID, userID: userID})
+	}
+	t.maybeSweep(ctx, now)
+	return online, nil
+}
+
+// leave records an explicit leave (the page closed or left the workspace). It
+// publishes nothing: another tab of the same person beats within the grace
+// and keeps them online silently; otherwise the sweep announces the expiry.
+func (t *presenceTracker) leave(ctx context.Context, workspaceID, userID string) error {
+	now := t.now()
+	if err := t.store.leave(ctx, workspaceID, userID, now.Add(presenceLeaveGrace)); err != nil {
+		slog.WarnContext(ctx, "presence: leave not recorded", "error", err, "workspace_id", workspaceID, "user_id", userID)
+		return nil
+	}
+	t.maybeSweep(ctx, now)
+	return nil
+}
+
+// maybeSweep runs a sweep when this process has not run one for an interval.
+// Beats arrive from every open page, so they drive the sweep and no worker
+// is needed; with nobody beating there is nobody to tell anyway.
+func (t *presenceTracker) maybeSweep(ctx context.Context, now time.Time) {
+	last := t.lastSweep.Load()
+	if now.UnixNano()-last < int64(presenceSweepInterval) {
+		return
+	}
+	if !t.lastSweep.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+	t.sweep(ctx)
+}
+
+// sweep publishes user.offline for every entry that expired. The store
+// removes each entry atomically, so one process announces each expiry.
+func (t *presenceTracker) sweep(ctx context.Context) {
+	expired, err := t.store.expire(ctx, t.now())
+	if err != nil {
+		slog.WarnContext(ctx, "presence: sweep failed", "error", err)
+		return
+	}
+	for _, e := range expired {
+		t.publish(ctx, "user.offline", e)
+	}
+}
+
+func (t *presenceTracker) publish(ctx context.Context, topic string, e presenceEntry) {
+	t.pub.Publish(ctx, e.workspaceID, Event{
+		Type:    topic,
+		Payload: map[string]string{"user_id": e.userID},
+	})
+}
+
+// memoryPresenceStore is the single-process store.
+type memoryPresenceStore struct {
+	mu      sync.Mutex
+	entries map[presenceEntry]time.Time // → expires
+	beats   map[string]time.Time        // user → last visible beat, any workspace
+}
+
+func newMemoryPresenceStore() *memoryPresenceStore {
+	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}, beats: map[string]time.Time{}}
+}
+
+func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := presenceEntry{workspaceID: workspaceID, userID: userID}
+	prev, ok := m.entries[key]
+	m.entries[key] = now.Add(presenceTTL)
+	if visible {
+		m.beats[userID] = now
+	}
+	return !ok || !prev.After(now), nil
+}
+
+func (m *memoryPresenceStore) lastBeat(_ context.Context, userID string) (time.Time, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.beats[userID]
+	return t, ok, nil
+}
+
+func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID string, until time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := presenceEntry{workspaceID: workspaceID, userID: userID}
+	if exp, ok := m.entries[key]; ok && exp.After(until) {
+		m.entries[key] = until
+	}
+	return nil
+}
+
+func (m *memoryPresenceStore) online(_ context.Context, workspaceID string, now time.Time) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []string{}
+	for key, expires := range m.entries {
+		if key.workspaceID == workspaceID && expires.After(now) {
+			out = append(out, key.userID)
+		}
+	}
+	sort.Strings(out)
+	if len(out) > presenceSnapshotLimit {
+		out = out[:presenceSnapshotLimit]
+	}
+	return out, nil
+}
+
+func (m *memoryPresenceStore) expire(_ context.Context, now time.Time) ([]presenceEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []presenceEntry
+	for key, expires := range m.entries {
+		if len(out) == presenceSweepBatch {
+			break
+		}
+		if !expires.After(now) {
+			out = append(out, key)
+			delete(m.entries, key)
+		}
+	}
+	return out, nil
+}

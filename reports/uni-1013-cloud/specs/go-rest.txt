@@ -1,0 +1,4 @@
+# UNI-1013 cloud: Go service + rest shards (static checks ride on rest), as ci.yml backend-test, with the CI preview env the r1 spec forgot
+PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-preview-capability-secret-0000000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 bash scripts/test-go.sh --race --shard=service --skip-static --skip-floor
+PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-preview-capability-secret-0000000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 bash scripts/test-go.sh --race --shard=rest --skip-floor
+redis-server --version; redis-cli info server | head -3

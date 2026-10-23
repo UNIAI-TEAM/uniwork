@@ -19,6 +19,7 @@ import (
 //	GET  /api/v1/orgs/{orgID}/audit/exports
 //	POST /api/v1/orgs/{orgID}/audit/exports
 //	GET  /api/v1/orgs/{orgID}/audit/exports/{exportID}
+//	GET  /api/v1/orgs/{orgID}/audit/exports/{exportID}/download
 //	GET  /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history
 func registerAudit(r api, h Routes) {
 	r.Get("/orgs/{orgID}/audit", h.ListAuditEvents, apiOp{
@@ -64,6 +65,12 @@ func registerAudit(r api, h Routes) {
 		description: "Trạng thái một bản xuất và link tải khi đã xong. Link hết hạn sau 24 giờ.",
 		tags:        []string{"audit"},
 		sdo:         sdo.AuditExportSDO{},
+		auth:        true,
+	})
+	r.Get("/orgs/{orgID}/audit/exports/{exportID}/download", h.DownloadAuditExport, apiOp{
+		summary:     "Download an audit export",
+		description: "Tải bytes qua FileService proxy; quyền admin và cửa sổ 24 giờ được kiểm tra lại mỗi lần tải.",
+		tags:        []string{"audit"},
 		auth:        true,
 	})
 	r.Get("/orgs/{orgID}/audit/{eventID}", h.GetAuditEvent, apiOp{

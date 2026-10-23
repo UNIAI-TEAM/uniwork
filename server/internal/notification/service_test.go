@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -48,8 +49,8 @@ func TestServiceInboxAndIsolation(t *testing.T) {
 	if err := svc.MarkUnread(f.ctx, f.member.ID, ids[:1]); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil || n != 2 {
-		t.Fatalf("mark all = %d %v", n, err)
+	if read, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil || len(read) != 2 {
+		t.Fatalf("mark all = %v %v", read, err)
 	}
 	unread, _ := svc.List(f.ctx, f.member.ID, ListInput{UnreadOnly: true})
 	if len(unread) != 0 {
@@ -63,6 +64,15 @@ func TestServiceInboxAndIsolation(t *testing.T) {
 	}
 	if err := svc.Archive(f.ctx, f.owner.ID, ids); !errors.Is(err, service.ErrNotFound) {
 		t.Fatalf("foreign archive = %v", err)
+	}
+	if err := svc.Unarchive(f.ctx, f.owner.ID, ids); !errors.Is(err, service.ErrNotFound) {
+		t.Fatalf("foreign unarchive = %v", err)
+	}
+	if err := svc.Unarchive(f.ctx, f.member.ID, ids[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if back, _ := svc.List(f.ctx, f.member.ID, ListInput{}); len(back) != 1 || back[0].ID != ids[0] {
+		t.Fatalf("unarchived rows = %+v", back)
 	}
 }
 
@@ -82,15 +92,15 @@ func TestServicePreferencesAndPush(t *testing.T) {
 	}
 	if !svc.PushConfig().Enabled {
 		// Push is off on this service: subscribing is a not_found.
-		if err := svc.SubscribePush(f.ctx, f.member.ID, "https://p/x", "p", "a", "ua"); !errors.Is(err, service.ErrNotFound) {
+		if err := svc.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
 			t.Fatalf("subscribe with push off = %v", err)
 		}
 	}
 	on := NewService(f.q, PushConfig{Enabled: true, PublicKey: "BOr"})
-	if err := on.SubscribePush(f.ctx, f.member.ID, "http://insecure", "p", "a", ""); err == nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "http://insecure", "p", "a", "", ""); err == nil {
 		t.Fatal("insecure endpoint accepted")
 	}
-	if err := on.SubscribePush(f.ctx, f.member.ID, "https://p/x", "p", "a", "ua"); err != nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); err != nil {
 		t.Fatal(err)
 	}
 	if subs, _ := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID); len(subs) != 1 {
@@ -103,4 +113,160 @@ func TestServicePreferencesAndPush(t *testing.T) {
 		t.Fatal("unsubscribe left the row active")
 	}
 	_ = db.PushSubscription{}
+}
+
+// Undo after the group moved on: while a row sat archived or read, a later
+// event opened a fresh row of its group. Putting the old one back must not
+// break the one-open-row-per-group index (a 500 on undo), so it comes back
+// read, or stays read.
+func TestServiceRestoreIntoReopenedGroup(t *testing.T) {
+	f := newFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	task := f.newTask(t, "Nhóm")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	old := f.inbox(t, f.member.ID)[0]
+	reopen := func() db.Notification {
+		t.Helper()
+		row, err := f.q.UpsertNotification(f.ctx, db.UpsertNotificationParams{
+			ID: util.NewID(), UserID: old.UserID, OrganizationID: old.OrganizationID,
+			WorkspaceID: old.WorkspaceID, Kind: old.Kind, GroupKey: old.GroupKey,
+			ResourceType: old.ResourceType, ResourceID: old.ResourceID,
+			ActorKind: old.ActorKind, ActorID: old.ActorID, TitleKey: old.TitleKey, Params: old.Params,
+		})
+		if err != nil || row.ID == old.ID {
+			t.Fatalf("reopen = %+v err=%v", row, err)
+		}
+		return row
+	}
+	openCount := func() int64 {
+		t.Helper()
+		c, err := svc.UnreadCount(f.ctx, f.member.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.Total
+	}
+
+	if err := svc.Archive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	fresh := reopen()
+	if err := svc.Unarchive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatalf("unarchive into reopened group = %v", err)
+	}
+	if rows := f.inbox(t, f.member.ID); len(rows) != 2 || openCount() != 1 {
+		t.Fatalf("after unarchive: %d rows, %d unread", len(rows), openCount())
+	}
+
+	// Both read, then both marked unread in one call: only the newer reopens.
+	if _, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkUnread(f.ctx, f.member.ID, []string{old.ID, fresh.ID}); err != nil {
+		t.Fatalf("mark unread into one group = %v", err)
+	}
+	if openCount() != 1 {
+		t.Fatalf("unread after mark unread = %d", openCount())
+	}
+	for _, r := range f.inbox(t, f.member.ID) {
+		if (r.ID == fresh.ID) != !r.ReadAt.Valid {
+			t.Fatalf("row %s read_at=%v, want only the newer one unread", r.ID, r.ReadAt)
+		}
+	}
+
+	// Both archived unread, then restored together: the newer one stays open.
+	if err := svc.MarkRead(f.ctx, f.member.ID, []string{fresh.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkUnread(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Archive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	newest := reopen()
+	if err := svc.Archive(f.ctx, f.member.ID, []string{newest.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Unarchive(f.ctx, f.member.ID, []string{old.ID, newest.ID}); err != nil {
+		t.Fatalf("unarchive two of one group = %v", err)
+	}
+	if openCount() != 1 {
+		t.Fatalf("unread after joint unarchive = %d", openCount())
+	}
+}
+
+// R1-4: a params value that is not a string (e.g. {"count":3}) must not stop
+// the key removal the access_lost path relies on, and the other keys keep
+// their value types.
+func TestDropParamKeysKeepsNonStringValues(t *testing.T) {
+	got := dropParamKeys(`{"snippet":"x","count":3,"document":"Tài liệu"}`, "snippet", "document")
+	if contains(got, "snippet") || contains(got, "document") {
+		t.Fatalf("snippet keys survived a non-string value: %s", got)
+	}
+	if !contains(got, `"count":3`) {
+		t.Fatalf("a non-string key was dropped or rewritten: %s", got)
+	}
+	if got := dropParamKeys(`{"snippet":"x","count":3}`, "snippet"); !contains(got, `"count":3`) {
+		t.Fatalf("other keys did not survive: %s", got)
+	}
+	if got := dropParamKeys("not json", "snippet"); got != "not json" {
+		t.Fatalf("malformed params were rewritten: %s", got)
+	}
+	if got := dropParamKeys("", "snippet"); got != "" {
+		t.Fatalf("empty params were rewritten: %q", got)
+	}
+}
+
+func TestServiceRegistersExpoTokensWithoutVAPID(t *testing.T) {
+	f := newFixture(t)
+	off := NewService(f.q, PushConfig{})
+	on := NewService(f.q, PushConfig{Enabled: true})
+	if err := off.SubscribePush(f.ctx, f.member.ID, "device-family-1", "ExponentPushToken[abc-123]", "", "", "okhttp", "android"); err != nil {
+		t.Fatal(err)
+	}
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "ExpoPushToken[def]", "", "", "", "ios"); err != nil {
+		t.Fatal(err)
+	}
+	subs, err := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("subs = %+v", subs)
+	}
+	agents := map[string]bool{}
+	for _, s := range subs {
+		if s.P256dh != "" || s.Auth != "" {
+			t.Fatalf("expo sub carries keys: %+v", s)
+		}
+		// The session it came from is what a device revoke closes it by.
+		if s.Endpoint == "ExponentPushToken[abc-123]" && s.SessionID.String != "device-family-1" {
+			t.Fatalf("expo sub lost its session: %+v", s)
+		}
+		agents[s.UserAgent.String] = true
+	}
+	if !agents["expo/android"] || !agents["expo/ios"] {
+		t.Fatalf("user agents = %v", agents)
+	}
+	var ve service.ValidationError
+	for _, svc := range []*Service{off, on} {
+		for _, c := range []struct{ ep, platform string }{{"ExponentPushToken[abc]", ""}, {"ExponentPushToken[abc]", "web"}, {"ExponentPushToken[]", "ios"}} {
+			if err := svc.SubscribePush(f.ctx, f.member.ID, "", c.ep, "", "", "", c.platform); !errors.As(err, &ve) {
+				t.Errorf("%q/%q → %v, want ValidationError", c.ep, c.platform, err)
+			}
+		}
+	}
+	for _, ep := range []string{"notatoken", "http://insecure"} {
+		if err := on.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.As(err, &ve) {
+			t.Errorf("VAPID on: %q → %v, want ValidationError", ep, err)
+		}
+		if err := off.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.Is(err, service.ErrNotFound) {
+			t.Errorf("VAPID off: %q → %v, want not found", ep, err)
+		}
+	}
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
+		t.Fatalf("web push with VAPID off = %v, want not found", err)
+	}
 }

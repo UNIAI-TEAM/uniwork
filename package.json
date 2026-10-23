@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "electron",
       "esbuild"
     ],
     "packageExtensions": {
@@ -15,6 +16,12 @@
     },
     "overrides": {
       "js-yaml": "4.3.2",
+      "brace-expansion@<1.1.21": "1.1.21",
+      "brace-expansion@>=4.0.0 <5.0.12": "5.0.12",
+      "nanoid@>=4.0.0 <5.1.16": "5.1.16",
+      "source-map-js@<1.2.2": "1.2.2",
+      "vite": "8.2.4",
+      "sharp@<0.35.5": "0.35.5",
       "@tiptap/core": "3.30.6",
       "@tiptap/extension-blockquote": "3.30.6",
       "@tiptap/extension-bold": "3.30.6",
@@ -55,22 +62,37 @@
       "@tiptap/react": "3.30.6",
       "@tiptap/starter-kit": "3.30.6",
       "@tiptap/suggestion": "3.30.6"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-93748",
+        "CVE-2026-93687",
+        "CVE-2026-85393"
+      ]
     }
   },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "prepare": "git config core.hooksPath .githooks || node -e 0",
     "build": "turbo build",
     "dev": "turbo dev",
-    "typecheck": "turbo typecheck",
+    "typecheck": "turbo typecheck --filter=!@uniwork/chat-mobile",
     "lint": "bash scripts/lint-gate.sh",
-    "test": "turbo test --filter=!@uniwork/e2e",
+    "test": "turbo test --filter=!@uniwork/e2e --filter=!@uniwork/chat-mobile",
+    "seo:check": "node scripts/seo-smoke.mjs",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
+    "generate:lucide-aliases": "node scripts/generate-lucide-aliases.mjs",
     "brand:build": "bash scripts/brand/build.sh",
+    "landing:gen": "python3 scripts/landing/gen-images.py",
+    "landing:marks": "node scripts/landing/build-provider-marks.mjs",
     "ui:add": "cd packages/ui && npx shadcn@latest add",
     "knip": "knip"
   },
   "devDependencies": {
+    "@lobehub/icons-static-svg": "^1.95.0",
+    "esbuild": "catalog:",
     "knip": "^6.33.0",
-    "turbo": "^2.5.0"
+    "turbo": "^2.5.0",
+    "typescript": "catalog:",
+    "yaml": "2.9.0"
   }
 }

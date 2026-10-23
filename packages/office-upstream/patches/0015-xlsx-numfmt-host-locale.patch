@@ -1,0 +1,31 @@
+diff --git a/apps/sheets/src/renderer/numfmt-fix.ts b/apps/sheets/src/renderer/numfmt-fix.ts
+--- a/apps/sheets/src/renderer/numfmt-fix.ts
++++ b/apps/sheets/src/renderer/numfmt-fix.ts
+@@ -102,9 +102,26 @@ export function hostLocalePattern(pattern: string): string {
+   return stripped
+ }
+ 
++/// numfmt locale for digit grouping and the decimal mark (UniWork patch 0015).
++/// Univer's own formatter stays on "en" until told otherwise, so the shell
++/// sets it and this module's re-renders together from the editor language.
++let hostNumfmtLocale = 'en'
++
++export function applyHostNumfmtLocale(runtime: UniverRuntime, locale: string): void {
++  hostNumfmtLocale = locale
++  const workbook = runtime.univerAPI.getActiveWorkbook() as unknown as
++    | { setNumfmtLocal?: (locale: string) => unknown }
++    | null
++  workbook?.setNumfmtLocal?.(locale)
++}
++
+ function safeFormat(pattern: string, value: number | string): string | null {
+   try {
+-    return numfmt.format(hostLocalePattern(pattern), value, { nbsp: true, throws: false })
++    return numfmt.format(hostLocalePattern(pattern), value, {
++      nbsp: true,
++      throws: false,
++      locale: hostNumfmtLocale,
++    })
+   } catch {
+     return null
+   }

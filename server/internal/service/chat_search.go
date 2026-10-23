@@ -39,39 +39,96 @@ func escapeILIKEPattern(query string) string {
 	return b.String()
 }
 
-// SearchRoomMessages finds text messages in a room matching query (does not update last_read_at).
-func (s *ChatService) SearchRoomMessages(
-	ctx context.Context, userID, workspaceID, roomID string, in SearchChatMessagesInput,
-) ([]ChatMessageRow, error) {
-	query := strings.TrimSpace(in.Query)
+// foldSearchPattern checks a query's length and folds it into the ILIKE
+// pattern the queries compare with uw_fold_search(body), so "hop" finds "Họp".
+func foldSearchPattern(raw string) (string, error) {
+	query := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(query) < minChatSearchQueryRunes {
-		return nil, Invalid("từ khóa tìm kiếm quá ngắn")
+		return "", Invalid("từ khóa tìm kiếm quá ngắn")
 	}
 	if utf8.RuneCountInString(query) > maxChatSearchQueryRunes {
-		return nil, Invalid("từ khóa tìm kiếm quá dài")
+		return "", Invalid("từ khóa tìm kiếm quá dài")
 	}
-	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-	limit := in.Limit
+	return "%" + escapeILIKEPattern(foldForSearch(query)) + "%", nil
+}
+
+func chatSearchLimit(limit int) int32 {
 	if limit <= 0 {
 		limit = defaultChatSearchLimit
 	}
 	if limit > maxChatSearchLimit {
 		limit = maxChatSearchLimit
 	}
-	var before pgtype.Timestamptz
-	if in.Before != nil {
-		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
+	return int32(limit)
+}
+
+func chatSearchBefore(before *time.Time) pgtype.Timestamptz {
+	if before == nil {
+		return pgtype.Timestamptz{}
 	}
-	pattern := "%" + escapeILIKEPattern(query) + "%"
+	return pgtype.Timestamptz{Time: *before, Valid: true}
+}
+
+// The sidebar's two lists: Tin nhắn (the organization's DMs and groups) and a
+// workspace (its room and channels).
+var chatSearchScopes = map[string]bool{"messages": true, "workspace": true}
+
+// SearchMessages finds text messages across every room the reader is an
+// active member of, within one scope (UniChat's sidebar search), newest
+// first. It moves no read pointer. Only text messages match, and they carry
+// no file or voice, so there is no media to sign.
+func (s *ChatService) SearchMessages(
+	ctx context.Context, userID, workspaceID, scope string, in SearchChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	if !chatSearchScopes[scope] {
+		return nil, Invalid("phạm vi tìm kiếm không hợp lệ")
+	}
+	pattern, err := foldSearchPattern(in.Query)
+	if err != nil {
+		return nil, err
+	}
+	member, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.SearchChatMessagesForMember(ctx, db.SearchChatMessagesForMemberParams{
+		UserID:         userID,
+		OrganizationID: member.OrganizationID,
+		Scope:          scope,
+		WorkspaceID:    workspaceID,
+		SearchPattern:  pattern,
+		BeforeAt:       chatSearchBefore(in.Before),
+		ResultLimit:    chatSearchLimit(in.Limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(rows))
+	for _, row := range rows {
+		// Same columns as the room search's row: one mapping for both.
+		out = append(out, chatMessageRowFromSearchRow(db.SearchChatMessagesByRoomRow(row), userID))
+	}
+	return out, nil
+}
+
+// SearchRoomMessages finds text messages in a room matching query (does not update last_read_at).
+func (s *ChatService) SearchRoomMessages(
+	ctx context.Context, userID, workspaceID, roomID string, in SearchChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	pattern, err := foldSearchPattern(in.Query)
+	if err != nil {
+		return nil, err
+	}
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.q.SearchChatMessagesByRoom(ctx, db.SearchChatMessagesByRoomParams{
 		RoomID:        roomID,
 		WorkspaceID:   roomAnchorWorkspaceID(room),
-		SearchPattern: []byte(pattern),
-		BeforeAt:      before,
-		ResultLimit:   int32(limit),
+		SearchPattern: pattern,
+		BeforeAt:      chatSearchBefore(in.Before),
+		ResultLimit:   chatSearchLimit(in.Limit),
 	})
 	if err != nil {
 		return nil, err
@@ -80,6 +137,8 @@ func (s *ChatService) SearchRoomMessages(
 	for _, row := range rows {
 		out = append(out, chatMessageRowFromSearchRow(row, userID))
 	}
+	s.signChatMedia(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 
@@ -111,62 +170,53 @@ func (s *ChatService) ListRoomMessagesAround(
 	if half < 1 {
 		half = 1
 	}
-	anchorAt := pgtype.Timestamptz{Time: target.CreatedAt.Time, Valid: true}
-	beforeRows, err := s.q.ListChatMessagesBeforeOrAtInRoom(ctx, db.ListChatMessagesBeforeOrAtInRoomParams{
-		RoomID: roomID, WorkspaceID: wsID, BeforeOrAt: anchorAt, MsgLimit: int32(half),
-	})
-	if err != nil {
-		return nil, err
-	}
-	afterRows, err := s.q.ListChatMessagesAfterInRoom(ctx, db.ListChatMessagesAfterInRoomParams{
-		RoomID: roomID, WorkspaceID: wsID, AfterAt: anchorAt, MsgLimit: int32(half),
-	})
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[string]ChatMessageRow, len(beforeRows)+len(afterRows))
-	for i := len(beforeRows) - 1; i >= 0; i-- {
-		row := chatMessageRowFromBeforeOrAtRow(beforeRows[i], userID)
-		byID[row.ID] = row
-	}
-	for _, row := range afterRows {
-		converted := chatMessageRowFromAfterRow(row, userID)
-		byID[converted.ID] = converted
-	}
-	out := make([]ChatMessageRow, 0, len(byID))
-	for _, row := range byID {
-		out = append(out, row)
-	}
-	// Sort ASC by created_at.
-	for i := 0; i < len(out); i++ {
-		for j := i + 1; j < len(out); j++ {
-			if out[j].CreatedAt.Before(out[i].CreatedAt) {
-				out[i], out[j] = out[j], out[i]
-			}
+	// A thread reply never shows on the main timeline: center on its root.
+	// If the root is gone, keep the reply's instant but leave the reply out.
+	center := target
+	if target.ThreadRootID.Valid {
+		root, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
+			ID: target.ThreadRootID.String, RoomID: roomID, WorkspaceID: wsID,
+		})
+		if err == nil {
+			center = root
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
 		}
 	}
+	at := pgtype.Timestamptz{Time: center.CreatedAt.Time, Valid: true}
+	older, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
+		RoomID: roomID, WorkspaceID: wsID, BeforeAt: at, BeforeID: center.ID, MsgLimit: int32(half),
+	})
+	if err != nil {
+		return nil, err
+	}
+	newer, err := s.q.ListChatMessagesByRoomAfter(ctx, db.ListChatMessagesByRoomAfterParams{
+		RoomID: roomID, WorkspaceID: wsID, AfterAt: at, AfterID: center.ID, MsgLimit: int32(half),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(older)+1+len(newer))
+	for i := len(older) - 1; i >= 0; i-- {
+		out = append(out, chatMessageRowFromListRow(older[i], userID))
+	}
+	if !center.ThreadRootID.Valid {
+		u, err := s.q.GetUserByID(ctx, center.SenderID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, chatMessageRowFromDBForViewer(center, u.DisplayName, userID))
+	}
+	for _, row := range newer {
+		out = append(out, chatMessageRowFromListRow(db.ListChatMessagesByRoomRow(row), userID))
+	}
+	s.signChatMedia(ctx, room, out)
+	s.attachThreadParticipants(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 
 func chatMessageRowFromSearchRow(row db.SearchChatMessagesByRoomRow, viewerID string) ChatMessageRow {
-	out := chatMessageRowFromMessageFields(
-		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
-		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
-	)
-	out.ClientMsgID = row.ClientMsgID.String
-	return out
-}
-
-func chatMessageRowFromBeforeOrAtRow(row db.ListChatMessagesBeforeOrAtInRoomRow, viewerID string) ChatMessageRow {
-	out := chatMessageRowFromMessageFields(
-		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
-		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
-	)
-	out.ClientMsgID = row.ClientMsgID.String
-	return out
-}
-
-func chatMessageRowFromAfterRow(row db.ListChatMessagesAfterInRoomRow, viewerID string) ChatMessageRow {
 	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,

@@ -1,13 +1,23 @@
 "use client";
 
-import { Suspense, lazy, useEffect, useState } from "react";
-import { Phone, PhoneOff } from "lucide-react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { CircleDot, MicOff, Phone, RefreshCw, VideoOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { getActiveChatVoiceRecording } from "@uniwork/core/api/endpoints/chat-voice";
 import { useCallRingtone } from "./use-call-ringtone";
-import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
+import { voiceCallDeviceMessage, voiceCallEndedMessage } from "./voice-call-copy";
+import { VoiceCallEndedPanel } from "./voice-call-ended-panel";
+import { VoiceCallIdentityProvider, useVoiceCallIdentityValue } from "./voice-call-face";
+import { VoiceCallHangupIcon, VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
-import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+import { VoiceCallStrip } from "./voice-call-strip";
+import type {
+  VoiceCallDeviceError,
+  VoiceCallDisconnectInfo,
+  VoiceCallEndInit,
+  VoiceCallOverlayState,
+} from "./voice-call-overlay-types";
+import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
 
 // livekit-client is 130 KB gzip and only a connected call needs it, so it
 // loads on the transition to "active" rather than with the chat route
@@ -19,36 +29,101 @@ const ActiveVoiceCallSession = lazy(() =>
 
 export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
 
+/**
+ * A group call someone is asked to join may already be recording. The
+ * invite says so before they answer, not after their microphone is on.
+ */
+function useIncomingRecording(workspaceId: string, state: VoiceCallOverlayState): boolean {
+  const [recordingCallId, setRecordingCallId] = useState<string | null>(null);
+  const incoming = state.status === "incoming" && isMultiPartyVoiceCall(state.callKind) ? state : null;
+  const roomId = incoming?.roomId;
+  const callId = incoming?.callId;
+  useEffect(() => {
+    if (!roomId || !callId) return;
+    let cancelled = false;
+    void getActiveChatVoiceRecording(workspaceId, roomId, callId)
+      .then((rec) => {
+        if (!cancelled && rec?.status === "ACTIVE") setRecordingCallId(callId);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, roomId, callId]);
+  return callId != null && recordingCallId === callId;
+}
+
+/**
+ * Focus goes back where it was before the call panel appeared (the call
+ * button, the message box) once the call is gone, instead of to <body>.
+ */
+function useReturnFocus(open: boolean) {
+  const returnToRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (open) {
+      if (!returnToRef.current && document.activeElement instanceof HTMLElement) {
+        returnToRef.current = document.activeElement;
+      }
+      return;
+    }
+    const target = returnToRef.current;
+    returnToRef.current = null;
+    const active = document.activeElement;
+    if (target?.isConnected && (!active || active === document.body)) target.focus();
+  }, [open]);
+}
+
 export function VoiceCallOverlay({
+  workspaceId,
   state,
+  incomingDeviceError = null,
   onAccept,
   onDecline,
   onLeave,
+  onDisconnected,
   onEndForAll,
   onConnected,
+  onRetryEnded,
+  onDismissEnded,
+  panelMode,
+  onPanelModeChange,
 }: {
+  workspaceId: string;
   state: VoiceCallOverlayState;
+  /** The mic would not start while answering; the call keeps ringing. */
+  incomingDeviceError?: VoiceCallDeviceError | null;
   onAccept: () => void;
   onDecline: () => void;
-  onLeave: () => void;
-  onEndForAll: () => void;
+  onLeave: (init?: VoiceCallEndInit) => void;
+  onDisconnected: (info?: VoiceCallDisconnectInfo) => void;
+  onEndForAll: (init?: VoiceCallEndInit) => void;
   onConnected: () => void;
+  onRetryEnded: () => void;
+  onDismissEnded: () => void;
+  /** Panel, pill or fullscreen: the host keeps it, so the chat's call bar can bring the panel back. */
+  panelMode: VoiceCallPanelMode;
+  onPanelModeChange: (mode: VoiceCallPanelMode) => void;
 }) {
   const { t } = useTranslation();
-  const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
+  const incomingRecording = useIncomingRecording(workspaceId, state);
+  const identity = useVoiceCallIdentityValue(workspaceId, state);
+  useReturnFocus(state.status !== "idle");
 
-  const handleConnectFailed = () => {
-    toast.error(t("chat.voice_call_connect_failed"));
-    onLeave();
-  };
+  const handleConnectFailed = useCallback(() => {
+    const init: VoiceCallEndInit = { reason: "connect_failed" };
+    if (
+      state.status === "active" &&
+      (state.callKind === "dm" || (isMultiPartyVoiceCall(state.callKind) && state.outgoing))
+    ) {
+      onEndForAll(init);
+      return;
+    }
+    onLeave(init);
+  }, [state, onEndForAll, onLeave]);
 
   const cancelPreConnect = () => {
     if (state.status === "connecting" || state.status === "ringing") {
-      if (state.callKind === "group" && state.outgoing) {
-        onEndForAll();
-        return;
-      }
-      if (state.callKind === "dm") {
+      if (state.callKind === "dm" || (isMultiPartyVoiceCall(state.callKind) && state.outgoing)) {
         onEndForAll();
         return;
       }
@@ -57,120 +132,174 @@ export function VoiceCallOverlay({
   };
 
   useEffect(() => {
-    if (state.status === "idle") {
-      setPanelMode("expanded");
+    if ((state.status === "idle" || state.status === "ended") && panelMode !== "expanded") {
+      onPanelModeChange("expanded");
     }
-  }, [state.status]);
+  }, [state.status, panelMode, onPanelModeChange]);
 
   const ringtoneKind =
-    state.status === "incoming" ? "incoming" : state.status === "ringing" ? "outgoing" : null;
+    state.status === "incoming"
+      ? state.callKind === "channel"
+        ? null
+        : "incoming"
+      : state.status === "ringing"
+        ? "outgoing"
+        : null;
   useCallRingtone(ringtoneKind);
 
-  const handleMinimize = () => {
-    setPanelMode((current) => {
-      if (current === "fullscreen") return "expanded";
-      if (current === "expanded") return "minimized";
-      return current;
-    });
-  };
+  const handleMinimize = useCallback(() => {
+    if (panelMode === "fullscreen") onPanelModeChange("expanded");
+    else if (panelMode === "expanded") onPanelModeChange("minimized");
+  }, [panelMode, onPanelModeChange]);
 
-  const handleMaximize = () => {
-    setPanelMode((current) => {
-      if (current === "minimized") return "expanded";
-      if (current === "expanded") return "fullscreen";
-      return current;
-    });
-  };
+  const handleMaximize = useCallback(() => {
+    if (panelMode === "minimized") onPanelModeChange("expanded");
+    else if (panelMode === "expanded") onPanelModeChange("fullscreen");
+  }, [panelMode, onPanelModeChange]);
 
-  if (state.status === "incoming") {
-    const statusLabel =
-      state.callKind === "group"
+  // One always-mounted live region for how a call ended: the ended panel is
+  // a fresh element, and text present at insertion is not reliably read.
+  const endedAnnouncement = state.status === "ended" ? voiceCallEndedMessage(state, t) : "";
+
+  return (
+    <>
+      <p role="status" className="sr-only" data-testid="voice-call-ended-announcer">
+        {endedAnnouncement}
+      </p>
+      <VoiceCallIdentityProvider value={identity}>{renderPanel()}</VoiceCallIdentityProvider>
+    </>
+  );
+
+  function renderPanel() {
+    if (state.status === "ended") {
+      return <VoiceCallEndedPanel state={state} onRetry={onRetryEnded} onDismiss={onDismissEnded} />;
+    }
+
+    if (state.status === "incoming") {
+      const statusLabel = isMultiPartyVoiceCall(state.callKind)
         ? t("chat.voice_call_incoming_group", {
             caller: state.callerName ?? state.peerName,
             group: state.peerName,
           })
         : t("chat.voice_call_incoming_label");
-    return (
-      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
-        <VoiceCallLabeledAction
-          label={t("chat.voice_call_decline")}
-          ariaLabel={t("chat.voice_call_decline")}
-          tone="decline"
-          onClick={onDecline}
-          icon={<PhoneOff aria-hidden className="size-5" />}
-          compact
-        />
-        <VoiceCallLabeledAction
-          label={t("chat.voice_call_accept")}
-          ariaLabel={t("chat.voice_call_accept")}
-          tone="accept"
-          onClick={onAccept}
-          icon={<Phone aria-hidden className="size-5" />}
-          compact
-        />
-      </PreConnectFloatingCall>
-    );
-  }
+      const notice =
+        incomingRecording || incomingDeviceError ? (
+          <div className="flex flex-col gap-2">
+            {incomingRecording ? (
+              <VoiceCallStrip tone="warning" icon={CircleDot}>
+                {t("chat.voice_call_recording_join_warning")}
+              </VoiceCallStrip>
+            ) : null}
+            {incomingDeviceError ? (
+              <VoiceCallStrip
+                tone="destructive"
+                icon={incomingDeviceError.kind === "audioinput" ? MicOff : VideoOff}
+                role="alert"
+                title={voiceCallDeviceMessage(incomingDeviceError, t)}
+              >
+                {incomingDeviceError.failure === "denied" ? t("meetings.devicePreviewDeniedHint") : null}
+              </VoiceCallStrip>
+            ) : null}
+          </div>
+        ) : undefined;
+      return (
+        <PreConnectFloatingCall
+          peerName={state.peerName}
+          statusLabel={statusLabel}
+          description={
+            incomingRecording
+              ? t("chat.voice_call_incoming_recorded_description", { status: statusLabel })
+              : undefined
+          }
+          pulse="incoming"
+          alert
+          notice={notice}
+        >
+          <VoiceCallLabeledAction
+            label={t("chat.voice_call_decline")}
+            ariaLabel={t("chat.voice_call_decline")}
+            tone="decline"
+            onClick={onDecline}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
+          />
+          <VoiceCallLabeledAction
+            label={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
+            ariaLabel={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
+            tone="accept"
+            onClick={onAccept}
+            icon={
+              incomingDeviceError ? (
+                <RefreshCw aria-hidden className="size-6.5" />
+              ) : (
+                <Phone aria-hidden className="size-6.5" />
+              )
+            }
+          />
+        </PreConnectFloatingCall>
+      );
+    }
 
-  if (state.status === "ringing") {
-    const statusLabel =
-      state.callKind === "group"
+    if (state.status === "ringing") {
+      const statusLabel = isMultiPartyVoiceCall(state.callKind)
         ? t("chat.voice_call_group_calling")
         : t("chat.voice_call_calling");
+      return (
+        <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse="outgoing">
+          <VoiceCallLabeledAction
+            label={t("chat.voice_call_end")}
+            ariaLabel={t("chat.voice_call_end")}
+            tone="decline"
+            onClick={cancelPreConnect}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
+          />
+        </PreConnectFloatingCall>
+      );
+    }
+
+    if (state.status === "connecting") {
+      const cancelLabel =
+        isMultiPartyVoiceCall(state.callKind) && state.outgoing
+          ? t("chat.voice_call_end_for_all")
+          : isMultiPartyVoiceCall(state.callKind)
+            ? t("chat.voice_call_leave")
+            : t("chat.voice_call_end");
+      return (
+        <PreConnectFloatingCall peerName={state.peerName} statusLabel={t("chat.voice_call_connecting")}>
+          <VoiceCallLabeledAction
+            label={cancelLabel}
+            ariaLabel={cancelLabel}
+            tone="decline"
+            onClick={cancelPreConnect}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
+          />
+        </PreConnectFloatingCall>
+      );
+    }
+
+    if (state.status !== "active") return null;
+
     return (
-      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
-        <VoiceCallLabeledAction
-          label={t("chat.voice_call_end")}
-          ariaLabel={t("chat.voice_call_end")}
-          tone="decline"
-          onClick={cancelPreConnect}
-          icon={<PhoneOff aria-hidden className="size-5" />}
-          compact
+      <Suspense fallback={null}>
+        <ActiveVoiceCallSession
+          workspaceId={workspaceId}
+          roomId={state.roomId}
+          callId={state.callId}
+          peerName={state.peerName}
+          callKind={state.callKind}
+          isCaller={state.outgoing}
+          url={state.url}
+          token={state.token}
+          initialCameraEnabled={state.withCamera ?? false}
+          panelMode={panelMode}
+          onMinimize={handleMinimize}
+          onMaximize={handleMaximize}
+          onLeave={onLeave}
+          onDisconnected={onDisconnected}
+          onEndForAll={onEndForAll}
+          onConnected={onConnected}
+          onConnectFailed={handleConnectFailed}
         />
-      </PreConnectFloatingCall>
+      </Suspense>
     );
   }
-
-  if (state.status === "connecting") {
-    const cancelLabel =
-      state.callKind === "group" && state.outgoing
-        ? t("chat.voice_call_end_for_all")
-        : state.callKind === "group"
-          ? t("chat.voice_call_leave")
-          : t("chat.voice_call_end");
-    return (
-      <PreConnectFloatingCall peerName={state.peerName} statusLabel={t("chat.voice_call_connecting")}>
-        <VoiceCallLabeledAction
-          label={cancelLabel}
-          ariaLabel={cancelLabel}
-          tone="decline"
-          onClick={cancelPreConnect}
-          icon={<PhoneOff aria-hidden className="size-5" />}
-          compact
-        />
-      </PreConnectFloatingCall>
-    );
-  }
-
-  if (state.status !== "active") return null;
-
-  return (
-    <Suspense fallback={null}>
-      <ActiveVoiceCallSession
-        peerName={state.peerName}
-        callKind={state.callKind}
-        isCaller={state.outgoing}
-        url={state.url}
-        token={state.token}
-        initialCameraEnabled={state.withCamera ?? false}
-        panelMode={panelMode}
-        onMinimize={handleMinimize}
-        onMaximize={handleMaximize}
-        onLeave={onLeave}
-        onEndForAll={onEndForAll}
-        onConnected={onConnected}
-        onConnectFailed={handleConnectFailed}
-      />
-    </Suspense>
-  );
 }

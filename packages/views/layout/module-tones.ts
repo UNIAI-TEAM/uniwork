@@ -6,7 +6,9 @@ import type { Tint } from "@uniwork/ui/components/common/icon-tile";
  * not report state (see PRODUCT.md › Design Principles).
  */
 export const MODULE_TONES = {
+  home: "gray",
   inbox: "blue",
+  email: "orange",
   tasks: "green",
   my_tasks: "green",
   projects: "teal",
@@ -15,6 +17,7 @@ export const MODULE_TONES = {
   people: "pink",
   documents: "orange",
   calendar: "yellow",
+  settings: "gray",
 } as const satisfies Record<string, Tint>;
 
 export type ModuleKey = keyof typeof MODULE_TONES;

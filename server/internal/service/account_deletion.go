@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -31,21 +34,23 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
+	// The caller is signed in, so a wrong proof is never 401 (see
+	// ErrPasswordIncorrect): each one answers its own code.
 	switch {
 	case u.PasswordHash.Valid:
 		if !auth.CheckPassword(u.PasswordHash.String, in.Password) {
-			return ErrInvalidCredentials
+			return errPasswordIncorrect()
 		}
 	case u.MfaEnabledAt.Valid:
 		if !s.secondFactorMatches(ctx, u, in.Code) {
-			return ErrInvalidCredentials
+			return errMfaCodeIncorrect()
 		}
 	default:
 		// ponytail: a Google-only account without MFA has no secret to ask
 		// for; typing the address is the confirmation. Add an emailed code
 		// when a product owner asks for it.
 		if !strings.EqualFold(strings.TrimSpace(in.EmailConfirmation), u.Email) {
-			return ErrInvalidCredentials
+			return errEmailConfirmationMismatch()
 		}
 	}
 	owned, err := s.q.CountOwnedOrganizationsForUser(ctx, userID)
@@ -61,9 +66,42 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	if s.files != nil {
+		// FS-C1 §5.4: the release locks the files row before this transaction
+		// locks the user row, so avatar_file_id is read non-locking, released,
+		// then re-read FOR UPDATE — an avatar swap landing in between aborts
+		// the deletion instead of releasing the wrong file.
+		prev, err := qtx.GetUserAvatarFileID(ctx, userID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if prev.Valid && prev.String != "" {
+			if err := releaseFilesInTx(ctx, s.files, qtx, []files.FileID{files.FileID(prev.String)}); err != nil {
+				return err
+			}
+		}
+		cur, err := qtx.GetUserAvatarFileIDForUpdate(ctx, userID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if cur.String != prev.String || cur.Valid != prev.Valid {
+			return ErrConflict
+		}
+	}
 	if _, err := qtx.AnonymizeUser(ctx, db.AnonymizeUserParams{
 		ID: userID, Email: "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid", DisplayName: deletedDisplayName,
 	}); err != nil {
+		return err
+	}
+	// Read before the update: these are the organizations whose membership
+	// this deletion switches off, and each one records it as Deactivate does.
+	// Archived organizations included: their audit trail and Work Graph
+	// still carry the name this erasure removes.
+	memberships, err := qtx.ListOrganizationMembershipsForUser(ctx, userID)
+	if err != nil {
 		return err
 	}
 	if err := qtx.DeactivateAllOrganizationMembershipsForUser(ctx, pgtype.Text{String: userID, Valid: true}); err != nil {
@@ -72,10 +110,18 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := qtx.ScrubMemberProfilesForUser(ctx, userID); err != nil {
 		return err
 	}
-	if err := qtx.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+	leases, err := revokeAllUserSessions(ctx, qtx, userID)
+	if err != nil {
+		return err
+	}
+	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
 		return err
 	}
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {
+		return err
+	}
+	mailboxes, err := qtx.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{UserID: userID})
+	if err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
@@ -84,5 +130,50 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	// user.deleted sits on the credential sentinel, which no organization
+	// reads. Each organization gets its own row and event: an active
+	// membership the member.deactivated an admin's Deactivate writes, one an
+	// admin already switched off a profile.updated. Either event makes the
+	// Work Graph marker re-read the ACTOR node, so the real name does not
+	// outlive the erasure in graph_nodes.title.
+	for _, m := range memberships {
+		if m.DeactivatedAt.Valid {
+			// An admin switched this membership off earlier; a second
+			// member.deactivated would claim a transition that did not
+			// happen. The profile scrub and the anonymised name still change
+			// what this organization shows, so it records profile.updated,
+			// which the marker also maps to the ACTOR node. No Changes: the
+			// old values are what the erasure removes.
+			if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+				OrganizationID: m.OrganizationID,
+				Actor:          audit.User(userID),
+				Action:         audit.ActionProfileUpdated,
+				ResourceType:   "organization_member_profile", ResourceID: userID,
+				Metadata: map[string]any{"reason": "account_deleted"},
+			}, audit.Event{Topic: "profile.updated", Payload: map[string]string{
+				"organization_id": m.OrganizationID, "user_id": userID,
+			}}); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+			OrganizationID: m.OrganizationID,
+			Actor:          audit.User(userID),
+			Action:         audit.ActionMemberDeactivated,
+			ResourceType:   "organization_member", ResourceID: userID,
+			Changes:  audit.Diff(map[string]any{"status": MemberStatusActive}, map[string]any{"status": MemberStatusDeactivated}),
+			Metadata: map[string]any{"sessions_revoked": true, "reason": "account_deleted"},
+		}, audit.Event{Topic: "member.deactivated", Payload: map[string]string{
+			"organization_id": m.OrganizationID, "user_id": userID,
+		}}); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
+	return nil
 }

@@ -1,22 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  BarChart3,
+  AlarmClock,
+  ChartColumn,
   Bell,
   CircleAlert,
-  Clock,
-  FileUp,
   Megaphone,
   Paperclip,
   StickyNote,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { MODULE_TONES } from "../layout/module-tones";
 
 export type ComposerAttachAction =
   | "attach_file"
+  | "attach_document"
   | "create_poll"
   | "create_reminder"
   | "create_note"
@@ -30,21 +42,27 @@ export type ComposerAttachAction =
 type ComposerAttachMenuItem =
   | {
       id: ComposerAttachAction;
-      icon: typeof BarChart3;
+      icon: typeof ChartColumn;
       labelKey: string;
+      /** The kind's tint, the same one its card wears in the timeline. */
+      tone: IconTileTone;
     }
   | { separator: true };
 
 const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
-  { id: "attach_file", icon: FileUp, labelKey: "composer_attach_file" },
-  { id: "create_poll", icon: BarChart3, labelKey: "composer_create_poll" },
-  { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder" },
-  { id: "create_note", icon: StickyNote, labelKey: "composer_create_note" },
-  { id: "create_post", icon: Megaphone, labelKey: "composer_create_post" },
+  { id: "attach_file", icon: Paperclip, labelKey: "composer_attach_file", tone: "gray" },
+  // A document that already lives in Tài liệu: the documents module's own glyph and tint.
+  { id: "attach_document", icon: MODULE_ICONS.documents, labelKey: "composer_attach_document", tone: MODULE_TONES.documents },
+  { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll", tone: "blue" },
+  { id: "create_reminder", icon: AlarmClock, labelKey: "composer_create_reminder", tone: "teal" },
+  { id: "create_note", icon: StickyNote, labelKey: "composer_create_note", tone: "yellow" },
+  { id: "create_post", icon: Megaphone, labelKey: "composer_create_post", tone: "orange" },
   { separator: true },
-  { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important" },
-  { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent" },
+  { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important", tone: "warning" },
+  { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent", tone: "destructive" },
 ];
+
+const ATTACH_ITEM_CLASS = "h-11 gap-3 rounded-control px-2.5 text-foreground focus:bg-muted focus:text-foreground";
 
 export function ComposerToolbarButton({
   label,
@@ -54,30 +72,33 @@ export function ComposerToolbarButton({
   ...props
 }: React.ComponentProps<"button"> & { label: string }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon-lg"
       aria-label={label}
+      title={label}
       disabled={disabled}
+      // An open popover keeps its trigger in the brand wash.
       className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors",
-        "hover:bg-muted hover:text-foreground",
-        "disabled:pointer-events-none disabled:opacity-50",
-        "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+        "size-10 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground [&_svg:not([class*='size-'])]:size-5.5",
         className,
       )}
       {...props}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 function filterAttachMenuItems(
   items: ComposerAttachMenuItem[],
-  showCreatePoll: boolean,
+  { showCreatePoll, showAttachDocument }: { showCreatePoll: boolean; showAttachDocument: boolean },
 ): ComposerAttachMenuItem[] {
-  if (showCreatePoll) return items;
-  return items.filter((item) => !("id" in item) || item.id !== "create_poll");
+  return items.filter((item) => {
+    if (!("id" in item)) return true;
+    return (item.id !== "create_poll" || showCreatePoll) && (item.id !== "attach_document" || showAttachDocument);
+  });
 }
 
 export function ComposerAttachMenu({
@@ -85,58 +106,76 @@ export function ComposerAttachMenu({
   onAction,
   align = "end",
   showCreatePoll = true,
+  showAttachDocument = false,
 }: {
   disabled?: boolean;
   onAction: (action: ComposerAttachAction) => void;
   align?: "start" | "end";
   showCreatePoll?: boolean;
+  /** "Đính kèm từ Tài liệu": only where a document send would not be refused. */
+  showAttachDocument?: boolean;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const menuItems = useMemo(
-    () => filterAttachMenuItems(ATTACH_MENU_ITEMS, showCreatePoll),
-    [showCreatePoll],
+    () => filterAttachMenuItems(ATTACH_MENU_ITEMS, { showCreatePoll, showAttachDocument }),
+    [showCreatePoll, showAttachDocument],
   );
+  const actions = menuItems.filter((item) => !("separator" in item)) as Array<
+    Extract<ComposerAttachMenuItem, { id: ComposerAttachAction }>
+  >;
+  const isFlag = (id: ComposerAttachAction) => id === "mark_important" || id === "mark_urgent";
+  const createItems = actions.filter((item) => !isFlag(item.id));
+  const flagItems = actions.filter((item) => isFlag(item.id));
 
+  // The registry menu: arrow keys, typeahead and focus return come with it.
+  // Creating content and flagging the message are two kinds of action, so
+  // the flags sit in their own labelled group.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         disabled={disabled}
         render={
-          <ComposerToolbarButton label={t("chat.composer_attach")} disabled={disabled}>
-            <Paperclip aria-hidden className="size-5" />
+          <ComposerToolbarButton
+            label={t("chat.composer_attach")}
+            disabled={disabled}
+            // Telegram's clip: one way in to files, polls, reminders, notes, posts and the flags.
+            className="size-10"
+          >
+            <Paperclip aria-hidden />
           </ComposerToolbarButton>
         }
       />
-      <PopoverContent align={align} side="top" className="w-72 p-1">
-        <ul className="flex flex-col" role="menu" aria-label={t("chat.composer_attach_menu")}>
-          {menuItems.map((item, index) =>
-            "separator" in item ? (
-              <li key={`sep-${index}`} role="separator" className="my-1 h-px bg-border" />
-            ) : (
-              <li key={item.id} role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body text-foreground",
-                    "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none",
-                  )}
-                  onClick={() => {
-                    // Open the file picker while still inside the user-gesture
-                    // stack; closing the popover first can cancel the dialog.
-                    onAction(item.id);
-                    setOpen(false);
-                  }}
-                >
-                  <item.icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-                  <span>{t(`chat.${item.labelKey}`)}</span>
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
-      </PopoverContent>
-    </Popover>
+      <DropdownMenuContent
+        align={align}
+        side="top"
+        sideOffset={8}
+        className="w-67 rounded-xl p-1.5"
+        aria-label={t("chat.composer_attach_menu")}
+      >
+        {createItems.map((item) => (
+          <DropdownMenuItem
+            key={item.id}
+            className={ATTACH_ITEM_CLASS}
+            // Opens the file picker inside the click's user-gesture stack.
+            onClick={() => onAction(item.id)}
+          >
+            <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
+            {t(`chat.${item.labelKey}`)}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator className="mx-1" />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex h-7.5 items-center px-2.5 font-semibold">
+            {t("chat.composer_flag_group")}
+          </DropdownMenuLabel>
+          {flagItems.map((item) => (
+            <DropdownMenuItem key={item.id} className={ATTACH_ITEM_CLASS} onClick={() => onAction(item.id)}>
+              <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
+              {t(`chat.${item.labelKey}`)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

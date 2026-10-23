@@ -64,6 +64,7 @@ export interface TableColumnConfig {
 export type TableGrouping =
   | "none"
   | "status"
+  | "priority"
   | "assignee"
   | "project"
   | `property:${string}`;
@@ -87,11 +88,11 @@ export const TABLE_SYSTEM_COLUMNS: readonly TableSystemColumnKey[] = [
 
 export const DEFAULT_TABLE_COLUMNS: readonly TableColumnConfig[] = [
   { key: "title", width: 360 },
-  { key: "status", width: 150 },
-  { key: "priority", width: 130 },
-  { key: "assignee", width: 180 },
-  { key: "due_date", width: 140 },
-  { key: "labels", width: 220 },
+  { key: "status", width: 148 },
+  { key: "priority", width: 152 },
+  { key: "assignee", width: 176 },
+  { key: "due_date", width: 152 },
+  { key: "labels", width: 180 },
 ];
 
 export interface TaskDateFilter {

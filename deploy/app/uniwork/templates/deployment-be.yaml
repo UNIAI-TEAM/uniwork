@@ -1,0 +1,177 @@
+{{- $env := .Values.env | default dict }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniwork-be
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.be.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-be
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uniwork-be
+        reap.io/pool: pool-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.be.metricsPort | quote }}
+        prometheus.io/path: /metrics
+        {{- if $env.beContent }}
+        checksum/env: {{ $env.beContent | sha256sum }}
+        {{- end }}
+    spec:
+      serviceAccountName: uniwork
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.be.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.be.securityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: uniwork-be
+          image: {{ include "uniwork.image" .Values.be.image | quote }}
+          imagePullPolicy: {{ .Values.be.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.be.port }}
+            - name: metrics
+              containerPort: {{ .Values.be.metricsPort }}
+          envFrom:
+            - configMapRef:
+                name: uniwork-be
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.database.name }}
+                  key: {{ .Values.be.secrets.database.key }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.redis.name }}
+                  key: {{ .Values.be.secrets.redis.key }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.app.name }}
+                  key: {{ .Values.be.secrets.app.key }}
+            - name: PREVIEW_CAPABILITY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.preview.name }}
+                  key: {{ .Values.be.secrets.preview.key }}
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.livekitKey.name }}
+                  key: {{ .Values.be.secrets.livekitKey.key }}
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.livekitSecret.name }}
+                  key: {{ .Values.be.secrets.livekitSecret.key }}
+            {{- with .Values.be.secrets.mail }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.s3 }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .accessKey }}
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .secretKey }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.google }}
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.emailHub }}
+            - name: EMAIL_HUB_CREDENTIAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.openAPIKey }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.anthropicAPIKey }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- if .Values.officeEngine.enabled }}
+            # Container env wins over the envFrom ConfigMap, whose OFFICE_ENGINE_URL is empty.
+            - name: OFFICE_ENGINE_URL
+              value: {{ printf "http://uniwork-office-engine:%v" .Values.officeEngine.port | quote }}
+            {{- end }}
+            {{- with .Values.be.secrets.officeEngineServiceToken }}
+            - name: OFFICE_ENGINE_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  {{- if not $.Values.officeEngine.enabled }}
+                  optional: true
+                  {{- end }}
+            {{- end }}
+            {{- with .Values.be.secrets.officeEngineGrantKey }}
+            - name: OFFICE_ENGINE_GRANT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  {{- if not $.Values.officeEngine.enabled }}
+                  optional: true
+                  {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.be.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            # The 1s default kills a pod busy under load; scripts/load/chat
+            # counts a /healthz slower than this as a failure.
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            # Above the server's 2s db budget plus the bounded advisory checks.
+            timeoutSeconds: 3

@@ -117,5 +117,10 @@ export const OrgInvitationSchema = z.object({
   invited_by_name: z.string().optional(),
   expires_at: z.string().default(""),
   created_at: z.string().default(""),
+  /**
+   * The workspaces accepting grants (UNI-1582). Absent from older servers,
+   * and a drifted list reads as none rather than costing the whole list.
+   */
+  workspaces: z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() })).default([]).catch([]),
 });
 export type OrgInvitation = z.infer<typeof OrgInvitationSchema>;

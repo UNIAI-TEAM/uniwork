@@ -1,9 +1,9 @@
 # Conventions
 
-Single source of truth for code naming, the vi–en translation glossary, and the
-Vietnamese voice guide. `CLAUDE.md` points here; nothing else overrides this
-page. Every example below is taken from the repository as it is — if you find
-one that no longer matches, the page is wrong, fix the page.
+Single source of truth for code naming, the vi–en translation glossary, the
+Vietnamese voice guide and icon use. `CLAUDE.md` points here; nothing else
+overrides this page. Every example below is taken from the repository as it is
+— if you find one that no longer matches, the page is wrong, fix the page.
 
 ---
 
@@ -13,9 +13,13 @@ one that no longer matches, the page is wrong, fix the page.
 
 - Global routes (before the user is inside a workspace) are a single word or
   `/{noun}/{verb}`: `/login`, `/register`, `/onboarding`, `/invitations`,
-  `/workspaces/new`, `/invite/{token}`. Never a hyphenated root
-  (`/new-workspace`): it collides with organization slugs and forces endless
-  reserved-slug audits. Reserving the noun protects the whole subtree.
+  `/workspaces/new`, `/invite/{token}`. A hyphenated root (`/new-workspace`)
+  is normally wrong: it collides with organization slugs and forces endless
+  reserved-slug audits. Reserving the noun protects the whole subtree. Four
+  exceptions exist and every one of them is in `reserved_slugs.json`:
+  `/forgot-password`, `/reset-password`, `/why-uniwork` — a public page
+  whose URL is read by people, where the hyphenated phrase is the name — and
+  `/get-started`, where a person with no organization lands (ADR 0032).
 - Workspace routes live under `/{orgSlug}/{workspaceSlug}/{section}`:
   `/acme/team/tasks`, `/acme/team/meetings/{id}/room`, `/acme/team/members`.
   Workspaces nest inside organizations; a workspace slug is unique only within
@@ -69,7 +73,12 @@ a shared package; there is no "small enough to duplicate".
   (`onboarded_at`, `accepted_at`) rather than booleans.
 - Ids are ULIDs stored as `TEXT` (`util.NewID()`), never UUID columns.
 - Migrations: `NNN_descriptive_name.up.sql` + `.down.sql`, both directions,
-  unique numeric prefix. From `005` on: **no `FOREIGN KEY` / `REFERENCES`**
+  unique numeric prefix. The three-digit space ends at `998`; every later
+  migration is `999<unix-milliseconds>_descriptive_name` (e.g.
+  `9991790517656310_idempotency_keys_payload_fingerprint`), because sqlc reads
+  the directory in string order and that shape sorts the same as strings and
+  as numbers. Never `999_` and never a bare four-digit prefix;
+  `TestMigrationPrefixesSortTheSameAsStringsAndNumbers` refuses both. From `005` on: **no `FOREIGN KEY` / `REFERENCES`**
   (relationships and dependent cleanup live in service code) and every index
   is `CREATE [UNIQUE] INDEX CONCURRENTLY` alone in its file.
   `server/migrations/lint_test.go` enforces both; `001`–`004` are frozen.
@@ -155,11 +164,24 @@ fails on drift. One flat namespace, keys nested by section:
 | Concept | vi | en | Note |
 | --- | --- | --- | --- |
 | task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"` |
+| subtask | **công việc con** | Sub-task | `tasks.detail.child_of = "Công việc con của"`; always the full term, never the short "việc con", even where "việc" alone stands for the task |
 | meeting | **cuộc họp** | Meeting | `meetings.title = "Cuộc họp"` |
 | workspace | **workspace** | Workspace | kept in English in vi copy: `workspace.create = "Tạo workspace"` |
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |
 | member | **thành viên** | Member | `workspace.members = "Thành viên"` |
 | invitation | **lời mời** / **mời** | Invitation / Invite | `workspace.invite = "Mời thành viên"` |
+| owner (UI label) | **chủ sở hữu** | Owner | `people.role_owner = "Chủ sở hữu"`; the label translates, the role value stays `owner` (see below) |
+| leave organization | **rời tổ chức** | Leave organization | `org.leave.title`; the member walks out, the organization stays |
+| transfer ownership | **chuyển quyền sở hữu** | Transfer ownership | `org.transfer.*`; immediate, no acceptance step; the former owner becomes `admin` |
+| document owner (ACL) | **chủ sở hữu** (tài liệu) | Owner | `documents.share.acl_owner`; người giữ `acl_owner_id` — quản lý tài liệu khi còn là thành viên hiệu lực của workspace; khác vai trò `owner` của tổ chức/workspace |
+| transfer document ownership | **chuyển quyền sở hữu** (tài liệu) | Transfer ownership | `documents.share.owner.*`; ngay lập tức, không có bước chấp nhận; chủ cũ giữ mức đã chọn (mặc định Chỉnh sửa) hoặc không giữ gì — khác `org.transfer.*` |
+| document home workspace row | **Workspace "{{name}}"** + nhãn phụ **"Nơi lưu"** | Workspace "{{name}}" · "Home" | `documents.share.home_badge`; nguồn quyền của mọi thành viên workspace chứa tài liệu; lưu ở `visibility` + `workspace_level` |
+| private (document share state) | **Riêng tư** | Private | trạng thái hiển thị, **không** phải cấu hình: không có dòng Workspace gốc, không share sống, không link sống (BR-10). Thay chữ "Hạn chế"/"Restricted" ở mọi bề mặt người dùng; giá trị wire `restricted` giữ nguyên |
+| document access level | **Chỉ xem** / **Nhận xét** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
+| document access source | **Trực tiếp** / **Qua Workspace "X"** / **Qua tổ chức** / **Chủ sở hữu** / **Quản trị viên** / **Truy cập khẩn cấp** / **Theo kết quả công việc** | Direct / Via workspace "X" / Via organization / Owner / Admin / Emergency access / Via work product | `documents.share.via_*`, `documents.share.source_item` |
+| document access report source (grant origin) | **Chia sẻ trực tiếp** / **Gửi trong Chat** / **Link chia sẻ** / **Mặc định của workspace** | Shared directly / Sent in Chat / Share link / Workspace default | `documents.accessReport.source_direct`, `source_chat`, `source_link`, `source_workspace_default`; nguồn của một dòng báo cáo quyền (UNI-2039); hai bề mặt gọi cùng một quyền bằng hai chữ — **Trực tiếp** ở hộp Chia sẻ, **Chia sẻ trực tiếp** ở báo cáo. Không hiện tên kênh Chat |
+| close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
+| switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |
 | channel (chat) | **kênh** | Channel | `chat.channel.*`; first-class room linked to a project |
 | thread (chat) | **thread** | Thread | kept English in vi when product/schema; not “chủ đề” for room threads |
@@ -173,7 +195,39 @@ fails on drift. One flat namespace, keys nested by section:
 | notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
 | mention (@someone) | **nhắc** / **nhắc đến** | Mention | `notifications.kind.mentioned = "… đã nhắc đến bạn …"` |
 | note (meeting) | **ghi chú** | Note | |
+| attendance | **điểm danh** | Attendance | `meetings.governance.attendanceTitle` |
+| observer | **dự thính** | Observer | `meetings.governance.standing_OBSERVER`; the other standing is **thành viên** / Member |
+| secretary | **thư ký** | Secretary | `meetings.governance.secretary`; code calls whoever runs attendance and votes (host, secretary, workspace admin) the "clerk" (`useMeetingClerk`, `requireMeetingClerk`) — never a user-facing word |
+| quorum | **tỉ lệ có mặt tối thiểu** | Minimum attendance | `meetings.quorumLabel`; spell "tỉ lệ", not "tỷ lệ"; never the loanword "quorum" in vi copy |
+| motion (an item put to a vote) | **nội dung biểu quyết** | Vote item | `meetings.governance.motionAdd = "Thêm nội dung"`; the section and room tab are **Biểu quyết** / Votes; not "kiến nghị", not "đề xuất" |
+| ballot | **phiếu** | Vote | `meetings.governance.voteSubmit = "Gửi phiếu"`; one per member on the roll |
+| vote (verb) | **bỏ phiếu** | Vote | `meetings.governance.motionStatus_OPEN = "Đang bỏ phiếu"` |
+| pass / passed | **thông qua** | Pass / Passed | `outcome_PASSED = "Thông qua"`, `outcome_FAILED = "Không thông qua"` |
+| abstain | **không ý kiến** | Abstain | `choice_ABSTAIN`; for / against are **tán thành** / **không tán thành** |
+| secret ballot | **bỏ phiếu kín** | Secret ballot | `ballotMode_SECRET`; the other mode is **công khai** / Open ballot |
 | onboarding | **onboarding** | Onboarding | section name stays English |
+| related (Work Graph panel) | **liên quan** | Related | `graph.related.title = "Liên quan"` |
+| originated from | **xuất phát từ** | Originated from | nguồn gốc của một việc (Work Graph) |
+| graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
+| Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
+| folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
+| Page (the rich-text document kind, `kind=page`) | **UniNote** | UniNote | tên sản phẩm, không dịch ở mọi ngôn ngữ (U-UN1, UNI-1812); `documents.file_types.page`, `documents.page.new_page` = "UniNote mới" / "New UniNote"; chỉ chữ trên UI — `kind=page`, route, `documentKeys` giữ nguyên. "Trang" vẫn là phân trang ("Trang sau"), trang chủ ("Trang chủ") và trang in ("Trang in"). `packages/core/i18n/uninote-copy.test.ts` giữ danh sách khóa |
+| subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
+| new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
+| rename | **đổi tên** | Rename | |
+| workspace folder (Documents, a folder every member sees) | **thư mục của workspace** | workspace folder | UNI-2055: tên thư mục hiện cho mọi người trong workspace, tài liệu bên trong giữ quyền riêng; không "thư mục chung", không "shared folder" (thư mục không có share, "shared" gợi đến chia sẻ) |
+| My Folder (Documents, `system_kind=my_folder`) | **Thư mục của tôi** | My Folder | thư mục riêng của từng người, viết hoa như tên riêng ở cả hai ngôn ngữ; `documents.home.my_folder.label` |
+| workspace root (Documents, no parent folder) | **gốc workspace** | workspace root | chỗ ngoài mọi thư mục; ở hộp thoại tạo thư mục: "Thư mục mới ở Tài liệu (gốc)" xem dòng new folder |
+| move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
+| trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
+| path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
+| editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
+| editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |
+| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the button and the confirm say the same words |
+| request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
+| keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
+| offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
+| origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say
@@ -203,6 +257,7 @@ workspace already. Do not translate it in one place and not another.
 | Board / List | Bảng / Danh sách |
 | Table / Cards | Bảng / Thẻ |
 | Filter / Display / View | Bộ lọc / Hiển thị / Chế độ xem |
+| Text size | Cỡ chữ |
 | Upcoming / Past | Sắp diễn ra / Đã diễn ra |
 | Loading… / Error / Empty | Đang tải… / Có lỗi xảy ra / Chưa có dữ liệu |
 
@@ -274,6 +329,92 @@ both keys with identical text. Put the count first.
 2. `PRODUCT.md` — brand personality and the anti-references.
 3. `packages/views/onboarding/` — the most complete screens in the current
    register.
+
+---
+
+## 4. Icons
+
+One library (`lucide-react`), one glyph per meaning, one size per role.
+
+### Names
+
+Import the canonical name: `CircleAlert`, not `AlertCircle`; `LoaderCircle`,
+not `Loader2`; `Ellipsis`, not `MoreHorizontal`; `RotateCcwClock`, not
+`History`. Lucide keeps a renamed icon importable under its old name, and the
+two spellings hide each other from search. `no-restricted-imports` names the
+canonical import for every alias, and `scripts/lucide-aliases.test.mjs` fails
+on one at every gate level. The list is generated from the installed package —
+after bumping lucide-react run `pnpm generate:lucide-aliases`. The registry
+primitives in `packages/ui/components/ui/` keep shadcn's `XIcon` suffix
+(`CircleAlertIcon`); that is the canonical name with a suffix, not an alias.
+
+### Modules
+
+A module is drawn with one glyph everywhere it appears: sidebar, page header,
+empty state, search, the work graph, notifications, auth and onboarding.
+`MODULE_ICONS` in `packages/views/layout/module-icons.ts` holds them beside
+`MODULE_TONES`; read the map, never pick the glyph again at the call site.
+
+| Module | Glyph | Module | Glyph |
+| --- | --- | --- | --- |
+| home | `House` | meetings | `Video` |
+| inbox | `Inbox` | chat | `MessageSquare` |
+| email | `Mail` | people | `Users` |
+| tasks | `SquareCheckBig` | documents | `FileText` |
+| my_tasks | `ListTodo` | calendar | `Calendar` |
+| projects | `FolderKanban` | settings | `Settings` |
+
+Meetings is a camera, not a calendar: Calendar sits one row above it in the
+sidebar. A glyph that names a part of a module rather than the module (a
+meeting's participants panel, a date field's `CalendarDays`) keeps its own.
+
+### Size
+
+`size-*`, never `h-* w-*`. The role decides the size, not the screen:
+
+| Size | Class | Role |
+| --- | --- | --- |
+| 12px | `size-3` | inside a chip or badge, `IconTile size="xs"` |
+| 14px | `size-3.5` | metadata beside caption text, `IconTile size="sm"` |
+| 16px | `size-4` | buttons, menu items, inputs, page-header glyph (`Button` sizes a bare svg to this) |
+| 20px | `size-5` | header tiles, `IconTile size="md"` |
+| 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
+
+### Stroke
+
+Lucide's default 2. Do not set `strokeWidth` on an icon to make it look lighter
+or heavier; pick the role's size instead. The one exception is the brand
+surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
+`auth-controls.tsx`), whose raised cards use a hairline 1.5–1.75 on tiles of
+`size="sm"` and up.
+
+### Meaning
+
+| Meaning | Glyph | Not |
+| --- | --- | --- |
+| Error: a failed load, save or send, invalid input, a destructive notice | `CircleAlert` | `TriangleAlert`, `OctagonX` |
+| Warning: needs attention but nothing failed — a conflict, past due, a permission the browser denied | `TriangleAlert` | `CircleAlert` |
+| Refresh, retry, reconnect | `RefreshCw` | `RotateCw` |
+| Rotate | `RotateCw` / `RotateCcw` | — |
+| Reset, reopen | `RotateCcw` | `RefreshCw` |
+| View options: display, density, columns, customize | `SlidersHorizontal` | `Settings2`, `Cog` |
+| Settings and configuration | `Settings` | `Settings2`, `Cog` |
+| The system as an actor (audit, avatars) | `Cog` | `Settings` |
+| AI: Ask UNI, copilots, AI summaries and insights | `Sparkles` | anything else — not "auto", animations or decoration |
+| Loading | `<Spinner />` | a raw `LoaderCircle animate-spin` |
+
+`Spinner` (`packages/ui/components/ui/spinner.tsx`) is decorative unless it is
+the only sign of progress; then pass `label`. Under reduced motion it keeps
+turning at half speed (`packages/ui/styles/base.css`), because one turn and a
+stop reads as done. `scripts/lucide-aliases.test.mjs` fails on a raw
+`LoaderCircle`. A refresh glyph may turn while its own refetch runs.
+
+### Accessibility
+
+An icon beside text is `aria-hidden`. An icon-only button carries an
+`aria-label` (or `label` on the primitive that takes one) and keeps the 44px
+coarse-pointer target, which `Button` already has — use it rather than a bare
+`<button>`.
 
 ---
 

@@ -1,22 +1,29 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import { isJoinAdmitted, useJoinMeeting } from "@uniwork/core/meetings";
-import { getMeeting, resolveInviteLink, type JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
+import {
+  cancelJoinRequest,
+  getMeeting,
+  resolveInviteLink,
+  type JoinMeetingBody,
+} from "@uniwork/core/api/endpoints/meetings";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import type { Meeting } from "@uniwork/core/types/meeting";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
-import { toastApiError } from "../toast-api-error";
 import { useNavigation } from "../navigation";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
-import { MeetingLobby } from "./meeting-lobby";
+import { MeetingLobby, lobbyMessage } from "./meeting-lobby";
 import { MeetingInviteShell, MeetingInviteStateCard } from "./meeting-invite-shell";
+import { MeetingInvitePageSkeleton } from "./meeting-page-skeletons";
 import { MeetingPublicInviteForm } from "./meeting-public-invite-form";
 import {
+  clearCachedJoinDecision,
   inviteStorageKey,
   writeCachedJoinDecision,
   writeGuestSession,
@@ -24,6 +31,13 @@ import {
   writeInvitePreJoinChoice,
 } from "./meeting-invite-session";
 import type { PreJoinChoice } from "./meeting-prejoin";
+import {
+  inviteStateCopy,
+  inviteStateFromResolve,
+  resolveFailureState,
+  type InviteViewState,
+} from "./public-invite-state";
+import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function meetingInviteLoginUrl(linkId: string): string {
@@ -35,17 +49,26 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   const nav = useNavigation();
   const authStatus = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
-  const { data: workspaces } = useWorkspaces();
-  const { mutate: mutateJoin, isPending: joinPending, error: joinError, data: joinData } = useJoinMeeting();
+  const { data: workspaces, refetch: refetchWorkspaces } = useWorkspaces();
+  const { mutate: mutateJoin, reset: resetJoin, isPending: joinPending } = useJoinMeeting();
   const joinOnce = useRef(false);
   const reasonHandled = useRef(false);
-  const [state, setState] = useState<"loading" | "ok" | "expired" | "invalid" | "error">("loading");
+  // Bumped when the guest walks out of the lobby: a join answer that lands
+  // afterwards belongs to a screen that is gone and must not reopen it.
+  const lobbyGeneration = useRef(0);
+  const [state, setState] = useState<InviteViewState>("loading");
+  const [resolveAttempt, setResolveAttempt] = useState(0);
   const [title, setTitle] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [meetingId, setMeetingId] = useState("");
   const [accessMode, setAccessMode] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [lobbyDecision, setLobbyDecision] = useState<string | undefined>();
+  const [lobbyMeetingStatus, setLobbyMeetingStatus] = useState<string | undefined>();
+  const [joinRequestId, setJoinRequestId] = useState<string | undefined>();
+  // The last join failure, kept until the next answer: the mutation's own
+  // error clears the moment a retry starts, which would flash the screen.
+  const [joinFailure, setJoinFailure] = useState<unknown>(undefined);
 
   const isGuest = authStatus === "anon";
 
@@ -66,7 +89,9 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
       setState("invalid");
       return;
     }
+    let live = true;
     void resolveInviteLink(linkId, secret).then((res) => {
+      if (!live) return;
       if (!res) {
         setState("error");
         return;
@@ -81,9 +106,14 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
       sessionStorage.setItem(inviteStorageKey(linkId, "secret"), secret);
       sessionStorage.setItem(inviteStorageKey(linkId, "title"), res.title);
       if (res.guest_session) writeGuestSession(linkId, res.guest_session);
-      setState(res.expired ? "expired" : "ok");
+      setState(inviteStateFromResolve(res));
+    }, (err: unknown) => {
+      if (live) setState(resolveFailureState(err));
     });
-  }, [linkId, secret]);
+    return () => {
+      live = false;
+    };
+  }, [linkId, secret, resolveAttempt]);
 
   useEffect(() => {
     if (reasonHandled.current) return;
@@ -99,59 +129,100 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   }, [nav, linkId, t]);
 
   const enterRoom = useCallback(
-    async (decision: NonNullable<typeof joinData>) => {
+    async (decision: Parameters<typeof writeCachedJoinDecision>[1]) => {
       writeCachedJoinDecision(linkId, decision);
       if (!isGuest && user && meetingId) {
-        const meeting = await getMeeting(meetingId);
-        const ws = (workspaces ?? []).find((w) => w.id === meeting?.workspace_id);
-        if (ws) {
-          nav.push(paths.workspace(ws.organization_slug, ws.slug).room(meetingId));
-          return;
+        let meeting: Meeting | null = null;
+        try {
+          meeting = await getMeeting(meetingId);
+        } catch (err) {
+          // Only a member may read the meeting record: 403/404 is a signed-in
+          // visitor from another workspace, who enters like a guest (UNI-901).
+          // Any other failure is no answer, and must not pass for one.
+          if (!(err instanceof ApiError && (err.status === 403 || err.status === 404))) {
+            setJoinFailure(err);
+            return;
+          }
+        }
+        if (meeting) {
+          // A member is sent to the workspace room, so wait for a list that
+          // is still loading rather than read its absence as "not a member".
+          const list = workspaces ?? (await refetchWorkspaces()).data ?? [];
+          const ws = list.find((w) => w.id === meeting.workspace_id);
+          if (ws) {
+            nav.push(paths.workspace(ws.organization_slug, ws.slug).room(meetingId));
+            return;
+          }
         }
       }
       nav.push(paths.meetingInviteRoom(linkId));
     },
-    [isGuest, linkId, meetingId, nav, user, workspaces],
+    [isGuest, linkId, meetingId, nav, refetchWorkspaces, user, workspaces],
   );
 
-  const runJoin = useCallback((choice?: PreJoinChoice) => {
+  const runJoin = useCallback((choice?: PreJoinChoice, requestAgain = false) => {
     if (!meetingId || joinPending) return;
-    if (isGuest && !displayName.trim()) {
-      toast.error(t("meetings.publicInviteNameRequired"));
-      return;
-    }
+    // The form refuses an empty name itself, inline; this is only a guard.
+    if (isGuest && !displayName.trim()) return;
     if (isGuest) {
       writeInviteDisplayName(linkId, displayName);
       if (choice) writeInvitePreJoinChoice(linkId, choice);
     }
+    const generation = lobbyGeneration.current;
     mutateJoin(
-      { meetingId, ...joinBody },
+      { meetingId, ...joinBody, ...(requestAgain ? { request_again: true } : {}) },
       {
         onSuccess: (d) => {
+          if (generation !== lobbyGeneration.current) return;
           if (!d) {
-            toast.error(t("common.error"));
-            return;
-          }
-          if (d.decision === "DENY") {
-            toast.error(t("meetings.denied"));
+            setJoinFailure(new Error("join decision did not parse"));
             return;
           }
           if (isJoinAdmitted(d)) {
             void enterRoom(d);
             return;
           }
+          setJoinFailure(undefined);
+          setJoinRequestId(d.join_request_id);
+          setLobbyMeetingStatus(d.meeting_status);
           setLobbyDecision(d.decision);
         },
-        onError: (err) => toastApiError(err, t("common.error")),
+        onError: (err) => {
+          if (generation !== lobbyGeneration.current) return;
+          // A declined request is a lobby state with its own way back in.
+          if (err instanceof ApiError && err.code === "join_request_rejected") {
+            setLobbyDecision("DENY");
+          }
+          // Every other refusal becomes a localized screen too, never the
+          // server's own (Vietnamese) sentence in a toast.
+          setJoinFailure(err);
+        },
       },
     );
-  }, [displayName, enterRoom, isGuest, joinBody, joinPending, linkId, meetingId, mutateJoin, t]);
+  }, [displayName, enterRoom, isGuest, joinBody, joinPending, linkId, meetingId, mutateJoin]);
+
+  const leaveLobby = useCallback(() => {
+    if (lobbyDecision === "WAITING_APPROVAL" && joinRequestId) {
+      // Best effort: the host's queue should not keep someone who left, but a
+      // request that was already decided or expired is nothing to report.
+      cancelJoinRequest(joinRequestId).catch(() => undefined);
+    }
+    lobbyGeneration.current += 1;
+    clearCachedJoinDecision(linkId);
+    resetJoin();
+    setLobbyDecision(undefined);
+    setLobbyMeetingStatus(undefined);
+    setJoinRequestId(undefined);
+    setJoinFailure(undefined);
+  }, [joinRequestId, linkId, lobbyDecision, resetJoin]);
 
   useLobbyJoinRetry({
     meetingId,
     decision: lobbyDecision,
     admitted: false,
-    hasJoinError: Boolean(joinError),
+    hasJoinError: joinFailure !== undefined,
+    joinError: joinFailure,
+    joinRequestId,
     onRetry: runJoin,
   });
 
@@ -161,52 +232,81 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     runJoin();
   }, [state, authStatus, meetingId, runJoin]);
 
+  const inLobby = lobbyDecision !== undefined || joinFailure !== undefined;
+  const view =
+    state === "loading" || authStatus === "loading"
+      ? "loading"
+      : state !== "ok"
+        ? state
+        : inLobby
+          ? `lobby:${joinFailure === undefined ? lobbyDecision : "failure"}`
+          : isGuest
+            ? "form"
+            : "member";
+
+  useFocusHeadingOnViewChange(view);
+
+  const wordmark = t("auth.wordmark");
+  let pageTitle: string;
+  if (view === "loading") {
+    pageTitle = t("meetings.publicInviteTitle");
+  } else if (state !== "ok" && state !== "loading") {
+    pageTitle = t(inviteStateCopy(state).title);
+  } else if (inLobby) {
+    // The tab reads what the heading says, waiting or refused.
+    pageTitle = lobbyMessage(t, lobbyDecision, joinFailure, { guestMode: true });
+  } else {
+    pageTitle = t("meetings.publicInviteTitle");
+  }
+  const meetingPart = title && state === "ok" ? ` · ${title}` : "";
+  const documentTitle = `${pageTitle}${meetingPart} · ${wordmark}`;
+  useLayoutEffect(() => {
+    document.title = documentTitle;
+  }, [documentTitle]);
+
   const wrapLobby = (node: ReactNode) =>
     meetingId ? <MeetingLobbyWSProvider meetingId={meetingId}>{node}</MeetingLobbyWSProvider> : node;
 
-  if (state === "loading" || authStatus === "loading") {
-    return (
-      <MeetingInviteShell className="items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Spinner className="size-6" />
-          <p className="text-body">{t("common.loading")}</p>
-        </div>
-      </MeetingInviteShell>
-    );
+  if (view === "loading") {
+    return <MeetingInvitePageSkeleton />;
   }
-  if (state === "invalid") {
+  if (state !== "ok") {
+    const copy = inviteStateCopy(state === "loading" ? "error" : state);
     return (
-      <MeetingInviteStateCard
-        title={t("meetings.publicInviteInvalid")}
-        description={t("meetings.publicInviteInvalidHint")}
-      />
-    );
-  }
-  if (state === "expired") {
-    return (
-      <MeetingInviteStateCard
-        title={t("meetings.publicInviteExpired")}
-        description={t("meetings.publicInviteExpiredHint")}
-      />
-    );
-  }
-  if (state === "error") {
-    return (
-      <MeetingInviteStateCard title={t("common.error")} description={t("meetings.publicInviteInvalidHint")} />
+      <MeetingInviteStateCard title={t(copy.title)} description={t(copy.hint)}>
+        {state === "error" ? (
+          <Button
+            type="button"
+            className="mt-2 self-start"
+            onClick={() => {
+              setState("loading");
+              setResolveAttempt((n) => n + 1);
+            }}
+          >
+            {t("common.retry")}
+          </Button>
+        ) : null}
+      </MeetingInviteStateCard>
     );
   }
 
-  if (lobbyDecision) {
+  if (inLobby) {
     return wrapLobby(
-      <div className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col bg-app-shell">
+      <MeetingInviteShell>
         <MeetingLobby
-          meetingId={meetingId}
           title={title}
           decision={lobbyDecision}
-          error={joinError}
-          onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+          error={joinFailure}
+          // The invite page is guest-facing for everyone: known refusals get
+          // their own sentence, anything else a generic one, never raw server text.
+          guestMode
+          meetingStatus={lobbyMeetingStatus}
+          onRequestAgain={() => runJoin(undefined, true)}
+          requestingAgain={joinPending}
+          onRetry={() => runJoin()}
+          onLeave={leaveLobby}
         />
-      </div>,
+      </MeetingInviteShell>,
     );
   }
 
@@ -232,10 +332,12 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           {t("meetings.publicInviteTitle")}
         </h1>
         <p className="text-body text-foreground">{title}</p>
-        <p className="flex items-center gap-2 text-body text-muted-foreground">
-          <Loader2 aria-hidden className="size-4 animate-spin" />
-          {joinPending ? t("meetings.joining") : t("common.loading")}
-        </p>
+        {joinPending ? (
+          <p role="status" className="flex items-center gap-2 text-body text-muted-foreground">
+            <Spinner />
+            {t("meetings.joining")}
+          </p>
+        ) : null}
         <Button variant="outline" onClick={() => runJoin()} disabled={joinPending}>
           {t("meetings.publicInviteJoin")}
         </Button>

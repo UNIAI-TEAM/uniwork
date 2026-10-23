@@ -48,10 +48,10 @@ func TestAIEndpoints(t *testing.T) {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, UserID: memberID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, OrganizationID: orgID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC
 	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", owner, map[string]any{"title": "Viết spec F-09", "due_date": yesterday})
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		t.Fatalf("create task: %d %v", res.StatusCode, out)
@@ -62,7 +62,7 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || out["enabled"] != true || out["ask_uni"] != true {
 		t.Fatalf("capabilities: %d %v", res.StatusCode, out)
 	}
-	if quota := out["quota"].(map[string]any); quota["limit_tokens"] != float64(500000) {
+	if quota := out["quota"].(map[string]any); quota["limit_tokens"] != float64(100000) {
 		t.Fatalf("quota: %v", quota)
 	}
 
@@ -88,9 +88,42 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
 		t.Fatalf("conversations: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=QUA+HAN", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
+		t.Fatalf("conversations?q match: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=khong+co+gi", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 0 {
+		t.Fatalf("conversations?q miss: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=%20", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
+		t.Fatalf("conversations?q blank: %d %v", res.StatusCode, out)
+	}
+	if res, _ = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=x", member, nil); res.StatusCode != 400 {
+		t.Fatalf("conversations?q too short: %d", res.StatusCode)
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", member, nil)
 	if res.StatusCode != 200 || len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages: %d %v", res.StatusCode, out)
+	}
+	if _, has := out["messages"].([]any)[1].(map[string]any)["notice"]; has {
+		t.Fatalf("regular answer carries a notice: %v", out["messages"])
+	}
+	// A new conversation: a follow-up would carry the overdue task's sources.
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", member, map[string]any{"question": "doanh thu năm 2019", "locale": "vi"})
+	if res.StatusCode != 200 {
+		t.Fatalf("ask without sources: %d %v", res.StatusCode, out)
+	}
+	noSourcesConv := out["conversation_id"].(string)
+	if noSourcesConv == convID {
+		t.Fatalf("question without conversation_id reused %s", convID)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+noSourcesConv+"/messages", member, nil)
+	if msgs := out["messages"].([]any); res.StatusCode != 200 || len(msgs) != 2 {
+		t.Fatalf("messages after no-source turn: %d %v", res.StatusCode, out)
+	} else if last := msgs[1].(map[string]any); last["notice"] != "no_sources" || last["content"] != "" {
+		t.Fatalf("no-source notice: %v", last)
 	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", owner, nil)
 	if res.StatusCode != 404 {

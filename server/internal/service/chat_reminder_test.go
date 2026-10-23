@@ -83,26 +83,26 @@ func TestReminderEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(meta) == 0 {
 		t.Fatalf("encode: err=%v meta=%s", err, meta)
 	}
-	info := reminderFromMetadata(chatMessageKindReminder, meta)
+	info := reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(meta))
 	if info == nil || info.Body != "Họp nhóm" || info.Repeat != "daily" || info.RemindAt == "" {
 		t.Fatalf("decode: %+v", info)
 	}
 }
 
 func TestReminderFromMetadataBranches(t *testing.T) {
-	if reminderFromMetadata("note", []byte(`{"reminder":{"body":"x"}}`)) != nil {
+	if reminderFromMetadata("note", decodeChatMessageMetadata([]byte(`{"reminder":{"body":"x"}}`))) != nil {
 		t.Fatal("wrong kind should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, nil) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(nil)) != nil {
 		t.Fatal("empty raw should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{}`))) != nil {
 		t.Fatal("missing reminder should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{"reminder":{"body":"   "}}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{"reminder":{"body":"   "}}`))) != nil {
 		t.Fatal("blank body should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`not-json`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`not-json`))) != nil {
 		t.Fatal("invalid json should be nil")
 	}
 }
@@ -179,6 +179,20 @@ func TestChatReminderValidationErrors(t *testing.T) {
 		t.Fatal("long body should fail")
 	} else {
 		requireReminderValidationError(t, err, "long body")
+	}
+
+	// The limit counts characters, not UTF-8 bytes ("ệ" is 3 bytes).
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
+		Body: strings.Repeat("ệ", maxReminderBodyLen), RemindAt: futureRemindAt(),
+	}); err != nil {
+		t.Fatalf("Vietnamese body at the limit: %v", err)
+	}
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
+		Body: strings.Repeat("ệ", maxReminderBodyLen+1), RemindAt: futureRemindAt(),
+	}); err == nil {
+		t.Fatal("long Vietnamese body should fail")
+	} else {
+		requireReminderValidationError(t, err, "long Vietnamese body")
 	}
 
 	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
@@ -279,4 +293,66 @@ func TestChatReminderSendRestricted(t *testing.T) {
 		Body: "Nhắc việc", RemindAt: futureRemindAt(),
 	})
 	requireReminderValidationError(t, err, "muted member")
+}
+
+// A due reminder notifies every member, so in a large room it is the
+// moderators' call, exactly as @all is (UNI-1089).
+func TestReminderInALargeRoomIsForModerators(t *testing.T) {
+	s, _, _, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-viec", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smallChatRoom(t, 1)
+	in := SendReminderMessageInput{Body: "Nộp báo cáo", RemindAt: futureRemindAt()}
+	if _, err := s.SendReminderMessage(ctx, ub.ID, w.ID, ch.ID, in); !codedIs(err, "chat_mention_all_forbidden") {
+		t.Fatalf("member reminder in a large room: want chat_mention_all_forbidden, got %v", err)
+	}
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, ch.ID, in); err != nil {
+		t.Fatalf("channel owner reminder in a large room: %v", err)
+	}
+}
+
+// A reminder outlives its author's membership: a room moderator can retire
+// it once the author has left, while an ordinary member cannot, and the
+// moderator gains no power over anyone else's plain messages.
+func TestRoomModeratorDeletesAReminderWhoseAuthorLeft(t *testing.T) {
+	s, _, q, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	peer := registerReminderPeer(t, s.pool, q, "reminder-left-peer@example.com", "Peer", w.OrganizationID, w.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-roi-kenh", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID, peer.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reminder, err := s.SendReminderMessage(ctx, ub.ID, w.ID, ch.ID, SendReminderMessageInput{
+		Body: "Họp hằng ngày", RemindAt: futureRemindAt(), Repeat: "daily",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := s.SendRoomMessage(ctx, ub.ID, w.ID, ch.ID, SendChatMessageInput{Body: "Tin thường"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LeaveChatRoom(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DeleteChatMessage(ctx, peer.ID, w.ID, ch.ID, reminder.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("member deletes another's reminder: want ErrForbidden, got %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, ch.ID, text.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("moderator deletes another's text: want ErrForbidden, got %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, ch.ID, reminder.ID); err != nil {
+		t.Fatalf("moderator deletes the reminder of a member who left: %v", err)
+	}
+	if n, err := s.NewChatReminderWorker().RunOnce(ctx, time.Now().Add(3*time.Hour)); err != nil || n != 0 {
+		t.Fatalf("deleted reminder fired %d (err %v), want 0", n, err)
+	}
 }

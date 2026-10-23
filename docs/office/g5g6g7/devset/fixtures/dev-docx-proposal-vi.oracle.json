@@ -1,0 +1,45 @@
+{
+  "fixtureId": "dev-docx-proposal-vi",
+  "format": "docx",
+  "fixtureSha256": "6f5d3b9cc732789939bd9af10d262860f957ccd4b5fd9c82df457b75b670c9fe",
+  "synthetic": true,
+  "title": "Đề xuất triển khai hệ thống kho vận 2026",
+  "paragraphCount": 7,
+  "blocks": [
+    {
+      "index": 0,
+      "style": "Title",
+      "text": "Đề xuất triển khai hệ thống kho vận 2026"
+    },
+    {
+      "index": 1,
+      "style": "Heading1",
+      "text": "1. Mục tiêu dự án"
+    },
+    {
+      "index": 2,
+      "style": "Normal",
+      "text": "Dự án hướng tới giảm thời gian xử lý đơn hàng tại ba kho miền Bắc, miền Trung và miền Nam xuống dưới 4 giờ cho mỗi đơn."
+    },
+    {
+      "index": 3,
+      "style": "Heading1",
+      "text": "2. Phạm vi áp dụng"
+    },
+    {
+      "index": 4,
+      "style": "Normal",
+      "text": "Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc."
+    },
+    {
+      "index": 5,
+      "style": "Heading1",
+      "text": "3. Kế hoạch bàn giao"
+    },
+    {
+      "index": 6,
+      "style": "Normal",
+      "text": "Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến."
+    }
+  ]
+}

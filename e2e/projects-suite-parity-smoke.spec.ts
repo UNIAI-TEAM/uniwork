@@ -29,7 +29,7 @@ async function onboardToTasks(page: Page) {
   await page.getByRole("button", { name: `Tạo Đội Proj ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/tasks`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 }
 
 test("projects suite: list + detail TaskSurface always on", async ({ page }) => {
@@ -46,7 +46,7 @@ test("projects suite: list + detail TaskSurface always on", async ({ page }) => 
 
   await page.getByRole("button", { name: "Dự án mới" }).click();
   await page.getByLabel("Tiêu đề dự án").fill(projectTitle);
-  await page.getByRole("button", { name: "Tạo", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo dự án", exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/projects/[^/]+`), {
     timeout: 15_000,

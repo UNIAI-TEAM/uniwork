@@ -1,15 +1,16 @@
 "use client";
-import { Link2Off, Loader2 } from "lucide-react";
+import { Link2Off } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useResetPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
-import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
+import { AUTH_PILL, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
@@ -60,7 +61,7 @@ export function ResetPasswordView({
           <div className="flex flex-col gap-4">
             {/* A link dressed as the primary button: it navigates, so it stays
                 an <a> for assistive tech instead of a Button with role swapped. */}
-            <AppLink href={paths.forgotPassword()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+            <AppLink href={paths.forgotPassword()} className={cn(buttonVariants({ size: "lg" }), AUTH_PILL)}>
               {t("auth.reset.requestNew")}
             </AppLink>
             <p className="text-center text-body text-muted-foreground">
@@ -106,8 +107,8 @@ export function ResetPasswordView({
           );
         }}
       >
-        <FieldGroup>
-          <Field data-invalid={passwordInvalid || undefined}>
+        <FieldGroup className="gap-4">
+          <Field className="gap-2" data-invalid={passwordInvalid || undefined}>
             <FieldLabel htmlFor="reset-password">{t("auth.reset.newPassword")}</FieldLabel>
             <PasswordField
               ref={passwordRef}
@@ -132,7 +133,7 @@ export function ResetPasswordView({
               </FieldDescription>
             )}
           </Field>
-          <Field data-invalid={confirmInvalid || undefined}>
+          <Field className="gap-2" data-invalid={confirmInvalid || undefined}>
             <FieldLabel htmlFor="reset-confirm">{t("auth.reset.confirmPassword")}</FieldLabel>
             <PasswordField
               ref={confirmRef}
@@ -151,16 +152,9 @@ export function ResetPasswordView({
           </Field>
           {owner === "form" ? <FieldError id={errorId}>{errorMsg}</FieldError> : null}
         </FieldGroup>
-        <Button type="submit" size="lg" className="w-full" aria-disabled={reset.isPending || undefined}>
-          {reset.isPending ? (
-            <>
-              <Loader2 aria-hidden className="animate-spin" />
-              {t("auth.reset.submitting")}
-            </>
-          ) : (
-            t("auth.reset.submit")
-          )}
-        </Button>
+        <AuthSubmit pending={reset.isPending} pendingLabel={t("auth.reset.submitting")}>
+          {t("auth.reset.submit")}
+        </AuthSubmit>
       </form>
     </AuthShell>
   );

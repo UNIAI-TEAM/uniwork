@@ -1,17 +1,26 @@
 "use client";
 
 import { useMemo } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { ListTodo, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
-import { useChildTaskProgress, useProjects } from "@uniwork/core/tasks";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
+import { useChildTaskProgress, useProjects, useTaskLabelLinks, useTaskLabels } from "@uniwork/core/tasks";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import {
+  UI_EASE_OUT,
+  UI_MOTION_DISTANCE,
+  UI_MOTION_DURATION,
+} from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
+import { toMemberOptions, useStatusCatalog } from "../pickers";
+import { StatusCatalogContext } from "../pickers/status-catalog";
 import { BoardView } from "../modes/board-view";
 import type { BoardCardMeta } from "../modes/board-card";
 import { GanttView } from "../modes/gantt-view";
@@ -22,8 +31,9 @@ import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { TasksHeader } from "../views/tasks-header";
 import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
-import type { TaskSurfaceProps } from "./types";
+import type { TaskSurfaceMode, TaskSurfaceProps } from "./types";
 import { useTaskSurfaceController } from "./use-task-surface-controller";
+import { MODULE_ICONS } from "../../layout/module-icons";
 
 export type { TaskSurfaceProps } from "./types";
 export type { TaskSurfaceController } from "./use-task-surface-controller";
@@ -70,20 +80,24 @@ function TaskSurfaceContent({
   renderHeader,
   renderEmpty,
 }: Omit<TaskSurfaceProps, "surfaceKey">) {
-  // Workspace table endpoints have no my-relation filter — omit table on my-scope.
-  const availableModes = useMemo(
-    () =>
-      scope.type === "my" ? modes.filter((mode) => mode !== "table") : modes,
-    [modes, scope.type],
-  );
   const controller = useTaskSurfaceController({
     workspaceId,
     scope,
-    modes: availableModes,
+    modes,
   });
+  const reduceMotion = useReducedMotion() ?? false;
   const { data: membersData } = useMembers(workspaceId);
   const { data: projectsData } = useProjects(workspaceId);
+  // Only the table's assignee cell offers agents; other modes skip the request.
+  const { data: agentsData } = useWorkspaceAgents(
+    controller.viewMode === "table" ? workspaceId : "",
+  );
   const { data: childProgressData } = useChildTaskProgress(workspaceId);
+  // Cards and rows draw label chips; the table pages its own, gantt draws none.
+  const wantsLabels = controller.viewMode !== "table" && controller.viewMode !== "gantt";
+  const { data: labelLinks } = useTaskLabelLinks(workspaceId, wantsLabels);
+  const { data: labelCatalog } = useTaskLabels(wantsLabels ? workspaceId : "");
+  const statusCatalog = useStatusCatalog(workspaceId);
   const batchMembers = useMemo(
     () =>
       (membersData ?? []).map((m) => ({
@@ -93,20 +107,22 @@ function TaskSurfaceContent({
     [membersData],
   );
   const tableMembers = useMemo(
-    () =>
-      (membersData ?? []).map((member) => ({
-        id: member.user_id,
-        name: member.display_name || member.email,
-        ...(typeof member.avatar_url === "string"
-          ? { avatarUrl: member.avatar_url }
-          : {}),
-      })),
+    () => toMemberOptions(membersData ?? []),
     [membersData],
   );
   const boardCardMeta = useMemo(() => {
     const projectNames = new Map(
       (projectsData?.projects ?? []).map((project) => [project.id, project.title]),
     );
+    const labelById = new Map((labelCatalog?.labels ?? []).map((label) => [label.id, label]));
+    const labelsByTask = new Map<string, { id: string; name: string; color: string }[]>();
+    for (const link of labelLinks?.links ?? []) {
+      const label = labelById.get(link.label_id);
+      if (!label) continue;
+      const list = labelsByTask.get(link.task_id) ?? [];
+      list.push({ id: label.id, name: label.name, color: label.color });
+      labelsByTask.set(link.task_id, list);
+    }
     const progressByTask = new Map(
       (childProgressData ?? []).map((progress) => [
         progress.parent_task_id,
@@ -121,10 +137,11 @@ function TaskSurfaceContent({
             ? projectNames.get(task.project_id)
             : undefined,
           childProgress: progressByTask.get(task.id),
+          labels: labelsByTask.get(task.id),
         },
       ]),
     );
-  }, [childProgressData, controller.surfaceTasks, projectsData?.projects]);
+  }, [childProgressData, controller.surfaceTasks, labelCatalog, labelLinks, projectsData?.projects]);
 
   const renderContext = useMemo(
     () => ({ controller }),
@@ -134,19 +151,35 @@ function TaskSurfaceContent({
   const showBatchToolbar =
     batchToolbar === "always" ||
     (batchToolbar === "list" && controller.viewMode === "list");
+  const surfaceStageKey = controller.isLoading
+    ? `loading:${controller.viewMode}`
+    : controller.isError
+      ? "error"
+      : controller.isEmpty
+        ? "empty"
+        : `mode:${controller.viewMode}`;
 
   const header =
     renderHeader?.(renderContext) ??
     (
       <TasksHeader
         workspaceId={workspaceId}
-        modes={availableModes}
+        modes={modes}
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
         lockProjectFilter={scope.type === "project"}
         showProjectGrouping={scope.type !== "project"}
         projectGroupingDisabled={controller.projectGroupingDisabled}
         projectGroupingReasonKey={controller.projectGroupingReasonKey}
+        tableFacetCounts={controller.tableFacetCounts}
+        onTableFacetChange={(facet) => {
+          if (facet == null || facet.kind === "property") {
+            controller.setActiveTableFacet(null);
+            return;
+          }
+          controller.setActiveTableFacet({ kind: facet.kind });
+        }}
+        agentRunningProjection={false}
         saveViewScope={
           scope.type === "workspace"
             ? { kind: "workspace" }
@@ -164,82 +197,118 @@ function TaskSurfaceContent({
     );
 
   return (
-    <TaskSurfaceActionsProvider actions={controller.actions}>
-      <TaskSurfaceSelectionProvider selection={controller.selection}>
-        <div className="flex min-h-0 flex-1 flex-col">
-          {header}
-          {controller.isLoading ? (
-            <TaskSurfaceSkeleton />
-          ) : controller.isEmpty ? (
-            renderEmpty ? (
-              renderEmpty()
-            ) : (
-              <DefaultEmpty onCreate={() => controller.openCreateTask()} />
-            )
-          ) : (
-            <div className={cn("flex min-h-0 flex-1 flex-col")}>
-              {controller.viewMode === "list" ? (
-                <ListView
-                  categories={controller.boardCategories}
-                  tasks={controller.surfaceTasks}
-                  cardMeta={boardCardMeta}
-                  onOpenTask={onOpenTask}
-                />
-              ) : controller.viewMode === "board" ? (
-                <BoardView
-                  categories={controller.boardCategories}
-                  tasks={controller.surfaceTasks}
-                  cardMeta={boardCardMeta}
-                  projects={projectsData?.projects}
-                  onOpenTask={onOpenTask}
-                />
-              ) : controller.viewMode === "table" ? (
-                <TableView
-                  workspaceId={workspaceId}
-                  filter={controller.tableFilter}
-                  members={tableMembers}
-                  projects={projectsData?.projects}
-                  childProgress={childProgressData}
-                  projectGroupingDisabled={controller.projectGroupingDisabled}
-                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
-                  onOpenTask={onOpenTask}
-                />
-              ) : controller.viewMode === "gantt" ? (
-                <GanttView tasks={controller.ganttTasks} />
-              ) : controller.viewMode === "swimlane" ? (
-                <SwimLaneView
-                  tasks={controller.surfaceTasks}
-                  categories={controller.boardCategories}
-                  projects={projectsData?.projects}
-                  cardMeta={boardCardMeta}
-                  groupBranches={controller.groupBranches}
-                  projectGroupingDisabled={controller.projectGroupingDisabled}
-                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
-                  parentGroupingDisabled={controller.parentGroupingDisabled}
-                  parentGroupingReasonKey={controller.parentGroupingReasonKey}
-                  onOpenTask={onOpenTask}
-                />
-              ) : (
-                <ModePlaceholder />
-              )}
-            </div>
-          )}
-          {showBatchToolbar ? (
-            <BatchActionToolbar
+    <StatusCatalogContext value={statusCatalog}>
+      <TaskSurfaceActionsProvider actions={controller.actions}>
+        <TaskSurfaceSelectionProvider selection={controller.selection}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {header}
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div
+                key={surfaceStageKey}
+                initial={{
+                  opacity: 0,
+                  x: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
+                }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{
+                  opacity: 0,
+                  x: reduceMotion ? 0 : -UI_MOTION_DISTANCE.subtle,
+                }}
+                transition={{
+                  duration: reduceMotion
+                    ? UI_MOTION_DURATION.micro
+                    : UI_MOTION_DURATION.fast,
+                  ease: UI_EASE_OUT,
+                }}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
+                {controller.isLoading ? (
+                  <TaskSurfaceSkeleton mode={controller.viewMode} />
+                ) : controller.isError ? (
+                  <SurfaceError onRetry={controller.retry} />
+                ) : controller.isEmpty ? (
+                  renderEmpty ? (
+                    renderEmpty()
+                  ) : (
+                    <DefaultEmpty onCreate={() => controller.openCreateTask()} />
+                  )
+                ) : (
+                  <div className={cn("flex min-h-0 flex-1 flex-col")}>
+                    {controller.viewMode === "list" ? (
+                      <ListView
+                        categories={controller.boardCategories}
+                        tasks={controller.surfaceTasks}
+                        cardMeta={boardCardMeta}
+                        pagination={controller.pagination}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "board" ? (
+                      <BoardView
+                        categories={controller.boardCategories}
+                        tasks={controller.surfaceTasks}
+                        cardMeta={boardCardMeta}
+                        projects={projectsData?.projects}
+                        columnPaging={controller.boardColumns}
+                        pagination={controller.pagination}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "table" ? (
+                      <TableView
+                        workspaceId={workspaceId}
+                        filter={controller.tableFilter}
+                        members={tableMembers}
+                        agents={agentsData}
+                        projects={projectsData?.projects}
+                        childProgress={childProgressData}
+                        propertiesDisabled={false}
+                        projectGroupingDisabled={controller.projectGroupingDisabled}
+                        projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "gantt" ? (
+                      <GanttView
+                        tasks={controller.ganttTasks}
+                        pagination={controller.pagination}
+                      />
+                    ) : controller.viewMode === "swimlane" ? (
+                      <SwimLaneView
+                        tasks={controller.surfaceTasks}
+                        pagination={controller.pagination}
+                        categories={controller.boardCategories}
+                        projects={projectsData?.projects}
+                        cardMeta={boardCardMeta}
+                        groupBranches={controller.groupBranches}
+                        projectGroupingDisabled={controller.projectGroupingDisabled}
+                        projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                        parentGroupingDisabled={controller.parentGroupingDisabled}
+                        parentGroupingReasonKey={controller.parentGroupingReasonKey}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : (
+                      <ModePlaceholder />
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+            {showBatchToolbar ? (
+              <BatchActionToolbar
+                workspaceId={workspaceId}
+                tasks={controller.surfaceTasks}
+                members={batchMembers}
+              />
+            ) : null}
+            <NewTaskDialog
               workspaceId={workspaceId}
-              tasks={controller.surfaceTasks}
-              members={batchMembers}
+              defaults={controller.createDefaults}
+              open={controller.createOpen}
+              onOpenChange={controller.setCreateOpen}
+              showTrigger={false}
             />
-          ) : null}
-          <NewTaskDialog
-            workspaceId={workspaceId}
-            open={controller.createOpen}
-            onOpenChange={controller.setCreateOpen}
-            showTrigger={false}
-          />
-        </div>
-      </TaskSurfaceSelectionProvider>
-    </TaskSurfaceActionsProvider>
+          </div>
+        </TaskSurfaceSelectionProvider>
+      </TaskSurfaceActionsProvider>
+    </StatusCatalogContext>
   );
 }
 
@@ -255,8 +324,11 @@ function ModePlaceholder() {
 function DefaultEmpty({ onCreate }: { onCreate: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-      <ListTodo className="h-10 w-10 text-muted-foreground" aria-hidden />
+    <div
+      data-testid="task-surface-empty"
+      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground"
+    >
+      <MODULE_ICONS.tasks className="size-10 text-muted-foreground" aria-hidden />
       <p className="text-body">{t("tasks.empty_title")}</p>
       <p className="text-caption">{t("tasks.empty_description")}</p>
       <Button variant="outline" size="sm" className="mt-1" onClick={onCreate}>
@@ -267,11 +339,51 @@ function DefaultEmpty({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function TaskSurfaceSkeleton() {
+function SurfaceError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-10 w-full rounded-lg" />
+    <div
+      data-testid="task-surface-error"
+      className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center"
+    >
+      <p className="text-body text-foreground">{t("tasks.error_title")}</p>
+      <p className="text-caption text-muted-foreground">{t("tasks.error_description")}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        {t("common.retry")}
+      </Button>
+    </div>
+  );
+}
+
+function TaskSurfaceSkeleton({ mode }: { mode: TaskSurfaceMode }) {
+  if (mode === "list") {
+    return (
+      <div
+        aria-hidden
+        data-testid="task-surface-skeleton"
+        data-layout="rows"
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-hidden
+      data-testid="task-surface-skeleton"
+      data-layout="columns"
+      className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4"
+    >
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex min-w-52 flex-1 flex-col gap-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
       ))}
     </div>
   );

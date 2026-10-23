@@ -30,8 +30,12 @@ func meetingFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Workspa
 
 func addMember(t *testing.T, s *MeetingService, workspaceID, userID string) {
 	t.Helper()
+	w, err := s.q.GetWorkspaceByID(context.Background(), workspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := s.q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
-		WorkspaceID: workspaceID, UserID: userID, Role: "member",
+		WorkspaceID: workspaceID, OrganizationID: w.OrganizationID, UserID: userID, Role: "member",
 	}); err != nil {
 		t.Fatal(err)
 	}

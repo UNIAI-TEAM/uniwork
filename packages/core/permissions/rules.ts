@@ -1,3 +1,6 @@
+import type { Agent } from "../types/agent";
+import { isWorkspaceFolder } from "../types/document";
+import type { Project } from "../types/project";
 import type { Task } from "../types/task";
 import { ALLOW, deny, isAdminLike, type Decision, type PermissionContext } from "./types";
 
@@ -99,6 +102,14 @@ export function canUpdateWorkspaceSettings(ctx: PermissionContext): Decision {
   return deny("not_admin_role", "Only workspace owners and admins can update workspace settings.");
 }
 
+/** Mirror workspace.go requireActorWorkspaceAdmin, the gate on task status and label writes. */
+export function canManageTaskCatalog(ctx: PermissionContext): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  return deny("not_admin_role", "Only workspace owners and admins can manage task statuses and labels.");
+}
+
 // ---- Organization ---------------------------------------------------------
 
 /**
@@ -188,6 +199,23 @@ export function canEditTask(_task: Task | null, ctx: PermissionContext): Decisio
   return requireWorkspaceMember(ctx) ?? ALLOW;
 }
 
+/**
+ * Give an agent new work (assign a task to it). Backend:
+ * TaskService.requireActiveAgent (server/internal/service/task.go), checked
+ * only when the assignee changes — a task keeps an agent paused after the fact.
+ * Membership is the caller's edit rule, not this one.
+ */
+export function canAssignAgent(agent: Pick<Agent, "status">): Decision {
+  switch (agent.status) {
+    case "active":
+      return ALLOW;
+    case "archived":
+      return deny("agent_archived", "This agent is archived and takes no new work.");
+    default:
+      return deny("agent_paused", "This agent is paused and takes no new work.");
+  }
+}
+
 // ---- Meetings -----------------------------------------------------------------
 
 export function canDeleteMeeting(
@@ -206,6 +234,49 @@ export function canHostMeeting(
   ctx: PermissionContext,
 ): Decision {
   return canDeleteMeeting(meeting, ctx);
+}
+
+/** Runs attendance and votes: host, workspace admin, or an active secretary (requireMeetingClerk). */
+export function canClerkMeeting(
+  meeting: { host_user_id?: string } | null,
+  participants: ReadonlyArray<{ user_id?: string; status: string; principal_type: string; is_secretary?: boolean }>,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  const host = canHostMeeting(meeting, ctx);
+  if (host.allowed) return host;
+  const secretary = participants.some(
+    (p) => p.status === "ACTIVE" && p.principal_type === "USER" && p.user_id === ctx.userId && p.is_secretary === true,
+  );
+  if (secretary) return ALLOW;
+  return deny("not_resource_owner", "Only the host, a secretary or a workspace admin can run attendance and votes.");
+}
+
+// ---- Projects -----------------------------------------------------------------
+
+/**
+ * Edit or delete a project and its resources: a workspace owner/admin, the
+ * project's creator, or its member lead (UNI-898). Reading stays open to every
+ * member. Backend: TaskService.authorizeProjectEdit → 403 not_project_editor
+ * (server/internal/service/project.go). The creator and the lead are
+ * (kind, id) pairs there, so an agent's id never stands for the user's.
+ */
+export function canEditProject(
+  project: Pick<Project, "created_by" | "created_by_kind" | "lead_type" | "lead_id"> | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  if (project && ctx.userId) {
+    if (project.created_by === ctx.userId && project.created_by_kind === "human") return ALLOW;
+    if (project.lead_type === "member" && project.lead_id === ctx.userId) return ALLOW;
+  }
+  return deny(
+    "not_resource_owner",
+    "Only the creator, the lead or a workspace admin can edit this project.",
+  );
 }
 
 // ---- Comments (policy; not wired to Tasks UI yet) ---------------------------
@@ -352,6 +423,26 @@ export function canLeaveOrg(ctx: PermissionContext): Decision {
 }
 
 /**
+ * Close the organization: archive it and leave it, without deleting anything
+ * (ADR 0032). Only the owner, and only while nobody else is an active member —
+ * otherwise ownership is transferred instead. `hasOtherActiveMembers` comes
+ * from the directory (the transfer candidates), which the context cannot carry.
+ * Backend: OrganizationMemberService.Close — not owner → 403,
+ * others active → 409 organization_has_members.
+ */
+export function canCloseOrg(ctx: PermissionContext, hasOtherActiveMembers: boolean): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (ctx.orgRole !== "owner") {
+    return deny("not_owner_role", "Only the organization owner can close the organization.");
+  }
+  if (hasOtherActiveMembers) {
+    return deny("organization_has_members", "Transfer ownership while other members remain.");
+  }
+  return ALLOW;
+}
+
+/**
  * Create, rename and archive departments.
  * Backend: DepartmentService.requireAdmin (server/internal/service/department.go).
  */
@@ -366,4 +457,147 @@ export function canManageDepartments(ctx: PermissionContext): Decision {
  */
 export function canExportPeople(ctx: PermissionContext): Decision {
   return requireOrgAdmin(ctx, "Only organization owners and admins can export the directory.");
+}
+
+// ---- Documents (C-01 §4, §13.4; UNI-676) ------------------------------------
+
+/**
+ * The document level ladder as the server sends it in `my_level` (C-01 §5.1).
+ * The server decides it — shares, visibility, the ACL owner and the owning
+ * work product are not visible to the client — so these rules read the
+ * decision and never recompute it. Lenient input: an unknown or missing
+ * level ranks as none.
+ */
+export interface DocumentLevelInput {
+  my_level?: string | null;
+}
+
+export function documentLevelRank(level: string | null | undefined): number {
+  switch (level) {
+    case "view":
+      return 1;
+    case "comment":
+      return 2;
+    case "edit":
+      return 3;
+    case "manage":
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Shared shape of the document level rules.
+ * Backend: DocumentService.effectiveLevel computes the level and
+ * decideDocumentAccess turns it into the answer — none → 404, below the
+ * required level → 403 (server/internal/service/document_permissions.go).
+ * A deactivated member is refused by OrganizationService.RequireMember ahead
+ * of any level (member_deactivated).
+ */
+function requireDocumentLevel(
+  doc: DocumentLevelInput | null,
+  ctx: PermissionContext,
+  required: number,
+  message: string,
+): Decision {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgMemberStatus === "deactivated") {
+    return deny("member_deactivated", "Your account in this organization has been deactivated.");
+  }
+  const rank = documentLevelRank(doc?.my_level);
+  if (rank === 0) return deny("unknown", "Document not found.");
+  if (rank >= required) return ALLOW;
+  return deny("insufficient_level", message);
+}
+
+/**
+ * Open, search, export or download a document.
+ * Backend: DocumentService.authorizeDocument(…, DocumentLevelView)
+ * (server/internal/service/document_permissions.go).
+ */
+export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("view"), "You cannot open this document.");
+}
+
+/**
+ * Write or reply to a comment, edit or delete own comment, add or remove own
+ * reaction, or resolve/reopen own thread.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelComment)
+ * (server/internal/service/document_comments.go).
+ */
+export function canCommentDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(
+    doc,
+    ctx,
+    documentLevelRank("comment"),
+    "You can view this document but not comment on it.",
+  );
+}
+
+/**
+ * Edit content or title, save a version, restore, upload a new file version,
+ * paste an image, create a child page.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelEdit) — the
+ * level is re-evaluated inside the command's transaction
+ * (server/internal/service/document_permissions.go).
+ */
+export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("edit"), "You can view this document but not edit it.");
+}
+
+/** What a folder tells the create gate: the document level plus the fields that name a workspace folder (UNI-2055 W1). */
+interface DocumentFolderInput extends DocumentLevelInput {
+  kind?: string | null;
+  visibility?: string | null;
+  system_kind?: string | null;
+}
+
+/**
+ * Create a sub-folder, page, file or upload inside a folder. On a workspace
+ * folder (kind folder, visibility workspace, no system_kind) every human
+ * workspace owner/admin/member may, even at my_level "view"; anyone else —
+ * a read-only role, an agent, a restricted folder or My Folder — keeps the
+ * edit rule. Rename, move and trash stay on `canEditDocument` / manage.
+ * Backend: DocumentService.lockPageParent treats a workspace folder as a
+ * contributable parent for human members
+ * (server/internal/service/document_permissions.go, UNI-2055 W3).
+ */
+export function canCreateInsideFolder(folder: DocumentFolderInput | null, ctx: PermissionContext): Decision {
+  if (isWorkspaceFolder(folder) && ctx.userId !== null && ctx.orgMemberStatus !== "deactivated") {
+    if (isAdminLike(ctx.wsRole) || ctx.wsRole === "member") return ALLOW;
+  }
+  return canEditDocument(folder, ctx);
+}
+
+/**
+ * Share, change visibility, manage public links, read the access log,
+ * archive. On a document owned by a work product the manage level still
+ * comes from the owner, and the owned-only refusals (§13.4) are separate.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelManage)
+ * (server/internal/service/document_permissions.go).
+ */
+export function canManageDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
+}
+
+/** A document level plus DOC-05's `admin_scope` (the caller administers the
+ *  document as a workspace owner/admin without reading it). */
+export interface DocumentAdministerInput extends DocumentLevelInput {
+  admin_scope?: boolean | null;
+}
+
+/**
+ * Open the share dialog and load its access list, transfer the ACL owner
+ * (access addendum §2.1, §2.5). Allowed at manage level or with
+ * `admin_scope`, which a pure admin has with no level at all (`my_level=""`)
+ * and a break-glass admin with `view`.
+ * Backend: access.canAdminister() = Level >= manage || AdminScope, through
+ * DocumentService.withDocumentAdministerMutation /
+ * authorizeDocumentViewOrAdminister (DOC-05,
+ * server/internal/service/document_permissions.go).
+ */
+export function canAdministerDocument(doc: DocumentAdministerInput | null, ctx: PermissionContext): Decision {
+  if (doc?.admin_scope === true && ctx.userId !== null && ctx.orgMemberStatus !== "deactivated") return ALLOW;
+  return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
 }

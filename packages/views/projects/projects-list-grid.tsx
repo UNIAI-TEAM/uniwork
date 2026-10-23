@@ -1,56 +1,59 @@
 "use client";
 
-import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { usePutProject } from "@uniwork/core/tasks";
+import { useProjectFieldSave } from "./use-project-field-save";
 import type { Project } from "@uniwork/core/types/project";
 import { LIST_GRID_BOTTOM_CLEARANCE } from "@uniwork/ui/components/ui/list-grid";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_GUTTER } from "../layout/page-header";
+import { resolveClickIntent } from "../navigation";
+import type { AssigneeOption } from "../tasks/pickers/assignee-picker";
 import { ProjectIcon } from "./components/project-icon";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "./components/project-badge";
+import { ProjectLeadPicker } from "./components/project-lead-picker";
 import { ProjectProgressRing } from "./components/project-progress";
 import { ProjectRowActions } from "./components/project-row-actions";
-import { formatRelativeDate, getProjectTaskMetrics } from "./project-row-metrics";
+import {
+  formatRelativeDate,
+  getProjectTaskMetrics,
+  type OpenProject,
+} from "./project-row-metrics";
+import { useListScrollReset } from "./use-list-scroll-reset";
 
 function ProjectCard({
   workspaceId,
   project,
   pinned,
   canDelete,
+  canEdit,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   project: Project;
   pinned: boolean;
   canDelete: boolean;
-  onOpenProject: (projectId: string) => void;
+  canEdit: boolean;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
   const { t } = useTranslation();
-  const putProject = usePutProject(workspaceId);
-  const handleUpdate = useCallback(
-    (patch: { status?: string; priority?: string }) =>
-      putProject.mutate({
-        projectId: project.id,
-        body: { ...patch, revision: project.revision },
-        ifMatch: String(project.revision),
-      }),
-    [project.id, project.revision, putProject],
-  );
+  const handleUpdate = useProjectFieldSave(workspaceId, project);
   const { totalCount } = getProjectTaskMetrics(project);
 
   return (
-    <div className="group/card group/row flex flex-col rounded-md border bg-card transition-colors hover:border-primary/50">
-      <div className="p-3 pb-2">
-        <div className="flex items-center gap-2">
+    <div className="group/card group/row flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card transition-colors hover:border-primary/50">
+      <div className="min-w-0 p-3 pb-2">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            onClick={() => onOpenProject(project.id)}
+            onClick={(e) => onOpenProject(project.id, resolveClickIntent(e))}
+            onAuxClick={(e) => {
+              if (e.button === 1) onOpenProject(project.id, "background-tab");
+            }}
           >
             <ProjectIcon project={project} size="sm" />
             <h3 className="truncate text-body font-medium">{project.title}</h3>
@@ -64,8 +67,9 @@ function ProjectCard({
           />
           <ProjectStatusBadge
             project={project}
-            onUpdate={(p) => handleUpdate(p)}
+            onUpdate={handleUpdate}
             triggerClassName="shrink-0"
+            disabled={!canEdit}
           />
         </div>
 
@@ -80,17 +84,33 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="mt-0 flex items-center justify-between border-t px-3 pb-3 pt-2">
-        <span className="max-w-[80px] truncate text-caption text-muted-foreground">
-          {resolveLeadName(project) ?? t("projects.lead.no_lead")}
-        </span>
-        <div className="flex items-center gap-2">
+      <div
+        data-slot="project-card-footer"
+        className="mt-0 flex min-w-0 items-center justify-between gap-2 border-t border-border px-3 pb-3 pt-2"
+      >
+        <ProjectLeadPicker
+          project={project}
+          options={leadOptions}
+          onChange={handleUpdate}
+          triggerClassName="-mx-1 max-w-full flex-1 shrink overflow-hidden"
+          labelClassName="max-w-[96px]"
+          disabled={!canEdit}
+        />
+        <div
+          data-slot="project-card-metadata"
+          className="flex min-w-0 max-w-[65%] items-center justify-end gap-2"
+        >
           <ProjectPriorityBadge
             project={project}
-            onUpdate={(p) => handleUpdate(p)}
+            onUpdate={handleUpdate}
             align="start"
+            triggerClassName="min-w-0 overflow-hidden [&>span]:truncate"
+            disabled={!canEdit}
           />
-          <span className="text-caption text-muted-foreground">
+          <span
+            data-slot="project-card-date"
+            className="min-w-0 truncate text-caption text-muted-foreground"
+          >
             {formatRelativeDate(project.created_at, locale)}
           </span>
         </div>
@@ -104,22 +124,32 @@ export function ProjectsListGrid({
   projects,
   pinnedIds,
   canDelete,
+  canEdit,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
+  scrollResetKey,
 }: {
   workspaceId: string;
   projects: Project[];
   pinnedIds: Set<string>;
   canDelete: boolean;
-  onOpenProject: (projectId: string) => void;
+  canEdit: (project: Project) => boolean;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
+  scrollResetKey: string | number;
 }) {
+  const scrollRef = useListScrollReset<HTMLDivElement>(scrollResetKey);
+
   return (
-    <div className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}>
+    <div
+      ref={scrollRef}
+      data-slot="project-list-scroll"
+      className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}
+    >
       <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         style={{ paddingBottom: LIST_GRID_BOTTOM_CLEARANCE }}
       >
         {projects.map((project) => (
@@ -129,9 +159,10 @@ export function ProjectsListGrid({
             project={project}
             pinned={pinnedIds.has(project.id)}
             canDelete={canDelete}
+            canEdit={canEdit(project)}
             onOpenProject={onOpenProject}
             locale={locale}
-            resolveLeadName={resolveLeadName}
+            leadOptions={leadOptions}
           />
         ))}
       </div>

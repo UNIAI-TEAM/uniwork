@@ -1,0 +1,247 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/retention"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+var (
+	ErrEmailHubBodyNotUsable          = errors.New("email hub: body not usable")
+	ErrEmailHubBodySnippetPlaceholder = errors.New("email hub: body is snippet placeholder")
+)
+
+const (
+	emailHubPrefetchBodyBatch          = 20
+	emailHubPrefetchChunkSize          = 3 // release IMAP lock between chunks so opens stay fast
+	emailHubPrefetchMaxDuration        = 3 * time.Minute
+	emailHubPrefetchFailureBackoff     = 5 * time.Minute
+	emailHubPrefetchPlaceholderBackoff = 30 * time.Minute
+)
+
+func (s *EmailHubService) cacheThreadBodyIMAP(
+	ctx context.Context,
+	row db.EmailHubThread,
+	sess *imapclient.Session,
+	mailboxes imapclient.MailboxMap,
+) (imapclient.ThreadBody, error) {
+	mailbox := mailboxes.Resolve(row.Folder)
+	body, err := sess.FetchBody(mailbox, uint32(row.ImapUid))
+	if err != nil {
+		return imapclient.ThreadBody{}, err
+	}
+	body.Text = imapclient.SanitizeUTF8(body.Text)
+	body.HTML = imapclient.SanitizeUTF8(body.HTML)
+	if !imapclient.BodyWorthCaching(body.HTML, body.Text) {
+		return imapclient.ThreadBody{}, ErrEmailHubBodyNotUsable
+	}
+	if imapclient.BodyIsSnippetPlaceholder(body.HTML, body.Text, row.Snippet) {
+		return imapclient.ThreadBody{}, ErrEmailHubBodySnippetPlaceholder
+	}
+	s.gov.clearBodyPrefetchDefer(row.ID)
+	if err := s.persistThreadBody(ctx, row.AccountID, row.OrganizationID, row.ID, body.Text, body.HTML); err != nil {
+		return imapclient.ThreadBody{}, err
+	}
+	s.invalidateEmailHubThreadAiSummaries(ctx, row.ID)
+	if snip := imapclient.CleanSnippet(imapclient.SnippetFromBody(body.Text, body.HTML)); snip != "" {
+		_ = s.q.PatchEmailHubThreadSnippet(ctx, db.PatchEmailHubThreadSnippetParams{
+			ID: row.ID, Snippet: snip,
+		})
+	}
+	return body, nil
+}
+
+func (s *EmailHubService) maybeCacheBodyFromSync(ctx context.Context, row db.EmailHubThread, body imapclient.ThreadBody) {
+	if !imapclient.BodyWorthCaching(body.HTML, body.Text) {
+		return
+	}
+	text := imapclient.SanitizeUTF8(body.Text)
+	html := imapclient.SanitizeUTF8(body.HTML)
+	if row.BodyCached {
+		existingHTML := pgTextString(row.BodyHtml)
+		existingText := pgTextString(row.BodyText)
+		if !imapclient.BodyNeedsRefetch(existingHTML, existingText) {
+			return
+		}
+		if imapclient.BodyNeedsRefetch(html, text) {
+			return
+		}
+	}
+	if err := s.persistThreadBody(ctx, row.AccountID, row.OrganizationID, row.ID, text, html); err != nil {
+		s.log.Warn("email hub sync body cache failed", "thread_id", row.ID, "err", err)
+		return
+	}
+	if snip := imapclient.CleanSnippet(imapclient.SnippetFromBody(text, html)); snip != "" && snip != row.Snippet {
+		_ = s.q.PatchEmailHubThreadSnippet(ctx, db.PatchEmailHubThreadSnippetParams{
+			ID: row.ID, Snippet: snip,
+		})
+	}
+}
+
+func pgTextString(t pgtype.Text) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.String
+}
+
+func (s *EmailHubService) scheduleBodyPrefetch(acc db.EmailHubAccount, folder string) {
+	if !s.Enabled() || s.gov.interactiveActive(acc.ID) || s.staleEmailHubSnapshot(acc) {
+		return
+	}
+	if !s.gov.tryBeginBodyPrefetch(acc.ID, folder) {
+		return
+	}
+	go func() {
+		defer s.gov.endBodyPrefetch(acc.ID, folder)
+		// A background goroutine panic kills the process; one bad message must not.
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Error("email hub body prefetch panic", "account_id", acc.ID, "folder", folder, "recovered", r)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), emailHubPrefetchMaxDuration)
+		defer cancel()
+		for ctx.Err() == nil {
+			n := s.prefetchUncachedBodies(ctx, acc, folder, emailHubPrefetchBodyBatch)
+			if n == 0 {
+				return
+			}
+		}
+	}()
+}
+
+func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.EmailHubAccount, folder string, limit int32) int {
+	if s.staleEmailHubSnapshot(acc) {
+		return 0
+	}
+	lim := retention.FromEnv()
+	if lim.MaxBodyCachedPerFolder > 0 {
+		n, err := s.q.CountEmailHubThreadsBodyCached(ctx, db.CountEmailHubThreadsBodyCachedParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder,
+		})
+		if err != nil {
+			s.log.Warn("email hub prefetch body count failed", "account_id", acc.ID, "err", err)
+			return 0
+		}
+		if n >= int64(lim.MaxBodyCachedPerFolder) {
+			return 0
+		}
+	}
+	var rows []db.EmailHubThread
+	var err error
+	if lim.PrefetchMaxAgeDays > 0 {
+		cutoff := time.Now().UTC().AddDate(0, 0, -lim.PrefetchMaxAgeDays)
+		rows, err = s.q.ListEmailHubThreadsPendingBodyRecent(ctx, db.ListEmailHubThreadsPendingBodyRecentParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder,
+			SentAt: pgtype.Timestamptz{Time: cutoff, Valid: true}, Limit: limit,
+		})
+	} else {
+		rows, err = s.q.ListEmailHubThreadsPendingBody(ctx, db.ListEmailHubThreadsPendingBodyParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder, Limit: limit,
+		})
+	}
+	if err != nil {
+		s.log.Warn("email hub prefetch list failed", "account_id", acc.ID, "err", err)
+		return 0
+	}
+	if len(rows) == 0 {
+		return 0
+	}
+	eligible := make([]db.EmailHubThread, 0, len(rows))
+	for _, row := range rows {
+		if s.gov.bodyPrefetchDeferred(row.ID) {
+			continue
+		}
+		eligible = append(eligible, row)
+	}
+	if len(eligible) == 0 {
+		return 0
+	}
+	chunk := eligible
+	if int32(len(chunk)) > emailHubPrefetchChunkSize {
+		chunk = chunk[:emailHubPrefetchChunkSize]
+	}
+	cached := 0
+	if !s.gov.tryWithIMAP(acc.ID, func() error {
+		sess, mailboxes, openErr := s.openIMAPWithMailboxes(ctx, acc)
+		if openErr != nil {
+			s.log.Warn("email hub prefetch imap failed", "account_id", acc.ID, "code", emailHubErrCode(openErr))
+			return openErr
+		}
+		defer sess.Close()
+		for _, row := range chunk {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if s.staleEmailHubSnapshot(acc) {
+				return nil
+			}
+			if _, cacheErr := s.cacheThreadBodyIMAP(ctx, row, sess, mailboxes); cacheErr != nil {
+				s.recordBodyPrefetchFailure(row.ID, cacheErr)
+				continue
+			}
+			cached++
+		}
+		return nil
+	}) {
+		return 0
+	}
+	if cached == 0 {
+		return 0
+	}
+	return cached
+}
+
+func (s *EmailHubService) recordBodyPrefetchFailure(threadID string, err error) {
+	switch {
+	case errors.Is(err, ErrEmailHubBodySnippetPlaceholder), errors.Is(err, ErrEmailHubBodyNotUsable):
+		s.gov.deferBodyPrefetch(threadID, emailHubPrefetchPlaceholderBackoff)
+		s.log.Debug("email hub prefetch body deferred", "thread_id", threadID, "err", err)
+	default:
+		s.gov.deferBodyPrefetch(threadID, emailHubPrefetchFailureBackoff)
+		s.log.Warn("email hub prefetch body failed", "thread_id", threadID, "code", emailHubErrCode(err))
+	}
+}
+
+// fetchThreadBodyInteractive loads body on user open on a dedicated IMAP connection so
+// background sync/prefetch cannot block the HTTP request.
+func (s *EmailHubService) fetchThreadBodyInteractive(
+	ctx context.Context, acc db.EmailHubAccount, row db.EmailHubThread,
+) (imapclient.ThreadBody, error) {
+	var lastErr error
+	for attempt := range 2 {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return imapclient.ThreadBody{}, ctx.Err()
+			case <-time.After(400 * time.Millisecond):
+			}
+		}
+		body, err := s.fetchThreadBodyInteractiveOnce(ctx, acc, row)
+		if err == nil {
+			return body, nil
+		}
+		lastErr = err
+	}
+	return imapclient.ThreadBody{}, lastErr
+}
+
+func (s *EmailHubService) fetchThreadBodyInteractiveOnce(
+	ctx context.Context, acc db.EmailHubAccount, row db.EmailHubThread,
+) (imapclient.ThreadBody, error) {
+	ctx, cancel := context.WithTimeout(ctx, imapclient.InteractiveTimeout())
+	defer cancel()
+	sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
+	if err != nil {
+		return imapclient.ThreadBody{}, err
+	}
+	defer sess.Close()
+	return s.cacheThreadBodyIMAP(ctx, row, sess, mailboxes)
+}

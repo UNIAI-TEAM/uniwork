@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "../lib/motion";
 
 // Resolved from the package root rather than `import.meta.url`: the jsdom
 // environment rewrites module URLs to a non-file scheme, and vitest always runs
 // a package's tests with that package as the working directory.
 const css = readFileSync(resolve(process.cwd(), "styles/tokens.css"), "utf8");
+const baseCss = readFileSync(resolve(process.cwd(), "styles/base.css"), "utf8");
 
 /** Nội dung của một khối `selector { ... }` ở cấp cao nhất trong file. */
 function block(selector: string): string {
@@ -38,6 +40,73 @@ function definedVars(source: string): Set<string> {
   return names;
 }
 
+/** Giá trị thô của một token trong một khối, ví dụ "#4d8dff" hoặc "oklch(...)". */
+function value(selector: string, token: string): string {
+  const match = block(selector).match(
+    new RegExp(`^\\s*${token}\\s*:\\s*([^;]+);`, "m"),
+  );
+  if (!match?.[1]) throw new Error(`${token} not found in ${selector}`);
+  return match[1].trim();
+}
+
+/** Raw value of one declaration in the @theme inline block, packed lines included. */
+function themeValue(token: string): string {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block("@theme inline").match(new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+);`, "m"));
+  if (!match?.[1]) throw new Error(`${token} not found in @theme inline`);
+  return match[1].trim();
+}
+
+const SCALED_STEPS = [
+  "micro", "overline", "caption", "label", "body", "body-lg",
+  "title-sm", "title", "title-lg", "title-xl", "display-sm", "display",
+] as const;
+const FIXED_STEPS = [
+  "hero-sm", "hero", "hero-lg", "hero-xl",
+  "hero-opening", "hero-opening-tablet", "hero-opening-mobile", "avatar-stage",
+] as const;
+
+/** sRGB 0..1. Handles the two notations the file uses: #rrggbb and oklch(). */
+function srgb(css: string): [number, number, number] {
+  const hex = css.match(/^#([0-9a-f]{6})$/i);
+  if (hex?.[1]) {
+    const n = parseInt(hex[1], 16);
+    return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+  const ok = css.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
+  if (!ok) throw new Error(`unsupported colour notation: ${css}`);
+  const [L, C, H] = [Number(ok[1]), Number(ok[2]), Number(ok[3])];
+  const h = (H * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const clamp = (v: number): number => {
+    const g = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.max(v, 0) ** (1 / 2.4) - 0.055;
+    return Math.min(1, Math.max(0, g));
+  };
+  return [
+    clamp(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    clamp(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    clamp(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+  ];
+}
+
+/** WCAG relative luminance. */
+function luminance(css: string): number {
+  const [r, g, b] = srgb(css).map((v) =>
+    v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
+  ) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio between two token values. */
+function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)];
+  const [hi, lo] = x >= y ? [x, y] : [y, x];
+  return (hi + 0.05) / (lo + 0.05);
+}
 const TINTS = ["violet", "blue", "pink", "orange", "green", "yellow", "teal", "gray", "red"] as const;
 
 describe("token contract", () => {
@@ -58,8 +127,13 @@ describe("token contract", () => {
       "--text-title-sm",
       "--text-title",
       "--text-title-lg",
+      "--text-title-xl",
       "--text-display-sm",
       "--text-display",
+      "--text-hero-opening",
+      "--text-hero-opening-tablet",
+      "--text-hero-opening-mobile",
+      "--text-avatar-stage",
     ]) {
       expect(definedVars(theme), `missing type step ${step}`).toContain(step);
     }
@@ -71,7 +145,7 @@ describe("token contract", () => {
     // than its neighbours. Body steps deliberately keep default tracking.
     const theme = definedVars(block("@theme inline"));
     for (const step of [
-      "title-sm", "title", "title-lg", "display-sm", "display",
+      "title-sm", "title", "title-lg", "title-xl", "display-sm", "display",
       "hero-sm", "hero", "hero-lg",
     ]) {
       expect(theme, `missing line-height for ${step}`).toContain(`--text-${step}--line-height`);
@@ -93,26 +167,34 @@ describe("token contract", () => {
   });
 
   it("pins the radius ramp to explicit values", () => {
-    // sm 6 / md 8 / lg 12 / xl 14 / 2xl 20 / 3xl 32. A calc() ramp off one
-    // base drifts every step when the base moves; explicit stops do not.
+    // Compact controls use md 8; default controls have the softer 10px role;
+    // cards start at lg 12. A calc() ramp off one base drifts every step when
+    // the base moves; explicit stops do not.
     const theme = block("@theme inline");
     for (const [step, px] of [
       ["sm", "6px"], ["md", "8px"], ["lg", "12px"],
-      ["xl", "14px"], ["2xl", "20px"], ["3xl", "32px"],
+      ["xl", "16px"], ["2xl", "20px"], ["3xl", "32px"],
     ]) {
       expect(theme).toMatch(new RegExp(`--radius-${step}:\\s*${px};`));
     }
+    expect(theme).toMatch(/--radius-control:\s*10px;/);
   });
 
   it("makes headings take the display family without touching views", () => {
     // 57 call sites use text-title*/text-display*/text-hero*; the family
     // rides on the utility so none of them has to add font-display.
-    for (const cls of ["text-title-sm", "text-title", "text-title-lg",
+    for (const cls of ["text-title-sm", "text-title", "text-title-lg", "text-title-xl",
       "text-display-sm", "text-display", "text-hero-sm", "text-hero", "text-hero-lg"]) {
       expect(css, `${cls} not bound to --font-display`).toMatch(
         new RegExp(`\\.${cls.replace(/-/g, "-")}\\b[^{]*\\{[^}]*font-family:\\s*var\\(--font-display\\)`),
       );
     }
+  });
+
+  it("lets an explicit font-sans opt a field out of the display family", () => {
+    // Inputs use text-title-sm for its 16px (no iOS focus zoom) and add
+    // font-sans; without the opt-out typed text rendered in the heading face.
+    expect(css).toMatch(/\.text-title-sm[^{]*\):not\(\.font-sans\)\s*\{[^}]*font-family:\s*var\(--font-display\)/);
   });
 
   it("defines the nine tints as fill + foreground + solid triples", () => {
@@ -133,6 +215,76 @@ describe("token contract", () => {
     expect(theme).toContain("--color-on-solid");
   });
 
+  it("defines every signal as a text / soft / solid triple", () => {
+    // A signal without its soft pair sends a view back to `bg-success/10`,
+    // an alpha that measures differently on every surface it lands on.
+    const light = definedVars(block(":root"));
+    const dark = definedVars(block(".dark"));
+    const theme = definedVars(block("@theme inline"));
+    for (const signal of ["destructive", "success", "warning", "info"]) {
+      for (const suffix of ["", "-soft", "-soft-foreground", "-solid"]) {
+        const name = `--${signal}${suffix}`;
+        expect(light, `missing ${name}`).toContain(name);
+        expect(dark, `missing ${name} in .dark`).toContain(name);
+        expect(theme, `no Tailwind alias for ${name}`).toContain(`--color-${signal}${suffix}`);
+      }
+    }
+    for (const name of ["--brand-subtle", "--brand-subtle-foreground"]) {
+      expect(light).toContain(name);
+      expect(dark).toContain(name);
+      expect(theme).toContain(`--color${name.slice(1)}`);
+    }
+  });
+
+  it("keeps --primary equal to --brand in both themes and under every accent", () => {
+    // The CTA, the unread count and the selected dot are the brand fill.
+    // Two slots can only stay one colour if every block that moves one
+    // moves the other.
+    for (const selector of [":root", ".dark"]) {
+      const b = block(selector);
+      const primary = /--primary:\s*([^;]+);/.exec(b)?.[1];
+      const brand = /--brand:\s*([^;]+);/.exec(b)?.[1];
+      expect(primary, `${selector} primary`).toBe(brand);
+    }
+    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]", '[data-ask-provider="anthropic"]']) {
+      const b = block(selector);
+      expect(b, `${selector} does not re-derive --primary`).toMatch(/--primary:\s*var\(--brand\);/);
+      expect(b, `${selector} does not re-derive --primary-foreground`).toMatch(/--primary-foreground:\s*var\(--brand-foreground\);/);
+    }
+  });
+
+  // Ask UNI's Claude look re-points the dock's slots at its own palette; text
+  // and the send button's arrow must stay readable on it in both themes.
+  for (const selector of [":root", ".dark"]) {
+    it(`keeps Ask UNI's Claude look readable in ${selector}`, () => {
+      for (const background of ["--ask-anthropic-canvas", "--ask-anthropic-canvas-top", "--ask-anthropic-input", "--ask-anthropic-bubble"]) {
+        expect(contrast(value(selector, "--foreground"), value(selector, background)), `--foreground on ${background}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The arrow is an icon, so the non-text minimum applies.
+      expect(contrast(value(selector, "--ask-anthropic-foreground"), value(selector, "--ask-anthropic"))).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it("holds the CSS motion set to lib/motion.ts", () => {
+    // base.css animates with these; motion/react animates with the JS
+    // constants. Equal numbers or the two halves of the app move at
+    // different speeds.
+    const theme = block("@theme inline");
+    for (const [name, seconds] of Object.entries(UI_MOTION_DURATION)) {
+      expect(theme).toMatch(new RegExp(`--duration-${name}:\\s*${Math.round(seconds * 1000)}ms;`));
+    }
+    expect(theme).toContain(`--ease-out-quart: cubic-bezier(${UI_EASE_OUT.join(", ")});`);
+    expect(theme).toContain(`--ease-settle: cubic-bezier(${UI_EASE_SETTLE.join(", ")});`);
+  });
+
+  it("binds the overline role to case, weight and the mono family", () => {
+    const theme = definedVars(block("@theme inline"));
+    expect(theme).toContain("--text-overline");
+    expect(theme).toContain("--text-overline--letter-spacing");
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*text-transform:\s*uppercase/);
+  });
+
   it("defines every semantic slot the shadcn primitives consume", () => {
     // Sourced from the 62 primitives in usf packages/ui/components/ui.
     // A missing slot renders as an inherited colour rather than an error, so
@@ -148,7 +300,7 @@ describe("token contract", () => {
       "--destructive", "--success", "--warning", "--info",
       "--brand", "--brand-foreground",
       "--border", "--input", "--ring", "--radius",
-      "--app-shell", "--page-canvas",
+      "--app-shell", "--page-canvas", "--office-band", "--office-canvas",
       "--surface", "--surface-foreground", "--surface-raised",
       "--surface-hover", "--surface-selected",
       "--surface-selected-foreground", "--surface-border",
@@ -231,5 +383,140 @@ describe("token contract", () => {
     // resolves to :root and the light/dark comparison becomes vacuous.
     expect(block(".dark")).not.toContain("--rail:");
     expect(block(":root")).toContain("--rail:");
+  });
+  // The emphasis band is a dark plane whose CONTENT is wrapped in `.dark`, so
+  // everything inside resolves from the dark palette while the background
+  // itself still tracks the page theme. That makes four token pairs live that
+  // no other check covers: the band's own background comes from one block and
+  // the text on it from the other.
+  //
+  // This is a static guard, not the verification. A ratio computed from the
+  // file cannot see opacity, a stacked overlay or an image behind the text —
+  // e2e/onboarding-contrast.spec.ts measures the rendered page and stays the
+  // authority. This one fails in milliseconds when a value is edited blind.
+  describe("fitted product illustration", () => {
+    for (const selector of [":root", ".dark"]) {
+      it(`keeps the reference text readable in ${selector}`, () => {
+        for (const foreground of ["--preview-ink", "--preview-muted", "--preview-accent"]) {
+          for (const background of ["--preview-canvas", "--preview-panel", "--preview-soft"]) {
+            expect(contrast(value(selector, foreground), value(selector, background)), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+          }
+        }
+        expect(contrast(value(selector, "--preview-on-accent"), value(selector, "--preview-accent"))).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  });
+
+  // The office page is white in both themes (`bg-white` on the canvas page), so ink
+  // drawn on it must stay dark in `.dark` too; the generic both-blocks rule cannot
+  // see that the value is wrong for the surface, this can.
+  describe("office page ink", () => {
+    for (const selector of [":root", ".dark"]) {
+      it(`reads on the white page in ${selector}`, () => {
+        expect(contrast(value(selector, "--office-page-ink"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(value(selector, "--office-page-ink-muted"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
+        // White text on a dark solid fill: checked against a dark fill.
+        expect(contrast(value(selector, "--office-page-ink-inverse"), "#595959")).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    it("exposes the ink slots to Tailwind", () => {
+      const theme = block("@theme inline");
+      for (const name of ["office-page-ink", "office-page-ink-muted", "office-page-ink-inverse"]) {
+        expect(theme).toContain(`--color-${name}:`);
+      }
+    });
+  });
+
+  describe("emphasis band", () => {
+    const bandLight = value(":root", "--surface-emphasis");
+    const bandDark = value(".dark", "--surface-emphasis");
+    // Content inside the band reads the dark palette, on both page themes.
+    const onBand = {
+      "--foreground": value(".dark", "--foreground"),
+      "--muted-foreground": value(".dark", "--muted-foreground"),
+      "--brand": value(".dark", "--brand"),
+      "--brand-accent": value(".dark", "--brand-accent"),
+    };
+
+    for (const [name, colour] of Object.entries(onBand)) {
+      it(`keeps ${name} readable on the band in both page themes`, () => {
+        for (const [theme, band] of [["light", bandLight], ["dark", bandDark]] as const) {
+          const ratio = contrast(colour, band);
+          expect(ratio, `${name} on ${theme}-page band: ${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    }
+
+    it("keeps the focus ring visible on the band", () => {
+      // The global :focus-visible outline is the only focus indicator in the
+      // product and a tested contract. 3:1 is the non-text floor.
+      const ring = value(".dark", "--ring");
+      for (const [theme, band] of [["light", bandLight], ["dark", bandDark]] as const) {
+        const ratio = contrast(ring, band);
+        expect(ratio, `--ring on ${theme}-page band: ${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("separates the band from the page it sits on", () => {
+      // On a light page the band is an inversion and reads as one outright.
+      const light = contrast(bandLight, value(":root", "--background"));
+      expect(light, `band vs light page: ${light.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+      // On a dark page it is an elevation step, the same order as --surface
+      // over --background (1.06), so a ratio is the wrong test: what must hold
+      // is the direction. A band that sank below the page would vanish.
+      expect(luminance(bandDark)).toBeGreaterThan(luminance(value(".dark", "--background")));
+    });
+
+    it("keeps --brand-accent readable on the page itself", () => {
+      // Used for eyebrows and icons outside the band too, where the ground is
+      // the ordinary page rather than the inverted plane.
+      for (const [theme, sel] of [["light", ":root"], ["dark", ".dark"]] as const) {
+        const accent = value(sel, "--brand-accent");
+        for (const ground of ["--background", "--surface"]) {
+          const ratio = contrast(accent, value(sel, ground));
+          expect(ratio, `--brand-accent on ${ground} (${theme}): ${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+  });
+});
+
+describe("text size", () => {
+  it("scales every reading step and its leading by --font-scale", () => {
+    for (const step of SCALED_STEPS) {
+      expect(themeValue(`--text-${step}`), `--text-${step}`).toContain("var(--font-scale)");
+      expect(themeValue(`--text-${step}--line-height`), `--text-${step}--line-height`).toContain(
+        "var(--font-scale)",
+      );
+    }
+  });
+
+  it("keeps the marketing and meeting-stage steps out of the scale", () => {
+    for (const step of FIXED_STEPS) {
+      expect(themeValue(`--text-${step}`), `--text-${step}`).not.toContain("--font-scale");
+    }
+  });
+
+  it("keeps the default level at today's pixel sizes", () => {
+    // Default must not move a pixel: the onboarding e2e specs are a contract.
+    expect(themeValue("--text-body")).toBe("calc(14px * var(--font-scale))");
+    expect(themeValue("--text-body--line-height")).toBe("calc(20px * var(--font-scale))");
+    expect(themeValue("--text-display")).toBe("calc(36px * var(--font-scale))");
+    expect(css).toMatch(/:root,\s*\[data-text-size="default"\]\s*\{\s*--font-scale:\s*1;\s*\}/);
+  });
+
+  it("maps the two larger levels to a 16px and an 18px body", () => {
+    expect(css).toMatch(/\[data-text-size="large"\]\s*\{\s*--font-scale:\s*calc\(16 \/ 14\);\s*\}/);
+    expect(css).toMatch(/\[data-text-size="xlarge"\]\s*\{\s*--font-scale:\s*calc\(18 \/ 14\);\s*\}/);
+  });
+
+  it("sizes body copy and touch inputs off the scaled body step", () => {
+    expect(baseCss).toMatch(/body\s*\{[^}]*font-size:\s*var\(--text-body\);/);
+    // 16px stops iOS zooming on focus; at the larger levels the field must
+    // not read smaller than the copy around it.
+    expect(baseCss).toMatch(/textarea\s*\{\s*font-size:\s*max\(16px, var\(--text-body\)\);\s*\}/);
   });
 });

@@ -1,0 +1,43 @@
+# Findings gitleaks may skip, by exact fingerprint (commit:file:rule:line).
+# Only for a secret already in shared history that cannot be rewritten, and
+# only after it has been rotated. An entry here does NOT make the value safe.
+#
+# EMAIL_HUB_CREDENTIAL_KEY was committed to .env.example in 7256390b (Email Hub
+# PR #105) and removed again in b021caaa. The value is burned and rotated: no
+# environment may use it; deployments read the key from the uniwork-email-hub
+# secret. Decision recorded in UNI-773 (2026-09-24).
+7256390bf4d21b58770791de5e32b3627a596384:.env.example:generic-api-key:230
+# BYOK / AI proxy unit-test literals (UNI-1008). Fixed strings in *_test.go only;
+# not credentials. Remain in shared history after files were removed or rewritten.
+8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/provider/byok_test.go:generic-api-key:154
+8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/proxy_test.go:generic-api-key:24
+a49c5a133b23d1a4cdc0bed500da54291e42fc57:server/internal/service/ai_credentials_test.go:generic-api-key:28
+# Office frame AI proxy unit-test literal (UNI-1014, branch feature/UNI-1014-office-web-modules):
+# a fixed fake vendor key in a *_test.go, not a credential. CI scans every remote branch.
+6139778154cc87783920938335ea841ae2586bfa:server/internal/handler/office_frame_ai_test.go:generic-api-key:30
+# The Office pivot (fc171d4a, UNI-1001) reintroduced the same four *_test.go
+# literals. Still fixed fake vendor keys, not credentials.
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/provider/byok_test.go:generic-api-key:155
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/ai/proxy_test.go:generic-api-key:24
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/handler/office_frame_ai_test.go:generic-api-key:30
+fc171d4a23f21fe03065c52e3d3074605b472573:server/internal/service/ai_credentials_test.go:generic-api-key:29
+# UNI-1367 test fixtures in ai_uniwork_test.go: a fixed 32-byte conversation
+# codec seed, and a conversation id on the same line as the word token.
+# Neither is a credential. The introducing commit stays in history.
+249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:28
+249f15303fa7080a4fa3d0cc489d88baee2584e2:server/internal/handler/ai_uniwork_test.go:generic-api-key:279
+# PR #279 (850c91de) reintroduced that conversation id on the same line as
+# the word token. Still a test ULID, not a credential.
+850c91de8bfa831de1dc9a0848d4d6003131d161:server/internal/handler/ai_uniwork_test.go:generic-api-key:287
+# G712-10 redaction fixtures in scripts/office/g5g6g7/holdout-run.test.mjs (b52c195fb,
+# UNI-1384 holdout eval). Fixed example JWT, AWS id and api_key strings for
+# assert-only tests; not credentials. File lives on feature branches; gitleaks
+# git scans all refs in CI.
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:aws-access-token:820
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:jwt:821
+b52c195fbdb58aed05b0a493b828651e4110c74f:scripts/office/g5g6g7/holdout-run.test.mjs:generic-api-key:832
+# UNI-2053 APK scanner test (scripts/mobile-apk-scan.test.mjs): two lines of the
+# public jwt.io sample RSA key as a fixture that the scanner must flag in a
+# release artifact. Not a credential. Later commits split the header so the
+# fixture no longer matches; this pins only the commit that added it.
+6e536f4c45f73458c20f97cd5e41dc8d658761ec:scripts/mobile-apk-scan.test.mjs:private-key:51

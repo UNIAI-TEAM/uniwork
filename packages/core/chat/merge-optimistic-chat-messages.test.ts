@@ -33,6 +33,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("hides optimistic rows once the server echoes their client_msg_id", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-echo",
@@ -60,6 +61,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("hides the echo regardless of how far the timestamps drift apart", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-drift",
@@ -82,6 +84,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("keeps the optimistic row when the server carries a different send", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-mine",
@@ -100,5 +103,38 @@ describe("mergeOptimisticChatMessages", () => {
     const merged = mergeOptimisticChatMessages(server, [], [entry], "u1");
     expect(merged).toHaveLength(2);
     expect(merged.map((message) => message.id)).toContain("pending:cmid-mine");
+  });
+
+  // A queued thread reply must stay in its thread: without the root the main
+  // timeline showed it mid-channel and the thread panel never did.
+  it("keeps an outbox entry's thread root", () => {
+    const optimistic = outboxToOptimisticChatMessage(
+      {
+        workspaceId: "ws1",
+        senderId: "u1",
+        roomId: "room1",
+        body: "reply",
+        client_msg_id: "cmid-thread",
+        thread_root_id: "root1",
+        queued_at: "2026-09-05T08:00:00.000Z",
+      },
+      "u1",
+    );
+    expect(optimistic.threadRootId).toBe("root1");
+  });
+
+  it("shows an outbox entry as failed once an attempt reached the server and failed", () => {
+    const base = {
+      workspaceId: "ws1",
+      senderId: "u1",
+      roomId: "room1",
+      body: "hi",
+      client_msg_id: "cmid-f",
+      queued_at: "2026-09-05T08:00:00.000Z",
+    };
+    expect(outboxToOptimisticChatMessage(base, "u1").deliveryStatus).toBe("queued");
+    expect(
+      outboxToOptimisticChatMessage({ ...base, failed_at: "2026-09-05T08:00:05.000Z" }, "u1").deliveryStatus,
+    ).toBe("failed");
   });
 });

@@ -1,6 +1,12 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
+)
 
 func setRequired(t *testing.T) {
 	t.Helper()
@@ -8,9 +14,15 @@ func setRequired(t *testing.T) {
 	t.Setenv("JWT_SECRET", "s")
 	t.Setenv("PORT", "")
 	t.Setenv("TRUSTED_PROXIES", "")
+	// The preview cases compare against this origin; a worktree .env sets its own port.
+	t.Setenv("FRONTEND_ORIGIN", "http://localhost:3000")
+	t.Setenv("PREVIEW_ORIGIN", "http://localhost:3001")
+	t.Setenv("PREVIEW_CAPABILITY_SECRET", "preview-test-secret-that-is-at-least-32-chars")
+	t.Setenv("PREVIEW_ASSET_TTL", "10m")
+	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM"} {
+	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES"} {
 		t.Setenv(k, "")
 	}
 }
@@ -47,6 +59,29 @@ func TestLoadRejectsRelativeFrontendOrigin(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsMissingOrInvalidPreviewConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(*testing.T)
+	}{
+		{"missing origin", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "") }},
+		{"same origin", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "http://localhost:3000") }},
+		{"wrong scheme", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "ftp://preview.example") }},
+		{"missing secret", func(t *testing.T) { t.Setenv("PREVIEW_CAPABILITY_SECRET", "") }},
+		{"invalid ttl", func(t *testing.T) { t.Setenv("PREVIEW_ASSET_TTL", "nonsense") }},
+		{"invalid max bytes", func(t *testing.T) { t.Setenv("PREVIEW_ASSET_MAX_BYTES", "0") }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			tc.set(t)
+			if _, err := Load(); err == nil {
+				t.Fatal("expected preview configuration to fail closed")
+			}
+		})
+	}
+}
+
 func TestLoadEnableSwaggerDefaultsOnForLocalhost(t *testing.T) {
 	setRequired(t)
 	t.Setenv("FRONTEND_ORIGIN", "http://localhost:3000")
@@ -70,6 +105,41 @@ func TestLoadEnableSwaggerDefaultsOffInProduction(t *testing.T) {
 	}
 	if c.EnableSwagger {
 		t.Fatal("EnableSwagger must be off when ENABLE_SWAGGER is unset in production")
+	}
+}
+
+// The file collector deletes by default; dry_run and off are the switches
+// back, and a typo fails startup instead of silently picking one.
+func TestLoadFileGCModeDefaultsToDestructive(t *testing.T) {
+	setRequired(t)
+	for raw, want := range map[string]string{"": "destructive", "destructive": "destructive", " DRY_RUN ": "dry_run", "off": "off"} {
+		t.Setenv("FILE_GC_MODE", raw)
+		c, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.FileGCMode != want {
+			t.Fatalf("FILE_GC_MODE=%q: FileGCMode = %q, want %q", raw, c.FileGCMode, want)
+		}
+	}
+	t.Setenv("FILE_GC_MODE", "delete")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "FILE_GC_MODE") {
+		t.Fatalf("FILE_GC_MODE=delete: err = %v, want a FILE_GC_MODE error", err)
+	}
+}
+
+// The relay stays on unless a single-replica deployment says false.
+func TestLoadRealtimeRelayIsOnUnlessFalse(t *testing.T) {
+	setRequired(t)
+	for raw, want := range map[string]bool{"": true, "true": true, "false": false, " FALSE ": false} {
+		t.Setenv("REALTIME_RELAY", raw)
+		c, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.RealtimeRelay != want {
+			t.Fatalf("REALTIME_RELAY=%q: RealtimeRelay = %v, want %v", raw, c.RealtimeRelay, want)
+		}
 	}
 }
 
@@ -163,5 +233,360 @@ func TestGoogleEnabledNeedsBothCredentials(t *testing.T) {
 	}
 	if got := c.GoogleRedirectURL(); got != "http://localhost:8080/api/v1/auth/google/callback" {
 		t.Fatalf("GoogleRedirectURL() = %q", got)
+	}
+}
+
+func TestPushEnabledNeedsBothVAPIDKeys(t *testing.T) {
+	setRequired(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.PushEnabled() {
+		t.Fatal("enabled without VAPID")
+	}
+	t.Setenv("VAPID_PUBLIC_KEY", "pub")
+	t.Setenv("VAPID_PRIVATE_KEY", "")
+	c, _ = Load()
+	if c.PushEnabled() {
+		t.Fatal("enabled without private")
+	}
+	t.Setenv("VAPID_PRIVATE_KEY", "priv")
+	c, _ = Load()
+	if !c.PushEnabled() {
+		t.Fatal("not enabled with both")
+	}
+}
+
+func TestParseHelpersFallback(t *testing.T) {
+	if parseDuration("", time.Second) != time.Second || parseDuration("nope", time.Second) != time.Second || parseDuration("0s", time.Second) != time.Second {
+		t.Fatal("parseDuration fallback")
+	}
+	if parseDuration("2s", time.Second) != 2*time.Second {
+		t.Fatal("parseDuration ok")
+	}
+	if parseRatio("", 0.5) != 0.5 || parseRatio("x", 0.5) != 0.5 || parseRatio("2", 0.5) != 0.5 || parseRatio("-0.1", 0.5) != 0.5 {
+		t.Fatal("parseRatio fallback")
+	}
+	if parseRatio("0.25", 0.5) != 0.25 {
+		t.Fatal("parseRatio ok")
+	}
+	if parseInt32("", 7) != 7 || parseInt32("x", 7) != 7 || parseInt32("0", 7) != 7 || parseInt32("-1", 7) != 7 {
+		t.Fatal("parseInt32 fallback")
+	}
+	if parseInt32("9", 7) != 9 {
+		t.Fatal("parseInt32 ok")
+	}
+}
+
+// Email Hub's callback sits beside the calendar's, one path per provider; a
+// trailing slash on API_PUBLIC_URL must not double up (providers match byte for byte).
+func TestEmailHubRedirectURL(t *testing.T) {
+	t.Parallel()
+	c := Config{APIPublicURL: "https://api.example.com/"}
+	for provider, want := range map[string]string{
+		"google":    "https://api.example.com/api/v1/email-hub-connections/google/callback",
+		"microsoft": "https://api.example.com/api/v1/email-hub-connections/microsoft/callback",
+	} {
+		if got := c.EmailHubRedirectURL(provider); got != want {
+			t.Errorf("EmailHubRedirectURL(%q) = %q, want %q", provider, got, want)
+		}
+	}
+}
+
+// BE-F1-11: OFFICE_CHANGE_SNAPSHOT_TTL has a dev default, but a value that is
+// SET must parse - a misspelled TTL fails the load instead of silently keeping
+// the 15m default in production.
+func TestLoadRejectsMalformedOfficeChangeSnapshotTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"unset keeps the dev default", "", true},
+		{"valid duration", "30m", true},
+		{"nonsense text", "nonsense", false},
+		{"missing unit", "15", false},
+		{"zero", "0", false},
+		{"negative", "-5m", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("OFFICE_CHANGE_SNAPSHOT_TTL", tc.raw)
+			c, err := Load()
+			if tc.want && err != nil {
+				t.Fatalf("Load() error = %v, want success", err)
+			}
+			if !tc.want {
+				if err == nil {
+					t.Fatal("Load() accepted a malformed OFFICE_CHANGE_SNAPSHOT_TTL")
+				}
+				if !strings.Contains(err.Error(), "OFFICE_CHANGE_SNAPSHOT_TTL") {
+					t.Fatalf("error %q does not name the variable", err)
+				}
+				return
+			}
+			if tc.raw == "" && c.OfficeChangeSnapshotTTL != 0 {
+				t.Fatalf("OfficeChangeSnapshotTTL = %v for unset, want 0 (the service default)", c.OfficeChangeSnapshotTTL)
+			}
+			if tc.raw != "" && c.OfficeChangeSnapshotTTL != 30*time.Minute {
+				t.Fatalf("OfficeChangeSnapshotTTL = %v, want the parsed 30m", c.OfficeChangeSnapshotTTL)
+			}
+		})
+	}
+}
+
+// Load reads Email Hub's own OAuth clients (spec Q3) and sends Microsoft
+// sign-in to the common directory unless a tenant is named.
+func TestLoadEmailHubOAuthClients(t *testing.T) {
+	setRequired(t)
+	t.Setenv("EMAIL_HUB_GOOGLE_CLIENT_ID", "hub-google-id")
+	t.Setenv("EMAIL_HUB_GOOGLE_CLIENT_SECRET", "hub-google-secret")
+	t.Setenv("EMAIL_HUB_MICROSOFT_CLIENT_ID", "hub-ms-id")
+	t.Setenv("EMAIL_HUB_MICROSOFT_CLIENT_SECRET", "hub-ms-secret")
+	t.Setenv("EMAIL_HUB_MICROSOFT_TENANT", "")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.EmailHubGoogleClientID != "hub-google-id" || c.EmailHubGoogleClientSecret != "hub-google-secret" ||
+		c.EmailHubMicrosoftClientID != "hub-ms-id" || c.EmailHubMicrosoftClientSecret != "hub-ms-secret" {
+		t.Fatalf("email hub clients: %+v", c)
+	}
+	if c.EmailHubMicrosoftTenant != "common" {
+		t.Fatalf("EmailHubMicrosoftTenant = %q, want common", c.EmailHubMicrosoftTenant)
+	}
+	t.Setenv("EMAIL_HUB_MICROSOFT_TENANT", "contoso.onmicrosoft.com")
+	if c, _ = Load(); c.EmailHubMicrosoftTenant != "contoso.onmicrosoft.com" {
+		t.Fatalf("EmailHubMicrosoftTenant = %q, want the named tenant", c.EmailHubMicrosoftTenant)
+	}
+}
+
+// UNI-1645 addendum §7: the edit-lock settings are read strictly. A mistyped
+// value must stop the server instead of silently behaving like the default,
+// and the two cross checks keep a client from losing the lock on one missed
+// heartbeat or holding offline longer than the chain cap.
+func TestLoadRejectsBadEditLockConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want string // substring of the error; empty = Load must succeed
+	}{
+		{"all unset keeps the defaults", nil, ""},
+		{"valid overrides", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "4m", "DOCUMENT_EDIT_LOCK_HEARTBEAT": "1m", "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "9"}, ""},
+		{"TTL typo", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "2mn"}, "DOCUMENT_EDIT_LOCK_TTL"},
+		{"TTL zero", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "0"}, "DOCUMENT_EDIT_LOCK_TTL"},
+		{"heartbeat typo", map[string]string{"DOCUMENT_EDIT_LOCK_HEARTBEAT": "30"}, "DOCUMENT_EDIT_LOCK_HEARTBEAT"},
+		{"sweep negative", map[string]string{"DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL": "-30s"}, "DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL"},
+		{"hold max typo", map[string]string{"DOCUMENT_EDIT_HOLD_MAX": "eight hours"}, "DOCUMENT_EDIT_HOLD_MAX"},
+		{"hold chain max typo", map[string]string{"DOCUMENT_EDIT_HOLD_CHAIN_MAX": "1d"}, "DOCUMENT_EDIT_HOLD_CHAIN_MAX"},
+		{"request TTL typo", map[string]string{"DOCUMENT_EDIT_REQUEST_TTL": "15 minutes"}, "DOCUMENT_EDIT_REQUEST_TTL"},
+		{"heartbeat x2 above TTL", map[string]string{"DOCUMENT_EDIT_LOCK_TTL": "1m", "DOCUMENT_EDIT_LOCK_HEARTBEAT": "40s"}, "DOCUMENT_EDIT_LOCK_HEARTBEAT must be at most half"},
+		{"hold max above chain max", map[string]string{"DOCUMENT_EDIT_HOLD_MAX": "25h"}, "DOCUMENT_EDIT_HOLD_MAX must not exceed"},
+		{"max per hour zero", map[string]string{"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "0"}, "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR"},
+		{"max per hour not a number", map[string]string{"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR": "five"}, "DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR"},
+	}
+	keys := []string{
+		"DOCUMENT_EDIT_LOCK_TTL", "DOCUMENT_EDIT_LOCK_HEARTBEAT", "DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL",
+		"DOCUMENT_EDIT_HOLD_MAX", "DOCUMENT_EDIT_HOLD_CHAIN_MAX", "DOCUMENT_EDIT_REQUEST_TTL",
+		"DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR",
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			for _, k := range keys {
+				t.Setenv(k, tc.env[k])
+			}
+			c, err := Load()
+			if tc.want != "" {
+				if err == nil {
+					t.Fatalf("Load() accepted %v", tc.env)
+				}
+				if !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("error %q does not contain %q", err, tc.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error = %v, want success", err)
+			}
+			if len(tc.env) == 0 {
+				if c.DocumentEditLockTTL != 2*time.Minute || c.DocumentEditLockHeartbeat != 30*time.Second ||
+					c.DocumentEditLockSweepInterval != 30*time.Second || c.DocumentEditHoldMax != 8*time.Hour ||
+					c.DocumentEditHoldChainMax != 24*time.Hour || c.DocumentEditRequestTTL != 15*time.Minute ||
+					c.DocumentEditRequestMaxPerHour != 5 {
+					t.Fatalf("defaults wrong: %+v", c)
+				}
+				return
+			}
+			if c.DocumentEditLockTTL != 4*time.Minute || c.DocumentEditLockHeartbeat != time.Minute || c.DocumentEditRequestMaxPerHour != 9 {
+				t.Fatalf("overrides not applied: ttl=%v hb=%v max=%d", c.DocumentEditLockTTL, c.DocumentEditLockHeartbeat, c.DocumentEditRequestMaxPerHour)
+			}
+		})
+	}
+}
+
+func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 10m default", "", 10 * time.Minute},
+		{"valid duration override", "250ms", 250 * time.Millisecond},
+		{"invalid falls back to default", "nonsense", 10 * time.Minute},
+		{"zero falls back to default", "0s", 10 * time.Minute},
+		{"negative falls back to default", "-5s", 10 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.DocumentCommitIntentSweepTick != tc.want {
+				t.Fatalf("DocumentCommitIntentSweepTick = %v, want %v", c.DocumentCommitIntentSweepTick, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadIdempotencyKeyRetention(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 168h default", "", 7 * 24 * time.Hour},
+		{"valid duration override", "336h", 14 * 24 * time.Hour},
+		{"invalid falls back to default", "nonsense", 7 * 24 * time.Hour},
+		{"zero falls back to default", "0s", 7 * 24 * time.Hour},
+		{"negative falls back to default", "-5s", 7 * 24 * time.Hour},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("IDEMPOTENCY_KEY_RETENTION", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.IdempotencyKeyRetention != tc.want {
+				t.Fatalf("IdempotencyKeyRetention = %v, want %v", c.IdempotencyKeyRetention, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadIdempotencyKeySweepTick(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 10m default", "", 10 * time.Minute},
+		{"valid duration override", "250ms", 250 * time.Millisecond},
+		{"invalid falls back to default", "nonsense", 10 * time.Minute},
+		{"zero falls back to default", "0s", 10 * time.Minute},
+		{"negative falls back to default", "-5s", 10 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("IDEMPOTENCY_KEY_SWEEP_TICK", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.IdempotencyKeySweepTick != tc.want {
+				t.Fatalf("IdempotencyKeySweepTick = %v, want %v", c.IdempotencyKeySweepTick, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadDocumentMaxBytes(t *testing.T) {
+	t.Run("unset defaults to 200 MiB", func(t *testing.T) {
+		setRequired(t)
+		t.Setenv("DOCUMENT_MAX_BYTES", "")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if cfg.DocumentMaxBytes != 209715200 {
+			t.Fatalf("DocumentMaxBytes = %d, want 209715200", cfg.DocumentMaxBytes)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		val  string
+		want int64
+	}{
+		{"min 1 MiB", "1048576", 1 << 20},
+		{"default 200 MiB", "209715200", 200 << 20},
+		{"max 2 GiB", "2147483648", 2 << 30},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_MAX_BYTES", tc.val)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() with DOCUMENT_MAX_BYTES=%s failed: %v", tc.val, err)
+			}
+			if cfg.DocumentMaxBytes != tc.want {
+				t.Fatalf("DocumentMaxBytes = %d, want %d", cfg.DocumentMaxBytes, tc.want)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		val  string
+	}{
+		{"zero", "0"},
+		{"negative", "-1"},
+		{"below 1 MiB", "1048575"},
+		{"above 2 GiB", "2147483649"},
+		{"non-integer", "200MB"},
+	} {
+		t.Run("invalid "+tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("DOCUMENT_MAX_BYTES", tc.val)
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), "DOCUMENT_MAX_BYTES") {
+				t.Fatalf("Load() with DOCUMENT_MAX_BYTES=%q = %v, want error mentioning DOCUMENT_MAX_BYTES", tc.val, err)
+			}
+		})
+	}
+}
+
+func TestDefaultDocumentMaxBytesMatchesFilesRegistry(t *testing.T) {
+	if DefaultDocumentMaxBytes != files.DefaultDocumentMaxBytes {
+		t.Fatalf("config.DefaultDocumentMaxBytes = %d, files.DefaultDocumentMaxBytes = %d", DefaultDocumentMaxBytes, files.DefaultDocumentMaxBytes)
+	}
+}
+
+func TestLoadFolderUploadLimits(t *testing.T) {
+	setRequired(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.FolderUploadMaxFiles != 500 || cfg.FolderUploadMaxBytes != 2<<30 {
+		t.Fatalf("defaults = %d files, %d bytes; want 500, 2 GiB", cfg.FolderUploadMaxFiles, cfg.FolderUploadMaxBytes)
+	}
+	t.Setenv("FOLDER_UPLOAD_MAX_FILES", "100")
+	t.Setenv("FOLDER_UPLOAD_MAX_BYTES", "1048576")
+	if cfg, err = Load(); err != nil || cfg.FolderUploadMaxFiles != 100 || cfg.FolderUploadMaxBytes != 1<<20 {
+		t.Fatalf("configured = %d, %d, %v", cfg.FolderUploadMaxFiles, cfg.FolderUploadMaxBytes, err)
+	}
+	for _, bad := range []string{"0", "-1", "many"} {
+		t.Setenv("FOLDER_UPLOAD_MAX_FILES", bad)
+		if _, err := Load(); err == nil {
+			t.Fatalf("FOLDER_UPLOAD_MAX_FILES=%q loaded", bad)
+		}
 	}
 }

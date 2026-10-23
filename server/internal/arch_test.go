@@ -140,10 +140,11 @@ func TestMemberProfilesWrittenInOnePlace(t *testing.T) {
 
 // An actor's kind is decided by the service layer (ADR 0007). A handler only
 // ever holds a signed-in person, so the only constructor it may call is
-// service.Human; building an agent or system actor anywhere else would let a
-// request claim to be an agent. Tests are exempt: they set up both kinds.
+// service.Human; building an agent, system or guest actor anywhere else would
+// let a request claim to be one. A guest handler passes the guest session id
+// to the service, which decides. Tests are exempt: they set up every kind.
 func TestActorConstructedOnlyInService(t *testing.T) {
-	construct := regexp.MustCompile(`audit\.(Actor\{|System\(|KindAgent|KindSystem)`)
+	construct := regexp.MustCompile(`audit\.(Actor\{|System\(|Guest\(|KindAgent|KindSystem|KindGuest)`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -179,7 +180,7 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 // internal/audit is the only caller; everything else goes through
 // audit.Recorder.Record or, for infrastructure topics, Recorder.Emit.
 func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
-	writes := regexp.MustCompile(`\.(InsertAuditEvent|InsertDomainOutboxEvent)\(`)
+	writes := regexp.MustCompile(`\.(InsertAuditEvent|InsertAuditEventsBatch|InsertDomainOutboxEvent|InsertDomainOutboxEventsBatch)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -208,7 +209,7 @@ func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
 // fail-closed formula, so the sqlc queries on plans, subscriptions and
 // usage_* are callable from those two files only.
 func TestBillingQueriesStayInBillingServices(t *testing.T) {
-	billing := regexp.MustCompile(`\.(ListActivePlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|ListFeatures|ListPlanFeatures|ListActivePlanFeatures|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified)\(`)
+	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetPendingBillingPaymentIntentForPlan|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|GetBillingPaymentIntentForInvoice|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|RevertSubscriptionToDefaultAfterInvoiceRefund|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -219,7 +220,9 @@ func TestBillingQueriesStayInBillingServices(t *testing.T) {
 		if strings.Contains(slash, "pkg/db/generated") ||
 			strings.Contains(slash, "cmd/seed/") ||
 			strings.HasSuffix(slash, "internal/service/entitlement.go") ||
-			strings.HasSuffix(slash, "internal/service/billing.go") {
+			strings.HasSuffix(slash, "internal/service/billing.go") ||
+			strings.HasSuffix(slash, "internal/service/billing_catalog.go") ||
+			strings.Contains(slash, "internal/service/billing_") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -309,20 +312,24 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
+	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.Contains(slash, "pkg/db/generated/") {
+		if strings.HasSuffix(slash, "internal/service/admin_demo_requests.go") {
+			return nil
+		}
+		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		if adminQueries.Match(src) {
+		if adminQueries.Match(src) || demoQueries.Match(src) {
 			t.Errorf("%s calls an admin.sql query; only service/admin.go may", path)
 		}
 		return nil
@@ -352,8 +359,42 @@ var taskFoundationQueryFiles = []string{
 
 // GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
 // via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+// LockTaskDuplicateKey and LockProjectDuplicateKey are transaction advisory
+// locks — the lock key already embeds organization_id and workspace_id in Go;
+// they do not read a business table.
 var taskFoundationScopeExemptQueries = map[string]bool{
-	"GetTask": true,
+	"GetTask":                 true,
+	"LockTaskDuplicateKey":    true,
+	"LockProjectDuplicateKey": true,
+}
+
+// The table view's dynamic SQL is one package, reached from one place (ADR
+// 0020): only internal/service/task_table*.go may build a query with
+// pkg/db/tablequery. A second caller would be a second place free to bypass
+// the $n-parameter and tenant-clause discipline that package holds.
+func TestTableQueryOnlyFromTaskTableService(t *testing.T) {
+	root := ".."
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") {
+			return err
+		}
+		slash := filepath.ToSlash(p)
+		if strings.Contains(slash, "pkg/db/tablequery/") || strings.HasSuffix(slash, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(src), `"`+module+`pkg/db/tablequery"`) &&
+			!regexp.MustCompile(`internal/service/task_table[a-z_]*\.go$`).MatchString(slash) {
+			t.Errorf("%s imports pkg/db/tablequery; only internal/service/task_table*.go may (ADR 0020)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
@@ -385,6 +426,91 @@ func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
 			if !strings.Contains(stmt, "organization_id") || !strings.Contains(stmt, "workspace_id") {
 				t.Errorf("%s query %s: every foundation read/write must reference organization_id and workspace_id", path, name)
 			}
+		}
+	}
+}
+
+// FileService's contract package stays a leaf and is called from one tier
+// (FS-C1 section 2). internal/files holds the types, enums, the purpose
+// registry and the interfaces a consumer codes against, so it must not reach
+// up into the service or handler tier - importing it would otherwise drag in
+// the whole service graph. Only internal/service may hold a files.Service: a
+// handler that held one would decide scope itself, and the gate that decides
+// who may touch a file is the module service's permission check.
+func TestFilesContractIsALeafCalledOnlyFromTheServiceTier(t *testing.T) {
+	graph := directImports(t)
+	for pkg, imports := range graph {
+		for _, imp := range imports {
+			if strings.HasPrefix(pkg, "internal/files") {
+				for _, forbidden := range []string{module + "internal/service", module + "internal/handler"} {
+					if strings.HasPrefix(imp, forbidden) {
+						t.Errorf("%s imports %s; internal/files must not depend on the service or handler tier (FS-C1 section 2)", pkg, imp)
+					}
+				}
+				continue
+			}
+			if !strings.HasPrefix(imp, module+"internal/files") {
+				continue
+			}
+			if !strings.HasPrefix(pkg, "internal/service") {
+				t.Errorf("%s imports %s; only internal/service calls files.Service (FS-C1 section 2)", pkg, imp)
+			}
+		}
+	}
+}
+
+// The Work Graph is a projection (ADR 0019): only internal/graph/projector
+// writes its tables, so rebuilding from the business tables reproduces it.
+func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
+	calls := regexp.MustCompile(`\.(Graph(Upsert|Open|Close|Mark|Claim|Done|Release|Fail|Lock)\w*)\(`)
+	rawSQL := regexp.MustCompile(`(?i)\b(insert\s+into|update|delete\s+from)\s+graph_`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") || strings.Contains(slash, "internal/graph/projector/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if m := calls.FindStringSubmatch(string(src)); m != nil {
+			t.Errorf("%s calls %s; only internal/graph/projector writes the Work Graph (ADR 0019)", slash, m[1])
+		}
+		if rawSQL.Match(src) {
+			t.Errorf("%s writes a graph_ table in SQL; only internal/graph/projector may (ADR 0019)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMcpToolsCallNoDelete holds ADR 0033 on the code side: no
+// service/mcp_tools*.go file calls a Delete*/BatchDelete* command, or
+// ArchiveDocument. Every tool file is named mcp_tools_<area>.go.
+func TestMcpToolsCallNoDelete(t *testing.T) {
+	files, err := filepath.Glob("service/mcp_tools*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no service/mcp_tools*.go found; the glob is stale")
+	}
+	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject)\(`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loc := banned.FindIndex(raw); loc != nil {
+			t.Errorf("%s calls %s; MCP tools never delete (ADR 0033)", f, raw[loc[0]:loc[1]])
 		}
 	}
 }

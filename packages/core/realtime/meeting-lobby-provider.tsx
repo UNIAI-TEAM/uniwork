@@ -44,7 +44,7 @@ export function MeetingLobbyWSProvider({
       // has X-Guest-Session on HTTP but no uw_guest on the WS upgrade.
       cookieAuth: authStatus !== "authed" && !guestSession,
       guestSession,
-      identity: { platform: "web" },
+      identity: { platform: runtimeConfig().clientPlatform },
     });
     if (authStatus === "authed" && token) {
       ws.setAuth(token, "");

@@ -23,3 +23,26 @@ services:
     volumes:
       # Written by scripts/ensure-livekit.sh from livekit.dev.yaml (webhook PORT).
       - ./livekit.dev.yaml.local:/etc/livekit.yaml:ro
+
+  # Room composite recording (meetings + chat voice). Started when LIVEKIT_RECORDING_BUCKET is set.
+  egress:
+    image: livekit/egress:v1.9.0
+    restart: unless-stopped
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - livekit
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

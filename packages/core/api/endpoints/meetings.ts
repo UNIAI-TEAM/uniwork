@@ -9,7 +9,6 @@ import {
   MeetingSchema,
   MeetingCapabilitiesSchema,
   MeetingStatisticsSchema,
-  MeetingSummarySchema,
   ParticipantSchema,
   RecordingSchema,
   TranscriptSegmentSchema,
@@ -20,7 +19,6 @@ import {
   type MeetingCapabilities,
   type MeetingChatMessage,
   type MeetingRecording,
-  type MeetingSummary,
   type MeetingTranscriptSegment,
   type MeetingInvitation,
   type MeetingInviteLink,
@@ -29,7 +27,7 @@ import {
   type MeetingParticipant,
   type MeetingStatistics,
 } from "../../types/meeting";
-import { ApiError, request, requestText } from "../http";
+import { request, requestBlob, requestText } from "../http";
 import { setGuestSession } from "../guest-session";
 import { parseWithFallback } from "../schema";
 
@@ -59,6 +57,8 @@ export interface CreateMeetingBody {
   timezone?: string;
   allow_join_request?: boolean;
   attendee_user_ids?: string[];
+  /** Optional project; "" on update clears it (C-11 §9.1 V2). */
+  project_id?: string;
 }
 
 export interface UpdateMeetingBody {
@@ -68,6 +68,10 @@ export interface UpdateMeetingBody {
   ends_at?: string;
   timezone?: string;
   allow_join_request?: boolean;
+  /** Minimum attendance 1–100; 0 clears it. */
+  quorum_percent?: number;
+  /** Optional project; "" on update clears it (C-11 §9.1 V2). */
+  project_id?: string;
 }
 
 export interface MeetingListFilters {
@@ -79,7 +83,10 @@ export interface MeetingListFilters {
   limit?: number;
   offset?: number;
   host_user_id?: string;
+  /** "" (newest created first), "actual_start_at", or "starts_at" (the list screen's calendar order). */
   sort?: string;
+  /** Viewer's IANA zone; decides "today" and each meeting's day for `sort: "starts_at"`. */
+  tz?: string;
 }
 
 export interface MeetingListPage {
@@ -91,6 +98,8 @@ export interface JoinMeetingBody {
   invite_link_id?: string;
   secret?: string;
   display_name?: string;
+  /** Files a new join request after the host declined the last one. */
+  request_again?: boolean;
 }
 
 const enc = encodeURIComponent;
@@ -105,20 +114,24 @@ function listQuery(filters?: MeetingListFilters): string {
   if (filters.to) p.set("to", filters.to);
   if (filters.host_user_id) p.set("host_user_id", filters.host_user_id);
   if (filters.sort) p.set("sort", filters.sort);
+  if (filters.tz) p.set("tz", filters.tz);
   if (filters.limit !== undefined) p.set("limit", String(filters.limit));
   if (filters.offset !== undefined) p.set("offset", String(filters.offset));
   const s = p.toString();
   return s ? `?${s}` : "";
 }
 
+/**
+ * Does not degrade to an empty page: `{ meetings: [], total: 0 }` would render
+ * as "No meetings yet" over a workspace that has meetings. A malformed answer
+ * throws so the query lands in its error state, with a retry.
+ */
 export async function listMeetings(workspaceId: string, filters?: MeetingListFilters): Promise<MeetingListPage> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings${listQuery(filters)}`);
-  const parsed = parseWithFallback<z.infer<typeof MeetingsResponse>>(
-    raw,
-    MeetingsResponse,
-    { meetings: [], total: 0 },
-    { endpoint: "GET /api/v1/workspaces/{ws}/meetings" },
-  );
+  const parsed = parseWithFallback<z.infer<typeof MeetingsResponse> | null>(raw, MeetingsResponse, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/meetings",
+  });
+  if (!parsed) throw new Error("meetings_list_invalid");
   return { meetings: parsed.meetings, total: parsed.total ?? parsed.meetings.length };
 }
 
@@ -207,6 +220,14 @@ export async function cancelMeeting(meetingId: string, reason?: string): Promise
   await request(`/api/v1/meetings/${enc(meetingId)}/cancel`, { method: "POST", body: { reason } });
 }
 
+/** Brings a cancelled meeting back while its time is still ahead. */
+export async function restoreMeeting(meetingId: string, version?: number): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/restore`, { method: "POST", body: { version } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "POST /api/v1/meetings/{id}/restore",
+  })?.meeting ?? null;
+}
+
 export async function listParticipants(meetingId: string): Promise<MeetingParticipant[]> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/participants`);
   return parseWithFallback<{ participants: MeetingParticipant[] }>(raw, ParticipantsResponse, { participants: [] }, {
@@ -257,8 +278,13 @@ const PublicInviteLinkSchema = z.object({
   access_mode: z.string(),
   expired: z.boolean(),
   guest_session: z.string().optional(),
+  // Added after `expired`; an older server omits both and the page falls back to `expired`.
+  link_state: z.string().optional(),
+  meeting_state: z.string().optional(),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
+export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";
+export type InviteMeetingState = "open" | "ended" | "canceled" | "past_scheduled_end";
 
 export async function resolveInviteLink(linkId: string, secret: string): Promise<PublicInviteLink | null> {
   const raw = await request("/api/v1/public/meeting-invite-links/resolve", {
@@ -296,14 +322,19 @@ export async function removeParticipant(meetingId: string, participantId: string
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}`, { method: "DELETE" });
 }
 
+/** What a host lock covers: the mic, or the screen share with its audio. */
+export type MeetingPublishSource = "microphone" | "screen_share";
+
 export async function setParticipantPublish(
   meetingId: string,
   participantId: string,
   enabled: boolean,
+  source: MeetingPublishSource = "microphone",
 ): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}/publish`, {
     method: "POST",
-    body: { enabled },
+    // A missing source is the mic on the server, so the mic body stays as it was.
+    body: source === "microphone" ? { enabled } : { enabled, source },
   });
 }
 
@@ -369,38 +400,32 @@ export async function listMeetingActivity(meetingId: string): Promise<MeetingAct
   }).activity;
 }
 
-// ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
+// ---- D08b: capabilities, transcript, recording, calendar (AI summary: ./meeting-summary) ----------
 
-const TranscriptResponse = z.object({ segments: z.array(TranscriptSegmentSchema) });
-const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
 const RecordingsResponse = z.object({ recordings: z.array(RecordingSchema) });
 const RecordingResponse = z.object({ recording: RecordingSchema });
-const TaskIDsResponse = z.object({ task_ids: z.array(z.string()) });
 
 export async function getMeetingCapabilities(workspaceId: string): Promise<MeetingCapabilities> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meeting-capabilities`);
   return parseWithFallback(raw, MeetingCapabilitiesSchema, {}, { endpoint: "getMeetingCapabilities" });
 }
 
-export async function listTranscript(meetingId: string): Promise<MeetingTranscriptSegment[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/transcript`);
-  return parseWithFallback(raw, TranscriptResponse, { segments: [] }, { endpoint: "listTranscript" }).segments;
-}
+const TranscriptSegmentResponse = z.object({ segment: TranscriptSegmentSchema.nullable() });
 
-export async function appendTranscript(meetingId: string, text: string, spokenAt?: string): Promise<void> {
-  await request(`/api/v1/meetings/${enc(meetingId)}/transcript`, {
+export async function appendTranscript(
+  meetingId: string,
+  text: string,
+  spokenAt?: string,
+): Promise<MeetingTranscriptSegment | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/transcript`, {
     method: "POST",
     body: { text, spoken_at: spokenAt ?? new Date().toISOString() },
   });
+  return parseWithFallback(raw, TranscriptSegmentResponse, { segment: null }, { endpoint: "appendTranscript" })
+    .segment;
 }
 
-const ChatResponse = z.object({ messages: z.array(ChatMessageSchema) });
 const ChatMessageResponse = z.object({ message: ChatMessageSchema });
-
-export async function listMeetingChat(meetingId: string): Promise<MeetingChatMessage[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`);
-  return parseWithFallback(raw, ChatResponse, { messages: [] }, { endpoint: "listMeetingChat" }).messages;
-}
 
 export async function appendMeetingChat(meetingId: string, message: string): Promise<MeetingChatMessage | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`, {
@@ -408,38 +433,6 @@ export async function appendMeetingChat(meetingId: string, message: string): Pro
     body: { message },
   });
   return parseWithFallback(raw, ChatMessageResponse, { message: null }, { endpoint: "appendMeetingChat" }).message;
-}
-
-export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {
-  try {
-    const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
-    return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
-  } catch (err) {
-    // Older servers returned 404 when no summary existed yet.
-    if (err instanceof ApiError && err.status === 404 && err.code === "not_found") {
-      return null;
-    }
-    throw err;
-  }
-}
-
-export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummary | null> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`, { method: "POST", body: { locale } });
-  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "createMeetingSummary" }).summary;
-}
-
-export interface SummaryTaskItem {
-  title: string;
-  description?: string;
-  assignee_id?: string;
-  due_date?: string;
-  owner?: string;
-  due_spoken?: string;
-}
-
-export async function createTasksFromSummary(meetingId: string, items: SummaryTaskItem[]): Promise<string[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary/tasks`, { method: "POST", body: { items } });
-  return parseWithFallback(raw, TaskIDsResponse, { task_ids: [] }, { endpoint: "createTasksFromSummary" }).task_ids;
 }
 
 export async function listRecordings(meetingId: string): Promise<MeetingRecording[]> {
@@ -455,6 +448,73 @@ export async function startRecording(meetingId: string): Promise<MeetingRecordin
 export async function stopRecording(meetingId: string): Promise<MeetingRecording | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/recording/stop`, { method: "POST" });
   return parseWithFallback(raw, RecordingResponse, { recording: null }, { endpoint: "stopRecording" }).recording;
+}
+
+const MeetingRecordingPlaybackSchema = z.object({
+  playback_url: z.string().optional().default(""),
+  expires_at: z.string().optional().default(""),
+});
+
+export type MeetingRecordingPlayback = {
+  playback_url: string;
+  expires_at: string;
+};
+
+/** Short-lived presigned URL for direct MP4 streaming (seek-friendly). */
+export async function getMeetingRecordingPlaybackUrl(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<MeetingRecordingPlayback | null> {
+  const raw = await request(
+    `/api/v1/meetings/${enc(meetingId)}/recordings/${enc(recordingId)}/playback-url`,
+    { signal: opts.signal },
+  );
+  const parsed = parseWithFallback(raw, MeetingRecordingPlaybackSchema, { playback_url: "", expires_at: "" }, {
+    endpoint: "GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/playback-url",
+  });
+  if (!parsed.playback_url.trim()) return null;
+  return { playback_url: parsed.playback_url, expires_at: parsed.expires_at };
+}
+
+export function loadMeetingRecordingBlob(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<Blob> {
+  return requestBlob(
+    `/api/v1/meetings/${enc(meetingId)}/recordings/${enc(recordingId)}/content`,
+    opts,
+  );
+}
+
+export type MeetingRecordingPlaybackSource =
+  | { kind: "remote"; url: string; expiresAt: string }
+  | { kind: "blob"; url: string };
+
+/**
+ * Prefer presigned streaming URL; fall back to authenticated blob proxy when
+ * presign is unavailable or the storage endpoint is not browser-reachable.
+ */
+export async function resolveMeetingRecordingPlayback(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<MeetingRecordingPlaybackSource> {
+  try {
+    const presigned = await getMeetingRecordingPlaybackUrl(meetingId, recordingId, opts);
+    if (presigned?.playback_url) {
+      return {
+        kind: "remote",
+        url: presigned.playback_url,
+        expiresAt: presigned.expires_at,
+      };
+    }
+  } catch {
+    /* presign optional — proxy blob below */
+  }
+  const blob = await loadMeetingRecordingBlob(meetingId, recordingId, opts);
+  return { kind: "blob", url: URL.createObjectURL(blob) };
 }
 
 /** Fetches the iCalendar text; the caller turns it into a download. */

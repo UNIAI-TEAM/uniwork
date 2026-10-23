@@ -1,0 +1,373 @@
+"use client";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  archiveDocument,
+  getDocumentArchiveImpact,
+  getDocumentTree,
+  listDocuments,
+  listRecentDocuments,
+  listSharedByMe,
+  listSharedWithMe,
+  listShelvedDocuments,
+  listTrashedDocuments,
+  moveDocument,
+  purgeDocument,
+  restoreDocument,
+  shelveDocument,
+  unshelveDocument,
+  type DocumentRecentActivity,
+  type ListDocumentsBaseOpts,
+  type ListDocumentsOpts,
+  type MoveDocumentBody,
+} from "../api/endpoints/documents-collections";
+import { canManageTrashed, DocumentNotVerifiableError } from "../types/document";
+import { useEnsureMyFolder } from "./hooks";
+import { documentKeys } from "./keys";
+import { keepWhileSorting } from "./keep-while-sorting";
+import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
+
+export { canManageTrashed, useEnsureMyFolder };
+
+// Documents collection hooks (C-01 §5.1; UNI-679, G1-05b). Keys come from the
+// documentKeys factory and every key hangs off the workspace root, so one
+// realtime `document.*` invalidation still refreshes list/tree/recent/shared.
+// Mutations await the server and only count as success on a verifiable
+// answer; a null parse throws "result not verifiable".
+
+const DOCUMENT_PAGE_SIZE = 50;
+
+/** Stable key fragment of a filter object: sorted entries, undefined dropped. */
+export function documentFilterKey(filter?: object): string {
+  if (!filter) return "";
+  const entries = Object.entries(filter)
+    .filter(([, value]) => value !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+}
+
+/** The library's filters, shared by every collection list: the type/access
+ *  chips (UNI-1868) — the format a row's current version carries, and the
+ *  level the caller holds on it — and the filter bar's Người sửa / Cập nhật
+ *  (UNI-2045 SV-8). */
+export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo">;
+
+/** The column sort of the tables (UNI-2038): part of the key, so another order
+ *  starts from page 1. Only the lists that sort on the server take it. */
+export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
+
+/** The key fragment of the chip filters and the sort: "" when none is set, so
+ *  an unfiltered, unsorted list keeps the key it had before the chips became
+ *  query params. */
+function documentListFilterKey(
+  filters?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; includeOwned?: boolean },
+): string {
+  if (!filters) return "";
+  const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
+  const includeOwned = filters.includeOwned || undefined;
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+    return "";
+  }
+  return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
+}
+
+/** The filters every collection request carries, picked off a hook's opts. */
+function listFilterParams(opts?: DocumentListFilters) {
+  return {
+    format: opts?.format,
+    access: opts?.access,
+    updatedBy: opts?.updatedBy,
+    updatedFrom: opts?.updatedFrom,
+    updatedTo: opts?.updatedTo,
+  };
+}
+
+/**
+ * The workspace list as an infinite query: flat list, one tree level
+ * (`parentId: ""` = roots) or a search (`q`). The permission filter is the
+ * server's, so a page never renders rows the caller cannot read.
+ */
+export function useDocumentList(wsId: string, filter?: ListDocumentsOpts, opts?: { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.list(wsId, documentFilterKey(filter)),
+    placeholderData: keepWhileSorting(documentKeys.list(wsId, documentFilterKey(filter))),
+    queryFn: ({ pageParam, signal }) =>
+      listDocuments(
+        wsId,
+        { ...filter, cursor: pageParam || undefined, limit: filter?.limit ?? DOCUMENT_PAGE_SIZE },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** The workspace sidebar forest; `root` narrows to one branch and
+ *  `foldersOnly` drops pages and files (its own cache entry). */
+export function useDocumentTree(
+  wsId: string,
+  root?: string,
+  opts?: { enabled?: boolean; foldersOnly?: boolean },
+) {
+  const foldersOnly = opts?.foldersOnly ?? false;
+  return useQuery({
+    queryKey: documentKeys.tree(wsId, root ?? "", foldersOnly),
+    queryFn: ({ signal }) => getDocumentTree(wsId, root, signal, { foldersOnly }),
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/**
+ * What archiving a subtree would move, for the delete dialog (FD-06). Runs
+ * only while `enabled` (the dialog is open) and is stale at once, so every
+ * open asks again; a realtime document frame invalidates it through the
+ * workspace root. An unreadable answer is "result not verifiable", never
+ * counts, so the dialog keeps its confirmation locked.
+ */
+export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: documentKeys.archiveImpact(wsId, documentId),
+    queryFn: async ({ signal }) => {
+      const impact = await getDocumentArchiveImpact(documentId, signal);
+      if (!impact) throw new DocumentNotVerifiableError();
+      return impact;
+    },
+    staleTime: 0,
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+/** Recently opened/edited documents (humans only; agents get 403). The
+ *  filters, the Đã mở / Đã sửa segment (`activity`) and the sort run
+ *  server-side and key it like the flat list. `includeOwned` also lists what
+ *  the caller owns once somebody else edits it (the chat picker); it is part
+ *  of the key. */
+export function useRecentDocuments(
+  wsId: string,
+  opts?: DocumentListFilters &
+    DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean; includeOwned?: boolean },
+) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.recent(wsId, documentListFilterKey(opts))),
+    queryFn: ({ pageParam, signal }) =>
+      listRecentDocuments(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          ...listFilterParams(opts),
+          activity: opts?.activity,
+          sort: opts?.sort,
+          order: opts?.order,
+          includeOwned: opts?.includeOwned,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** Documents the caller received through a share, across the organization.
+ *  Paged like the other lists: `next_cursor` drives the next page. */
+export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.sharedWithMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedWithMe(wsId, documentListFilterKey(opts))),
+    queryFn: ({ pageParam, signal }) =>
+      listSharedWithMe(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** Documents in this workspace that the caller owns and has shared (live
+ *  person/group share or workspace visibility; public links and My Folder rows
+ *  excluded). Under `documentKeys.workspace(wsId)` so `document.shared`,
+ *  `document.share_revoked`, and `document.workspace_access_changed` refresh it. */
+export function useSharedByMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.sharedByMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedByMe(wsId, documentListFilterKey(opts))),
+    queryFn: ({ pageParam, signal }) =>
+      listSharedByMe(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** The Thùng rác list: archived rows in the one order the trash shows,
+ *  `deleted` ascending (UNI-2045 Q2; the endpoint fixes it). Under the list
+ *  root, so every `document.*` frame and a restore/purge refresh reach it;
+ *  the chips key the entry. */
+export function useTrashedDocuments(
+  wsId: string,
+  opts?: DocumentListFilters & Pick<ListDocumentsBaseOpts, "kind"> & { enabled?: boolean },
+) {
+  const filter = { kind: opts?.kind, ...listFilterParams(opts) };
+  return useInfiniteQuery({
+    queryKey: documentKeys.list(wsId, `trash:${documentFilterKey(filter)}`),
+    queryFn: ({ pageParam, signal }) =>
+      listTrashedDocuments(wsId, { ...filter, cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** The "Lưu trữ" list (ARCHIVE-01 §4): shelved rows the caller may see, flat
+ *  and keyset-paged like the other collection lists. The format/access chips
+ *  and the sort (UNI-2045 W12, SV-0) go to the server and key the cache entry;
+ *  under the workspace root so every `document.*` frame and a
+ *  shelve/unshelve refresh reaches it. */
+export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: documentKeys.shelved(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.shelved(wsId, documentListFilterKey(opts))),
+    queryFn: ({ pageParam, signal }) =>
+      listShelvedDocuments(
+        wsId,
+        {
+          cursor: pageParam || undefined,
+          limit: DOCUMENT_PAGE_SIZE,
+          ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
+        },
+        signal,
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/**
+ * Reparent/reorder one document. The caller sends the revision it last saw;
+ * a move whose answer cannot prove itself throws "result not verifiable" and
+ * keeps the caller's key for the retry.
+ */
+export function useMoveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: MoveDocumentBody & { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey, ...body } = input;
+      return requireVerifiableDocument(await moveDocument(documentId, body, { idempotencyKey }));
+    },
+    onSuccess: (doc) => {
+      qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/** Archive a document subtree (manage). Success carries the batch. */
+export function useArchiveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documentId: string; idempotencyKey?: string }) =>
+      requireVerifiableArchive(
+        await archiveDocument(input.documentId, { idempotencyKey: input.idempotencyKey }),
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/** Restore the target trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). Partial restore may leave unmanaged
+ *  descendants in trash and detach the restored root (`parent_id: null`);
+ *  invalidating the workspace root refreshes the trash list, the old parent's
+ *  list, the workspace root list, and the tree. */
+export function useRestoreDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      return requireVerifiableArchive(await restoreDocument(documentId, { idempotencyKey }));
+    },
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/** Shelve a document subtree into the read-only "Lưu trữ" state (manage;
+ *  ARCHIVE-01). Awaits the server - shelving moves the item out of the
+ *  regular lists and tree, so nothing is optimistic. The workspace-root
+ *  invalidate covers the shelved list too (its key hangs off the root). */
+export function useShelveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documentId: string; idempotencyKey?: string }) =>
+      requireVerifiableArchive(
+        await shelveDocument(input.documentId, { idempotencyKey: input.idempotencyKey }),
+      ),
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+/** Unshelve the target item and the same-batch shelved descendants the caller
+ *  manages (ARCHIVE-01 §2 S-2; symmetric to restore's partial-batch rule).
+ *  The workspace-root invalidate covers the shelved list, the regular lists,
+ *  the tree and the details. */
+export function useUnshelveDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: string | { documentId: string; idempotencyKey?: string }) => {
+      const { documentId, idempotencyKey } =
+        typeof input === "string" ? { documentId: input, idempotencyKey: undefined } : input;
+      return requireVerifiableArchive(await unshelveDocument(documentId, { idempotencyKey }));
+    },
+    onSuccess: (res) => {
+      qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
+
+/** Permanently delete a trashed item and the trashed descendants in its batch
+ *  that the caller manages (RESTORE-01). Awaits the server (no optimistic
+ *  update) and invalidates the workspace document root (trash list, folder
+ *  lists, tree and details). */
+export function usePurgeDocument(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      await purgeDocument(documentId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
+  });
+}

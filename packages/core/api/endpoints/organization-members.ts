@@ -91,6 +91,21 @@ export async function leaveOrganization(orgSlug: string): Promise<boolean> {
   }).status === "ok";
 }
 
+/**
+ * Closing the organization as its only active member (ADR 0032). The owner
+ * types the slug back, and the server compares it exactly; nothing is deleted,
+ * the organization is archived and the caller leaves it.
+ */
+export async function closeOrganization(orgSlug: string, confirmSlug: string): Promise<boolean> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/close`, {
+    method: "POST",
+    body: { confirm_slug: confirmSlug },
+  });
+  return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
+    endpoint: "POST /api/v1/orgs/{org}/close",
+  }).status === "ok";
+}
+
 const InvitationListResponse = z.object({
   invitations: z.array(OrgInvitationSchema),
   skipped: z.array(z.string()).default([]),
@@ -110,14 +125,20 @@ export async function listOrgInvitations(orgSlug: string): Promise<OrgInvitation
   });
 }
 
+/**
+ * `workspaceIds` are the organization's workspaces the invitee joins on
+ * accept (UNI-1582); none is a valid choice. Re-inviting a pending address
+ * replaces its choice with this one.
+ */
 export async function inviteToOrganization(
   orgSlug: string,
   emails: string[],
   orgRole: string,
+  workspaceIds: string[] = [],
 ): Promise<OrgInvitationResult> {
   const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/invitations`, {
     method: "POST",
-    body: { emails, org_role: orgRole },
+    body: { emails, org_role: orgRole, workspace_ids: workspaceIds },
   });
   return parseWithFallback<OrgInvitationResult>(raw, InvitationListResponse, EMPTY_INVITATIONS, {
     endpoint: "POST /api/v1/orgs/{org}/invitations",

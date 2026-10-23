@@ -33,7 +33,7 @@ function FileUploadButton({
     for (const file of files) onSelect(file);
   };
 
-  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const iconSize = size === "sm" ? "size-3.5" : "size-4";
   const buttonSize = size === "sm" ? "icon-xs" : "icon-sm";
 
   return (
@@ -48,13 +48,15 @@ function FileUploadButton({
         title={attachLabel}
         className={cn("text-muted-foreground", className)}
       >
-        <Paperclip className={iconSize} />
+        <Paperclip className={iconSize} aria-hidden="true" />
       </Button>
       <input
         ref={inputRef}
         type="file"
         multiple={multiple}
         className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
         onChange={handleChange}
       />
     </>

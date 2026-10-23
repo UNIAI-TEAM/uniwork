@@ -11,5 +11,7 @@ type MeetingMetrics interface {
 	IncOutboxRetry()
 	IncOutboxDeadLetter()
 	IncProviderDesync()
+	// IncSummaryError counts one failed AI summary run by reason.
+	IncSummaryError(reason string)
 	Inc(event string)
 }

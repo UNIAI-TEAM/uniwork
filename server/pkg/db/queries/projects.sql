@@ -57,6 +57,15 @@ INSERT INTO projects (
 )
 RETURNING *;
 
+-- name: LockProjectDuplicateKey :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0));
+
+-- name: ListProjectTitlesForDuplicateCheck :many
+SELECT id, title FROM projects
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+ORDER BY created_at, id;
+
 -- name: UpdateProject :one
 UPDATE projects SET
   title       = COALESCE(sqlc.narg('title'), title),

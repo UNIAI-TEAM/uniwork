@@ -19,6 +19,10 @@ export const MeetingSchema = z.object({
   actual_start_at: z.string().optional(),
   actual_end_at: z.string().optional(),
   version: z.number().optional(),
+  /** List rows only: a recording with a file exists, so the row can offer a rewatch. */
+  has_playable_recording: z.boolean().optional(),
+  /** Minimum attendance (%); null or absent = none. */
+  quorum_percent: z.number().nullish(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -28,6 +32,8 @@ export const MeetingNoteSchema = z.object({
   author_id: z.string(),
   body: z.string(),
   display_name: z.string().optional(),
+  avatar_url: z.string().nullish(),
+  created_at: z.string().nullish(),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 
@@ -54,6 +60,9 @@ export const ParticipantSchema = z.object({
   display_name_snapshot: z.string().optional(),
   role: z.string(),
   status: z.string(),
+  /** MEMBER votes and counts toward attendance; OBSERVER does neither. */
+  standing: z.string().optional(),
+  is_secretary: z.boolean().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
 
@@ -90,7 +99,10 @@ export type MeetingInviteLink = z.infer<typeof InviteLinkSchema>;
 
 export const MeetingStatisticsSchema = z.object({
   total: z.number(),
+  /** Scheduled meetings that can still start (ends_at not yet passed). */
   scheduled: z.number(),
+  /** Scheduled meetings whose window passed without starting; absent from older servers. */
+  missed: z.number().optional(),
   in_progress: z.number(),
   ended: z.number(),
   canceled: z.number(),
@@ -117,6 +129,8 @@ export const ActivityItemSchema = z.object({
   from_state: z.string().optional(),
   to_state: z.string().optional(),
   occurred_at: z.string(),
+  /** MOTION_OPENED `{title}` and MOTION_CLOSED `{title, outcome}` only; absent elsewhere. */
+  payload: z.record(z.string(), z.string()).optional(),
 });
 export type MeetingActivityItem = z.infer<typeof ActivityItemSchema>;
 
@@ -141,22 +155,51 @@ export const ChatMessageSchema = z.object({
 });
 export type MeetingChatMessage = z.infer<typeof ChatMessageSchema>;
 
-export const SummaryActionItemSchema = z.object({
+const SummaryActionItemEntrySchema = z.object({
+  index: z.number().int().nonnegative().nullish(),
   title: z.string(),
-  owner: z.string().optional(),
-  due: z.string().optional(),
+  owner: z.string().nullish(),
+  due: z.string().nullish(),
+  /** The one assignable member the AI owner names; absent when nobody or several match. */
+  suggested_assignee_id: z.string().nullish(),
+  /** The AI due phrase read against the meeting's day (YYYY-MM-DD); absent when it does not parse. */
+  due_date: z.string().nullish(),
+  /** The live task this item of this summary already became. */
+  task_id: z.string().nullish(),
 });
-export type MeetingSummaryActionItem = z.infer<typeof SummaryActionItemSchema>;
+
+export type MeetingSummaryActionItem = Omit<z.infer<typeof SummaryActionItemEntrySchema>, "index"> & {
+  /** Position in the summary's stored action items; what POST …/summary/tasks names. */
+  index: number;
+};
+
+/**
+ * Action items parsed one by one: an entry that does not parse is dropped
+ * instead of costing the whole summary, and an entry without an index takes
+ * its position (the server numbers them by position).
+ */
+const SummaryActionItemsSchema = z.array(z.unknown()).transform((raw): MeetingSummaryActionItem[] =>
+  raw.flatMap((entry, position) => {
+    const parsed = SummaryActionItemEntrySchema.safeParse(entry);
+    if (!parsed.success) return [];
+    return [{ ...parsed.data, index: parsed.data.index ?? position }];
+  }),
+);
+
+/** Decisions kept one by one: a non-string entry is dropped, not the summary. */
+const SummaryDecisionsSchema = z
+  .array(z.unknown())
+  .transform((raw) => raw.filter((d): d is string => typeof d === "string"));
 
 export const MeetingSummarySchema = z.object({
   id: z.string(),
   meeting_id: z.string(),
   summary: z.string(),
-  decisions: z.array(z.string()).optional(),
-  action_items: z.array(SummaryActionItemSchema).optional(),
-  model: z.string().optional(),
-  created_by: z.string().optional(),
-  created_at: z.string().optional(),
+  decisions: SummaryDecisionsSchema.nullish(),
+  action_items: SummaryActionItemsSchema.nullish(),
+  model: z.string().nullish(),
+  created_by: z.string().nullish(),
+  created_at: z.string().nullish(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 
@@ -177,3 +220,115 @@ export const MeetingCapabilitiesSchema = z.object({
   server_stt: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
+
+export type AttendanceStatus = "PRESENT" | "LATE" | "EXCUSED" | "ABSENT";
+export const ATTENDANCE_STATUSES: readonly AttendanceStatus[] = ["PRESENT", "LATE", "EXCUSED", "ABSENT"];
+
+export const AttendanceRowSchema = z.object({
+  participant_id: z.string(),
+  principal_type: z.string(),
+  user_id: z.string().optional(),
+  display_name: z.string(),
+  standing: z.string(),
+  is_secretary: z.boolean(),
+  status: z.string(),
+  /** AUTO | MANUAL | SUGGESTED (a suggestion not yet frozen by finalize). */
+  source: z.string(),
+  note: z.string().optional(),
+  first_joined_at: z.string().optional(),
+  last_left_at: z.string().optional(),
+  in_room: z.boolean().optional(),
+  present_seconds: z.number(),
+  session_count: z.number(),
+  /**
+   * Finalized roll only: marked when finalized, no longer on the meeting. Still
+   * counted, because the finalized numbers are a snapshot. Older servers omit it.
+   */
+  removed: z.boolean().catch(false),
+  /**
+   * Finalized roll only: added after finalize, so it has no mark and is not
+   * counted until the roll is reopened. Older servers omit it.
+   */
+  joined_after_finalize: z.boolean().catch(false),
+});
+export type MeetingAttendanceRow = z.infer<typeof AttendanceRowSchema>;
+
+export const MeetingAttendanceSchema = z.object({
+  finalized_at: z.string().optional(),
+  finalized_by: z.string().optional(),
+  quorum_percent: z.number().nullish(),
+  summary: z.object({
+    members: z.number(),
+    present: z.number(),
+    late: z.number(),
+    excused: z.number(),
+    absent: z.number(),
+    quorum_met: z.boolean().nullish(),
+  }),
+  rows: z.array(AttendanceRowSchema),
+});
+export type MeetingAttendance = z.infer<typeof MeetingAttendanceSchema>;
+
+
+export type MotionStatus = "DRAFT" | "OPEN" | "CLOSED";
+export type BallotMode = "PUBLIC" | "SECRET";
+export type MotionThreshold = "MAJORITY" | "TWO_THIRDS";
+export type MotionBase = "PRESENT" | "ALL_MEMBERS";
+export type BallotChoice = "YES" | "NO" | "ABSTAIN";
+export type MotionOutcome = "PASSED" | "FAILED";
+export const BALLOT_CHOICES: readonly BallotChoice[] = ["YES", "NO", "ABSTAIN"];
+
+/**
+ * One item on a meeting's voting list (GET /meetings/{id}/motions). Enums stay
+ * z.string() so a newer server's value does not drop the whole list. `result`
+ * is null until CLOSED, even for the host; `voters` only on a closed public
+ * ballot; `my_ballot.choice` only once a public ballot is cast.
+ */
+export const MeetingMotionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  position: z.number(),
+  ballot_mode: z.string(),
+  threshold: z.string(),
+  base: z.string(),
+  status: z.string(),
+  opened_at: z.string().nullish(),
+  closed_at: z.string().nullish(),
+  /** Members on the roll when voting opened; null while DRAFT. */
+  roll_size: z.number().nullish(),
+  total_members: z.number().nullish(),
+  cast_count: z.number().optional(),
+  result: z
+    .object({
+      yes: z.number(),
+      no: z.number(),
+      abstain: z.number(),
+      required: z.number(),
+      outcome: z.string(),
+    })
+    .nullish(),
+  voters: z
+    .object({
+      yes: z.array(z.string()),
+      no: z.array(z.string()),
+      abstain: z.array(z.string()),
+    })
+    .nullish(),
+  my_ballot: z
+    .object({
+      on_roll: z.boolean(),
+      cast: z.boolean(),
+      choice: z.string().nullish(),
+    })
+    .optional(),
+});
+export type MeetingMotion = z.infer<typeof MeetingMotionSchema>;
+
+export type MotionDraftInput = {
+  title: string;
+  description: string;
+  ballot_mode: BallotMode;
+  threshold: MotionThreshold;
+  base: MotionBase;
+};

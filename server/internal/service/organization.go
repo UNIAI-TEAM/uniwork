@@ -40,6 +40,33 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	// One account, one organization (ADR 0032): decided under the account's
+	// lock, so two tabs founding at once cannot both get through.
+	if err := lockMembership(ctx, q, userID); err != nil {
+		return db.Organization{}, err
+	}
+	current, err := activeOrganizations(ctx, q, userID)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	if len(current) > 0 {
+		c := current[0]
+		return db.Organization{}, errAlreadyInOrganization(OrganizationRef{ID: c.ID, Name: c.Name, Slug: c.Slug})
+	}
+	o, err := createOrganizationQ(ctx, q, userID, name, slug)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Organization{}, err
+	}
+	return o, nil
+}
+
+// createOrganizationQ writes a new organization with its founder as owner,
+// inside the caller's transaction. Create decides first whether the founder
+// may have one (ADR 0032); this body does not.
+func createOrganizationQ(ctx context.Context, q *db.Queries, userID, name, slug string) (db.Organization, error) {
 	o, err := q.CreateOrganization(ctx, db.CreateOrganizationParams{
 		ID: util.NewID(), Slug: slug, Name: name, CreatedBy: userID,
 	})
@@ -98,9 +125,6 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 		"Đồng nghiệp AI mặc định của tổ chức", nil, userID, audit.System("organization.created")); err != nil {
 		return db.Organization{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return db.Organization{}, err
-	}
 	return o, nil
 }
 
@@ -109,7 +133,80 @@ func (s *OrganizationService) ListForUser(ctx context.Context, userID string) ([
 }
 
 func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID string) (db.OrganizationMember, error) {
-	m, err := s.q.GetOrganizationMember(ctx, db.GetOrganizationMemberParams{OrganizationID: orgID, UserID: userID})
+	return s.RequireMemberQ(ctx, s.q, orgID, userID)
+}
+
+// RequireMembers checks every user belongs to the organization and is active.
+func (s *OrganizationService) RequireMembers(ctx context.Context, orgID string, userIDs []string) error {
+	ids := normalizeOrgMemberIDs(userIDs)
+	if len(ids) == 0 {
+		return nil
+	}
+	eligible, err := s.q.FilterActiveOrganizationMemberUserIDs(ctx, db.FilterActiveOrganizationMemberUserIDsParams{
+		OrganizationID: orgID, UserIds: ids,
+	})
+	if err != nil {
+		return err
+	}
+	if len(eligible) != len(ids) {
+		return ErrForbidden
+	}
+	seen := make(map[string]struct{}, len(eligible))
+	for _, id := range eligible {
+		seen[id] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, ok := seen[id]; !ok {
+			return ErrForbidden
+		}
+	}
+	return nil
+}
+
+func normalizeOrgMemberIDs(userIDs []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		id = strings.ToUpper(strings.TrimSpace(id))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// AdmittedMemberIDsQ is RequireMemberQ for many users at once, read through
+// q: the set of userIDs RequireMemberQ would admit to orgID (active
+// organization, member not deactivated, only the owner while a deletion is
+// scheduled), in one query. A chat document grant to a large room and a
+// Documents batch share gate every recipient with it instead of a round trip
+// each (UNI-2012 S1c). Every id it leaves out is one RequireMemberQ refuses.
+func (s *OrganizationService) AdmittedMemberIDsQ(ctx context.Context, q *db.Queries, orgID string, userIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	ids, err := q.FilterAdmittedOrganizationMemberUserIDs(ctx, db.FilterAdmittedOrganizationMemberUserIDsParams{
+		OrganizationID: orgID, UserIds: userIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
+// RequireMemberQ is RequireMember read through q, for a caller inside a
+// transaction (see WorkspaceService.RequireMemberQ). Same decision, same errors.
+func (s *OrganizationService) RequireMemberQ(ctx context.Context, q *db.Queries, orgID, userID string) (db.OrganizationMember, error) {
+	m, err := q.GetOrganizationMember(ctx, db.GetOrganizationMemberParams{OrganizationID: orgID, UserID: userID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.OrganizationMember{}, ErrForbidden
 	}
@@ -124,6 +221,9 @@ func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID s
 	// caller has to remember the check (spec F-03 §4.1).
 	if m.DeactivatedAt.Valid {
 		return db.OrganizationMember{}, errMemberDeactivated()
+	}
+	if m.DeletionScheduledAt.Valid && m.Role != OrgRoleOwner {
+		return db.OrganizationMember{}, errOrganizationDeletionScheduled(m.DeletionScheduledAt.Time)
 	}
 	return db.OrganizationMember{
 		OrganizationID: m.OrganizationID, UserID: m.UserID, Role: m.Role,
@@ -144,7 +244,7 @@ func (s *OrganizationService) GetBySlug(ctx context.Context, userID, slug string
 	// A deactivated member already knows this organization exists, so they get
 	// the honest answer and the client can show the blocked screen; everyone
 	// else gets 404 rather than a hint that the slug is taken.
-	if errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) {
+	if errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 		return db.Organization{}, db.OrganizationMember{}, err
 	}
 	if err != nil {

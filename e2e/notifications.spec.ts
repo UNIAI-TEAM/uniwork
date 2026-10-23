@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
+import { joinInvitation } from "./invitations";
 
 // The golden path for F-07 (spec §8.3): A assigns a task to B; B sees the
 // badge without reloading, opens the inbox, follows the row to the task, and
@@ -26,7 +28,7 @@ async function onboardOwner(page: Page) {
   await page.getByRole("button", { name: "Tạo Đội Inbox" }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/tasks$`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 }
 
 test("assigning a task lights the assignee's inbox badge without a reload", async ({ browser, page: owner }) => {
@@ -34,7 +36,10 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // Invite B from the Members page; the token comes out of the mail outbox.
   const memberEmail = `member-${stamp}@example.com`;
-  await owner.goto(`/${orgSlug}/${wsSlug}/members`);
+  // Members live under Settings; /members is only a client-side redirect there,
+  // and typing into the form before it lands loses the address.
+  await owner.goto(`/${orgSlug}/${wsSlug}/settings?tab=members`);
+  await expect(owner.getByRole("heading", { name: "Mời vào workspace" })).toBeVisible({ timeout: 15_000 });
   await owner.getByLabel("Email đồng nghiệp").fill(memberEmail);
   await owner.getByLabel("Email đồng nghiệp").press("Enter");
   await owner.getByRole("button", { name: "Mời thành viên" }).click();
@@ -42,8 +47,9 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // B: register and verify under the invited address. With an invitation
   // waiting, verification lands on /invitations rather than onboarding;
-  // joining there is what marks B onboarded and opens the workspace.
-  const memberContext = await browser.newContext({ locale: "vi-VN" });
+  // joining from the invitation's page is what marks B onboarded and opens
+  // the workspace.
+  const memberContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await member.goto("/register");
   await member.getByLabel("Tên hiển thị").fill("Thành Viên");
@@ -52,7 +58,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   await member.getByRole("button", { name: "Đăng ký" }).click();
   await member.getByLabel("Mã xác thực").fill(VERIFICATION_CODE);
   await expect(member).toHaveURL(/\/invitations$/, { timeout: 15_000 });
-  await member.getByRole("button", { name: "Tham gia", exact: true }).click();
+  await joinInvitation(member, `Thông báo ${stamp}`);
   await expect(member).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/`), { timeout: 15_000 });
   const inboxLink = member.getByRole("link", { name: /^Hộp việc/ });
   await expect(inboxLink).toBeVisible();
@@ -66,8 +72,10 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   await owner.getByText(`Việc cho B ${stamp}`).click();
   await expect(owner).toHaveURL(/\/tasks\/[0-9A-Z]+$/);
   const taskURL = owner.url();
-  await owner.getByRole("combobox").filter({ hasText: "Chưa giao" }).click();
-  await owner.getByRole("option", { name: "Thành Viên" }).click();
+  await owner.getByRole("button", { name: "Người phụ trách: Chưa giao" }).click();
+  // B is online, so the row's name carries the presence label after the
+  // display name ("Thành Viên" + "Đang trực tuyến"); match the prefix.
+  await owner.getByRole("button", { name: /^Thành Viên/ }).click();
 
   // B: the badge appears over the socket, no reload. The row crosses the
   // outbox twice (task.updated → consumer, notification.created → socket) at

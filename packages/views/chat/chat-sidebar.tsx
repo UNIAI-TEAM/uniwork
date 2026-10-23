@@ -1,396 +1,384 @@
 "use client";
 
-import { Home, Search, UserPlus, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useChatRooms } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
-import {
-  comparePinnedRoomOrder,
-  useChatRoomPreferencesStore,
-} from "@uniwork/core/chat/room-preferences-store";
-import { usePresenceStore } from "@uniwork/core/chat/presence-store";
-import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
-import type { PendingInvitation } from "@uniwork/core/types";
-import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
+import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
+import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ChatPresenceAvatar } from "./chat-presence-avatar";
-import { ChatSidebarChannels } from "./chat-sidebar-channels";
+import { ChannelDirectorySheet } from "./channel-directory-sheet";
+import { CreateChannelDialog } from "./create-channel-dialog";
 import { CreateGroupDialog } from "./create-group-dialog";
 import { StartDmDialog } from "./start-dm-dialog";
-import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
-import { SidebarNavItem } from "./chat-sidebar-rows";
-import type { ChatSidebarProps, ChatSidebarTarget } from "./chat-sidebar-types";
+import type { ChatSidebarProps } from "./chat-sidebar-types";
+import {
+  buildUnifiedSidebarEntries,
+  CHAT_SIDEBAR_TABS_BY_SCOPE,
+  chatSidebarTabCounts,
+  chatSidebarTabFilters,
+  type ChatSidebarTab,
+} from "./chat-sidebar-unified";
+import { ChatSidebarList } from "./chat-sidebar-list";
+import { ChatScopeSwitch, SidebarHeader, SidebarSearch } from "./chat-sidebar-header";
+import { typingNameByUserIdFromContext } from "./chat-sidebar-typing";
+import {
+  SidebarEmpty,
+  SidebarInvitations,
+  SidebarLoadError,
+  SidebarSkeleton,
+  SidebarStarter,
+} from "./chat-sidebar-parts";
+import type { SidebarRowLabels } from "./chat-sidebar-unified-row";
+import { pickQuickCatchUp, SidebarCatchUpCard } from "./chat-sidebar-catch-up";
+import { ChatSidebarMessageResults } from "./chat-sidebar-message-results";
+import { resolveChatRoomTarget } from "./chat-room-target";
+
+const EMPTY_COUNTS: Record<string, number> = {};
+const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {};
+const EMPTY_NICKNAMES: Record<string, string> = {};
+const EMPTY_CHANNELS: NonNullable<ChatSidebarProps["channels"]> = [];
+const EMPTY_MEMBER_AVATARS: NonNullable<ChatSidebarProps["memberAvatarByUserId"]> = {};
+const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
+const EMPTY_GROUPS: ChatSidebarProps["groups"] = [];
+const EMPTY_CONTACTS: ChatSidebarProps["contacts"] = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
+/* One tab row, Telegram's folder strip: 13px labels tight enough that five
+   tabs and their counts fit the column; the brand and a 2px underline when
+   chosen; it still scrolls sideways when the column is narrower. */
+const TAB =
+  "relative h-10 gap-1 rounded-none border-0 px-1.75 text-label font-medium text-muted-foreground transition-colors duration-(--duration-fast) " +
+  "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent " +
+  "hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:font-semibold aria-pressed:text-brand aria-pressed:after:bg-brand";
 
-function matchesConversationFilter(text: string, filter: string): boolean {
-  if (!filter) return true;
-  return text.toLowerCase().includes(filter);
-}
+/* The count beside a tab: neutral, the brand fill on the chosen tab. */
+const TAB_COUNT =
+  "h-4.5 min-w-4.5 rounded-full bg-border px-1 text-center text-micro leading-4.5 font-semibold text-chat-chip-foreground tabular-nums";
 
-export function ChatSidebar({
+/**
+ * Memoised: the page re-renders on every composer keystroke and typing
+ * signal, and none of that reaches the list unless its own props moved.
+ */
+export const ChatSidebar = memo(function ChatSidebar({
+  scope,
   currentUserId,
   workspaceId,
   target,
   onTargetChange,
   contacts,
   groups,
-  channels = [],
-  workHubEnabled = false,
+  channels = EMPTY_CHANNELS,
+  onOpenFollowUps,
+  onOpenFollowedThreads,
+  onQuickCatchUp,
   onCreateGroup,
   creatingGroup = false,
   createGroupOpen: createGroupOpenProp,
   onCreateGroupOpenChange,
-  onJoinedWorkspace,
   workspaceRoomId = null,
-  unreadByRoomId = {},
-  mentionUnreadByRoomId = {},
-  roomPreviewsByRoomId = {},
+  unreadByRoomId = EMPTY_COUNTS,
+  mentionUnreadByRoomId = EMPTY_COUNTS,
+  roomPreviewsByRoomId = EMPTY_PREVIEWS,
   unreadBadgesReady = false,
-  nicknamesByUserId = {},
+  nicknamesByUserId = EMPTY_NICKNAMES,
   embedded = false,
+  loading = false,
+  loadError = false,
+  onRetry,
+  workspaceRoomTitle,
+  onCollapse,
+  memberAvatarByUserId = EMPTY_MEMBER_AVATARS,
+  knownPeople = EMPTY_PEOPLE,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
-  const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   const [filterQuery, setFilterQuery] = useState("");
+  const [chosenTab, setTab] = useState<ChatSidebarTab>("all");
+  const tabs = CHAT_SIDEBAR_TABS_BY_SCOPE[scope];
+  // A kind tab the other scope does not have falls back to "All".
+  const tab = tabs.includes(chosenTab) ? chosenTab : "all";
+  const { kindFilter, activityFilter } = chatSidebarTabFilters(tab);
+  const messages = scope === "messages";
   const [startDmOpen, setStartDmOpen] = useState(false);
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
+  const [channelDirectoryOpen, setChannelDirectoryOpen] = useState(false);
   const [createGroupOpenInternal, setCreateGroupOpenInternal] = useState(false);
   const createGroupOpen = createGroupOpenProp ?? createGroupOpenInternal;
   const setCreateGroupOpen = onCreateGroupOpenChange ?? setCreateGroupOpenInternal;
-  const { data: invites = [] } = useMyInvitations();
-  const accept = useAcceptInvite();
-
-  const filterText = filterQuery.trim().toLowerCase();
+  // The field answers every keystroke; the list re-sorts when React is idle.
+  const filterText = useDeferredValue(filterQuery.trim());
   const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
-  const isRoomPinned = (roomId: string | null | undefined) =>
-    Boolean(roomId && pinnedByRoomId[roomId]?.pinned);
-  const isRoomNotificationsMuted = (roomId: string | null | undefined) =>
-    Boolean(roomId && pinnedByRoomId[roomId]?.notificationsMuted);
-  const workspaceTitle = t("chat.workspace_room");
-
-  const filteredGroups = useMemo(
-    () =>
-      groups
-        .filter((group) => matchesConversationFilter(group.name, filterText))
-        .sort((a, b) => {
-          const pinOrder = comparePinnedRoomOrder(a.room_id, b.room_id, pinnedByRoomId);
-          if (pinOrder !== 0) return pinOrder;
-          return compareRoomPreviewRecency(
-            roomPreviewsByRoomId[a.room_id],
-            roomPreviewsByRoomId[b.room_id],
-          );
-        }),
-    [groups, filterText, pinnedByRoomId, roomPreviewsByRoomId],
+  const { data: rooms } = useChatRooms(workspaceId);
+  const mutedRoomIds = useMemo(
+    () => new Set((rooms ?? []).filter((room) => room.notifications_muted).map((room) => room.id)),
+    [rooms],
+  );
+  const peerReadAtByRoomId = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const room of rooms ?? []) if (room.kind === "dm" && room.peer_last_read_at) out[room.id] = room.peer_last_read_at;
+    return out;
+  }, [rooms]);
+  const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
+  const typingNameByUserId = useMemo(
+    () => typingNameByUserIdFromContext(knownPeople),
+    [knownPeople],
   );
 
-  const filteredContacts = useMemo(
+  const tabCounts = useMemo(
     () =>
-      contacts
-        .filter((contact) => {
-          const label = displayLabelForChatContact(contact, nicknamesByUserId);
-          return (
-            matchesConversationFilter(label, filterText) ||
-            matchesConversationFilter(contact.email, filterText)
-          );
-        })
-        .sort((a, b) => {
-          const leftRoomId = a.dm_room_id ?? "";
-          const rightRoomId = b.dm_room_id ?? "";
-          const pinOrder = comparePinnedRoomOrder(leftRoomId, rightRoomId, pinnedByRoomId);
-          if (pinOrder !== 0) return pinOrder;
-          const leftPreview = a.dm_room_id ? roomPreviewsByRoomId[a.dm_room_id] : null;
-          const rightPreview = b.dm_room_id ? roomPreviewsByRoomId[b.dm_room_id] : null;
-          return compareRoomPreviewRecency(leftPreview, rightPreview);
-        }),
-    [contacts, filterText, pinnedByRoomId, roomPreviewsByRoomId, nicknamesByUserId],
+      chatSidebarTabCounts({
+        roomIds: messages
+          ? [...groups.map((group) => group.room_id), ...contacts.map((contact) => contact.dm_room_id ?? "")]
+          : [workspaceRoomId ?? "", ...channels.map((channel) => channel.id)],
+        unreadByRoomId,
+        mentionUnreadByRoomId,
+        mutedRoomIds,
+      }),
+    [messages, workspaceRoomId, channels, groups, contacts, unreadByRoomId, mentionUnreadByRoomId, mutedRoomIds],
   );
 
-  const youLabel = t("chat.you");
-  const voiceCallPreviewLabel = t("chat.sidebar_voice_call_preview");
-  const voiceMessagePreviewLabel = t("chat.sidebar_voice_message_preview");
-  const fileMessagePreviewLabel = t("chat.sidebar_file_message_preview");
-  const yesterdayLabel = t("chat.sidebar_yesterday");
+  const entries = useMemo(
+    () =>
+      buildUnifiedSidebarEntries({
+        scope,
+        kindFilter,
+        activityFilter,
+        filterText,
+        workspaceTitle,
+        workspaceRoomId,
+        channels,
+        groups,
+        contacts,
+        nicknamesByUserId,
+        roomPreviewsByRoomId,
+        pinnedByRoomId,
+        unreadByRoomId,
+        mentionUnreadByRoomId,
+      }),
+    [
+      scope,
+      kindFilter,
+      activityFilter,
+      filterText,
+      workspaceTitle,
+      workspaceRoomId,
+      channels,
+      groups,
+      contacts,
+      nicknamesByUserId,
+      roomPreviewsByRoomId,
+      pinnedByRoomId,
+      unreadByRoomId,
+      mentionUnreadByRoomId,
+    ],
+  );
 
-  const showWorkspace =
-    !filterText || matchesConversationFilter(workspaceTitle, filterText);
+  const labels = useMemo(
+    (): SidebarRowLabels => ({
+      youLabel: t("chat.you"),
+      voiceCallLabel: t("chat.sidebar_voice_call_preview"),
+      voiceMessageLabel: t("chat.sidebar_voice_message_preview"),
+      missedCallLabel: t("chat.voice_call_log_missed"),
+      fileMessageLabel: t("chat.sidebar_file_message_preview"),
+      documentMessageLabel: t("chat.sidebar_document_message_preview"),
+      formatDocumentVersionLine: (name: string, version: string) =>
+        t("chat.document_version_line", { name, version }),
+      yesterdayLabel: t("chat.sidebar_yesterday"),
+    }),
+    [t],
+  );
+  const memberChannelIds = useMemo(() => new Set(channels.map((c) => c.id)), [channels]);
+  const quickCatchUp = useMemo(
+    () =>
+      onQuickCatchUp
+        ? pickQuickCatchUp({
+            unreadByRoomId,
+            // Only what this scope lists: the busiest room of the other one is a click away.
+            workspaceRoomId: messages ? null : workspaceRoomId,
+            workspaceTitle,
+            channels: messages ? EMPTY_CHANNELS : channels,
+            groups: messages ? groups : EMPTY_GROUPS,
+            contacts: messages ? contacts : EMPTY_CONTACTS,
+            nicknamesByUserId,
+          })
+        : null,
+    [messages, channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
+  );
 
-  const hasListResults =
-    showWorkspace ||
-    filteredGroups.length > 0 ||
-    filteredContacts.length > 0 ||
-    (workHubEnabled &&
-      channels.some(
-        (channel) =>
-          matchesConversationFilter(channel.name, filterText) ||
-          matchesConversationFilter(channel.topic ?? "", filterText),
-      ));
+  // Two characters in, the search also reads the messages of this scope's rooms (Telegram's "Messages").
+  const resolveRoom = useCallback(
+    (roomId: string) =>
+      resolveChatRoomTarget(roomId, {
+        workspaceRoomId: messages ? null : (workspaceRoomId ?? null),
+        workspaceTitle,
+        channels: messages ? EMPTY_CHANNELS : channels,
+        groups: messages ? groups : EMPTY_GROUPS,
+        contacts: messages ? contacts : EMPTY_CONTACTS,
+        nicknamesByUserId,
+      }),
+    [messages, workspaceRoomId, workspaceTitle, channels, groups, contacts, nicknamesByUserId],
+  );
+  const messageResults =
+    filterText.length >= 2 ? (
+      <ChatSidebarMessageResults
+        workspaceId={workspaceId}
+        scope={scope}
+        query={filterText}
+        currentUserId={currentUserId}
+        youLabel={labels.youLabel}
+        resolve={resolveRoom}
+      />
+    ) : null;
 
-  const handleCreateGroup = (members: ChatContact[], name: string) => {
+  const handleCreateGroup = (members: ChatContact[], name: string, avatar: File | null) => {
     if (!onCreateGroup) return;
-    onCreateGroup(members, name);
+    onCreateGroup(members, name, avatar);
   };
+  const openStartDm = useCallback(() => setStartDmOpen(true), []);
+  const openCreateGroup = onCreateGroup ? () => setCreateGroupOpen(true) : undefined;
+  const filtering = filterText.length > 0 || tab !== "all";
 
-  const joinInvite = (inv: PendingInvitation) => {
-    accept.mutate(inv.token, {
-      onSuccess: () => onJoinedWorkspace?.(),
-    });
+  const tabLabel = (value: ChatSidebarTab) => {
+    switch (value) {
+      case "all":
+        return t("chat.filter_all");
+      case "unread":
+        return t("chat.filter_unread");
+      case "mentions":
+        return t("chat.filter_mentions");
+      case "dm":
+        return t("chat.filter_dm");
+      case "group":
+        return t("chat.filter_group");
+      case "channel":
+        return t("chat.filter_channel");
+      default:
+        return value;
+    }
   };
+  const tabCount = (value: ChatSidebarTab) =>
+    unreadBadgesReady && (value === "all" || value === "unread" || value === "mentions") ? tabCounts[value] : 0;
 
   return (
     <>
+      {/* A container: folded to a column of faces (UniChat's narrow window), only faces and counts show. */}
       <aside
         className={cn(
-          "flex min-h-0 flex-col gap-3 bg-surface p-3",
-          embedded ? "h-full min-w-0 flex-1 border-r border-border" : "gap-4 rounded-lg border border-border",
+          "@container/chatlist flex min-h-0 flex-col bg-surface",
+          embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
-        <div className="flex items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder={t("chat.search_conversations")}
-              aria-label={t("chat.search_conversations")}
-              type="search"
-              autoComplete="off"
-              className="h-10 rounded-full border-border/80 bg-muted/40 pl-9"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={t("chat.add_dm_aria")}
-            onClick={() => setStartDmOpen(true)}
-          >
-            <UserPlus className="size-5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={t("chat.create_group_aria")}
-            disabled={!onCreateGroup}
-            onClick={() => setCreateGroupOpen(true)}
-          >
-            <Users className="size-5" aria-hidden />
-          </Button>
-        </div>
+        <ChatScopeSwitch scope={scope} />
+        <SidebarHeader
+          scope={scope}
+          onOpenFollowUps={onOpenFollowUps}
+          onOpenFollowedThreads={onOpenFollowedThreads}
+          onCollapse={onCollapse}
+          onStartDm={openStartDm}
+          onCreateGroup={openCreateGroup}
+          onCreateChannel={() => setCreateChannelOpen(true)}
+          onBrowseChannels={() => setChannelDirectoryOpen(true)}
+        />
+        <SidebarSearch scope={scope} value={filterQuery} onChange={setFilterQuery} />
+        {/* Registry toggle group: arrow keys move between tabs (roving focus). */}
+        <ToggleGroup
+          value={[tab]}
+          onValueChange={(value) => {
+            const next = value[0] as ChatSidebarTab | undefined;
+            if (next) setTab(next);
+          }}
+          aria-label={t("chat.filter_aria")}
+          spacing={0}
+          className="no-scrollbar flex w-full shrink-0 overflow-x-auto rounded-none border-b border-border px-1.5 @max-3xs/chatlist:hidden"
+        >
+          {tabs.map((value) => {
+            const count = tabCount(value);
+            return (
+              <ToggleGroupItem key={value} value={value} className={TAB}>
+                {tabLabel(value)}
+                {count > 0 ? (
+                  <>
+                    <span aria-hidden className={cn(TAB_COUNT, value === tab && "bg-brand text-brand-foreground")}>
+                      {count}
+                    </span>
+                    <span className="sr-only">{t("chat.sidebar_result_count", { count })}</span>
+                  </>
+                ) : null}
+              </ToggleGroupItem>
+            );
+          })}
+        </ToggleGroup>
 
-        {invites.length > 0 ? (
-          <section className="space-y-2">
-            <h2 className="px-1 text-label font-medium text-foreground">{t("chat.pending_invites")}</h2>
-            <ul className="space-y-1">
-              {invites.map((inv) => (
-                <li
-                  key={inv.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-body font-medium text-foreground">
-                      {inv.organization.name} › {inv.workspace.name}
-                    </p>
-                    <p className="text-caption text-muted-foreground">
-                      {t("invitations.invitedBy", { name: inv.invited_by.display_name })}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={accept.isPending}
-                    onClick={() => joinInvite(inv)}
-                  >
-                    {t("invitations.join")}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        <SidebarInvitations />
 
-        <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden" aria-label={t("chat.sidebar_nav")}>
-          {!hasListResults ? (
-            <p className="px-1 text-caption text-muted-foreground">{t("chat.search_no_results")}</p>
+        <nav
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pt-2"
+          aria-label={t("chat.sidebar_nav")}
+        >
+          {/* One persistent region: the count a filter or search leaves is
+              announced politely, instead of every row change. */}
+          <p className="sr-only" role="status">
+            {filtering && !loading ? t("chat.sidebar_result_count", { count: entries.length }) : ""}
+          </p>
+          {loadError ? <SidebarLoadError onRetry={onRetry} /> : null}
+          {quickCatchUp && onQuickCatchUp && unreadBadgesReady && !loading && !loadError && !filtering ? (
+            <div className="@max-3xs/chatlist:hidden">
+              <SidebarCatchUpCard catchUp={quickCatchUp} onOpen={onQuickCatchUp} />
+            </div>
           ) : null}
-
-          {showWorkspace ? (
-            <section className="space-y-1">
-              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("chat.workspace_section")}
-              </h2>
-              <SidebarNavItem
-                active={target.kind === "workspace"}
-                onClick={() => onTargetChange({ kind: "workspace" })}
-                avatar={
-                  <span
-                    className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-                    aria-hidden
-                  >
-                    <Home className="size-4" />
-                  </span>
-                }
-                title={workspaceTitle}
-                preview={
-                  workspaceRoomId ? roomPreviewsByRoomId[workspaceRoomId] : undefined
-                }
-                roomId={workspaceRoomId}
-                contacts={contacts}
-                previewOptions={{
-                  currentUserId,
-                  isGroup: true,
-                  youLabel,
-                  voiceCallLabel: voiceCallPreviewLabel,
-                  voiceMessageLabel: voiceMessagePreviewLabel,
-                  fileMessageLabel: fileMessagePreviewLabel,
-                  yesterdayLabel,
-                  nicknamesByUserId,
-                }}
-                unread={workspaceRoomId ? (unreadByRoomId[workspaceRoomId] ?? 0) : 0}
-                mentionUnread={workspaceRoomId ? (mentionUnreadByRoomId[workspaceRoomId] ?? 0) : 0}
-                unreadBadgesReady={unreadBadgesReady}
-                pinned={isRoomPinned(workspaceRoomId)}
-                notificationsMuted={isRoomNotificationsMuted(workspaceRoomId)}
-              />
-            </section>
-          ) : null}
-
-          {workHubEnabled ? (
-            <ChatSidebarChannels
+          {loading && !loadError && entries.length <= 1 ? (
+            <SidebarSkeleton />
+          ) : entries.length === 0 && messages && !filtering ? (
+            // No DM or group yet: the two ways to start one.
+            <SidebarStarter onStartDm={openStartDm} onCreateGroup={openCreateGroup} />
+          ) : entries.length === 0 && messageResults ? (
+            // No conversation by that name: what was said is the answer.
+            <div className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4">{messageResults}</div>
+          ) : entries.length === 0 ? (
+            <SidebarEmpty
+              searching={filterText.length > 0}
+              kindFilter={kindFilter}
+              activityFilter={activityFilter}
+              actions={{
+                onStartDm: openStartDm,
+                onCreateGroup: openCreateGroup,
+                onCreateChannel: () => setCreateChannelOpen(true),
+                onBrowseChannels: () => setChannelDirectoryOpen(true),
+                onShowAll: () => {
+                  setTab("all");
+                  setFilterQuery("");
+                },
+              }}
+            />
+          ) : (
+            <ChatSidebarList
               workspaceId={workspaceId}
+              footer={messageResults}
+              sectionAfterFirst={
+                !messages && !filtering && entries[0]?.kind === "workspace" ? (
+                  <ChannelsSectionHeading onBrowse={() => setChannelDirectoryOpen(true)} />
+                ) : undefined
+              }
+              entries={entries}
+              target={target}
+              onTargetChange={onTargetChange}
+              workspaceTitle={workspaceTitle}
+              contacts={contacts}
               currentUserId={currentUserId}
-              channels={channels}
-              activeChannelId={target.kind === "channel" ? target.channel.id : null}
-              onSelectChannel={(channel) => onTargetChange({ kind: "channel", channel })}
+              nicknamesByUserId={nicknamesByUserId}
+              roomPreviewsByRoomId={roomPreviewsByRoomId}
               unreadByRoomId={unreadByRoomId}
               mentionUnreadByRoomId={mentionUnreadByRoomId}
-              roomPreviewsByRoomId={roomPreviewsByRoomId}
               unreadBadgesReady={unreadBadgesReady}
-              youLabel={youLabel}
-              voiceCallLabel={voiceCallPreviewLabel}
-              voiceMessageLabel={voiceMessagePreviewLabel}
-              fileMessageLabel={fileMessagePreviewLabel}
-              yesterdayLabel={yesterdayLabel}
+              preferencesByRoomId={pinnedByRoomId}
+              mutedRoomIds={mutedRoomIds}
+              labels={labels}
+              memberAvatarByUserId={memberAvatarByUserId}
+              typingNameByUserId={typingNameByUserId}
+              peerReadAtByRoomId={peerReadAtByRoomId}
             />
-          ) : null}
-
-          {filteredGroups.length > 0 ? (
-            <section className="flex min-h-0 flex-col gap-1.5">
-              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("chat.groups_title")}
-              </h2>
-              <ul className="min-h-0 space-y-0.5 overflow-y-auto">
-                {filteredGroups.map((group) => {
-                  const active = target.kind === "group" && target.group.id === group.id;
-                  const unread = unreadByRoomId[group.room_id] ?? 0;
-                  const mentionUnread = mentionUnreadByRoomId[group.room_id] ?? 0;
-                  return (
-                    <li key={group.id}>
-                      <SidebarNavItem
-                        active={active}
-                        onClick={() => onTargetChange({ kind: "group", group })}
-                        avatar={
-                          <span
-                            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-                            aria-hidden
-                          >
-                            <Users className="size-4" />
-                          </span>
-                        }
-                        title={group.name}
-                        preview={roomPreviewsByRoomId[group.room_id]}
-                        roomId={group.room_id}
-                        contacts={contacts}
-                        previewOptions={{
-                          currentUserId,
-                          isGroup: true,
-                          youLabel,
-                          voiceCallLabel: voiceCallPreviewLabel,
-                          voiceMessageLabel: voiceMessagePreviewLabel,
-                          fileMessageLabel: fileMessagePreviewLabel,
-                          yesterdayLabel,
-                          nicknamesByUserId,
-                        }}
-                        unread={unread}
-                        mentionUnread={mentionUnread}
-                        unreadBadgesReady={unreadBadgesReady}
-                        pinned={isRoomPinned(group.room_id)}
-                        notificationsMuted={isRoomNotificationsMuted(group.room_id)}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-
-          {filteredContacts.length > 0 ? (
-            <section className="flex min-h-0 flex-1 flex-col gap-1.5">
-              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("chat.contacts_title")}
-              </h2>
-              <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-                {filteredContacts.map((contact) => {
-                  const active = target.kind === "dm" && target.contact.user_id === contact.user_id;
-                  const dmRoomId = contact.dm_room_id ?? null;
-                  const unread = dmRoomId ? (unreadByRoomId[dmRoomId] ?? 0) : 0;
-                  const mentionUnread = dmRoomId ? (mentionUnreadByRoomId[dmRoomId] ?? 0) : 0;
-                  const label = displayLabelForChatContact(contact, nicknamesByUserId);
-                  return (
-                    <li key={contact.user_id}>
-                      <SidebarNavItem
-                        active={active}
-                        onClick={() => onTargetChange({ kind: "dm", contact })}
-                        avatar={
-                          <ChatPresenceAvatar
-                            name={label}
-                            initials={initialOf(label)}
-                            size="sm"
-                            online={Boolean(
-                              onlineUserIds[normalizeTypingUserId(contact.user_id)],
-                            )}
-                          />
-                        }
-                        title={label}
-                        preview={dmRoomId ? roomPreviewsByRoomId[dmRoomId] : undefined}
-                        roomId={dmRoomId}
-                        contacts={contacts}
-                        previewOptions={{
-                          currentUserId,
-                          isGroup: false,
-                          youLabel,
-                          voiceCallLabel: voiceCallPreviewLabel,
-                          voiceMessageLabel: voiceMessagePreviewLabel,
-                          fileMessageLabel: fileMessagePreviewLabel,
-                          yesterdayLabel,
-                          nicknamesByUserId,
-                        }}
-                        unread={unread}
-                        mentionUnread={mentionUnread}
-                        unreadBadgesReady={unreadBadgesReady}
-                        pinned={isRoomPinned(dmRoomId)}
-                        notificationsMuted={isRoomNotificationsMuted(dmRoomId)}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
+          )}
         </nav>
       </aside>
 
@@ -411,6 +399,50 @@ export function ChatSidebar({
         creating={creatingGroup}
         onCreate={handleCreateGroup}
       />
+
+      <CreateChannelDialog
+        open={createChannelOpen}
+        onOpenChange={setCreateChannelOpen}
+        workspaceId={workspaceId}
+        currentUserId={currentUserId}
+        onCreated={(room) => {
+          setCreateChannelOpen(false);
+          onTargetChange({ kind: "channel", channel: room });
+        }}
+      />
+      <ChannelDirectorySheet
+        open={channelDirectoryOpen}
+        onOpenChange={setChannelDirectoryOpen}
+        workspaceId={workspaceId}
+        memberChannelIds={memberChannelIds}
+        onCreateChannel={() => {
+          setChannelDirectoryOpen(false);
+          setCreateChannelOpen(true);
+        }}
+        onJoined={(room) => {
+          setChannelDirectoryOpen(false);
+          onTargetChange({ kind: "channel", channel: room });
+        }}
+      />
     </>
+  );
+});
+
+/** "KÊNH · Duyệt kênh" under the workspace's own room (canvas "Workspace"). */
+function ChannelsSectionHeading({ onBrowse }: { onBrowse: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between pt-3 pr-1.5 pb-1 pl-3 @max-3xs/chatlist:hidden">
+      <h3 className="text-caption font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+        {t("chat.channel.section_title")}
+      </h3>
+      <button
+        type="button"
+        onClick={onBrowse}
+        className="flex h-11 items-center rounded-md px-2 text-label font-semibold text-brand hover:underline"
+      >
+        {t("chat.channel.directory_title")}
+      </button>
+    </div>
   );
 }

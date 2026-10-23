@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
@@ -37,7 +38,7 @@ describe("ChatCreateNoteDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Nội dung"), {
+    fireEvent.change(screen.getByRole("textbox", { name: /Nội dung/ }), {
       target: { value: "Link tài liệu sprint" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Tạo ghi chú" }));
@@ -46,6 +47,7 @@ describe("ChatCreateNoteDialog", () => {
       expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           roomId: "room1",
+          client_msg_id: expect.stringMatching(/\S/),
           note: {
             body: "Link tài liệu sprint",
             pin_to_top: false,
@@ -55,7 +57,8 @@ describe("ChatCreateNoteDialog", () => {
     });
   });
 
-  it("disables pin checkbox when user cannot pin content", () => {
+  // Pin to top is a Switch now, the same control the poll dialog uses.
+  it("disables the pin switch and says why when the user cannot pin", () => {
     render(
       wrap(
         <ChatCreateNoteDialog
@@ -68,9 +71,51 @@ describe("ChatCreateNoteDialog", () => {
       ),
     );
 
-    expect(screen.getByRole("checkbox", { name: "Ghim lên đầu trò chuyện" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
+    const pin = screen.getByRole("switch", { name: "Ghim lên đầu trò chuyện" });
+    expect(pin).toHaveAttribute("aria-disabled", "true");
+    expect(pin).toHaveAccessibleDescription("Bạn không có quyền ghim nội dung lên đầu hội thoại.");
+  });
+
+  it("says why Create is not ready, then shows a failed send inline in the dialog", async () => {
+    mutateAsync.mockClear();
+    mutateAsync.mockRejectedValueOnce(new ApiError("raw server sentence", "rate_limited", 429));
+    render(
+      wrap(<ChatCreateNoteDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" canPinToTop />),
     );
+
+    expect(screen.getByText("Cần nội dung ghi chú")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /Nội dung/ })).toHaveAttribute("aria-required", "true");
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Nội dung/ }), { target: { value: "Ghi chú" } });
+    expect(screen.queryByText("Cần nội dung ghi chú")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tạo ghi chú" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn thao tác quá nhanh. Chờ một chút rồi thử lại.");
+    expect(alert).not.toHaveTextContent("raw server sentence");
+  });
+
+  it("never sends a pin the viewer may not make", async () => {
+    mutateAsync.mockClear();
+    render(
+      wrap(<ChatCreateNoteDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" canPinToTop={false} />),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: /Nội dung/ }), { target: { value: "Ghi chú" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo ghi chú" }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ note: { body: "Ghi chú", pin_to_top: false } })),
+    );
+  });
+
+  it("counts the body against its limit, announced only near it", () => {
+    render(
+      wrap(<ChatCreateNoteDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" canPinToTop />),
+    );
+    const field = screen.getByRole("textbox", { name: /Nội dung/ });
+    fireEvent.change(field, { target: { value: "ngắn" } });
+    expect(screen.getByText("4/2000")).not.toHaveAttribute("aria-live");
+    fireEvent.change(field, { target: { value: "a".repeat(1900) } });
+    expect(screen.getByText("1900/2000")).toHaveAttribute("aria-live", "polite");
+    expect(field).toHaveAccessibleDescription("1900/2000");
   });
 });

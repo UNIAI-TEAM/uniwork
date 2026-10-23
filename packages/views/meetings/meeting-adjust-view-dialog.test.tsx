@@ -24,7 +24,7 @@ describe("MeetingAdjustViewDialog", () => {
       wrapWithNav(<MeetingAdjustViewDialog open onOpenChange={() => {}} />),
     );
 
-    expect(await screen.findByText("Căn chỉnh view")).toBeInTheDocument();
+    expect(await screen.findByText("Tùy chỉnh bố cục")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Tự động (linh hoạt)" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Lưới đều" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Tiêu điểm" })).toBeInTheDocument();

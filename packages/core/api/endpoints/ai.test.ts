@@ -3,7 +3,13 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   askUni,
+  chatCatchUp,
   deleteAiConversation,
+  deleteAiFeedback,
+  getAskModels,
+  putAiFeedback,
+  putAskModels,
+  renameAiConversation,
   getAiCapabilities,
   getAiUsage,
   getOrgAiUsage,
@@ -54,6 +60,41 @@ describe("ai endpoints", () => {
     await expect(askUni("ws1", { question: "?" })).rejects.toThrow("ai_output_invalid");
   });
 
+  it("chatCatchUp posts room focus and degrades malformed payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        summary: "Có 2 tin mới.",
+        highlights: ["An nhắc hạn"],
+        highlight_items: [{ text: "An nhắc hạn", source_message_id: "m2" }, { text: "Không nguồn" }],
+        action_items: [{ title: "Gửi bản nháp", owner: "An", source_message_id: "m1" }],
+        message_count: 2,
+        since: "2026-09-11T08:00:00Z",
+        usage: { input_tokens: 10, output_tokens: 4 },
+      }),
+    );
+    const res = await chatCatchUp("ws1", { room_id: "r1", locale: "vi" });
+    expect(res.summary).toBe("Có 2 tin mới.");
+    expect(res.action_items[0]!.source_message_id).toBe("m1");
+    expect(res.highlight_items).toEqual([
+      { text: "An nhắc hạn", source_message_id: "m2" },
+      { text: "Không nguồn", source_message_id: "" },
+    ]);
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ room_id: "r1", locale: "vi" });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/ai/chat/catch-up");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: 1 }));
+    expect((await chatCatchUp("ws1", { room_id: "r1" })).summary).toBe("");
+    // An older server omits highlight_items; a drifted one must not blank the brief.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Cũ", highlights: ["a"] }));
+    expect((await chatCatchUp("ws1", { room_id: "r1" })).highlight_items).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Lệch", highlights: ["a"], highlight_items: [{ text: 1 }] }));
+    const drifted = await chatCatchUp("ws1", { room_id: "r1" });
+    expect(drifted.summary).toBe("Lệch");
+    expect(drifted.highlights).toEqual(["a"]);
+    expect(drifted.highlight_items).toEqual([]);
+  });
+
   it("conversations and messages degrade to empty lists", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: [{ id: "c1", title: "t" }] }));
     expect((await listAiConversations("ws1"))[0]!.id).toBe("c1");
@@ -70,6 +111,33 @@ describe("ai endpoints", () => {
     expect((vi.mocked(fetch).mock.calls[4]![1] as RequestInit).method).toBe("DELETE");
   });
 
+  it("listAiConversations sends q and degrades on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: [{ id: "c1" }] }));
+    await listAiConversations("ws1", "viec tre");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toMatch(/\/ai\/conversations\?q=viec%20tre$/);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: 5 }));
+    expect(await listAiConversations("ws1", "x")).toEqual([]);
+  });
+
+  it("listAiMessages defaults malformed steps, followups, focus and mentions", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, steps: "x", followups: 3, focus: 1, mentions: {} }] }));
+    const [m] = await listAiMessages("c1");
+    expect(m).toMatchObject({ steps: [], followups: [], focus: null, mentions: [] });
+  });
+
+  it("listAiMessages reads the answering model and defaults a malformed one to Auto", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, model: "opus" }, { ...message, id: "m2", model: 7 }, { ...message, id: "m3" }] }));
+    expect((await listAiMessages("c1")).map((m) => m.model)).toEqual(["opus", "", ""]);
+  });
+
+  it("listAiMessages keeps a message whose notice is malformed and defaults it to empty", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, notice: 42 }, { ...message, id: "m2", content: "", notice: "no_sources" }] }));
+    const msgs = await listAiMessages("c1");
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]!.notice).toBe("");
+    expect(msgs[1]!.notice).toBe("no_sources");
+  });
+
   it("usage builds the window query and degrades to no rows", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ from: "a", to: "b", rows: [{ day: "2026-09-06", capability: "copilot_answer", calls: 2, input_tokens: 10, output_tokens: 3, cost_micros: 40 }] }));
     const usage = await getAiUsage("ws1", "2026-08-01", "2026-09-06");
@@ -78,5 +146,57 @@ describe("ai endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ rows: "many" }));
     expect((await getOrgAiUsage("o1")).rows).toEqual([]);
     expect(vi.mocked(fetch).mock.calls[1]![0]).toBe("http://api.test/api/v1/orgs/o1/ai/usage");
+  });
+
+  it("getAiCapabilities reads models and degrades a malformed model list without disabling AI", async () => {
+    const m = { key: "sonnet", provider: "anthropic", speed: 4, intelligence: 4, cost: 3, enabled: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m, { ...m, key: "opus", provider: 3 }], auto_model: "sonnet" }));
+    const caps = await getAiCapabilities("ws1");
+    expect(caps.models).toEqual([m, { ...m, key: "opus", provider: "" }]);
+    expect(caps.auto_model).toBe("sonnet");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true }));
+    expect((await getAiCapabilities("ws1")).models).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: "x", auto_model: 3 }));
+    const drifted = await getAiCapabilities("ws1");
+    expect(drifted.enabled).toBe(true);
+    expect(drifted.models).toEqual([]);
+    expect(drifted.auto_model).toBe("");
+  });
+
+  it("ask-models read and write degrade to the sent list on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["haiku"] }));
+    expect(await getAskModels("o1")).toEqual(["haiku"]);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/orgs/o1/ai/ask-models");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: 5 }));
+    expect(await getAskModels("o1")).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["opus"] }));
+    expect(await putAskModels("o1", ["opus"])).toEqual(["opus"]);
+    const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ models: ["opus"] });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await putAskModels("o1", ["haiku"])).toEqual(["haiku"]);
+  });
+
+  it("feedback puts and deletes on the message, ignoring the empty 204 body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await putAiFeedback("c1", "m1", { rating: "down", reason: "wrong_facts", note: "n" });
+    const put = vi.mocked(fetch).mock.calls[0]!;
+    expect(put[0]).toBe("http://api.test/api/v1/ai/conversations/c1/messages/m1/feedback");
+    expect((put[1] as RequestInit).method).toBe("PUT");
+    expect(JSON.parse((put[1] as RequestInit).body as string)).toEqual({ rating: "down", reason: "wrong_facts", note: "n" });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await deleteAiFeedback("c1", "m1");
+    expect((vi.mocked(fetch).mock.calls[1]![1] as RequestInit).method).toBe("DELETE");
+  });
+
+  it("renameAiConversation patches the title and degrades a malformed answer to null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "c1", title: "Mới" }));
+    expect((await renameAiConversation("c1", "Mới"))?.title).toBe("Mới");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ title: "Mới" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ title: 1 }));
+    expect(await renameAiConversation("c1", "x")).toBeNull();
   });
 });

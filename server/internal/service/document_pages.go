@@ -1,0 +1,1089 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// Pages (C-01 §5.1; G1-04a, UNI-678): create, get and PATCH of the working
+// copy. Content is sanitized before any transaction opens; the base revision
+// is checked under the document row lock (withDocumentMutation), after the
+// per-field permission check, so a reader with a stale tab learns "forbidden"
+// and never the current revision.
+
+const (
+	documentVisibilityWorkspace = "workspace"
+	// maxDocumentDepth is the tree bound (C-01 §3.1, FD-D2): a root page is
+	// depth 1. The create and move checks, the ancestor walks, the tree cut
+	// and the subtree CTEs (through subtreeMaxLevel) all read it.
+	maxDocumentDepth   = 20
+	maxDocumentTitle   = 500
+	maxDocumentIconLen = 8
+)
+
+// subtreeMaxLevel bounds every recursive subtree walk: twice the tree bound,
+// so a corrupted parent chain is reported by the service (documentDepth has
+// the same guard) instead of walked forever. One function feeds every CTE
+// caller, so no statement keeps a bound of its own.
+func subtreeMaxLevel() int32 { return 2 * maxDocumentDepth }
+
+// DocumentCrumb is one ancestor on the way to a document, root first.
+type DocumentCrumb struct {
+	ID    string
+	Title string
+	Icon  string
+}
+
+// DocumentView is what the page commands answer (DocumentSDO): the row, the
+// caller's level and path, the ancestors the caller may read and, for a file
+// document, its current version (set by GetDocument and the file restore).
+type DocumentView struct {
+	Document    db.Document
+	Access      DocumentAccess
+	Breadcrumbs []DocumentCrumb
+	File        *DocumentFileInfo
+	// BreakGlassExpiresAt is when the live emergency grant this view was read
+	// through ends; zero unless Access.Via is break_glass (DOC-05).
+	BreakGlassExpiresAt time.Time
+}
+
+// CreatePageInput is POST /workspaces/{ws}/documents with kind page or
+// folder (Kind empty means page). A folder carries no content and sits at the
+// root or in another folder; a page sits at the root, in a page or in a
+// folder. Visibility empty means the parent's (children inherit it at create time,
+// C-01 §4), or workspace at the root. A non-empty IdempotencyKey binds the
+// create to its payload fingerprint (DOC-005 §3.1): a retry replays the page,
+// another payload under the same key is idempotency_payload_mismatch.
+type CreatePageInput struct {
+	Kind           string
+	ParentID       string
+	Destination    string
+	Title          string
+	Icon           string
+	Visibility     string
+	Content        json.RawMessage
+	IdempotencyKey string
+}
+
+// UpdateDocumentInput is PATCH /documents/{id}. Revision is the base the
+// client edited; nil fields are left as they are, an empty Icon clears it,
+// nil Content keeps the working copy.
+type UpdateDocumentInput struct {
+	Revision   int64
+	Title      *string
+	Icon       *string
+	Visibility *string
+	Content    json.RawMessage
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2); empty means
+	// "not holding a lock". Only a patch with Content is gated by it.
+	EditLockID string
+}
+
+// errRevisionConflict is the page-conflict answer of the contract samples
+// (error-conflict.json): 422, class conflict, current revision as a decimal
+// string.
+func errRevisionConflict(current int64) error {
+	return CodedError{
+		Code:   "revision_conflict",
+		Status: http.StatusUnprocessableEntity,
+		Msg:    "tài liệu đã thay đổi kể từ lần bạn mở nó",
+		Err:    ErrConflict,
+		Fields: map[string]any{"current_revision": strconv.FormatInt(current, 10)},
+	}
+}
+
+func errDocumentTooDeep() error {
+	return coded(http.StatusUnprocessableEntity, "document_too_deep", "cây tài liệu sâu tối đa "+strconv.Itoa(maxDocumentDepth)+" cấp")
+}
+
+func cleanDocumentIcon(icon string) (pgtype.Text, error) {
+	icon = strings.TrimSpace(icon)
+	if len([]rune(icon)) > maxDocumentIconLen {
+		return pgtype.Text{}, Invalid("biểu tượng tối đa 8 ký tự")
+	}
+	return pgtype.Text{String: icon, Valid: icon != ""}, nil
+}
+
+func validDocumentVisibility(v string) error {
+	if v != documentVisibilityWorkspace && v != documentVisibilityRestricted {
+		return Invalid("visibility phải là workspace hoặc restricted")
+	}
+	return nil
+}
+
+// createHomeRow resolves the visibility and the workspace level a document is
+// created with (SH-S1, U-SH2). The default is private: an empty request at the
+// root stores restricted, and a document that is not workspace-visible has no
+// home row (BR-10) even though the level column keeps a value.
+//
+// An empty request under a parent inherits the parent's pair - visibility and
+// level together, read off the parent row locked in the transaction (C-01 §4;
+// the inheritance is fixed at create, a later move leaves both columns alone).
+//
+// A request that names a visibility is stored as sent. The level is the one
+// the document would grant if that visibility were workspace: the parent's
+// level when the parent is workspace-visible (under a restricted parent there
+// is no home row to read, so view), and view at the root - Q-S3: turning
+// "share with workspace" on at create grants view, the owner raises it from
+// the share dialog.
+//
+// A folder is never a source of visibility (UNI-1974): under a folder parent a
+// create behaves as at the root - private unless the request names workspace,
+// then at view. Only a page parent passes its pair on.
+func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	if parent != nil && parent.Kind == DocumentKindFolder {
+		parent = nil
+	}
+	visibility = requested
+	if parent != nil && visibility == "" {
+		visibility, level = parent.Visibility, parent.WorkspaceLevel
+	}
+	if visibility == "" {
+		visibility = documentVisibilityRestricted
+	}
+	if level == "" {
+		level = string(DocumentLevelView)
+		if parent != nil && parent.Visibility == documentVisibilityWorkspace {
+			level = parent.WorkspaceLevel
+		}
+	}
+	return visibility, level
+}
+
+// sanitizedPage is page JSON after the closed schema ran over it.
+type sanitizedPage struct {
+	content []byte
+	text    string
+}
+
+func sanitizePage(raw json.RawMessage) (sanitizedPage, error) {
+	content, text, err := document.Sanitize(raw)
+	if err != nil {
+		return sanitizedPage{}, documentServiceError(err)
+	}
+	return sanitizedPage{content: content, text: text}, nil
+}
+
+// CreatePage creates a page or a folder in a workspace the caller belongs
+// to, at the root or under a page or folder they may edit. Agents never write
+// documents directly (ADR 0010).
+func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspaceID string, in CreatePageInput) (DocumentView, error) {
+	if actor.Kind != audit.KindHuman || !validActor(actor) {
+		return DocumentView{}, ErrForbidden
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentView{}, err
+	}
+	kind := in.Kind
+	switch kind {
+	case "":
+		kind = DocumentKindPage
+	case DocumentKindPage:
+	case DocumentKindFolder:
+		if len(in.Content) > 0 {
+			return DocumentView{}, errFolderUnsupported()
+		}
+	default:
+		return DocumentView{}, Invalid("kind phải là page hoặc folder")
+	}
+	title, err := normalizeDocumentTitle(kind, in.Title)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	icon, err := cleanDocumentIcon(in.Icon)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	if in.Visibility != "" {
+		if err := validDocumentVisibility(in.Visibility); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	var page sanitizedPage
+	if len(in.Content) > 0 {
+		if page, err = sanitizePage(in.Content); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	if _, err := s.ws.RequireMember(ctx, workspaceID, actor.ID); err != nil {
+		return DocumentView{}, err
+	}
+	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentView{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentView{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	// Membership again, through the transaction: a removal that committed
+	// since the first check wins.
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
+		return DocumentView{}, err
+	}
+	sum := sha256.Sum256(page.content)
+	parts := []string{idempotencyScopeDocumentPageCreate, workspaceID, in.ParentID,
+		title, icon.String, in.Visibility, hex.EncodeToString(sum[:])}
+	if kind != DocumentKindPage {
+		// Only a folder adds its kind, so a page create keeps the fingerprint
+		// a retry in flight across a deploy was claimed with.
+		parts = append(parts, kind)
+	}
+	if in.Destination != "" {
+		parts = append(parts, "destination:"+in.Destination)
+	}
+	opts := IdempotencyOptions{
+		Fingerprint:        IdempotencyFingerprint(parts...),
+		RequireFingerprint: true,
+	}
+	replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, workspaceID, idempotencyScopeDocumentPageCreate, in.IdempotencyKey, actor.ID, opts)
+	if err != nil {
+		return DocumentView{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return s.replayCreatedPage(ctx, q, actor, w.OrganizationID, workspaceID, replay.Body)
+	}
+	// Order: idempotency claim, then the tree lock, then document row locks.
+	// Two creates under the same parent (or at the root, where no parent row
+	// serializes them) never share a position.
+	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
+		return DocumentView{}, err
+	}
+	parentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, w.OrganizationID, workspaceID)
+		if err != nil {
+			return DocumentView{}, err
+		}
+		parentID = mf.ID
+	}
+	var parent *db.Document
+	if parentID != "" {
+		p, err := s.lockPageParent(ctx, q, actor, parentID, w.OrganizationID, workspaceID, kind)
+		if err != nil {
+			return DocumentView{}, err
+		}
+		parent = &p
+	}
+	// U-SH2: private at the root unless the request opens the home row; a
+	// child inherits its parent's pair. A folder ignores the request: its
+	// location decides (ADR 0037) - restricted inside a My Folder tree,
+	// workspace/view everywhere else.
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
+	if kind == DocumentKindFolder {
+		inMyFolder, err := parentInMyFolderTree(ctx, q, parent)
+		if err != nil {
+			return DocumentView{}, err
+		}
+		visibility, workspaceLevel = folderHomeRowAt(inMyFolder)
+	}
+	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
+	})
+	if err != nil {
+		return DocumentView{}, err
+	}
+	docID := util.NewID()
+	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, int64(len(page.content))); err != nil {
+		return DocumentView{}, err
+	}
+	insert := db.InsertDocumentParams{
+		ID:             docID,
+		OrganizationID: w.OrganizationID,
+		WorkspaceID:    workspaceID,
+		ParentID:       nullText(parentID),
+		Kind:           kind,
+		Title:          title,
+		Icon:           icon,
+		Visibility:     visibility,
+		WorkspaceLevel: workspaceLevel,
+		Content:        page.content,
+		ContentText:    page.text,
+		SearchText:     documentSearchText(title, page.text),
+		ContentBytes:   int32(len(page.content)),
+		Revision:       1,
+		Position:       position,
+		AclOwnerID:     aclOwnerFor(actor),
+		CreatedBy:      actor.ID,
+		CreatedByKind:  string(actor.Kind),
+		UpdatedBy:      actor.ID,
+		UpdatedByKind:  string(actor.Kind),
+	}
+	// FD-D4: two live folders of one workspace never hold one name under one
+	// parent; a folder create takes the next free " (n)" (ADR 0037 §7).
+	var doc db.Document
+	if kind == DocumentKindFolder {
+		doc, err = s.insertFolderWithFreeName(ctx, tx, q, insert)
+	} else {
+		doc, err = q.InsertDocument(ctx, insert)
+	}
+	if err != nil {
+		return DocumentView{}, documentTitleWriteError(kind, err)
+	}
+	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
+	if parentID != "" {
+		created["parent_id"] = parentID
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentCreated,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes:        audit.Diff(nil, created),
+	}, audit.Event{Topic: "document.created", Payload: map[string]string{
+		"document_id": doc.ID, "workspace_id": doc.WorkspaceID,
+	}}); err != nil {
+		return DocumentView{}, err
+	}
+	view, err := s.documentView(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	body, err := json.Marshal(pageReplay{DocumentID: doc.ID})
+	if err != nil {
+		return DocumentView{}, err
+	}
+	if err := commit(http.StatusCreated, body); err != nil {
+		return DocumentView{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DocumentView{}, err
+	}
+	return view, nil
+}
+
+// insertFolderWithFreeName inserts a folder under the name its parent leaves
+// free (ADR 0037 §7): the requested title when no live sibling folder of any
+// creator holds it, else the smallest free "title (n)" from 1, the folder
+// upload's rule. The tree lock serializes every naming writer; the
+// folder-name index is the safety net, so the insert runs in a SAVEPOINT and
+// a unique violation re-reads the names and tries again. A create is never
+// refused for its name; out of attempts it answers folder_name_taken.
+func (s *DocumentService) insertFolderWithFreeName(ctx context.Context, tx pgx.Tx, q *db.Queries, in db.InsertDocumentParams) (db.Document, error) {
+	scope := documentNameScope{
+		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID,
+		ParentID: in.ParentID.String, Kind: DocumentKindFolder,
+	}
+	// The caller normalized the title already; doing it here too makes this the
+	// write path's own proof (the title-write guard reads this function body),
+	// and it is idempotent.
+	requested, err := normalizeDocumentTitle(DocumentKindFolder, in.Title)
+	if err != nil {
+		return db.Document{}, err
+	}
+	var doc db.Document
+	for attempt := 1; attempt <= titleWriteAttempts; attempt++ {
+		err = s.withTitleSavepoint(ctx, tx, attempt, func() error {
+			name, err := s.availableFolderCreateTitle(ctx, q, scope, requested)
+			if err != nil {
+				return err
+			}
+			in.Title, in.SearchText = name, documentSearchText(name, in.ContentText)
+			row, err := q.InsertDocument(ctx, in)
+			if err != nil {
+				return err
+			}
+			doc = row
+			return nil
+		})
+		if err == nil || !isUniqueViolation(err) {
+			return doc, err
+		}
+	}
+	return db.Document{}, err
+}
+
+// pageReplay is what the ledger keeps for a page create: the id only.
+type pageReplay struct {
+	DocumentID string `json:"document_id"`
+}
+
+// replayCreatedPage answers a replayed create with the page as it is now and
+// the caller's current level: a caller who can no longer read it (or a page
+// gone since) gets not found, never a stored snapshot.
+func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID string, body []byte) (DocumentView, error) {
+	var r pageReplay
+	if err := json.Unmarshal(body, &r); err != nil {
+		return DocumentView{}, err
+	}
+	doc, err := q.GetDocument(ctx, db.GetDocumentParams{ID: r.DocumentID, OrganizationID: orgID, WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentView{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentView{}, err
+	}
+	view, err := s.documentView(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	if decideDocumentAccess(doc, view.Access, DocumentLevelView) != nil {
+		return DocumentView{}, ErrNotFound
+	}
+	return view, nil
+}
+
+// lockPageParent locks the parent row for the rest of the create (an archive
+// or move of the parent waits for it) and checks it: a live page or folder of
+// the same tenant pair (childKindAllowed decides which for childKind),
+// outside any work product, that the caller may edit, with room for one more
+// level below it.
+// authorizeParentIn is the pre-flight of a create that names a parent page
+// before its transaction (blank, copy, convert): the caller may edit the
+// parent, and the parent is a page of the workspace the new document lands
+// in. Edit access alone is not enough - someone in two organizations can
+// edit pages in both - and the check must refuse before an Office engine is
+// asked to work for a create lockPageParent would refuse anyway.
+func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, parentID, workspaceID string) error {
+	parent, access, err := s.authorizeDocument(ctx, actor, parentID, DocumentLevelView)
+	if err != nil {
+		return err
+	}
+	if parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
+		return ErrNotFound
+	}
+	// A workspace folder takes children from every member (ADR 0037 §4).
+	if err := s.decideParentContribution(ctx, s.q, actor, parent, access); err != nil {
+		return err
+	}
+	// A shelved parent is read-only: the create under it is refused here as
+	// it will be under the row lock (lockPageParent).
+	if err := requireNotShelved(parent); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID, childKind string) (db.Document, error) {
+	// Classify before locking: a parent outside this tenant pair answers
+	// not_found without ever taking its row lock, so a create in one
+	// workspace never queues on a foreign workspace's writer
+	// (organization_id/workspace_id are immutable, the scoped read answers
+	// them definitively).
+	if _, err := q.GetDocument(ctx, db.GetDocumentParams{
+		ID: parentID, OrganizationID: orgID, WorkspaceID: workspaceID,
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return db.Document{}, ErrNotFound
+	} else if err != nil {
+		return db.Document{}, err
+	}
+	parent, err := q.LockDocumentByID(ctx, parentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Document{}, ErrNotFound
+	}
+	if err != nil {
+		return db.Document{}, err
+	}
+	if parent.OrganizationID != orgID || parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
+		return db.Document{}, ErrNotFound
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, parent)
+	if err != nil {
+		return db.Document{}, err
+	}
+	// Edit on the parent, or a workspace folder, which takes children from
+	// every member of its workspace (ADR 0037 §4).
+	if err := s.decideParentContribution(ctx, q, actor, parent, access); err != nil {
+		return db.Document{}, err
+	}
+	// The trash is not a place to create in, whoever may restore it.
+	if parent.ArchivedAt.Valid {
+		return db.Document{}, ErrNotFound
+	}
+	// A shelved parent is read-only too (addendum §3): create under it is a
+	// write on the parent, refused after its access gate.
+	if err := requireNotShelved(parent); err != nil {
+		return db.Document{}, err
+	}
+	if !childKindAllowed(parent.Kind, childKind) {
+		return db.Document{}, errDocumentParentKind()
+	}
+	depth, err := documentDepth(ctx, q, parent)
+	if err != nil {
+		return db.Document{}, err
+	}
+	if depth+1 > maxDocumentDepth {
+		return db.Document{}, errDocumentTooDeep()
+	}
+	return parent, nil
+}
+
+// documentDepth counts d and its ancestors (a root page is 1). A chain that
+// does not end within twice the bound is reported as too deep rather than
+// walked forever.
+func documentDepth(ctx context.Context, q *db.Queries, d db.Document) (int, error) {
+	depth := 1
+	for d.ParentID.Valid {
+		if depth > 2*maxDocumentDepth {
+			return 0, errDocumentTooDeep()
+		}
+		p, err := q.GetDocument(ctx, db.GetDocumentParams{
+			ID: d.ParentID.String, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		d = p
+		depth++
+	}
+	return depth, nil
+}
+
+// GetDocument opens one document for a reader and logs the view
+// (C-01 §5.1). Anyone below view gets not found.
+func (s *DocumentService) GetDocument(ctx context.Context, actor Actor, documentID string) (DocumentView, error) {
+	doc, access, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	crumbs, err := s.documentBreadcrumbs(ctx, s.q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	file, err := s.currentFileInfo(ctx, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	expires, err := s.breakGlassExpiry(ctx, s.q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	s.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessView, nil)
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file, BreakGlassExpiresAt: expires}, nil
+}
+
+// currentFileInfo is the `file` block of a file document: its current
+// version's snapshot and the stored filename. Outside any transaction on
+// purpose - FileService reads through its own connection. A filename
+// FileService cannot resolve (being deleted, not ready) falls back to the
+// title rather than failing the whole read.
+func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) (*DocumentFileInfo, error) {
+	if doc.Kind != DocumentKindFile {
+		return nil, nil
+	}
+	v, err := s.currentFileVersion(ctx, s.q, doc)
+	if err != nil || v == nil {
+		return nil, err
+	}
+	name := doc.Title
+	if s.files != nil && v.FileID.Valid {
+		resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
+			Scope: documentScope(doc.OrganizationID, doc.WorkspaceID), Mode: files.ReadProxy,
+			Disposition: files.DispositionAttachment, FileIDs: []files.FileID{files.FileID(v.FileID.String)},
+		})
+		if err == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
+			name = s.versionFilename(ctx, doc, *v, resolved[0].File.Filename)
+		}
+	}
+	info := fileInfoOf(*v, name)
+	return &info, nil
+}
+
+// versionFilename returns name unless it is an extensionless provider-output
+// placeholder on an engine-produced version whose own mime is text/plain. In
+// that case it walks earlier versions newest-first (starting below
+// v.RestoredFrom when v is a restore, or below v.Version otherwise), skipping
+// only extensionless provider placeholders of earlier engine versions. The
+// first other version decides: if its file resolves and ends in .txt
+// (case-insensitive) that filename is returned; any other outcome (resolution
+// error, a non-.txt extension such as .log/.csv/.markdown, or no file) returns
+// name unchanged.
+func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, name string) string {
+	if path.Ext(name) != "" || !v.EngineName.Valid || v.EngineName.String == "" || s.files == nil {
+		return name
+	}
+	if files.NormalizeContentType(v.MimeType.String) != "text/plain" {
+		return name
+	}
+	maxVersion := v.Version
+	if v.RestoredFrom.Valid {
+		maxVersion = v.RestoredFrom.Int32
+	}
+	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
+	if vs, err := s.q.ListDocumentVersions(ctx, db.ListDocumentVersionsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	}); err == nil {
+		for _, prev := range vs {
+			if prev.Version == maxVersion && prev.RestoredFrom.Valid {
+				maxVersion = prev.RestoredFrom.Int32
+				continue
+			}
+			if prev.Version >= maxVersion {
+				continue
+			}
+			if !prev.FileID.Valid {
+				return name
+			}
+			pf, rerr := resolveUpload(ctx, s.files, scope, prev.FileID.String)
+			if rerr != nil || pf.Filename == "" {
+				return name
+			}
+			if path.Ext(pf.Filename) == "" && prev.EngineName.Valid && prev.EngineName.String != "" {
+				if prev.RestoredFrom.Valid {
+					maxVersion = prev.RestoredFrom.Int32
+				}
+				continue
+			}
+			if isTxtFilename(pf.Filename) {
+				return pf.Filename
+			}
+			return name
+		}
+	}
+	return name
+}
+
+// documentView re-derives the caller's access on doc through q and adds the
+// breadcrumbs, for commands answering with the row they just wrote.
+func (s *DocumentService) documentView(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentView, error) {
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	crumbs, err := s.documentBreadcrumbs(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	expires, err := s.breakGlassExpiry(ctx, q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, BreakGlassExpiresAt: expires}, nil
+}
+
+// documentBreadcrumbs walks up from doc's parent and stops at the first
+// ancestor the caller cannot read: no title above an unreadable page leaks,
+// not even of a readable page further up. Root first.
+func (s *DocumentService) documentBreadcrumbs(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) ([]DocumentCrumb, error) {
+	var up []DocumentCrumb
+	cur := doc
+	for cur.ParentID.Valid && len(up) < 2*maxDocumentDepth {
+		p, err := q.GetDocument(ctx, db.GetDocumentParams{
+			ID: cur.ParentID.String, OrganizationID: cur.OrganizationID, WorkspaceID: cur.WorkspaceID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		access, err := s.resolveLevel(ctx, q, actor, p)
+		if err != nil {
+			if isGateRefusal(err) {
+				break
+			}
+			return nil, err
+		}
+		if decideDocumentAccess(p, access, DocumentLevelView) != nil {
+			break
+		}
+		up = append(up, DocumentCrumb{ID: p.ID, Title: p.Title, Icon: p.Icon.String})
+		cur = p
+	}
+	crumbs := make([]DocumentCrumb, len(up))
+	for i, c := range up {
+		crumbs[len(up)-1-i] = c
+	}
+	return crumbs, nil
+}
+
+// UpdateDocument applies a PATCH to the working copy. Levels per field:
+// title, icon and content need edit; visibility needs manage and is refused
+// on a document a work product owns (§13.4). A patch that changes nothing
+// writes nothing and keeps the revision.
+//
+// Audit is metadata only - the changed metadata fields, the new revision and
+// whether (not what) the content changed - never the page JSON. The
+// document.updated frame goes out only when title or icon moved
+// (C-01 §5.1/§6.1): an autosave does not fan out to the workspace, and no
+// frame carries a revision (ADR 0015 opens that to task.updated only). A
+// visibility move is the home row's own event instead
+// (document.workspace_access_changed, SH-S1).
+func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
+	started := time.Now()
+	view, err := s.updateDocument(ctx, actor, documentID, in)
+	s.recordDocumentSave(documentMetricKindPage, err, time.Since(started))
+	s.countEditLockRefused(DocumentEditLockRoutePatch, err)
+	return view, err
+}
+
+// updateDocument is the command body; UpdateDocument adds the save metrics.
+func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
+	if in.Title == nil && in.Icon == nil && in.Visibility == nil && in.Content == nil {
+		return DocumentView{}, Invalid("không có trường nào để cập nhật")
+	}
+	var title string
+	var icon pgtype.Text
+	var err error
+	// A folder rename is a naming command: the kind decides the FD-D3 cap and
+	// the workspace is read unlocked here so the tree lock can be taken before
+	// any row lock (appendix §3.3). A page or file rename takes no tree lock -
+	// document titles may repeat (FD-D10).
+	treeLockWorkspace := ""
+	if in.Title != nil {
+		unlocked, err := s.q.GetDocumentByID(ctx, documentID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DocumentView{}, ErrNotFound
+		}
+		if err != nil {
+			return DocumentView{}, err
+		}
+		if title, err = normalizeDocumentTitle(unlocked.Kind, *in.Title); err != nil {
+			return DocumentView{}, err
+		}
+		if unlocked.Kind == DocumentKindFolder {
+			treeLockWorkspace = unlocked.WorkspaceID
+		}
+	}
+	if in.Icon != nil {
+		if icon, err = cleanDocumentIcon(*in.Icon); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	if in.Visibility != nil {
+		if err := validDocumentVisibility(*in.Visibility); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	var page sanitizedPage
+	if in.Content != nil {
+		if page, err = sanitizePage(in.Content); err != nil {
+			return DocumentView{}, err
+		}
+	}
+
+	var out DocumentView
+	// The outer gate admits an AdminScope caller (DOC-05) so they can narrow
+	// visibility; every content field still needs edit, and an admin-only
+	// caller is told the content is restricted.
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
+		}
+		if in.Title != nil || in.Icon != nil || in.Content != nil {
+			if access.Level == DocumentLevelNone && access.AdminScope {
+				return errDocumentRestricted()
+			}
+			if !access.Level.AtLeast(DocumentLevelEdit) {
+				return ErrForbidden
+			}
+		}
+		if in.Visibility != nil {
+			if doc.OwnerKind.Valid {
+				return errDocumentOwned()
+			}
+			if !access.canAdminister() {
+				return ErrForbidden
+			}
+			// A folder's visibility follows its location (ADR 0037): no PATCH
+			// moves it either way. Behind the access gate so a stranger sees
+			// 404.
+			if doc.Kind == DocumentKindFolder {
+				return errFolderNotShareable()
+			}
+			// Opening a restricted document to the workspace would hand the
+			// admin read access by role: manage only, never AdminScope.
+			if doc.Visibility == documentVisibilityRestricted && *in.Visibility != documentVisibilityRestricted &&
+				!access.Level.AtLeast(DocumentLevelManage) {
+				return errBreakGlassRequired()
+			}
+		}
+		if doc.ArchivedAt.Valid {
+			// The trash is read-only; the same answer as version and restore.
+			return errDocumentDeleted()
+		}
+		if in.Content != nil && doc.Kind == DocumentKindFolder {
+			return errFolderUnsupported()
+		}
+		if in.Content != nil && doc.Kind != DocumentKindPage {
+			return Invalid("tài liệu file không nhận content")
+		}
+		if in.Content != nil {
+			// A content write needs the edit lock when one is live (§2); a
+			// rename, icon or visibility patch does not (Q5). 423 comes
+			// before the revision check: a locked caller never reaches the
+			// conflict / overwrite path (contract §4).
+			if err := s.checkDocumentEditLock(ctx, q, actor, doc, in.EditLockID); err != nil {
+				return err
+			}
+		}
+		if in.Revision != doc.Revision {
+			return errRevisionConflict(doc.Revision)
+		}
+		if in.Title != nil && title != doc.Title && doc.Kind == DocumentKindFolder {
+			// A rename is refused, never renamed for (FD-D5). The parent comes
+			// off the locked row, so a move that committed before this
+			// transaction is the parent the check runs against.
+			if err := s.requireFreeFolderName(ctx, q, documentNameScope{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+				ParentID: doc.ParentID.String, Kind: doc.Kind, ExcludeID: doc.ID,
+			}, title); err != nil {
+				return err
+			}
+		}
+
+		next := db.UpdateDocumentFieldsParams{
+			Title: doc.Title, Icon: doc.Icon, Visibility: doc.Visibility,
+			// The home row is not part of this fields write (SH-S1): a PATCH
+			// that moves visibility leaves the row at its stored value here
+			// and moves it through writeDocumentHomeRow below, the one
+			// writer, so the audit row, the frame and the legacy-share merge
+			// are a share command's too.
+			WorkspaceLevel: doc.WorkspaceLevel,
+			Content:        doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
+		}
+		before, after := map[string]any{}, map[string]any{}
+		if in.Title != nil && title != doc.Title {
+			before["title"], after["title"] = doc.Title, title
+			next.Title = title
+		}
+		if in.Icon != nil && icon != doc.Icon {
+			before["icon"], after["icon"] = textOrNil(doc.Icon), textOrNil(icon)
+			next.Icon = icon
+		}
+		// The home row (SH-S1) moves only visibility; the stored level
+		// survives the toggle.
+		homeChanged := in.Visibility != nil && *in.Visibility != doc.Visibility
+		contentChanged := in.Content != nil && !sameJSON(page.content, doc.Content)
+		if contentChanged {
+			next.Content, next.ContentText, next.ContentBytes = page.content, page.text, int32(len(page.content))
+		}
+		metaChanged := len(after) > 0
+		if !metaChanged && !contentChanged && !homeChanged {
+			view, err := s.documentView(ctx, q, actor, doc)
+			out = view
+			return err
+		}
+		// A page body that newly names somebody notifies them (UNI-1968): the
+		// save writes one event per person, on the same audit row as the
+		// change, so an autosave still fans out no document.updated frame
+		// (C-01 §5.1) while a mention still reaches its reader.
+		var bodyMentionRecipients []string
+		bodyMentionsAdded := 0
+		if contentChanged && doc.Kind == DocumentKindPage {
+			recipients, named, err := s.newBodyMentionRecipients(ctx, q, actor, doc, doc.Content, page.content)
+			if err != nil {
+				return err
+			}
+			bodyMentionRecipients, bodyMentionsAdded = recipients, named
+		}
+		updated := doc
+		if metaChanged || contentChanged {
+			next.SearchText = documentSearchText(next.Title, next.ContentText)
+			next.UpdatedBy, next.UpdatedByKind = actor.ID, string(actor.Kind)
+			next.ContentChanged = contentChanged
+			next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
+			next.ExpectedRevision = doc.Revision
+			if contentChanged {
+				if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
+					return err
+				}
+			}
+			row, err := q.UpdateDocumentFields(ctx, next)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return errRevisionConflict(doc.Revision)
+			}
+			if err != nil {
+				return documentTitleWriteError(doc.Kind, err)
+			}
+			updated = row
+			if contentChanged {
+				if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {
+					return err
+				}
+			}
+			// One row per write for the metadata half (title/icon moves and
+			// the content autosave); the home-row move below writes its own,
+			// so one command writes at most one row per fact. The frame still
+			// follows a metadata move only: an autosave audits metadata and
+			// does not fan out (C-01 §5.1).
+			var emit []audit.Event
+			if metaChanged {
+				emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+				}})
+			}
+			// A new title is a change people hear of; an icon alone is not
+			// (UNI-2056 Q5).
+			if _, ok := after["title"]; ok {
+				emit = append(emit, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeRenamed))
+			}
+			for _, uid := range bodyMentionRecipients {
+				emit = append(emit, audit.Event{Topic: "document.body_mentioned", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+					"user_id": uid, "author_id": actor.ID,
+				}})
+			}
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentUpdated,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(before, after),
+				Metadata: map[string]any{
+					"revision":        strconv.FormatInt(updated.Revision, 10),
+					"content_changed": contentChanged,
+					"content_bytes":   updated.ContentBytes,
+					// How many people this save newly named in the page body,
+					// before the per-save cap (UNI-1968).
+					"mentions_added": bodyMentionsAdded,
+				},
+			}, emit...); err != nil {
+				return err
+			}
+		}
+		if homeChanged {
+			if updated, err = writeDocumentHomeRow(ctx, q, actor, updated, documentHomeRowMove{
+				Visibility: *in.Visibility, WorkspaceLevel: doc.WorkspaceLevel,
+				// One successful PATCH bumps the revision once (C-01 §9.1
+				// item 3): the fields write above already moved it when it
+				// ran, so the home row joins that revision instead of adding
+				// a second bump. A visibility-only PATCH has no fields write
+				// and leaves the bump to this move.
+				KeepRevision: metaChanged || contentChanged,
+			}); err != nil {
+				return err
+			}
+		}
+		view, err := s.documentView(ctx, q, actor, updated)
+		out = view
+		return err
+	})
+	if err != nil {
+		return DocumentView{}, err
+	}
+	// The file block is read after the commit: FileService uses its own
+	// connection, never one borrowed under the document lock.
+	if out.File, err = s.currentFileInfo(ctx, out.Document); err != nil {
+		return DocumentView{}, err
+	}
+	return out, nil
+}
+
+func textOrNil(t pgtype.Text) any {
+	if !t.Valid {
+		return nil
+	}
+	return t.String
+}
+
+// sameJSON compares two JSON values by meaning: jsonb hands back its own
+// spacing and key order, so the stored bytes never equal the sanitizer's.
+func sameJSON(a, b []byte) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return len(a) == len(b)
+	}
+	ca, errA := canonicalJSON(a)
+	cb, errB := canonicalJSON(b)
+	return errA == nil && errB == nil && bytes.Equal(ca, cb)
+}
+
+func canonicalJSON(raw []byte) ([]byte, error) {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil, err
+	}
+	return json.Marshal(v) // maps marshal with sorted keys
+}
+
+// syncDocumentAssetRefs keeps document_assets.orphaned_at in step with the
+// working copy (C-01 §3.3/§14.2): an asset the content stopped referencing
+// is stamped now, one it references again loses its stamp. Called in the
+// transaction that wrote the content, so the reference provider never sees
+// a half-applied save.
+func syncDocumentAssetRefs(ctx context.Context, q *db.Queries, doc db.Document) error {
+	assets, err := q.ListDocumentAssetsByDocument(ctx, db.ListDocumentAssetsByDocumentParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil || len(assets) == 0 {
+		return err
+	}
+	refs := documentAssetRefs(doc.Content)
+	var back []string
+	for _, a := range assets {
+		switch {
+		case refs[a.ID] && a.OrphanedAt.Valid:
+			back = append(back, a.ID)
+		case !refs[a.ID] && !a.OrphanedAt.Valid:
+			if err := q.MarkDocumentAssetOrphaned(ctx, db.MarkDocumentAssetOrphanedParams{
+				ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	if len(back) == 0 {
+		return nil
+	}
+	return q.ClearDocumentAssetsOrphaned(ctx, db.ClearDocumentAssetsOrphanedParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, Ids: back,
+	})
+}
+
+// documentAssetRefs collects the asset ids a sanitized page references
+// through image src = asset://{id} (the only place the schema admits one).
+func documentAssetRefs(content []byte) map[string]bool {
+	refs := map[string]bool{}
+	if len(content) == 0 {
+		return refs
+	}
+	var root any
+	if err := json.Unmarshal(content, &root); err != nil {
+		return refs
+	}
+	var walk func(v any)
+	walk = func(v any) {
+		switch n := v.(type) {
+		case map[string]any:
+			if n["type"] == "image" {
+				if attrs, ok := n["attrs"].(map[string]any); ok {
+					if src, ok := attrs["src"].(string); ok && strings.HasPrefix(src, "asset://") {
+						refs[strings.TrimPrefix(src, "asset://")] = true
+					}
+				}
+			}
+			if children, ok := n["content"].([]any); ok {
+				for _, c := range children {
+					walk(c)
+				}
+			}
+		case []any:
+			for _, c := range n {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	return refs
+}

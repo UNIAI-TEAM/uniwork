@@ -1,0 +1,48 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: uniwork
+  namespace: reap-edge
+spec:
+  ingressClassName: apisix
+  http:
+    # The preview origin is a separate hostname. Only the opaque asset broker
+    # is reachable here; HTML is never served by this route.
+    - name: uniwork-preview-assets
+      priority: 250
+      match:
+        hosts: [preview.uniworkos.com]
+        paths: [/api/v1/preview/assets/*]
+      upstreams:
+        - name: uniwork-be
+    - name: uniwork-api
+      priority: 200
+      websocket: true
+      match:
+        hosts: [uniworkos.com]
+        paths: [/api, /api/*]
+      upstreams:
+        - name: uniwork-be
+    # The MCP connector (ADR 0031) lives on the API but not under /api: the
+    # RFCs fix its paths. Without this block they fall through to the web
+    # route below and reach Next.js. Plain HTTP, no websocket.
+    - name: uniwork-mcp
+      priority: 210
+      match:
+        hosts: [uniworkos.com]
+        paths:
+          - /mcp
+          - /oauth/*
+          - /.well-known/oauth-protected-resource
+          - /.well-known/oauth-protected-resource/*
+          - /.well-known/oauth-authorization-server
+      upstreams:
+        - name: uniwork-be
+    - name: uniwork-web
+      priority: 100
+      websocket: true
+      match:
+        hosts: [uniworkos.com]
+        paths: [/, /*]
+      upstreams:
+        - name: uniwork-fe

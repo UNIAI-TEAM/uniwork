@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_desktop_auth_attempts_user;

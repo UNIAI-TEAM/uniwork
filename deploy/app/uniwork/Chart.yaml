@@ -1,0 +1,6 @@
+apiVersion: v2
+name: uniwork
+description: Temporary UniWork guest (BE + FE) on REAP production
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

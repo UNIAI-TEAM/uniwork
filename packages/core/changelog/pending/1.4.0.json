@@ -1,0 +1,958 @@
+{
+  "schemaVersion": 1,
+  "version": "1.4.0",
+  "date": "2026-10-15",
+  "ready": true,
+  "sourceRef": "e203954a67dba5ee5be13f20891c486d7e379822",
+  "previousSourceRef": "6750c9ca0f82ca5acebc7c32f98f149c31f84197",
+  "title": {
+    "vi": "Sửa thông tin workspace, thẻ thông tin người trong chat, địa chỉ tiếng Việt cho trang công khai và một loạt bản sửa thanh toán",
+    "en": "Workspace info editing, person cards in chat, Vietnamese addresses for public pages and a batch of billing fixes"
+  },
+  "summary": {
+    "vi": "Chủ sở hữu và quản trị viên workspace sửa được mô tả, icon, địa chỉ và tiền tố mã task ngay trong tab Cài đặt; link và mã task cũ vẫn dùng được sau khi đổi. Trong chat, bấm vào một người mở thẻ thông tin để chat riêng hoặc gọi thoại, gọi video, và thẻ người cùng thông tin phòng liệt kê ảnh, tệp, liên kết theo tháng. Trang công khai có thêm địa chỉ tiếng Việt dưới /vi, sitemap, ba bài hướng dẫn tại /learn và hai trang Giới thiệu, An toàn thông tin; Changelog vào thẳng thanh điều hướng. Kèm theo là các bản sửa cho thanh toán VNPay, hoàn tiền, chu kỳ và hạn mức gói, cùng bản sửa hộp thoại cài đặt UniWork Office.",
+    "en": "A workspace owner or admin can now edit the description, icon, address and task ID prefix from the Settings tab; old links and old task IDs keep working after a change. In chat, clicking a person opens a card from which you can start a private chat or a voice or video call, and person cards and room info list photos, files and links grouped by month. The public pages gained Vietnamese addresses under /vi, a sitemap, three guides under /learn and an About and a Security page, with Changelog moved into the navigation itself. Alongside are fixes for VNPay payments, refunds, plan periods and quotas, and for the UniWork Office installer dialog."
+  },
+  "note": {
+    "vi": "Sửa thông tin workspace cần quyền chủ sở hữu hoặc quản trị viên của workspace. Icon bằng ảnh cần tổ chức dùng lưu trữ S3/MinIO; trên lưu trữ cục bộ ảnh chưa hiện được, giống ảnh đại diện. Slug cũ được giữ chỗ lâu dài trong tổ chức và chưa có giới hạn số slug cũ cho mỗi workspace; link cũ có #anchor mất phần hash khi chuyển hướng. Đổi slug của tổ chức và xóa workspace vẫn ngoài phạm vi. Gọi thoại và gọi video từ thẻ thông tin người dùng hạ tầng cuộc họp sẵn có. Các phần UniWork Office chưa hoàn thiện (đồng bộ, AI, cộng tác, thư mục) vẫn tắt sau cờ tính năng và không bật trong phiên bản này; bản cài đặt UniWork Office trên trang tải về vẫn là bản beta.",
+    "en": "Editing workspace info requires the workspace owner or admin role. An image icon needs the organization to use S3/MinIO storage; on local storage the image cannot be shown yet, the same as avatars. An old slug stays reserved inside the organization and there is no limit yet on how many old slugs a workspace keeps; an old link with an #anchor loses the hash through the redirect. Changing an organization's slug and deleting a workspace remain out of scope. Voice and video calls from a person card use the existing meeting infrastructure. The unfinished UniWork Office capability (sync, AI, collaboration, folders) stays behind feature flags and is not switched on in this version; the UniWork Office installers on the download page are still beta."
+  },
+  "changes": [
+    {
+      "commit": "eea7131dacbed4b1f0d31bb30b048b69451882fd",
+      "subject": "docs: spec for editing workspace description, icon, slug and task prefix",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: tài liệu spec của tính năng sửa thông tin workspace, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "dc9e4fabcb679ed2967a80b499d34f61c22dbfd2",
+      "subject": "docs: implementation plan for editing workspace info",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: tài liệu plan triển khai, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "4a18daa298613abf3467092d0bcfbcd8f4839d38",
+      "subject": "feat(workspace): edit description and emoji icon in WorkspaceService.Update",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chủ sở hữu và quản trị viên workspace sửa được mô tả (tối đa 500 ký tự) và icon của workspace ngay trong tab Cài đặt; icon chọn bằng emoji hoặc ảnh tải lên tối đa 2 MiB. Mô tả và icon hiện ở trang chọn workspace và menu chuyển workspace, và mọi lần sửa được ghi lại trong lịch sử hoạt động của tổ chức.",
+        "en": "A workspace owner or admin can now edit the workspace description (up to 500 characters) and its icon from the Settings tab; the icon is either an emoji or an uploaded image of at most 2 MiB. The description and icon appear on the workspace picker and in the workspace switcher menu, and every edit is recorded in the organization's activity history."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "7cb653e75f9d6224f0ee963198cdaa1a65a52363",
+      "subject": "docs: renumber workspace-info migrations after the MCP branch's 9991792000000001",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: tài liệu đánh số lại migration.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "3d71b66f31d86ef50e53053b97d5b84d01858970",
+      "subject": "chore(workspace): renumber the description/emoji migration after 9991792000000001",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: đánh số lại migration của chính tính năng này, không đổi hành vi người dùng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "ee101213cc809482dc8bde43b2b172b510b35a47",
+      "subject": "feat(workspace): upload an image as the workspace icon",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "a7aac4a5db9598982ba06ca143aaa8894443bd09",
+      "subject": "fix(billing): roll back a plan write when the admin row fails",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Sửa gói trong trang quản trị: khi ghi bản ghi quản trị thất bại, thay đổi gói hoặc đăng ký được hoàn tác trong cùng giao dịch, thay vì để gói đã đổi mà không có bản ghi quản trị nào.",
+        "en": "Plan changes in the admin console: when writing the admin record fails, the plan or subscription change is now rolled back in the same transaction instead of leaving the plan changed with no admin record behind it."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/admin_plans.go",
+          "server/internal/service/billing_catalog.go",
+          "server/internal/service/admin_plans_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "adaae50d8014c0c8e32afd8157865331843798fe",
+      "subject": "fix(workspace): take files rows before the workspace row and release the current icon",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "223a38b62b79391c7d43e6d94b9b2cc7e583f76d",
+      "subject": "feat(workspace): HTTP for description, emoji and image icon",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "d0f9f12caafa6ec728ab8cb634033c2138ab9ced",
+      "subject": "fix(workspace): org workspace list returns description, emoji, icon and task prefix",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "975a8f7d4942a6fa4be487ea6fbb1cfb9ba436c4",
+      "subject": "test(workspace): cover the presigned icon on the org workspace list",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test cho URL icon đã ký trong danh sách workspace của tổ chức.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "f09b7b45a909932fc6ae03ecd38247ff1f1c1006",
+      "subject": "docs(changelog): review and publish v1.3.0 — Việt/Anh",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: PR công bố Changelog v1.3.0, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/289"
+      }
+    },
+    {
+      "commit": "af1a55890a0d4957df67eb4eadc82323237368bf",
+      "subject": "feat(core): workspace profile fields, icon endpoints, realtime refresh",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "80f7a76a4d34d5d0854f0f4822a66e39818b347b",
+      "subject": "docs(changelog): refresh v1.3.0 to develop 6750c9ca and review the delta",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: làm mới bản nháp Changelog v1.3.0 theo develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/289"
+      }
+    },
+    {
+      "commit": "7d067b7bb18f1f559bb44eb1686e6e6742e2ea84",
+      "subject": "feat(views): workspace icon and description in switcher and picker",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "0caf58d98c686436c1a6a70014613f3705a83632",
+      "subject": "fix(views): cap switcher menu width, keep emoji initials whole",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "ba7c11b8494ae02486ac73de229506acae0d7c95",
+      "subject": "chore(deploy): offer UniWork Office 0.11.0-beta.1 installers (#290)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hạ tầng phát hành: đổi liên kết bản cài đặt UniWork Office sang 0.11.0-beta.1, và đã bị 474a1503d thay bằng 1.0.0-beta.2 trong cùng phiên bản này.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/290"
+      }
+    },
+    {
+      "commit": "18cb6e14fc3106cae1e575de0a8f3644dcb5a77b",
+      "subject": "feat(views): workspace icon and description in the workspace tab",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "0d63f568f5971e8e9a121d72c1bf8b8ba5719d69",
+      "subject": "fix(marketing): use the supplied Office logo in navigation",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 6f6466a03 (cùng loạt chỉnh trang giới thiệu UNI-504, đẩy thẳng lên develop, không có PR): đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/header-directory.tsx",
+          "apps/web/public/brand/office-icon.png"
+        ]
+      }
+    },
+    {
+      "commit": "9a1340804ec6a1870b84536ce0c07ee27ec694f7",
+      "subject": "fix(views): keep unsaved description edits, cap icon upload at 2 MiB",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "d864391dc331940a6e92d104ba2186e4d46b7d22",
+      "subject": "feat(workspace): change the task prefix, old identifiers still resolve",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Đổi được tiền tố mã task của workspace (2–10 ký tự in hoa hoặc số, bắt đầu bằng chữ cái) qua hộp thoại trong tab Cài đặt. Mã task cũ như TASK-12 vẫn tra được sau khi đổi, và tiền tố hiện tại của một workspace luôn thắng tiền tố cũ của workspace khác.",
+        "en": "A workspace's task ID prefix can now be changed from a dialog in the Settings tab (2–10 uppercase letters or digits, starting with a letter). Old task IDs such as TASK-12 still resolve after the change, and a workspace's current prefix always wins over another workspace's former prefix."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "a9d0a49e10ec263e0183245fd49a9d64048c6a2c",
+      "subject": "fix(billing): expire the VNPay link with the payment intent",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Liên kết thanh toán VNPay hết hạn cùng lúc với phiên thanh toán: liên kết mang theo thời điểm tạo và thời điểm hết hạn của phiên, nên VNPay không còn nhận thanh toán sau khi phiên đã hết hạn.",
+        "en": "A VNPay checkout link now expires together with its payment intent: the link carries the intent's created and expiry time, so VNPay no longer accepts a payment after the intent has expired."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/billing/vnpay.go",
+          "server/internal/service/billing_checkout.go",
+          "server/internal/billing/vnpay_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "952d1e2cbe44c531e44845db65257684260f407c",
+      "subject": "fix(billing): apply a paid VNPay IPN even when the org is over quota",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khoản thanh toán VNPay đã trừ tiền được ghi nhận kể cả khi mức dùng của tổ chức đã vượt hạn mức của gói mới, nên không còn trường hợp đã trừ tiền mà không có hóa đơn. Lúc bắt đầu thanh toán, hệ thống vẫn từ chối gói không đủ hạn mức, và lần tăng hạn mức tiếp theo vẫn bị chặn.",
+        "en": "A VNPay payment that already cleared is now applied even when the organization's usage exceeds the new plan's quota, so a charge no longer ends up with no invoice. Checkout still refuses a plan whose quota is too small, and the next quota increase is still blocked."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_provider_event.go",
+          "server/internal/service/billing_checkout_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "dc6f3392be9e174cc19ab9c2ba15b30ffe2be546",
+      "subject": "fix(billing): keep the current plan when an older invoice is refunded",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hoàn tiền toàn bộ một hóa đơn cũ không còn đưa tổ chức về gói mặc định khi kỳ hiện tại đã được thanh toán. Gói chỉ đổi khi hóa đơn được hoàn chính là hóa đơn đặt ra kỳ đang chạy.",
+        "en": "A full refund of an older invoice no longer drops the organization to the default plan when the current period is already paid. The plan only changes when the refunded invoice is the one that set the live period."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_subscription_refund.go",
+          "server/internal/service/billing_subscription_refund_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "9e2cc2f55a6485a3ba272b0dbf35ff6a8b45a5d3",
+      "subject": "fix(billing): accept only month, year, or none as a plan period",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chu kỳ gói chỉ nhận ba giá trị: tháng, năm, hoặc không có. Trước đây một chu kỳ nhập tự do như yearly được lưu nguyên văn và tính giá theo năm trong khi kỳ đã trả chỉ là một tháng; nay bản ghi danh mục bị từ chối và biểu mẫu quản trị chọn chu kỳ từ danh sách.",
+        "en": "A plan period is now only one of month, year or none. A free-text period such as yearly used to be stored as typed and priced as a year while the paid period was only a month; catalog writes now refuse it and the admin form picks the period from a list."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_catalog.go",
+          "packages/views/admin/plans.tsx",
+          "server/internal/service/billing_catalog_period_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "9cc0ea42575e3d6bba0d282d0e9118ec9a18033d",
+      "subject": "fix(workspace): diff settings changes against the locked workspace row",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "8028e4cf360302f9b6307889569167b3bc15199c",
+      "subject": "fix(billing): time out a hung VNPay call instead of stalling the worker",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Lệnh tra soát và lệnh hoàn tiền gửi sang VNPay có thời hạn chờ 15 giây, nên một yêu cầu không được trả lời không còn làm đứng việc xử lý IPN và hết hạn gói cho tới khi khởi động lại.",
+        "en": "The query and refund calls to VNPay now have a 15-second timeout, so one unanswered request no longer freezes IPN handling and plan lapse until a restart."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/billing/vnp_http.go",
+          "server/internal/billing/vnpay_querydr.go",
+          "server/internal/billing/vnpay_refund.go"
+        ]
+      }
+    },
+    {
+      "commit": "9f42e00f199ad153df7c0072ee869efa72d6e31f",
+      "subject": "fix(workspace): refuse a settings change that would release an icon it does not replace",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "d2ad860efaa411fe821fcd49f1fb48b7dc5840ac",
+      "subject": "feat(views): change the task ID prefix from the workspace tab",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục d864391dc (cùng PR #300): chi tiết triển khai của việc đổi tiền tố mã task, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "5bf0ba007bf770c45d3747e3e6a65258cee259bb",
+      "subject": "feat(workspace): change the workspace slug, old links still resolve",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Đổi được địa chỉ (slug) của workspace qua một hộp thoại trong tab Cài đặt. Link theo slug cũ tự chuyển sang địa chỉ mới, giữ nguyên đường dẫn và tham số truy vấn; slug cũ được giữ chỗ trong tổ chức nên không workspace nào lấy lại được. Các slug dành riêng của hệ thống bị từ chối, và hai quản trị viên đổi cùng lúc thì người sau nhận báo xung đột.",
+        "en": "A workspace's address (slug) can now be changed from a dialog in the Settings tab. Links using the old slug redirect to the new address, keeping the path and query string; the old slug stays reserved inside the organization, so no other workspace can take it. System-reserved slugs are refused, and when two admins rename at once the losing one is told about the conflict."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "19d0b258302bbc0b329030bac75c71a4c8a714da",
+      "subject": "fix(workspace): revalidate the slug on the locked row, map alias insert conflicts",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 5bf0ba007 (cùng PR #300): chi tiết triển khai của việc đổi địa chỉ workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "6f6466a03e4580423319bba7ea5911ec0abb5330",
+      "subject": "fix(marketing): expose changelog and repair FAQ layout",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trang giới thiệu đưa Changelog vào thanh điều hướng dùng chung cho cả máy tính và di động, bỏ liên kết Learn trùng, và thu gọn thanh điều hướng trước khi nhãn tiếng Việt bị tràn. Phần FAQ giữ hình minh họa trong luồng bình thường nên nội dung không bị che ở các khổ màn hình và cả hai chế độ sáng, tối; dải ruy-băng hero trên di động hiện trọn và mềm hơn ở mép trên; thanh điều hướng dùng đúng logo UniWork Office.",
+        "en": "The marketing site now carries Changelog in the shared desktop and mobile navigation, drops the duplicate Learn link, and collapses the header before the Vietnamese labels overflow. The FAQ section keeps its artwork in normal flow so the content stays visible across screen sizes and in both light and dark mode; the mobile hero ribbons show in full with a softer top edge; and the navigation uses the supplied UniWork Office logo."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/site-header.tsx",
+          "apps/web/features/landing/header-directory.tsx",
+          "apps/web/features/landing/landing-decisions.css",
+          "apps/web/features/landing/hero-nexus.css"
+        ]
+      }
+    },
+    {
+      "commit": "2de8f6ab7b5c7f7285c9bc12bb2cc74d24e17a44",
+      "subject": "fix(marketing): blend mobile hero ribbons into the page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 6f6466a03 (cùng loạt chỉnh trang giới thiệu UNI-504, đẩy thẳng lên develop, không có PR): đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/hero-nexus.css"
+        ]
+      }
+    },
+    {
+      "commit": "474a1503d9b2f21bbcf2bd5eba062f45a71ffeca",
+      "subject": "chore(deploy): offer UniWork Office 1.0.0-beta.2 installers (#295)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hạ tầng phát hành: cấu hình liên kết bản cài đặt UniWork Office trên trang tải về, theo tiền lệ loại trừ ở v1.3.0.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/295"
+      }
+    },
+    {
+      "commit": "da5f4884c07d5b55932066278519872127a931c2",
+      "subject": "feat(views): redirect an old workspace slug and add the address-change dialog",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 5bf0ba007 (cùng PR #300): chi tiết triển khai của việc đổi địa chỉ workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "7177583de93b8de0bb557dde066903a4e2fe686a",
+      "subject": "fix(views): refuse reserved slugs in the address dialog, gate the slug redirect, keep typing on refetch",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 5bf0ba007 (cùng PR #300): chi tiết triển khai của việc đổi địa chỉ workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "8efa5454db6e07ff30ad973830dd722eb6cb180e",
+      "subject": "UNI-923: green develop CI (goldens pin, e2e landing/avatar/smoke, Changelog header) (#296)",
+      "kind": "review",
+      "include": false,
+      "excludeReason": "Nội bộ: chỉ sửa test, e2e và ghim lại golden để CI develop xanh; không đổi code ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/296"
+      }
+    },
+    {
+      "commit": "235b4c272f0b5a8058bf92ba7b801ce9417d9659",
+      "subject": "test(e2e): changing the workspace address redirects old links",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test e2e cho việc chuyển hướng sau khi đổi địa chỉ workspace.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "d585d7c088c4bbadd50fe203cad652ab6d99d3aa",
+      "subject": "fix(privacy): export and delete workspace_aliases with the organization",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 5bf0ba007 (cùng PR #300): chi tiết triển khai của việc đổi địa chỉ workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "df69498bdedac64deb2e1766e98c2e877f55b03a",
+      "subject": "fix(tasks): a workspace's current prefix wins over another's old alias",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục d864391dc (cùng PR #300): chi tiết triển khai của việc đổi tiền tố mã task, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "a273857d619889cb491bc14a0acd1fa571a096b1",
+      "subject": "refactor(workspace): sign the icon only where a workspace leaves the server",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "1787ed41cdbafb87977381d4a0aa8af4d18e14db",
+      "subject": "fix(workspace): record an emoji icon change under icon, like upload and remove",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "c3e136d70ce45c145da86fe0396749085c0cf65e",
+      "subject": "fix(core): refetch the workspace's tasks on workspace.updated",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "7c5a4e968ac0943c7426a61388852e201425d3ae",
+      "subject": "fix(views): own the oversize-icon toast and follow the glossary spelling",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 4a18daa29 (cùng PR #300): chi tiết triển khai của tính năng sửa thông tin workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "895258bb7e8b82ee94c07659931537fba4aefde9",
+      "subject": "docs: mark the workspace-info spec and plan as implemented, awaiting review",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật trạng thái spec và plan.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "f12533f3f2f3199d631c30a6eb2aa5cd17fdb7a0",
+      "subject": "fix(core): seed the new slug's workspace after a slug change",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 5bf0ba007 (cùng PR #300): chi tiết triển khai của việc đổi địa chỉ workspace, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/300"
+      }
+    },
+    {
+      "commit": "15e833f0d3626c8e82a6072b3e099daf3a348c8c",
+      "subject": "feat(chat): open a person card that can message or call",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Bấm vào ảnh đại diện hoặc tên thành viên trong chat mở thẻ thông tin người đó, từ đó mở chat riêng hoặc gọi thoại, gọi video. Nhắc tên bằng @ trở thành thẻ thật trong tin nhắn, ảnh gửi kèm ở lại trong cuộc trò chuyện, và dòng xem trước ở thanh bên hiện tên người gửi thay vì mã id.",
+        "en": "Clicking an avatar or a member's name in chat opens a person card, from which you can start a private chat or a voice or video call. @mentions become real tokens inside a message, attached images stay in the conversation, and the sidebar preview line shows the sender's name instead of an id."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/use-chat-person-actions.ts",
+          "packages/views/chat/workspace-room-member-list.tsx",
+          "packages/views/chat/native-chat-message-mapping.ts",
+          "packages/views/chat/chat-sidebar-preview.ts"
+        ]
+      }
+    },
+    {
+      "commit": "bea0c9b8a02adbeb43cac822ad8e7e3dda3c3c51",
+      "subject": "fix(chat): treat a mention id as a string when labeling it",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 15e833f0d (cùng PR #299): sửa kiểu dữ liệu khi gắn nhãn mention, thuộc chính tính năng đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/chat-message-body.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "c9dc96c97421d028feca2a4614b143d520448a53",
+      "subject": "fix(ai): let the upstream timeout test outlast the usage insert",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Chỉ sửa thời hạn trong test của gateway AI; không đổi hành vi khi chạy thật.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/ai/openai_facade_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "27f12b2c5adda86da0e1287ed454005f871f6e66",
+      "subject": "feat(seo): add bilingual search metadata and evidence-based product guides",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Các trang công khai có thêm địa chỉ tiếng Việt dưới /vi, kèm thẻ mô tả và dữ liệu có cấu trúc cho cả hai ngôn ngữ, cùng sitemap và robots để công cụ tìm kiếm đọc được. Thêm ba bài hướng dẫn sản phẩm tại /learn — bắt đầu với task, tệp Office và AI, từ cuộc họp thành task — cùng hai trang Giới thiệu và An toàn thông tin.",
+        "en": "The public pages now also have Vietnamese addresses under /vi, with bilingual metadata and structured data, plus a sitemap and a robots file so search engines can read them. Three product guides were added under /learn — start with tasks, Office files and AI, meetings into tasks — along with an About page and a Security page."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/app/vi/[[...segments]]/page.tsx",
+          "apps/web/app/sitemap.ts",
+          "apps/web/app/robots.ts",
+          "apps/web/app/learn/[slug]/page.tsx",
+          "apps/web/features/landing/guide-content.ts",
+          "packages/core/paths/marketing.ts"
+        ]
+      }
+    },
+    {
+      "commit": "933caa8fd707c437d3c573dbb2be2153a5b17274",
+      "subject": "docs: mark the workspace-info spec and plan as shipped",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật trạng thái spec và plan sang shipped.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/301"
+      }
+    },
+    {
+      "commit": "850463a8ea4fb49b75f2b4e84e21d4c7cd5885a8",
+      "subject": "feat(chat): show shared media and label video calls",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Thẻ thông tin người và bảng thông tin phòng chat liệt kê ảnh, tệp, liên kết và GIF của cuộc trò chuyện đang mở, xếp thành thư viện theo tháng thay vì danh sách tên tệp. Cuộc gọi bằng camera được lưu và hiển thị đúng là cuộc gọi video, tệp quá dung lượng có thông báo nêu rõ giới hạn, và dòng đang gõ ở thanh bên dùng tên thật.",
+        "en": "Person cards and room info now list the photos, files, links and GIFs of the conversation you have open, as a gallery grouped by month instead of a list of filenames. A camera call is stored and shown as a video call, an oversized file gets a toast naming the limit, and the sidebar typing line uses a real name."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/305"
+      }
+    },
+    {
+      "commit": "8fa46304dd73206d1f5e830c78a9b1b672c88dc2",
+      "subject": "fix(chat): satisfy the views typecheck for shared media",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Nội bộ: chỉ sửa typecheck của views cho mục 850463a8e (cùng PR #305).",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/305"
+      }
+    },
+    {
+      "commit": "b8cfd349e9dfcb28e8a55e68d8e7b67b6385c325",
+      "subject": "UNI-923: Office G5-G7 accepted cards + develop fixes (UNI-1649) (#306)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Mở tài liệu bằng ứng dụng UniWork Office trên máy: hộp thoại cài đặt không còn hiện khi ứng dụng đã mở được. Bộ mở liên kết chờ 2,5 giây trước khi coi là chưa cài và ghi nhận lần mở chậm trong 60 giây; cả Trang chủ Tài liệu lẫn lệnh Mở trong UniWork Office đều đóng hộp thoại khi ứng dụng mở muộn, và nội dung khi chưa cài nói rõ có thể đóng hộp thoại, cả tiếng Việt và tiếng Anh.",
+        "en": "Opening a document in the desktop UniWork Office app: the installer dialog no longer appears when the app did open. The deep-link launcher waits 2.5 seconds before calling the app missing and reports a late hand-off for 60 seconds; both the Documents home and Open in UniWork Office close the dialog when the app opens late, and the not-installed copy now says the dialog can be closed, in Vietnamese and English."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/306"
+      }
+    },
+    {
+      "commit": "0498b6cb3ac8b79429d2c30c6390f9bb821b98ab",
+      "subject": "style(views): quieter workspace settings rows",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tab Cài đặt › Workspace được làm gọn cho giống các tab cài đặt khác: ô icon dùng nền xám kèm huy hiệu camera và bấm thẳng vào ô là mở menu emoji, tải ảnh lên hoặc bỏ icon; hàng Địa chỉ hiện đường dẫn /tổ-chức/workspace thay vì cả URL trong khi nút Copy vẫn chép link đầy đủ; hộp thoại đổi địa chỉ có dòng xem trước, và bộ đếm ký tự mô tả chỉ hiện khi gần hết.",
+        "en": "Settings › Workspace was tidied up to match the other settings tabs: the icon box uses a muted background with a camera badge and clicking the box itself opens the emoji, upload or remove menu; the Address row shows the /organization/workspace path instead of the full URL while Copy still copies the complete link; the address dialog previews the new path, and the description character counter only appears near the limit."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/307"
+      }
+    },
+    {
+      "commit": "998f9183ee3fb4a6f964e2474e946caadce2a509",
+      "subject": "style(views): the workspace icon itself opens the icon menu",
+      "kind": "improvements",
+      "include": false,
+      "excludeReason": "Gộp vào mục 0498b6cb3 (cùng PR #307): bấm thẳng vào ô icon để mở menu icon, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/307"
+      }
+    },
+    {
+      "commit": "dbf2cf4b3de7db506d7322e2507477cabfb1f331",
+      "subject": "fix(chat): refresh the Chung preview while another room is open",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Dòng xem trước của kênh Chung ở thanh bên được làm mới khi có tin nhắn đến trong lúc bạn đang mở một cuộc trò chuyện khác, thay vì giữ nguyên dòng cũ.",
+        "en": "The sidebar preview line for the Chung channel now refreshes when a message arrives while you have another conversation open, instead of staying on the previous line."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/308"
+      }
+    },
+    {
+      "commit": "8be2e6dff1e8a2f898595a14e4bc44b641f091d4",
+      "subject": "fix(billing): reject a mistyped plan price or quota before it is saved",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trang quản trị gói chặn giá hoặc hạn mức nhập sai trước khi lưu: số tiền phải là số nguyên, và giá trị sai làm nút Lưu không bấm được thay vì biến 499.000 thành 499 hoặc biến chữ thành hạn mức không giới hạn. Khi máy chủ từ chối, biểu mẫu ở lại trên màn hình kèm thông báo lỗi.",
+        "en": "The admin plan screen now rejects a mistyped price or quota before saving: amounts must be whole numbers, and a bad value disables Save instead of turning 499.000 into 499 or text into an unlimited quota. When the server refuses the write, the form stays on screen with an error."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/310"
+      }
+    },
+    {
+      "commit": "5d891540b40d0b14088aca2f202b66dfeef08ee1",
+      "subject": "fix(billing): apply one paid intent only once under concurrent writers",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Một khoản thanh toán chỉ được ghi nhận một lần: trước đây hai lần xử lý song song của cùng khoản thanh toán đều tạo hóa đơn, nên tổ chức thấy hai hóa đơn cho một lần trả tiền. Phiên thanh toán nay được khóa và đóng trước khi đổi đăng ký, nên lần xử lý thứ hai dừng lại.",
+        "en": "A payment is now applied only once: two concurrent applies of the same payment each used to write an invoice, so an organization saw two invoices for one payment. The payment intent is now locked and completed before the subscription change, so the second writer stops."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_provider_event.go",
+          "server/internal/service/billing_vnpay_test.go"
+        ]
+      }
+    }
+  ]
+}

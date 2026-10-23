@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { cn } from "@uniwork/ui/lib/utils";
-import { DateField, toDateOnly } from "./date-field";
+import { DateField } from "./date-field";
 
 const DEFAULT_TIME = "09:00";
 
@@ -31,13 +32,17 @@ interface DateTimeFieldProps {
   /** Accessible names for the hour and minute segments. */
   hourLabel: string;
   minuteLabel: string;
+  /** Passed to DateField: how the picked day reads, and a custom trigger body. */
+  dateFormatOptions?: Intl.DateTimeFormatOptions;
+  renderDateTrigger?: (label: string, selected: boolean) => ReactNode;
 }
 
 /**
  * A day and a time of day, side by side, over the same string a
  * `datetime-local` input would carry. Picking a day with no time yet fills in
  * 09:00 rather than emitting a half-written value the caller cannot parse;
- * clearing the day clears the whole field.
+ * clearing the day clears the whole field. A time set before any day is held
+ * here until a day is picked — it never invents "today" on its own.
  */
 export function DateTimeField({
   id,
@@ -48,8 +53,13 @@ export function DateTimeField({
   className,
   hourLabel,
   minuteLabel,
+  dateFormatOptions,
+  renderDateTrigger,
 }: DateTimeFieldProps) {
   const { date, time } = splitDateTimeLocal(value);
+  // The time of day typed while the day is still empty; the value cannot carry it yet.
+  const [pendingTime, setPendingTime] = useState("");
+  const shownTime = time || pendingTime || DEFAULT_TIME;
   return (
     <div className={cn("grid grid-cols-1 gap-2 sm:grid-cols-2", className)}>
       <DateField
@@ -57,15 +67,24 @@ export function DateTimeField({
         value={date}
         min={minDate}
         disabled={disabled}
-        onChange={(next) => onChange(joinDateTimeLocal(next, time))}
+        formatOptions={dateFormatOptions}
+        renderTrigger={renderDateTrigger}
+        onChange={(next) => {
+          // Clearing the day keeps the time shown, so picking a day again restores it.
+          if (!next && time) setPendingTime(time);
+          onChange(joinDateTimeLocal(next, time || pendingTime));
+        }}
       />
       <TimeInput
         className="w-full max-w-full"
-        value={time || DEFAULT_TIME}
+        value={shownTime}
         disabled={disabled}
         hourLabel={hourLabel}
         minuteLabel={minuteLabel}
-        onChange={(next) => onChange(joinDateTimeLocal(date || toDateOnly(new Date()), next))}
+        onChange={(next) => {
+          if (date) onChange(joinDateTimeLocal(date, next));
+          else setPendingTime(next);
+        }}
       />
     </div>
   );

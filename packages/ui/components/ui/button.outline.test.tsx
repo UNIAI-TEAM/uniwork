@@ -43,4 +43,10 @@ describe("outline button boundary", () => {
   it.each([":root", ".dark"])("--input clears 3:1 on --background in %s", (scope) => {
     expect(contrast(tokenIn(scope, "input"), tokenIn(scope, "background"))).toBeGreaterThanOrEqual(3);
   });
+
+  it("keeps the dark resting boundary inside a balanced contrast band", () => {
+    const input = tokenIn(".dark", "input");
+    expect(contrast(input, tokenIn(".dark", "muted"))).toBeGreaterThanOrEqual(3);
+    expect(contrast(input, tokenIn(".dark", "background"))).toBeLessThanOrEqual(4);
+  });
 });

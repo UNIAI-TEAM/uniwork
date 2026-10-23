@@ -1,0 +1,7 @@
+# UNI-1013 cloud: static TS checks (ci.yml frontend-build, minus audit and bundle budget)
+pnpm generate:reserved-slugs && git diff --exit-code -- packages/core/paths/reserved-slugs.ts
+node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/office/check-boundaries.test.mjs scripts/office/installer-urls.test.mjs
+node scripts/office/check-boundaries.mjs
+pnpm typecheck
+pnpm knip
+pnpm lint

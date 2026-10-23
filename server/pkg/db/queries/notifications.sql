@@ -2,6 +2,7 @@
 -- the recipient's, and no endpoint reads another person's.
 
 -- name: UpsertNotification :one
+-- tenant: system
 -- The merge: an open (unread, unarchived) row for the same (user, group) is
 -- bumped instead of duplicated; uidx_notifications_open_group is the target.
 -- count > 1 on the returned row tells the caller it merged.
@@ -12,6 +13,7 @@ INSERT INTO notifications (
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,
@@ -23,10 +25,38 @@ RETURNING *;
 INSERT INTO notification_deliveries (event_id, user_id) VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
+
+-- The historical (batch, recipient) claim of a once-only draft
+-- (TRASH-NOTIFY-01): the merge index in UpsertNotification only covers an
+-- open row, so a draft that may never repeat itself checks for ANY row of
+-- its group - read, archived, purged from view - inside the write
+-- transaction. The consumer treats a hit as already delivered.
+-- name: HasNotificationGroupRow :one
+-- tenant: self
+SELECT EXISTS (
+  SELECT 1 FROM notifications
+  WHERE user_id = sqlc.arg('user_id')
+    AND kind = sqlc.arg('kind')
+    AND group_key = sqlc.arg('group_key')
+);
+
+-- The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+-- is an unlocked existence read, so two dispatcher nodes carrying different
+-- events of one (user, kind, group_key) can both miss it and merge through
+-- UpsertNotification's count + 1. The claim is taken here as a
+-- transaction-scoped advisory lock on the group, held until the write
+-- commits, so the loser's existence read runs after the winner's row is
+-- visible and skips. The key is hashed because advisory locks take bigint
+-- keys; a collision only serializes two unrelated groups for one write.
+-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg('claim_key')::text, 0));
+
 -- name: GetNotification :one
+-- tenant: system
 SELECT * FROM notifications WHERE id = $1;
 
 -- name: ListNotifications :many
+-- tenant: self
 -- Cursor on the ULID id (time-ordered), newest first.
 SELECT * FROM notifications
 WHERE user_id = $1
@@ -38,36 +68,93 @@ ORDER BY id DESC
 LIMIT sqlc.arg('limit_n');
 
 -- name: CountUnreadNotificationsByWorkspace :many
+-- tenant: self
 SELECT COALESCE(workspace_id, '')::text AS workspace_id, count(*)::bigint AS unread
 FROM notifications
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
 GROUP BY workspace_id;
 
 -- name: MarkNotificationsRead :execrows
+-- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 
--- name: MarkAllNotificationsRead :execrows
+-- name: MarkNotificationGroupsRead :exec
+-- tenant: self
+-- Reading what a group is about (a chat room, a thread) closes its open row,
+-- so the next event opens a new one and pushes again.
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
+
+-- name: MarkAllNotificationsRead :many
+-- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
-  AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text);
+  AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text)
+RETURNING id;
 
 -- name: MarkNotificationsUnread :execrows
-UPDATE notifications SET read_at = NULL, updated_at = now()
-WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NOT NULL;
+-- tenant: self
+-- A row whose group already has an open row, or a newer row reopened in the
+-- same call, stays read: reopening it would break uidx_notifications_open_group.
+UPDATE notifications n SET read_at = NULL, updated_at = now()
+WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.read_at IS NOT NULL
+  AND (n.archived_at IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.archived_at IS NULL
+      AND (o.read_at IS NULL OR (o.id = ANY(sqlc.arg('ids')::text[]) AND o.id > n.id))
+  ));
 
 -- name: ArchiveNotifications :execrows
+-- tenant: self
 UPDATE notifications SET archived_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NULL;
 
+-- name: UnarchiveNotifications :execrows
+-- tenant: self
+-- An unread row comes back read when its group already has an open row (a
+-- later event opened one while it sat archived), or a newer row of its group
+-- comes back unread in the same call: uidx_notifications_open_group allows one.
+UPDATE notifications n SET archived_at = NULL, updated_at = now(),
+  read_at = CASE WHEN n.read_at IS NULL AND EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.read_at IS NULL
+      AND (o.archived_at IS NULL OR (o.id = ANY(sqlc.arg('ids')::text[]) AND o.id > n.id))
+  ) THEN now() ELSE n.read_at END
+WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.archived_at IS NOT NULL;
+
+-- name: ListChatMessageRooms :many
+-- tenant: by-id
+SELECT id, room_id FROM chat_messages WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
+
 -- name: CountOwnedNotifications :one
+-- tenant: self
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListExistingTaskIDs :many
+-- tenant: by-id
 SELECT id FROM tasks WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- name: ListExistingMeetingIDs :many
+-- tenant: by-id
 SELECT id FROM meetings WHERE id = ANY(sqlc.arg('ids')::text[]);
+
+-- name: ListExistingDocumentIDs :many
+-- tenant: by-id
+-- The document rows behind an inbox page (G8-07 section 4.6): one query
+-- answers existence and trash for up to a page of ids, so Service.List
+-- resolves resource_deleted / resource_access_lost without a query per row.
+-- organization_id rides along so the read gate runs once per organization.
+SELECT id, organization_id, archived_at FROM documents WHERE id = ANY(sqlc.arg('ids')::text[]);
+
+-- name: ListExistingDocumentCommentIDs :many
+-- tenant: by-id
+-- The live comments behind an inbox page (G8-07 section 1): a notification
+-- that names a comment which is gone (hard delete) or tombstoned (deleted_at
+-- set) gets comment_deleted=true. Only live rows come back.
+SELECT id FROM document_comments WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
 
 -- name: ListNotificationPreferences :many
 SELECT * FROM notification_preferences WHERE user_id = $1;
@@ -82,12 +169,24 @@ ON CONFLICT (user_id, kind) DO UPDATE SET
   in_app = EXCLUDED.in_app, push = EXCLUDED.push, email = EXCLUDED.email, updated_at = now();
 
 -- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, last_used_at = now()
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
 RETURNING *;
+
+-- name: RevokePushSubscriptionsForSession :exec
+-- Revoking a native device family closes the pushes registered from it.
+UPDATE push_subscriptions SET revoked_at = now()
+WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL;
+
+-- name: RevokeDevicePushSubscriptionsForUser :exec
+-- A user-wide revoke closes every push registered from a native device
+-- session; browser subscriptions stay, the web has no way to re-register them.
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1);
 
 -- name: ListActivePushSubscriptions :many
 SELECT * FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL;
@@ -100,25 +199,81 @@ UPDATE push_subscriptions SET revoked_at = now()
 WHERE user_id = $1 AND endpoint = $2 AND revoked_at IS NULL;
 
 -- name: MarkNotificationPushed :exec
+-- tenant: system
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL;
 
 -- name: ListDigestCandidateUsers :many
+-- tenant: system
 SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1;
 
 -- name: ListUndigestedNotifications :many
+-- tenant: system
 SELECT * FROM notifications
 WHERE user_id = $1 AND digested_at IS NULL AND read_at IS NULL AND archived_at IS NULL AND created_at > $2
 ORDER BY workspace_id NULLS FIRST, kind, created_at DESC;
 
 -- name: MarkNotificationsDigested :exec
+-- tenant: system
 UPDATE notifications SET digested_at = now() WHERE id = ANY(sqlc.arg('ids')::text[]);
 
--- name: ListMeetingsStartingBetween :many
-SELECT * FROM meetings
-WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2;
+-- name: ListMeetingsDueReminder :many
+-- tenant: system
+-- Scheduled meetings starting in ($1, $2] whose reminder has not gone out;
+-- idx_meetings_scheduled_starts (migration 9991791200000105) bounds the
+-- scan to the window.
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.starts_at
+FROM meetings m
+WHERE m.status = 'SCHEDULED' AND m.starts_at > $1 AND m.starts_at <= $2
+  AND NOT EXISTS (SELECT 1 FROM meeting_reminders r WHERE r.meeting_id = m.id)
+ORDER BY m.starts_at;
+
+-- name: ClaimMeetingReminder :execrows
+-- tenant: by-id
+-- The one-shot claim, taken in the transaction that writes the meeting's
+-- notifications. A concurrent claim waits on the uncommitted key and then
+-- inserts nothing; a meeting cancelled or started since the listing is
+-- not claimed at all.
+INSERT INTO meeting_reminders (meeting_id, organization_id, workspace_id)
+SELECT m.id, m.organization_id, m.workspace_id FROM meetings m
+WHERE m.id = $1 AND m.status = 'SCHEDULED'
+ON CONFLICT (meeting_id) DO NOTHING;
+
+-- name: InsertNotificationDeliveries :many
+-- One delivery row per user for an event fanned out at once; the users
+-- returned are the ones the event had not reached yet.
+INSERT INTO notification_deliveries (event_id, user_id)
+SELECT sqlc.arg('event_id')::text, u.user_id FROM unnest(sqlc.arg('user_ids')::text[]) AS u(user_id)
+ON CONFLICT DO NOTHING
+RETURNING user_id;
+
+-- name: UpsertNotificationsForUsers :many
+-- tenant: system
+-- UpsertNotification for one draft fanned out to many users in one
+-- statement: ids and user_ids pair up by position, every other column is
+-- shared. Same merge target and same merge as UpsertNotification.
+INSERT INTO notifications (
+  id, user_id, organization_id, workspace_id, kind, group_key,
+  resource_type, resource_id, actor_kind, actor_id, title_key, params, correlation_id
+)
+SELECT u.id, u.user_id, sqlc.arg('organization_id')::text, sqlc.narg('workspace_id')::text, sqlc.arg('kind')::text,
+  sqlc.arg('group_key')::text, sqlc.arg('resource_type')::text, sqlc.arg('resource_id')::text,
+  sqlc.arg('actor_kind')::text, sqlc.arg('actor_id')::text, sqlc.arg('title_key')::text,
+  sqlc.arg('params')::text, sqlc.narg('correlation_id')::text
+FROM (SELECT unnest(sqlc.arg('ids')::text[]) AS id, unnest(sqlc.arg('user_ids')::text[]) AS user_id) u
+ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
+DO UPDATE SET
+  count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
+  params = EXCLUDED.params,
+  actor_kind = EXCLUDED.actor_kind,
+  actor_id = EXCLUDED.actor_id,
+  correlation_id = EXCLUDED.correlation_id,
+  updated_at = now()
+RETURNING *;
 
 -- name: ListMeetingReminderRecipients :many
+-- tenant: system
 -- The host plus every participant who accepted the invitation.
 SELECT DISTINCT p.user_id::text AS user_id
 FROM meeting_participants p

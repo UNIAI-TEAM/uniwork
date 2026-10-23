@@ -1,0 +1,48 @@
+/* One causal sequence: pointer, click, then the same card in its new column. */
+.action-cursor-label { display: flex; align-items: center; gap: 9px; position: absolute; top: 25px; left: 12px; width: max-content; max-width: 176px; padding: 10px 12px; border-radius: 12px; background: var(--landing-paper); color: var(--foreground); box-shadow: var(--floating-shadow); }
+.action-cursor-label > svg { flex: 0 0 22px; width: 22px; height: auto; }
+.action-cursor-label strong, .action-cursor-label small { display: block; line-height: 1.5; }
+.action-cursor-label strong { font-size: var(--text-caption); font-weight: 650; }
+.action-cursor-label small { color: var(--brand); white-space: normal; max-width: 116px; }
+.action-click-ring { position: absolute; left: -13px; top: -13px; width: 32px; height: 32px; border: 2px solid var(--brand); border-radius: 50%; opacity: 0; }
+.product-playback[data-pressing=true] .action-click-ring { animation: demo-click-ring 360ms ease-out both; }
+.product-playback[data-pressing=true] .action-cursor > svg { animation: demo-pointer-press 200ms ease-out both; transform-origin: 3px 3px; }
+.product-playback[data-pressing=true] [data-demo-pointed=true] { outline: 2px solid var(--brand); outline-offset: 2px; }
+.action-work { container: demo-work / inline-size; }
+.action-board-card { position: relative; padding: 10px; }
+.action-board-card > strong { margin-block: 6px 8px; line-height: 1.45; }
+.action-card-status { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 3px 5px; background: var(--landing-cyan); color: var(--brand); }
+.action-board-card footer > .action-card-status { color: var(--brand); }
+.action-card-status svg { width: 12px; height: 12px; }
+.action-card-status[data-completed=true] { background: var(--landing-mint); }
+.action-status-menu { position: absolute; z-index: 4; top: calc(100% - 10px); left: 8px; min-width: 164px; padding: 7px; border-radius: 10px; background: var(--landing-paper); box-shadow: var(--menu-shadow); }
+.action-status-menu > small { display: block; padding: 3px 7px 7px; }
+.action-status-menu > span { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 8px; border-radius: 5px; }
+.action-status-menu > span:first-of-type > svg { margin-left: auto; }
+.action-status-menu > span:last-child { background: var(--landing-mint); }
+.action-drawer [data-demo-target=task-close] { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; }
+.product-playback[data-running=false] .action-cursor, .product-playback[data-reduced=true] .action-cursor { transition: none; }
+@keyframes demo-click-ring { 0% { transform: scale(.35); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
+@keyframes demo-pointer-press { 0%, 100% { transform: scale(1); } 45% { transform: scale(.78); } }
+@container demo-work (max-width: 650px) {
+  /* Keep origin and destination visible together, not a disappearing card. */
+  .product-playback .action-kanban { display: flex; flex-direction: column; gap: 2px; padding-inline: 10px; }
+  .product-playback .action-board-column { display: block; }
+  .product-playback .action-board-column > header { min-height: 26px; }
+  .product-playback .action-board-card { display: grid; grid-template-columns: minmax(0,1fr) 27px; align-items: center; gap: 3px 6px; padding: 7px 10px; margin-bottom: 5px; }
+  .product-playback .action-board-card > small { display: none; }
+  .product-playback .action-board-card > strong { margin: 0; font-size: var(--text-caption); line-height: 1.45; grid-column: 1; }
+  .product-playback .action-card-priority { display: none; }
+  .product-playback .action-board-card footer { display: contents; }
+  .product-playback .action-board-card footer > span:first-child:not(.action-card-status) { display: none; }
+  .product-playback .action-board-card footer > .action-avatar, .product-playback .action-board-card footer > .demo-unassigned { grid-column: 2; grid-row: 1; }
+  .product-playback .action-card-status { grid-row: 2; grid-column: 1; width: max-content; }
+  .product-playback .action-status-menu { top: 100%; left: 6px; }
+}
+@media (max-width: 767px) {
+  .action-cursor-label { max-width: 164px; padding: 7px 9px; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-cursor { display: none; }
+  .action-click-ring, .action-cursor > svg { animation: none !important; }
+}

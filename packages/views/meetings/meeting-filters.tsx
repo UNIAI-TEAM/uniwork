@@ -2,15 +2,40 @@
 import { useTranslation } from "react-i18next";
 import type { MeetingStatistics } from "@uniwork/core/types/meeting";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { cn } from "@uniwork/ui/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
+import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 
-const FILTERS = ["", "SCHEDULED", "IN_PROGRESS", "ENDED", "CANCELED"] as const;
+/**
+ * Statuses a chip filters on, in the order a meeting lives them; "" is every
+ * meeting. The last three are the ways a window closes: it ran, it passed
+ * without starting, or it was called off.
+ */
+export const MEETING_FILTERS = ["", "SCHEDULED", "IN_PROGRESS", "ENDED", "MISSED", "CANCELED"] as const;
+/** A toggle item needs a non-empty value; "all" stands in for "". */
+const ALL = "all";
+
+/**
+ * The badge each chip's rows can wear. The row badge shows the status as the
+ * viewer's clock reads it (`displayMeetingStatus`), and the server filters the
+ * same way for SCHEDULED: a stored SCHEDULED row whose window passed
+ * (ends_at < now) is served under MISSED, not SCHEDULED. A stored IN_PROGRESS
+ * row past its end is badged OVERTIME and stays under IN_PROGRESS.
+ */
+export const MEETING_FILTER_SHOWS: Record<string, readonly string[]> = {
+  SCHEDULED: ["SCHEDULED"],
+  MISSED: ["MISSED"],
+  IN_PROGRESS: ["IN_PROGRESS", "OVERTIME"],
+  ENDED: ["ENDED"],
+  CANCELED: ["CANCELED"],
+};
 
 function countFor(stats: MeetingStatistics | null | undefined, value: string): number | undefined {
   if (!stats) return undefined;
   switch (value) {
     case "SCHEDULED":
       return stats.scheduled;
+    case "MISSED":
+      return stats.missed;
     case "IN_PROGRESS":
       return stats.in_progress;
     case "ENDED":
@@ -36,53 +61,54 @@ export function MeetingFilters({
   onQuery: (q: string) => void;
 }) {
   const { t } = useTranslation();
+  // The statistics count the whole workspace; beside a search they would
+  // promise rows the search does not return.
+  const showCounts = !query.trim();
+  const label = (value: string) => {
+    if (!value) return t("meetings.filterAll");
+    if (value === "SCHEDULED") return t("meetings.filter_SCHEDULED");
+    return t(`meetings.status_${value}`);
+  };
   return (
-    <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+    <div className="flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
       <Input
         type="search"
         value={query}
         onChange={(e) => onQuery(e.target.value)}
         placeholder={t("meetings.searchPlaceholder")}
-        className="min-w-0 w-full lg:max-w-sm"
+        className="w-full min-w-0 lg:max-w-xs"
         aria-label={t("meetings.searchPlaceholder")}
       />
-      <div
-        role="group"
+      <ToggleGroup
+        value={[status || ALL]}
+        onValueChange={(v) => {
+          // Pressing the chip that is already on would clear the group; a filter is always on.
+          const next = v[0];
+          if (next !== undefined) onStatus(next === ALL ? "" : next);
+        }}
         aria-label={t("meetings.status")}
-        className="flex flex-wrap gap-1"
+        spacing={1}
+        // Wraps rather than scrolls: a clipped chip row gives no cue that more chips exist.
+        className="-mx-1 w-full min-w-0 flex-wrap px-1 py-1 lg:w-auto"
       >
-        {FILTERS.map((value) => {
-          const active = status === value;
-          const label = value ? t(`meetings.status_${value}`) : t("meetings.filterAll");
-          const count = countFor(stats, value);
+        {MEETING_FILTERS.map((value) => {
+          const count = showCounts ? countFor(stats, value) : undefined;
           return (
-            <button
-              key={value || "all"}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onStatus(value)}
-              className={cn(
-                "flex h-11 cursor-pointer items-center gap-1.5 rounded-full px-3 text-label transition-colors duration-100 sm:h-8",
-                active
-                  ? "bg-foreground text-background"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {label}
+            <ToggleGroupItem key={value || ALL} value={value || ALL} className={MEETING_TOGGLE_CHIP}>
+              {label(value)}
               {count ? (
-                <span
-                  className={cn(
-                    "font-mono text-caption tabular-nums",
-                    active ? "text-background/70" : "text-faint-foreground",
-                  )}
-                >
-                  {count}
-                </span>
+                <>
+                  {/* The figure is for the eye; a screen reader hears what it counts. */}
+                  <span aria-hidden className="text-caption font-normal tabular-nums">
+                    {count}
+                  </span>
+                  <span className="sr-only"> {t("meetings.filterCount", { count })}</span>
+                </>
               ) : null}
-            </button>
+            </ToggleGroupItem>
           );
         })}
-      </div>
+      </ToggleGroup>
     </div>
   );
 }

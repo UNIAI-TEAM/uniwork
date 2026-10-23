@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY idx_demo_requests_status_created;

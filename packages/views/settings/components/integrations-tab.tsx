@@ -1,22 +1,104 @@
 "use client";
 
-import { Plug } from "lucide-react";
+import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SettingsTab } from "./settings-layout";
+import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
+import { paths } from "@uniwork/core/paths";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../../layout/module-icons";
+import { moduleTone } from "../../layout/module-tones";
+import { useWorkspace } from "../../layout/workspace-context";
+import { AppLink } from "../../navigation";
+import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, SettingsTab } from "./settings-layout";
+
+/**
+ * Only integrations the roadmap actually commits to; each cites its line.
+ * Nothing here is clickable until it ships.
+ */
+const PLANNED = [
+  // docs/roadmap/FEATURE_ROADMAP.md A-07 (Webhook ký HMAC + SDK TypeScript),
+  // docs/vision/PROJECT_VISION.md (webhook ký HMAC cho sự kiện domain).
+  { key: "webhooks", icon: Webhook },
+] as const;
+
+/**
+ * Email Hub is the one connection that works today: each person links their
+ * own mailbox by signing in with Google or Microsoft
+ * (server/internal/service/email_hub_oauth_callback.go), with an app password for
+ * Gmail, Outlook or Yahoo (server/internal/emailhub/provider.go), or on their
+ * own domain's IMAP/SMTP server (server/internal/service/email_hub_connect_server.go).
+ * The count is the reader's own.
+ */
+function EmailHubRow() {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations" });
+  const { workspace } = useWorkspace();
+  const accounts = useEmailHubAccounts(workspace.id);
+  const href = paths.workspace(workspace.organization_slug, workspace.slug).email();
+  const count = accounts.data?.accounts.length ?? 0;
+  const broken = accounts.data?.accounts.filter((acc) => acc.needs_reconnect).length ?? 0;
+  // Until the list arrives (or when it fails) nothing is known about the
+  // reader's mailboxes, so neither the badge nor the action claims "none".
+  const known = !accounts.isLoading && !accounts.isError;
+
+  const badge = accounts.isLoading ? (
+    <Skeleton className="h-5 w-24" />
+  ) : accounts.isError ? (
+    <SettingsBadge tone="destructive">{t("email_hub.load_error")}</SettingsBadge>
+  ) : count > 0 ? (
+    <SettingsBadge tone={broken > 0 ? "warning" : "success"}>
+      {t("email_hub.connected", { count })}
+      {broken > 0 ? t("email_hub.needs_reconnect", { count: broken }) : null}
+    </SettingsBadge>
+  ) : (
+    <SettingsBadge tone="muted">{t("email_hub.not_connected")}</SettingsBadge>
+  );
+
+  return (
+    <SettingsListItem
+      leading={<IconTile icon={MODULE_ICONS.email} tone={moduleTone("email")} size="sm" />}
+      title={t("email_hub.title")}
+      meta={t("email_hub.meta")}
+      badge={badge}
+      actions={
+        <AppLink href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+          {known && count === 0 ? t("email_hub.connect") : t("email_hub.open")}
+        </AppLink>
+      }
+    />
+  );
+}
 
 export function IntegrationsTab() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
 
   return (
-    <SettingsTab
-      title={t("page.tabs.integrations")}
-      description={t("integrations.emptyDescription")}
-    >
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-12 text-center">
-        <Plug className="size-8 text-muted-foreground" aria-hidden />
-        <p className="text-body font-medium text-foreground">{t("integrations.emptyTitle")}</p>
-        <p className="max-w-md text-body text-muted-foreground">{t("integrations.emptyDescription")}</p>
-      </div>
+    <SettingsTab title={t("page.tabs.integrations")} description={t("integrations.description")}>
+      <SettingsSection title={t("integrations.available")}>
+        <SettingsList aria-label={t("integrations.available")}>
+          <EmailHubRow />
+        </SettingsList>
+      </SettingsSection>
+      <SettingsSection title={t("integrations.planned")} description={t("integrations.planned_description")}>
+        <SettingsList aria-label={t("integrations.planned")}>
+          {PLANNED.map(({ key, icon }) => (
+            <SettingsListItem
+              key={key}
+              muted
+              leading={<IconTile icon={icon} tone="muted" size="sm" />}
+              title={t(`integrations.${key}.title`)}
+              meta={t(`integrations.${key}.meta`)}
+              badge={
+                <SettingsBadge tone="muted" icon={<Lock aria-hidden />}>
+                  {t("integrations.coming_soon")}
+                </SettingsBadge>
+              }
+            />
+          ))}
+        </SettingsList>
+      </SettingsSection>
     </SettingsTab>
   );
 }

@@ -19,6 +19,15 @@ const base: ChatMessageRecord = {
 };
 
 describe("toChatMessage", () => {
+  it("refreshes the cache when pin state changes on the same record object", () => {
+    const record: ChatMessageRecord = { ...base, pinned: false };
+    const before = toChatMessage(record);
+    record.pinned = true;
+    record.pinned_at = "2026-03-26T12:00:00.000Z";
+    expect(toChatMessage(record).pinned).toBe(true);
+    expect(toChatMessage(record)).not.toBe(before);
+  });
+
   it("maps base fields and optional edited_at", () => {
     const mapped = toChatMessage({
       ...base,
@@ -53,7 +62,15 @@ describe("toChatMessage", () => {
     const mapped = toChatMessage({
       ...base,
       voice_call: { outcome: "answered", duration_seconds: 12, caller_id: "u1" },
-      file: { filename: "a.pdf", content_type: "application/pdf", size_bytes: 10 },
+      file: {
+        filename: "a.pdf",
+        content_type: "application/pdf",
+        size_bytes: 10,
+        url: "https://storage.test/a",
+        download_url: "https://storage.test/a?dl=1",
+        thumb_url: "https://storage.test/a",
+        url_expires_at: "2026-03-27T21:00:00Z",
+      },
       poll: {
         question: "Lunch?",
         options: [{ id: "o1", label: "Pho", votes: 2 }],
@@ -66,7 +83,6 @@ describe("toChatMessage", () => {
           hide_voters: true,
         },
         viewer_option_ids: ["o1"],
-        votes_by_user: { u1: ["o1"] },
       },
       reminder: { body: "standup", remind_at: "2026-03-27T09:00:00Z", repeat: "none" },
       note: { body: "note", pin_to_top: true },
@@ -81,6 +97,10 @@ describe("toChatMessage", () => {
       filename: "a.pdf",
       content_type: "application/pdf",
       size_bytes: 10,
+      url: "https://storage.test/a",
+      download_url: "https://storage.test/a?dl=1",
+      thumb_url: "https://storage.test/a",
+      url_expires_at: "2026-03-27T21:00:00Z",
     });
     expect(mapped.poll?.options[0]).toEqual({ id: "o1", label: "Pho", votes: 2 });
     expect(mapped.poll?.settings.pin_to_top).toBe(true);
@@ -101,7 +121,6 @@ describe("toChatMessage", () => {
         options: [{ id: "o1", label: "A", votes: 0 }],
         settings: {} as NonNullable<ChatMessageRecord["poll"]>["settings"],
         viewer_option_ids: [],
-        votes_by_user: {},
       },
       note: { body: "n" } as NonNullable<ChatMessageRecord["note"]>,
       reminder: {
@@ -122,6 +141,57 @@ describe("toChatMessage", () => {
     expect(mapped.reminder?.repeat).toBe("none");
     expect(mapped.priority).toBeUndefined();
   });
+
+  it("maps the document block and can_share_as_document verbatim (UNI-1966)", () => {
+    const mapped = toChatMessage({
+      ...base,
+      kind: "document",
+      body: "Báo cáo Q3",
+      document: {
+        document_id: "doc1",
+        viewer_has_access: true,
+        viewer_level: "comment",
+        viewer_can_manage: true,
+        viewer_can_upload_version: true,
+        title: "Báo cáo Q3",
+        format: "docx",
+        version_number: 3,
+        revision: "42",
+        can_open_in_app: true,
+        recipient_count: 4,
+        origin: "upload",
+        other_editors_count: 2,
+      } as NonNullable<ChatMessageRecord["document"]>,
+      can_share_as_document: true,
+    });
+    expect(mapped.kind).toBe("document");
+    expect(mapped.document).toMatchObject({
+      document_id: "doc1",
+      viewer_has_access: true,
+      viewer_level: "comment",
+      viewer_can_manage: true,
+      title: "Báo cáo Q3",
+      version_number: 3,
+      revision: "42",
+      recipient_count: 4,
+      origin: "upload",
+      other_editors_count: 2,
+    });
+    expect(mapped.canShareAsDocument).toBe(true);
+  });
+
+  it("keeps a document_version kind with only what the server sent", () => {
+    const mapped = toChatMessage({
+      ...base,
+      kind: "document_version",
+      body: "3",
+      document: { document_id: "doc1" } as NonNullable<ChatMessageRecord["document"]>,
+    });
+    expect(mapped.kind).toBe("document_version");
+    expect(mapped.document).toMatchObject({ document_id: "doc1" });
+    expect(mapped.document?.viewer_has_access).toBeUndefined();
+    expect(mapped.canShareAsDocument).toBeUndefined();
+  });
 });
 
 describe("senderLabelFor", () => {
@@ -139,5 +209,13 @@ describe("senderLabelFor", () => {
       "u1",
     );
     expect(senderLabelFor(message, "other", "Bạn", [])).toBe("u1");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [{ user_id: "U1", display_name: "An" }]),
+    ).toBe("An");
+    expect(
+      senderLabelFor(message, "other", "Bạn", [
+        { user_id: "u1", display_name: "u1", email: "tramyd@example.com" },
+      ]),
+    ).toBe("tramyd");
   });
 });

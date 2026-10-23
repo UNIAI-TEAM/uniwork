@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAssignAgent,
   canChangeMemberRole,
   canChangeOrgRole,
   canCreateWorkspaceInOrg,
@@ -10,9 +11,11 @@ import {
   canEditComment,
   canEditEmploymentFields,
   canEditProfile,
+  canEditProject,
   canEditTask,
   canExportPeople,
   canInviteMembers,
+  canCloseOrg,
   canLeaveOrg,
   canManageAgents,
   canManageAuditSettings,
@@ -22,6 +25,7 @@ import {
   canViewBilling,
   canManageMembers,
   canReadAuditLog,
+  canManageTaskCatalog,
   canRemoveMember,
   canTransferOwnership,
   canUpdateWorkspaceSettings,
@@ -109,6 +113,17 @@ describe("canUpdateWorkspaceSettings — mirrors workspace invite admin gate", (
   });
 });
 
+describe("canManageTaskCatalog — mirrors workspace.go requireActorWorkspaceAdmin", () => {
+  it("allows workspace owners and admins", () => {
+    expect(canManageTaskCatalog(ctx({ wsRole: "owner" })).allowed).toBe(true);
+    expect(canManageTaskCatalog(ctx({ wsRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies a plain member and a non-member", () => {
+    expect(canManageTaskCatalog(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+    expect(canManageTaskCatalog(ctx({ wsRole: null })).allowed).toBe(false);
+  });
+});
+
 describe("canCreateWorkspaceInOrg — mirrors workspace.go:44", () => {
   it("allows any organization member, whatever the role", () => {
     for (const orgRole of ["owner", "admin", "member"] as const) {
@@ -153,6 +168,39 @@ describe("task and meeting rules — membership only, as the backend gates today
   });
 });
 
+describe("canEditProject — mirrors TaskService.authorizeProjectEdit (project.go)", () => {
+  const project = (over: Partial<Parameters<typeof canEditProject>[0] & object>) => ({
+    created_by: "u2",
+    created_by_kind: "human",
+    lead_type: null,
+    lead_id: null,
+    ...over,
+  });
+  it("lets the creator and the member lead edit, not a peer (UNI-898)", () => {
+    expect(canEditProject(project({ created_by: "u1" }), ctx({ wsRole: "member" })).allowed).toBe(true);
+    expect(
+      canEditProject(project({ lead_type: "member", lead_id: "u1" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(true);
+    expect(canEditProject(project({}), ctx({ wsRole: "member" })).reason).toBe("not_resource_owner");
+  });
+  it("does not take an agent's id for the user's", () => {
+    expect(
+      canEditProject(project({ created_by: "u1", created_by_kind: "agent" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(false);
+    expect(
+      canEditProject(project({ lead_type: "agent", lead_id: "u1" }), ctx({ wsRole: "member" })).allowed,
+    ).toBe(false);
+  });
+  it("lets a workspace owner or admin edit any project", () => {
+    expect(canEditProject(project({}), ctx({ wsRole: "admin" })).allowed).toBe(true);
+    expect(canEditProject(project({}), ctx({ wsRole: "owner" })).allowed).toBe(true);
+  });
+  it("denies outside the workspace and while the project is unknown", () => {
+    expect(canEditProject(project({ created_by: "u1" }), ctx({ wsRole: null })).reason).toBe("not_member");
+    expect(canEditProject(null, ctx({ wsRole: "member" })).allowed).toBe(false);
+  });
+});
+
 describe("comment authorship policy (not wired to Tasks yet)", () => {
   it("allows author or admin-like to edit/delete", () => {
     expect(canEditComment("u1", ctx({ userId: "u1", wsRole: "member" })).allowed).toBe(true);
@@ -178,6 +226,7 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
       canDeactivateMember({ user_id: "u2", role: "member" }, off),
       canTransferOwnership(off),
       canLeaveOrg(off),
+      canCloseOrg(off, false),
       canManageDepartments(off),
       canExportPeople(off),
     ]) {
@@ -217,6 +266,15 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
     expect(canLeaveOrg(member).allowed).toBe(true);
   });
 
+  it("only the owner closes, and only as the organization's last active member (ADR 0032)", () => {
+    expect(canCloseOrg(owner, false).allowed).toBe(true);
+    expect(canCloseOrg(owner, true).reason).toBe("organization_has_members");
+    expect(canCloseOrg(admin, false).reason).toBe("not_owner_role");
+    expect(canCloseOrg(member, false).reason).toBe("not_owner_role");
+    expect(canCloseOrg(ctx({ orgRole: null }), false).reason).toBe("not_org_member");
+    expect(canCloseOrg(ctx({ userId: null, orgRole: "owner" }), false).reason).toBe("not_authenticated");
+  });
+
   it("reading the directory is open to members; shaping and exporting it are not", () => {
     expect(canManageDepartments(member).reason).toBe("not_admin_role");
     expect(canManageDepartments(admin).allowed).toBe(true);
@@ -224,5 +282,16 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
     expect(canExportPeople(owner).allowed).toBe(true);
     expect(canExportPeople(ctx({ orgRole: null })).reason).toBe("not_org_member");
     expect(canExportPeople(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("canAssignAgent", () => {
+  it("lets only an active agent take new work", () => {
+    expect(canAssignAgent({ status: "active" })).toEqual({ allowed: true, reason: "allowed", message: "" });
+    expect(canAssignAgent({ status: "paused" }).reason).toBe("agent_paused");
+    expect(canAssignAgent({ status: "archived" }).reason).toBe("agent_archived");
+  });
+  it("treats a status it does not know as paused, like the server", () => {
+    expect(canAssignAgent({ status: "sleeping" as never }).reason).toBe("agent_paused");
   });
 });

@@ -111,7 +111,9 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 }
 
 // Reset sets the password, burns the token, revokes every refresh token and
-// returns a fresh session so the user lands in the app.
+// every MCP grant (Ruling 49: an AI app connected by whoever held the old
+// password must not outlive it) and returns a fresh session so the user lands
+// in the app.
 func (s *PasswordResetService) Reset(ctx context.Context, token, password string) (Session, error) {
 	if err := validatePassword(password); err != nil {
 		return Session{}, err
@@ -144,12 +146,18 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if rows == 0 {
 		return Session{}, ErrInvalidToken
 	}
-	if err := qtx.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
+	leases, err := revokeAllUserSessions(ctx, qtx, t.UserID)
+	if err != nil {
+		return Session{}, err
+	}
+	mcpGrants, err := revokeAllMcpGrantsForUser(ctx, qtx, t.UserID)
+	if err != nil {
 		return Session{}, err
 	}
 	// One command, two audited facts: the password changed and every existing
-	// session died with it. A reader of the log should not have to know that
-	// the second follows from the first.
+	// session died with it, MCP grants included (counted on the revocation
+	// row, not one mcp_grant.revoked row each). A reader of the log should not
+	// have to know that the second follows from the first.
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization,
 		Actor:          audit.User(t.UserID),
@@ -164,12 +172,13 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 		Actor:          audit.User(t.UserID),
 		Action:         audit.ActionAuthSessionRevoked,
 		ResourceType:   "user", ResourceID: t.UserID,
-		Metadata: map[string]any{"scope": "all", "reason": "password_reset"},
-	}); err != nil {
+		Metadata: map[string]any{"scope": "all", "reason": "password_reset", "mcp_grants_revoked": mcpGrants},
+	}, sessionRevoked(t.UserID, "")); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Session{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	return s.auth.SessionFor(ctx, u)
 }

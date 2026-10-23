@@ -91,6 +91,10 @@ export async function lookupChatUserCached(
   return promise;
 }
 
+export function fetchChatUserById(workspaceId: string, userId: string): Promise<ChatUserLookup | null> {
+  return lookupChatUserByIdCached(workspaceId, userId);
+}
+
 /** Test helper — clears module-level lookup cache between cases. */
 export function resetChatUserLookupCacheForTests(): void {
   byUserId.clear();

@@ -3,14 +3,21 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -29,12 +36,23 @@ func isWorkspaceDefaultRoom(room db.ChatRoom) bool {
 }
 
 type ChatService struct {
-	pool        *pgxpool.Pool
-	q           *db.Queries
-	ws          *WorkspaceService
-	pub         EventPublisher
-	tasks       *TaskService
+	pool       *pgxpool.Pool
+	q          *db.Queries
+	ws         *WorkspaceService
+	pub        EventPublisher
+	tasks      *TaskService
+	conference meetings.ConferenceProvider
+	ai         *ai.Gateway
+	files      files.Service
+	// docs is the Documents service the document send and the viewer
+	// resolver use (UNI-1966): the bytes become a Document and the read path
+	// resolves each message's block against it. nil until SetDocuments.
+	docs        *DocumentService
 	TenorAPIKey string
+	// featuredCache holds Tenor "featured" responses (UNI-1750); zero value is fine.
+	featuredCache sync.Map // key string -> tenorCacheEntry
+	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
+	presenceTracker atomic.Pointer[presenceTracker]
 }
 
 func NewChatService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
@@ -74,27 +92,61 @@ type ChatMessageRow struct {
 	ReplyCount        int
 	LastReplyAt       *time.Time
 	ThreadUnread      bool
+	ThreadFollowing   bool // viewer follows the thread and has not muted it; set on the root by ListThreadMessages
 	CreatedAt         time.Time
 	Reactions         map[string]int
+	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
 	Pinned            bool
+	PinnedAt          string
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
+	VoiceCallSummary  *VoiceCallSummaryInfo
 	Voice             *VoiceMessageInfo
 	File              *FileMessageInfo
 	Poll              *ChatPollInfo
+	PollVote          *ChatPollVoteActivityPayload
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo
-	Priority          string
-	EditedAt          *time.Time
+	// Document is the shared-document block on a document or
+	// document_version message (UNI-1966 §5): document_id always, the viewer
+	// fields filled by the batched resolver.
+	Document *DocumentMessageInfo
+	// CanShareAsDocument is the viewer-resolved L6 flag on a live file
+	// message: true only for the sender when the attachment is on the chat
+	// document MIME allowlist and has not been converted yet.
+	CanShareAsDocument bool
+	Priority           string
+	ForwardedFrom      *ChatForwardedFrom
+	EditedAt           *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string
+
+	// ThreadParticipantIDs are a root's three latest distinct repliers,
+	// newest first (attachThreadParticipants); nil on other rows.
+	ThreadParticipantIDs []string
 }
 
 type ListChatMessagesInput struct {
+	// Cursor is a row's Cursor(): the page strictly older than that row.
+	Cursor string
+	// After is a row's Cursor(): the messages strictly newer than that row,
+	// oldest first (catch-up after a reconnect). Exclusive with Cursor/Before.
+	After string
+	// Before is the legacy second-precision cursor; it skips messages that
+	// share the boundary second, so Cursor wins when both are set.
 	Before *time.Time
 	Limit  int
+	// SkipMarkRead leaves last_read_at alone so CatchUp can still summarise
+	// the unread window after the client opens the room. Pagination (Cursor
+	// or Before set) never marks read either.
+	SkipMarkRead bool
+}
+
+// Cursor is the opaque keyset position of this message in its room's history.
+func (m ChatMessageRow) Cursor() string {
+	return encodeFeedCursor(m.CreatedAt, m.ID)
 }
 
 type SendChatMessageInput struct {
@@ -126,29 +178,20 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return WorkspaceChat{}, err
 	}
-	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return WorkspaceChat{}, ErrNotFound
-	}
 
 	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
-		roomID := util.NewID()
-		room, err = s.q.CreateChatRoom(ctx, db.CreateChatRoomParams{
-			ID:              roomID,
-			Kind:            chatRoomKindChannel,
-			WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-			OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
-			Name:            w.Name,
-			MemberSetKey:    pgtype.Text{},
-			LivekitRoomName: liveKitRoomFromChatID(roomID),
-			CreatedBy:       userID,
-			CreatedByKind:   string(audit.KindHuman),
-			Visibility:      chatVisibilityPublic,
-			ProjectID:       pgtype.Text{},
-			Topic:           "",
-			IsDefault:       true,
-		})
+		w, wErr := s.q.GetWorkspaceByID(ctx, workspaceID)
+		if wErr != nil {
+			if errors.Is(wErr, pgx.ErrNoRows) {
+				return WorkspaceChat{}, ErrNotFound
+			}
+			return WorkspaceChat{}, wErr
+		}
+		room, err = s.createWorkspaceRoom(ctx, userID, w)
+		if isUniqueViolation(err) {
+			room, err = s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+		}
 		if err != nil {
 			return WorkspaceChat{}, err
 		}
@@ -156,86 +199,106 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		return WorkspaceChat{}, err
 	}
 
-	if err := s.syncWorkspaceRoomMembers(ctx, room.ID, workspaceID); err != nil {
+	// Membership commands keep the channel in step; this is the idempotent
+	// safety net for rows written before them (and the first open, which
+	// creates the room after its members already exist).
+	if err := syncDefaultChatRoomMembers(ctx, s.q, workspaceID); err != nil {
 		return WorkspaceChat{}, err
 	}
 	return WorkspaceChat{RoomID: room.ID, WorkspaceID: workspaceID}, nil
 }
 
-func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, workspaceID string) error {
-	members, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
+// createWorkspaceRoom creates the default workspace channel with its audit
+// row and chat.room.created in one transaction (ADR 0009); the Work Graph
+// projects the room from that event (C-11).
+func (s *ChatService) createWorkspaceRoom(ctx context.Context, userID string, w db.Workspace) (db.ChatRoom, error) {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return db.ChatRoom{}, err
 	}
-	keep := make(map[string]struct{}, len(members))
-	for _, m := range members {
-		keep[m.UserID] = struct{}{}
-		role := workspaceChatMemberRole(m.Role)
-		if err := s.syncRoomMember(ctx, roomID, workspaceID, m.UserID, role); err != nil {
-			return err
-		}
-	}
-	activeIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, roomID)
-	if err != nil {
-		return err
-	}
-	for _, uid := range activeIDs {
-		if _, ok := keep[uid]; ok {
-			continue
-		}
-		if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
-			RoomID: roomID, UserID: uid,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func workspaceChatMemberRole(wsRole string) string {
-	if wsRole == "owner" || wsRole == "admin" {
-		return "admin"
-	}
-	return "member"
-}
-
-// syncRoomMember adds the member when absent and raises an existing member to
-// admin when the workspace role demands it; it never demotes.
-func (s *ChatService) syncRoomMember(ctx context.Context, roomID, workspaceID, userID, floorRole string) error {
-	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	roomID := util.NewID()
+	room, err := q.CreateChatRoom(ctx, db.CreateChatRoomParams{
+		ID: roomID, Kind: chatRoomKindChannel, WorkspaceID: pgtype.Text{String: w.ID, Valid: true},
+		OrganizationID: w.OrganizationID, Name: w.Name, MemberSetKey: pgtype.Text{},
+		LivekitRoomName: liveKitRoomFromChatID(roomID), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
+		Visibility: chatVisibilityPublic, ProjectID: pgtype.Text{}, Topic: "", IsDefault: true,
 	})
-	if err == nil {
-		if floorRole != "admin" || existing.Role == "admin" {
-			return nil
-		}
-		return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-			RoomID: roomID, UserID: userID, Role: "admin",
-		})
+	if err != nil {
+		return db.ChatRoom{}, err
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return err
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Actor: audit.User(userID), Action: audit.ActionChatRoomCreated,
+		ResourceType: "chat_room", ResourceID: roomID,
+		Changes:  audit.Diff(nil, map[string]any{"kind": chatRoomKindChannel}),
+		Metadata: map[string]any{"default": true},
+	}, audit.Event{Topic: "chat.room.created", Payload: map[string]string{
+		"room_id": roomID, "workspace_id": w.ID,
+	}}); err != nil {
+		return db.ChatRoom{}, err
 	}
-	_, err = s.addRoomMember(ctx, s.q, roomID, workspaceID, userID, floorRole)
-	return err
+	return room, tx.Commit(ctx)
 }
 
-func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
-	return s.ensureRoomMemberTx(ctx, s.q, roomID, workspaceID, userID, role)
+// syncDefaultChatRoomMembers mirrors workspace_members into the workspace's
+// default channel in a fixed number of set-based statements: owners/admins
+// are raised to admin (never demoted here: demoteDefaultChatRoomAdmin
+// handles a workspace demotion), leavers marked left, the missing
+// added. Workspace membership commands run it with q bound to their
+// transaction; it is a no-op until the channel exists.
+func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID string) error {
+	if err := q.SyncDefaultChatRoomRoles(ctx, workspaceID); err != nil {
+		return err
+	}
+	missing, err := q.ListDefaultChatRoomMissingMembers(ctx, workspaceID)
+	if err != nil || len(missing) == 0 {
+		return err
+	}
+	in := db.InsertChatRoomMembersParams{WorkspaceID: workspaceID, OrganizationID: missing[0].OrganizationID}
+	for _, m := range missing {
+		in.Ids = append(in.Ids, util.NewID())
+		in.RoomIds = append(in.RoomIds, m.RoomID)
+		in.UserIds = append(in.UserIds, m.UserID)
+		in.Roles = append(in.Roles, m.Role)
+	}
+	return q.InsertChatRoomMembers(ctx, in)
+}
+
+// demoteDefaultChatRoomAdmin undoes the raise syncDefaultChatRoomMembers made
+// for a workspace admin who is now a member; only the demoted person moves, so
+// a member raised in the channel by hand keeps the role.
+func demoteDefaultChatRoomAdmin(ctx context.Context, q *db.Queries, workspaceID, userID string) error {
+	room, err := q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+		RoomID: room.ID, UserID: userID, Role: "member",
+	})
+}
+
+func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
+	return s.ensureRoomMemberTx(ctx, s.q, room, workspaceID, userID, role)
 }
 
 // ensureRoomMemberTx adds the member inside the caller's transaction; it drops
 // the added flag for callers that have nothing to audit.
-func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) error {
-	_, err := s.addRoomMember(ctx, q, roomID, workspaceID, userID, role)
+func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) error {
+	_, err := s.addRoomMember(ctx, q, room, workspaceID, userID, role)
 	return err
 }
 
 // addRoomMember reports whether it added the row, so a caller inside a
-// transaction can audit exactly the members it actually added.
-func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) (bool, error) {
+// transaction can audit exactly the members it actually added. The member
+// row takes the room's organization (ADR 0008), never the caller's.
+func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) (bool, error) {
 	_, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
+		RoomID: room.ID, UserID: userID,
 	})
 	if err == nil {
 		return false, nil
@@ -244,36 +307,18 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, 
 		return false, err
 	}
 	_, err = q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
-		ID:          util.NewID(),
-		RoomID:      roomID,
-		WorkspaceID: workspaceID,
-		UserID:      userID,
-		Role:        role,
-		Status:      "active",
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		WorkspaceID:    workspaceID,
+		UserID:         userID,
+		Role:           role,
+		Status:         "active",
+		OrganizationID: room.OrganizationID,
 	})
-	return err == nil, err
-}
-
-func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, workspaceID string) (db.ChatRoom, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return db.ChatRoom{}, err
-	}
-	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.ChatRoom{}, ErrNotFound
+		return false, nil
 	}
-	if err != nil {
-		return db.ChatRoom{}, err
-	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.ChatRoom{}, ErrForbidden
-		}
-		return db.ChatRoom{}, err
-	}
-	return room, nil
+	return err == nil, err
 }
 
 // ListRoomMessages returns messages for any chat room the caller may access.
@@ -284,7 +329,7 @@ func (s *ChatService) ListRoomMessages(
 	if err != nil {
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, room, in)
+	return s.listSignedMessages(ctx, userID, room, in)
 }
 
 // GetRoomMessage returns one message in a room the caller may access.
@@ -309,7 +354,17 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), userID), nil
+}
+
+// viewerChatRow is the single-row answer shape: media URLs signed, thread
+// participants attached and the document block resolved for the viewer, so a
+// mutation answer carries the same row a read of the message would.
+func (s *ChatService) viewerChatRow(ctx context.Context, room db.ChatRoom, row ChatMessageRow, viewerID string) ChatMessageRow {
+	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, row)}
+	s.attachThreadParticipants(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, viewerID)
+	return out[0]
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -319,36 +374,25 @@ func (s *ChatService) SendRoomMessage(
 	if err := validateChatMessageBody(in.Body); err != nil {
 		return ChatMessageRow{}, err
 	}
-	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
 	return s.sendMessage(ctx, userID, room, in)
 }
 
-// ListWorkspaceMessages returns messages for the workspace channel.
-func (s *ChatService) ListWorkspaceMessages(
-	ctx context.Context, userID, workspaceID string, in ListChatMessagesInput,
+// listSignedMessages is listMessages with the media URLs signed.
+func (s *ChatService) listSignedMessages(
+	ctx context.Context, userID string, room db.ChatRoom, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return nil, err
-	}
-	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return []ChatMessageRow{}, nil
-	}
+	rows, err := s.listMessages(ctx, userID, room, in)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: room.ID, UserID: userID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrForbidden
-		}
-		return nil, err
-	}
-	return s.listMessages(ctx, userID, room, in)
+	s.signChatMedia(ctx, room, rows)
+	s.attachThreadParticipants(ctx, room, rows)
+	s.resolveChatDocuments(ctx, room, rows, userID)
+	return rows, nil
 }
 
 func (s *ChatService) listMessages(
@@ -363,14 +407,26 @@ func (s *ChatService) listMessages(
 	if limit > maxChatMessageLimit {
 		limit = maxChatMessageLimit
 	}
+	if in.After != "" {
+		return s.listMessagesAfter(ctx, userID, workspaceID, roomID, in.After, in.Cursor != "" || in.Before != nil, limit)
+	}
 	var before pgtype.Timestamptz
-	if in.Before != nil {
+	var beforeID string
+	switch {
+	case in.Cursor != "":
+		at, id, err := decodeFeedCursor(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		before, beforeID = pgtype.Timestamptz{Time: at, Valid: true}, id
+	case in.Before != nil:
 		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
 	}
 	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
 		RoomID:      roomID,
 		WorkspaceID: workspaceID,
 		BeforeAt:    before,
+		BeforeID:    beforeID,
 		MsgLimit:    int32(limit),
 	})
 	if err != nil {
@@ -380,37 +436,63 @@ func (s *ChatService) listMessages(
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromListRow(rows[i], userID))
 	}
-	if len(out) > 0 {
+	// Only the latest page may bump the read cursor — loading older history
+	// must not rewind last_read_at. CatchUp needs the pre-open cursor when
+	// SkipMarkRead is set (unread room open).
+	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
-		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-			RoomID: roomID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: last.CreatedAt, Valid: true},
-		})
-		s.publishChatRoomRead(ctx, room, userID)
+		if err := s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true}); err != nil {
+			slog.WarnContext(ctx, "chat: read pointer not moved", "error", err, "room_id", room.ID, "user_id", userID)
+		}
 	}
 	return out, nil
 }
 
-// SendWorkspaceMessage posts a text message to the workspace channel.
-func (s *ChatService) SendWorkspaceMessage(
-	ctx context.Context, userID, workspaceID string, in SendChatMessageInput,
-) (ChatMessageRow, error) {
-	if err := validateChatMessageBody(in.Body); err != nil {
-		return ChatMessageRow{}, err
+// listMessagesAfter reads forward from a cursor. It never marks read: the
+// caller is filling a gap, not opening the room.
+func (s *ChatService) listMessagesAfter(
+	ctx context.Context, userID, workspaceID, roomID, after string, withOlder bool, limit int,
+) ([]ChatMessageRow, error) {
+	if withOlder {
+		return nil, Invalid("chỉ dùng một trong cursor/before hoặc after")
 	}
-	room, err := s.authorizeWorkspaceRoom(ctx, userID, workspaceID)
-	if errors.Is(err, ErrNotFound) {
-		ensured, ensureErr := s.EnsureWorkspaceRoom(ctx, userID, workspaceID)
-		if ensureErr != nil {
-			return ChatMessageRow{}, ensureErr
-		}
-		room, err = s.q.GetChatRoomByID(ctx, ensured.RoomID)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-	} else if err != nil {
-		return ChatMessageRow{}, err
+	at, id, err := decodeFeedCursor(after)
+	if err != nil {
+		return nil, err
 	}
-	return s.sendMessage(ctx, userID, room, in)
+	rows, err := s.q.ListChatMessagesByRoomAfter(ctx, db.ListChatMessagesByRoomAfterParams{
+		RoomID: roomID, WorkspaceID: workspaceID,
+		AfterAt: pgtype.Timestamptz{Time: at, Valid: true}, AfterID: id,
+		MsgLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, chatMessageRowFromListRow(db.ListChatMessagesByRoomRow(row), userID))
+	}
+	return out, nil
+}
+
+// MarkRoomRead advances the caller's last_read_at to the newest message in the room.
+// Used after an unread open that loaded messages with SkipMarkRead so CatchUp still worked.
+func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roomID string) error {
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return err
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	preview, err := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
+		RoomID: room.ID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
 }
 
 func (s *ChatService) sendMessage(
@@ -424,7 +506,7 @@ func (s *ChatService) sendMessage(
 	if err := validateClientMsgID(clientMsgID); err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
@@ -434,6 +516,11 @@ func (s *ChatService) sendMessage(
 		} else if found {
 			return s.chatMessageRowForExisting(ctx, existing)
 		}
+	}
+	// Before the insert: a refused @all must not leave the message behind.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
 	}
 	var replyTo pgtype.Text
 	if in.ReplyToMessageID != nil && strings.TrimSpace(*in.ReplyToMessageID) != "" {
@@ -452,15 +539,28 @@ func (s *ChatService) sendMessage(
 	if clientMsgID != "" {
 		clientMsg = pgtype.Text{String: clientMsgID, Valid: true}
 	}
-	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
+	// One transaction: the message and its notification rows commit together.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	meta, err := buildChatTextMessageMetadata(mentions, in.Priority)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
+		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      anchorWS,
 		SenderID:         userID,
 		SenderKind:       string(audit.KindHuman),
 		Body:             body,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,
+		Metadata:         meta,
 	})
 	if err != nil {
 		if clientMsgID != "" && isUniqueViolation(err) {
@@ -472,27 +572,14 @@ func (s *ChatService) sendMessage(
 		}
 		return ChatMessageRow{}, err
 	}
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
-	if err != nil {
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
-	if len(mentionedUserIDs) > 0 {
-		msg, err = s.persistMessageMentions(ctx, msg, mentionedUserIDs)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
+	if err := requestChatLinkPreview(ctx, q, userID, room, msg.ID, body); err != nil {
+		return ChatMessageRow{}, err
 	}
-	if priority := normalizeMessagePriority(in.Priority); priority != "" {
-		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
+	if err := tx.Commit(ctx); err != nil {
+		return ChatMessageRow{}, err
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -503,9 +590,15 @@ func (s *ChatService) sendMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, "", mentions.Recipients)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
+}
+
+// errClientMsgIDDeleted answers a resend after the original was soft-deleted:
+// the unique index still blocks a new row, so the client must drop the outbox entry.
+func errClientMsgIDDeleted() error {
+	return coded(http.StatusGone, "chat_message_deleted", "tin nhắn này đã bị xoá")
 }
 
 func (s *ChatService) existingMessageByClientMsgID(
@@ -521,6 +614,9 @@ func (s *ChatService) existingMessageByClientMsgID(
 	}
 	if err != nil {
 		return db.ChatMessage{}, false, err
+	}
+	if msg.DeletedAt.Valid {
+		return db.ChatMessage{}, false, errClientMsgIDDeleted()
 	}
 	return msg, true, nil
 }
@@ -544,23 +640,10 @@ func (s *ChatService) ToggleChatMessageReaction(
 	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	meta, err := toggleReactionInMetadata(msg.Metadata, userID, emoji)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Metadata: meta,
-	})
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) {
+			return toggleReactionInMetadata(msg.Metadata, userID, emoji)
+		})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -569,7 +652,42 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDB(updated, u.DisplayName), nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), userID), nil
+}
+
+// mutateChatMessageMetadata rewrites a message's metadata under a row lock, so
+// concurrent reactions, votes and pins build on each other instead of
+// overwriting. mutate must not use the pool: it runs while the lock is held.
+func (s *ChatService) mutateChatMessageMetadata(
+	ctx context.Context, messageID, roomID, workspaceID string,
+	mutate func(db.ChatMessage) ([]byte, error),
+) (db.ChatMessage, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	msg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ChatMessage{}, ErrNotFound
+	}
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	meta, err := mutate(msg)
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	updated, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: workspaceID, Metadata: meta,
+	})
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	return updated, tx.Commit(ctx)
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {
@@ -673,12 +791,22 @@ func (s *ChatService) MintVoiceTokenRoom(ctx context.Context, userID, chatRoomID
 	if err != nil {
 		return "", err
 	}
-	if !room.WorkspaceID.Valid {
+	if room.ArchivedAt.Valid || !room.WorkspaceID.Valid {
 		return "", ErrNotFound
 	}
 	wsID := room.WorkspaceID.String
-	if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
-		return "", err
+	// DMs and groups belong to the organization: a member who is only in
+	// another of its workspaces answers the call too; room membership is
+	// checked by requireVoiceTokenAccess below.
+	switch room.Kind {
+	case chatRoomKindDM, chatRoomKindGroup:
+		if _, err := s.ws.orgs.RequireMember(ctx, room.OrganizationID, userID); err != nil {
+			return "", err
+		}
+	default:
+		if _, err := s.ws.RequireMember(ctx, wsID, userID); err != nil {
+			return "", err
+		}
 	}
 	if err := s.requireDMVoiceAllowed(ctx, room, userID); err != nil {
 		return "", err

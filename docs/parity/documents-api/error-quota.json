@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "quota_exceeded",
+    "message": "Tổ chức đã hết hạn mức lưu trữ.",
+    "error_class": "quota",
+    "fields": {
+      "meter": "storage.bytes",
+      "limit": 10737418240,
+      "current": 10737400000,
+      "delta": 250112
+    }
+  }
+}

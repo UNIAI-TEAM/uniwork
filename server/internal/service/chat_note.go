@@ -4,11 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/unicomhub/uniwork/server/internal/util"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"unicode/utf8"
 )
 
 const chatMessageKindNote = "note"
@@ -25,12 +21,12 @@ type ChatNoteInfo struct {
 }
 
 type SendNoteMessageInput struct {
-	Body             string
-	PinToTop         bool
-	ReplyToMessageID *string
+	Body        string
+	PinToTop    bool
+	ClientMsgID string
 }
 
-func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
+func noteFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatNoteInfo {
 	if kind != chatMessageKindNote {
 		return nil
 	}
@@ -38,7 +34,6 @@ func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
 	if content == "" {
 		return nil
 	}
-	meta := decodeChatMessageMetadata(raw)
 	pinToTop := meta.Pinned
 	if meta.Note != nil && meta.Note.PinToTop {
 		pinToTop = true
@@ -66,7 +61,7 @@ func (s *ChatService) SendNoteMessage(
 	if body == "" {
 		return ChatMessageRow{}, Invalid("nội dung ghi chú không được để trống")
 	}
-	if len(body) > maxNoteBodyLen {
+	if utf8.RuneCountInString(body) > maxNoteBodyLen {
 		return ChatMessageRow{}, Invalid("nội dung ghi chú quá dài")
 	}
 
@@ -95,41 +90,5 @@ func (s *ChatService) SendNoteMessage(
 		return ChatMessageRow{}, err
 	}
 
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatNoteMessage(ctx, db.CreateChatNoteMessageParams{
-		ID:          util.NewID(),
-		RoomID:      room.ID,
-		WorkspaceID: anchorWS,
-		SenderID:    userID,
-		Body:        body,
-		Metadata:    meta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	createdAt := msg.CreatedAt.Time
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
-	})
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
-	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+	return s.sendKindMessage(ctx, userID, room, chatMessageKindNote, body, meta, in.ClientMsgID, nil)
 }

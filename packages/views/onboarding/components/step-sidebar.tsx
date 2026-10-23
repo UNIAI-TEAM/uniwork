@@ -35,7 +35,10 @@ export function StepProgressBar({
   const currentIndex = Math.max(0, ONBOARDING_STEP_ORDER.indexOf(currentStep as never));
   const key = ONBOARDING_STEP_ORDER[currentIndex]!;
   return (
-    <div className="mb-6 flex items-center gap-3 md:hidden">
+    // Wraps: at 200% text the progress floor, the step label and Log out no
+    // longer fit one phone line, and held on one they pushed the step 40px
+    // past the screen. Log out then takes the next line, still at the right.
+    <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 md:hidden">
       {onBack ? (
         <Button
           type="button"
@@ -54,7 +57,7 @@ export function StepProgressBar({
         {ONBOARDING_STEP_ORDER.map((stepId, index) => (
           <span
             key={stepId}
-            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-foreground" : "bg-border")}
+            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-primary" : "bg-border")}
           />
         ))}
       </span>
@@ -69,14 +72,15 @@ export function StepProgressBar({
         </span>
         {t(`onboarding.step_nav.${key}.label`)}
       </span>
-      {footer ? <span className="shrink-0">{footer}</span> : null}
+      {footer ? <span className="ml-auto shrink-0">{footer}</span> : null}
     </div>
   );
 }
 
 /**
- * Rail bên trái: panel tối scope `.dark` (token đổi màu chỉ trong subtree),
- * dot-sphere làm nền, stepper dọc. KHÔNG phải tablist — bước là route, không
+ * Rail bên trái: panel `brand-subtle` dùng chung với màn đăng nhập, dot-sphere
+ * làm nền, stepper dọc. Bước đã xong và bước hiện tại mang màu brand; bước chưa
+ * tới là hairline trung tính. KHÔNG phải tablist — bước là route, không
  * có panel id; vị trí đánh dấu bằng aria-current="step". Chỉ bước đã xong mới
  * click được: đi tới phải qua validation của bước hiện tại.
  */
@@ -100,10 +104,7 @@ export function StepSidebar({
       <BrandRail
         header={
           <>
-            <span className="flex min-w-0 items-center gap-2">
-              <Logo variant="mark" tone="mono" size={20} decorative />
-              <span className="truncate text-label font-medium text-foreground">{t("onboarding.step_nav.wordmark")}</span>
-            </span>
+            <Logo variant="lockup" size={26} />
             {onBack ? (
               <Button type="button" variant="ghost" size="icon-sm" onClick={onBack} disabled={backDisabled} aria-label={t("common.back")}>
                 <ArrowLeft />
@@ -113,7 +114,7 @@ export function StepSidebar({
         }
         footer={footer}
       >
-          <div className="flex min-h-0 flex-1 items-center justify-center py-10">
+          <div className="flex min-h-0 flex-1 items-center py-10">
             <Stepper
               value={currentIndex + 1}
               orientation="vertical"
@@ -132,24 +133,24 @@ export function StepSidebar({
                     <>
                       <StepperIndicator
                         className={cn(
-                          "mt-0.5 size-4 shrink-0 border-0 bg-transparent ring-1 transition-colors",
+                          "size-6 shrink-0 border-0 bg-transparent ring-1 transition-colors data-[state=active]:bg-transparent",
                           isDone
-                            ? "bg-foreground text-background ring-foreground"
+                            ? "bg-primary text-primary-foreground ring-primary"
                             : isCurrent
-                              ? "text-transparent ring-muted-foreground"
+                              ? "text-transparent ring-2 ring-primary"
                               : "text-transparent ring-border",
                         )}
                       >
                         {isDone ? (
-                          <Check aria-hidden className="size-3" />
+                          <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
                         ) : isCurrent ? (
-                          <span aria-hidden className="block size-1.5 rounded-full bg-foreground" />
+                          <span aria-hidden className="block size-2 rounded-full bg-primary" />
                         ) : (
                           <span className="sr-only">{index + 1}</span>
                         )}
                       </StepperIndicator>
-                      <div className="min-w-0 flex-1 text-left">
-                        <StepperTitle className={cn("transition-colors", isCurrent || isDone ? "text-foreground" : "text-muted-foreground")}>
+                      <div className="min-w-0 flex-1 pt-0.5 text-left">
+                        <StepperTitle className={cn("text-body transition-colors", isCurrent ? "font-semibold text-foreground" : isDone ? "text-foreground" : "text-muted-foreground")}>
                           {t(`onboarding.step_nav.${stepId}.label`)}
                         </StepperTitle>
                         <StepperDescription className="mt-0.5 max-w-none text-muted-foreground">
@@ -171,20 +172,20 @@ export function StepSidebar({
                         <button
                           type="button"
                           onClick={() => onStepChange(stepId)}
-                          className="flex w-full items-start gap-3 rounded-md pb-6 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="flex w-full items-start gap-3 rounded-md pb-7 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {body}
                         </button>
                       ) : (
-                        <div className={cn("flex w-full items-start gap-3 text-left", !isLast && "pb-6")}>{body}</div>
+                        <div className={cn("flex w-full items-start gap-3 text-left", !isLast && "pb-7")}>{body}</div>
                       )}
                       {/* Một hairline liên tục sau hàng thay vì đoạn ngắn giữa các hàng. */}
                       {!isLast ? (
                         <StepperSeparator
                           className={cn(
-                            "absolute left-2 top-6 -order-1 m-0 w-px -translate-x-1/2",
-                            "group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-1.75rem)]",
-                            isDone ? "bg-muted-foreground" : "bg-border",
+                            "absolute left-3 top-8 -order-1 m-0 w-0.5 -translate-x-1/2 rounded-full",
+                            "group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2.5rem)]",
+                            isDone ? "bg-primary" : "bg-border",
                           )}
                         />
                       ) : null}

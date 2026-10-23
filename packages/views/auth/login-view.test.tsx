@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests } from "@uniwork/core/auth";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { NavigationProvider } from "@uniwork/views/navigation";
 import type { NavigationAdapter } from "@uniwork/views/navigation";
@@ -51,9 +51,12 @@ const SESSION = {
   user: { id: "u1", email: "a@b.co", display_name: "A" },
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   requestMock.mockReset();
   resetAuthStoreForTests();
+  localeAdapter.persist.mockClear();
+  await setLocale("vi");
+  document.documentElement.lang = "vi";
 });
 
 describe("LoginView", () => {
@@ -102,6 +105,27 @@ describe("LoginView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đang đăng nhập…" }));
 
     expect(loginCalls()).toHaveLength(1);
+  });
+
+  // S15 row 5: a comment deep link that met no session says so above the form.
+  it.each([
+    ["/acme/team/documents/d1?comment=c1", true],
+    ["/acme/team/documents/d1?tab=x&comment=c1", true],
+    ["/acme/team/documents/d1", false],
+    ["/acme/team/documents/d1?comment=", false],
+    ["/acme/team/tasks/t1?comment=c1", false],
+  ])("says the session ended for next=%s only when it opens a comment (%s)", (next, shown) => {
+    render(wrap(<LoginView onSuccess={() => {}} next={next} reason="session_expired" />));
+    const sentence = screen.queryByText("Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này.");
+    if (shown) expect(sentence).toBeInTheDocument();
+    else expect(sentence).toBeNull();
+  });
+
+  // R10 F3: someone who never signed in here is not told their session ended.
+  it("shows the plain sign-in for a comment link when no session existed", () => {
+    render(wrap(<LoginView onSuccess={() => {}} next="/acme/team/documents/d1?comment=c1" />));
+    expect(screen.queryByText("Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeInTheDocument();
   });
 
   it("reveals the password without submitting the form", () => {
@@ -245,18 +269,17 @@ describe("LoginView", () => {
   });
 
   it("keeps focus on the language switch instead of jumping to the heading", async () => {
-    const i18n = initI18n();
     render(wrap(<LoginView onSuccess={() => {}} />));
-    // Two switches: one in the rail, one in the phone header; CSS hides one.
-    const toEnglish = screen.getAllByRole("button", { name: "Chuyển sang English" })[0]!;
+    // Two switches: desktop rail first, mobile header second; jsdom only lays out the latter.
+    const toEnglish = screen.getAllByRole("radio", { name: "English" }).at(-1)!;
     toEnglish.focus();
     fireEvent.click(toEnglish);
     await screen.findByRole("heading", { name: "Log in" });
 
     expect(screen.getByRole("heading", { name: "Log in" })).not.toHaveFocus();
-    expect(screen.getAllByRole("button", { name: "Switch to Tiếng Việt" })[0]).toHaveFocus();
-    await i18n.changeLanguage("vi");
-    document.documentElement.lang = "vi";
+    // Whichever switch is visible/focused — not necessarily index 0 in DOM order.
+    expect(document.activeElement).toHaveAccessibleName("English");
+    expect(document.activeElement).toBeChecked();
   });
 
   it("selects the rejected password so the retry replaces it in one keystroke", async () => {

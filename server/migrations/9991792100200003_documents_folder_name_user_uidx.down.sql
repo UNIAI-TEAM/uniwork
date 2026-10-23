@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_documents_folder_name_user_uidx;

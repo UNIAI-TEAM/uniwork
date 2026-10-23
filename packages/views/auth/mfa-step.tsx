@@ -1,5 +1,4 @@
 "use client";
-import { Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
@@ -8,6 +7,8 @@ import type { SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
 
 /**
  * Second step of sign-in: the TOTP code, or a recovery code. `mfaToken` is
@@ -68,7 +69,7 @@ export function MFAStep({
             required
             aria-invalid={message ? true : undefined}
             aria-describedby={message ? errorId : hintId}
-            className="h-10 text-body tracking-widest pointer-coarse:h-11"
+            className={cn(AUTH_INPUT, "tracking-widest")}
           />
           <div className="-mt-1 min-h-5">
             {message ? (
@@ -80,22 +81,10 @@ export function MFAStep({
         </Field>
       </FieldGroup>
       <div className="flex flex-col gap-3">
-        <Button
-          type="submit"
-          size="lg"
-          className="h-10 w-full pointer-coarse:h-11 aria-disabled:cursor-progress aria-disabled:opacity-100"
-          aria-disabled={verify.isPending || undefined}
-        >
-          {verify.isPending ? (
-            <>
-              <Loader2 aria-hidden className="animate-spin" />
-              {t("auth.mfa.verifying")}
-            </>
-          ) : (
-            t("auth.mfa.submit")
-          )}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        <AuthSubmit pending={verify.isPending} pendingLabel={t("auth.mfa.verifying")}>
+          {t("auth.mfa.submit")}
+        </AuthSubmit>
+        <Button type="button" variant="ghost" size="lg" className={AUTH_PILL} onClick={onCancel}>
           {t("auth.mfa.back")}
         </Button>
       </div>

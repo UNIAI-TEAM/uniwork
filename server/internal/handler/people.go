@@ -23,15 +23,10 @@ func (h *handlers) listPeople(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		limit = 0
 	}
-	page, err := h.People.Search(r.Context(), middleware.UserID(r.Context()), orgID, service.PeopleFilter{
-		Query:        qs.Get("q"),
-		DepartmentID: qs.Get("department_id"),
-		ManagerID:    qs.Get("manager_id"),
-		Role:         qs.Get("role"),
-		Status:       qs.Get("status"),
-		Cursor:       qs.Get("cursor"),
-		Limit:        int32(limit),
-	})
+	f := peopleFilterFromQuery(r)
+	f.Cursor = qs.Get("cursor")
+	f.Limit = int32(limit)
+	page, err := h.People.Search(r.Context(), middleware.UserID(r.Context()), orgID, f)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -41,8 +36,21 @@ func (h *handlers) listPeople(w http.ResponseWriter, r *http.Request) {
 		people = append(people, h.toPersonDTO(r, p))
 	}
 	respondJSON(w, http.StatusOK, sdo.PeopleListSDO{
-		People: people, NextCursor: page.NextCursor, TotalActive: page.TotalActive,
+		People: people, NextCursor: page.NextCursor, Total: page.Total, TotalActive: page.TotalActive,
 	})
+}
+
+// peopleFilterFromQuery reads the filter query params the directory and its
+// export share; the service validates them.
+func peopleFilterFromQuery(r *http.Request) service.PeopleFilter {
+	qs := r.URL.Query()
+	return service.PeopleFilter{
+		Query:        qs.Get("q"),
+		DepartmentID: qs.Get("department_id"),
+		ManagerID:    qs.Get("manager_id"),
+		Role:         qs.Get("role"),
+		Status:       qs.Get("status"),
+	}
 }
 
 func (h *handlers) getPerson(w http.ResponseWriter, r *http.Request) {
@@ -88,15 +96,17 @@ func (h *handlers) exportPeople(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Authorize before a single byte goes out: once the 200 header is written
-	// there is no way to turn the response into a 403.
-	if err := h.People.RequireExporter(r.Context(), middleware.UserID(r.Context()), orgID); err != nil {
+	// Authorize and validate the filter before a single byte goes out: once the
+	// 200 header is written there is no way to turn the response into a 403 or
+	// a 400.
+	f := peopleFilterFromQuery(r)
+	if err := h.People.RequireExporter(r.Context(), middleware.UserID(r.Context()), orgID, f); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="people.csv"`)
-	if _, err := h.People.ExportCSV(r.Context(), middleware.UserID(r.Context()), orgID, w); err != nil {
+	if _, err := h.People.ExportCSV(r.Context(), middleware.UserID(r.Context()), orgID, f, w); err != nil {
 		h.Log.Error("people export", "err", err)
 	}
 }

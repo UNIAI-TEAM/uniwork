@@ -15,7 +15,7 @@ import { cn } from "@uniwork/ui/lib/utils"
 // rendered page. One global outline is also what keeps the "exactly one focus
 // ring, not two nested" contract in the same spec.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -27,6 +27,12 @@ const buttonVariants = cva(
         // pins the token and its 3:1 floor.
         outline:
           "border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50",
+        // Dense toolbars already provide the context that identifies an action.
+        // Use a soft filled surface without a persistent edge so these actions
+        // do not compete with data-entry fields; the global focus outline
+        // remains the high-contrast keyboard indicator.
+        toolbar:
+          "border-transparent bg-surface-hover/60 hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground",
         // Brand-filled state for a control that is currently ON (an active
         // filter, a selected toggle). Self-contained on purpose: passing
         // brand classes through `className` on top of `outline` does NOT
@@ -42,31 +48,55 @@ const buttonVariants = cva(
         // reads as hover rather than as a colour change.
         brand:
           "border-brand bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground active:bg-brand/85 aria-expanded:bg-brand/90 aria-expanded:text-brand-foreground",
-        // Brand tint for "there is activity here" — present, but not
-        // claiming the loud filled state. Light and dark take their own
-        // opacity notches: the same alpha does not read equally against a
-        // white and a near-black surface, so dark runs one notch hotter.
+        // The brand as a wash — "there is activity here", the AI entry point,
+        // a chip that is ON without claiming the filled state. Reads the
+        // measured --brand-subtle pair (5.62 light / 5.82 dark on the wash)
+        // instead of an alpha of the brand, so the same button measures the
+        // same on a card and on the muted band. Hover deepens the wash one
+        // notch through the brand itself; the text stays the brand colour.
         brandSubtle:
-          "border-brand/28 bg-brand/7 text-foreground hover:bg-brand/12 hover:text-foreground active:bg-brand/16 aria-expanded:bg-brand/12 aria-expanded:text-foreground dark:border-brand/45 dark:bg-brand/12 dark:hover:bg-brand/18 dark:active:bg-brand/24 dark:aria-expanded:bg-brand/18",
+          "border-transparent bg-brand-subtle text-brand-subtle-foreground hover:bg-brand/15 hover:text-brand-subtle-foreground active:bg-brand/20 aria-expanded:bg-brand/15 aria-expanded:text-brand-subtle-foreground dark:hover:bg-brand/25 dark:active:bg-brand/30 dark:aria-expanded:bg-brand/25",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        // The soft signal pair, opaque at rest and on hover, so the label
+        // measures the same on the page, a card and the dialog footer — the
+        // old alpha of the text red fell to 3.47:1 on a dark dialog footer.
+        // No `dark:` of its own: the slots flip per theme. The ratios live
+        // beside --destructive-soft-hover in tokens.css and
+        // button.destructive.test.tsx composites them on every plane.
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft-hover focus-visible:border-destructive/40 aria-expanded:bg-destructive-soft-hover",
         link: "text-primary underline-offset-4 hover:underline",
+        // Solid signal fills for the one action that must read as final
+        // (end a meeting, leave a call) or as "go" (admit a guest). They pair
+        // the measured `*-solid` fill with `--on-solid`, so callers stop
+        // stacking `!bg-…` overrides on top of another variant. The hover
+        // deepens through an alpha of the same solid, the convention the
+        // other filled variants use.
+        destructiveSolid:
+          "border-destructive-solid bg-destructive-solid text-on-solid hover:bg-destructive-solid/90 hover:text-on-solid active:bg-destructive-solid/85 aria-expanded:bg-destructive-solid/90 aria-expanded:text-on-solid focus-visible:ring-destructive/30",
+        successSolid:
+          "border-success-solid bg-success-solid text-on-solid hover:bg-success-solid/90 hover:text-on-solid active:bg-success-solid/85 aria-expanded:bg-success-solid/90 aria-expanded:text-on-solid focus-visible:ring-success/30",
+        // A chip on the always-dark meeting stage bar. Reads the meeting-bar
+        // slots, which are dark in both themes, so the chip does not flip
+        // with the page the way `outline` does. `aria-pressed` and an open
+        // popover share the hover wash: the state is also in the icon/label.
+        meetingChip:
+          "border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground aria-expanded:bg-meeting-bar-chip-hover aria-expanded:text-meeting-bar-foreground aria-pressed:bg-meeting-bar-chip-hover data-popup-open:bg-meeting-bar-chip-hover",
       },
       size: {
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-caption in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-label in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        xs: "h-6 gap-1 rounded-sm px-2 text-caption in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1 rounded-md px-2.5 text-label in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         icon: "size-8",
         "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+          "size-6 rounded-sm in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
+          "size-7 rounded-md in-data-[slot=button-group]:rounded-md",
         "icon-lg": "size-9",
       },
     },

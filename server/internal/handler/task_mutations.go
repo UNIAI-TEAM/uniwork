@@ -20,8 +20,11 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := h.Tasks.CreateTaskSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
-		service.CreateTaskInput{Title: in.Title, Description: in.Description, Priority: in.Priority,
-			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate},
+		service.CreateTaskInput{Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
+			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, StartDate: in.StartDate, DueDate: in.DueDate,
+			StartAt: in.StartAt, DueAt: in.DueAt,
+			ProjectID: in.ProjectID, ParentTaskID: in.ParentTaskID, Stage: in.Stage, LabelIDs: in.LabelIDs,
+			AttachmentIDs: in.AttachmentIDs, Properties: in.Properties, AllowDuplicate: in.AllowDuplicate},
 		r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -46,11 +49,12 @@ func (h *handlers) putTaskSuite(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := h.Tasks.UpdateTaskSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"),
 		service.UpdateTaskSuiteInput{
-			Revision: *rev,
-			Title:    in.Title,
-			Status:   in.Status,
-			Priority: in.Priority,
-			Position: in.Position,
+			Revision:    *rev,
+			Title:       in.Title,
+			Description: in.Description,
+			Status:      in.Status,
+			Priority:    in.Priority,
+			Position:    in.Position,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

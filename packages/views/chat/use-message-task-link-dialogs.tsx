@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { ChatMessage } from "./chat-messages";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { LinkTaskDialog } from "./link-task-dialog";
@@ -13,9 +13,10 @@ export type MessageTaskLinkActions = {
 /** Owns create/link task dialogs for the message panel; keeps the panel under max-lines. */
 export function useMessageTaskLinkDialogs(
   workspaceId: string,
-  enabled: boolean,
+  /** The conversation, named in the create dialog's quote of the message. */
+  roomTitle?: string,
 ): {
-  actions: MessageTaskLinkActions | null;
+  actions: MessageTaskLinkActions;
   dialogs: ReactNode;
 } {
   const [createFor, setCreateFor] = useState<ChatMessage | null>(null);
@@ -27,15 +28,13 @@ export function useMessageTaskLinkDialogs(
   const onLinkTask = useCallback((message: ChatMessage) => {
     setLinkFor(message);
   }, []);
-
-  if (!enabled) {
-    return { actions: null, dialogs: null };
-  }
+  // Stable, so the message rows memoised on their actions do not re-render.
+  const actions = useMemo(() => ({ onCreateTask, onLinkTask }), [onCreateTask, onLinkTask]);
 
   const allowSyncThread = Boolean(createFor && !createFor.threadRootId);
 
   return {
-    actions: { onCreateTask, onLinkTask },
+    actions,
     dialogs: (
       <>
         <CreateTaskFromMessageDialog
@@ -46,6 +45,9 @@ export function useMessageTaskLinkDialogs(
           workspaceId={workspaceId}
           messageId={createFor?.id ?? ""}
           messageBody={createFor?.body ?? ""}
+          senderId={createFor?.sender}
+          sentAt={createFor?.ts}
+          roomTitle={roomTitle}
           allowSyncThread={allowSyncThread}
         />
         <LinkTaskDialog

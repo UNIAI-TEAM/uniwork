@@ -1,0 +1,11 @@
+# LiveKit Egress for local recording (docker-compose.livekit.yml service `egress`).
+# ws_url uses the compose service name; redis matches livekit.dev.yaml (host Postgres stack).
+api_key: devkey
+api_secret: secret_must_be_at_least_32_chars
+ws_url: ws://livekit:7880
+insecure: true
+health_port: 8081
+redis:
+  address: host.docker.internal:6379
+logging:
+  level: info

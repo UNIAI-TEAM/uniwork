@@ -15,7 +15,7 @@ const finishMeetingRecording = `-- name: FinishMeetingRecording :one
 UPDATE meeting_recordings
 SET status = $2, file_url = COALESCE($3, file_url), ended_at = now()
 WHERE id = $1 AND status = 'ACTIVE'
-RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at
+RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id
 `
 
 type FinishMeetingRecordingParams struct {
@@ -24,6 +24,7 @@ type FinishMeetingRecordingParams struct {
 	FileUrl pgtype.Text `json:"file_url"`
 }
 
+// tenant: by-id
 func (q *Queries) FinishMeetingRecording(ctx context.Context, arg FinishMeetingRecordingParams) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, finishMeetingRecording, arg.ID, arg.Status, arg.FileUrl)
 	var i MeetingRecording
@@ -36,6 +37,8 @@ func (q *Queries) FinishMeetingRecording(ctx context.Context, arg FinishMeetingR
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -44,7 +47,7 @@ const finishRecordingByEgress = `-- name: FinishRecordingByEgress :one
 UPDATE meeting_recordings
 SET status = $2, file_url = COALESCE($3, file_url), ended_at = COALESCE(ended_at, now())
 WHERE egress_id = $1 AND status IN ('ACTIVE', 'PROCESSING')
-RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at
+RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id
 `
 
 type FinishRecordingByEgressParams struct {
@@ -53,6 +56,7 @@ type FinishRecordingByEgressParams struct {
 	FileUrl  pgtype.Text `json:"file_url"`
 }
 
+// tenant: system
 func (q *Queries) FinishRecordingByEgress(ctx context.Context, arg FinishRecordingByEgressParams) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, finishRecordingByEgress, arg.EgressID, arg.Status, arg.FileUrl)
 	var i MeetingRecording
@@ -65,14 +69,17 @@ func (q *Queries) FinishRecordingByEgress(ctx context.Context, arg FinishRecordi
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getActiveMeetingRecording = `-- name: GetActiveMeetingRecording :one
-SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at FROM meeting_recordings WHERE meeting_id = $1 AND status = 'ACTIVE' ORDER BY started_at DESC LIMIT 1
+SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE meeting_id = $1 AND status = 'ACTIVE' ORDER BY started_at DESC LIMIT 1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID string) (MeetingRecording, error) {
 	row := q.db.QueryRow(ctx, getActiveMeetingRecording, meetingID)
 	var i MeetingRecording
@@ -85,14 +92,17 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
+// tenant: parent meeting_id
 func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string) (MeetingSummary, error) {
 	row := q.db.QueryRow(ctx, getLatestMeetingSummary, meetingID)
 	var i MeetingSummary
@@ -106,21 +116,94 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UsageEventID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
+const getMeetingRecordingByEgressID = `-- name: GetMeetingRecordingByEgressID :one
+SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1
+`
+
+// tenant: system
+func (q *Queries) GetMeetingRecordingByEgressID(ctx context.Context, egressID string) (MeetingRecording, error) {
+	row := q.db.QueryRow(ctx, getMeetingRecordingByEgressID, egressID)
+	var i MeetingRecording
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.EgressID,
+		&i.Status,
+		&i.FileUrl,
+		&i.StartedBy,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const getMeetingRecordingByID = `-- name: GetMeetingRecordingByID :one
+SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE id = $1 AND meeting_id = $2
+`
+
+type GetMeetingRecordingByIDParams struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+}
+
+// tenant: by-id
+func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRecordingByIDParams) (MeetingRecording, error) {
+	row := q.db.QueryRow(ctx, getMeetingRecordingByID, arg.ID, arg.MeetingID)
+	var i MeetingRecording
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.EgressID,
+		&i.Status,
+		&i.FileUrl,
+		&i.StartedBy,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const hasMeetingSummarySource = `-- name: HasMeetingSummarySource :one
+SELECT (
+  EXISTS (SELECT 1 FROM meeting_transcript_segments WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_notes WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_chat_messages WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_motions WHERE meeting_id = $1::text AND status = 'CLOSED')
+)::boolean AS has_source
+`
+
+// tenant: parent meeting_id
+// C-11 §9.1 V1: the same "anything to summarize" test Summarize applies
+// (transcript, notes, meeting chat or a closed motion), as one round trip.
+func (q *Queries) HasMeetingSummarySource(ctx context.Context, meetingID string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasMeetingSummarySource, meetingID)
+	var has_source bool
+	err := row.Scan(&has_source)
+	return has_source, err
+}
+
 const insertMeetingRecording = `-- name: InsertMeetingRecording :one
-INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by)
-VALUES ($1, $2, $3, $4)
-RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at
+INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by, file_id, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id
 `
 
 type InsertMeetingRecordingParams struct {
-	ID        string `json:"id"`
-	MeetingID string `json:"meeting_id"`
-	EgressID  string `json:"egress_id"`
-	StartedBy string `json:"started_by"`
+	ID             string      `json:"id"`
+	MeetingID      string      `json:"meeting_id"`
+	EgressID       string      `json:"egress_id"`
+	StartedBy      string      `json:"started_by"`
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
 }
 
 func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingRecordingParams) (MeetingRecording, error) {
@@ -129,6 +212,8 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 		arg.MeetingID,
 		arg.EgressID,
 		arg.StartedBy,
+		arg.FileID,
+		arg.OrganizationID,
 	)
 	var i MeetingRecording
 	err := row.Scan(
@@ -140,25 +225,28 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id
 `
 
 type InsertMeetingSummaryParams struct {
-	ID           string      `json:"id"`
-	MeetingID    string      `json:"meeting_id"`
-	Summary      string      `json:"summary"`
-	Decisions    string      `json:"decisions"`
-	ActionItems  string      `json:"action_items"`
-	Model        string      `json:"model"`
-	CreatedBy    string      `json:"created_by"`
-	UsageEventID pgtype.Text `json:"usage_event_id"`
+	ID             string      `json:"id"`
+	MeetingID      string      `json:"meeting_id"`
+	Summary        string      `json:"summary"`
+	Decisions      string      `json:"decisions"`
+	ActionItems    string      `json:"action_items"`
+	Model          string      `json:"model"`
+	CreatedBy      string      `json:"created_by"`
+	UsageEventID   pgtype.Text `json:"usage_event_id"`
+	OrganizationID string      `json:"organization_id"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -171,6 +259,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.Model,
 		arg.CreatedBy,
 		arg.UsageEventID,
+		arg.OrganizationID,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -183,23 +272,25 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UsageEventID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const insertTranscriptSegment = `-- name: InsertTranscriptSegment :one
-INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at
+INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at, organization_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id
 `
 
 type InsertTranscriptSegmentParams struct {
-	ID            string             `json:"id"`
-	MeetingID     string             `json:"meeting_id"`
-	ParticipantID pgtype.Text        `json:"participant_id"`
-	SpeakerName   string             `json:"speaker_name"`
-	Text          string             `json:"text"`
-	SpokenAt      pgtype.Timestamptz `json:"spoken_at"`
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	ParticipantID  pgtype.Text        `json:"participant_id"`
+	SpeakerName    string             `json:"speaker_name"`
+	Text           string             `json:"text"`
+	SpokenAt       pgtype.Timestamptz `json:"spoken_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 func (q *Queries) InsertTranscriptSegment(ctx context.Context, arg InsertTranscriptSegmentParams) (MeetingTranscriptSegment, error) {
@@ -210,6 +301,7 @@ func (q *Queries) InsertTranscriptSegment(ctx context.Context, arg InsertTranscr
 		arg.SpeakerName,
 		arg.Text,
 		arg.SpokenAt,
+		arg.OrganizationID,
 	)
 	var i MeetingTranscriptSegment
 	err := row.Scan(
@@ -220,14 +312,44 @@ func (q *Queries) InsertTranscriptSegment(ctx context.Context, arg InsertTranscr
 		&i.Text,
 		&i.SpokenAt,
 		&i.CreatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
-const listMeetingRecordings = `-- name: ListMeetingRecordings :many
-SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC
+const listMeetingRecordingFileHolds = `-- name: ListMeetingRecordingFileHolds :many
+SELECT DISTINCT file_id
+FROM meeting_recordings
+WHERE file_id = ANY($1::text[])
 `
 
+// tenant: system
+// FS-C1 section 6: a live recording row holds its file.
+func (q *Queries) ListMeetingRecordingFileHolds(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listMeetingRecordingFileHolds, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMeetingRecordings = `-- name: ListMeetingRecordings :many
+SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at, file_id, organization_id FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC
+`
+
+// tenant: parent meeting_id
 func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) ([]MeetingRecording, error) {
 	rows, err := q.db.Query(ctx, listMeetingRecordings, meetingID)
 	if err != nil {
@@ -246,6 +368,8 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 			&i.StartedBy,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.FileID,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -258,14 +382,30 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
+  AND (
+    NOT EXISTS (
+      SELECT 1 FROM meeting_conference_sessions s
+      WHERE s.meeting_id = m.id
+        AND s.status = 'ACTIVE'
+    )
+    OR m.ends_at < $2
+  )
 LIMIT 50
 `
 
-func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, endsAt pgtype.Timestamptz) ([]Meeting, error) {
-	rows, err := q.db.Query(ctx, listOverdueInProgressMeetings, endsAt)
+type ListOverdueInProgressMeetingsParams struct {
+	Now            pgtype.Timestamptz `json:"now"`
+	OvertimeCutoff pgtype.Timestamptz `json:"overtime_cutoff"`
+}
+
+// tenant: system
+// Empty/idle rooms past ends_at, or ACTIVE rooms past the overtime cutoff
+// (now − 2h). Live = session status ACTIVE only; IDLE does not keep the row.
+func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOverdueInProgressMeetingsParams) ([]Meeting, error) {
+	rows, err := q.db.Query(ctx, listOverdueInProgressMeetings, arg.Now, arg.OvertimeCutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -299,6 +439,10 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, endsAt pgty
 			&i.CancelReason,
 			&i.ProjectID,
 			&i.CreatedByKind,
+			&i.QuorumPercent,
+			&i.AttendanceFinalizedAt,
+			&i.AttendanceFinalizedBy,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -310,17 +454,32 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, endsAt pgty
 	return items, nil
 }
 
-const listTranscriptSegments = `-- name: ListTranscriptSegments :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at ASC, id ASC LIMIT $2
+const listTranscriptSegmentsBefore = `-- name: ListTranscriptSegmentsBefore :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at <= $2::timestamptz
+  AND (spoken_at, id) < ($2::timestamptz, $3::text)
+ORDER BY spoken_at DESC, id DESC
+LIMIT $4
 `
 
-type ListTranscriptSegmentsParams struct {
-	MeetingID string `json:"meeting_id"`
-	Limit     int32  `json:"limit"`
+type ListTranscriptSegmentsBeforeParams struct {
+	MeetingID string             `json:"meeting_id"`
+	BeforeAt  pgtype.Timestamptz `json:"before_at"`
+	BeforeID  string             `json:"before_id"`
+	RowLimit  int32              `json:"row_limit"`
 }
 
-func (q *Queries) ListTranscriptSegments(ctx context.Context, arg ListTranscriptSegmentsParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegments, arg.MeetingID, arg.Limit)
+// tenant: parent meeting_id
+// The page older than the cursor row; the plain spoken_at bound lets the
+// (meeting_id, spoken_at) index start the scan at the cursor.
+func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTranscriptSegmentsBeforeParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsBefore,
+		arg.MeetingID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +495,92 @@ func (q *Queries) ListTranscriptSegments(ctx context.Context, arg ListTranscript
 			&i.Text,
 			&i.SpokenAt,
 			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+WHERE meeting_id = $1 AND created_at >= $2::timestamptz
+ORDER BY created_at ASC, id ASC
+LIMIT $3
+`
+
+type ListTranscriptSegmentsCreatedSinceParams struct {
+	MeetingID string             `json:"meeting_id"`
+	Since     pgtype.Timestamptz `json:"since"`
+	RowLimit  int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Delta read keyed on created_at, not spoken_at: spoken_at comes from the
+// caption client or the STT agent and can land behind rows already read.
+func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg ListTranscriptSegmentsCreatedSinceParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince, arg.MeetingID, arg.Since, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsLatest = `-- name: ListTranscriptSegmentsLatest :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2
+`
+
+type ListTranscriptSegmentsLatestParams struct {
+	MeetingID string `json:"meeting_id"`
+	Limit     int32  `json:"limit"`
+}
+
+// tenant: parent meeting_id
+// Newest first; callers reverse the page into reading order (G18).
+func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTranscriptSegmentsLatestParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest, arg.MeetingID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}

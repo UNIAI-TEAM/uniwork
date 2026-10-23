@@ -31,8 +31,13 @@ var avatarExtByType = map[string]string{
 //
 // The first real consumer of the storage layer: the key is written under the
 // user's own prefix, the object goes to storage first, and only then is the
-// URL persisted, so a row never points at bytes that do not exist.
+// URL persisted, so a row never points at bytes that do not exist. With
+// FileService wired (UNI-744), the service owns the whole swap instead.
 func (h *handlers) uploadAvatar(w http.ResponseWriter, r *http.Request) {
+	if h.Auth.FilesEnabled() {
+		h.uploadAvatarFS(w, r)
+		return
+	}
 	if h.Storage == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
@@ -82,6 +87,38 @@ func (h *handlers) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		// The object is orphaned; storage cleanup is best-effort and must not
 		// turn a failed row update into a second failure for the client.
 		h.Storage.Delete(r.Context(), key)
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
+}
+
+// uploadAvatarFS is the FileService branch: the service streams the part into
+// files.Upload, claims it against the user and releases the previous avatar in
+// one transaction. The envelope cap stays so a multipart bomb never reaches
+// the service.
+func (h *handlers) uploadAvatarFS(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarBytes+64<<10)
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			respondError(w, http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("avatar must be at most %d bytes", maxAvatarBytes))
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+		return
+	}
+	defer file.Close()
+
+	filename := "avatar"
+	if header != nil {
+		if base := path.Base(header.Filename); base != "" && base != "." && base != ".." {
+			filename = base
+		}
+	}
+	u, err := h.Auth.UploadAvatar(r.Context(), middleware.UserID(r.Context()), filename, file)
+	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}

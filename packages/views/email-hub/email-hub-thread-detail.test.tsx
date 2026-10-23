@@ -1,0 +1,116 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useEmailHubTrustedSendersStore } from "@uniwork/core/email-hub/trusted-senders";
+import { initI18n } from "@uniwork/core/i18n";
+import type { EmailHubThread } from "@uniwork/core/types/email-hub";
+import { wrap } from "../test/api-mock";
+import { EmailHubThreadDetail } from "./email-hub-thread-detail";
+import type { EmailHubThreadActions } from "./email-hub-thread-toolbar";
+
+initI18n();
+
+beforeEach(() => useEmailHubTrustedSendersStore.setState({ senders: {} }));
+
+function thread(id: string): EmailHubThread {
+  return {
+    id,
+    account_id: "acc1",
+    folder: "INBOX",
+    subject: `Bản tin ${id}`,
+    snippet: "",
+    from_addr: "news@example.com",
+    to_addrs: [],
+    sent_at: "2026-09-24T09:00:00Z",
+    is_read: true,
+    is_starred: false,
+    has_attachments: false,
+    body_cached: true,
+    imap_labels: [],
+    body_html: `<p>Hi</p><img src="https://track.example.com/${id}.gif">`,
+  };
+}
+
+const actions = new Proxy({}, { get: () => vi.fn() }) as EmailHubThreadActions;
+const pending = { star: false, move: false, markRead: false, snooze: false, download: false };
+
+function detail(active: EmailHubThread, shortcutsOn = true) {
+  return wrap(
+    <EmailHubThreadDetail
+      wsId="ws1"
+      accountId="acc1"
+      activeThread={active}
+      browserFolder="INBOX"
+      detailData={active}
+      readableBody
+      bodyLoading={false}
+      bodyLoadFailed={false}
+      onBodyRefetch={() => {}}
+      actions={actions}
+      pending={pending}
+      aiOpen={false}
+      shortcutsOn={shortcutsOn}
+    />,
+  );
+}
+
+const frameDoc = () => screen.getByTitle(/^Bản tin/).getAttribute("srcdoc") ?? "";
+
+describe("EmailHubThreadDetail remote images", () => {
+  it("shows images only for the email the reader allowed, never the next one", () => {
+    const { rerender } = render(detail(thread("a")));
+    expect(frameDoc()).toContain("img-src data: cid:");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hiện ảnh" }));
+    expect(screen.queryByRole("button", { name: "Hiện ảnh" })).not.toBeInTheDocument();
+    expect(frameDoc()).not.toContain("img-src data: cid:");
+
+    rerender(detail(thread("b")));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+    expect(frameDoc()).toContain("img-src data: cid:");
+
+    // A fresh mount (another session, a reload) starts blocked too.
+    rerender(<></>);
+    render(detail(thread("c")));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+  });
+
+  it("shows images from a trusted sender without asking, until the reader stops trusting them", () => {
+    const { rerender } = render(detail(thread("a")));
+    fireEvent.click(screen.getByRole("button", { name: "Luôn hiện ảnh từ người gửi này" }));
+    expect(frameDoc()).not.toContain("img-src data: cid:");
+    expect(screen.getByText(/Đang hiện ảnh vì bạn tin news@example\.com/)).toBeInTheDocument();
+    // Focus moves to the button that replaced the pressed one, not to <body>.
+    expect(screen.getByRole("button", { name: "Thôi tin" })).toHaveFocus();
+
+    rerender(detail(thread("b")));
+    expect(screen.queryByRole("button", { name: "Hiện ảnh" })).not.toBeInTheDocument();
+    expect(frameDoc()).not.toContain("img-src data: cid:");
+
+    rerender(detail({ ...thread("c"), from_addr: "stranger@phish.example" }));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+    expect(frameDoc()).toContain("img-src data: cid:");
+
+    rerender(detail(thread("d")));
+    fireEvent.click(screen.getByRole("button", { name: "Thôi tin" }));
+    expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
+    expect(frameDoc()).toContain("img-src data: cid:");
+  });
+});
+
+describe("EmailHubThreadDetail toolbar shortcuts", () => {
+  const announced = () =>
+    Object.fromEntries(
+      [...screen.getByRole("toolbar").querySelectorAll("[aria-keyshortcuts]")].map((el) => [el.getAttribute("aria-label"), el.getAttribute("aria-keyshortcuts")]),
+    );
+
+  it("advertises the single keys while the switch is on", () => {
+    render(detail(thread("a")));
+    expect(Object.values(announced()).sort()).toEqual(["#", "E", "Escape", "S", "Shift+U"]);
+  });
+
+  it("advertises only the back button's Escape while the switch is off", () => {
+    render(detail(thread("a"), false));
+    expect(Object.values(announced())).toEqual(["Escape"]);
+    expect(screen.getByRole("button", { name: /^Quay lại danh sách/ })).toHaveAttribute("aria-keyshortcuts", "Escape");
+  });
+});

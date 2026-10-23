@@ -1,0 +1,147 @@
+import { describe, expect, it } from "vitest";
+import { buildUnifiedSidebarEntries, chatSidebarTabCounts, chatSidebarTabFilters } from "./chat-sidebar-unified";
+
+describe("buildUnifiedSidebarEntries", () => {
+  it("sorts pinned then recent across kinds into one list", () => {
+    const entries = buildUnifiedSidebarEntries({
+      kindFilter: "all",
+      filterText: "",
+      workspaceTitle: "General",
+      workspaceRoomId: "ws",
+      channels: [],
+      groups: [
+        {
+          id: "g1",
+          name: "Design",
+          room_id: "g-room",
+          member_user_ids: ["u1"],
+        },
+      ],
+      contacts: [
+        {
+          user_id: "u2",
+          email: "a@example.com",
+          display_name: "Binh",
+          dm_room_id: "dm1",
+        },
+      ],
+      nicknamesByUserId: {},
+      roomPreviewsByRoomId: {
+        dm1: {
+          body: "hi",
+          kind: "text",
+          senderId: "u2",
+          senderName: "Binh",
+          createdAt: "2026-09-11T12:00:00.000Z",
+        },
+        "g-room": {
+          body: "old",
+          kind: "text",
+          senderId: "u1",
+          senderName: "A",
+          createdAt: "2026-09-10T12:00:00.000Z",
+        },
+        ws: {
+          body: "mid",
+          kind: "text",
+          senderId: "u1",
+          senderName: "A",
+          createdAt: "2026-09-11T10:00:00.000Z",
+        },
+      },
+      pinnedByRoomId: {
+        "g-room": { pinned: true, pinnedAt: Date.parse("2026-09-01T00:00:00.000Z") },
+      },
+    });
+
+    expect(entries.map((e) => e.key)).toEqual(["group:g1", "dm:u2", "workspace"]);
+  });
+
+  it("applies kind filter", () => {
+    const entries = buildUnifiedSidebarEntries({
+      kindFilter: "dm",
+      filterText: "",
+      workspaceTitle: "General",
+      workspaceRoomId: "ws",
+      channels: [],
+      groups: [
+        {
+          id: "g1",
+          name: "Design",
+          room_id: "g-room",
+          member_user_ids: ["u1"],
+        },
+      ],
+      contacts: [
+        {
+          user_id: "u2",
+          email: "a@example.com",
+          display_name: "Binh",
+          dm_room_id: "dm1",
+        },
+      ],
+      nicknamesByUserId: {},
+      roomPreviewsByRoomId: {},
+      pinnedByRoomId: {},
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.kind).toBe("dm");
+  });
+
+  it("filters to unread and mention rooms (UNI-515)", () => {
+    const base = {
+      kindFilter: "all" as const,
+      filterText: "",
+      workspaceTitle: "General",
+      workspaceRoomId: "ws",
+      channels: [],
+      groups: [
+        {
+          id: "g1",
+          name: "Design",
+          room_id: "g-room",
+          member_user_ids: ["u1"],
+        },
+      ],
+      contacts: [
+        {
+          user_id: "u2",
+          email: "a@example.com",
+          display_name: "Binh",
+          dm_room_id: "dm1",
+        },
+      ],
+      nicknamesByUserId: {},
+      roomPreviewsByRoomId: {},
+      pinnedByRoomId: {},
+      unreadByRoomId: { dm1: 2, "g-room": 0, ws: 1 },
+      mentionUnreadByRoomId: { dm1: 1, "g-room": 0, ws: 0 },
+    };
+
+    expect(
+      new Set(buildUnifiedSidebarEntries({ ...base, activityFilter: "unread" }).map((e) => e.key)),
+    ).toEqual(new Set(["dm:u2", "workspace"]));
+
+    expect(
+      buildUnifiedSidebarEntries({ ...base, activityFilter: "mentions" }).map((e) => e.key),
+    ).toEqual(["dm:u2"]);
+  });
+
+  it("maps each tab to one kind and one read-state filter", () => {
+    expect(chatSidebarTabFilters("mentions")).toEqual({ kindFilter: "all", activityFilter: "mentions" });
+    expect(chatSidebarTabFilters("channel")).toEqual({ kindFilter: "channel", activityFilter: "all" });
+    expect(chatSidebarTabFilters("all")).toEqual({ kindFilter: "all", activityFilter: "all" });
+  });
+
+  it("counts conversations, not messages, and leaves muted rooms out of All", () => {
+    expect(
+      chatSidebarTabCounts({
+        roomIds: ["ws", "dm1", "dm1", "g", "ch", ""],
+        unreadByRoomId: { ws: 0, dm1: 2, g: 14, ch: 3, elsewhere: 9 },
+        mentionUnreadByRoomId: { ch: 1, elsewhere: 1 },
+        mutedRoomIds: new Set(["g"]),
+      }),
+    ).toEqual({ all: 2, unread: 3, mentions: 1 });
+  });
+});

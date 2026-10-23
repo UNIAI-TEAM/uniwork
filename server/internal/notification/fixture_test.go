@@ -55,6 +55,7 @@ func newFixture(t *testing.T) *fixture {
 		meetings: service.NewMeetingService(pool, q, ws, service.NopPublisher{}, nil, service.MeetingRuntime{}),
 		consumer: NewConsumer(pool, q, ws),
 	}
+	f.consumer.SetOrgMembers(orgs)
 	f.owner = f.register(t, auth, "owner@example.com", "Chủ Nhóm")
 	f.member = f.register(t, auth, "member@example.com", "Thành Viên")
 	org, err := orgs.Create(ctx, f.owner.ID, "Notif Org", "notif-org")
@@ -70,7 +71,7 @@ func newFixture(t *testing.T) *fixture {
 	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: org.ID, UserID: f.member.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.wsID, UserID: f.member.ID, Role: "member"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: f.wsID, OrganizationID: org.ID, UserID: f.member.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
 	return f
@@ -127,6 +128,26 @@ func (f *fixture) inbox(t *testing.T, userID string) []db.Notification {
 		t.Fatal(err)
 	}
 	return rows
+}
+
+// readAll marks every unread notification of userID read, so the next event
+// opens a fresh row instead of merging into the open one.
+func (f *fixture) readAll(t *testing.T, userID string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL`, userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// markDigestedForUser closes every open notification row for userID so a
+// digest run does not mail them; channel reminder tests use it on the owner,
+// who is always in the room while the case under test is the member.
+func (f *fixture) markDigestedForUser(t *testing.T, userID string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE notifications SET digested_at = now() WHERE user_id = $1 AND digested_at IS NULL`, userID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (f *fixture) newTask(t *testing.T, title string) db.Task {

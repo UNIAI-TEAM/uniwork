@@ -5,6 +5,8 @@ import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
 import { ApiError } from "../api/http";
 import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User, type UserSession } from "../types/user";
+import { workspaceKeys } from "../workspaces/keys";
+import { hasSessionHint } from "./session-hint";
 import { useAuthStore, type SessionStatus } from "./store";
 
 export type { SessionStatus };
@@ -28,6 +30,20 @@ export function useSession(): { user: User | null; status: SessionStatus } {
   const state = useAuthStore(useShallow((s) => ({ user: s.user, status: s.status })));
   useEffect(() => {
     void useAuthStore.getState().initialize();
+  }, []);
+  return state;
+}
+
+/**
+ * useSession for pages that skip the start-up refresh (marketing): it asks
+ * the server only when this browser was signed in last time, so an anonymous
+ * visitor still costs no request. Without the hint the status stays
+ * "loading"; callers treat anything but "authed" as signed out.
+ */
+export function useKnownSession(): { user: User | null; status: SessionStatus } {
+  const state = useAuthStore(useShallow((s) => ({ user: s.user, status: s.status })));
+  useEffect(() => {
+    if (hasSessionHint()) void useAuthStore.getState().initialize();
   }, []);
   return state;
 }
@@ -117,12 +133,10 @@ export function useRevokeOtherSessions() {
 }
 
 export function useDeleteAccount() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: auth.DeleteAccountBody) => auth.deleteAccount(body),
     onSuccess: async () => {
       await useAuthStore.getState().logout();
-      qc.clear();
     },
   });
 }
@@ -143,10 +157,8 @@ export function useRegister() {
 }
 
 export function useLogout() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: () => useAuthStore.getState().logout(),
-    onSuccess: () => qc.clear(),
   });
 }
 
@@ -199,10 +211,12 @@ export function useResetPassword() {
 }
 
 export function useUploadAvatar() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => auth.uploadAvatar(file),
     onSuccess: (user) => {
       if (user) setSessionUser(user);
+      void queryClient.invalidateQueries({ queryKey: workspaceKeys.allMembers() });
     },
   });
 }

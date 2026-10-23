@@ -6,8 +6,10 @@ import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
 import { ChatCreatePostDialog } from "./chat-create-post-dialog";
+import { ChatDocumentPicker } from "./chat-document-picker";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceSettingsSheet } from "./workspace-settings-sheet";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 
@@ -30,7 +32,6 @@ type ChatPageContentDialogsProps = Pick<
   | "onDmSettingsOpenChange"
   | "channelSettingsOpen"
   | "onChannelSettingsOpenChange"
-  | "workHubEnabled"
   | "setTarget"
   | "dmBlockedByMe"
   | "dmBlockedMe"
@@ -47,11 +48,19 @@ type ChatPageContentDialogsProps = Pick<
   | "onLeaveDm"
   | "onLeaveChannel"
   | "workspaceMembers"
+  | "memberAvatarByUserId"
   | "workspaceSettingsOpen"
   | "onWorkspaceSettingsOpenChange"
   | "activeRoomId"
   | "canPinMessages"
   | "t"
+  | "onMessageSearchOpenChange"
+  | "onVoiceCall"
+  | "voiceCallDisabled"
+  | "onVideoCall"
+  | "videoCallDisabled"
+  | "replyTo"
+  | "onReplyToChange"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -61,6 +70,8 @@ type ChatPageContentDialogsProps = Pick<
   onCreateNoteOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createPostOpen: boolean;
   onCreatePostOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  documentPickerOpen: boolean;
+  onDocumentPickerOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ChatPageContentDialogs({
@@ -81,7 +92,6 @@ export function ChatPageContentDialogs({
   onDmSettingsOpenChange,
   channelSettingsOpen,
   onChannelSettingsOpenChange,
-  workHubEnabled,
   setTarget,
   dmBlockedByMe,
   dmBlockedMe,
@@ -98,11 +108,19 @@ export function ChatPageContentDialogs({
   onLeaveDm,
   onLeaveChannel,
   workspaceMembers,
+  memberAvatarByUserId,
   workspaceSettingsOpen,
   onWorkspaceSettingsOpenChange,
   activeRoomId,
   canPinMessages,
   t,
+  onMessageSearchOpenChange,
+  onVoiceCall,
+  voiceCallDisabled,
+  onVideoCall,
+  videoCallDisabled,
+  replyTo,
+  onReplyToChange,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
@@ -111,7 +129,22 @@ export function ChatPageContentDialogs({
   onCreateNoteOpenChange,
   createPostOpen,
   onCreatePostOpenChange,
+  documentPickerOpen,
+  onDocumentPickerOpenChange,
 }: ChatPageContentDialogsProps) {
+  const messageMember = (member: ChatMemberMessageTarget) => {
+    setTarget({
+      kind: "dm",
+      contact: {
+        user_id: member.user_id,
+        email: member.email,
+        display_name: member.display_name.trim() || member.email,
+      },
+    });
+    onWorkspaceSettingsOpenChange(false);
+    onGroupSettingsOpenChange(false);
+    onChannelSettingsOpenChange(false);
+  };
   return (
     <>
       {activeRoomId ? (
@@ -120,6 +153,14 @@ export function ChatPageContentDialogs({
           onOpenChange={onCreatePollOpenChange}
           workspaceId={workspaceId}
           roomId={activeRoomId}
+          canPinToTop={canPinMessages}
+          destination={
+            target.kind === "group"
+              ? t("chat.poll_send_to_group", { name: headerTitle })
+              : target.kind === "dm"
+                ? t("chat.poll_send_to_dm", { name: headerTitle })
+                : t("chat.poll_send_to_channel", { name: headerTitle })
+          }
         />
       ) : null}
       {activeRoomId ? (
@@ -148,6 +189,16 @@ export function ChatPageContentDialogs({
           canPinToTop={canPinMessages}
         />
       ) : null}
+      {activeRoomId ? (
+        <ChatDocumentPicker
+          open={documentPickerOpen}
+          onOpenChange={onDocumentPickerOpenChange}
+          workspaceId={workspaceId}
+          roomId={activeRoomId}
+          replyToId={replyTo?.id}
+          onSent={() => onReplyToChange(null)}
+        />
+      ) : null}
       {target.kind === "workspace" && workspaceRoomId ? (
         <WorkspaceSettingsSheet
           open={workspaceSettingsOpen}
@@ -158,6 +209,8 @@ export function ChatPageContentDialogs({
           workspaceMembers={workspaceMembers}
           currentUserId={currentUserId}
           youLabel={t("chat.you")}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
+          onMessage={messageMember}
         />
       ) : null}
       {target.kind === "group" && activeGroup ? (
@@ -170,11 +223,14 @@ export function ChatPageContentDialogs({
             currentUserId={currentUserId}
             youLabel={t("chat.you")}
             memberProfiles={groupMemberProfiles}
+            memberAvatarByUserId={memberAvatarByUserId}
             nicknamesByUserId={nicknamesByUserId}
             onAddMembers={() => onAddMembersOpenChange(true)}
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
+            onMessage={messageMember}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
@@ -209,9 +265,15 @@ export function ChatPageContentDialogs({
           onUnblock={onUnblockContact}
           blocking={blockingContact}
           unblocking={unblockingContact}
+          memberAvatarByUserId={memberAvatarByUserId}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
+          onVoiceCall={onVoiceCall}
+          voiceCallDisabled={voiceCallDisabled}
+          onVideoCall={onVideoCall}
+          videoCallDisabled={videoCallDisabled}
         />
       ) : null}
-      {workHubEnabled && activeChannel ? (
+      {activeChannel ? (
         <>
           <ChannelSettingsSheet
             open={channelSettingsOpen}
@@ -220,6 +282,7 @@ export function ChatPageContentDialogs({
             channel={activeChannel}
             currentUserId={currentUserId}
             youLabel={t("chat.you")}
+            memberAvatarByUserId={memberAvatarByUserId}
             onArchived={() => setTarget({ kind: "workspace" })}
             onAddMembers={
               activeChannel.is_default ? undefined : () => onAddMembersOpenChange(true)
@@ -227,6 +290,8 @@ export function ChatPageContentDialogs({
             onLeave={activeChannel.is_default ? undefined : onLeaveChannel}
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
+            onMessage={messageMember}
           />
           {!activeChannel.is_default ? (
             <AddGroupMembersDialog
@@ -237,7 +302,8 @@ export function ChatPageContentDialogs({
                 id: activeChannel.id,
                 name: activeChannel.name,
                 room_id: activeChannel.id,
-                member_user_ids: activeChannel.member_user_ids,
+                // The channel's roster, already loaded for the open room.
+                member_user_ids: Object.keys(groupMemberProfiles),
               }}
               currentUserId={currentUserId}
               contacts={contacts}

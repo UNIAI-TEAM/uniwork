@@ -1,6 +1,9 @@
 package sdo
 
-import "github.com/unicomhub/uniwork/server/internal/workcapability"
+import (
+	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/workcapability"
+)
 
 // ErrorSDO is the envelope for every 4xx/5xx JSON body.
 type ErrorSDO struct {
@@ -14,6 +17,10 @@ type ErrorDetail struct {
 	// meter, limit, current, delta; capability_unavailable: reason_code matching
 	// workcapability catalogue keys such as agent_runtime_missing).
 	Fields map[string]any `json:"fields,omitempty" description:"Chi tiết máy đọc được (vd. reason_code cho capability_unavailable)"`
+	// ErrorClass is the coarse class a client switches on for its recovery
+	// path (conflict | gone | quota | permission | missing | incompatible |
+	// session). Omitted for codes outside the table in error_class.go.
+	ErrorClass string `json:"error_class,omitempty" description:"Lớp lỗi thô để client chọn hướng xử lý (conflict | gone | quota | permission | missing | incompatible | session)" example:"conflict"`
 }
 
 // ReadinessCheckSDO is one dependency probe of /readyz.
@@ -41,4 +48,56 @@ type ConfigSDO struct {
 	Flags                      map[string]bool                 `json:"flags" description:"Flag public theo ngữ cảnh người gọi" example:"{\"rum_sampling\":true}"`
 	RumSampleRate              float64                         `json:"rum_sample_rate" description:"Tỷ lệ phiên gửi web-vitals, 0..1" example:"0.2"`
 	WorkManagementCapabilities map[string]workcapability.Entry `json:"work_management_capabilities" description:"Catalog capability Work Management (status + reason_code)"`
+	OfficeInstallerURLs        OfficeInstallerURLsSDO          `json:"office_installer_urls" description:"Installer URL per deployment channel; empty means unavailable"`
+	OfficeInstallers           OfficeInstallerChannelsSDO      `json:"office_installers" description:"Platform installer catalogue per deployment channel"`
+	OfficeDeploymentID         string                          `json:"office_deployment_id" description:"Configured deployment binding for Office launch sessions" example:"default"`
+	OfficeAPIOrigin            string                          `json:"office_api_origin" description:"Public API origin the desktop app signs in to; empty when not a bare http(s) origin" example:"https://uniworkos.com"`
+	UniChatInstallers          OfficeInstallerChannelsSDO      `json:"unichat_installers" description:"Bản cài UniChat desktop theo kênh, cùng hợp đồng nền tảng với Office; mảng rỗng là chưa phát hành"`
+	UniChatStores              config.UniChatStoreLinks        `json:"unichat_stores" description:"Link store điện thoại của UniChat; chuỗi rỗng là chưa phát hành"`
+	Documents                  DocumentsConfigSDO              `json:"documents" description:"Giới hạn tải lên, lưu và mở tài liệu trên trình duyệt"`
+}
+
+type DocumentsConfigSDO struct {
+	Limits DocumentLimitsSDO `json:"limits" description:"Giới hạn dung lượng tệp tài liệu và ngưỡng cảnh báo mở trên web"`
+}
+
+type DocumentLimitsSDO struct {
+	UploadMaxBytes int64                    `json:"upload_max_bytes" description:"Dung lượng tối đa cho phép khi tải lên hoặc lưu tệp tài liệu (byte)" example:"209715200"`
+	SaveWarnRatio  float64                  `json:"save_warn_ratio" description:"Tỷ lệ cảnh báo sớm so với upload_max_bytes khi lưu trong trình soạn thảo (0..1)" example:"0.9"`
+	WebOpen        DocumentWebOpenLimitsSDO `json:"web_open" description:"Ngưỡng cảnh báo mềm theo định dạng khi mở trực tiếp trên trình duyệt"`
+	// Chunked upload (BIGUP-S1, addendum §6.2): present only when the active
+	// object store supports multipart uploads and presigned URLs. The local
+	// backend has neither, so the field is absent there and the web keeps the
+	// one-request flow.
+	ChunkedUploadThresholdBytes *int64 `json:"chunked_upload_threshold_bytes,omitempty" description:"Ngưỡng để client chuyển sang phiên tải lên nhiều phần (byte); vắng mặt khi backend lưu trữ không hỗ trợ multipart + presign" example:"20971520"`
+	// Folder upload (UNI-2052): the limits a PLAN enforces, and the file
+	// extensions an upload accepts so the client can filter a folder first.
+	FolderUpload     FolderUploadLimitsSDO `json:"folder_upload" description:"Giới hạn của một lần tải thư mục"`
+	UploadExtensions []string              `json:"upload_extensions" description:"Đuôi tệp được tải lên (chữ thường, không dấu chấm); server vẫn kiểm lại" example:"[\"pdf\",\"docx\",\"xlsx\"]"`
+}
+
+type FolderUploadLimitsSDO struct {
+	MaxFiles      int   `json:"max_files" description:"Số tệp tối đa của một lần tải thư mục" example:"500"`
+	MaxFolders    int   `json:"max_folders" description:"Số thư mục tối đa một lần tải tạo ra, tính cả thư mục gốc" example:"500"`
+	MaxTotalBytes int64 `json:"max_total_bytes" description:"Tổng dung lượng tối đa của một lần tải (byte)" example:"2147483648"`
+	MaxDepth      int   `json:"max_depth" description:"Độ sâu tối đa của cây tài liệu, tính cả thư mục cha" example:"20"`
+	CompleteBatch int   `json:"complete_batch" description:"Số tệp tối đa trong một lần gọi complete" example:"50"`
+	Parallel      int   `json:"parallel" description:"Số tệp nên tải song song" example:"6"`
+}
+
+type DocumentWebOpenLimitsSDO struct {
+	DOCX DocumentFormatOpenLimitSDO `json:"docx" description:"Ngưỡng cảnh báo mở tệp DOCX trên trình duyệt"`
+	PPTX DocumentFormatOpenLimitSDO `json:"pptx" description:"Ngưỡng cảnh báo mở tệp PPTX trên trình duyệt"`
+	PDF  DocumentFormatOpenLimitSDO `json:"pdf" description:"Ngưỡng cảnh báo mở tệp PDF trên trình duyệt"`
+	XLSX DocumentFormatOpenLimitSDO `json:"xlsx" description:"Ngưỡng cảnh báo mở tệp XLSX trên trình duyệt"`
+}
+
+type DocumentFormatOpenLimitSDO struct {
+	WarnBytes int64 `json:"warn_bytes" description:"Dung lượng bắt đầu hiển thị cảnh báo mềm trước khi mở trên web (byte)" example:"31457280"`
+}
+
+type OfficeInstallerURLsSDO struct {
+	Dev    string `json:"dev" description:"Test/dev channel installer URL"`
+	Beta   string `json:"beta" description:"Beta channel installer URL"`
+	Stable string `json:"stable" description:"Stable channel installer URL"`
 }

@@ -1,10 +1,16 @@
 package sdi
 
-// NotificationIDsSDI is the body of POST /api/v1/me/notifications/{read,unread,archive}.
+// NotificationIDsSDI is the body of POST /api/v1/me/notifications/{read,unread,archive,unarchive}.
 type NotificationIDsSDI struct {
 	IDs         []string `json:"ids" description:"Id thông báo của chính người gọi; id của người khác trả 404" example:"[\"01K4NOTIF00000000000000001\"]"`
 	All         bool     `json:"all" description:"Chỉ với /read: đánh dấu tất cả đã đọc, bỏ qua ids" example:"false"`
 	WorkspaceID string   `json:"workspace_id" description:"Với all=true: giới hạn trong một workspace" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+}
+
+// NotificationDocumentsSDI is the query of GET /api/v1/me/notifications/{notificationID}/documents.
+type NotificationDocumentsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước (chuỗi mờ, gửi lại nguyên vẹn); chỉ dùng được cho đúng thông báo và người gọi đã tạo ra nó" example:"ndc1.opaque-cursor"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
 }
 
 // NotificationPreferenceSDI is one row of PUT /api/v1/me/notification-preferences.
@@ -20,16 +26,18 @@ type NotificationPreferencesSDI struct {
 	Preferences []NotificationPreferenceSDI `json:"preferences"`
 }
 
-// PushKeysSDI is the browser's PushSubscription.keys.
+// PushKeysSDI is the browser's PushSubscription.keys; left empty for an Expo
+// token, so the service (not the schema) requires them for https endpoints.
 type PushKeysSDI struct {
-	P256dh string `json:"p256dh" minLength:"1" example:"BNcRd…"`
-	Auth   string `json:"auth" minLength:"1" example:"tBHI…"`
+	P256dh string `json:"p256dh" description:"Bắt buộc với endpoint https; để rỗng với token Expo" example:"BNcRd…"`
+	Auth   string `json:"auth" description:"Bắt buộc với endpoint https; để rỗng với token Expo" example:"tBHI…"`
 }
 
 // PushSubscribeSDI is POST /api/v1/me/push-subscriptions.
 type PushSubscribeSDI struct {
-	Endpoint string      `json:"endpoint" minLength:"1" description:"PushSubscription.endpoint (https)" example:"https://fcm.googleapis.com/fcm/send/abc"`
+	Endpoint string      `json:"endpoint" minLength:"1" description:"PushSubscription.endpoint (https) hoặc token Expo ExponentPushToken[...]" example:"https://fcm.googleapis.com/fcm/send/abc"`
 	Keys     PushKeysSDI `json:"keys"`
+	Platform string      `json:"platform,omitempty" description:"ios | android, bắt buộc khi endpoint là token Expo" example:"ios"`
 }
 
 // PushUnsubscribeSDI is DELETE /api/v1/me/push-subscriptions.

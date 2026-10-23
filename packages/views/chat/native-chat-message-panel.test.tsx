@@ -1,61 +1,150 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { wrap } from "../test/api-mock";
+import { ApiError } from "@uniwork/core/api/http";
+import { requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
+import { ChatUnreadProvider } from "./chat-day-separator";
 
 const toggleReaction = vi.fn().mockResolvedValue(undefined);
+const deleteMessage = vi.fn();
+const editMessage = vi.fn();
+const fetchNextPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
+const fetchNextThreadPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
+const markRead = vi.fn();
+// What the mocked virtual list reports on scroll, and the stick ref it was handed.
+let nearBottom = true;
+let listStickRef: { current: boolean } | null = null;
+let listOnHighlightShown: ((messageId: string) => void) | undefined;
+
+type Row = {
+  id: string;
+  sender_id: string;
+  body: string;
+  kind: string;
+  created_at: string;
+  reply_to_message_id?: string;
+  thread_root_id?: string;
+  reply_count?: number;
+  reactions: Record<string, number>;
+  my_reactions?: string[];
+  thread_following?: boolean;
+  document?: Record<string, unknown>;
+};
+
+const BASE_ROWS: Row[] = [
+  {
+    id: "m1",
+    sender_id: "u2",
+    body: "Hi team",
+    kind: "text",
+    created_at: "2026-01-01T10:00:00.000Z",
+    reactions: {},
+  },
+  {
+    id: "m2",
+    sender_id: "self",
+    body: "Reply",
+    kind: "text",
+    created_at: "2026-01-01T10:01:00.000Z",
+    reply_to_message_id: "m1",
+    reactions: { "👍": 1 },
+    my_reactions: ["👍"],
+  },
+];
+let rows: Row[] = BASE_ROWS;
 
 vi.mock("@uniwork/core/chat", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/chat")>()),
   useChatRoomMessages: () => ({
-    data: [
-      {
-        id: "m1",
-        sender_id: "u2",
-        body: "Hi team",
-        kind: "text",
-        created_at: "2026-01-01T10:00:00.000Z",
-        reply_to_message_id: undefined,
-        reactions: {},
-      },
-      {
-        id: "m2",
-        sender_id: "self",
-        body: "Reply",
-        kind: "text",
-        created_at: "2026-01-01T10:01:00.000Z",
-        reply_to_message_id: "m1",
-        reactions: { "👍": 1 },
-      },
-    ],
+    data: rows,
+    isPending: false,
+    hasNextPage: rows.length >= 80,
+    isFetchingNextPage: false,
+    fetchNextPage,
+  }),
+  useChatThreadMessages: (_ws: string, _room: string, rootId: string) => ({
+    data: rows.filter((row) => row.id === rootId || row.thread_root_id === rootId),
+    hasNextPage: !!rootId,
+    isFetchingNextPage: false,
+    fetchNextPage: fetchNextThreadPage,
   }),
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
+  useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
+  useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
+  useMarkChatRoomReadAtLatest: (...args: unknown[]) => markRead(...args),
 }));
 
-vi.mock("@uniwork/core/api/endpoints/chat", async (orig) => ({
-  ...(await orig<typeof import("@uniwork/core/api/endpoints/chat")>()),
-  listChatRoomMessages: vi.fn().mockResolvedValue([]),
-}));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
+import { toast } from "sonner";
 
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
 vi.mock("./virtual-chat-message-list", () => ({
-  VirtualChatMessageList: ({ messages, header, empty, renderMessage }: any) => (
-    <>
-      {header}
-      {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
-    </>
-  ),
+  // Every scroll here stands for the reader's own.
+  useReaderScrollAt: () => ({ current: Date.now() }),
+  updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
+    ref.current = nearBottom;
+    return nearBottom;
+  },
+  VirtualChatMessageList: ({ messages, header, empty, renderMessage, stickToBottomRef, onHighlightShown }: any) => {
+    listStickRef = stickToBottomRef;
+    listOnHighlightShown = onHighlightShown;
+    return (
+      <>
+        {header}
+        {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
+      </>
+    );
+  },
 }));
 
 beforeAll(() => {
   initI18n();
 });
 
+beforeEach(() => {
+  rows = BASE_ROWS;
+  nearBottom = true;
+  listStickRef = null;
+  listOnHighlightShown = undefined;
+  markRead.mockReset();
+  requestMock.mockReset();
+  deleteMessage.mockReset();
+  editMessage.mockReset();
+  vi.mocked(toast.error).mockReset();
+});
+
+function panel(props: Partial<Parameters<typeof NativeChatMessagePanel>[0]> = {}) {
+  return (
+    <NativeChatMessagePanel
+      workspaceId="ws1"
+      roomId="room1"
+      currentUserId="self"
+      nameContext={NAMES}
+      emptyLabel="No messages"
+      youLabel="Bạn"
+      replyTo={null}
+      onReplyToChange={vi.fn()}
+      onEditMessage={vi.fn()}
+      {...props}
+    />
+  );
+}
+const NAMES = [{ user_id: "u2", display_name: "Binh" }];
+
+const IDS: Record<string, string> = { "Hi team": "m1", Reply: "m2" };
+
+function messageArticle(text: string): HTMLElement {
+  const article = document.getElementById(`chat-msg-${IDS[text] ?? ""}`);
+  if (!article) throw new Error(`no article for ${text}`);
+  return article;
+}
+
 describe("NativeChatMessagePanel", () => {
-  it("renders messages and clears an active reply", () => {
-    const onReplyToChange = vi.fn();
+  it("renders messages and leaves an active reply's bar to the composer", () => {
     const replyTo = {
       id: "m1",
       sender: "u2",
@@ -64,24 +153,451 @@ describe("NativeChatMessagePanel", () => {
       reactions: {},
     };
 
-    render(
-      wrap(
-        <NativeChatMessagePanel
-          workspaceId="ws1"
-          roomId="room1"
-          currentUserId="self"
-          nameContext={[{ user_id: "u2", display_name: "Binh" }]}
-          emptyLabel="No messages"
-          youLabel="You"
-          replyTo={replyTo}
-          onReplyToChange={onReplyToChange}
-        />,
-      ),
-    );
+    render(wrap(panel({ replyTo })));
 
     expect(screen.getAllByText("Hi team").length).toBeGreaterThan(0);
     expect(screen.getByText("Reply")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
-    expect(onReplyToChange).toHaveBeenCalledWith(null);
+    // The quote heads the composer pill now (ChatComposer `replyTo`), not the timeline's foot.
+    expect(screen.queryByRole("button", { name: "Hủy" })).not.toBeInTheDocument();
+  });
+
+  it("names every message's sender and time, mine as “Bạn”, and keeps the list silent", () => {
+    render(wrap(panel()));
+    const mine = messageArticle("Reply");
+    expect(mine).toHaveAccessibleName(/^Bạn, /);
+    expect(messageArticle("Hi team")).toHaveAccessibleName(/^Binh, /);
+    const log = screen.getByRole("log");
+    expect(log).toHaveAttribute("aria-live", "off");
+  });
+
+  it("marks my own reaction as pressed", () => {
+    render(wrap(panel()));
+    const chip = within(messageArticle("Reply")).getByRole("button", { name: /👍, 1 lượt thả, có bạn/ });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("focuses the composer after Reply", async () => {
+    const onFocusComposer = vi.fn();
+    const onReplyToChange = vi.fn();
+    render(wrap(panel({ onFocusComposer, onReplyToChange })));
+    fireEvent.click(within(messageArticle("Hi team")).getByRole("button", { name: "Trả lời" }));
+    expect(onReplyToChange).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+    expect(onFocusComposer).toHaveBeenCalled();
+  });
+
+  it("asks before deleting and says so when the delete fails", async () => {
+    const user = userEvent.setup();
+    deleteMessage.mockRejectedValueOnce(new ApiError("forbidden", "forbidden", 403));
+    render(wrap(panel()));
+
+    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+    expect(deleteMessage).not.toHaveBeenCalled();
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Xóa tin nhắn này?");
+    await user.click(within(dialog).getByRole("button", { name: "Xóa" }));
+
+    expect(deleteMessage).toHaveBeenCalledWith({ roomId: "room1", messageId: "m2" });
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Bạn không có quyền làm việc này."));
+  });
+
+  // UNI-2012 D8: deleting a document message also moves or revokes its document, so the dialog says which.
+  describe("deleting a document message", () => {
+    const documentRow = (block: Record<string, unknown>): Row => ({
+      id: "d1",
+      sender_id: "self",
+      body: "plan.docx",
+      kind: "document",
+      created_at: "2026-01-01T10:02:00.000Z",
+      reactions: {},
+      document: { document_id: "doc1", viewer_has_access: true, title: "plan.docx", ...block },
+    });
+
+    async function openDelete(block: Record<string, unknown>) {
+      const user = userEvent.setup();
+      rows = [...BASE_ROWS, documentRow(block)];
+      // The document card navigates, so it needs the adapter the text rows do not.
+      render(wrapWithNav(panel()));
+      const article = documentArticle();
+      await user.click(within(article).getAllByRole("button", { name: "Thêm" }).at(-1)!);
+      await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+      return { user, dialog: await screen.findByRole("alertdialog") };
+    }
+    const documentArticle = () => {
+      const article = document.getElementById("chat-msg-d1");
+      if (!article) throw new Error("no article for the document message");
+      return article;
+    };
+
+    const UPLOAD = "Xóa tin này sẽ chuyển tài liệu vào Thùng rác (khôi phục được trong 30 ngày) và thu hồi mọi quyền đã cấp qua chat.";
+    const LINK = "Xóa tin này chỉ thu hồi quyền do tin này cấp; tài liệu vẫn giữ nguyên trong Tài liệu.";
+
+    it("warns the upload goes to the Trash, naming the other editors", async () => {
+      const { dialog } = await openDelete({ origin: "upload", other_editors_count: 2 });
+      expect(dialog).toHaveTextContent(UPLOAD);
+      expect(dialog).toHaveTextContent("2 người khác đã chỉnh sửa tài liệu này.");
+      expect(dialog).not.toHaveTextContent("Mọi người trong cuộc trò chuyện sẽ không còn thấy");
+    });
+
+    it.each([
+      ["a count of zero", { origin: "upload", other_editors_count: 0 }],
+      ["no count", { origin: "upload" }],
+      ["no origin, as every legacy card", {}],
+    ])("keeps the Trash line and drops the editors line for %s", async (_name, block) => {
+      const { dialog } = await openDelete(block);
+      expect(dialog).toHaveTextContent(UPLOAD);
+      expect(dialog).not.toHaveTextContent("người khác đã chỉnh sửa");
+    });
+
+    it("says only the grants go for a link, and never mentions the Trash or editors", async () => {
+      const { dialog } = await openDelete({ origin: "link", other_editors_count: 3 });
+      expect(dialog).toHaveTextContent(LINK);
+      expect(dialog).not.toHaveTextContent("Thùng rác");
+      expect(dialog).not.toHaveTextContent("người khác đã chỉnh sửa");
+    });
+
+    it("still deletes through the same call once confirmed", async () => {
+      deleteMessage.mockResolvedValueOnce(undefined);
+      const { user, dialog } = await openDelete({ origin: "upload" });
+      await user.click(within(dialog).getByRole("button", { name: "Xóa" }));
+      expect(deleteMessage).toHaveBeenCalledWith({ roomId: "room1", messageId: "d1" });
+    });
+
+    it("leaves a text message's confirmation as it was", async () => {
+      const user = userEvent.setup();
+      render(wrap(panel()));
+      await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog).toHaveTextContent("Mọi người trong cuộc trò chuyện sẽ không còn thấy tin nhắn này. Không thể hoàn tác.");
+      expect(dialog).not.toHaveTextContent("Thùng rác");
+    });
+  });
+
+  // Saving, the unchanged case and a failed save live in useChatInlineEdit and the composer.
+  it("hands my message to the composer's edit mode on Sửa, and offers it only on my messages", async () => {
+    const user = userEvent.setup();
+    const onEditMessage = vi.fn();
+    render(wrap(panel({ onEditMessage })));
+
+    // Sửa lives in the message's "Thêm" menu, and only mine has it.
+    await user.click(within(messageArticle("Hi team")).getByRole("button", { name: "Thêm" }));
+    expect(await screen.findByRole("menuitem", { name: "Sao chép" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Sửa" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sửa" }));
+    expect(onEditMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "m2", body: "Reply" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(editMessage).not.toHaveBeenCalled();
+  });
+
+  it("announces a new message from someone else at the bottom, and nothing else", () => {
+    const { rerender } = render(wrap(panel()));
+    const status = () => screen.getAllByRole("status").find((node) => node.getAttribute("aria-live") === "polite");
+    expect(status()?.textContent).toBe("");
+
+    // History loading above is not news.
+    rows = [
+      {
+        id: "m0",
+        sender_id: "u2",
+        body: "Older",
+        kind: "text",
+        created_at: "2026-01-01T09:00:00.000Z",
+        reactions: {},
+      },
+      ...BASE_ROWS,
+    ];
+    act(() => rerender(wrap(panel())));
+    expect(status()?.textContent).toBe("");
+
+    rows = [
+      ...rows,
+      {
+        id: "m3",
+        sender_id: "u2",
+        body: "Mới đây",
+        kind: "text",
+        created_at: "2026-01-01T10:05:00.000Z",
+        reactions: {},
+      },
+    ];
+    act(() => rerender(wrap(panel())));
+    expect(status()?.textContent).toBe("Binh: Mới đây");
+  });
+
+  it("draws 'Tin mới' above the first message from someone else after the pre-open read pointer", () => {
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Later", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    render(wrap(panel({ unreadSince: "2026-01-01T10:00:30.000Z" })));
+    const divider = screen.getByRole("separator", { name: "Tin mới" });
+    expect(divider.parentElement?.parentElement?.textContent).toContain("Later");
+    expect(screen.getAllByRole("separator", { name: "Tin mới" })).toHaveLength(1);
+  });
+
+  it("counts the unread messages on that line and offers the quick summary when the page provides them", async () => {
+    const user = userEvent.setup();
+    const onCatchUp = vi.fn();
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Later", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    render(
+      wrap(
+        <ChatUnreadProvider value={{ count: 4, onCatchUp }}>
+          {panel({ unreadSince: "2026-01-01T10:00:30.000Z" })}
+        </ChatUnreadProvider>,
+      ),
+    );
+    expect(screen.getByRole("separator", { name: "4 tin chưa đọc" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tóm tắt nhanh" }));
+    expect(onCatchUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("unfollows the open thread from the thread bar", async () => {
+    const user = userEvent.setup();
+    rows = [{ ...BASE_ROWS[0]!, reply_count: 1, thread_following: true }, BASE_ROWS[1]!];
+    render(wrap(panel({ threadsEnabled: true })));
+
+    await user.click(screen.getByRole("button", { name: "1 trả lời" }));
+    await user.click(await screen.findByRole("button", { name: "Theo dõi", pressed: true }));
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/chat/threads/m1/follow",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+
+  it("opens a thread beside the timeline when the page hosts it, keeping the timeline and highlighting the root", async () => {
+    const user = userEvent.setup();
+    const onOpenThread = vi.fn();
+    rows = [{ ...BASE_ROWS[0]!, reply_count: 1 }, BASE_ROWS[1]!];
+    const { rerender } = render(wrap(panel({ threadsEnabled: true, onOpenThread })));
+
+    await user.click(screen.getByRole("button", { name: "1 trả lời" }));
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+    // No in-place thread: the room timeline is still here.
+    expect(screen.queryByRole("button", { name: "Đóng chủ đề" })).not.toBeInTheDocument();
+    expect(messageArticle("Reply")).toBeInTheDocument();
+
+    rerender(wrap(panel({ threadsEnabled: true, onOpenThread, openThreadRootId: "m1" })));
+    expect(messageArticle("Hi team").closest("[data-highlighted]")).not.toBeNull();
+  });
+
+  it("as the side thread panel shows only its thread, names the room, and closing asks the page", async () => {
+    const user = userEvent.setup();
+    const onCloseThread = vi.fn();
+    const root = { id: "m1", sender: "u2", body: "Hi team", ts: Date.parse("2026-01-01T10:00:00.000Z") };
+    rows = [
+      { ...BASE_ROWS[0]!, reply_count: 1 },
+      { ...BASE_ROWS[1]!, reply_to_message_id: undefined, thread_root_id: "m1" },
+      { id: "m3", sender_id: "u2", body: "Room only", kind: "text", created_at: "2026-01-01T10:02:00.000Z", reactions: {} },
+    ];
+    render(
+      wrap(
+        panel({
+          threadsEnabled: true,
+          thread: root as unknown as Parameters<typeof NativeChatMessagePanel>[0]["thread"],
+          onCloseThread,
+          threadSubtitle: "Design",
+        }),
+      ),
+    );
+
+    expect(screen.getByText("Chủ đề")).toBeInTheDocument();
+    expect(screen.getByText("Design")).toBeInTheDocument();
+    expect(screen.queryByText("Room only")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Đóng chủ đề" }));
+    expect(onCloseThread).toHaveBeenCalledTimes(1);
+  });
+
+  // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).
+  it("offers a button for older history and asks the room timeline for its next page", async () => {
+    rows = Array.from({ length: 80 }, (_, i) => ({
+      id: `h${i}`,
+      sender_id: "u2",
+      body: `msg ${i}`,
+      kind: "text",
+      created_at: new Date(Date.UTC(2026, 0, 1, 10, i)).toISOString(),
+      cursor: `c${i}`,
+      reactions: {},
+    }));
+    render(wrap(panel()));
+    fireEvent.click(screen.getByRole("button", { name: "Tải tin cũ hơn" }));
+    await waitFor(() => expect(fetchNextPage).toHaveBeenCalledTimes(1));
+  });
+
+  // UNI-1679: a thread past one page could not show its first replies.
+  it("loads older replies in an open thread", async () => {
+    fetchNextPage.mockClear();
+    rows = [
+      { ...BASE_ROWS[0]!, reply_count: 60 },
+      {
+        id: "t60",
+        sender_id: "u2",
+        body: "Trả lời 60",
+        kind: "text",
+        created_at: "2026-01-01T10:02:00.000Z",
+        thread_root_id: "m1",
+        reactions: {},
+      },
+    ];
+    render(wrap(panel({ threadsEnabled: true })));
+    expect(screen.queryByRole("button", { name: "Tải tin cũ hơn" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /60 trả lời/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tải tin cũ hơn" }));
+
+    await waitFor(() => expect(fetchNextThreadPage).toHaveBeenCalledTimes(1));
+    expect(fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("goes back to the newest message and lets the room be marked read after 'Về tin mới nhất'", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path.includes("/messages/around/m0")
+        ? Promise.resolve({
+            messages: [
+              {
+                id: "m0",
+                room_id: "room1",
+                workspace_id: "ws1",
+                sender_id: "u2",
+                sender_display_name: "Binh",
+                body: "Old one",
+                kind: "text",
+                created_at: "2025-12-01T10:00:00.000Z",
+                reactions: {},
+              },
+            ],
+          })
+        : Promise.resolve(undefined),
+    );
+    // The newest message is someone else's, so nothing but the button can re-stick the list.
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Newest", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    // The page owns the anchor: clearing it drops the prop, as the chat page does.
+    // A stable reply callback, as on the page: a new one each render re-runs the room reset.
+    const onReplyToChange = vi.fn();
+    function Page() {
+      const [anchor, setAnchor] = useState<string | null>("m0");
+      return panel({ anchorMessageId: anchor, onClearAnchor: () => setAnchor(null), onReplyToChange });
+    }
+    render(wrap(<Page />));
+    expect(await screen.findByText("Old one")).toBeInTheDocument();
+
+    // Scrolling to the highlighted message leaves the reader away from the bottom.
+    nearBottom = false;
+    fireEvent.scroll(screen.getByRole("log"));
+    expect(listStickRef?.current).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Về tin mới nhất" }));
+
+    await waitFor(() => expect(screen.getByText("Newest")).toBeInTheDocument());
+    expect(listStickRef?.current).toBe(true);
+    expect(markRead.mock.calls.at(-1)?.[3]).toBe(true);
+    expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).not.toBeInTheDocument();
+  });
+
+  it("stays on the anchor window when someone else sends, and leaves it when I send", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path.includes("/messages/around/m0")
+        ? Promise.resolve({
+            messages: [
+              {
+                id: "m0",
+                room_id: "room1",
+                workspace_id: "ws1",
+                sender_id: "u2",
+                sender_display_name: "Binh",
+                body: "Old one",
+                kind: "text",
+                created_at: "2025-12-01T10:00:00.000Z",
+                reactions: {},
+              },
+            ],
+          })
+        : Promise.resolve(undefined),
+    );
+    const onReplyToChange = vi.fn();
+    function Page() {
+      const [anchor, setAnchor] = useState<string | null>("m0");
+      return panel({ anchorMessageId: anchor, onClearAnchor: () => setAnchor(null), onReplyToChange });
+    }
+    const { rerender } = render(wrap(<Page />));
+    expect(await screen.findByText("Old one")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
+
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "From Binh", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    act(() => rerender(wrap(<Page />)));
+    expect(screen.getByText("Old one")).toBeInTheDocument();
+    expect(screen.queryByText("From Binh")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
+
+    rows = [
+      ...rows,
+      { id: "m4", sender_id: "self", body: "My new send", kind: "text", created_at: "2026-01-01T10:06:00.000Z", reactions: {} },
+    ];
+    act(() => rerender(wrap(<Page />)));
+
+    await waitFor(() => expect(screen.getByText("My new send")).toBeInTheDocument());
+    expect(listStickRef?.current).toBe(true);
+    expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).not.toBeInTheDocument();
+  });
+
+  it("starts the 2500ms highlight timer only once onHighlightShown fires, not when around resolves", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      requestMock.mockImplementation((path: string) =>
+        path.includes("/messages/around/m0")
+          ? Promise.resolve({
+              messages: [
+                {
+                  id: "m0",
+                  room_id: "room1",
+                  workspace_id: "ws1",
+                  sender_id: "u2",
+                  sender_display_name: "Binh",
+                  body: "Old one",
+                  kind: "text",
+                  created_at: "2025-12-01T10:00:00.000Z",
+                  reactions: {},
+                },
+              ],
+            })
+          : Promise.resolve(undefined),
+      );
+      render(wrap(panel({ anchorMessageId: "m0" })));
+      await waitFor(() => expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/));
+
+      // Before the virtualizer has scrolled the row into view (onHighlightShown), 2500ms must not clear the highlight.
+      act(() => {
+        vi.advanceTimersByTime(2600);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/);
+
+      act(() => {
+        listOnHighlightShown?.("m0");
+        vi.advanceTimersByTime(2400);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).toMatch(/ring-brand/);
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(document.getElementById("chat-msg-m0")?.className).not.toMatch(/ring-brand/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

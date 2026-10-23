@@ -1,58 +1,168 @@
 "use client";
 
-import {
-  Bell,
-  Check,
-  CircleAlert,
-} from "lucide-react";
+import { memo } from "react";
+import { Bell, ChevronRight, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageBody } from "./chat-message-body";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatFailedSendBar } from "./chat-failed-send-bar";
+import { isChatMediaMessageBody } from "./chat-expression-utils";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
+import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
+import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { ChatReplyQuote } from "./chat-reply-quote";
-import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
+import { ChatThreadRepliers } from "./chat-thread-repliers";
 import { MessageTaskCard } from "./message-task-card";
+import { taskLinksOf } from "@uniwork/core/chat/message-links";
+import { useChatMessageLinksFor } from "./chat-message-links-context";
+import { ChatLinkPreviewCard, useChatLinkPreviewFor } from "./chat-link-preview-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 
-/** Fixed gutter matching sidebar avatar column — keeps grouped bubbles aligned. */
-const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0";
+/**
+ * Fixed gutter matching the 34px avatar — keeps grouped bubbles aligned. The
+ * avatar closes a run, at the foot of its last bubble; the name opens it. A DM
+ * has neither (Telegram): the other side is already the header.
+ */
+const INCOMING_AVATAR_SLOT_CLASS = "w-8.5 shrink-0 self-end";
 
-export function ChatMessageRow({
+/**
+ * The two bubble fills. Mine is the brand fill with its own text colour (the
+ * body, links and meta all read it); theirs is the raised white bubble with
+ * a hairline shadow on the chat wall.
+ */
+export const CHAT_BUBBLE_OWN = "bg-chat-bubble-own text-chat-bubble-own-foreground";
+export const CHAT_BUBBLE_OTHER = "bg-chat-bubble-other text-foreground shadow-chat-bubble";
+
+/**
+ * A soft fill, its hover and a hairline for controls inside their bubble, a
+ * card or the composer field. In dark, --muted, --surface-hover and the
+ * bubble are one grey (and --border all but vanishes on it), so there they
+ * lift with a little ink instead.
+ */
+export const CHAT_ON_BUBBLE_FILL = "bg-muted dark:bg-foreground/8";
+export const CHAT_ON_BUBBLE_HOVER = "hover:bg-surface-hover dark:hover:bg-foreground/12";
+export const CHAT_ON_BUBBLE_LINE = "border-border dark:border-foreground/12";
+
+/**
+ * A bubble's corners by its place in the run: 18 everywhere except the
+ * sender's side, where bubbles of one run join at 6 and the run's last one
+ * ends in a 4 tail corner (canvas).
+ */
+export function chatBubbleShape(isOwn: boolean, firstOfRun: boolean, lastOfRun = true): string {
+  if (isOwn) return cn("rounded-[18px]", !firstOfRun && "rounded-tr-sm", lastOfRun ? "rounded-br-[4px]" : "rounded-br-sm");
+  return cn("rounded-[18px]", !firstOfRun && "rounded-tl-sm", lastOfRun ? "rounded-bl-[4px]" : "rounded-bl-sm");
+}
+
+/**
+ * Telegram's tail: the run's last bubble curls out at its foot on the sender's
+ * side. A mask cuts the curl from the bubble's own fill, so it follows the
+ * bubble's colour in either theme. Not on a clipped bubble (a photo): it would
+ * be cut off, and Telegram leaves photos tailless too.
+ */
+export function chatBubbleTail(isOwn: boolean): string {
+  return isOwn
+    ? "relative rounded-br-none after:absolute after:bottom-0 after:left-full after:h-3.5 after:w-1.75 after:bg-inherit after:content-[''] after:[mask-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%207%2014%22%3E%3Cpath%20d=%22M0,0C0,6,2,10.5,7,14H0Z%22/%3E%3C/svg%3E)]"
+    : "relative rounded-bl-none after:absolute after:bottom-0 after:right-full after:h-3.5 after:w-1.75 after:bg-inherit after:content-[''] after:[mask-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%207%2014%22%3E%3Cpath%20d=%22M7,0C7,6,5,10.5,0,14H7Z%22/%3E%3C/svg%3E)]";
+}
+
+/**
+ * The wash a little wider than the row, drawn behind it so nothing moves. It
+ * stays clear on hover (Telegram leaves the row still); only a jump's target
+ * or the open thread fills it.
+ */
+export const CHAT_ROW_WASH =
+  "relative isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1.5 before:-z-10 before:rounded-2xl before:transition-colors before:duration-(--duration-fast) before:content-['']";
+
+/** Important is a warning, urgent is a danger — never the same red. A pill at the bubble's top. */
+export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority"] }) {
+  const { t } = useTranslation();
+  if (priority !== "important" && priority !== "urgent") return null;
+  const urgent = priority === "urgent";
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5.5 w-fit items-center gap-1 rounded-full px-2 text-caption font-semibold",
+        urgent
+          ? "bg-destructive-soft text-destructive-soft-foreground"
+          : "bg-warning-soft text-warning-soft-foreground",
+      )}
+    >
+      {urgent ? <Bell className="size-3 shrink-0" aria-hidden /> : <CircleAlert className="size-3 shrink-0" aria-hidden />}
+      {urgent ? t("chat.message_flag_urgent") : t("chat.message_flag_important")}
+    </span>
+  );
+}
+
+/**
+ * "4 trả lời · chưa đọc" under a thread root: a raised white pill on the wall,
+ * the latest repliers' faces first, a brand dot after the words while there
+ * is something unread (else when the last reply came), and a chevron
+ * (canvas). It opens the thread.
+ */
+export function ChatThreadRepliesLink({
   message,
-  senderLabel,
   isOwn,
-  showReadReceipt,
-  replyToMessage,
-  workspaceId,
-  roomId,
-  onReply,
-  onReact,
   onThread,
-  onEdit,
-  onPin,
-  onCopy,
-  onDelete,
-  onCreateTask,
-  onLinkTask,
-  workHubEnabled = false,
-  showSenderName = false,
-  compactTop = false,
-  showAvatar = true,
-  highlighted = false,
-  nameContext = [],
+  nameContext = EMPTY_NAME_CONTEXT,
 }: {
+  message: ChatMessage;
+  isOwn: boolean;
+  onThread?: (message: ChatMessage) => void;
+  nameContext?: ChatNameContextEntry[];
+}) {
+  const { t, i18n } = useTranslation();
+  if (!((message.replyCount ?? 0) > 0 && onThread && !message.threadRootId)) return null;
+  return (
+    <button
+      type="button"
+      className={cn(
+        "mt-1 inline-flex h-8.5 w-fit items-center gap-2 rounded-full bg-chat-bubble-other pr-2.5 shadow-chat-bubble transition-colors duration-(--duration-fast)",
+        message.threadParticipantIds?.length ? "pl-1.75" : "pl-3",
+        CHAT_ON_BUBBLE_HOVER,
+        isOwn && "self-end",
+      )}
+      onClick={() => onThread(message)}
+    >
+      <ChatThreadRepliers userIds={message.threadParticipantIds} nameContext={nameContext} />
+      <span className="text-label font-semibold text-brand">
+        {message.threadUnread
+          ? t("chat.thread_replies_unread", { count: message.replyCount })
+          : t("chat.thread_replies", { count: message.replyCount })}
+      </span>
+      {message.threadUnread ? (
+        <span aria-hidden className="size-2 rounded-full bg-brand" />
+      ) : message.lastReplyAt ? (
+        <time
+          dateTime={new Date(message.lastReplyAt).toISOString()}
+          aria-hidden
+          className="text-caption text-muted-foreground tabular-nums"
+        >
+          {formatMessageTime(message.lastReplyAt, i18n.language)}
+        </time>
+      ) : null}
+      <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+    </button>
+  );
+}
+
+type ChatMessageRowProps = {
   message: ChatMessage;
   senderLabel: string;
   isOwn: boolean;
   showReadReceipt: boolean;
   replyToMessage?: ChatMessage;
+  /** Who wrote the quoted message, named inside the quote. */
+  replyToSenderLabel?: string;
   workspaceId?: string;
   roomId?: string;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onThread?: (message: ChatMessage) => void;
   onEdit?: (message: ChatMessage) => void;
   onPin?: (message: ChatMessage) => void;
@@ -60,170 +170,225 @@ export function ChatMessageRow({
   onDelete?: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
-  workHubEnabled?: boolean;
+  onFollowUp?: (message: ChatMessage) => void;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** First message of a run: it carries the sender's name. */
   showAvatar?: boolean;
+  senderAvatarUrl?: string;
+  /** The next message starts a new run (other sender or a pause): print the time and the avatar here. */
+  lastOfRun?: boolean;
   highlighted?: boolean;
   nameContext?: ChatNameContextEntry[];
-}) {
-  const { t } = useTranslation();
-  const reactionEntries = Object.entries(message.reactions);
+};
+
+const EMPTY_NAME_CONTEXT: ChatNameContextEntry[] = [];
+
+function ChatMessageRowImpl({
+  message,
+  senderLabel,
+  isOwn,
+  showReadReceipt,
+  replyToMessage,
+  replyToSenderLabel,
+  workspaceId,
+  roomId,
+  onReply,
+  onReact,
+  onToggleReaction,
+  onJumpToMessage,
+  onThread,
+  onEdit,
+  onPin,
+  onCopy,
+  onDelete,
+  onCreateTask,
+  onLinkTask,
+  onFollowUp,
+  showSenderName = false,
+  compactTop = false,
+  showAvatar = true,
+  senderAvatarUrl,
+  lastOfRun = true,
+  highlighted = false,
+  nameContext = EMPTY_NAME_CONTEXT,
+}: ChatMessageRowProps) {
+  const { i18n } = useTranslation();
   const nameClass = senderNameClass(message.sender, isOwn);
-  const avatarInitial = senderLabel.trim().slice(0, 1).toUpperCase() || "?";
-  const isPending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
-  const canEdit = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall;
+  // Sending, queued or failed: not on the server yet, so nothing to act on.
+  const isPending = Boolean(message.deliveryStatus);
+  // A sticker or GIF is not text: there is nothing to edit in it.
+  const isMedia = isChatMediaMessageBody(message.body);
+  const canEdit = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall && !isMedia;
+  // A sticker, GIF or image is the message itself: no bubble behind it, its
+  // time on a chip under it — unless it answers another message.
+  const bare = isMedia && !replyToMessage;
+  // Their name opens the first bubble of a run in a group, in their colour.
+  const showName = !isOwn && showSenderName && showAvatar;
+  const urgent = message.priority === "urgent";
+  // A task made from this message follows it as one more bubble of the run,
+  // and the run's time moves down onto it; a linked one is a line under the
+  // bubble, which keeps its time (canvas).
+  const { links } = useChatMessageLinksFor(message.id);
+  const taskLinks = taskLinksOf(links);
+  const hasTasks = !isPending && Boolean(workspaceId) && taskLinks.length > 0;
+  const taskCard = hasTasks && taskLinks.some((link) => link.relation === "created_from");
+  // The card of its first link sits under the text, the time under the card (canvas).
+  const preview = useChatLinkPreviewFor(message.id);
+  const meta = (
+    <ChatMessageMeta
+      message={message}
+      isOwn={isOwn}
+      showTime={lastOfRun}
+      showReadReceipt={showReadReceipt}
+      onWall={bare}
+      inline={bare ? undefined : "float"}
+    />
+  );
 
   return (
     <article
       id={`chat-msg-${message.id}`}
+      aria-labelledby={chatMessageLabelId(message.id)}
+      // Focus lands here after a delete or a jump, never by Tab.
+      tabIndex={-1}
+      data-highlighted={highlighted || undefined}
       className={cn(
-        "flex w-full max-w-full rounded-lg transition-colors",
-        compactTop ? "mt-1" : "mt-3",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
+        CHAT_ROW_WASH,
+        compactTop ? "mt-0.5" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
-        highlighted && "bg-brand/10 ring-2 ring-brand/40",
-        isPending && "opacity-80",
+        // The thread open beside the timeline, or a jump's target: the row's wash in the brand (canvas).
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
-      {!isOwn ? (
-        <div className={cn(INCOMING_AVATAR_SLOT_CLASS, "flex flex-col justify-end self-stretch")}>
-          {showAvatar ? (
-            <ActorAvatar
+      <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
+      {!isOwn && showSenderName ? (
+        <div className={INCOMING_AVATAR_SLOT_CLASS}>
+          {lastOfRun ? (
+            <ChatSenderAvatar
+              userId={message.sender}
               name={senderLabel}
-              initials={avatarInitial}
-              size="sm"
-              className="mx-auto shrink-0"
+              avatarUrl={senderAvatarUrl}
+              nameContext={nameContext}
             />
           ) : null}
         </div>
       ) : null}
 
-      <div
+      {/* A long press opens the menu on touch; the copy callout is off there
+          because "Sao chép" lives in that same menu. */}
+      <ChatMessageActionsFrame
+        message={message}
+        isOwn={isOwn}
+        pending={isPending}
+        canEdit={canEdit}
+        onReply={onReply}
+        onReact={onReact}
+        onToggleReaction={onToggleReaction}
+        onThread={onThread}
+        onEdit={onEdit}
+        onPin={onPin}
+        onCopy={onCopy}
+        onDelete={onDelete}
+        onCreateTask={onCreateTask}
+        onLinkTask={onLinkTask}
+        onFollowUp={onFollowUp}
         className={cn(
-          "group relative flex min-w-0 max-w-[min(100%,20rem)] flex-col gap-1",
+          "flex min-w-0 max-w-[85%] flex-col gap-0.5 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
           isOwn ? "items-end" : "items-start",
         )}
       >
-        {!isPending ? (
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onThread={onThread}
-            onEdit={onEdit}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={workHubEnabled ? onCreateTask : undefined}
-            onLinkTask={workHubEnabled ? onLinkTask : undefined}
-            canEdit={canEdit}
-          />
+        {bare && showName ? (
+          <p className={cn("px-1 text-label font-semibold", nameClass)} aria-hidden>
+            {senderLabel}
+          </p>
         ) : null}
 
-        {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-medium", nameClass)}>{senderLabel}</p>
-        ) : null}
+        <div className={chatMessageActionsRailClass(isOwn)}>
+          <div className={cn("flex min-w-0 flex-col gap-0.5", isOwn ? "items-end" : "items-start")}>
+            {bare ? <ChatPriorityFlag priority={message.priority} /> : null}
 
-        {message.priority === "important" || message.priority === "urgent" ? (
-          <span className="inline-flex items-center gap-1 px-1 text-caption font-medium text-destructive">
-            {message.priority === "important" ? (
-              <CircleAlert className="size-3.5 shrink-0" aria-hidden />
-            ) : (
-              <Bell className="size-3.5 shrink-0" aria-hidden />
-            )}
-            {message.priority === "important"
-              ? t("chat.message_flag_important")
-              : t("chat.message_flag_urgent")}
-          </span>
-        ) : null}
-
-        <div
-          className={cn(
-            "w-fit max-w-full px-3.5 py-2",
-            isOwn
-              ? "rounded-[18px] rounded-br-[4px] bg-brand text-brand-foreground shadow-sm"
-              : "rounded-[18px] rounded-bl-[4px] bg-surface shadow-sm ring-1 ring-border/60",
-          )}
-        >
-          {replyToMessage && workspaceId && roomId ? (
-            <ChatReplyQuote
-              message={replyToMessage}
-              workspaceId={workspaceId}
-              roomId={roomId}
-              isOwn={isOwn}
-            />
-          ) : null}
-
-          <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
-          {message.editedAt ? (
-            <p
+            <div
+              title={formatMessageDateTime(message.ts, i18n.language)}
               className={cn(
-                "mt-1 text-caption",
-                isOwn ? "text-brand-foreground/75" : "text-muted-foreground",
+                "w-fit max-w-full",
+                !bare &&
+                  cn(
+                    "px-3 pt-[7px] pb-2",
+                    chatBubbleShape(isOwn, !compactTop, lastOfRun && !taskCard),
+                    isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                    lastOfRun && !taskCard && chatBubbleTail(isOwn),
+                    urgent && "ring-1 ring-destructive/30",
+                  ),
               )}
             >
-              {t("chat.edited_label")}
-            </p>
-          ) : null}
-        </div>
+              {!bare && (showName || message.priority === "important" || urgent) ? (
+                <div className="mb-px flex flex-wrap items-center gap-2">
+                  {showName ? (
+                    <span className={cn("text-label font-semibold", nameClass)} aria-hidden>
+                      {senderLabel}
+                    </span>
+                  ) : null}
+                  <ChatPriorityFlag priority={message.priority} />
+                </div>
+              ) : null}
 
-        {reactionEntries.length > 0 ? (
-          <div className={cn("flex flex-wrap gap-1 px-0.5", isOwn && "justify-end")}>
-            {reactionEntries.map(([emoji, count]) => (
-              <span
-                key={emoji}
-                className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface px-1.5 py-0.5 text-caption shadow-sm"
-              >
-                <span aria-hidden>{emoji}</span>
-                {count > 1 ? <span className="text-muted-foreground">{count}</span> : null}
-              </span>
-            ))}
+              <ChatForwardedLabel message={message} isOwn={isOwn} />
+              {replyToMessage ? (
+                <ChatReplyQuote
+                  message={replyToMessage}
+                  isOwn={isOwn}
+                  senderLabel={replyToSenderLabel}
+                  onJump={onJumpToMessage}
+                />
+              ) : null}
+
+              <ChatMessageBody
+                body={message.body}
+                isOwn={isOwn}
+                nameContext={nameContext}
+                trailing={bare || taskCard || preview ? null : meta}
+              />
+              {preview ? <ChatLinkPreviewCard preview={preview} isOwn={isOwn} /> : null}
+              {preview && !taskCard ? (
+                <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} showReadReceipt={showReadReceipt} />
+              ) : null}
+            </div>
+
+            {bare && !taskCard ? meta : null}
+
+            {hasTasks && workspaceId ? (
+              <MessageTaskCard
+                workspaceId={workspaceId}
+                messageId={message.id}
+                isOwn={isOwn}
+                meta={
+                  <ChatMessageMeta
+                    message={message}
+                    isOwn={false}
+                    showTime={lastOfRun}
+                    showReadReceipt={showReadReceipt}
+                    inline="end"
+                  />
+                }
+              />
+            ) : null}
+
+            {message.deliveryStatus === "failed" && workspaceId ? (
+              <ChatFailedSendBar workspaceId={workspaceId} message={message} />
+            ) : null}
+
+            <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
+
+            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
+
           </div>
-        ) : null}
-
-        {(message.replyCount ?? 0) > 0 && onThread && !message.threadRootId ? (
-          <button
-            type="button"
-            className={cn(
-              "px-1 text-left text-caption font-medium text-brand hover:underline",
-              isOwn && "self-end",
-            )}
-            onClick={() => onThread(message)}
-          >
-            {message.threadUnread
-              ? t("chat.thread_replies_unread", { count: message.replyCount })
-              : t("chat.thread_replies", { count: message.replyCount })}
-          </button>
-        ) : null}
-
-        {workHubEnabled && workspaceId && !isPending ? (
-          <MessageTaskCard
-            workspaceId={workspaceId}
-            messageId={message.id}
-            className={cn(isOwn && "items-end self-end")}
-          />
-        ) : null}
-
-        {showReadReceipt ? (
-          <span
-            className="inline-flex px-1 text-muted-foreground"
-            aria-label={t("chat.read_receipt")}
-            title={t("chat.read_receipt")}
-          >
-            <Check className="size-3.5" aria-hidden />
-          </span>
-        ) : null}
-        {isPending ? (
-          <span className="px-1 text-caption text-muted-foreground">
-            {message.deliveryStatus === "queued"
-              ? t("chat.message_queued")
-              : t("chat.message_sending")}
-          </span>
-        ) : null}
-      </div>
+        </div>
+      </ChatMessageActionsFrame>
     </article>
   );
 }
 
-export { DEFAULT_QUICK_REACTION };
+/** One text message. Memoised: the timeline re-renders often, a row rarely changes. */
+export const ChatMessageRow = memo(ChatMessageRowImpl);

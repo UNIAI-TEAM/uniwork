@@ -1,5 +1,7 @@
+import { getSessionProvider } from "../auth/session-provider";
 import { runtimeConfig } from "../runtime-config";
 import { SessionResponseSchema, type SessionResponse } from "../types/user";
+import { emitEntitlementGateError } from "./entitlement-error-bus";
 import { parseWithFallback } from "./schema";
 import { getAccessToken, setAccessToken } from "./session";
 import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
@@ -10,6 +12,40 @@ import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
  * that lives in ./endpoints, where every response goes through
  * parseWithFallback so a drifted contract degrades instead of throwing.
  */
+
+/**
+ * The coarse classes the server stamps on `error.error_class` (C-01 §14.5 /
+ * DOC-005 §4). The list is the one source of truth for the union type and
+ * the lenient parser, so the two can never drift apart. Callers switch on
+ * the class for the recovery path — keep both revisions on `conflict`, stop
+ * retrying on `gone`, run session recovery on `session` — never on the
+ * message text. Every switch carries a `default`: a class the caller does
+ * not know must degrade to code/status inference.
+ */
+const API_ERROR_CLASSES = [
+  "conflict",
+  "gone",
+  "quota",
+  "permission",
+  "missing",
+  "incompatible",
+  "session",
+  // ARCHIVE-01 (UNI-1845): the server stamps read_only on document_shelved
+  // (409) so every shelve-blocked write fails with the same class.
+  "read_only",
+] as const;
+
+export type ApiErrorClass = (typeof API_ERROR_CLASSES)[number];
+
+/**
+ * Narrow an unknown wire value to a known class. Unknown strings and
+ * malformed values (number, object, …) both degrade to undefined — the
+ * caller then falls back to code/status inference, which is exactly what an
+ * old client does against a newer server's extra class.
+ */
+function asApiErrorClass(value: unknown): ApiErrorClass | undefined {
+  return API_ERROR_CLASSES.find((c) => c === value);
+}
 
 export class ApiError extends Error {
   constructor(
@@ -22,6 +58,23 @@ export class ApiError extends Error {
      * one string support needs to find the whole chain.
      */
     public correlationId?: string,
+    /**
+     * Machine-readable detail from ErrorSDO.fields (quota meters, duplicate
+     * task refs, …). Optional; absent when the server sent none or the body
+     * could not be parsed.
+     */
+    public fields?: Record<string, unknown>,
+    /**
+     * The coarse class from ErrorSDO.error_class, when the server stamped one
+     * the client knows. Optional and last so existing construction sites keep
+     * compiling.
+     */
+    public errorClass?: ApiErrorClass,
+    /**
+     * Seconds the server asked the caller to wait (Retry-After on a 429/503),
+     * so a retry loop waits out the window instead of guessing.
+     */
+    public retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -45,6 +98,22 @@ export function errorCode(err: unknown): string | undefined {
  */
 export function correlationIdOf(err: unknown): string | undefined {
   return err instanceof ApiError ? err.correlationId : undefined;
+}
+
+/**
+ * Machine-readable ErrorSDO.fields from a failed API call, when present.
+ */
+export function errorFields(err: unknown): Record<string, unknown> | undefined {
+  return err instanceof ApiError ? err.fields : undefined;
+}
+
+/**
+ * The coarse error class from a failed API call, when the server stamped a
+ * known one. Dispatch on it for the recovery path; undefined means fall back
+ * to code/status inference.
+ */
+export function errorClassOf(err: unknown): ApiErrorClass | undefined {
+  return err instanceof ApiError ? err.errorClass : undefined;
 }
 
 /**
@@ -78,6 +147,8 @@ export interface RequestOpts {
   headers?: Record<string, string>;
   /** Keep the request alive across page unload (presence offline, etc.). */
   keepalive?: boolean;
+  /** Aborts the request, e.g. the `signal` TanStack hands a query function it may cancel. */
+  signal?: AbortSignal;
 }
 
 function baseUrl(): string {
@@ -118,7 +189,8 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
   }
 
   let body: BodyInit | undefined;
-  if (opts.body instanceof FormData) {
+  if (opts.body instanceof FormData || opts.body instanceof Blob) {
+    // Raw bodies go as they are; a Blob's Content-Type comes from opts.headers.
     body = opts.body;
   } else if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -131,7 +203,67 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     credentials: "include",
     body,
     keepalive: opts.keepalive,
+    signal: opts.signal,
   });
+}
+
+/** Retry-After as seconds: delta-seconds or an HTTP date; undefined otherwise. */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const at = Date.parse(trimmed);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.max(0, Math.ceil((at - Date.now()) / 1000));
+}
+
+export async function throwFromFailedResponse(res: Response): Promise<never> {
+  let code = "internal";
+  // No `HTTP ${res.status}` fallback: a body-less failure (a proxy 502 with an
+  // HTML body, an empty statusText over HTTP/2) must leave the message empty so
+  // `apiErrorMessage` answers undefined and the caller renders its own
+  // localized sentence instead of a raw English "HTTP 502". Callers that need
+  // the status read `err.status` / `err.code`, never the message.
+  let message = res.statusText;
+  let fields: Record<string, unknown> | undefined;
+  let errorClass: ApiErrorClass | undefined;
+  try {
+    const body = (await res.json()) as {
+      error?: {
+        code?: unknown;
+        message?: unknown;
+        fields?: Record<string, unknown>;
+        error_class?: unknown;
+      };
+    };
+    if (body.error) {
+      if (typeof body.error.code === "string") code = body.error.code;
+      if (typeof body.error.message === "string") message = body.error.message;
+      if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
+        fields = body.error.fields;
+      }
+      errorClass = asApiErrorClass(body.error.error_class);
+    }
+  } catch {
+    /* body is not JSON */
+  }
+  const err = new ApiError(
+    message,
+    code,
+    res.status,
+    res.headers.get(CORRELATION_HEADER) ?? undefined,
+    fields,
+    errorClass,
+    parseRetryAfter(res.headers.get("Retry-After")),
+  );
+  if (code === "entitlement_required" || code === "quota_exceeded") {
+    emitEntitlementGateError({
+      code,
+      fields,
+      errorClass,
+    });
+  }
+  throw err;
 }
 
 /**
@@ -140,24 +272,42 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
  * job, through a schema, never a cast at the call site.
  */
 export async function request(path: string, opts: RequestOpts = {}): Promise<unknown> {
+  return (await requestWithHeaders(path, opts)).data;
+}
+
+/**
+ * `request` that also hands back the response headers, for an answer that
+ * lives partly in a header (the ETag of an uploaded body).
+ */
+export async function requestWithHeaders(
+  path: string,
+  opts: RequestOpts = {},
+): Promise<{ data: unknown; headers: Headers }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
     const refreshed = await refreshSession();
     if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
-  if (res.status === 204) return undefined;
-  return res.json();
+  if (res.status === 204) return { data: undefined, headers: res.headers };
+  return { data: (await res.json()) as unknown, headers: res.headers };
+}
+
+/**
+ * Open a streaming response (SSE). Same bearer and one 401 refresh-and-retry
+ * as `request`; a refusal throws the mapped ApiError before any body is read.
+ * The caller owns the body.
+ */
+export async function requestStream(path: string, opts: RequestOpts): Promise<Response> {
+  let res = await rawFetch(path, opts);
+  if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, opts);
+  }
+  if (!res.ok) await throwFromFailedResponse(res);
+  return res;
 }
 
 /**
@@ -180,51 +330,94 @@ export async function requestText(path: string): Promise<string> {
  * Fetch an authenticated binary response. Native media elements cannot attach
  * the bearer token, so callers create a short-lived object URL from this blob.
  */
-export async function requestBlob(path: string): Promise<Blob> {
-  let res = await rawFetch(path, {});
+export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"> = {}): Promise<Blob> {
+  return (await requestDownload(path, opts)).blob;
+}
+
+/**
+ * `requestBlob` for a file the user saves: the bytes plus the name the server
+ * gave them. `filename` is null when the response carries none, or when the
+ * browser may not read `Content-Disposition` (a cross-origin API that does not
+ * expose it), so the caller names the file itself.
+ */
+export async function requestDownload(
+  path: string,
+  opts: Pick<RequestOpts, "signal"> = {},
+): Promise<{ blob: Blob; filename: string | null }> {
+  let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
-    if (refreshed) res = await rawFetch(path, {});
+    if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
   // Prefer arrayBuffer → Blob: jsdom's Response.blob() yields a Blob without
   // readable bytes / .text(), which breaks authenticated media object URLs in tests.
   const type = res.headers.get("Content-Type") ?? "";
   const buffer = await res.arrayBuffer();
-  return new Blob([buffer], { type });
+  return {
+    blob: new Blob([buffer], { type }),
+    filename: dispositionFilename(res.headers.get("Content-Disposition")),
+  };
+}
+
+/** The file name in a Content-Disposition value (`filename*` first, then plain), or null. */
+function dispositionFilename(value: string | null): string | null {
+  if (!value) return null;
+  const star = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(value);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      /* a malformed escape: fall back to the plain form */
+    }
+  }
+  const plain = /filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(value);
+  const name = (plain?.[1] ?? plain?.[2] ?? "").trim();
+  return name === "" ? null : name;
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
 // several requests hitting 401 together) would have the second one present an
 // already-revoked cookie → 401 → a spurious logout. Single-flight: every
 // caller shares one in-flight promise.
-let refreshInFlight: Promise<SessionResponse | null> | null = null;
+let refreshInFlight: Promise<RefreshedSession | null> | null = null;
+
+/** `user` is null when a host session provider refreshed: it hands out tokens only. */
+type RefreshedSession = { access_token: string; user: SessionResponse["user"] | null };
 
 /**
- * Obtain a new access token from the refresh cookie. Lives here rather than in
- * the auth endpoints because the transport's 401 retry depends on it.
+ * Obtain a new access token from the refresh cookie — or from the registered
+ * session provider when a host (the UniChat shell) owns the session. Lives
+ * here rather than in the auth endpoints because the transport's 401 retry
+ * depends on it.
  */
-export function refreshSession(): Promise<SessionResponse | null> {
+export function refreshSession(): Promise<RefreshedSession | null> {
   refreshInFlight ??= (async () => {
+    const tokenBefore = getAccessToken();
     try {
-      const raw = await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true });
-      const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
-        endpoint: "POST /api/v1/auth/refresh",
-      });
+      const provider = getSessionProvider();
+      const sess: RefreshedSession | null = provider
+        ? await provider.refresh().then((t) => (t ? { access_token: t, user: null } : null))
+        : parseWithFallback<SessionResponse | null>(
+            await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true }),
+            SessionResponseSchema,
+            null,
+            { endpoint: "POST /api/v1/auth/refresh" },
+          );
+      // Login/register may set a newer token while this refresh was in flight.
+      const tokenNow = getAccessToken();
+      if (tokenNow !== null && tokenNow !== tokenBefore) {
+        return sess;
+      }
       setAccessToken(sess?.access_token ?? null);
       return sess;
     } catch {
-      setAccessToken(null);
+      // Do not wipe a token that arrived (e.g. login) after this call started.
+      if (getAccessToken() === tokenBefore) {
+        setAccessToken(null);
+      }
       return null;
     } finally {
       refreshInFlight = null;

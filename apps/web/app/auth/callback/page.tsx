@@ -4,7 +4,7 @@ import { api } from "@uniwork/core";
 import { useSession } from "@uniwork/core/auth";
 import { paths, sanitizeNextUrl } from "@uniwork/core/paths";
 import { AuthCallbackView } from "@uniwork/views/auth/auth-callback-view";
-import { resolveLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
+import { useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
 import { useNavigation } from "@uniwork/views/navigation";
 
 /**
@@ -16,6 +16,7 @@ import { useNavigation } from "@uniwork/views/navigation";
 export default function AuthCallbackPage() {
   const { replace, searchParams } = useNavigation();
   const { status, user } = useSession();
+  const resolveDestination = useLoggedInDestination();
   const next = sanitizeNextUrl(searchParams.get("next"));
 
   useEffect(() => {
@@ -26,12 +27,12 @@ export default function AuthCallbackPage() {
     if (status !== "authed" || !user) return;
     void (async () => {
       const workspaces = await api.workspaces.list().catch(() => []);
-      const destination = await resolveLoggedInDestination(user, workspaces);
+      const destination = await resolveDestination(user, workspaces);
       // A verified, onboarded user goes where they were headed; anyone still
       // owing a gate step goes through it first.
       replace(next && destination !== paths.verify() && destination !== paths.onboarding() ? next : destination);
     })();
-  }, [status, user, next, replace]);
+  }, [status, user, next, replace, resolveDestination]);
 
   return <AuthCallbackView />;
 }

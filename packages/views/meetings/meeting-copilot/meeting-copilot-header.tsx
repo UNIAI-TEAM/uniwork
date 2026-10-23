@@ -1,25 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
 
-export function MeetingCopilotHeader({
-  canHost,
-  aiOn,
-  hasSource,
-  hasSummary,
-  generating,
-  onGenerate,
-}: {
-  canHost: boolean;
-  aiOn: boolean;
-  hasSource: boolean;
-  hasSummary: boolean;
-  generating: boolean;
-  onGenerate: () => void;
-}) {
+/** The Copilot's title row; `action` is the generate button the host sees. */
+export function MeetingCopilotHeader({ action }: { action?: ReactNode }) {
   const { t } = useTranslation();
 
   return (
@@ -29,26 +16,11 @@ export function MeetingCopilotHeader({
         <h2 className="text-pretty text-title-sm font-semibold text-foreground">
           {t("meetings.uniworkAi")}
         </h2>
-        <Badge variant="secondary" className="border-brand/20 bg-surface-selected text-brand">
+        <Badge variant="secondary" className="border-transparent bg-brand-subtle text-brand-subtle-foreground">
           {t("meetings.betaLabel")}
         </Badge>
       </div>
-      {canHost && aiOn ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          disabled={generating || !hasSource}
-          onClick={onGenerate}
-        >
-          {generating
-            ? t("meetings.summarizing")
-            : hasSummary
-              ? t("meetings.regenerateSummary")
-              : t("meetings.generateSummary")}
-        </Button>
-      ) : null}
+      {action}
     </div>
   );
 }

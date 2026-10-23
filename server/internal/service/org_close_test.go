@@ -1,0 +1,263 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// soloOrganization is an organization whose owner is its only member, the
+// one shape Close accepts (ADR 0032 D5).
+func (f *orgMembersFixture) soloOrganization(t *testing.T) db.Organization {
+	t.Helper()
+	o, err := f.orgs.Create(f.ctx, f.other.ID, "Một mình", "mot-minh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return o
+}
+
+func (f *orgMembersFixture) count(t *testing.T, sql string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := f.pool.QueryRow(f.ctx, sql, args...).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// TestCloseOrganization is spec §4.5: the sole owner archives the
+// organization and is free again; nothing it holds is deleted.
+func TestCloseOrganization(t *testing.T) {
+	t.Run("only the owner may close", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		for _, who := range []string{f.admin.ID, f.member.ID, f.other.ID} {
+			if err := f.svc.Close(f.ctx, who, f.org.ID, "unicom"); !errors.Is(err, ErrForbidden) {
+				t.Fatalf("close by %s: %v", who, err)
+			}
+		}
+	})
+
+	t.Run("another active member blocks the close", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		err := f.svc.Close(f.ctx, f.owner.ID, f.org.ID, "unicom")
+		codedFields(t, err, "organization_has_members")
+		if o, _ := f.q.GetOrganizationByID(f.ctx, f.org.ID); o.Status != OrganizationActive {
+			t.Fatalf("refused close changed the organization: %s", o.Status)
+		}
+	})
+
+	t.Run("deactivated members do not block it", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		for _, id := range []string{f.admin.ID, f.member.ID} {
+			if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := f.svc.Close(f.ctx, f.owner.ID, f.org.ID, "unicom"); err != nil {
+			t.Fatalf("close with only deactivated peers: %v", err)
+		}
+	})
+
+	t.Run("the typed slug must match", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		for _, typed := range []string{"", "Mot-Minh", "unicom"} {
+			err := f.svc.Close(f.ctx, f.other.ID, o.ID, typed)
+			codedFields(t, err, "close_confirm_mismatch")
+		}
+		if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != OrganizationActive {
+			t.Fatalf("refused close changed the organization: %s", got.Status)
+		}
+	})
+
+	t.Run("only an active organization closes", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		for _, status := range []string{OrganizationSuspended, "archived"} {
+			f.setStatus(t, o.ID, status)
+			if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); !errors.Is(err, ErrOrganizationSuspended) {
+				t.Fatalf("close of a %s organization: %v", status, err)
+			}
+		}
+	})
+
+	t.Run("closing archives it, frees the owner and keeps the data", func(t *testing.T) {
+		f := newOrgMembersFixture(t)
+		o := f.soloOrganization(t)
+		ws, err := f.ws.CreateInOrg(f.ctx, f.other.ID, o.ID, "Nhóm", "nhom")
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.inviteToOrg(t, o.ID, f.other.ID, "pending@example.com")
+
+		if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); err != nil {
+			t.Fatalf("close: %v", err)
+		}
+
+		got, err := f.q.GetOrganizationByID(f.ctx, o.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Status != "archived" || got.SuspendedReason.String != "organization_closed" || !got.SuspendedAt.Valid {
+			t.Fatalf("organization after close: %s %+v %+v", got.Status, got.SuspendedReason, got.SuspendedAt)
+		}
+		m, err := f.svc.member(f.ctx, o.ID, f.other.ID)
+		if err != nil || !m.DeactivatedAt.Valid || m.DeactivatedBy.String != f.other.ID || m.Role != OrgRoleOwner {
+			t.Fatalf("owner row after close: %v %+v", err, m)
+		}
+		if n := f.count(t, `SELECT count(*) FROM invitations WHERE organization_id = $1 AND revoked_at IS NULL AND accepted_at IS NULL`, o.ID); n != 0 {
+			t.Fatalf("%d invitations still pending", n)
+		}
+		if n := f.count(t, `SELECT count(*) FROM subscriptions WHERE organization_id = $1 AND status <> 'canceled'`, o.ID); n != 0 {
+			t.Fatalf("%d subscriptions still live", n)
+		}
+		if n := f.count(t, `SELECT count(*) FROM outbox_events WHERE topic = 'organization.closed' AND organization_id = $1`, o.ID); n != 1 {
+			t.Fatalf("organization.closed events: %d", n)
+		}
+		if n := f.count(t, `SELECT count(*) FROM audit_events WHERE action = 'organization.closed' AND organization_id = $1`, o.ID); n != 1 {
+			t.Fatalf("organization.closed audit rows: %d", n)
+		}
+		// D4: the workspace and its membership stay for a later restore.
+		if n := f.count(t, `SELECT count(*) FROM workspaces WHERE id = $1`, ws.Workspace.ID); n != 1 {
+			t.Fatal("the workspace was deleted")
+		}
+		if n := f.count(t, `SELECT count(*) FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, ws.Workspace.ID, f.other.ID); n != 1 {
+			t.Fatal("the workspace membership was deleted")
+		}
+
+		if _, err := f.orgs.Create(f.ctx, f.other.ID, "Khởi đầu mới", "khoi-dau-moi"); err != nil {
+			t.Fatalf("owner founding a new organization after close: %v", err)
+		}
+		if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); !errors.Is(err, ErrMemberDeactivated) {
+			t.Fatalf("closing twice: %v", err)
+		}
+	})
+}
+
+// A closed organization holds nobody (ADR 0032 D1), so its former owner may
+// erase the account: the owner row stays role=owner for a later restore, but
+// it is deactivated and the organization archived.
+func TestClosedOrganizationDoesNotBlockAccountDeletion(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := f.auth.DeleteAccount(f.ctx, f.other.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatalf("delete the account of a closed organization's owner: %v", err)
+	}
+	// The owner of a live organization still has to hand it over first.
+	if err := f.auth.DeleteAccount(f.ctx, f.owner.ID, DeleteAccountInput{Password: "password123"}); !errors.Is(err, ErrOwnerMustTransfer) {
+		t.Fatalf("delete the account of an active owner: %v", err)
+	}
+}
+
+// waitForRowLockWaiters blocks until n backends of this database wait on a
+// row or transaction lock (advisory waits are the test lock of other
+// packages), so a race is staged in a known order instead of by sleeping.
+// It polls on the barrier's own connection: testutil.DB keeps one pooled
+// connection for its lock, and with the barrier and the racing transactions
+// a small pool (max(4, NumCPU) on a CI runner) has none left, so a pooled
+// poll would wait forever and the barrier would never be released. On
+// failure it releases the barrier first for the same reason.
+func waitForLockWaiters(t *testing.T, barrier pgx.Tx, n int) {
+	t.Helper()
+	ctx := context.Background()
+	fail := func(format string, args ...any) {
+		t.Helper()
+		_ = barrier.Rollback(ctx)
+		t.Fatalf(format, args...)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		// pg_stat_activity is snapshotted once per transaction; the barrier
+		// is one, so drop the snapshot before every look.
+		if _, err := barrier.Exec(ctx, `SELECT pg_stat_clear_snapshot()`); err != nil {
+			fail("clear stats snapshot: %v", err)
+		}
+		var got int
+		if err := barrier.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event <> 'advisory'`).Scan(&got); err != nil {
+			fail("count lock waiters: %v", err)
+		}
+		if got >= n {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	fail("fewer than %d transactions waiting on a lock", n)
+}
+
+// Close decides "nobody else is here" (D5) while an acceptance into the same
+// organization may be mid-flight. The acceptance holds the organization row
+// shared from before it locks the invitation, so Close waits for it, counts
+// the new member and refuses; it never archives an organization somebody was
+// just told they joined.
+func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	joiner := registerVerified(t, f.q, f.auth, "joiner@example.com", "Joiner")
+	token := f.inviteToOrg(t, o.ID, f.other.ID, "joiner@example.com")
+
+	// Holding the subscription row parks the acceptance in Consume, after
+	// it has locked the invitation and before it adds the member.
+	hold, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Rollback(f.ctx) //nolint:errcheck
+	if _, err := hold.Exec(f.ctx, `SELECT 1 FROM subscriptions WHERE organization_id = $1 AND status <> 'canceled' FOR UPDATE`, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	accepted := make(chan error, 1)
+	go func() {
+		_, err := f.ws.AcceptInvite(f.ctx, joiner.ID, token, nil)
+		accepted <- err
+	}()
+	waitForLockWaiters(t, hold, 1)
+	closed := make(chan error, 1)
+	go func() { closed <- f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh") }()
+	waitForLockWaiters(t, hold, 2)
+	if err := hold.Rollback(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := <-accepted; err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	codedFields(t, <-closed, "organization_has_members")
+	if got, _ := f.q.GetOrganizationByID(f.ctx, o.ID); got.Status != OrganizationActive {
+		t.Fatalf("organization after the race: %s", got.Status)
+	}
+	if m, err := f.svc.member(f.ctx, o.ID, joiner.ID); err != nil || m.DeactivatedAt.Valid {
+		t.Fatalf("joiner after the race: %v %+v", err, m)
+	}
+}
+
+// The closed organization keeps its workspace rows (D4), but nobody can open
+// them, so the workspace list no longer offers them as a destination.
+func TestClosedOrganizationLeavesTheWorkspaceList(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	o := f.soloOrganization(t)
+	if _, err := f.ws.CreateInOrg(f.ctx, f.other.ID, o.ID, "Nhóm", "nhom"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.Close(f.ctx, f.other.ID, o.ID, "mot-minh"); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	list, err := f.ws.ListForUser(f.ctx, f.other.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range list {
+		if w.Workspace.OrganizationID == o.ID {
+			t.Fatalf("the closed organization's workspace is still listed: %+v", w.Workspace)
+		}
+	}
+}

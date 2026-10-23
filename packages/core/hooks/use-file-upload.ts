@@ -14,6 +14,8 @@ export interface UploadContext {
   taskId?: string;
   commentId?: string;
   chatSessionId?: string;
+  /** FileService purpose for the upload; absent is the task_attachment default. */
+  purpose?: string;
 }
 
 function pickMarkdownLink(att: Attachment): string {

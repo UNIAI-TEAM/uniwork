@@ -1,0 +1,352 @@
+"use client";
+
+import { AudioLines, CircleDot, Mic, Play } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { ChatVoiceRecordingItem } from "@uniwork/core/api/endpoints/chat-voice";
+import { useChatRooms, useChatVoiceRecordings } from "@uniwork/core/chat";
+import { IconTile, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@uniwork/ui/components/ui/empty";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@uniwork/ui/components/ui/sheet";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import {
+  CHAT_EMPTY_TILE_CLASS,
+  CHAT_EMPTY_TITLE_CLASS,
+  CHAT_PILL_SM_CLASS,
+  CHAT_SHEET_CLASS,
+  CHAT_SHEET_HEADER_CLASS,
+} from "./chat-dialog-look";
+import { formatMessageDateTime, formatMessageDay, formatMessageTime } from "./chat-message-time";
+import type { NameContextEntry } from "./native-chat-message-mapping";
+import { formatVoiceCallDuration } from "./voice-call-duration";
+import { chatRoomFaceOf } from "./voice-call-face";
+import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
+
+function parseTs(iso: string): number | null {
+  if (!iso.trim()) return null;
+  const ts = Date.parse(iso);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+/** Length of a finished recording, or null while it is still running / unknown. */
+export function recordingDurationSeconds(item: Pick<ChatVoiceRecordingItem, "started_at" | "ended_at">): number | null {
+  const start = parseTs(item.started_at);
+  const end = parseTs(item.ended_at);
+  if (start === null || end === null || end <= start) return null;
+  return Math.round((end - start) / 1000);
+}
+
+function startedByLabel(
+  startedBy: string,
+  currentUserId: string,
+  nameContext: NameContextEntry[],
+  youLabel: string,
+  unknownLabel: string,
+): string {
+  if (!startedBy) return unknownLabel;
+  if (startedBy === currentUserId) return youLabel;
+  const match = nameContext.find((entry) => entry.user_id === startedBy);
+  return match?.display_name.trim() || unknownLabel;
+}
+
+/**
+ * "Hôm qua, 16:30" and "Ghi bởi Nguyễn Thu Hà · dài 32:10": when a recording
+ * started, and who started it and for how long. The list row prints both;
+ * the player's dialog (here and from a call log) joins them with " · ".
+ */
+export function describeVoiceRecording(
+  item: Pick<ChatVoiceRecordingItem, "started_at" | "ended_at" | "started_by">,
+  ctx: {
+    locale: string;
+    t: (key: string, options?: Record<string, string>) => string;
+    currentUserId: string;
+    nameContext: NameContextEntry[];
+    youLabel: string;
+  },
+): { startedTs: number | null; when: string; whoLine: string } {
+  const { locale, t } = ctx;
+  const startedTs = parseTs(item.started_at);
+  const duration = recordingDurationSeconds(item);
+  const who = startedByLabel(
+    item.started_by,
+    ctx.currentUserId,
+    ctx.nameContext,
+    ctx.youLabel,
+    t("chat.voice_recordings_unknown_member"),
+  );
+  const when =
+    startedTs === null
+      ? t("chat.voice_recordings_unknown_time")
+      : t("chat.voice_recordings_when", {
+          day: formatMessageDay(startedTs, locale, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") }),
+          time: formatMessageTime(startedTs, locale),
+        });
+  const whoLine = `${t("chat.voice_recordings_started_by", { name: who })}${
+    duration !== null ? ` · ${t("chat.voice_recordings_duration", { duration: formatVoiceCallDuration(duration) })}` : ""
+  }`;
+  return { startedTs, when, whoLine };
+}
+
+type RecordingStatus = "complete" | "processing" | "active" | "failed" | "unknown";
+
+/** Server statuses are a lenient string; anything new reads as a translated "unknown". */
+export function recordingStatus(status: string): RecordingStatus {
+  switch (status.trim().toUpperCase()) {
+    case "COMPLETE":
+      return "complete";
+    case "PROCESSING":
+      return "processing";
+    case "ACTIVE":
+      return "active";
+    case "FAILED":
+      return "failed";
+    default:
+      return "unknown";
+  }
+}
+
+const STATUS_LABEL_KEY: Record<RecordingStatus, string> = {
+  complete: "chat.voice_recordings_status_complete",
+  processing: "chat.voice_recordings_status_processing",
+  active: "chat.voice_recordings_status_active",
+  failed: "chat.voice_recordings_status_failed",
+  unknown: "chat.voice_recordings_status_unknown",
+};
+
+const STATUS_TONE: Record<RecordingStatus, string> = {
+  complete: "bg-success-soft text-success-soft-foreground",
+  processing: "bg-info-soft text-info-soft-foreground",
+  active: "bg-brand-subtle text-brand-subtle-foreground",
+  failed: "bg-destructive-soft text-destructive-soft-foreground",
+  unknown: "bg-muted text-muted-foreground",
+};
+
+function RecordingStatusPill({ status }: { status: RecordingStatus }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-status={status}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center gap-1.25 rounded-md px-1.75 text-micro font-semibold",
+        STATUS_TONE[status],
+      )}
+    >
+      {status === "active" ? <span aria-hidden className="size-1.5 rounded-full bg-current motion-safe:animate-pulse" /> : null}
+      {t(STATUS_LABEL_KEY[status])}
+    </span>
+  );
+}
+
+function RecordingRow({
+  item,
+  locale,
+  currentUserId,
+  nameContext,
+  youLabel,
+  onPlay,
+}: {
+  item: ChatVoiceRecordingItem;
+  locale: string;
+  currentUserId: string;
+  nameContext: NameContextEntry[];
+  youLabel: string;
+  onPlay: (recordingId: string, description: string) => void;
+}) {
+  const { t } = useTranslation();
+  const describedById = useId();
+  const status = recordingStatus(item.status);
+  const { startedTs, when, whoLine } = describeVoiceRecording(item, { locale, t, currentUserId, nameContext, youLabel });
+
+  const live = status === "active";
+  return (
+    <li className="flex items-start gap-3 px-2 py-3.5">
+      {/* A running recording is the red record mark; a finished one is the mic. */}
+      <IconTile icon={live ? CircleDot : Mic} tone={live ? "destructive" : "muted"} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p id={`${describedById}-when`} className="min-w-0 truncate text-body-lg font-semibold text-foreground tabular-nums">
+            {startedTs === null ? (
+              when
+            ) : (
+              <time dateTime={new Date(startedTs).toISOString()} title={formatMessageDateTime(startedTs, locale)}>
+                {when}
+              </time>
+            )}
+          </p>
+          <RecordingStatusPill status={status} />
+        </div>
+        <p id={`${describedById}-who`} className="mt-0.5 truncate text-label text-muted-foreground tabular-nums">
+          {whoLine}
+        </p>
+        {status === "failed" ? (
+          <p className="mt-2 text-caption text-muted-foreground">{t("chat.voice_recordings_failed_hint")}</p>
+        ) : null}
+      </div>
+      {status === "complete" ? (
+        <Button
+          type="button"
+          variant="brandSubtle"
+          size="sm"
+          className={cn(CHAT_PILL_SM_CLASS, "h-9 self-center pr-3.5 pl-3 text-body")}
+          aria-describedby={`${describedById}-when ${describedById}-who`}
+          onClick={() => onPlay(item.id, `${when} · ${whoLine}`)}
+        >
+          <Play aria-hidden className="size-3.5 fill-current" />
+          {t("chat.voice_recordings_play")}
+        </Button>
+      ) : null}
+    </li>
+  );
+}
+
+/** Recordings are loading: rows in their own shape. */
+function RecordingListSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-2" aria-busy>
+      <span className="sr-only">{label}</span>
+      {["w-40", "w-32", "w-36"].map((w) => (
+        <div key={w} className="flex items-start gap-3 px-2 py-3.5">
+          <Skeleton className="size-10 shrink-0 rounded-lg" />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className={cn("h-3.5", w)} />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-9 w-16 self-center rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Room-scoped list of voice/video call recordings. */
+export function ChatVoiceRecordingsSheet({
+  open,
+  onOpenChange,
+  workspaceId,
+  roomId,
+  currentUserId,
+  nameContext,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workspaceId: string;
+  roomId: string;
+  currentUserId: string;
+  nameContext: NameContextEntry[];
+}) {
+  const { t, i18n } = useTranslation();
+  const [playback, setPlayback] = useState<{ id: string; description: string } | null>(null);
+  const { data: rooms } = useChatRooms(workspaceId);
+  const room = rooms?.find((r) => r.id === roomId);
+  const roomName = (room?.kind === "dm" ? room.peer_display_name : room?.name)?.trim() ?? "";
+  const roomFace = chatRoomFaceOf(room, roomName);
+  const { data: recordings = [], isLoading, isError, refetch } = useChatVoiceRecordings(
+    workspaceId,
+    roomId,
+    open,
+  );
+
+  const sorted = useMemo(
+    () => [...recordings].sort((a, b) => (parseTs(b.started_at) ?? 0) - (parseTs(a.started_at) ?? 0)),
+    [recordings],
+  );
+
+  return (
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
+          <SheetHeader className={cn(CHAT_SHEET_HEADER_CLASS, "pt-5 pl-6")}>
+            <SheetTitle>{t("chat.voice_recordings_title")}</SheetTitle>
+            <SheetDescription>{t("chat.voice_recordings_description")}</SheetDescription>
+            {roomName ? (
+              <span className="mt-2 inline-flex h-6.5 items-center gap-1.5 self-start rounded-full bg-muted pr-2.5 pl-1 text-caption font-semibold text-foreground">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "inline-flex size-4.5 items-center justify-center font-display text-micro leading-none font-bold",
+                    roomFace.square ? "rounded-md" : "rounded-full",
+                    tintSolidClass[roomFace.tint],
+                  )}
+                >
+                  {/* One letter: two do not fit an 18px mark at the smallest text size. */}
+                  {Array.from(roomFace.text)[0]}
+                </span>
+                {roomName}
+              </span>
+            ) : null}
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
+            {isLoading ? (
+              <RecordingListSkeleton label={t("chat.voice_recordings_loading")} />
+            ) : isError ? (
+              <div role="alert" className="flex flex-col items-start gap-2 px-2 pt-3">
+                <p className="text-body text-destructive">{t("chat.voice_recordings_load_failed")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={CHAT_PILL_SM_CLASS}
+                  onClick={() => void refetch()}
+                >
+                  {t("chat.retry")}
+                </Button>
+              </div>
+            ) : sorted.length === 0 ? (
+              <Empty className="py-10">
+                <EmptyHeader>
+                  <EmptyMedia>
+                    <IconTile icon={AudioLines} tone="brand" size="lg" className={CHAT_EMPTY_TILE_CLASS} />
+                  </EmptyMedia>
+                  <EmptyTitle className={CHAT_EMPTY_TITLE_CLASS}>{t("chat.voice_recordings_empty")}</EmptyTitle>
+                  <EmptyDescription className="max-w-80">
+                    {t("chat.voice_recordings_empty_hint")}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <ul className="divide-y divide-border">
+                {sorted.map((item) => (
+                  <RecordingRow
+                    key={item.id}
+                    item={item}
+                    locale={i18n.language}
+                    currentUserId={currentUserId}
+                    nameContext={nameContext}
+                    youLabel={t("chat.you")}
+                    onPlay={(id, description) => setPlayback({ id, description })}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+      {playback ? (
+        <VoiceCallRecordingDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setPlayback(null);
+          }}
+          workspaceId={workspaceId}
+          roomId={roomId}
+          recordingId={playback.id}
+          description={playback.description}
+        />
+      ) : null}
+    </>
+  );
+}

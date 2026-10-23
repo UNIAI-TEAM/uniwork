@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  NotificationDocumentSchema,
   NotificationPreferenceSchema,
   NotificationSchema,
   PushConfigSchema,
   UnreadCountSchema,
   type Notification,
+  type NotificationDocument,
   type NotificationPreference,
   type PushConfig,
   type PushSubscriptionBody,
@@ -17,11 +19,26 @@ const ListResponse = z.object({
   notifications: z.array(NotificationSchema),
   next_before: z.string().optional().default(""),
 });
+const DocumentsResponse = z.object({
+  documents: z.array(NotificationDocumentSchema),
+  next_cursor: z.string().nullable().optional().default(null),
+});
 const PreferencesResponse = z.object({ preferences: z.array(NotificationPreferenceSchema) });
+const ReadResponse = z.object({ ids: z.array(z.string()).optional().default([]) });
 
 export interface NotificationPage {
   notifications: Notification[];
   next_before: string;
+}
+
+export interface NotificationDocumentPage {
+  documents: NotificationDocument[];
+  next_cursor: string | null;
+}
+
+export interface ListNotificationDocumentsQuery {
+  cursor?: string;
+  limit?: number;
 }
 
 export interface ListNotificationsQuery {
@@ -32,6 +49,7 @@ export interface ListNotificationsQuery {
 }
 
 const EMPTY_PAGE: NotificationPage = { notifications: [], next_before: "" };
+const EMPTY_DOCUMENTS: NotificationDocumentPage = { documents: [], next_cursor: null };
 const EMPTY_COUNT: UnreadCount = { total: 0, by_workspace: {} };
 
 export async function listNotifications(q: ListNotificationsQuery = {}): Promise<NotificationPage> {
@@ -47,6 +65,24 @@ export async function listNotifications(q: ListNotificationsQuery = {}): Promise
   });
 }
 
+/**
+ * The documents of one document_changed notification the caller can read now,
+ * one page at a time: pass the previous page's next_cursor back untouched.
+ */
+export async function listNotificationDocuments(
+  notificationId: string,
+  q: ListNotificationDocumentsQuery = {},
+): Promise<NotificationDocumentPage> {
+  const params = new URLSearchParams();
+  if (q.cursor) params.set("cursor", q.cursor);
+  if (q.limit) params.set("limit", String(q.limit));
+  const qs = params.toString();
+  const raw = await request(`/api/v1/me/notifications/${encodeURIComponent(notificationId)}/documents${qs ? `?${qs}` : ""}`);
+  return parseWithFallback<NotificationDocumentPage>(raw, DocumentsResponse, EMPTY_DOCUMENTS, {
+    endpoint: "GET /api/v1/me/notifications/{notificationID}/documents",
+  });
+}
+
 export async function getUnreadCount(): Promise<UnreadCount> {
   const raw = await request("/api/v1/me/notifications/unread-count");
   return parseWithFallback<UnreadCount>(raw, UnreadCountSchema, EMPTY_COUNT, {
@@ -58,12 +94,19 @@ export async function markRead(ids: string[]): Promise<void> {
   await request("/api/v1/me/notifications/read", { method: "POST", body: { ids } });
 }
 
-/** Everything open, optionally only one workspace. */
-export async function markAllRead(workspaceId?: string): Promise<void> {
-  await request("/api/v1/me/notifications/read", {
+/**
+ * Everything open, optionally only one workspace. Resolves to the ids it
+ * read, so the caller can undo it with `markUnread`; an older server that
+ * does not send them resolves to [] and the undo simply has nothing to do.
+ */
+export async function markAllRead(workspaceId?: string): Promise<string[]> {
+  const raw = await request("/api/v1/me/notifications/read", {
     method: "POST",
     body: { all: true, ...(workspaceId ? { workspace_id: workspaceId } : {}) },
   });
+  return parseWithFallback<{ ids: string[] }>(raw, ReadResponse, { ids: [] }, {
+    endpoint: "POST /api/v1/me/notifications/read",
+  }).ids;
 }
 
 export async function markUnread(ids: string[]): Promise<void> {
@@ -72,6 +115,11 @@ export async function markUnread(ids: string[]): Promise<void> {
 
 export async function archive(ids: string[]): Promise<void> {
   await request("/api/v1/me/notifications/archive", { method: "POST", body: { ids } });
+}
+
+/** Puts archived rows back in the inbox: the undo of `archive`. */
+export async function unarchive(ids: string[]): Promise<void> {
+  await request("/api/v1/me/notifications/unarchive", { method: "POST", body: { ids } });
 }
 
 export async function getPreferences(): Promise<NotificationPreference[]> {

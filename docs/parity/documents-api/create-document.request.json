@@ -1,0 +1,13 @@
+{
+  "title": "Kế hoạch Q4",
+  "kind": "page",
+  "parent_id": "01J8X4DOC0N1P2Q3R4S5T6U7W9",
+  "icon": "📄",
+  "content": {
+    "type": "doc",
+    "content": [
+      { "type": "paragraph", "content": [ { "type": "text", "text": "Mục tiêu quý này." } ] }
+    ]
+  },
+  "visibility": "workspace"
+}

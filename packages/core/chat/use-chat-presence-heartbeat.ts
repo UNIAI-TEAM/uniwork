@@ -2,29 +2,48 @@
 
 import { useEffect } from "react";
 import { signalChatPresence } from "../api/endpoints/chat";
+import { beatChatPresence } from "../api/endpoints/chat-presence";
+import { useAuthStore } from "../auth/store";
+import { isHostFocused } from "../platform/host-focus";
+import { usePresenceStore } from "./presence-store";
 
 const HEARTBEAT_MS = 15_000;
 
-/** Keep the caller's online presence fresh while the chat page is mounted. */
+function leave(workspaceId: string, opts?: { keepalive?: boolean }): void {
+  // Presence is best-effort — never surface fetch failures as unhandled rejections.
+  void signalChatPresence(workspaceId, "offline", opts).catch(() => undefined);
+}
+
+/**
+ * Keep the caller's online presence fresh while the hook is mounted
+ * (workspace shell). The server announces only state changes, so each beat's
+ * answer — who is online — is how this page learns about peers that were
+ * online before it opened. A server without that answer keeps announcing
+ * every beat, and the store's expiry handles it as before.
+ */
 export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): void {
   useEffect(() => {
     if (!enabled || !workspaceId) return;
     let cancelled = false;
 
-    const beatOnline = () => {
+    const beat = () => {
       if (cancelled) return;
-      void signalChatPresence(workspaceId, "online");
+      const sentAt = Date.now();
+      // A hidden tab or unfocused UniChat window still beats (presence), but must not hold back mobile pushes.
+      void beatChatPresence(workspaceId, isHostFocused())
+        .then((online) => {
+          const self = useAuthStore.getState().user?.id;
+          if (cancelled || online === null || !self) return;
+          usePresenceStore.getState().reconcile(online, self, sentAt);
+        })
+        .catch(() => undefined);
     };
 
-    const beatOffline = (keepalive = false) => {
-      void signalChatPresence(workspaceId, "offline", { keepalive });
-    };
-
-    beatOnline();
-    const timer = window.setInterval(beatOnline, HEARTBEAT_MS);
+    beat();
+    const timer = window.setInterval(beat, HEARTBEAT_MS);
 
     const onPageHide = () => {
-      beatOffline(true);
+      leave(workspaceId, { keepalive: true });
     };
     window.addEventListener("pagehide", onPageHide);
 
@@ -32,7 +51,7 @@ export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): v
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("pagehide", onPageHide);
-      beatOffline();
+      leave(workspaceId);
     };
   }, [workspaceId, enabled]);
 }

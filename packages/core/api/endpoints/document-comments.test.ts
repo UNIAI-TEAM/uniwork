@@ -1,0 +1,649 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { setAccessToken } from "../session";
+import {
+  addDocumentCommentReaction,
+  createDocumentComment,
+  deleteDocumentComment,
+  listDocumentCommentRevisions,
+  listDocumentComments,
+  listDocumentMentionCandidates,
+  putDocumentCommentAnchors,
+  removeDocumentCommentReaction,
+  reopenDocumentComment,
+  resolveDocumentComment,
+  updateDocumentComment,
+} from "./document-comments";
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+const commentBody = (over: Record<string, unknown> = {}) => ({
+  id: "c1",
+  document_id: "d1",
+  author_id: "u1",
+  author_kind: "human",
+  author: { id: "u1", kind: "human", display_name: "An" },
+  body: "Chỗ này cần số liệu Q3.",
+  type: "comment",
+  kind: "comment",
+  anchor: null,
+  revision: 1,
+  created_at: "2026-09-28T08:00:00Z",
+  updated_at: "2026-09-28T08:00:00Z",
+  display_name: "An",
+  reactions: [
+    {
+      id: "r1",
+      comment_id: "c1",
+      actor_type: "member",
+      actor_id: "u1",
+      emoji: "👍",
+      created_at: "2026-09-28T08:01:00Z",
+    },
+  ],
+  ...over,
+});
+
+const reactionBody = (over: Record<string, unknown> = {}) => ({
+  id: "r1",
+  comment_id: "c1",
+  actor_type: "member",
+  actor_id: "u1",
+  emoji: "👍",
+  created_at: "2026-09-28T08:01:00Z",
+  ...over,
+});
+
+const candidateBody = (over: Record<string, unknown> = {}) => ({
+  user_id: "u1",
+  display_name: "Nguyễn Văn An",
+  avatar_url: "https://cdn.example.com/avatars/an.png",
+  email: "an.nguyen@example.com",
+  ...over,
+});
+
+const malformedBodies = [{ nope: true }, { comment: "x" }, null, [], "str"];
+
+describe("document comment endpoints", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  // ---- wire shape -------------------------------------------------------
+
+  it("listDocumentComments reads the thread, its token and the name table", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody()],
+        mentions: [{ user_id: "u2", display_name: "Bình", state: "ok" }],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const out = await listDocumentComments("d1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments");
+    expect(init?.method).toBe("GET");
+    expect(out).toMatchObject({ unchanged: false, listToken: "lt1:abc" });
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments).toHaveLength(1);
+    expect(out.comments[0]?.id).toBe("c1");
+    expect(out.comments[0]?.type).toBe("comment");
+    expect(out.comments[0]?.kind).toBe("comment");
+    expect(out.comments[0]?.reactions[0]?.emoji).toBe("👍");
+    expect(out.mentions[0]?.display_name).toBe("Bình");
+  });
+
+  it("listDocumentComments sends kind and since_token when asked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ comments: [], mentions: [], list_token: "lt1:xyz", unchanged: false }),
+    );
+    await listDocumentComments("d1", { kind: "discussion", sinceToken: "lt1:xyz" });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/documents/d1/comments?kind=discussion&since_token=lt1%3Axyz",
+    );
+  });
+
+  it("createDocumentComment posts body + parent_id with the idempotency header", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentBody({ parent_id: "c0" }) }));
+    const out = await createDocumentComment(
+      "d1",
+      { body: "Đồng ý", parent_id: "c0" },
+      { idempotencyKey: "key-1" },
+    );
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("key-1");
+    expect(JSON.parse(String(init?.body))).toEqual({ body: "Đồng ý", parent_id: "c0" });
+    expect(out?.parent_id).toBe("c0");
+  });
+
+  it("createDocumentComment carries kind, anchor and base_version_id (G8-04)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+          anchor_version_id: "v1",
+          anchor_state: "stale",
+        }),
+      }),
+    );
+    const out = await createDocumentComment("d1", {
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v1",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v1",
+    });
+    expect(out?.anchor_state).toBe("stale");
+    expect(out?.anchor_version_id).toBe("v1");
+    expect(out?.anchor).toMatchObject({ range: "B7" });
+  });
+
+  it("updateDocumentComment PATCHes the comment route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentBody({ revision: 2 }) }));
+    const out = await updateDocumentComment("d1", "c1", { body: "bản sửa" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/c1");
+    expect(init?.method).toBe("PATCH");
+    expect(JSON.parse(String(init?.body))).toEqual({ body: "bản sửa" });
+    expect(out?.revision).toBe(2);
+  });
+
+  it("deleteDocumentComment DELETEs the comment route and proves the status", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", outcome: "tombstoned" }));
+    const ok = await deleteDocumentComment("d1", "c1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/c1");
+    expect(init?.method).toBe("DELETE");
+    expect(ok).toBe(true);
+  });
+
+  it("resolve and reopen use the resolve route with POST and DELETE", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ comment: commentBody({ resolved_at: "2026-09-28T09:00:00Z" }) }),
+    );
+    const resolved = await resolveDocumentComment("d1", "c1");
+    const [resolveUrl, resolveInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(resolveUrl)).toBe("http://api.test/api/v1/documents/d1/comments/c1/resolve");
+    expect(resolveInit?.method).toBe("POST");
+    expect(resolved?.resolved_at).toBe("2026-09-28T09:00:00Z");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentBody() }));
+    const reopened = await reopenDocumentComment("d1", "c1");
+    const [reopenUrl, reopenInit] = vi.mocked(fetch).mock.calls[1]!;
+    expect(String(reopenUrl)).toBe("http://api.test/api/v1/documents/d1/comments/c1/resolve");
+    expect(reopenInit?.method).toBe("DELETE");
+    expect(reopened?.resolved_at).toBeUndefined();
+  });
+
+  it("listDocumentCommentRevisions reads the history route", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        revisions: [
+          {
+            id: "rev2",
+            revision: 2,
+            body: "bản hai",
+            created_by_id: "u1",
+            created_by_kind: "human",
+            created_at: "2026-10-13T09:00:00Z",
+          },
+        ],
+      }),
+    );
+    const out = await listDocumentCommentRevisions("d1", "c1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/c1/revisions");
+    expect(init?.method).toBe("GET");
+    expect(out).toHaveLength(1);
+    expect(out?.[0]?.revision).toBe(2);
+    expect(out?.[0]?.body).toBe("bản hai");
+  });
+
+  it("add and remove comment reactions post the emoji body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ reaction: reactionBody() }));
+    const reaction = await addDocumentCommentReaction("d1", "c1", { emoji: "👍" });
+    const [addUrl, addInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(addUrl)).toBe("http://api.test/api/v1/documents/d1/comments/c1/reactions");
+    expect(addInit?.method).toBe("POST");
+    expect(JSON.parse(String(addInit?.body))).toEqual({ emoji: "👍" });
+    expect(reaction?.comment_id).toBe("c1");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    const removed = await removeDocumentCommentReaction("d1", "c1", { emoji: "👍" });
+    const [removeUrl, removeInit] = vi.mocked(fetch).mock.calls[1]!;
+    expect(String(removeUrl)).toBe("http://api.test/api/v1/documents/d1/comments/c1/reactions");
+    expect(removeInit?.method).toBe("DELETE");
+    expect(JSON.parse(String(removeInit?.body))).toEqual({ emoji: "👍" });
+    expect(removed).toBe(true);
+  });
+
+  it("keeps the G8 comment fields lenient: a bad anchor or kind costs nothing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({ kind: "brand_new_kind", anchor: "not-an-object", anchor_state: "stale" }),
+        ],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments[0]?.anchor).toBeNull();
+    expect(out.comments[0]?.anchor_state).toBe("stale");
+  });
+
+  it("reads anchor_version_no and degrades a malformed one to absent, never the comment (UNI-2033)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({ id: "c1", anchor_state: "lost", anchor_version_id: "v2", anchor_version_no: 2 }),
+          commentBody({ id: "c2", anchor_state: "lost", anchor_version_no: null }),
+          commentBody({ id: "c3", anchor_state: "lost", anchor_version_no: "two" }),
+          commentBody({ id: "c4" }),
+        ],
+        unchanged: false,
+      }),
+    );
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments.map((c) => c.anchor_version_no ?? null)).toEqual([2, null, null, null]);
+    expect(out.comments).toHaveLength(4);
+  });
+
+  // ---- lenience + malformed responses -----------------------------------
+
+  it("keeps the comment when one reaction row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ comments: [commentBody({ reactions: [{ nope: true }] })], unchanged: false }),
+    );
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments).toHaveLength(1);
+    expect(out.comments[0]?.reactions).toEqual([]);
+  });
+
+  it("a malformed thread answer is null, never an empty list", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(listDocumentComments("d1")).resolves.toBeNull();
+    }
+  });
+
+  it("an unchanged probe needs no comments and never fabricates a list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unchanged: true, list_token: "lt1:xyz" }));
+    await expect(listDocumentComments("d1", { sinceToken: "lt1:xyz" })).resolves.toEqual({
+      unchanged: true,
+      listToken: "lt1:xyz",
+    });
+    // `unchanged: true` without a token proves nothing.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unchanged: true }));
+    await expect(listDocumentComments("d1")).resolves.toBeNull();
+  });
+
+  it("a pre-G8 answer (no unchanged, a parsed comments array) is a full list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comments: [commentBody()] }));
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments).toHaveLength(1);
+    expect(out.listToken).toBe("");
+  });
+
+  it("an answer with neither shape is null (the caller keeps its list)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ list_token: "lt1:abc" }));
+    await expect(listDocumentComments("d1")).resolves.toBeNull();
+  });
+
+  it("returns null instead of a half-written comment (create/update/resolve/reopen)", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(createDocumentComment("d1", { body: "x" })).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(updateDocumentComment("d1", "c1", { body: "x" })).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(resolveDocumentComment("d1", "c1")).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(reopenDocumentComment("d1", "c1")).resolves.toBeNull();
+    }
+  });
+
+  it("returns null for a malformed history instead of an empty one", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(listDocumentCommentRevisions("d1", "c1")).resolves.toBeNull();
+    }
+  });
+
+  // ---- comment anchors (G8-04) ------------------------------------------
+
+  it("putDocumentCommentAnchors PUTs the version map and reads the answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        updated: ["c1"],
+        skipped: [{ comment_id: "c2", reason: "older_version" }],
+        list_token: "lt1:next",
+      }),
+    );
+    const out = await putDocumentCommentAnchors("d1", {
+      version_id: "v3",
+      anchors: [
+        { comment_id: "c1", anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" }, state: "exact" },
+      ],
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/anchors");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      version_id: "v3",
+      anchors: [
+        { comment_id: "c1", anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" }, state: "exact" },
+      ],
+    });
+    expect(out).toEqual({
+      updated: ["c1"],
+      skipped: [{ comment_id: "c2", reason: "older_version" }],
+      listToken: "lt1:next",
+    });
+  });
+
+  it("keeps the anchors answer lenient: a malformed skipped row costs the reason, not the write", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ updated: ["c1"], skipped: [{ nope: true }], list_token: "" }),
+    );
+    const out = await putDocumentCommentAnchors("d1", { version_id: "v3", anchors: [] });
+    expect(out?.updated).toEqual(["c1"]);
+    expect(out?.skipped).toEqual([{ comment_id: "", reason: "" }]);
+    expect(out?.listToken).toBe("");
+  });
+
+  it("a malformed anchors answer is null, never a silent success", async () => {
+    for (const body of [...malformedBodies, { nope: true }, { skipped: [] }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        putDocumentCommentAnchors("d1", { version_id: "v3", anchors: [] }),
+      ).resolves.toBeNull();
+    }
+  });
+
+  it("a malformed answer never reads as saved: reaction null, delete/remove unproven", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(addDocumentCommentReaction("d1", "c1", { emoji: "👍" })).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(deleteDocumentComment("d1", "c1")).resolves.toBe(false);
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        removeDocumentCommentReaction("d1", "c1", { emoji: "👍" }),
+      ).resolves.toBe(false);
+    }
+  });
+
+  // ---- mention candidates (G8-06) ---------------------------------------
+
+  it("listDocumentMentionCandidates reads the picker route with q and limit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ candidates: [candidateBody()] }));
+    const out = await listDocumentMentionCandidates("d1", { q: "nguyen", limit: 10 });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/documents/d1/mention-candidates?q=nguyen&limit=10",
+    );
+    expect(init?.method).toBe("GET");
+    expect(out).toHaveLength(1);
+    expect(out[0]?.user_id).toBe("u1");
+    expect(out[0]?.display_name).toBe("Nguyễn Văn An");
+    expect(out[0]?.email).toBe("an.nguyen@example.com");
+  });
+
+  it("keeps the picker email-free when the server hides it and defaults the name", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ candidates: [candidateBody({ email: undefined, display_name: undefined })] }),
+    );
+    const out = await listDocumentMentionCandidates("d1");
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/mention-candidates");
+    expect(out[0]?.email).toBeUndefined();
+    expect(out[0]?.display_name).toBe("");
+  });
+
+  it("degrades the candidates to [] when the envelope is malformed", async () => {
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(listDocumentMentionCandidates("d1", { q: "an" })).resolves.toEqual([]);
+    }
+  });
+
+  // ---- G8-18: mentions_without_access + mention-candidates can_view ------
+
+  it("createDocumentComment and updateDocumentComment parse mentions_without_access", async () => {
+    const commentWithMentions = {
+      id: "c1",
+      document_id: "d1",
+      author_id: "u1",
+      author_kind: "human",
+      body: "Xem giúp [@Bình](mention://member/u2) và [@Chi](mention://member/u3)",
+      type: "discussion",
+      kind: "discussion",
+      revision: 1,
+      created_at: "2026-10-15T01:00:00Z",
+      updated_at: "2026-10-15T01:00:00Z",
+      mentions_without_access: [
+        { user_id: "u2", display_name: "Trần Bình", can_share: true },
+        { user_id: "u3", can_share: false },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: commentWithMentions }, 201));
+    const created = await createDocumentComment(
+      "d1",
+      { body: commentWithMentions.body },
+      { idempotencyKey: "k-c1" },
+    );
+    expect(created?.id).toBe("c1");
+    expect(created?.mentions_without_access).toEqual([
+      { user_id: "u2", display_name: "Trần Bình", can_share: true },
+      { user_id: "u3", can_share: false },
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: {
+          ...commentWithMentions,
+          revision: 2,
+          mentions_without_access: [{ user_id: "u2", display_name: "Trần Bình", can_share: false }],
+        },
+      }),
+    );
+    const updated = await updateDocumentComment("d1", "c1", { body: "Cập nhật" });
+    expect(updated?.revision).toBe(2);
+    expect(updated?.mentions_without_access).toEqual([
+      { user_id: "u2", display_name: "Trần Bình", can_share: false },
+    ]);
+  });
+
+  it("degrades malformed mentions_without_access without dropping the comment", async () => {
+    const baseComment = {
+      id: "c1",
+      document_id: "d1",
+      body: "Nội dung bình luận",
+      revision: 1,
+    };
+
+    // Non-array mentions_without_access degrades to [] while preserving the comment.
+    for (const badField of ["not-an-array", 42, { user_id: "u2" }, true]) {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({ comment: { ...baseComment, mentions_without_access: badField } }),
+      );
+      const out = await createDocumentComment("d1", { body: "Nội dung bình luận" });
+      expect(out?.id).toBe("c1");
+      expect(out?.mentions_without_access).toEqual([]);
+    }
+
+    // Malformed items inside mentions_without_access are dropped; valid items and
+    // items with a non-string display_name degrade gracefully.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: {
+          ...baseComment,
+          mentions_without_access: [
+            { nope: true },
+            { user_id: "", can_share: true },
+            { user_id: "u2", can_share: "yes" },
+            { user_id: "u3", display_name: 12345, can_share: true },
+            { user_id: "u4", display_name: "Lê Dung", can_share: false },
+          ],
+        },
+      }),
+    );
+    const partial = await updateDocumentComment("d1", "c1", { body: "Nội dung bình luận" });
+    expect(partial?.id).toBe("c1");
+    expect(partial?.mentions_without_access).toEqual([
+      { user_id: "u3", can_share: true },
+      { user_id: "u4", display_name: "Lê Dung", can_share: false },
+    ]);
+  });
+
+  it("listDocumentMentionCandidates sends include=no_access and parses can_view", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        candidates: [
+          { user_id: "u1", display_name: "Nguyễn An", can_view: true },
+          { user_id: "u2", display_name: "Trần Bình", can_view: false },
+          { user_id: "u3", display_name: "Lê Chi" },
+        ],
+      }),
+    );
+    const out = await listDocumentMentionCandidates("d1", {
+      q: "  an ",
+      limit: 15,
+      include: "no_access",
+    });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/documents/d1/mention-candidates?q=an&limit=15&include=no_access",
+    );
+    expect(out).toEqual([
+      { user_id: "u1", display_name: "Nguyễn An", can_view: true },
+      { user_id: "u2", display_name: "Trần Bình", can_view: false },
+      { user_id: "u3", display_name: "Lê Chi", can_view: undefined },
+    ]);
+  });
+
+  it("degrades malformed can_view and malformed mention candidate rows safely", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        candidates: [
+          { user_id: "u1", display_name: "An", can_view: "not-a-bool" },
+          { user_id: "", display_name: "Empty id", can_view: false },
+          { nope: true },
+          null,
+          { user_id: "u2", display_name: null, can_view: false },
+        ],
+      }),
+    );
+    const out = await listDocumentMentionCandidates("d1", { include: "no_access" });
+    expect(out).toEqual([
+      { user_id: "u1", display_name: "An", can_view: undefined },
+      { user_id: "u2", display_name: "", can_view: false },
+    ]);
+
+    for (const body of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        listDocumentMentionCandidates("d1", { include: "no_access" }),
+      ).resolves.toEqual([]);
+    }
+  });
+
+  // ---- UNI-2033: anchor_version_no --------------------------------------
+
+  it("parses anchor_version_no when valid or null and reads a malformed one as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({
+            id: "c1",
+            anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+            anchor_version_id: "v2",
+            anchor_version_no: 2,
+            anchor_state: "lost",
+          }),
+          commentBody({
+            id: "c2",
+            kind: "discussion",
+            type: "discussion",
+            anchor: null,
+            anchor_version_id: null,
+            anchor_version_no: null,
+            anchor_state: null,
+          }),
+        ],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const listed = await listDocumentComments("d1");
+    if (!listed || listed.unchanged) throw new Error("expected a full list");
+    expect(listed.comments[0]?.anchor_version_no).toBe(2);
+    expect(listed.comments[1]?.anchor_version_no).toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+          anchor_version_id: "v3",
+          anchor_version_no: 3,
+          anchor_state: "exact",
+        }),
+      }),
+    );
+    const single = await createDocumentComment("d1", {
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v3",
+    });
+    expect(single?.anchor_version_no).toBe(3);
+
+    // A malformed anchor_version_no (e.g. a string) reads as absent; the comment itself is kept.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor_version_id: "v3",
+          anchor_version_no: "not-a-number",
+        }),
+      }),
+    );
+    const malformedSingle = await createDocumentComment("d1", { body: "x" });
+    expect(malformedSingle).not.toBeNull();
+    expect(malformedSingle?.anchor_version_no).toBeUndefined();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody({ anchor_version_no: "not-a-number" })],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const malformedList = await listDocumentComments("d1");
+    if (!malformedList || malformedList.unchanged) throw new Error("expected a full list");
+    expect(malformedList.comments).toHaveLength(1);
+    expect(malformedList.comments[0]?.anchor_version_no).toBeUndefined();
+  });
+});

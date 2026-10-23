@@ -56,9 +56,31 @@ func (q *Queries) ClearOrganizationMemberDeactivated(ctx context.Context, arg Cl
 	return i, err
 }
 
+const closeOrganization = `-- name: CloseOrganization :execrows
+UPDATE organizations SET
+  status = 'archived',
+  suspended_at = now(),
+  suspended_reason = 'organization_closed',
+  updated_at = now()
+WHERE id = $1 AND status = 'active'
+`
+
+// Closing archives rather than deletes (ADR 0032 D4): every gate that wants an
+// active organization already refuses an archived one. 0 rows means the
+// status moved under the caller.
+func (q *Queries) CloseOrganization(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, closeOrganization, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countActiveOrganizationsForUser = `-- name: CountActiveOrganizationsForUser :one
-SELECT count(*) FROM organization_members
-WHERE user_id = $1 AND deactivated_at IS NULL AND organization_id <> $2
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND m.organization_id <> $2
+  AND o.status IN ('active', 'suspended')
 `
 
 type CountActiveOrganizationsForUserParams struct {
@@ -66,10 +88,31 @@ type CountActiveOrganizationsForUserParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+// tenant: parent user_id
 // Deactivating a member revokes their sessions only when this is the last
-// organization they can still enter.
+// organization they can still enter; an archived one is not enterable
+// (ADR 0032 D1).
 func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg CountActiveOrganizationsForUserParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countActiveOrganizationsForUser, arg.UserID, arg.OrganizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveOtherMembers = `-- name: CountActiveOtherMembers :one
+SELECT count(*) FROM organization_members
+WHERE organization_id = $1 AND user_id <> $2 AND deactivated_at IS NULL
+`
+
+type CountActiveOtherMembersParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Close needs the owner to be the organization's only active member
+// (ADR 0032 D5); deactivated rows hold no access and do not count.
+func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOtherMembersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveOtherMembers, arg.OrganizationID, arg.UserID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -78,7 +121,7 @@ func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg Count
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
 `
 
 type CreateOrganizationParams struct {
@@ -106,6 +149,14 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
@@ -142,8 +193,84 @@ func (q *Queries) DeleteWorkspaceMembershipsInOrg(ctx context.Context, arg Delet
 	return err
 }
 
+const filterActiveOrganizationMemberUserIDs = `-- name: FilterActiveOrganizationMemberUserIDs :many
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = $1
+  AND m.user_id = ANY($2::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active'
+`
+
+type FilterActiveOrganizationMemberUserIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	UserIds        []string `json:"user_ids"`
+}
+
+func (q *Queries) FilterActiveOrganizationMemberUserIDs(ctx context.Context, arg FilterActiveOrganizationMemberUserIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, filterActiveOrganizationMemberUserIDs, arg.OrganizationID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const filterAdmittedOrganizationMemberUserIDs = `-- name: FilterAdmittedOrganizationMemberUserIDs :many
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = $1
+  AND m.user_id = ANY($2::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active'
+  AND (o.deletion_scheduled_at IS NULL OR m.role = 'owner')
+`
+
+type FilterAdmittedOrganizationMemberUserIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	UserIds        []string `json:"user_ids"`
+}
+
+// Same admission as GetOrganizationMember / OrganizationService.RequireMemberQ
+// (active organization, member not deactivated, and only the owner while a
+// deletion is scheduled), in one query for many user ids: a chat document
+// grant to a large room or a Documents batch share gates every recipient
+// without a round trip each (UNI-2012 S1c).
+func (q *Queries) FilterAdmittedOrganizationMemberUserIDs(ctx context.Context, arg FilterAdmittedOrganizationMemberUserIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, filterAdmittedOrganizationMemberUserIDs, arg.OrganizationID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -159,12 +286,20 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -180,12 +315,20 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
 
 const getOrganizationMember = `-- name: GetOrganizationMember :one
-SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by, m.updated_at, o.status AS organization_status
+SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by, m.updated_at, o.status AS organization_status, o.deletion_scheduled_at
 FROM organization_members m JOIN organizations o ON o.id = m.organization_id
 WHERE m.organization_id = $1 AND m.user_id = $2
 `
@@ -196,15 +339,16 @@ type GetOrganizationMemberParams struct {
 }
 
 type GetOrganizationMemberRow struct {
-	OrganizationID     string             `json:"organization_id"`
-	UserID             string             `json:"user_id"`
-	Role               string             `json:"role"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	DeactivatedAt      pgtype.Timestamptz `json:"deactivated_at"`
-	DeactivatedBy      pgtype.Text        `json:"deactivated_by"`
-	InvitedBy          pgtype.Text        `json:"invited_by"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	OrganizationStatus string             `json:"organization_status"`
+	OrganizationID      string             `json:"organization_id"`
+	UserID              string             `json:"user_id"`
+	Role                string             `json:"role"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt       pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy       pgtype.Text        `json:"deactivated_by"`
+	InvitedBy           pgtype.Text        `json:"invited_by"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	OrganizationStatus  string             `json:"organization_status"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
 }
 
 // organization_status rides along so RequireMember can refuse a suspended
@@ -222,12 +366,64 @@ func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganization
 		&i.InvitedBy,
 		&i.UpdatedAt,
 		&i.OrganizationStatus,
+		&i.DeletionScheduledAt,
 	)
 	return i, err
 }
 
+const listActiveOrganizationsForUser = `-- name: ListActiveOrganizationsForUser :many
+SELECT o.id, o.name, o.slug, o.status, m.role,
+       (SELECT count(*) FROM organization_members om
+        WHERE om.organization_id = o.id AND om.user_id <> m.user_id AND om.deactivated_at IS NULL
+       )::bigint AS other_active_members
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND o.status IN ('active', 'suspended')
+ORDER BY m.created_at, o.id
+`
+
+type ListActiveOrganizationsForUserRow struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Slug               string `json:"slug"`
+	Status             string `json:"status"`
+	Role               string `json:"role"`
+	OtherActiveMembers int64  `json:"other_active_members"`
+}
+
+// tenant: self
+// The organizations an account counts as belonging to (ADR 0032 D1): a
+// membership not deactivated, in an organization that is active or
+// suspended. other_active_members is how many people could take ownership.
+func (q *Queries) ListActiveOrganizationsForUser(ctx context.Context, userID string) ([]ListActiveOrganizationsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listActiveOrganizationsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveOrganizationsForUserRow{}
+	for rows.Next() {
+		var i ListActiveOrganizationsForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.Status,
+			&i.Role,
+			&i.OtherActiveMembers,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemberWorkspacesInOrg = `-- name: ListMemberWorkspacesInOrg :many
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 JOIN workspace_members m ON m.workspace_id = w.id
@@ -251,6 +447,9 @@ type ListMemberWorkspacesInOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -275,6 +474,9 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
@@ -288,9 +490,35 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 	return items, nil
 }
 
+const listOrganizationIDsForMaintenance = `-- name: ListOrganizationIDsForMaintenance :many
+SELECT id FROM organizations ORDER BY id
+`
+
+// The maintenance worker enumerates tenant roots before asking for each
+// organization's workspace scopes; no business-table query is unscoped.
+func (q *Queries) ListOrganizationIDsForMaintenance(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listOrganizationIDsForMaintenance)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrganizationMembers = `-- name: ListOrganizationMembers :many
 SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_members m JOIN users u ON u.id = m.user_id
 WHERE m.organization_id = $1
   AND (
@@ -323,6 +551,7 @@ type ListOrganizationMembersRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 }
 
 // The directory's admin view: membership plus the identity columns, keyset
@@ -353,6 +582,7 @@ func (q *Queries) ListOrganizationMembers(ctx context.Context, arg ListOrganizat
 			&i.Email,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -364,30 +594,75 @@ func (q *Queries) ListOrganizationMembers(ctx context.Context, arg ListOrganizat
 	return items, nil
 }
 
+const listOrganizationMembershipsForUser = `-- name: ListOrganizationMembershipsForUser :many
+SELECT organization_id, deactivated_at FROM organization_members
+WHERE user_id = $1
+ORDER BY organization_id
+`
+
+type ListOrganizationMembershipsForUserRow struct {
+	OrganizationID string             `json:"organization_id"`
+	DeactivatedAt  pgtype.Timestamptz `json:"deactivated_at"`
+}
+
+// tenant: self
+// Every membership row of one account, archived organizations included:
+// account deletion records its erasure in each of them.
+func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID string) ([]ListOrganizationMembershipsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listOrganizationMembershipsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrganizationMembershipsForUserRow{}
+	for rows.Next() {
+		var i ListOrganizationMembershipsForUserRow
+		if err := rows.Scan(&i.OrganizationID, &i.DeactivatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
-WHERE m.user_id = $1
+WHERE m.user_id = $1 AND o.status <> 'archived'
 ORDER BY o.created_at
 `
 
 type ListOrganizationsForUserRow struct {
-	ID              string             `json:"id"`
-	Slug            string             `json:"slug"`
-	Name            string             `json:"name"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
-	Role            string             `json:"role"`
-	DeactivatedAt   pgtype.Timestamptz `json:"deactivated_at"`
+	ID                    string             `json:"id"`
+	Slug                  string             `json:"slug"`
+	Name                  string             `json:"name"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Status                string             `json:"status"`
+	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels          []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	Role                  string             `json:"role"`
+	DeactivatedAt         pgtype.Timestamptz `json:"deactivated_at"`
 }
 
+// tenant: self
 // Deactivated memberships stay in the switcher so the person can see which
 // organization locked them out instead of watching it vanish (spec F-03 §6.3).
+// An archived organization (closed or deleted) is gone for its members, so it
+// leaves the list (ADR 0032).
 func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) ([]ListOrganizationsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listOrganizationsForUser, userID)
 	if err != nil {
@@ -407,6 +682,14 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.Status,
 			&i.SuspendedAt,
 			&i.SuspendedReason,
+			&i.McpEnabledAt,
+			&i.McpEnabledBy,
+			&i.DeletionScheduledAt,
+			&i.McpWriteEnabledAt,
+			&i.McpWriteEnabledBy,
+			&i.AskUniModels,
+			&i.AskUniModelsUpdatedBy,
+			&i.AskUniModelsUpdatedAt,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -421,7 +704,7 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 }
 
 const listWorkspacesInOrg = `-- name: ListWorkspacesInOrg :many
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, w.task_prefix, w.task_counter, w.description, w.icon_emoji, w.icon_file_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.organization_id = $1
 ORDER BY w.created_at
@@ -438,6 +721,9 @@ type ListWorkspacesInOrgRow struct {
 	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	TaskPrefix       string             `json:"task_prefix"`
 	TaskCounter      int64              `json:"task_counter"`
+	Description      string             `json:"description"`
+	IconEmoji        pgtype.Text        `json:"icon_emoji"`
+	IconFileID       pgtype.Text        `json:"icon_file_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -462,6 +748,9 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 			&i.MatrixRoomID,
 			&i.TaskPrefix,
 			&i.TaskCounter,
+			&i.Description,
+			&i.IconEmoji,
+			&i.IconFileID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
@@ -473,6 +762,69 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR SHARE
+`
+
+// An acceptance holds the organization row shared before it locks the
+// invitation, the order that serializes it against Close without deadlock.
+func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Organization, error) {
+	row := q.db.QueryRow(ctx, lockOrganizationForShare, id)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
+	)
+	return i, err
+}
+
+const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+// Close holds the organization row while it counts the other members, so an
+// acceptance into the organization either commits first and is counted, or
+// waits and finds it archived (ADR 0032 D5).
+func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Organization, error) {
+	row := q.db.QueryRow(ctx, lockOrganizationForUpdate, id)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
+		&i.McpEnabledAt,
+		&i.McpEnabledBy,
+		&i.DeletionScheduledAt,
+		&i.McpWriteEnabledAt,
+		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
+	)
+	return i, err
 }
 
 const lockOrganizationMemberForUpdate = `-- name: LockOrganizationMemberForUpdate :one
@@ -500,6 +852,18 @@ func (q *Queries) LockOrganizationMemberForUpdate(ctx context.Context, arg LockO
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const lockUserMembership = `-- name: LockUserMembership :exec
+SELECT pg_advisory_xact_lock(hashtextextended('org-membership:' || $1::text, 0))
+`
+
+// Serializes every membership change of one account (ADR 0032): Create,
+// AcceptInvite, Reactivate, Leave and Close take it first, then check
+// ListActiveOrganizationsForUser inside the same transaction.
+func (q *Queries) LockUserMembership(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, lockUserMembership, userID)
+	return err
 }
 
 const setOrganizationMemberDeactivated = `-- name: SetOrganizationMemberDeactivated :one

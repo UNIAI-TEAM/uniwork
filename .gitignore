@@ -4,6 +4,8 @@ dist/
 .turbo/
 *.tsbuildinfo
 .env
+scripts/uniai-sync/config.json
+scripts/uniai-sync/.sync.lock
 *.local
 server/bin/
 # Ad-hoc builds land beside the source on Windows; `make` never produces these.
@@ -11,8 +13,15 @@ server/bin/
 coverage/
 .go-cache/
 .go-tmp/
+.changelog-ci/
 test-results/
 playwright-report/
+
+# G7-01 app harness run artifacts (scripts/office/g5g6g7/harness)
+.harness-run/
+
+# G7-06 regression job artifacts (scripts/office/g5g6g7/g7-06)
+.g7-06-run/
 
 multica/
 
@@ -49,6 +58,23 @@ server/internal/handler/data/
 .agents/
 .claude/
 .github/
+# Public release automation is source, while other local GitHub artifacts stay ignored.
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/changelog.yml
+!.github/workflows/mobile-verify.yml
+!.github/workflows/chat-desktop-release.yml
+!.github/workflows/chat-mobile-release.yml
+!.github/workflows/chat-mobile-verify.yml
 .codex/
 .pnpm-store/
+.uniwork-dev/
+.uniwork-dev-run/
 
+# genoffice Docs web build synced by apps/web/scripts/office-frame-sync.mjs (the pin is checked in, the bundle is not)
+apps/web/public/office-frame/
+
+# Written by ci/Jenkinsfile.app-dev.groovy on the deploy host.
+deploy/app-dev/env/image.env

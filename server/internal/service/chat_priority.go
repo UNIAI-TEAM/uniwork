@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"strings"
 )
 
@@ -20,19 +19,15 @@ func normalizeMessagePriority(priority string) string {
 	}
 }
 
-func priorityFromMetadata(raw []byte) string {
-	return normalizeMessagePriority(decodeChatMessageMetadata(raw).Priority)
+func priorityFromMetadata(meta chatMessageMetadata) string {
+	return normalizeMessagePriority(meta.Priority)
 }
 
 func encodeMessagePriorityMetadata(raw []byte, priority string) ([]byte, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.Priority = normalizeMessagePriority(priority)
-	if meta.Priority == "" {
-		meta.Priority = ""
+	priority = normalizeMessagePriority(priority)
+	var v any
+	if priority != "" {
+		v = priority
 	}
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 &&
-		meta.Poll == nil && meta.Reminder == nil && meta.Note == nil && meta.Post == nil && meta.Priority == "" {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(meta)
+	return patchMetadataKey(raw, "priority", v)
 }

@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_file_multipart_uploads_open_by_actor;

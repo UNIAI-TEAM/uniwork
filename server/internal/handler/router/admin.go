@@ -25,26 +25,40 @@ import (
 //	GET  /api/v1/admin/flags/{key}/overrides
 //	PUT  /api/v1/admin/flags/{key}/overrides
 //	DELETE /api/v1/admin/flags/{key}/overrides
+//	GET  /api/v1/admin/plans
+//	POST /api/v1/admin/plans
+//	PUT  /api/v1/admin/plans/{code}
+//	PUT  /api/v1/admin/plans/{code}/features/{key}
 func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) http.Handler) {
 	tags := []string{"admin"}
 	r.Route("/admin", func(a api) {
 		a.Use(limit)
 		a.Use(support)
 		a.Get("/me", h.AdminMe, apiOp{summary: "Admin: my platform role", description: "Vai trò platform của người gọi; 404 khi không có.", tags: tags, sdo: sdo.AdminMeSDO{}, auth: true})
+		a.Get("/demo-requests", h.AdminListDemoRequests, apiOp{summary: "Admin: demo requests", description: "Danh sách yêu cầu demo, lọc theo status, limit và offset.", tags: tags, sdo: sdo.DemoRequestListSDO{}, auth: true})
 		a.Get("/organizations", h.AdminListOrganizations, apiOp{summary: "Admin: list organizations", description: "Danh sách tổ chức kèm gói, số thành viên/workspace, hoạt động gần nhất. Query: q, status, limit (mặc định 50, tối đa 200), offset, sort (created_desc | activity_desc | activity_asc). Trả kèm total của cả tập lọc.", tags: tags, sdo: sdo.AdminOrganizationListSDO{}, auth: true})
 		a.Get("/organizations/{orgID}", h.AdminGetOrganization, apiOp{summary: "Admin: organization detail", description: "Chi tiết, quota (entitlement snapshot) và 20 thao tác admin gần nhất.", tags: tags, sdo: sdo.AdminOrganizationDetailSDO{}, auth: true})
 		a.Get("/trace/{traceID}", h.AdminTrace, apiOp{summary: "Admin: trace lookup", description: "Audit, outbox và admin_actions mang cùng trace id (tối đa 500 dòng mỗi bảng).", tags: tags, sdo: sdo.AdminTraceSDO{}, auth: true})
 		a.Get("/system", h.AdminSystem, apiOp{summary: "Admin: system", description: "Phiên bản build, migration nhúng, readiness, outbox pending/dead-letter, realtime connections, chuỗi flag provider.", tags: tags, sdo: sdo.AdminSystemSDO{}, auth: true})
 		a.Get("/flags", h.AdminListFlags, apiOp{summary: "Admin: flag catalogue", description: "Mọi flag đã khai báo: mô tả, mặc định, public, ngày review, số override.", tags: tags, sdo: sdo.AdminFlagListSDO{}, auth: true})
+		a.Get("/plans", h.AdminListPlans, apiOp{summary: "Admin: plan catalog", description: "Mọi gói billing kèm ma trận feature/quota, gồm gói đã tắt (is_active=false).", tags: tags, sdo: sdo.AdminPlanListSDO{}, auth: true})
+		a.Get("/invoices", h.AdminListInvoices, apiOp{summary: "Admin: invoices", description: "Hóa đơn đã phát sinh trên mọi tổ chức. Query: q (số HĐ, slug/tên org), provider, status, limit, offset.", tags: tags, sdo: sdo.AdminInvoiceListSDO{}, auth: true})
+		a.Get("/billing/payment-intents", h.AdminListPaymentIntents, apiOp{summary: "Admin: payment intents", description: "Giao dịch checkout (VNPay txn ref, trạng thái). Query: q, provider, status, limit, offset.", tags: tags, sdo: sdo.AdminPaymentIntentListSDO{}, auth: true})
 		a.Get("/flags/overrides", h.AdminListAllFlagOverrides, apiOp{summary: "Admin: list every override", description: "Toàn bộ override của mọi flag trong một lượt, cho màn Flags của console.", tags: tags, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 		a.Get("/flags/{key}/overrides", h.AdminListFlagOverrides, apiOp{summary: "Admin: list overrides", description: "Override của một flag theo scope.", tags: tags, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 		a.Group(func(w api) {
 			w.Use(admin)
+			w.Patch("/demo-requests/{demoRequestID}", h.AdminUpdateDemoRequest, apiOp{summary: "Admin: process demo request", description: "Cập nhật trạng thái, ghi lý do vào admin_actions và audit_events trong cùng transaction.", tags: tags, sdi: sdi.UpdateDemoRequestSDI{}, sdo: sdo.DemoRequestSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/suspend", h.AdminSuspendOrganization, apiOp{summary: "Admin: suspend organization", description: "status → suspended; mọi request của thành viên trả 403 organization_suspended. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/unsuspend", h.AdminUnsuspendOrganization, apiOp{summary: "Admin: unsuspend organization", description: "status → active. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/plan", h.AdminChangePlan, apiOp{summary: "Admin: change plan", description: "Đổi gói thủ công (pilot, đối tác), ghi admin_actions với before/after.", tags: tags, sdi: sdi.AdminChangePlanSDI{}, sdo: sdo.SubscriptionSDO{}, auth: true})
 			w.Put("/flags/{key}/overrides", h.AdminSetFlagOverride, apiOp{summary: "Admin: set override", description: "Ghi/đè override theo scope; user scope bắt buộc expires_at ≤ 30 ngày. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 			w.Delete("/flags/{key}/overrides", h.AdminDeleteFlagOverride, apiOp{summary: "Admin: delete override", description: "Xóa override theo scope. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideDeleteSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
+			w.Post("/plans", h.AdminCreatePlan, apiOp{summary: "Admin: create plan", description: "Thêm gói mới; seed plan_features từ catalogue (tắt hết, cấu hình sau). Không đặt is_default. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.PlanCreateSDI{}, sdo: sdo.AdminPlanSDO{}, auth: true})
+			w.Put("/plans/{code}", h.AdminUpdatePlan, apiOp{summary: "Admin: update plan", description: "Sửa metadata gói; không xóa — dùng is_active=false. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.PlanUpsertSDI{}, sdo: sdo.AdminPlanSDO{}, auth: true})
+			w.Put("/plans/{code}/features/{key}", h.AdminUpdatePlanFeature, apiOp{summary: "Admin: update plan feature", description: "Bật/tắt feature hoặc quota_limit trên một gói. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.PlanFeatureSDI{}, sdo: sdo.AdminPlanSDO{}, auth: true})
+			w.Post("/invoices/{invoiceID}/refund", h.AdminRefundInvoice, apiOp{summary: "Admin: refund invoice", description: "Hoàn tiền HĐ đã thanh toán: manual ghi refunded; VNPay gọi API refund rồi chuyển refund_pending. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.AdminInvoiceRefundSDI{}, sdo: sdo.AdminInvoiceSDO{}, auth: true})
+			w.Post("/invoices/{invoiceID}/confirm-refund", h.AdminConfirmInvoiceRefund, apiOp{summary: "Admin: confirm invoice refund", description: "Xác nhận hoàn tiền sau khi VNPay merchant duyệt (refund_pending → refunded). reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminInvoiceSDO{}, auth: true})
 		})
 	})
 }

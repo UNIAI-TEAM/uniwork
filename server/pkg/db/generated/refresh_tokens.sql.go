@@ -105,11 +105,19 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 }
 
 const listActiveSessionsForUser = `-- name: ListActiveSessionsForUser :many
-SELECT t.session_id, t.user_agent, t.ip, t.created_at AS last_seen_at,
-  (SELECT min(created_at) FROM refresh_tokens f WHERE f.session_id = t.session_id)::timestamptz AS created_at
-FROM refresh_tokens t
-WHERE t.user_id = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
-ORDER BY t.created_at DESC
+SELECT s.session_id, s.user_agent, s.ip, s.last_seen_at, s.created_at
+FROM (
+  SELECT DISTINCT ON (t.session_id)
+    t.session_id,
+    t.user_agent,
+    t.ip,
+    t.created_at AS last_seen_at,
+    (SELECT min(created_at) FROM refresh_tokens f WHERE f.session_id = t.session_id)::timestamptz AS created_at
+  FROM refresh_tokens t
+  WHERE t.user_id = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
+  ORDER BY t.session_id, t.created_at DESC
+) s
+ORDER BY s.last_seen_at DESC
 `
 
 type ListActiveSessionsForUserRow struct {
@@ -120,7 +128,7 @@ type ListActiveSessionsForUserRow struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
-// One live row per session; created_at of the chain is the login time.
+// One row per session_id (a refresh rotation can leave several live token rows).
 func (q *Queries) ListActiveSessionsForUser(ctx context.Context, userID string) ([]ListActiveSessionsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listActiveSessionsForUser, userID)
 	if err != nil {
@@ -151,6 +159,8 @@ const revokeAllRefreshTokensForUser = `-- name: RevokeAllRefreshTokensForUser :e
 UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
 `
 
+// Second half of a user-wide revoke: call revokeAllUserSessions (service),
+// which closes the device sessions first so the locks come in one order.
 func (q *Queries) RevokeAllRefreshTokensForUser(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, revokeAllRefreshTokensForUser, userID)
 	return err

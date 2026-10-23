@@ -1,0 +1,83 @@
+--- a/apps/docs/src/renderer/components/PageNoteAreas.tsx
++++ b/apps/docs/src/renderer/components/PageNoteAreas.tsx
+@@ -7,6 +7,7 @@
+   note,
+   editTip,
+   deleteTip,
++  readOnly = false,
+   onEdit,
+   onDelete,
+ }: {
+@@ -14,13 +15,15 @@
+   note: NoteInfo
+   editTip: string
+   deleteTip: string
++  readOnly?: boolean
+   onEdit: (id: string) => void
+   onDelete: (id: string) => void
+ }) {
+   return (
+-    <div className="page-note">
++    <div className={`page-note${readOnly ? " page-note-readonly" : ""}`}>
+       {!note.noRefMark && <sup>{marker}</sup>}
+       <span className="page-note-text">{note.text}</span>
++      {!readOnly && <>
+       <button
+         className="page-note-btn"
+         data-tip={editTip}
+@@ -37,6 +40,7 @@
+       >
+         ×
+       </button>
++      </>}
+     </div>
+   )
+ }
+@@ -46,6 +50,7 @@
+   notes,
+   skipIds,
+   numberOf,
++  readOnly = false,
+   onEdit,
+   onDelete,
+ }: {
+@@ -53,6 +58,7 @@
+   skipIds: ReadonlySet<string>
+   /** display number of a note (document reference order); default = list position */
+   numberOf?: (note: NoteInfo, index: number) => number
++  readOnly?: boolean
+   onEdit: (id: string) => void
+   onDelete: (id: string) => void
+ }) {
+@@ -66,6 +72,7 @@
+           key={`f${n.id}`}
+           marker={noteMarkText('footnote', numberOf?.(n, notes.indexOf(n)) ?? notes.indexOf(n) + 1)}
+           note={n}
++          readOnly={readOnly}
+           editTip={t('appEditFootnote')}
+           deleteTip={t('appDeleteFootnote')}
+           onEdit={onEdit}
+@@ -86,6 +93,7 @@
+   notes,
+   top,
+   numberOf,
++  readOnly = false,
+   onEdit,
+   onDelete,
+ }: {
+@@ -93,6 +101,7 @@
+   /** flow-end anchor (layout px from the page-wrap top); null = not measured yet */
+   top: number | null
+   numberOf?: (note: NoteInfo, index: number) => number
++  readOnly?: boolean
+   onEdit: (id: string) => void
+   onDelete: (id: string) => void
+ }) {
+@@ -108,6 +117,7 @@
+           key={`e${n.id}`}
+           marker={noteMarkText('endnote', numberOf?.(n, i) ?? i + 1)}
+           note={n}
++          readOnly={readOnly}
+           editTip={t('appEditEndnote')}
+           deleteTip={t('appDeleteEndnote')}
+           onEdit={onEdit}

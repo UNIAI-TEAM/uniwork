@@ -1,0 +1,82 @@
+/* Approved option B: theme-aware ribbons frame the compact opening. */
+.landing-site .landing-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 132px 0 48px;
+  background: var(--background) url("/landing/hero-backgrounds/ribbons-light.webp") center / cover no-repeat;
+}
+/* Blend the decorative ribbons into the product story's shared page surface. */
+.landing-site .landing-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 0;
+  height: clamp(128px, 40%, 220px);
+  background: linear-gradient(to bottom, transparent, var(--background) 94%);
+  pointer-events: none;
+}
+.dark .landing-site .landing-hero {
+  background-image: url("/landing/hero-backgrounds/ribbons-dark.webp");
+}
+.landing-site .landing-hero-stage { gap: 0; }
+.landing-site .landing-hero-container { max-width: 1440px; }
+.landing-site .landing-hero-stage .landing-hero-copy { max-width: 1100px; }
+.landing-site .landing-hero h1 {
+  margin-top: 0;
+  font-size: var(--text-hero-statement);
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -.04em;
+}
+.landing-site .landing-hero h1 .landing-hero-line { display: block; color: var(--foreground); }
+.landing-site .landing-hero-stage .landing-hero-description {
+  max-width: 760px;
+  margin-top: 18px;
+  color: var(--muted-foreground);
+  font-size: var(--text-body-lg);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+.landing-site .landing-hero-stage .landing-hero-actions { margin-top: 24px; flex-wrap: wrap; }
+.landing-site .landing-hero-actions a {
+  min-height: 46px;
+  min-width: 0;
+  border-radius: 9px;
+  padding-inline: 22px;
+  box-shadow: none;
+}
+.landing-site .landing-hero-actions .landing-demo-action {
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--brand);
+}
+.dark .landing-site .landing-hero-actions .landing-demo-action {
+  border-color: var(--faint-foreground);
+  color: var(--foreground);
+}
+.landing-site .landing-hero-actions .landing-demo-action:hover { background: var(--brand-subtle); }
+@media (max-width: 999px) {
+  .landing-site .landing-hero { padding: 112px 0 40px; }
+  .landing-site .landing-hero h1 { font-size: var(--text-hero-statement-mobile); line-height: 1.2; }
+  .landing-site .landing-hero-stage .landing-hero-description { max-width: 38ch; }
+}
+@media (min-width: 768px) and (max-width: 999px) {
+  .landing-site .landing-hero h1 { font-size: var(--text-hero-statement-tablet); }
+  .landing-site .landing-hero-stage .landing-hero-description { max-width: 60ch; }
+}
+@media (max-width: 767px) {
+  .landing-site .landing-hero {
+    /* Show the complete mobile composition; soften the ribbon behind the header. */
+    background-image:
+      linear-gradient(to bottom, var(--background), transparent 160px),
+      url("/landing/hero-backgrounds/ribbons-light-mobile.webp");
+    background-size: 100% 100%;
+    background-position: center top;
+  }
+  .dark .landing-site .landing-hero {
+    background-image:
+      linear-gradient(to bottom, var(--background), transparent 160px),
+      url("/landing/hero-backgrounds/ribbons-dark-mobile.webp");
+  }
+}

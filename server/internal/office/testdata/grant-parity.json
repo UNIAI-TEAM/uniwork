@@ -1,0 +1,35 @@
+{
+  "key": "parity-grant-key-0123456789abcdef-0123",
+  "grant": {
+    "v": 1,
+    "grant_id": "01GRANT0000000000000000000",
+    "job_id": "01JOB00000000000000000000A",
+    "actor_id": "01USER00000000000000000000",
+    "actor_kind": "human",
+    "organization_id": "01ORG000000000000000000000",
+    "workspace_id": "01WS0000000000000000000000",
+    "document_id": "01DOC00000000000000000000A",
+    "operation": "serialize",
+    "format": "md",
+    "base_revision": 7,
+    "base_version_id": "01VER00000000000000000000A",
+    "input": {
+      "checksum": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "length": 11
+    },
+    "output": {
+      "file_id": "01FILE0000000000000000000A",
+      "url": "http://minio:9000/bucket/key?X-Amz-Signature=abc",
+      "method": "PUT",
+      "headers": {
+        "content-type": "text/markdown"
+      },
+      "expires_at": 1790000060000,
+      "max_bytes": 52428800
+    },
+    "deadline_at": 1790000060000,
+    "issued_at": 1790000000000,
+    "expires_at": 1790000030000
+  },
+  "token": "eyJ2IjoxLCJncmFudF9pZCI6IjAxR1JBTlQwMDAwMDAwMDAwMDAwMDAwMDAwIiwiam9iX2lkIjoiMDFKT0IwMDAwMDAwMDAwMDAwMDAwMDAwMEEiLCJhY3Rvcl9pZCI6IjAxVVNFUjAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiYWN0b3Jfa2luZCI6Imh1bWFuIiwib3JnYW5pemF0aW9uX2lkIjoiMDFPUkcwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJ3b3Jrc3BhY2VfaWQiOiIwMVdTMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsImRvY3VtZW50X2lkIjoiMDFET0MwMDAwMDAwMDAwMDAwMDAwMDAwMEEiLCJvcGVyYXRpb24iOiJzZXJpYWxpemUiLCJmb3JtYXQiOiJtZCIsImJhc2VfcmV2aXNpb24iOjcsImJhc2VfdmVyc2lvbl9pZCI6IjAxVkVSMDAwMDAwMDAwMDAwMDAwMDAwMDBBIiwiaW5wdXQiOnsiY2hlY2tzdW0iOiJiOTRkMjdiOTkzNGQzZTA4YTUyZTUyZDdkYTdkYWJmYWM0ODRlZmUzN2E1MzgwZWU5MDg4ZjdhY2UyZWZjZGU5IiwibGVuZ3RoIjoxMX0sIm91dHB1dCI6eyJmaWxlX2lkIjoiMDFGSUxFMDAwMDAwMDAwMDAwMDAwMDAwMEEiLCJ1cmwiOiJodHRwOi8vbWluaW86OTAwMC9idWNrZXQva2V5P1gtQW16LVNpZ25hdHVyZT1hYmMiLCJtZXRob2QiOiJQVVQiLCJoZWFkZXJzIjp7ImNvbnRlbnQtdHlwZSI6InRleHQvbWFya2Rvd24ifSwiZXhwaXJlc19hdCI6MTc5MDAwMDA2MDAwMCwibWF4X2J5dGVzIjo1MjQyODgwMH0sImRlYWRsaW5lX2F0IjoxNzkwMDAwMDYwMDAwLCJpc3N1ZWRfYXQiOjE3OTAwMDAwMDAwMDAsImV4cGlyZXNfYXQiOjE3OTAwMDAwMzAwMDB9.X3mpuGYKsHls6lkIocqkhUx7YrkROF75QSgEX8iTboo"
+}

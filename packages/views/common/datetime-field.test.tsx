@@ -35,4 +35,12 @@ describe("DateTimeField", () => {
     fireEvent.keyDown(screen.getByLabelText("Giờ"), { key: "ArrowUp" });
     expect(onChange).toHaveBeenCalledWith("2026-09-06T15:30");
   });
+
+  it("holds a time set before any day instead of inventing today", () => {
+    const onChange = vi.fn();
+    render(<DateTimeField id="dt" value="" onChange={onChange} hourLabel="Giờ" minuteLabel="Phút" />);
+    fireEvent.keyDown(screen.getByLabelText("Giờ"), { key: "ArrowUp" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Giờ")).toHaveValue("10");
+  });
 });

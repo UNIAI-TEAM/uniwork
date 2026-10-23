@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -25,28 +28,95 @@ type Deps struct {
 	Log           *slog.Logger
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
+	DesktopAuth   *service.DesktopAuthService
+	McpAuth       *service.McpAuthService
+	McpTools      *service.McpToolService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
+	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
-	Google        GoogleExchanger
-	Organizations *service.OrganizationService
-	OrgMembers    *service.OrganizationMemberService
-	People        *service.PeopleService
-	Departments   *service.DepartmentService
-	Workspaces    *service.WorkspaceService
-	Onboarding    *service.OnboardingService
-	Tasks         *service.TaskService
-	Agents        *service.AgentService
-	Actors        *service.ActorService
-	Audit         *service.AuditService
-	Billing       *service.BillingService
-	Notifications *notification.Service
-	AskUNI        *service.AskUNIService
-	Meetings      *service.MeetingService
-	Chat          *service.ChatService
-	Hub           *realtime.Hub
+	Google              GoogleExchanger
+	Organizations       *service.OrganizationService
+	OrgMembers          *service.OrganizationMemberService
+	People              *service.PeopleService
+	Departments         *service.DepartmentService
+	Workspaces          *service.WorkspaceService
+	Onboarding          *service.OnboardingService
+	Tasks               *service.TaskService
+	Home                *service.HomeService
+	Calendar            *service.CalendarService
+	CalendarConnections *service.CalendarConnectionService
+	EmailHub            *service.EmailHubService
+	Agents              *service.AgentService
+	Actors              *service.ActorService
+	Audit               *service.AuditService
+	Privacy             *service.PrivacyExportService
+	Billing             *service.BillingService
+	Notifications       *notification.Service
+	AskUNI              *service.AskUNIService
+	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
+	AIBYOK *service.AIBYOKService
+	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
+	// cloud_unavailable on its routes.
+	AICloud *service.AICloudService
+	// AIUniwork is the UniWork AI façade (G6-03a): the org, document and
+	// frame routes. nil answers 503 ai_disabled on them.
+	AIUniwork *service.AIUniworkService
+	Meetings  *service.MeetingService
+	Chat      *service.ChatService
+	Hub       *realtime.Hub
+
+	// Graph is the Work Graph read service (C-11); nil answers 501 on the
+	// graph routes until the server wires it.
+	Graph *service.GraphService
+
+	// FileAccess is the FileService read path (T4); nil answers 501 on the
+	// file routes until the server wires it.
+	FileAccess *service.FileAccessService
+
+	// Documents is the C-01 document service (UNI-679, G1-05a); nil answers
+	// 501 on the document routes until the server wires it.
+	Documents *service.DocumentService
+	// DocumentSources lists, streams and saves the files of Chat, Tasks,
+	// Meetings and Email Hub on the documents home (UNI-1305). When omitted,
+	// New derives it from Documents and the domain services.
+	DocumentSources *service.DocumentSourceService
+
+	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
+	// answers 501 on the signature routes until the server wires it.
+	Signatures *service.SignatureService
+	// AICredentials is the per-user AI provider key store (UNI-1008, ADR
+	// 0029); nil answers 503 ai_credentials_unavailable.
+	AICredentials *service.AICredentialService
+
+	// Office is the Office job service (G2-07, UNI-690); nil answers 503
+	// office_not_configured on the office routes, so Documents keeps working
+	// without an engine.
+	Office *service.DocumentOfficeService
+
+	// Preview is the cookie-less, isolated-origin asset broker. Scope minting
+	// is authenticated; the byte route consumes only its opaque capability.
+	Preview *service.PreviewAssetService
+
+	// OfficeLaunch is the document-scoped single-use launch-ticket service.
+	// When omitted, New derives it from Documents and the deployment config.
+	OfficeLaunch *service.OfficeLaunchService
+	// OfficeFrame mints and checks the Office Docs web frame token
+	// (UNI-1013). When omitted, New derives it from Documents and JWT_SECRET.
+	OfficeFrame           *service.OfficeFrameService
+	OfficeDesktopDownload *service.OfficeDesktopDownloadService
+	// OfficeCapabilities answers the app capability route (X-03): which
+	// Office features are enabled for one organization. nil answers 503.
+	OfficeCapabilities *service.OfficeCapabilitiesService
+	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
+	// derives it from Documents, FeatureFlags and the deployment config.
+	DocumentChanges *service.DocumentChangesService
+	// OfficeLease grants, renews and releases offline leases (G5-08s). When
+	// omitted, New derives it from Documents, FeatureFlags and JWT_SECRET.
+	OfficeLease *service.OfficeLeaseService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -81,26 +151,102 @@ type handlers struct {
 	// proxies is TRUSTED_PROXIES parsed once; sessions record the client
 	// address the same way the rate limiter keys on it.
 	proxies []*net.IPNet
+	// mcpHandler is the go-sdk server behind /mcp, built once; nil when the
+	// connector is not wired (McpAuth or McpTools missing).
+	mcpHandler http.Handler
+}
+
+// frameIdentity names the person behind an Office frame token for the global
+// rate limiter (G6-03b §5.3). The limiter runs before routing, so it cannot
+// read the frame auth's context: it verifies the token itself, the same HMAC
+// and lifetime checks OfficeFrameService.Verify applies on the route, and
+// touches no database. The name is the person plus the document (or the source
+// for an ofs1. token): one person's frames do not pool into one wallet, and a
+// stolen token cannot spend another person's budget. A token that does not
+// verify names nobody, so the request keeps its address's budget instead of a
+// forgeable one.
+func (h *handlers) frameIdentity(r *http.Request) string {
+	if h.OfficeFrame == nil {
+		return ""
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || token == "" {
+		return ""
+	}
+	claims, err := h.OfficeFrame.Verify(token)
+	if err != nil {
+		if source, serr := h.OfficeFrame.VerifySource(token); serr == nil {
+			return "user:" + source.UserID + ":src:" + source.SourceID
+		}
+		return ""
+	}
+	return "user:" + claims.UserID + ":doc:" + claims.DocumentID
 }
 
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
+	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
+		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
+	if d.OfficeCapabilities == nil && d.Organizations != nil {
+		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+	}
+	if d.DocumentChanges == nil && d.Documents != nil {
+		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.OfficeLease == nil && d.Documents != nil {
+		d.OfficeLease = service.NewOfficeLeaseService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.OfficeLaunch == nil && d.Documents != nil {
+		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
+	}
+	if d.DocumentSources == nil && d.Documents != nil {
+		d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
+			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,
+		})
+	}
+	if d.OfficeFrame == nil && d.Documents != nil {
+		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
+	}
+	// The source frame (UNI-1869) re-runs the source's own gate on every mint
+	// and read: wire the composed service in, whoever built the frame service.
+	d.OfficeFrame.SetSources(d.DocumentSources)
+	d.OfficeFrame.SetPeople(d.People)
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	if d.McpAuth != nil && d.McpTools != nil {
+		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
+	}
+	aiMount := h.aiMountable(sessionAIActor)
+	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
-		Cfg:           d.Cfg,
-		Minter:        d.Minter,
-		Redis:         d.Redis,
-		Storage:       d.Storage,
-		HTTPMetrics:   d.HTTPMetrics,
-		PlatformRoles: platformRoles(d.Admin),
-		FeatureFlags:  d.FeatureFlags,
+		Cfg:                  d.Cfg,
+		Minter:               d.Minter,
+		Redis:                d.Redis,
+		Storage:              d.Storage,
+		HTTPMetrics:          d.HTTPMetrics,
+		PlatformRoles:        platformRoles(d.Admin),
+		FeatureFlags:         d.FeatureFlags,
+		DocumentOrganization: h.documentFlagOrganization,
+		CallerOrganization:   h.callerFlagOrganization,
+		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
+			if d.DesktopAuth == nil {
+				return nil
+			}
+			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
+		},
+		OfficeFrameAuth: h.officeFrameAuth,
+		FrameIdentity:   h.frameIdentity,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
 
 		Config:                     h.config,
+		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		CreateDemoRequest:          h.createDemoRequest,
+		AdminListDemoRequests:      h.adminListDemoRequests,
+		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
@@ -114,18 +260,52 @@ func New(d Deps) http.Handler {
 		AdminListAllFlagOverrides:  h.adminListAllFlagOverrides,
 		AdminSetFlagOverride:       h.adminSetFlagOverride,
 		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
+		AdminListPlans:             h.adminListPlans,
+		AdminCreatePlan:            h.adminCreatePlan,
+		AdminUpdatePlan:            h.adminUpdatePlan,
+		AdminUpdatePlanFeature:     h.adminUpdatePlanFeature,
+		AdminListInvoices:          h.adminListInvoices,
+		AdminListPaymentIntents:    h.adminListPaymentIntents,
+		AdminRefundInvoice:         h.adminRefundInvoice,
+		AdminConfirmInvoiceRefund:  h.adminConfirmInvoiceRefund,
 		WS:                         h.ws,
 
-		Register:       h.register,
-		Login:          h.login,
-		ForgotPassword: h.forgotPassword,
-		ResetPassword:  h.resetPassword,
-		Refresh:        h.refresh,
-		Logout:         h.logout,
-		MFAVerify:      h.mfaVerify,
-		AuthProviders:  h.authProviders,
-		GoogleStart:    h.googleStart,
-		GoogleCallback: h.googleCallback,
+		McpProtectedResource:   h.mcpProtectedResource,
+		McpAuthorizationServer: h.mcpAuthorizationServer,
+		McpAuthorize:           h.mcpAuthorize,
+		McpToken:               h.mcpToken,
+		McpRegister:            h.mcpRegister,
+		McpRevoke:              h.mcpRevoke,
+		McpServe:               h.mcpServe,
+
+		McpConsent:            h.mcpConsent,
+		McpConsentCommand:     h.mcpConsentCommand,
+		MyConnectedApps:       h.myConnectedApps,
+		RevokeMyConnectedApp:  h.revokeMyConnectedApp,
+		OrgConnectedApps:      h.orgConnectedApps,
+		RevokeOrgConnectedApp: h.revokeOrgConnectedApp,
+		OrgMcpPolicy:          h.orgMcpPolicy,
+		SetOrgMcpPolicy:       h.setOrgMcpPolicy,
+		SetOrgMcpWritePolicy:  h.setOrgMcpWritePolicy,
+
+		Register:              h.register,
+		Login:                 h.login,
+		ForgotPassword:        h.forgotPassword,
+		ResetPassword:         h.resetPassword,
+		Refresh:               h.refresh,
+		Logout:                h.logout,
+		MFAVerify:             h.mfaVerify,
+		AuthProviders:         h.authProviders,
+		GoogleStart:           h.googleStart,
+		GoogleCallback:        h.googleCallback,
+		DesktopStart:          h.desktopStart,
+		DesktopConsent:        h.desktopConsent,
+		DesktopConsentCommand: h.desktopConsentCommand,
+		DesktopExchange:       h.desktopExchange,
+		DesktopRefresh:        h.desktopRefresh,
+		DesktopLogout:         h.desktopLogout,
+		DesktopDevices:        h.desktopDevices,
+		DesktopRevokeDevice:   h.desktopRevokeDevice,
 
 		Me:                  h.me,
 		PatchMe:             h.patchMe,
@@ -155,6 +335,7 @@ func New(d Deps) http.Handler {
 		DeactivateOrgMember: h.deactivateOrgMember,
 		ReactivateOrgMember: h.reactivateOrgMember,
 		LeaveOrganization:   h.leaveOrganization,
+		CloseOrganization:   h.closeOrganization,
 
 		InviteToOrganization: h.inviteToOrganization,
 		ListOrgInvitations:   h.listOrgInvitations,
@@ -175,37 +356,78 @@ func New(d Deps) http.Handler {
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
+		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
+		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
 		CreateInvitation:    h.createInvitation,
+		PreviewInvitation:   h.previewInvitation,
 		AcceptInvitation:    h.acceptInvitation,
 
 		SeedWelcomeTask: h.seedWelcomeTask,
 
-		ListTasks:             h.listTasks,
-		CreateTask:            h.createTask,
-		GetTask:               h.getTask,
-		UpdateTask:            h.updateTask,
-		PutTaskSuite:          h.putTaskSuite,
-		DeleteTask:            h.deleteTask,
-		ListComments:          h.listComments,
-		CreateComment:         h.createComment,
-		QueryTasks:            h.queryTasks,
-		GroupedTasks:          h.groupedTasks,
-		BatchUpdateTasks:      h.batchUpdateTasks,
-		BatchDeleteTasks:      h.batchDeleteTasks,
-		ListMyTasks:           h.listMyTasks,
-		ListTaskChildren:      h.listTaskChildren,
-		ListChildrenByParents: h.listChildrenByParents,
-		ChildTaskProgress:     h.childTaskProgress,
-		SetTaskParent:         h.setTaskParent,
-		SetTaskDependency:     h.setTaskDependency,
-		RemoveTaskDependency:  h.removeTaskDependency,
-		TableGroups:           h.tableGroups,
-		TableRows:             h.tableRows,
-		TableFacets:           h.tableFacets,
+		ListTasks:                     h.listTasks,
+		CreateTask:                    h.createTask,
+		GetTask:                       h.getTask,
+		UpdateTask:                    h.updateTask,
+		PutTaskSuite:                  h.putTaskSuite,
+		DeleteTask:                    h.deleteTask,
+		ListComments:                  h.listComments,
+		CreateComment:                 h.createComment,
+		QueryTasks:                    h.queryTasks,
+		GroupedTasks:                  h.groupedTasks,
+		BatchUpdateTasks:              h.batchUpdateTasks,
+		BatchDeleteTasks:              h.batchDeleteTasks,
+		ListMyTasks:                   h.listMyTasks,
+		GetAssigneeFrequency:          h.getAssigneeFrequency,
+		GetHomeSummary:                h.getHomeSummary,
+		GetHomePreference:             h.getHomePreference,
+		PutHomePreference:             h.putHomePreference,
+		ListCalendarEvents:            h.listCalendarEvents,
+		ListCalendarSidebar:           h.listCalendarSidebar,
+		WorkspaceCalendar:             h.workspaceCalendar,
+		ListCalendarConnections:       h.listCalendarConnections,
+		StartCalendarConnection:       h.startCalendarConnection,
+		CompleteCalendarConnection:    h.completeCalendarConnection,
+		ListExternalCalendars:         h.listExternalCalendars,
+		SelectExternalCalendars:       h.selectExternalCalendars,
+		DisconnectCalendarConnection:  h.disconnectCalendarConnection,
+		ListEmailHubAccounts:          h.listEmailHubAccounts,
+		GetEmailHubUnreadCount:        h.getEmailHubUnreadCount,
+		GetEmailHubSidebarCounts:      h.getEmailHubSidebarCounts,
+		ConnectEmailHubAccount:        h.connectEmailHubAccount,
+		StartEmailHubOAuth:            h.startEmailHubOAuth,
+		GetEmailHubProviders:          h.getEmailHubProviders,
+		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,
+		ListEmailHubImapLabels:        h.listEmailHubImapLabels,
+		ListEmailHubThreads:           h.listEmailHubThreads,
+		GetEmailHubThread:             h.getEmailHubThread,
+		ListEmailHubConversation:      h.listEmailHubConversation,
+		GetEmailHubThreadSummary:      h.getEmailHubThreadSummary,
+		SummarizeEmailHubThread:       h.summarizeEmailHubThread,
+		CreateEmailHubSummaryTasks:    h.createEmailHubSummaryTasks,
+		DownloadEmailHubAttachment:    h.downloadEmailHubAttachment,
+		PatchEmailHubThread:           h.patchEmailHubThread,
+		SendEmailHub:                  h.sendEmailHub,
+		ListEmailHubScheduledSends:    h.listEmailHubScheduledSends,
+		CancelEmailHubScheduledSend:   h.cancelEmailHubScheduledSend,
+		RetryEmailHubScheduledSend:    h.retryEmailHubScheduledSend,
+		SyncEmailHub:                  h.syncEmailHub,
+		WatchEmailHub:                 h.watchEmailHub,
+		SubscribeEmailHubInboxWatch:   h.subscribeEmailHubInboxWatch,
+		UnsubscribeEmailHubInboxWatch: h.unsubscribeEmailHubInboxWatch,
+		CompleteEmailHubOAuth:         h.completeEmailHubOAuth,
+		ListTaskChildren:              h.listTaskChildren,
+		ListChildrenByParents:         h.listChildrenByParents,
+		ChildTaskProgress:             h.childTaskProgress,
+		SetTaskParent:                 h.setTaskParent,
+		SetTaskDependency:             h.setTaskDependency,
+		RemoveTaskDependency:          h.removeTaskDependency,
+		TableGroups:                   h.tableGroups,
+		TableRows:                     h.tableRows,
+		TableFacets:                   h.tableFacets,
 
 		ListTaskStatuses:        h.listTaskStatuses,
 		CreateTaskStatus:        h.createTaskStatus,
@@ -213,6 +435,7 @@ func New(d Deps) http.Handler {
 		DeleteTaskStatus:        h.deleteTaskStatus,
 		ReorderTaskStatuses:     h.reorderTaskStatuses,
 		ListTaskLabels:          h.listTaskLabels,
+		ListTaskLabelLinks:      h.listTaskLabelLinks,
 		GetTaskLabel:            h.getTaskLabel,
 		CreateTaskLabel:         h.createTaskLabel,
 		PutTaskLabel:            h.putTaskLabel,
@@ -249,36 +472,38 @@ func New(d Deps) http.Handler {
 		PutProjectResource:    h.putProjectResource,
 		DeleteProjectResource: h.deleteProjectResource,
 
-		UpdateComment:          h.updateComment,
-		DeleteComment:          h.deleteComment,
-		ResolveComment:         h.resolveComment,
-		UnresolveComment:       h.unresolveComment,
-		AddCommentReaction:     h.addCommentReaction,
-		RemoveCommentReaction:  h.removeCommentReaction,
-		AddTaskReaction:        h.addTaskReaction,
-		RemoveTaskReaction:     h.removeTaskReaction,
-		ListTaskSubscribers:    h.listTaskSubscribers,
-		SubscribeTask:          h.subscribeTask,
-		UnsubscribeTask:        h.unsubscribeTask,
-		UnsubscribeTaskSubtree: h.unsubscribeTaskSubtree,
-		ListTaskAttachments:    h.listTaskAttachments,
-		UploadTaskAttachment:   h.uploadTaskAttachment,
-		GetAttachment:          h.getAttachment,
-		GetAttachmentContent:   h.getAttachmentContent,
-		DownloadAttachment:     h.downloadAttachment,
-		DeleteAttachment:       h.deleteAttachment,
-		GetTaskTimeline:        h.getTaskTimeline,
-		CommentSubTaskPreview:  h.commentSubTaskPreview,
-		CreateCommentSubTasks:  h.createCommentSubTasks,
-		PreviewCommentTriggers: h.previewCommentTriggers,
+		UpdateComment:             h.updateComment,
+		DeleteComment:             h.deleteComment,
+		ResolveComment:            h.resolveComment,
+		UnresolveComment:          h.unresolveComment,
+		AddCommentReaction:        h.addCommentReaction,
+		RemoveCommentReaction:     h.removeCommentReaction,
+		AddTaskReaction:           h.addTaskReaction,
+		RemoveTaskReaction:        h.removeTaskReaction,
+		ListTaskSubscribers:       h.listTaskSubscribers,
+		SubscribeTask:             h.subscribeTask,
+		UnsubscribeTask:           h.unsubscribeTask,
+		UnsubscribeTaskSubtree:    h.unsubscribeTaskSubtree,
+		ListTaskAttachments:       h.listTaskAttachments,
+		UploadTaskAttachment:      h.uploadTaskAttachment,
+		UploadWorkspaceAttachment: h.uploadWorkspaceAttachment,
+		GetAttachment:             h.getAttachment,
+		GetAttachmentContent:      h.getAttachmentContent,
+		DownloadAttachment:        h.downloadAttachment,
+		DeleteAttachment:          h.deleteAttachment,
+		CommentSubTaskPreview:     h.commentSubTaskPreview,
+		CreateCommentSubTasks:     h.createCommentSubTasks,
+		PreviewCommentTriggers:    h.previewCommentTriggers,
 
 		WorkManagementCapabilityStub: h.workManagementCapabilityStub,
 
 		ListNotifications:          h.listNotifications,
+		ListNotificationDocuments:  h.listNotificationDocuments,
 		UnreadNotificationCount:    h.unreadNotificationCount,
 		MarkNotificationsRead:      h.markNotificationsRead,
 		MarkNotificationsUnread:    h.markNotificationsUnread,
 		ArchiveNotifications:       h.archiveNotifications,
+		UnarchiveNotifications:     h.unarchiveNotifications,
 		GetNotificationPreferences: h.getNotificationPreferences,
 		PutNotificationPreferences: h.putNotificationPreferences,
 		PushConfig:                 h.pushConfig,
@@ -286,19 +511,42 @@ func New(d Deps) http.Handler {
 		UnsubscribePush:            h.unsubscribePush,
 
 		AiCapabilities:       h.aiCapabilities,
+		GetOrgAskModels:      h.getOrgAskModels,
+		SetOrgAskModels:      h.setOrgAskModels,
 		AskUni:               h.askUni,
+		AskUniStream:         h.askUniStream,
+		ChatCatchUp:          h.chatCatchUp,
 		ListAiConversations:  h.listAiConversations,
 		ListAiMessages:       h.listAiMessages,
 		DeleteAiConversation: h.deleteAiConversation,
+		RenameAiConversation: h.renameAiConversation,
+		SetAiFeedback:        h.setAiFeedback,
+		ClearAiFeedback:      h.clearAiFeedback,
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
 
-		ListPlans:          h.listPlans,
-		GetSubscription:    h.getSubscription,
-		ChangePlan:         h.changePlan,
-		CancelSubscription: h.cancelSubscription,
-		ResumeSubscription: h.resumeSubscription,
-		CreateCheckout:     h.createCheckout,
+		AiByokChatCompletions: aiMount.ByokChatCompletions,
+		AiByokMessages:        aiMount.ByokMessages,
+		AiByokGenerate:        aiMount.ByokGenerate,
+		AiByokModels:          aiMount.ByokModels,
+		AiCloudStatus:         aiMount.CloudStatus,
+		AiCloudSearch:         aiMount.CloudSearch,
+		AiCloudImages:         aiMount.CloudImages,
+		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
+		AiCloudTranscribe:     aiMount.CloudTranscribe,
+
+		AiUniworkChatCompletions:            aiMount.UniworkChatCompletions,
+		AiUniworkDocumentChatCompletions:    h.uniworkDocumentChatCompletions,
+		OfficeFrameAiUniworkChatCompletions: frameAI.UniworkChatCompletions,
+
+		ListPlans:           h.listPlans,
+		GetSubscription:     h.getSubscription,
+		ChangePlan:          h.changePlan,
+		CancelSubscription:  h.cancelSubscription,
+		ResumeSubscription:  h.resumeSubscription,
+		CreateCheckout:      h.createCheckout,
+		ListInvoices:        h.listInvoices,
+		VNPayBillingWebhook: h.vnpayBillingWebhook,
 
 		ListOrgAgents:       h.listOrgAgents,
 		CreateOrgAgent:      h.createOrgAgent,
@@ -306,127 +554,340 @@ func New(d Deps) http.Handler {
 		ListWorkspaceAgents: h.listWorkspaceAgents,
 		AddWorkspaceAgent:   h.addWorkspaceAgent,
 
-		ListAuditEvents:     h.listAuditEvents,
-		GetAuditEvent:       h.getAuditEvent,
-		ListResourceHistory: h.listResourceHistory,
-		GetAuditRetention:   h.getAuditRetention,
-		SetAuditRetention:   h.setAuditRetention,
-		ListAuditExports:    h.listAuditExports,
-		CreateAuditExport:   h.createAuditExport,
-		GetAuditExport:      h.getAuditExport,
+		ListAuditEvents:       h.listAuditEvents,
+		GetAuditEvent:         h.getAuditEvent,
+		ListResourceHistory:   h.listResourceHistory,
+		GetAuditRetention:     h.getAuditRetention,
+		SetAuditRetention:     h.setAuditRetention,
+		ListAuditExports:      h.listAuditExports,
+		CreateAuditExport:     h.createAuditExport,
+		GetAuditExport:        h.getAuditExport,
+		DownloadAuditExport:   h.downloadAuditExport,
+		ListPrivacyExports:    h.listPrivacyExports,
+		CreatePrivacyExport:   h.createPrivacyExport,
+		CreatePrivacyDeletion: h.createPrivacyDeletion,
+		CancelPrivacyDeletion: h.cancelPrivacyDeletion,
+		GetPrivacyExport:      h.getPrivacyExport,
+		DownloadPrivacyExport: h.downloadPrivacyExport,
 
-		ListMeetings:          h.listMeetings,
-		CreateMeeting:         h.createMeeting,
-		CreateInstantMeeting:  h.createInstantMeeting,
-		GetMeeting:            h.getMeeting,
-		UpdateMeeting:         h.updateMeeting,
-		DeleteMeeting:         h.deleteMeeting,
-		StartMeeting:          h.startMeeting,
-		EndMeeting:            h.endMeeting,
-		ExtendMeeting:         h.extendMeeting,
-		CancelMeeting:         h.cancelMeeting,
-		TransferHost:          h.transferHost,
-		ListNotes:             h.listNotes,
-		CreateNote:            h.createNote,
-		MeetingToken:          h.meetingToken,
-		JoinMeeting:           h.joinMeeting,
-		ListParticipants:      h.listParticipants,
-		InviteParticipant:     h.inviteParticipant,
-		ListInvitations:       h.listInvitations,
-		RespondInvitation:     h.respondInvitation,
-		RemoveParticipant:     h.removeParticipant,
-		SetParticipantPublish: h.setParticipantPublish,
-		ListInviteLinks:       h.listInviteLinks,
-		CreateInviteLink:      h.createInviteLink,
-		RevokeInviteLink:      h.revokeInviteLink,
-		ResolveInviteLink:     h.resolveInviteLink,
-		ListJoinRequests:      h.listJoinRequests,
-		CreateJoinRequest:     h.createJoinRequest,
-		ApproveJoinRequest:    h.approveJoinRequest,
-		RejectJoinRequest:     h.rejectJoinRequest,
-		CancelJoinRequest:     h.cancelJoinRequest,
-		MeetingStatistics:     h.meetingStatistics,
-		MeetingActivity:       h.meetingActivity,
-		AppendTranscript:      h.appendTranscript,
-		AppendAgentTranscript: h.appendAgentTranscript,
-		ListTranscript:        h.listTranscript,
-		AppendChatMessage:     h.appendChatMessage,
-		ListChatMessages:      h.listChatMessages,
-		GetMeetingSummary:     h.getMeetingSummary,
-		CreateSummary:         h.createSummary,
-		CreateSummaryTasks:    h.createSummaryTasks,
-		StartRecording:        h.startRecording,
-		StopRecording:         h.stopRecording,
-		ListRecordings:        h.listRecordings,
-		MeetingCalendar:       h.meetingCalendar,
-		MeetingCapabilities:   h.meetingCapabilities,
-		LiveKitWebhook:        h.livekitWebhook,
-		MeetingLobbyWS:        h.meetingLobbyWS,
+		GraphNeighbors: h.graphNeighbors,
+		GraphHistory:   h.graphHistory,
 
-		LookupChatUser:              h.lookupChatUser,
-		GetChatBlockStatus:          h.getChatBlockStatus,
-		BlockChatUser:               h.blockChatUser,
-		UnblockChatUser:             h.unblockChatUser,
-		ListChatNicknames:           h.listChatNicknames,
-		SetChatNickname:             h.setChatNickname,
-		SearchChatGifs:              h.searchChatGifs,
-		TrendingChatGifs:            h.trendingChatGifs,
-		SearchChatStickers:          h.searchChatStickers,
-		TrendingChatStickers:        h.trendingChatStickers,
-		GetChatMediaStatus:          h.getChatMediaStatus,
-		MintChatVoiceToken:          h.mintChatVoiceToken,
-		ListPendingChatVoiceInvites: h.listPendingChatVoiceInvites,
-		GetWorkspaceChatRoom:        h.getWorkspaceChatRoom,
-		EnsureWorkspaceChatRoom:     h.ensureWorkspaceChatRoom,
-		ListChatRooms:               h.listChatRooms,
-		ResolveDM:                   h.resolveDM,
-		CreateChatGroup:             h.createChatGroup,
-		InviteChatGroupMembers:      h.inviteChatGroupMembers,
-		CreateChatChannel:           h.createChatChannel,
-		ListChatChannels:            h.listChatChannels,
-		ListProjectChatChannels:     h.listProjectChatChannels,
-		UpdateChatChannel:           h.updateChatChannel,
-		JoinChatChannel:             h.joinChatChannel,
-		ArchiveChatChannel:          h.archiveChatChannel,
-		UnarchiveChatChannel:        h.unarchiveChatChannel,
-		ListChatThreadMessages:      h.listChatThreadMessages,
-		SendChatThreadMessage:       h.sendChatThreadMessage,
-		FollowChatThread:            h.followChatThread,
-		UnfollowChatThread:          h.unfollowChatThread,
-		MarkChatThreadRead:          h.markChatThreadRead,
-		ListChatThreads:             h.listChatThreads,
-		CreateTaskFromChatMessage:   h.createTaskFromChatMessage,
-		CreateChatMessageLink:       h.createChatMessageLink,
-		ListChatMessageLinks:        h.listChatMessageLinks,
-		DeleteChatMessageLink:       h.deleteChatMessageLink,
-		SyncChatThreadTask:          h.syncChatThreadTask,
-		UnsyncChatThreadTask:        h.unsyncChatThreadTask,
-		ListChatRoomMembers:         h.listChatRoomMembers,
-		PatchChatRoomMember:         h.patchChatRoomMember,
-		PatchChatRoom:               h.patchChatRoom,
-		RemoveChatRoomMember:        h.removeWorkspaceChatRoomMember,
-		LeaveChatRoom:               h.leaveChatRoom,
-		ListWorkspaceChatMessages:   h.listWorkspaceChatMessages,
-		SendWorkspaceChatMessage:    h.sendWorkspaceChatMessage,
-		ListChatRoomMessages:        h.listChatRoomMessages,
-		GetChatRoomMessage:          h.getChatRoomMessage,
-		SearchChatRoomMessages:      h.searchChatRoomMessages,
-		ListChatRoomMessagesAround:  h.listChatRoomMessagesAround,
-		SendChatRoomMessage:         h.sendChatRoomMessage,
-		SendChatVoiceMessage:        h.sendChatVoiceMessage,
-		StreamChatVoiceMessage:      h.streamChatVoiceMessage,
-		SendChatFileMessage:         h.sendChatFileMessage,
-		StreamChatFileMessage:       h.streamChatFileMessage,
-		VoteChatPollMessage:         h.voteChatPollMessage,
-		ToggleChatMessageReaction:   h.toggleChatMessageReaction,
-		EditChatMessage:             h.editChatMessage,
-		DeleteChatMessage:           h.deleteChatMessage,
-		ToggleChatMessagePin:        h.toggleChatMessagePin,
-		SignalChatVoiceInvite:       h.signalChatVoiceInvite,
-		SignalChatVoiceAccept:       h.signalChatVoiceAccept,
-		SignalChatVoiceHangup:       h.signalChatVoiceHangup,
-		SignalChatTyping:            h.signalChatTyping,
-		SignalChatPresence:          h.signalChatPresence,
+		ListMeetings:                   h.listMeetings,
+		CreateMeeting:                  h.createMeeting,
+		CreateInstantMeeting:           h.createInstantMeeting,
+		GetMeeting:                     h.getMeeting,
+		UpdateMeeting:                  h.updateMeeting,
+		DeleteMeeting:                  h.deleteMeeting,
+		StartMeeting:                   h.startMeeting,
+		EndMeeting:                     h.endMeeting,
+		ExtendMeeting:                  h.extendMeeting,
+		CancelMeeting:                  h.cancelMeeting,
+		RestoreMeeting:                 h.restoreMeeting,
+		TransferHost:                   h.transferHost,
+		ListNotes:                      h.listNotes,
+		CreateNote:                     h.createNote,
+		MeetingToken:                   h.meetingToken,
+		JoinMeeting:                    h.joinMeeting,
+		ListParticipants:               h.listParticipants,
+		InviteParticipant:              h.inviteParticipant,
+		ListInvitations:                h.listInvitations,
+		RespondInvitation:              h.respondInvitation,
+		RemoveParticipant:              h.removeParticipant,
+		SetParticipantPublish:          h.setParticipantPublish,
+		PatchParticipant:               h.patchParticipant,
+		GetAttendance:                  h.getAttendance,
+		MarkAttendance:                 h.markAttendance,
+		ClearAttendanceMark:            h.clearAttendanceMark,
+		FinalizeAttendance:             h.finalizeAttendance,
+		ReopenAttendance:               h.reopenAttendance,
+		ListMotions:                    h.listMotions,
+		ListMyBallots:                  h.listMyBallots,
+		ListMotionVoters:               h.listMotionVoters,
+		CreateMotion:                   h.createMotion,
+		UpdateMotion:                   h.updateMotion,
+		DeleteMotion:                   h.deleteMotion,
+		OpenMotion:                     h.openMotion,
+		CloseMotion:                    h.closeMotion,
+		CastBallot:                     h.castBallot,
+		ListInviteLinks:                h.listInviteLinks,
+		CreateInviteLink:               h.createInviteLink,
+		RevokeInviteLink:               h.revokeInviteLink,
+		ResolveInviteLink:              h.resolveInviteLink,
+		ListJoinRequests:               h.listJoinRequests,
+		CreateJoinRequest:              h.createJoinRequest,
+		ApproveJoinRequest:             h.approveJoinRequest,
+		RejectJoinRequest:              h.rejectJoinRequest,
+		CancelJoinRequest:              h.cancelJoinRequest,
+		MeetingStatistics:              h.meetingStatistics,
+		MeetingActivity:                h.meetingActivity,
+		AppendTranscript:               h.appendTranscript,
+		AppendAgentTranscript:          h.appendAgentTranscript,
+		ListTranscript:                 h.listTranscript,
+		AppendChatMessage:              h.appendChatMessage,
+		ListChatMessages:               h.listChatMessages,
+		GetMeetingSummary:              h.getMeetingSummary,
+		CreateSummary:                  h.createSummary,
+		CreateSummaryTasks:             h.createSummaryTasks,
+		StartRecording:                 h.startRecording,
+		StopRecording:                  h.stopRecording,
+		ListRecordings:                 h.listRecordings,
+		GetMeetingRecordingPlaybackURL: h.getMeetingRecordingPlaybackURL,
+		StreamMeetingRecording:         h.streamMeetingRecording,
+		MeetingCalendar:                h.meetingCalendar,
+		MeetingCapabilities:            h.meetingCapabilities,
+		LiveKitWebhook:                 h.livekitWebhook,
+		MeetingLobbyWS:                 h.meetingLobbyWS,
+
+		LookupChatUser:                   h.lookupChatUser,
+		GetChatBlockStatus:               h.getChatBlockStatus,
+		BlockChatUser:                    h.blockChatUser,
+		UnblockChatUser:                  h.unblockChatUser,
+		ListChatNicknames:                h.listChatNicknames,
+		SetChatNickname:                  h.setChatNickname,
+		SearchChatGifs:                   h.searchChatGifs,
+		TrendingChatGifs:                 h.trendingChatGifs,
+		SearchChatStickers:               h.searchChatStickers,
+		TrendingChatStickers:             h.trendingChatStickers,
+		GetChatMediaStatus:               h.getChatMediaStatus,
+		MintChatVoiceToken:               h.mintChatVoiceToken,
+		ListPendingChatVoiceInvites:      h.listPendingChatVoiceInvites,
+		ListChatCallLogs:                 h.listChatCallLogs,
+		GetWorkspaceChatRoom:             h.getWorkspaceChatRoom,
+		EnsureWorkspaceChatRoom:          h.ensureWorkspaceChatRoom,
+		ListChatRooms:                    h.listChatRooms,
+		ChatUnreadSummary:                h.chatUnreadSummary,
+		ResolveDM:                        h.resolveDM,
+		CreateChatGroup:                  h.createChatGroup,
+		InviteChatGroupMembers:           h.inviteChatGroupMembers,
+		CreateChatChannel:                h.createChatChannel,
+		ListChatChannels:                 h.listChatChannels,
+		ListProjectChatChannels:          h.listProjectChatChannels,
+		UpdateChatChannel:                h.updateChatChannel,
+		JoinChatChannel:                  h.joinChatChannel,
+		ArchiveChatChannel:               h.archiveChatChannel,
+		UnarchiveChatChannel:             h.unarchiveChatChannel,
+		ListChatThreadMessages:           h.listChatThreadMessages,
+		SendChatThreadMessage:            h.sendChatThreadMessage,
+		FollowChatThread:                 h.followChatThread,
+		UnfollowChatThread:               h.unfollowChatThread,
+		MarkChatThreadRead:               h.markChatThreadRead,
+		ListChatThreads:                  h.listChatThreads,
+		CreateTaskFromChatMessage:        h.createTaskFromChatMessage,
+		CreateChatMessageLink:            h.createChatMessageLink,
+		ForwardChatMessage:               h.forwardChatMessage,
+		ListChatRoomMessageLinks:         h.listChatRoomMessageLinks,
+		ListChatRoomLinkPreviews:         h.listChatRoomLinkPreviews,
+		ListChatRoomLinkedTasks:          h.listChatRoomLinkedTasks,
+		GetChatRoomSharedSummary:         h.getChatRoomSharedSummary,
+		TranscribeChatVoiceMessage:       h.transcribeChatVoiceMessage,
+		DeleteChatMessageLink:            h.deleteChatMessageLink,
+		SyncChatThreadTask:               h.syncChatThreadTask,
+		UnsyncChatThreadTask:             h.unsyncChatThreadTask,
+		ListChatFollowUps:                h.listChatFollowUps,
+		CreateChatFollowUp:               h.createChatFollowUp,
+		PatchChatFollowUp:                h.patchChatFollowUp,
+		DeleteChatFollowUp:               h.deleteChatFollowUp,
+		ConvertChatFollowUpToTask:        h.convertChatFollowUpToTask,
+		ListChatRoomMembers:              h.listChatRoomMembers,
+		PatchChatRoomMember:              h.patchChatRoomMember,
+		PatchChatRoom:                    h.patchChatRoom,
+		UploadChatRoomAvatar:             h.uploadChatRoomAvatar,
+		UploadChatRoomWallpaper:          h.uploadChatRoomWallpaper,
+		RemoveChatRoomAvatar:             h.removeChatRoomAvatar,
+		RemoveChatRoomMember:             h.removeWorkspaceChatRoomMember,
+		LeaveChatRoom:                    h.leaveChatRoom,
+		MarkChatRoomRead:                 h.markChatRoomRead,
+		AckChatDelivered:                 h.ackChatDelivered,
+		MuteChatRoom:                     h.muteChatRoom,
+		UnmuteChatRoom:                   h.unmuteChatRoom,
+		ListChatRoomMessages:             h.listChatRoomMessages,
+		GetChatRoomMessage:               h.getChatRoomMessage,
+		SearchChatRoomMessages:           h.searchChatRoomMessages,
+		SearchChatMessages:               h.searchChatMessages,
+		ListChatRoomMessagesAround:       h.listChatRoomMessagesAround,
+		SendChatRoomMessage:              h.sendChatRoomMessage,
+		SendChatVoiceMessage:             h.sendChatVoiceMessage,
+		SendChatFileMessage:              h.sendChatFileMessage,
+		SendChatDocumentMessage:          h.sendChatDocumentMessage,
+		SendChatDocumentLink:             h.sendChatDocumentLink,
+		ShareChatMessageAsDocument:       h.shareChatMessageAsDocument,
+		GetChatRoomDetail:                h.getChatRoomDetail,
+		GetChatPollVoters:                h.getChatPollVoters,
+		VoteChatPollMessage:              h.voteChatPollMessage,
+		AddChatPollOptionMessage:         h.addChatPollOptionMessage,
+		ToggleChatMessageReaction:        h.toggleChatMessageReaction,
+		EditChatMessage:                  h.editChatMessage,
+		DeleteChatMessage:                h.deleteChatMessage,
+		ToggleChatMessagePin:             h.toggleChatMessagePin,
+		SignalChatVoiceInvite:            h.signalChatVoiceInvite,
+		SignalChatVoiceAccept:            h.signalChatVoiceAccept,
+		SignalChatVoiceHangup:            h.signalChatVoiceHangup,
+		StartChatVoiceRecording:          h.startChatVoiceRecording,
+		StopChatVoiceRecording:           h.stopChatVoiceRecording,
+		GetActiveChatVoiceRecording:      h.getActiveChatVoiceRecording,
+		ListChatVoiceRecordings:          h.listChatVoiceRecordings,
+		GetChatVoiceRecordingPlaybackURL: h.getChatVoiceRecordingPlaybackURL,
+		StreamChatVoiceRecording:         h.streamChatVoiceRecording,
+		SignalChatTyping:                 h.signalChatTyping,
+		SignalChatPresence:               h.signalChatPresence,
+
+		ResolveWorkspaceFiles: h.resolveWorkspaceFiles,
+		GetFileContent:        h.getFileContent,
+
+		CreateDocument:          h.createDocument,
+		EnsureMyFolder:          h.ensureMyFolder,
+		CreateDocumentFile:      h.createDocumentFile,
+		CreateBlankDocumentFile: h.createBlankDocumentFile,
+		StartOfficeJob:          h.startOfficeJob,
+		GetOfficeJob:            h.getOfficeJob,
+		GetOfficeJobOutput:      h.getOfficeJobOutput,
+		CancelOfficeJob:         h.cancelOfficeJob,
+		OfficeCapability:        h.officeCapability,
+		OfficeAppCapabilities:   h.officeAppCapabilities,
+		CreateOfficeLaunch:      h.createOfficeLaunch,
+		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
+		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
+		CopyDocument:            h.copyDocument,
+		ListDocumentSources:     h.listDocumentSources,
+		DownloadDocumentSource:  h.downloadDocumentSource,
+		SaveDocumentSource:      h.saveDocumentSource,
+		// UNI-1869: the source Office frame.
+		MintSourceOfficeFrameToken:  h.mintSourceOfficeFrameToken,
+		OpenOfficeFrameSource:       h.openOfficeFrameSource,
+		GetOfficeFrameSourceContent: h.getOfficeFrameSourceContent,
+		GetDocument:                 h.getDocument,
+		PatchDocument:               h.patchDocument,
+		UploadDocumentFile:          h.uploadDocumentFile,
+		CommitDocumentVersion:       h.commitDocumentVersion,
+		LookupCommitIntent:          h.lookupCommitIntent,
+		ListDocumentVersions:        h.listDocumentVersions,
+		CreateDocumentVersion:       h.createDocumentVersion,
+		GetDocumentVersion:          h.getDocumentVersion,
+		RestoreDocumentVersion:      h.restoreDocumentVersion,
+		UploadDocumentAsset:         h.uploadDocumentAsset,
+		GetDocumentAsset:            h.getDocumentAsset,
+		DownloadDocument:            h.downloadDocument,
+		CreateDocumentDownloadJob:   h.createDocumentDownloadJob,
+		CreateFolderUpload:          h.createFolderUpload,
+		GetFolderUpload:             h.getFolderUpload,
+		CancelFolderUpload:          h.cancelFolderUpload,
+		PutFolderUploadContent:      h.putFolderUploadContent,
+		CompleteFolderUpload:        h.completeFolderUpload,
+		GetDocumentDownloadJob:      h.getDocumentDownloadJob,
+		DownloadDocumentDownloadJob: h.downloadDocumentDownloadJob,
+		CreatePreviewScope:          h.createPreviewScope,
+		GetPreviewAsset:             h.getPreviewAsset,
+
+		CreateWorkspaceUploadSession: h.createWorkspaceUploadSession,
+		CreateDocumentUploadSession:  h.createDocumentUploadSession,
+		CreateFrameUploadSession:     h.createFrameUploadSession,
+		GetUploadSession:             h.getUploadSession,
+		GetFrameUploadSession:        h.getFrameUploadSession,
+		CompleteUploadSession:        h.completeUploadSession,
+		CompleteFrameUploadSession:   h.completeFrameUploadSession,
+		AbortUploadSession:           h.abortUploadSession,
+		AbortFrameUploadSession:      h.abortFrameUploadSession,
+
+		MintOfficeFrameToken:     h.mintOfficeFrameToken,
+		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
+		GetOfficeFrameContent:    h.getOfficeFrameContent,
+		UploadOfficeFrameFile:    h.uploadOfficeFrameFile,
+		CommitOfficeFrameVersion: h.commitOfficeFrameVersion,
+		ListOfficeFrameRecents:   h.listOfficeFrameRecents,
+		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
+		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
+		ResolveOfficeFrameAssets: h.resolveOfficeFrameAssets,
+		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
+		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
+		GetOfficeFrameAvatar:     h.getOfficeFrameAvatar,
+		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
+
+		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
+		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,
+		OfficeFrameAiCredentialDelete:    frameAI.CredentialDelete,
+		OfficeFrameAiByokChatCompletions: frameAI.ByokChatCompletions,
+		OfficeFrameAiByokMessages:        frameAI.ByokMessages,
+		OfficeFrameAiByokGenerate:        frameAI.ByokGenerate,
+		OfficeFrameAiByokModels:          frameAI.ByokModels,
+		OfficeFrameAiCloudStatus:         frameAI.CloudStatus,
+		OfficeFrameAiCloudSearch:         frameAI.CloudSearch,
+		OfficeFrameAiCloudImages:         frameAI.CloudImages,
+		OfficeFrameAiCloudAnalyzeMedia:   frameAI.CloudAnalyzeMedia,
+		OfficeFrameAiCloudTranscribe:     frameAI.CloudTranscribe,
+
+		ListDocumentComments:          h.listDocumentComments,
+		CreateDocumentComment:         h.createDocumentComment,
+		UpdateDocumentComment:         h.updateDocumentComment,
+		DeleteDocumentComment:         h.deleteDocumentComment,
+		ResolveDocumentComment:        h.resolveDocumentComment,
+		ReopenDocumentComment:         h.reopenDocumentComment,
+		AddDocumentCommentReaction:    h.addDocumentCommentReaction,
+		RemoveDocumentCommentReaction: h.removeDocumentCommentReaction,
+		ListDocumentCommentRevisions:  h.listDocumentCommentRevisions,
+		ListDocumentMentionCandidates: h.listDocumentMentionCandidates,
+		PutDocumentCommentAnchors:     h.putDocumentCommentAnchors,
+		FavoriteDocument:              h.favoriteDocument,
+		UnfavoriteDocument:            h.unfavoriteDocument,
+		ListDocumentFavorites:         h.listDocumentFavorites,
+
+		ListSavedSignatures:  h.listSavedSignatures,
+		CreateSavedSignature: h.createSavedSignature,
+		DeleteSavedSignature: h.deleteSavedSignature,
+		ListAICredentials:    aiMount.CredentialsList,
+		SaveAICredential:     aiMount.CredentialSave,
+		DeleteAICredential:   aiMount.CredentialDelete,
+
+		ListDocuments:                  h.listDocuments,
+		ListRecentDocuments:            h.listRecentDocuments,
+		ListFavoriteDocuments:          h.listFavoriteDocuments,
+		ListDocumentChanges:            h.listDocumentChanges,
+		PutOfficeOfflineLease:          h.putOfficeOfflineLease,
+		DeleteOfficeOfflineLease:       h.deleteOfficeOfflineLease,
+		GetDocumentEditLock:            h.getDocumentEditLock,
+		AcquireDocumentEditLock:        h.acquireDocumentEditLock,
+		HeartbeatDocumentEditLock:      h.heartbeatDocumentEditLock,
+		ReleaseDocumentEditLock:        h.releaseDocumentEditLock,
+		TakeOverDocumentEditLock:       h.takeOverDocumentEditLock,
+		PutDocumentEditHold:            h.putDocumentEditHold,
+		ClearDocumentEditHold:          h.clearDocumentEditHold,
+		CreateDocumentEditRequest:      h.createDocumentEditRequest,
+		AnswerDocumentEditRequest:      h.answerDocumentEditRequest,
+		CancelDocumentEditRequest:      h.cancelDocumentEditRequest,
+		ListSharedWithMe:               h.listSharedWithMe,
+		DocumentAccessReport:           h.documentAccessReport,
+		ExportDocumentAccessReport:     h.exportDocumentAccessReport,
+		DocumentAccessReportSummary:    h.documentAccessReportSummary,
+		DocumentAccessReportPrincipals: h.documentAccessReportPrincipals,
+		DocumentTree:                   h.getDocumentTree,
+		MoveDocument:                   h.moveDocument,
+		ArchiveDocument:                h.archiveDocument,
+		ArchiveImpact:                  h.archiveImpact,
+		RestoreDocument:                h.restoreDocument,
+		PurgeDocument:                  h.purgeDocument,
+		ShelveDocument:                 h.shelveDocument,
+		UnshelveDocument:               h.unshelveDocument,
+		ListDocumentShares:             h.listDocumentShares,
+		ListDocumentShareCandidates:    h.listDocumentShareCandidates,
+		CreateDocumentShare:            h.createDocumentShare,
+		CreateDocumentShareBatch:       h.createDocumentShareBatch,
+		UpdateDocumentAccess:           h.updateDocumentAccess,
+		RevokeDocumentShare:            h.revokeDocumentShare,
+		CreateDocumentAccessRequest:    h.createDocumentAccessRequest,
+		ListDocumentAccessRequests:     h.listDocumentAccessRequests,
+		ApproveDocumentAccessRequest:   h.approveDocumentAccessRequest,
+		DeclineDocumentAccessRequest:   h.declineDocumentAccessRequest,
+		CreateDocumentBreakGlass:       h.createDocumentBreakGlass,
+		RevokeDocumentBreakGlass:       h.revokeDocumentBreakGlass,
+		GetDocumentAdminSummary:        h.getDocumentAdminSummary,
+		CreateDocumentLink:             h.createDocumentLink,
+		RevokeDocumentLink:             h.revokeDocumentLink,
+		ListDocumentAccessLogs:         h.listDocumentAccessLogs,
+		GetDocumentSettings:            h.getDocumentSettings,
+		SetDocumentSettings:            h.setDocumentSettings,
+		GetPublicDocument:              h.getPublicDocument,
+		DownloadPublicDocument:         h.downloadPublicDocument,
+		GetPublicDocumentAsset:         h.getPublicDocumentAsset,
 	})
 }
 

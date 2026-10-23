@@ -1,0 +1,57 @@
+package handler
+
+import (
+	"context"
+	"net/http"
+	"slices"
+	"testing"
+)
+
+// The beat answers with who is online; the leave answers status only. A page
+// learns its peers from the answer, since the server publishes only changes.
+func TestChatPresenceBeatAnswersWithTheOnlineMembers(t *testing.T) {
+	f := setupChatFixture(t, "presence")
+	path := "/api/v1/workspaces/" + f.wsID + "/chat/presence"
+	onlineIDs := func(out map[string]any) []string {
+		raw, _ := out["online_user_ids"].([]any)
+		ids := make([]string, 0, len(raw))
+		for _, v := range raw {
+			ids = append(ids, v.(string))
+		}
+		slices.Sort(ids)
+		return ids
+	}
+
+	res, out := doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"state": "online", "visible": true})
+	if res.StatusCode != http.StatusOK || out["status"] != "ok" {
+		t.Fatalf("beat a: %d %v", res.StatusCode, out)
+	}
+	if got := onlineIDs(out); !slices.Equal(got, []string{f.ids["a"]}) {
+		t.Fatalf("a's snapshot = %v", got)
+	}
+
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["b"], map[string]string{})
+	want := []string{f.ids["a"], f.ids["b"]}
+	slices.Sort(want)
+	if res.StatusCode != http.StatusOK || !slices.Equal(onlineIDs(out), want) {
+		t.Fatalf("beat b: %d %v, want %v", res.StatusCode, out, want)
+	}
+	// Only a visible beat leaves the last-beat mark the push consumer reads.
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["a"]); err != nil || !ok {
+		t.Fatalf("last beat of a (visible) = ok %v err %v, want recorded", ok, err)
+	}
+	if _, ok, err := f.chat.LastPresenceBeat(context.Background(), f.ids["b"]); err != nil || ok {
+		t.Fatalf("last beat of b (not visible) = ok %v err %v, want none", ok, err)
+	}
+
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["b"], map[string]string{"state": "offline"})
+	if _, has := out["online_user_ids"]; res.StatusCode != http.StatusOK || has {
+		t.Fatalf("leave b: %d %v", res.StatusCode, out)
+	}
+	// b's leave only shortens b's entry (another tab of b's may still beat),
+	// so b stays in the snapshot until the leave grace runs out.
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]string{"state": "online"})
+	if res.StatusCode != http.StatusOK || !slices.Equal(onlineIDs(out), want) {
+		t.Fatalf("beat a after b left: %d %v, want %v", res.StatusCode, out, want)
+	}
+}

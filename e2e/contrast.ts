@@ -1,4 +1,7 @@
-import { type Page } from "@playwright/test";
+import { type Frame, type Page } from "@playwright/test";
+
+/** A page or a same-origin frame (the office frames are measured inside their iframe). */
+type Surface = Page | Frame;
 
 /**
  * Phép đo tương phản dùng chung cho mọi spec — đo trên trang đã render, không
@@ -16,7 +19,7 @@ import { type Page } from "@playwright/test";
  * 150ms. Đọc `getComputedStyle` ngay lúc đó trả về màu đang chạy dở — từng làm
  * test này báo "Bỏ qua 2.44:1" trong khi giá trị token đã đúng.
  */
-async function settle(page: Page) {
+async function settle(page: Surface) {
   await page.evaluate(
     async () =>
       await Promise.all(
@@ -39,9 +42,9 @@ async function settle(page: Page) {
   );
 }
 
-export async function auditText(page: Page) {
+export async function auditText(page: Surface, rootSelector = "body") {
   await settle(page);
-  return page.evaluate(() => {
+  return page.evaluate((rootSelector) => {
     // Gộp màu bằng chính bộ vẽ của trình duyệt, không tự parse chuỗi. Token của
     // app ra `oklab(...)` (từ `bg-brand/5`) và nhiều nền là bán trong suốt — bóc
     // số bằng regex sẽ đọc `oklab(0.99 …)` thành RGB(1,0,0) tức gần như đen, rồi
@@ -96,8 +99,14 @@ export async function auditText(page: Page) {
       return w[0] === b[0] && w[1] === b[1] && w[2] === b[2];
     };
     const clear = (c: string) => c === "" || /rgba\(0, 0, 0, 0\)|transparent/.test(c);
-    /** Các lớp nền từ element đi lên, tới lớp đục đầu tiên. */
-    const bgLayers = (el: Element | null): string[] => {
+    /**
+     * Các lớp nền từ element đi lên, tới lớp đục đầu tiên — hoặc tới một nền
+     * gradient. Trước đây gradient bị bỏ qua (chỉ đọc `background-color`), nên chữ
+     * trắng trên dải CTA xanh–tím bị đo trên nền giấy trắng và báo 1.00:1. Gặp
+     * gradient thì trả về các điểm màu của nó; phép đo lấy điểm tệ nhất, vì chữ có
+     * thể nằm ở bất kỳ đâu trên dải.
+     */
+    const solidLayers = (el: Element | null): string[] => {
       const stack: string[] = [];
       for (let n = el; n; n = n.parentElement) {
         const bg = getComputedStyle(n).backgroundColor;
@@ -107,10 +116,35 @@ export async function auditText(page: Page) {
       }
       return stack.reverse(); // dưới → trên
     };
+    /** Mỗi phần tử trả về: một (hoặc mỗi điểm màu gradient) chồng lớp dưới → trên. */
+    const bgGrounds = (el: Element | null): string[][] => {
+      const above: string[] = [];
+      for (let n = el; n; n = n.parentElement) {
+        const style = getComputedStyle(n);
+        const bg = style.backgroundColor;
+        if (!clear(bg)) {
+          above.unshift(bg);
+          if (isOpaque(bg)) return [above];
+        }
+        if (style.backgroundImage.includes("gradient(")) {
+          const stops = style.backgroundImage.match(/(?:rgba?|oklab|oklch|lab|lch|hsla?|color)\([^()]*\)/g) ?? [];
+          // Điểm màu bán trong suốt phải phủ lên nền THẬT phía dưới (vd dark
+          // mode), không phải giấy trắng.
+          if (stops.length > 0) {
+            const below = solidLayers(n.parentElement);
+            const ownBg = clear(bg) ? [] : [above.shift()!];
+            return stops.map((stop) => [...below, ...ownBg, stop, ...above]);
+          }
+        }
+      }
+      return [above];
+    };
 
     const fails: string[] = [];
     let checked = 0;
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+    /** The lowest ratio measured and its node, so a report can quote the margin, not only "0 below AA". */
+    let min: { ratio: number; need: number; text: string } | null = null;
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(`${rootSelector} *`))) {
       const own = Array.from(el.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
         .map((n) => n.textContent ?? "")
@@ -125,20 +159,20 @@ export async function auditText(page: Page) {
       if (el.closest('[aria-disabled="true"], :disabled, [data-disabled]')) continue;
       if (el.closest("nextjs-portal")) continue; // lớp phủ dev của Next.js
 
-      const back = bgLayers(el);
-      const bg = flatten(back);
-      const fg = flatten([...back, cs.color]); // màu chữ có alpha thì cũng gộp
+      const grounds = bgGrounds(el);
       const size = parseFloat(cs.fontSize);
       const weight = Number.parseInt(cs.fontWeight, 10) || 400;
       // "Chữ lớn" theo WCAG: >=24px, hoặc >=18.66px khi in đậm.
       const large = size >= 24 || (size >= 18.66 && weight >= 700);
       const need = large ? 3 : 4.5;
-      const got = ratio(fg, bg);
+      // màu chữ có alpha thì cũng gộp; trên gradient lấy điểm màu tệ nhất
+      const got = Math.min(...grounds.map((back) => ratio(flatten([...back, cs.color]), flatten(back))));
       checked++;
+      if (!min || got < min.ratio) min = { ratio: Math.round(got * 100) / 100, need, text: own.slice(0, 26) };
       if (got < need) {
         fails.push(`"${own.slice(0, 26)}" ${got.toFixed(2)}:1 < ${need} (${Math.round(size)}px/${weight})`);
       }
     }
-    return { fails, checked, colorLevel4 };
-  });
+    return { fails, checked, colorLevel4, min };
+  }, rootSelector);
 }

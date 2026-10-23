@@ -1,0 +1,364 @@
+-- Document access (C-01 §4 + §13.4; UNI-676). The queries behind
+-- DocumentService.effectiveLevel and its authorize helpers. Membership is
+-- never read here: it is decided only by WorkspaceService.RequireMember /
+-- OrganizationService.RequireMember / RequireAgentMember.
+
+-- Authorize-by-id (the GetTask pattern): the id alone finds the row, then the
+-- service decides visibility from the row's own organization/workspace pair.
+-- The caller never learns anything about a row it cannot read.
+-- name: GetDocumentByID :one
+-- tenant: by-id
+SELECT *
+FROM documents
+WHERE id = sqlc.arg(id);
+
+-- The mutation gate: the row lock serializes every command on a document
+-- with share grants/revokes (which take the same lock), so the access
+-- decision inside a mutation transaction always sees the committed ACL.
+-- name: LockDocumentByID :one
+-- tenant: by-id
+SELECT *
+FROM documents
+WHERE id = sqlc.arg(id)
+FOR UPDATE;
+
+-- The blob pointer of a file document (documents.file_version_id) resolved
+-- inside the document's tenant pair.
+-- name: GetDocumentVersionByID :one
+SELECT *
+FROM document_versions
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
+-- name: ListDocumentVersionsByIDs :many
+-- One read for the current versions of many documents of one workspace (the
+-- Docs frame's recents); the caller pairs each row with its document.
+SELECT *
+FROM document_versions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);
+
+-- ---- Shares (G1-02b) ------------------------------------------------------
+
+-- name: GetLiveDocumentShareByID :one
+SELECT *
+FROM document_shares
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL;
+
+-- The grant a share_id names, INCLUDING a revoked one: the notification
+-- consumer recovers the level a delayed document.shared event originally
+-- granted when the share was revoked before delivery (SH-S3 R1-09). Keyed by
+-- the id the event carries and bound to the document's tenant pair, so it can
+-- never recover another recipient's row.
+-- name: GetDocumentShareByID :one
+SELECT *
+FROM document_shares
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
+-- "Shared with me" candidates: live shares naming the person, the whole
+-- organization, or one of the workspaces the service passes in (the ones the
+-- person reaches through WorkspaceService; membership is never read in SQL).
+-- The workspace filter runs before the limit so shares to workspaces the
+-- person is not in cannot crowd theirs out; newest share first, id ascending
+-- as the tiebreak, and (after_created_at, after_id) is the keyset that
+-- continues the walk. The service still runs effectiveLevel on every row.
+-- name: ListDocumentShareCandidates :many
+SELECT sqlc.embed(d), c.created_at, c.granted_by, c.granted_by_kind,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at
+FROM (
+  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at, s.granted_by, s.granted_by_kind
+  FROM document_shares s
+  WHERE s.organization_id = sqlc.arg(organization_id)
+    AND s.revoked_at IS NULL
+    AND (
+      (s.principal_type = 'user' AND s.principal_id = sqlc.arg(user_id))
+      OR (s.principal_type = 'organization' AND s.principal_id = sqlc.arg(organization_id))
+      OR (s.principal_type = 'workspace' AND s.principal_id = ANY(sqlc.arg(workspace_ids)::text[]))
+    )
+  ORDER BY s.document_id, s.created_at DESC
+) c
+JOIN documents d
+  ON d.organization_id = sqlc.arg(organization_id)
+ AND d.workspace_id = c.workspace_id
+ AND d.id = c.document_id
+LEFT JOIN document_versions cv
+  ON cv.organization_id = d.organization_id
+ AND cv.workspace_id = d.workspace_id
+ AND cv.document_id = d.id
+ AND cv.id = d.file_version_id
+-- UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+-- title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+-- case variants stay together, whatever the database locale is); the size key is the current
+-- file version's size (0 for a page or a folder); the editor key is the last
+-- editor's display name (same collation), and only a human editor with a name has one - an
+-- agent, a removed account or a blank name sets editor_null and sorts last. Each
+-- key is computed only under its own sort (the others are constants), so an
+-- unsorted list pays nothing for them and the users join runs for sort=editor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'shared' THEN c.created_at ELSE d.updated_at END)::timestamptz AS ts_key
+) sk
+WHERE d.archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
+  AND d.shelved_at IS NULL
+  AND d.owner_id IS NULL
+  -- UNI-2045 SV-8: the same last-editor and updated_at window the flat list takes.
+  AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
+  AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
+  AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
+  AND (sqlc.narg(format)::text IS NULL
+       OR d.kind = 'folder'
+       OR (d.kind = 'file'
+           AND (cv.mime_type = sqlc.narg(format_mime)::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                    AND length(d.title) > length(sqlc.narg(format)::text) + 1
+                    AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-1868 access filter. Every row this walk keeps reaches the caller
+  -- through a share, so the level the filter compares is the share level; a
+  -- member leg that outranks it makes the row's via member (the service drops
+  -- those), and never a false negative here. 'restricted' is the visibility.
+  AND (sqlc.narg(access)::text IS NULL
+       OR (sqlc.narg(access)::text = 'restricted' AND d.visibility = 'restricted')
+       OR (sqlc.narg(access)::text <> 'restricted' AND EXISTS (
+            SELECT 1 FROM document_shares a
+            WHERE a.organization_id = d.organization_id
+              AND a.workspace_id = d.workspace_id
+              AND a.document_id = d.id
+              AND a.revoked_at IS NULL
+              AND a.level = ANY(sqlc.arg(access_levels)::text[])
+              AND ((a.principal_type = 'user' AND a.principal_id = sqlc.arg(user_id))
+                   OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
+                   OR (a.principal_type = 'workspace' AND a.principal_id = ANY(sqlc.arg(workspace_ids)::text[]))))))
+  AND (
+    sqlc.narg(after_created_at)::timestamptz IS NULL
+    OR c.created_at < sqlc.narg(after_created_at)::timestamptz
+    OR (c.created_at = sqlc.narg(after_created_at)::timestamptz AND d.id > sqlc.narg(after_id)::text)
+  )
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'shared' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+-- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+-- bound parameter, so the planner folds the unused ones away and a plain
+-- (key, id) order remains.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN c.created_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END),
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'shared' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'shared' AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT sqlc.arg(max_rows);
+
+-- ---- Public links (G1-02b) -------------------------------------------------
+
+-- name: InsertDocumentShareLink :one
+INSERT INTO document_share_links (
+  id, organization_id, workspace_id, document_id, token_hash, expires_at,
+  created_by, created_by_kind
+) VALUES (
+  sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
+  sqlc.arg(document_id), sqlc.arg(token_hash), sqlc.arg(expires_at),
+  sqlc.arg(created_by), sqlc.arg(created_by_kind)
+)
+RETURNING *;
+
+-- Links that still open: not revoked and not expired.
+-- name: ListLiveDocumentShareLinks :many
+SELECT *
+FROM document_share_links
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY created_at, id;
+
+-- name: CountLiveDocumentShareLinks :one
+SELECT count(*)
+FROM document_share_links
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL
+  AND expires_at > now();
+
+-- name: GetDocumentShareLink :one
+SELECT *
+FROM document_share_links
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
+-- name: RevokeDocumentShareLink :execrows
+UPDATE document_share_links
+SET revoked_at = now(), revoked_by = sqlc.arg(revoked_by)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL;
+
+-- The anonymous entry point: the token hash alone finds the link (the
+-- token is the credential), and only a live one answers.
+-- name: GetLiveDocumentShareLinkByTokenHash :one
+-- tenant: token
+SELECT *
+FROM document_share_links
+WHERE token_hash = sqlc.arg(token_hash)
+  AND revoked_at IS NULL
+  AND expires_at > now();
+
+-- A public page view: counted only while the link is still live, so a
+-- revoke that commits between lookup and count still refuses the read.
+-- name: CountDocumentShareLinkView :one
+UPDATE document_share_links
+SET view_count = view_count + 1, last_viewed_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND revoked_at IS NULL
+  AND expires_at > now()
+RETURNING *;
+
+-- ---- Organization settings (G1-02b) ----------------------------------------
+
+-- name: GetDocumentSettings :one
+SELECT *
+FROM document_settings
+WHERE organization_id = sqlc.arg(organization_id);
+
+-- name: UpsertDocumentSettings :one
+INSERT INTO document_settings (organization_id, public_links_enabled, updated_by, updated_by_kind)
+VALUES (sqlc.arg(organization_id), sqlc.arg(public_links_enabled), sqlc.arg(updated_by), sqlc.arg(updated_by_kind))
+ON CONFLICT (organization_id) DO UPDATE
+SET public_links_enabled = EXCLUDED.public_links_enabled,
+    updated_by = EXCLUDED.updated_by,
+    updated_by_kind = EXCLUDED.updated_by_kind,
+    updated_at = now()
+RETURNING *;
+
+-- ---- Access log (G1-02b) -----------------------------------------------------
+
+-- name: InsertDocumentAccessLog :exec
+INSERT INTO document_access_logs (
+  id, organization_id, workspace_id, document_id, version, action,
+  actor_kind, actor_id, via, share_link_id, correlation_id
+) VALUES (
+  sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
+  sqlc.arg(document_id), sqlc.arg(version), sqlc.arg(action),
+  sqlc.arg(actor_kind), sqlc.arg(actor_id), sqlc.arg(via),
+  sqlc.arg(share_link_id), sqlc.arg(correlation_id)
+);
+
+-- C-01 §3.6 coalescing: the same (document, actor, action) - and link, for
+-- anonymous views - inside the window writes no new row.
+-- name: DocumentAccessLoggedSince :one
+SELECT EXISTS (
+  SELECT 1
+  FROM document_access_logs
+  WHERE organization_id = sqlc.arg(organization_id)
+    AND workspace_id = sqlc.arg(workspace_id)
+    AND document_id = sqlc.arg(document_id)
+    AND action = sqlc.arg(action)
+    AND actor_kind = sqlc.arg(actor_kind)
+    AND actor_id IS NOT DISTINCT FROM sqlc.narg(actor_id)
+    AND share_link_id IS NOT DISTINCT FROM sqlc.narg(share_link_id)
+    AND occurred_at > sqlc.arg(since)
+);
+
+-- name: ListDocumentAccessLogs :many
+-- Newest first, id descending as the tiebreak; (before, before_id) is the
+-- keyset of the last row read, so equal timestamps cannot skip a row. A
+-- caller that passes only before keeps the historical strict-inequality
+-- behavior (rows at exactly that timestamp are excluded).
+SELECT *
+FROM document_access_logs
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND (sqlc.narg(action)::text IS NULL OR action = sqlc.narg(action))
+  AND (
+    sqlc.narg(before)::timestamptz IS NULL
+    OR occurred_at < sqlc.narg(before)::timestamptz
+    OR (occurred_at = sqlc.narg(before)::timestamptz AND id < sqlc.narg(before_id)::text)
+  )
+ORDER BY occurred_at DESC, id DESC
+LIMIT sqlc.arg(max_rows);
+
+-- UNI-2045 SV-4: how widely each document of a page is shared, for the Shared
+-- by me list. Only live grants count: a direct user share, a workspace share
+-- and a link that is neither revoked nor expired. An organization-wide share is
+-- the workspace-visibility leg of the list, not a grant to count. latest_at is
+-- the newest created_at among the counted grants.
+-- name: ListDocumentShareSummaries :many
+SELECT g.document_id,
+       count(*) FILTER (WHERE g.kind = 'user')::int AS people,
+       count(*) FILTER (WHERE g.kind = 'workspace')::int AS workspaces,
+       count(*) FILTER (WHERE g.kind = 'link')::int AS links,
+       max(g.created_at)::timestamptz AS latest_at
+FROM (
+  SELECT s.document_id, s.principal_type::text AS kind, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = sqlc.arg(organization_id)
+    AND s.workspace_id = sqlc.arg(workspace_id)
+    AND s.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND s.revoked_at IS NULL
+    AND s.principal_type IN ('user', 'workspace')
+  UNION ALL
+  SELECT l.document_id, 'link'::text, l.created_at
+  FROM document_share_links l
+  WHERE l.organization_id = sqlc.arg(organization_id)
+    AND l.workspace_id = sqlc.arg(workspace_id)
+    AND l.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND l.revoked_at IS NULL
+    AND l.expires_at > now()
+) g
+GROUP BY g.document_id;

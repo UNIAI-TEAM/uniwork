@@ -69,4 +69,19 @@ describe("ChatSetNicknameDialog", () => {
       expect(mutateAsync).toHaveBeenCalledWith({ userId: "u2", nickname: "" });
     });
   });
+
+  it("shows a failed save inline, in the app's words", async () => {
+    mutateAsync.mockClear();
+    mutateAsync.mockRejectedValueOnce(new Error("pq: something"));
+    render(
+      wrap(
+        <ChatSetNicknameDialog open onOpenChange={vi.fn()} workspaceId="ws1" targetUserId="u2" targetLabel="Binh" />,
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("Biệt danh"), { target: { value: "B" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Không lưu được biệt danh. Thử lại.");
+    expect(screen.getByLabelText("Biệt danh")).toHaveAttribute("aria-invalid", "true");
+  });
 });

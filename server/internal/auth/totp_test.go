@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -75,5 +76,12 @@ func TestRecoveryCodesAreUniqueAndHashStable(t *testing.T) {
 	}
 	if HashRecoveryCode(" AbCdE-FGHij ") != HashRecoveryCode("abcde-fghij") {
 		t.Error("hash must normalise case and spaces")
+	}
+}
+
+func TestOTPAuthURL(t *testing.T) {
+	got := OTPAuthURL("UniWork", "user@example.com", "SECRET")
+	if !strings.HasPrefix(got, "otpauth://totp/") || !strings.Contains(got, "secret=SECRET") || !strings.Contains(got, "issuer=UniWork") {
+		t.Fatalf("%q", got)
 	}
 }

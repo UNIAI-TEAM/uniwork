@@ -9,7 +9,8 @@
  * that decision out of this file so this stays a single-purpose row UI.
  */
 
-import { Download, Eye, FileText, Loader2, Trash2 } from "lucide-react";
+import { Download, Eye, FileText, Trash2 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { getPreviewKind } from "./utils/preview";
 
@@ -36,15 +37,18 @@ function AttachmentCardChrome({
 }: AttachmentCardChromeProps) {
   const { t } = useTranslation();
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- mousedown stopPropagation; actions are real buttons
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- mousedown protects the editor selection; actions are real buttons
     <div
       className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-1 transition-colors hover:bg-muted"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {uploading ? (
-        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+        <Spinner className="shrink-0 text-muted-foreground" />
       ) : (
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        <FileText
+          className="size-4 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-body">
@@ -59,13 +63,13 @@ function AttachmentCardChrome({
           className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           title={t("editor.attachment.preview")}
           aria-label={t("editor.attachment.preview")}
-          onMouseDown={(e) => {
+          onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onPreview();
           }}
         >
-          <Eye className="size-3.5" />
+          <Eye className="size-3.5" aria-hidden="true" />
         </button>
       )}
       {!uploading && canDownload && (
@@ -74,13 +78,13 @@ function AttachmentCardChrome({
           className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           title={t("editor.image.download")}
           aria-label={t("editor.image.download")}
-          onMouseDown={(e) => {
+          onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onDownload();
           }}
         >
-          <Download className="size-3.5" />
+          <Download className="size-3.5" aria-hidden="true" />
         </button>
       )}
       {!uploading && canDelete && onDelete && (
@@ -89,13 +93,13 @@ function AttachmentCardChrome({
           className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
           title={t("editor.attachment.remove")}
           aria-label={t("editor.attachment.remove")}
-          onMouseDown={(e) => {
+          onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onDelete();
           }}
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 className="size-3.5" aria-hidden="true" />
         </button>
       )}
     </div>

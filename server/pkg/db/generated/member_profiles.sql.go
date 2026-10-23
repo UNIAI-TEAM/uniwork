@@ -23,9 +23,50 @@ func (q *Queries) CountActivePeople(ctx context.Context, organizationID string) 
 	return count, err
 }
 
+const countPeople = `-- name: CountPeople :one
+SELECT count(*)
+FROM organization_members m
+LEFT JOIN organization_member_profiles p ON p.organization_id = m.organization_id AND p.user_id = m.user_id
+WHERE m.organization_id = $1
+  AND (
+    $2::text = 'all'
+    OR ($2::text = 'active' AND m.deactivated_at IS NULL)
+    OR ($2::text = 'deactivated' AND m.deactivated_at IS NOT NULL)
+  )
+  AND ($3::text IS NULL OR p.search_text LIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR p.department_id = $4::text)
+  AND ($5::text IS NULL OR p.manager_id = $5::text)
+  AND ($6::text IS NULL OR m.role = $6::text)
+`
+
+type CountPeopleParams struct {
+	OrganizationID string      `json:"organization_id"`
+	Status         string      `json:"status"`
+	Query          pgtype.Text `json:"query"`
+	DepartmentID   pgtype.Text `json:"department_id"`
+	ManagerID      pgtype.Text `json:"manager_id"`
+	Role           pgtype.Text `json:"role"`
+}
+
+// The size of the filtered directory: SearchPeople's WHERE without the cursor,
+// so "showing N of M" counts what the filters match, not the whole company.
+func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPeople,
+		arg.OrganizationID,
+		arg.Status,
+		arg.Query,
+		arg.DepartmentID,
+		arg.ManagerID,
+		arg.Role,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getPerson = `-- name: GetPerson :one
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -49,6 +90,7 @@ type GetPersonRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 	Timezone       string             `json:"timezone"`
 	Title          pgtype.Text        `json:"title"`
 	DepartmentID   pgtype.Text        `json:"department_id"`
@@ -73,6 +115,7 @@ func (q *Queries) GetPerson(ctx context.Context, arg GetPersonParams) (GetPerson
 		&i.Email,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.AvatarFileID,
 		&i.Timezone,
 		&i.Title,
 		&i.DepartmentID,
@@ -89,12 +132,14 @@ func (q *Queries) GetPerson(ctx context.Context, arg GetPersonParams) (GetPerson
 }
 
 const listDirectReports = `-- name: ListDirectReports :many
-SELECT m.user_id, u.display_name, u.avatar_url
+SELECT m.user_id, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_member_profiles p
 JOIN organization_members m ON m.organization_id = p.organization_id AND m.user_id = p.user_id
 JOIN users u ON u.id = p.user_id
 WHERE p.organization_id = $1 AND p.manager_id = $2 AND m.deactivated_at IS NULL
-ORDER BY u.display_name
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu"
 `
 
 type ListDirectReportsParams struct {
@@ -103,9 +148,10 @@ type ListDirectReportsParams struct {
 }
 
 type ListDirectReportsRow struct {
-	UserID      string      `json:"user_id"`
-	DisplayName string      `json:"display_name"`
-	AvatarUrl   pgtype.Text `json:"avatar_url"`
+	UserID       string      `json:"user_id"`
+	DisplayName  string      `json:"display_name"`
+	AvatarUrl    pgtype.Text `json:"avatar_url"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
 
 func (q *Queries) ListDirectReports(ctx context.Context, arg ListDirectReportsParams) ([]ListDirectReportsRow, error) {
@@ -117,7 +163,12 @@ func (q *Queries) ListDirectReports(ctx context.Context, arg ListDirectReportsPa
 	items := []ListDirectReportsRow{}
 	for rows.Next() {
 		var i ListDirectReportsRow
-		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.AvatarUrl); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.AvatarFileID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -140,13 +191,29 @@ LEFT JOIN organization_member_profiles p ON p.organization_id = m.organization_i
 LEFT JOIN departments d ON d.id = p.department_id
 LEFT JOIN users mu ON mu.id = p.manager_id
 WHERE m.organization_id = $1
-ORDER BY u.display_name, m.user_id
-LIMIT $2
+  AND (
+    $2::text = 'all'
+    OR ($2::text = 'active' AND m.deactivated_at IS NULL)
+    OR ($2::text = 'deactivated' AND m.deactivated_at IS NOT NULL)
+  )
+  AND ($3::text IS NULL OR p.search_text LIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR p.department_id = $4::text)
+  AND ($5::text IS NULL OR p.manager_id = $5::text)
+  AND ($6::text IS NULL OR m.role = $6::text)
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu"
+LIMIT $7
 `
 
 type ListPeopleForExportParams struct {
-	OrganizationID string `json:"organization_id"`
-	Limit          int32  `json:"limit"`
+	OrganizationID string      `json:"organization_id"`
+	Status         string      `json:"status"`
+	Query          pgtype.Text `json:"query"`
+	DepartmentID   pgtype.Text `json:"department_id"`
+	ManagerID      pgtype.Text `json:"manager_id"`
+	Role           pgtype.Text `json:"role"`
+	RowLimit       int32       `json:"row_limit"`
 }
 
 type ListPeopleForExportRow struct {
@@ -164,9 +231,18 @@ type ListPeopleForExportRow struct {
 	ManagerName    pgtype.Text        `json:"manager_name"`
 }
 
-// The CSV is a full snapshot in directory order, capped by the caller.
+// The CSV is a snapshot of the directory in directory order, narrowed by the
+// same filters as SearchPeople and capped by the caller.
 func (q *Queries) ListPeopleForExport(ctx context.Context, arg ListPeopleForExportParams) ([]ListPeopleForExportRow, error) {
-	rows, err := q.db.Query(ctx, listPeopleForExport, arg.OrganizationID, arg.Limit)
+	rows, err := q.db.Query(ctx, listPeopleForExport,
+		arg.OrganizationID,
+		arg.Status,
+		arg.Query,
+		arg.DepartmentID,
+		arg.ManagerID,
+		arg.Role,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -223,6 +299,7 @@ type ListProfileSearchSourcesRow struct {
 	DepartmentName pgtype.Text `json:"department_name"`
 }
 
+// tenant: self — the caller's own profiles in each organization, or one department's in its organization; the rows are only folded into search_text
 // The columns search_text is folded from, for the two commands that have to
 // rebuild it in bulk: a person renaming themselves, and a department renaming.
 func (q *Queries) ListProfileSearchSources(ctx context.Context, arg ListProfileSearchSourcesParams) ([]ListProfileSearchSourcesRow, error) {
@@ -254,7 +331,7 @@ func (q *Queries) ListProfileSearchSources(ctx context.Context, arg ListProfileS
 
 const searchPeople = `-- name: SearchPeople :many
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -273,8 +350,15 @@ WHERE m.organization_id = $1
   AND ($5::text IS NULL OR p.manager_id = $5::text)
   AND ($6::text IS NULL OR m.role = $6::text)
   AND ($7::text IS NULL
-       OR (u.display_name, m.user_id) > ($7::text, $8::text))
-ORDER BY u.display_name, m.user_id
+       OR (regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+           u.display_name COLLATE "vi-x-icu",
+           m.user_id COLLATE "vi-x-icu")
+        > (regexp_replace(btrim($7::text), '^.*\s', '') COLLATE "vi-x-icu",
+           $7::text COLLATE "vi-x-icu",
+           $8::text COLLATE "vi-x-icu"))
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu"
 LIMIT $9
 `
 
@@ -298,6 +382,7 @@ type SearchPeopleRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 	Timezone       string             `json:"timezone"`
 	Title          pgtype.Text        `json:"title"`
 	DepartmentID   pgtype.Text        `json:"department_id"`
@@ -311,8 +396,15 @@ type SearchPeopleRow struct {
 	DepartmentName pgtype.Text        `json:"department_name"`
 }
 
-// Keyset paged on (display_name, user_id): the directory is a live list and an
-// offset would skip or repeat a row the moment somebody is renamed.
+// Directory order is the Vietnamese one: given name first (the last word of the
+// display name), then the full name, then user_id as the tie-break, all under
+// the ICU Vietnamese collation so Đ sorts right after D instead of after Z.
+// Keyset paged on that same tuple: the directory is a live list and an offset
+// would skip or repeat a row the moment somebody is renamed. The cursor only
+// carries (display_name, user_id); the given name is derived from it here with
+// the exact expression the ORDER BY uses, so the comparison and the order can
+// never disagree. ListPeopleForExport and ListDirectReports repeat the ORDER BY,
+// and ListPeopleForExport and CountPeople repeat the WHERE; keep them in step.
 func (q *Queries) SearchPeople(ctx context.Context, arg SearchPeopleParams) ([]SearchPeopleRow, error) {
 	rows, err := q.db.Query(ctx, searchPeople,
 		arg.OrganizationID,
@@ -340,6 +432,7 @@ func (q *Queries) SearchPeople(ctx context.Context, arg SearchPeopleParams) ([]S
 			&i.Email,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 			&i.Timezone,
 			&i.Title,
 			&i.DepartmentID,

@@ -7,9 +7,15 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-func registerMeetings(r api, h Routes) {
+// liveKitWebhookPath is the webhook route under /api/v1; router.go exempts
+// it from the global rate limiter by this exact path.
+const liveKitWebhookPath = "/integrations/livekit/webhook"
+
+// summaryLimit wraps POST /meetings/{id}/summary only: the ai-meeting-summary
+// bucket router.go builds (UNI-1853 M9).
+func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
-		summary: "List meetings", tags: []string{"meetings"}, sdo: sdo.MeetingListSDO{}, auth: true,
+		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/meeting-statistics", h.MeetingStatistics, apiOp{
 		summary: "Meeting statistics", tags: []string{"meetings"}, sdo: sdo.MeetingStatisticsSDO{}, auth: true,
@@ -46,6 +52,10 @@ func registerMeetings(r api, h Routes) {
 		summary: "Cancel scheduled meeting", tags: []string{"meetings"},
 		sdi: sdi.CancelMeetingSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/restore", h.RestoreMeeting, apiOp{
+		summary: "Restore a cancelled meeting", tags: []string{"meetings"},
+		sdi: sdi.RestoreMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/host-transfer", h.TransferHost, apiOp{
 		summary: "Transfer host", tags: []string{"meetings"},
 		sdi: sdi.HostTransferSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -74,8 +84,55 @@ func registerMeetings(r api, h Routes) {
 		summary: "Remove participant", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/participants/{participantID}/publish", h.SetParticipantPublish, apiOp{
-		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
+		summary: "Lock or unlock a participant's microphone or screen share (host)", tags: []string{"meetings"},
 		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Patch("/meetings/{meetingID}/participants/{participantID}", h.PatchParticipant, apiOp{
+		summary: "Set a participant's standing or secretary role (host)", tags: []string{"meetings"},
+		sdi: sdi.PatchParticipantSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/attendance", h.GetAttendance, apiOp{
+		summary: "Attendance roll: suggestions merged with clerk marks", tags: []string{"meetings"},
+		sdo: sdo.AttendanceSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/attendance/{participantID}", h.MarkAttendance, apiOp{
+		summary: "Mark one participant's attendance (clerk)", tags: []string{"meetings"},
+		sdi: sdi.MarkAttendanceSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/attendance/{participantID}", h.ClearAttendanceMark, apiOp{
+		summary: "Return a participant to the automatic suggestion (clerk)", tags: []string{"meetings"},
+		sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/attendance/finalize", h.FinalizeAttendance, apiOp{
+		summary: "Finalize attendance (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/attendance/reopen", h.ReopenAttendance, apiOp{
+		summary: "Reopen finalized attendance (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/motions", h.CreateMotion, apiOp{
+		summary:     "Draft a vote item (clerk)",
+		description: "Tạo nội dung ở trạng thái DRAFT, xếp cuối danh sách. Cuộc họp phải chưa kết thúc và chưa bị hủy.",
+		tags:        []string{"meetings"},
+		sdi:         sdi.CreateMotionSDI{},
+		sdo:         sdo.MotionSDO{},
+		auth:        true,
+	})
+	r.Patch("/meetings/{meetingID}/motions/{motionID}", h.UpdateMotion, apiOp{
+		summary: "Edit or reorder a draft vote item (clerk)", tags: []string{"meetings"},
+		sdi: sdi.PatchMotionSDI{}, sdo: sdo.MotionSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/motions/{motionID}", h.DeleteMotion, apiOp{
+		summary: "Delete a draft vote item (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/motions/{motionID}/open", h.OpenMotion, apiOp{
+		summary:     "Open voting and snapshot the roll (clerk)",
+		description: "Chỉ khi cuộc họp đang diễn ra; mỗi lúc một nội dung. Cử tri = thành viên có mặt hoặc đến muộn lúc mở.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionSDO{},
+		auth:        true,
+	})
+	r.Post("/meetings/{meetingID}/motions/{motionID}/close", h.CloseMotion, apiOp{
+		summary: "Close voting and count the result (clerk)", tags: []string{"meetings"}, sdo: sdo.MotionSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
@@ -105,22 +162,34 @@ func registerMeetings(r api, h Routes) {
 		sdo: sdo.MeetingCapabilitiesSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/transcript", h.ListTranscript, apiOp{
-		summary: "List transcript segments", tags: []string{"meetings"}, sdo: sdo.TranscriptListSDO{}, auth: true,
+		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
+		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
-		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+		summary: "Latest AI summary",
+		description: "Bản tóm tắt mới nhất (null khi chưa có). Mỗi action item có index, người phụ trách gợi ý " +
+			"(suggested_assignee_id), hạn đã đọc (due_date) và task_id khi việc đó đã thành task còn tồn tại.",
+		tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
+	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
 		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
+		description: "Chỉ host hoặc admin workspace. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
+			"Lỗi: 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
+			"409 summary_no_source / summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After) " +
+			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
-		summary: "Create tasks from summary action items", tags: []string{"meetings"},
-		sdi: sdi.SummaryTasksSDI{}, sdo: sdo.TaskIDListSDO{}, auth: true,
+		summary: "Create tasks from summary action items",
+		description: "Chỉ host/admin. Tạo task cho các action item đã chọn của bản tóm tắt mới nhất trong một giao dịch: " +
+			"lỗi ở bất kỳ việc nào thì không task nào được tạo. assignee_id/due_date gửi lên là giá trị cuối (null = không gán / không hạn). " +
+			"409 summary_superseded khi summary_id không còn là bản mới nhất; 409 summary_item_already_converted (fields.indexes) " +
+			"khi việc đã thành task còn tồn tại.",
+		tags: []string{"meetings"}, sdi: sdi.SummaryTasksSDI{}, sdo: sdo.MeetingSummaryTasksSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
 		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,
@@ -150,24 +219,63 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Cancel own join request (member or guest)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{},
 	})
 	r.With(lobbyWSLimit).Get("/meetings/{meetingID}/lobby-ws", h.MeetingLobbyWS, apiOp{})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
+	// Every client in a room refetches the roster, the chat history, the vote
+	// items and the recordings list, and a formal meeting often sits behind one
+	// office NAT: these reads live on the global budget only (per signed-in
+	// user, per address for guests), not the 60/min credential one, or a refused
+	// refetch hides a participant, a message or an open vote.
+	r.Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
 		summary: "List participants (member or active guest)", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{},
 	})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
-		summary: "List persisted in-room chat messages (member or active guest)", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{},
+	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
+		summary: "List persisted in-room chat messages (member or active guest; newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
+		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.MeetingChatListSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
 	})
+	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
+		summary:     "List vote items (member or active guest)",
+		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED. Phiếu của người gọi ở /my-ballots, ai chọn gì ở /motions/{motionID}/voters.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionListSDO{},
+	})
+	r.Get("/meetings/{meetingID}/my-ballots", h.ListMyBallots, apiOp{
+		summary:     "List my own ballots (member or active guest)",
+		description: "Một dòng cho mỗi nội dung người gọi có tên trong danh sách cử tri chốt lúc mở; choice chỉ có với phiếu công khai đã bỏ.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MyBallotListSDO{},
+	})
+	r.Get("/meetings/{meetingID}/motions/{motionID}/voters", h.ListMotionVoters, apiOp{
+		summary:     "List who chose what on a closed public vote (member or active guest)",
+		description: "voters là null khi nội dung đang mở hoặc bỏ phiếu kín; nội dung nháp trả 404 với người không phải clerk.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionVotersSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/motions/{motionID}/ballot", h.CastBallot, apiOp{
+		summary: "Cast a ballot (member or active guest on the roll)", tags: []string{"meetings"},
+		sdi: sdi.CastBallotSDI{}, sdo: sdo.StatusSDO{},
+	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
 		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
 		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
 	})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
+	r.Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
 	})
-	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/playback-url", h.GetMeetingRecordingPlaybackURL, apiOp{
+		summary:     "Get meeting recording playback URL",
+		description: "URL presigned ngắn hạn để phát MP4 trực tiếp (stream/seek) thay vì tải qua proxy.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MeetingRecordingPlaybackSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/content", h.StreamMeetingRecording, apiOp{
+		summary:     "Stream meeting recording",
+		description: "Phát bản ghi cuộc họp (MP4) qua proxy S3 cho thành viên hoặc khách đang tham gia.",
+		tags:        []string{"meetings"},
+	})
+	r.Post(liveKitWebhookPath, h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},
 	})

@@ -534,18 +534,38 @@ function ImageAttachmentView({
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" onClick={onView} title={t("editor.image.view")}>
-              <Maximize2 className="size-3.5" />
+            <button
+              type="button"
+              onClick={onView}
+              title={t("editor.image.view")}
+              aria-label={t("editor.image.view")}
+            >
+              <Maximize2 className="size-3.5" aria-hidden="true" />
             </button>
-            <button type="button" onClick={onDownload} title={t("editor.image.download")}>
-              <Download className="size-3.5" />
+            <button
+              type="button"
+              onClick={onDownload}
+              title={t("editor.image.download")}
+              aria-label={t("editor.image.download")}
+            >
+              <Download className="size-3.5" aria-hidden="true" />
             </button>
-            <button type="button" onClick={handleCopyLink} title={t("editor.image.copy_link")}>
-              <LinkIcon className="size-3.5" />
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              title={t("editor.image.copy_link")}
+              aria-label={t("editor.image.copy_link")}
+            >
+              <LinkIcon className="size-3.5" aria-hidden="true" />
             </button>
             {editable && onDelete && (
-              <button type="button" onClick={onDelete} title={t("editor.image.delete")}>
-                <Trash2 className="size-3.5" />
+              <button
+                type="button"
+                onClick={onDelete}
+                title={t("editor.image.delete")}
+                aria-label={t("editor.image.delete")}
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
               </button>
             )}
           </span>

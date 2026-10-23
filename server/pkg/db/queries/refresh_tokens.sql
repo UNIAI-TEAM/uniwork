@@ -14,6 +14,8 @@ WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1;
 
 -- name: RevokeAllRefreshTokensForUser :exec
+-- Second half of a user-wide revoke: call revokeAllUserSessions (service),
+-- which closes the device sessions first so the locks come in one order.
 UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeSessionForUser :execrows
@@ -25,12 +27,20 @@ UPDATE refresh_tokens SET revoked_at = now()
 WHERE user_id = $1 AND session_id <> $2 AND revoked_at IS NULL;
 
 -- name: ListActiveSessionsForUser :many
--- One live row per session; created_at of the chain is the login time.
-SELECT t.session_id, t.user_agent, t.ip, t.created_at AS last_seen_at,
-  (SELECT min(created_at) FROM refresh_tokens f WHERE f.session_id = t.session_id)::timestamptz AS created_at
-FROM refresh_tokens t
-WHERE t.user_id = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
-ORDER BY t.created_at DESC;
+-- One row per session_id (a refresh rotation can leave several live token rows).
+SELECT s.session_id, s.user_agent, s.ip, s.last_seen_at, s.created_at
+FROM (
+  SELECT DISTINCT ON (t.session_id)
+    t.session_id,
+    t.user_agent,
+    t.ip,
+    t.created_at AS last_seen_at,
+    (SELECT min(created_at) FROM refresh_tokens f WHERE f.session_id = t.session_id)::timestamptz AS created_at
+  FROM refresh_tokens t
+  WHERE t.user_id = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
+  ORDER BY t.session_id, t.created_at DESC
+) s
+ORDER BY s.last_seen_at DESC;
 
 -- name: CountRefreshTokensForUserAgent :one
 SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND user_agent = $2;

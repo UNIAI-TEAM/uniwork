@@ -1,274 +1,247 @@
 "use client";
 
+import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
-import {
-  useDeactivateOrgMember,
-  useInviteToOrganization,
-  useLeaveOrganization,
-  useOrgInvitations,
-  useOrgMembers,
-  useReactivateOrgMember,
-  useRevokeOrgInvitation,
-  useUpdateOrgMemberRole,
-} from "@uniwork/core/organizations";
+import { useLeaveOrganization } from "@uniwork/core/organizations";
+import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
-import type { OrgMember } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Select } from "@uniwork/ui/components/ui/select";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
+import { useOptionalNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
-import { EMAIL_RE, EmailChipsInput } from "../../workspace/email-chips-input";
-import { SettingsSection, SettingsTab } from "./settings-layout";
-import { TransferOwnershipDialog } from "./transfer-ownership-dialog";
+import { CloseOrganizationDialog } from "./close-organization-dialog";
+import { OrgInvitationsSection } from "./org-invitations-section";
+import { OrgMembersSection } from "./org-members-section";
+import { decisionReason } from "./permission-reason";
+import { SettingsDangerZone, SettingsRow, SettingsRowReason, SettingsRowSkeleton, SettingsTab } from "./settings-layout";
+import { TransferOwnershipDialog, useTransferCandidates } from "./transfer-ownership-dialog";
 
 /**
  * Organization membership, as opposed to workspace membership: who belongs to
- * the company, in what role, and whether they may still enter it.
+ * the company, in what role, and whether they may still enter it. Handing the
+ * organization over, closing it and leaving it end the tab, in the danger zone.
+ *
+ * The two owner dialogs live here, outside the owner-only rows: a transfer
+ * flips the caller's role while its dialog is still open, and the rows that
+ * the role takes away must not take the dialog (its success toast, its focus
+ * return) with them.
  */
 export function OrganizationTab() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const navigation = useOptionalNavigation();
   const orgSlug = workspace.organization_slug;
-  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useOrgMembers(orgSlug, "all");
-  const { decideChangeRole, decideDeactivate, canLeave, canManageMembers, canTransferOwnership } =
-    usePeoplePermissions(orgSlug);
-  const updateRole = useUpdateOrgMemberRole(orgSlug);
-  const deactivate = useDeactivateOrgMember(orgSlug);
-  const reactivate = useReactivateOrgMember(orgSlug);
+  const organizationName = workspace.organization_name;
+  const { canLeave, canManageMembers, canTransferOwnership, decideClose, isLoading } = usePeoplePermissions(orgSlug);
+  const isOwner = canTransferOwnership.allowed;
   const leave = useLeaveOrganization(orgSlug);
-  const invite = useInviteToOrganization(orgSlug);
-  const revoke = useRevokeOrgInvitation(orgSlug);
-  const { data: invitations } = useOrgInvitations(orgSlug, canManageMembers.allowed);
-  const [emails, setEmails] = useState<string[]>([]);
-  const [inviteRole, setInviteRole] = useState("member");
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-  const members = (data?.pages ?? []).flatMap((p) => p.members);
-  const validEmails = emails.filter((e) => EMAIL_RE.test(e));
-  // The owner cannot hand the organization to themselves or to somebody who
-  // has been switched off.
-  const transferCandidates = members.filter((m) => !m.deactivated_at && m.role !== "owner");
+  const [closeOpen, setCloseOpen] = useState(false);
+  const dangerHeading = useRef<HTMLHeadingElement>(null);
+  // Read for the owner only, so a plain member never reads the member pages
+  // this needs; kept while the transfer dialog is open, which outlives the role.
+  const { candidates, none, loading, isError, retry } = useTransferCandidates(
+    orgSlug,
+    transferOpen,
+    isOwner || transferOpen,
+  );
+  // "Nobody else is active" is known once every page has been read; "somebody
+  // is" from the first candidate, usually on page one. Until either holds, the
+  // rows that depend on it hold their place instead of popping in.
+  const decided = none || candidates.length > 0 || isError;
+  const canClose = decideClose(!none);
 
-  const sendInvites = () => {
-    if (validEmails.length === 0 || invite.isPending) return;
-    invite.mutate(
-      { emails: validEmails, orgRole: inviteRole },
-      {
-        onSuccess: (result) => {
-          setEmails([]);
-          toast.success(t("org.invitations.sent", { count: result?.invitations.length ?? 0 }));
-        },
-        onError: (err) => toastApiError(err, t("common.error")),
+  const confirmLeave = () => {
+    if (!canLeave.allowed || leave.isPending) return;
+    leave.mutate(undefined, {
+      onSuccess: () => {
+        toast.success(t("org.leave.done"));
+        setLeaveOpen(false);
+        // One organization per account (ADR 0032): having left it, the person
+        // belongs to none, so the way on is to create or join one.
+        navigation?.replace(paths.getStarted());
       },
-    );
-  };
-
-  const onChangeRole = (member: OrgMember, role: string) => {
-    if (member.role === role || updateRole.isPending) return;
-    updateRole.mutate(
-      { userId: member.user_id, role },
-      {
-        onSuccess: () => toast.success(t("org.members.role_updated")),
-        onError: (err) => toastApiError(err, t("common.error")),
-      },
-    );
-  };
-
-  const onToggleActive = (member: OrgMember) => {
-    const mutation = member.deactivated_at ? reactivate : deactivate;
-    if (mutation.isPending) return;
-    mutation.mutate(member.user_id, {
-      onSuccess: () =>
-        toast.success(
-          member.deactivated_at ? t("org.members.reactivated") : t("org.members.deactivated"),
-        ),
       onError: (err) => toastApiError(err, t("common.error")),
     });
   };
 
-  return (
-    <SettingsTab title={t("settings.page.tabs.organization")}>
-      <SettingsSection
-        title={t("org.members.title")}
-        description={t("org.members.description")}
-      >
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Spinner />
-          </div>
+  const leaveRow = (reason: string | null) => (
+    <LeaveRow reason={reason} allowed={canLeave.allowed} onOpen={() => setLeaveOpen(true)} />
+  );
+
+  let rows;
+  if (isLoading) {
+    // The role decides which rows exist: an owner must not see a member's
+    // Leave row first and then watch it change.
+    rows = (
+      <>
+        <SettingsRowSkeleton />
+        <SettingsRowSkeleton />
+      </>
+    );
+  } else if (isOwner) {
+    rows = (
+      <>
+        <TransferRow none={none} onOpen={() => setTransferOpen(true)} />
+        {!decided ? (
+          <SettingsRowSkeleton />
         ) : (
-          <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-            {members.map((member) => {
-              const target = { user_id: member.user_id, role: member.role };
-              const changeRole = decideChangeRole(target);
-              const toggle = decideDeactivate(target);
-              return (
-                <li
-                  key={member.user_id}
-                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-body text-foreground">
-                      {member.display_name}
-                      {member.deactivated_at ? (
-                        <span className="ml-2 text-caption text-muted-foreground">
-                          {t("org.members.status_deactivated")}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="truncate text-caption text-muted-foreground">{member.email}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {changeRole.allowed ? (
-                      <Select
-                        aria-label={t("org.members.change_role")}
-                        value={member.role === "admin" ? "admin" : "member"}
-                        onValueChange={(v) => onChangeRole(member, (v as string) ?? "member")}
-                        items={[
-                          { value: "member", label: t("people.role_member") },
-                          { value: "admin", label: t("people.role_admin") },
-                        ]}
-                      />
-                    ) : (
-                      <span className="text-caption text-muted-foreground">
-                        {t(`people.role_${member.role}`, { defaultValue: member.role })}
-                      </span>
-                    )}
-                    {toggle.allowed || member.deactivated_at ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={deactivate.isPending || reactivate.isPending || !toggle.allowed}
-                        onClick={() => onToggleActive(member)}
-                      >
-                        {member.deactivated_at
-                          ? t("org.members.reactivate")
-                          : t("org.members.deactivate")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {canClose.allowed ? <CloseRow onOpen={() => setCloseOpen(true)} /> : null}
+            {leaveRow(canClose.allowed ? t("org.reasons.leave_sole_owner") : decisionReason(t, canLeave, "leave"))}
+          </>
         )}
-        {hasNextPage ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            disabled={isFetchingNextPage}
-            onClick={() => void fetchNextPage()}
-          >
-            {t("people.load_more")}
-          </Button>
-        ) : null}
-      </SettingsSection>
+      </>
+    );
+  } else {
+    rows = leaveRow(decisionReason(t, canLeave, "leave"));
+  }
 
-      {canManageMembers.allowed ? (
-        <SettingsSection
-          title={t("org.invitations.title")}
-          description={t("org.invitations.description")}
-        >
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-56 flex-1">
-              <EmailChipsInput
-                id="org-invite-emails"
-                value={emails}
-                onChange={setEmails}
-                disabled={invite.isPending}
-                placeholder={t("workspace.inviteHint")}
-              />
-            </div>
-            <Select
-              aria-label={t("org.members.change_role")}
-              value={inviteRole}
-              onValueChange={(v) => setInviteRole((v as string) ?? "member")}
-              items={[
-                { value: "member", label: t("people.role_member") },
-                { value: "admin", label: t("people.role_admin") },
-              ]}
-            />
-            <Button type="button" disabled={invite.isPending || validEmails.length === 0} onClick={sendInvites}>
-              {t("org.invitations.send")}
-            </Button>
-          </div>
-          {invitations && invitations.invitations.length > 0 ? (
-            <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
-              {invitations.invitations.map((inv) => (
-                <li key={inv.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
-                  <div className="min-w-0">
-                    <div className="truncate text-body text-foreground">{inv.email}</div>
-                    <div className="truncate text-caption text-muted-foreground">
-                      {t(`people.role_${inv.org_role}`, { defaultValue: inv.org_role })}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={revoke.isPending}
-                    onClick={() =>
-                      revoke.mutate(inv.id, {
-                        onSuccess: () => toast.success(t("org.invitations.revoked")),
-                        onError: (err) => toastApiError(err, t("common.error")),
-                      })
-                    }
-                  >
-                    {t("org.invitations.revoke")}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </SettingsSection>
-      ) : null}
+  return (
+    <SettingsTab title={t("settings.page.tabs.organization")} description={t("org.members.description")}>
+      <OrgMembersSection orgSlug={orgSlug} />
 
-      {canTransferOwnership.allowed ? (
-        <SettingsSection title={t("org.transfer.title")} description={t("org.transfer.description")}>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={transferCandidates.length === 0}
-            onClick={() => setTransferOpen(true)}
-          >
-            {t("org.transfer.action")}
-          </Button>
-          {transferCandidates.length === 0 ? (
-            <p className="mt-2 text-caption text-muted-foreground">{t("org.transfer.no_candidate")}</p>
-          ) : null}
-          <TransferOwnershipDialog
-            orgSlug={orgSlug}
-            organizationName={workspace.organization_name}
-            candidates={transferCandidates}
-            open={transferOpen}
-            onOpenChange={setTransferOpen}
-          />
-        </SettingsSection>
-      ) : null}
+      {canManageMembers.allowed ? <OrgInvitationsSection orgSlug={orgSlug} orgId={workspace.organization_id} /> : null}
 
-      <SettingsSection title={t("org.leave.title")} description={t("org.leave.description")}>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!canLeave.allowed || leave.isPending}
-          onClick={() =>
-            leave.mutate(undefined, {
-              onSuccess: () => toast.success(t("org.leave.done")),
-              onError: (err) => toastApiError(err, t("common.error")),
-            })
-          }
-        >
-          {t("org.leave.action")}
-        </Button>
-        {!canLeave.allowed && canLeave.message ? (
-          <p className="mt-2 text-caption text-muted-foreground">{canLeave.message}</p>
-        ) : null}
-      </SettingsSection>
+      {/* A plain member has only the Leave row, so the owner's sentence about
+          handing the organization over would describe actions they lack. */}
+      <SettingsDangerZone
+        title={t("org.danger.title")}
+        headingRef={dangerHeading}
+        pending={isLoading}
+        description={isOwner ? t("org.danger.description") : t("org.danger.description_member")}
+      >
+        {rows}
+      </SettingsDangerZone>
+
+      <ConfirmDialog
+        open={leaveOpen}
+        onOpenChange={(open) => {
+          if (!leave.isPending) setLeaveOpen(open);
+        }}
+        title={t("org.leave.confirm_title", { name: organizationName })}
+        description={t("org.leave.confirm_body", { name: organizationName })}
+        confirmLabel={t("org.leave.action")}
+        onConfirm={confirmLeave}
+        pending={leave.isPending}
+      />
+      <TransferOwnershipDialog
+        orgSlug={orgSlug}
+        organizationName={organizationName}
+        candidates={candidates}
+        loadingCandidates={loading}
+        candidatesError={isError}
+        onRetryCandidates={retry}
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+        focusAfterTransfer={dangerHeading}
+      />
+      <CloseOrganizationDialog
+        orgSlug={orgSlug}
+        organizationName={organizationName}
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
+        // Somebody joined meanwhile: re-read the members so the picker has
+        // them, and go straight to the transfer.
+        onTransferInstead={() => {
+          retry();
+          setTransferOpen(true);
+        }}
+      />
     </SettingsTab>
+  );
+}
+
+/**
+ * Danger-row actions share one width so their edges line up down the right
+ * column, whatever the label length.
+ */
+const DANGER_ACTION = "sm:min-w-36";
+
+function LeaveRow({ reason, allowed, onOpen }: { reason: string | null; allowed: boolean; onOpen: () => void }) {
+  const { t } = useTranslation();
+  const descId = useId();
+  return (
+    <SettingsRow
+      label={t("org.leave.title")}
+      descriptionId={descId}
+      description={
+        <>
+          {t("org.leave.description")}
+          {reason ? <SettingsRowReason>{reason}</SettingsRowReason> : null}
+        </>
+      }
+      size="none"
+    >
+      <Button
+        type="button"
+        variant="destructive"
+        className={DANGER_ACTION}
+        aria-disabled={!allowed || undefined}
+        // The consequence and, when there is one, the reason it is refused.
+        aria-describedby={descId}
+        onClick={onOpen}
+      >
+        {t("org.leave.action")}
+      </Button>
+    </SettingsRow>
+  );
+}
+
+/**
+ * The row's button is outline on purpose, while the dialog's confirm is
+ * destructive: opening the dialog commits to nothing (it is a form with two
+ * frictions), and a red button beside Leave and Close would read as a third
+ * one-click way out. The irreversible press is the one inside, and it is red.
+ * "No candidate" is said only once every member page has been read.
+ */
+function TransferRow({ none, onOpen }: { none: boolean; onOpen: () => void }) {
+  const { t } = useTranslation();
+  const descId = useId();
+  return (
+    <SettingsRow
+      label={t("org.transfer.title")}
+      descriptionId={descId}
+      description={
+        <>
+          {t("org.transfer.description")}
+          {none ? <SettingsRowReason>{t("org.transfer.no_candidate")}</SettingsRowReason> : null}
+        </>
+      }
+      size="none"
+    >
+      <Button
+        type="button"
+        variant="outline"
+        className={DANGER_ACTION}
+        aria-disabled={none || undefined}
+        aria-describedby={descId}
+        onClick={() => {
+          if (none) return;
+          onOpen();
+        }}
+      >
+        {t("org.transfer.action")}
+      </Button>
+    </SettingsRow>
+  );
+}
+
+/**
+ * Offered only to an owner who is the last active member: one with others
+ * hands the organization over instead (ADR 0032 D5).
+ */
+function CloseRow({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation();
+  const descId = useId();
+  return (
+    <SettingsRow label={t("org.close.title")} descriptionId={descId} description={t("org.close.description")} size="none">
+      <Button type="button" variant="destructive" className={DANGER_ACTION} aria-describedby={descId} onClick={onOpen}>
+        {t("org.close.action")}
+      </Button>
+    </SettingsRow>
   );
 }

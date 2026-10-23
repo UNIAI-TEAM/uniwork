@@ -1,0 +1,13 @@
+{{- /* A PDB over a single replica would block every node drain. */}}
+{{- if gt (int .Values.fe.replicaCount) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: uniwork-fe
+  namespace: {{ .Values.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-fe
+{{- end }}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Link2, Search, Waypoints } from "lucide-react";
+import { CircleAlert, Link2, Search, Waypoints } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminTrace } from "@uniwork/core/admin";
 import { paths } from "@uniwork/core/paths";
@@ -125,6 +125,7 @@ export function AdminTraceView() {
         }}
       >
         <Input
+          variant="subtle"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("placeholder")}
@@ -132,7 +133,7 @@ export function AdminTraceView() {
           className="h-8 max-w-md font-mono"
           spellCheck={false}
         />
-        <Button type="submit" size="sm" variant="outline">
+        <Button type="submit" size="sm" variant="toolbar">
           <Search aria-hidden="true" className="size-3.5" />
           {t("lookup")}
         </Button>
@@ -168,7 +169,7 @@ export function AdminTraceView() {
         </div>
       ) : trace.isError ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

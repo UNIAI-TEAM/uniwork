@@ -1,15 +1,15 @@
 "use client";
-import { Loader2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
+import { AUTH_INPUT, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
 import { MFAStep } from "./mfa-step";
@@ -22,7 +22,7 @@ export const AUTH_LINK =
 /** Errors the Google callback can carry back on the login URL. */
 export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
 
-export type LoginReason = "meeting_invite";
+export type LoginReason = "meeting_invite" | "session_expired";
 
 /**
  * Who a message belongs to decides which control is marked invalid and
@@ -33,6 +33,9 @@ export type LoginReason = "meeting_invite";
  * typo that does not exist.
  */
 type Notice = { owner: "email" | "password" | "pair" | "form"; message: string };
+
+/** A document link that names a comment: an Inbox or push deep link (S15). */
+const COMMENT_LINK = /^\/[^/?#]+\/[^/?#]+\/documents\/[^/?#]+\?(?:[^#]*&)?comment=[^&#]/;
 
 /** Enough to catch a missing "@" or domain before the round trip; the server is the judge. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -68,7 +71,14 @@ export function LoginView({
   // takes the slot; the old message must not come back when that one clears.
   const [submitted, setSubmitted] = useState(false);
 
-  const reasonMessage = reason === "meeting_invite" ? t("auth.meetingInviteReason") : null;
+  // A deep link to a comment whose session ended says why the sign-in stands in its way
+  // (S15 row 5); a visitor who never had a session gets the plain sign-in.
+  const reasonMessage =
+    reason === "meeting_invite"
+      ? t("auth.meetingInviteReason")
+      : reason === "session_expired" && next && COMMENT_LINK.test(next)
+        ? t("documents.collab.inboxSessionExpired")
+        : null;
 
   const serverNotice = ((error: unknown): Notice | null => {
     if (!error) return null;
@@ -157,14 +167,18 @@ export function LoginView({
       {/* noValidate: the browser's own bubble is untranslated and disappears on
           the next keystroke. Both fields stay `required` so assistive tech
           still announces them as such. */}
-      <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
+      <form className="flex flex-col gap-5" onSubmit={submit} noValidate>
         {reasonMessage ? (
           <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-pretty text-body text-foreground">
             {reasonMessage}
           </p>
         ) : null}
-        <FieldGroup>
-          <Field>
+        {/* gap-1 between fields and gap-2 inside one: the reserved error slot
+            under each box already carries the air between them. With the
+            primitive's gap-5 on top of it the two boxes stood 50px apart and
+            read as two forms. */}
+        <FieldGroup className="gap-1">
+          <Field className="gap-2">
             <FieldLabel htmlFor="login-email">{t("auth.email")}</FieldLabel>
             <Input
               ref={emailRef}
@@ -184,7 +198,7 @@ export function LoginView({
               required
               aria-invalid={blames("email") || undefined}
               aria-describedby={blames("email") ? noticeId : undefined}
-              className="h-10 text-body pointer-coarse:h-11"
+              className={AUTH_INPUT}
             />
             {/* Each field owns a reserved one-line slot, so a message lands
                 directly under the box it is about and nothing else moves.
@@ -197,49 +211,47 @@ export function LoginView({
               {notice?.owner === "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
             </div>
           </Field>
-          <Field>
-            <FieldLabel htmlFor="login-password">{t("auth.password")}</FieldLabel>
-            <PasswordField
-              ref={passwordRef}
-              id="login-password"
-              name="password"
-              value={password}
-              onChange={(v) => edit("password", v)}
-              autoComplete="current-password"
-              invalid={blames("password")}
-              describedBy={blames("password") ? noticeId : undefined}
-            />
+          {/* The recovery link sits on the label row, where the eye already is
+              when a password will not come, but it comes AFTER the box in the
+              DOM: in the tab order and to a screen reader it follows the
+              password and its reveal toggle instead of standing between the
+              two fields a keyboard user is moving through. The grid puts it
+              back on the label row visually. */}
+          <Field className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
+            <FieldLabel htmlFor="login-password" className="col-start-1 row-start-1">
+              {t("auth.password")}
+            </FieldLabel>
+            <div className="col-span-2 row-start-2">
+              <PasswordField
+                ref={passwordRef}
+                id="login-password"
+                name="password"
+                value={password}
+                onChange={(v) => edit("password", v)}
+                autoComplete="current-password"
+                invalid={blames("password")}
+                describedBy={blames("password") ? noticeId : undefined}
+              />
+            </div>
             {/* Password, pair and form-level messages all read from here: the
                 pair is "email or password", and a form-level failure (network,
                 server) belongs next to the button the user just pressed. */}
-            <div className="-mt-1 min-h-5">
+            <div className="col-span-2 row-start-3 -mt-1 min-h-5">
               {notice && notice.owner !== "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
             </div>
+            <AppLink
+              href={paths.forgotPassword()}
+              className={cn(AUTH_LINK, "col-start-2 row-start-1 justify-self-end text-label")}
+            >
+              {t("auth.forgotPassword")}
+            </AppLink>
           </Field>
         </FieldGroup>
 
-        <div className="flex flex-col gap-4">
-          {/* h-10 to match the inputs above it: one column, one control height.
-              Full opacity while pending: the primitive's aria-disabled:opacity-50
-              is for a control that cannot be used, and this one is the status
-              line for the slowest step of the flow — at 50% its label measured
-              ~2:1, unreadable for exactly the seconds a 3G user stares at it.
-              The spinner and the label change say "busy"; the cursor agrees. */}
-          <Button
-            type="submit"
-            size="lg"
-            className="h-10 w-full pointer-coarse:h-11 aria-disabled:cursor-progress aria-disabled:opacity-100"
-            aria-disabled={login.isPending || undefined}
-          >
-            {login.isPending ? (
-              <>
-                <Loader2 aria-hidden className="animate-spin" />
-                {t("auth.signingIn")}
-              </>
-            ) : (
-              t("auth.login")
-            )}
-          </Button>
+        <div className="flex flex-col gap-3">
+          <AuthSubmit pending={login.isPending} pendingLabel={t("auth.signingIn")}>
+            {t("auth.login")}
+          </AuthSubmit>
           {/* The alternative sign-in sits with the primary action, before the
               secondary links, so a phone user sees both ways in without
               scrolling past the help text. */}
@@ -248,11 +260,6 @@ export function LoginView({
             {t("auth.noAccount")}{" "}
             <AppLink href={paths.register()} className={AUTH_LINK}>
               {t("auth.register")}
-            </AppLink>
-          </p>
-          <p className="text-center text-body text-muted-foreground">
-            <AppLink href={paths.forgotPassword()} className={AUTH_LINK}>
-              {t("auth.forgotPassword")}
             </AppLink>
           </p>
         </div>

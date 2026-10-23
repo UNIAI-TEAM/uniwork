@@ -168,7 +168,7 @@ minio-up: ## Start local MinIO; creates prefixes chat/voice and chat/files
 minio-down: ## Stop MinIO without removing its volume
 	@$(COMPOSE) -f docker-compose.minio.yml down
 
-livekit-up: ## Start local LiveKit (also runs automatically from make start / make dev)
+livekit-up: ## Start local LiveKit (+ Egress when LIVEKIT_RECORDING_BUCKET is set)
 	$(REQUIRE_ENV)
 	@bash scripts/ensure-livekit.sh "$(ENV_FILE)"
 

@@ -1,0 +1,236 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { DragEvent } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n } from "@uniwork/core/i18n";
+import { useDropUpload } from "./use-drop-upload";
+
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  loading: vi.fn(),
+  dismiss: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast }));
+
+const { t } = initI18n();
+
+beforeEach(() => {
+  for (const fn of Object.values(toast)) fn.mockReset();
+  toast.loading.mockImplementation((msg: string) => `toast-${msg}`);
+});
+
+function pdf(name: string) {
+  return new File(["x"], name, { type: "application/pdf" });
+}
+
+function fileEntry(name: string): FileSystemFileEntry {
+  return {
+    isFile: true,
+    isDirectory: false,
+    name,
+    file: (ok: (f: File) => void) => ok(pdf(name)),
+  } as unknown as FileSystemFileEntry;
+}
+
+function dirEntry(name: string, children: FileSystemEntry[]): FileSystemDirectoryEntry {
+  return {
+    isFile: false,
+    isDirectory: true,
+    name,
+    createReader: () => {
+      let served = false;
+      return {
+        readEntries: (ok: (e: FileSystemEntry[]) => void) => {
+          ok(served ? [] : children);
+          served = true;
+        },
+      };
+    },
+  } as unknown as FileSystemDirectoryEntry;
+}
+
+/** A drop as the browser hands it: `files` lists directories too, `items` tells them apart. */
+function drop(items: { entry?: FileSystemEntry; file?: File }[]) {
+  const dataItems = items.map((item) => ({
+    kind: "file",
+    webkitGetAsEntry: () => item.entry ?? null,
+    getAsFile: () => item.file ?? null,
+  }));
+  const files = items.map((item) => item.file ?? pdf(item.entry?.name ?? "dir"));
+  const dataTransfer = { types: ["Files"], files, items: dataItems, dropEffect: "none" };
+  return { preventDefault: vi.fn(), dataTransfer } as unknown as DragEvent;
+}
+
+describe("useDropUpload folders (UNI-2052)", () => {
+  it("hands dropped folders to onFolders and keeps loose files on the old queue", async () => {
+    const upload = vi.fn(async () => {});
+    const onFolders = vi.fn();
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload, onFolders }));
+    const loose = pdf("loose.pdf");
+
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        drop([
+          { entry: dirEntry("Báo cáo", [fileEntry("a.pdf"), dirEntry("2026", [fileEntry("b.pdf")])]) },
+          { entry: fileEntry("loose.pdf") as FileSystemEntry, file: loose },
+        ]),
+      ),
+    );
+
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    const lists = onFolders.mock.calls[0]?.[0] as { path: string }[][];
+    expect(lists).toHaveLength(1);
+    expect(lists[0]?.map((entry) => entry.path)).toEqual(["Báo cáo/a.pdf", "Báo cáo/2026/b.pdf"]);
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(loose));
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives every dropped folder its own list, in drop order", async () => {
+    const onFolders = vi.fn();
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload: vi.fn(), onFolders }));
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        drop([{ entry: dirEntry("A", [fileEntry("1.pdf")]) }, { entry: dirEntry("B", [fileEntry("2.pdf")]) }]),
+      ),
+    );
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    const lists = onFolders.mock.calls[0]?.[0] as { path: string }[][];
+    expect(lists.map((list) => list[0]?.path)).toEqual(["A/1.pdf", "B/2.pdf"]);
+  });
+
+  it("skips folders with one toast when folder upload is not available, loose files still go up", async () => {
+    const upload = vi.fn(async () => {});
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const loose = pdf("loose.pdf");
+
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        drop([
+          { entry: dirEntry("A", [fileEntry("1.pdf")]) },
+          { entry: dirEntry("B", [fileEntry("2.pdf")]) },
+          { entry: fileEntry("loose.pdf") as FileSystemEntry, file: loose },
+        ]),
+      ),
+    );
+
+    expect(toast.info).toHaveBeenCalledTimes(1);
+    expect(toast.info).toHaveBeenCalledWith(t("documents.folder_upload.toast.folders_unavailable"));
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(loose));
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not walk anything for a drop of plain files", async () => {
+    const upload = vi.fn(async () => {});
+    const onFolders = vi.fn();
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload, onFolders }));
+    const a = pdf("a.pdf");
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: fileEntry("a.pdf") as FileSystemEntry, file: a }])));
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(a));
+    expect(onFolders).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("says so when a folder cannot be read and uploads nothing from it", async () => {
+    const broken = dirEntry("Hỏng", []);
+    broken.createReader = () => ({ readEntries: (_ok: unknown, fail: (e: Error) => void) => fail(new Error("denied")) }) as never;
+    const onFolders = vi.fn();
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload: vi.fn(), onFolders }));
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: broken }])));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.read_failed")));
+    expect(onFolders).not.toHaveBeenCalled();
+  });
+
+  it("refuses a folder that was cut at the read bound with the 'over N' copy and still stages the others", async () => {
+    const onFolders = vi.fn();
+    const big = dirEntry("Kho", ["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)));
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1 }),
+    );
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        drop([{ entry: big }, { entry: dirEntry("Nhỏ", [fileEntry("a.pdf")]) }]),
+      ),
+    );
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    const lists = onFolders.mock.calls[0]?.[0] as { path: string }[][];
+    expect(lists.map((list) => list[0]?.path)).toEqual(["Nhỏ/a.pdf"]);
+    expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.refused", { name: "Kho" }), {
+      description: "Hơn 4 tệp — tối đa 1",
+    });
+  });
+
+  it("quotes only the files the planner would upload when a truncated folder also holds skipped ones", async () => {
+    const onFolders = vi.fn();
+    // Bound is 4 (1 x 4): the fifth .pdf cuts the read; the .map and hidden files are listed but never counted.
+    const children = [
+      fileEntry("a.map"),
+      fileEntry("1.pdf"),
+      fileEntry("b.map"),
+      fileEntry("2.pdf"),
+      fileEntry(".DS_Store"),
+      fileEntry("3.pdf"),
+      fileEntry("4.pdf"),
+      fileEntry("c.map"),
+      fileEntry("5.pdf"),
+    ];
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1, uploadExtensions: ["pdf"] }),
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("Kho", children) }])));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.refused", { name: "Kho" }), {
+      description: "Hơn 4 tệp — tối đa 1",
+    });
+    expect(onFolders).not.toHaveBeenCalled();
+  });
+
+  it("reads a dropped folder with the server's extension list: files it would not upload do not count toward the bound", async () => {
+    const onFolders = vi.fn();
+    // Five .pdf files are over the bound of 4 (1 x 4), but the server only takes .docx, so none counts.
+    const kho = dirEntry("Kho", ["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)));
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1, uploadExtensions: ["docx"] }),
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: kho }])));
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("waits for the config to resolve instead of calling folder upload unavailable", async () => {
+    const onFolders = vi.fn();
+    const { result, rerender } = renderHook(
+      (props: { ready: boolean; withFolders: boolean }) =>
+        useDropUpload({
+          enabled: true,
+          upload: vi.fn(),
+          foldersReady: props.ready,
+          onFolders: props.withFolders ? onFolders : undefined,
+        }),
+      { initialProps: { ready: false, withFolders: false } },
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("Báo cáo", [fileEntry("a.pdf")]) }])));
+    // Let the folder walk finish: the drop must still be waiting for the config.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(onFolders).not.toHaveBeenCalled();
+
+    rerender({ ready: true, withFolders: true });
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("explains once the config has resolved without folder upload", async () => {
+    const { result, rerender } = renderHook(
+      (props: { ready: boolean }) => useDropUpload({ enabled: true, upload: vi.fn(), foldersReady: props.ready }),
+      { initialProps: { ready: false } },
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("A", [fileEntry("1.pdf")]) }])));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(toast.info).not.toHaveBeenCalled();
+    rerender({ ready: true });
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(t("documents.folder_upload.toast.folders_unavailable")),
+    );
+  });
+});

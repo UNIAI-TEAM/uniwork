@@ -35,8 +35,6 @@ func stubReason(method, pattern string) (reason, msg string) {
 		strings.Contains(p, "/retry-source-context"),
 		strings.Contains(p, "/quick-actions"), strings.HasSuffix(p, "/usage"):
 		return "agent_runtime_missing", "agent runtime chưa khả dụng"
-	case strings.Contains(p, "/assignee-frequency"):
-		return "assignee_frequency_not_ready", "assignee frequency chưa khả dụng"
 	case strings.Contains(p, "/limit-usage"):
 		return "limit_usage_not_ready", "limit usage chưa khả dụng"
 	case strings.HasSuffix(p, "/tasks/search"):

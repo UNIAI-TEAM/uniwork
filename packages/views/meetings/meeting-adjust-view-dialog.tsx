@@ -1,6 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -25,7 +24,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { cn } from "@uniwork/ui/lib/utils";
 
 function LayoutPreview({ layout }: { layout: MeetingViewLayout }) {
-  const tile = "rounded-[2px] bg-muted-foreground/25 ring-1 ring-border/60";
+  const tile = "rounded-sm bg-border ring-1 ring-border";
   switch (layout) {
     case "auto":
       return (
@@ -110,20 +109,19 @@ export function MeetingAdjustViewDialog({
               key={layout}
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors",
-                "hover:bg-muted/50 has-[[data-checked]]:bg-surface-selected",
+                "hover:bg-surface-hover has-[[data-checked]]:bg-surface-selected",
               )}
             >
               <RadioGroupItem value={layout} id={`view-layout-${layout}`} />
               <span className="flex min-w-0 flex-1 items-center gap-1.5 text-body text-foreground">
                 {t(layoutLabelKey(layout))}
-                {layout === "auto" ? <Sparkles aria-hidden className="size-3.5 text-brand" /> : null}
               </span>
               <LayoutPreview layout={layout} />
             </label>
           ))}
         </RadioGroup>
 
-        <div className="space-y-3 rounded-lg bg-muted/20 px-3 py-3 ring-1 ring-border/60">
+        <div className="space-y-3 rounded-lg bg-surface-hover px-3 py-3 ring-1 ring-border">
           <div>
             <p className="text-body font-medium text-foreground">{t("meetings.viewTiles")}</p>
             <p className="text-caption text-muted-foreground">{t("meetings.viewTilesHint")}</p>

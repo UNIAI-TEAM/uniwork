@@ -13,8 +13,9 @@ unmute, as in Meet). `use-meeting-signals.tsx` is a React context scoped to
 the room — client state only, nothing persisted.
 
 Stage order (`conference-layout.ts`): screen share → speaking (most recent
-first) → rest, stable; 9 tiles per page with ‹ › paging. `orderTracks`,
-`paginate`, reducer and codec are unit-tested.
+first) → rest, stable; grid / spotlight / sidebar with ‹ › paging.
+`orderTracks`, `paginate`, reducer and codec are unit-tested. Host-only
+`mute_request` (send gated by `canHost`; receive honours host LiveKit identity).
 
 ## 2. Transcript → AI summary → tasks
 
@@ -22,11 +23,11 @@ first) → rest, stable; 9 tiles per page with ‹ › paging. `orderTracks`,
   i18n (`vi-VN` / `en-US`). Final sentences → `POST /meetings/{id}/transcript`
   (IN_PROGRESS only). Overlay shows interim text. Button hidden when the
   browser lacks `SpeechRecognition`.
-- `POST /meetings/{id}/summary` (host/admin, IN_PROGRESS|ENDED) → Claude
-  (`server/internal/ai`, Anthropic Go SDK, `ANTHROPIC_API_KEY`,
-  `ANTHROPIC_MODEL` default `claude-opus-5`) → `meeting_summaries`
-  (summary, decisions JSON, action_items JSON). `GET` returns the latest.
-  503 `ai_not_configured` without a key; `GET /workspaces/{id}/meeting-capabilities`
+- `POST /meetings/{id}/summary` (host/admin, IN_PROGRESS|ENDED) → `ai.Gateway`
+  (`meeting_summarization`; `ANTHROPIC_API_KEY` / other providers) →
+  `meeting_summaries` (summary, decisions JSON, action_items JSON, usage_event_id).
+  Chat persist is included with transcript and notes. `GET` returns the latest.
+  503 `ai_not_configured` without a provider; `GET /workspaces/{id}/meeting-capabilities`
   lets the UI hide the button.
 - `POST /meetings/{id}/summary/tasks` creates workspace tasks through
   `TaskService.Create`, description carries "Từ cuộc họp: <title>".
@@ -44,8 +45,9 @@ to everyone.
 
 ## 4. Lifecycle & calendar
 
-- `RunAutoEnd` (every 60 s, in the server shutdown context): IN_PROGRESS
-  meetings past `ends_at + 2h` with no open attendance → ENDED, audit
+- `RunAutoEnd` (every 60 s) and `room_finished`: IN_PROGRESS past `ends_at`
+  with no ACTIVE conference → ENDED immediately; ACTIVE rooms stay in
+  overtime until the host extends/ends, or `ends_at + 2h`. Audit
   `MEETING_AUTO_ENDED`, actor `system`.
 - `GET /meetings/{id}/calendar.ics` — RFC 5545 with the join URL
   (`/{org}/{ws}/meetings/{id}`); "Thêm vào lịch" on the detail page.
@@ -54,7 +56,8 @@ to everyone.
 
 - Prometheus `uniwork_meetings_total{event}`: started, ended, auto_ended,
   summary_ok, summary_error.
-- Migrations 030–033 (tables + three CONCURRENTLY indexes, no FKs).
+- Migrations 037–040 (tables + three CONCURRENTLY indexes, no FKs); 098
+  `meeting_summaries.usage_event_id`.
 - Go: `TestTranscriptAndSummaryToTasks`, `TestRecordingLifecycle`,
   `TestAutoEndOverdue`, `TestRenderICS`, `TestCalendarICSJoinURL`,
   `TestParseSummaryJSONTolerant`. `make test-go` green.

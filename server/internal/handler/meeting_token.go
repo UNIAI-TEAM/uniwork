@@ -3,12 +3,14 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	"github.com/livekit/protocol/webhook"
 
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -53,6 +55,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	if ev.Participant != nil {
 		mapped.Identity = ev.Participant.Identity
+		mapped.ParticipantSID = ev.Participant.Sid
+	}
+	if at := ev.GetCreatedAt(); at > 0 {
+		mapped.OccurredAt = time.Unix(at, 0).UTC()
 	}
 	switch ev.Event {
 	case "room_started":
@@ -84,6 +90,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	payload, err := json.Marshal(mapped)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	if ev.Room != nil && !meetings.IsUniWorkLiveKitRoom(ev.Room.Name) {
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 	providerKey := h.Cfg.MeetingProvider

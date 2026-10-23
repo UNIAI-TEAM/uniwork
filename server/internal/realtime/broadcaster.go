@@ -13,7 +13,15 @@ const (
 	ScopeOrganization = "organization"
 	ScopeTask         = "task"
 	ScopeChat         = "chat"
-	ScopeMeeting      = "meeting"
+	// ScopeMeeting is a member socket that holds one meeting open (its room
+	// or its detail page). It is subscribed on request, through the
+	// ScopeAuthorizer, and carries the topics the catalogue scopes to the
+	// meeting.
+	ScopeMeeting = "meeting"
+	// ScopeMeetingLobby is a guest's lobby socket, joined at connect time
+	// from the meeting the lobby handler admitted it to. It hears only the
+	// topics in meetingLobbyEventTypes; nobody subscribes to it by name.
+	ScopeMeetingLobby = "meeting_lobby"
 )
 
 // Broadcaster is the abstraction every realtime event producer should depend

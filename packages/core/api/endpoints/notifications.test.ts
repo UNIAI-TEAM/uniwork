@@ -6,12 +6,14 @@ import {
   getPreferences,
   getPushConfig,
   getUnreadCount,
+  listNotificationDocuments,
   listNotifications,
   markAllRead,
   markRead,
   markUnread,
   setPreferences,
   subscribePush,
+  unarchive,
   unsubscribePush,
 } from "./notifications";
 
@@ -50,6 +52,80 @@ describe("notification endpoints", () => {
     await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
   });
 
+  it("listNotifications reads the document flags, false when an older server omits them, and degrades on a non-boolean", async () => {
+    const doc = {
+      ...row, kind: "document_commented", resource_type: "document", resource_id: "d1",
+      params: { actor: "An", document: "Plan", comment_id: "c1", kind: "comment" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ notifications: [{ ...doc, resource_access_lost: true, comment_deleted: true }, doc] }),
+    );
+    const page = await listNotifications();
+    expect(page.notifications[0]).toMatchObject({ resource_access_lost: true, comment_deleted: true });
+    expect(page.notifications[1]).toMatchObject({ resource_access_lost: false, comment_deleted: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...doc, resource_access_lost: "yes" }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...doc, comment_deleted: 1 }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+  });
+
+  it("listNotifications passes document_trashed_by_other through and degrades when its params are malformed", async () => {
+    const trashed = {
+      ...row, kind: "document_trashed_by_other", resource_type: "document", resource_id: "d1",
+      title_key: "notifications.kind.document_trashed_by_other",
+      params: { actor: "An", document: "Plan", document_id: "d1", archive_batch_id: "b1", count: "2", date: "2026-11-16T00:00:00Z" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [trashed] }));
+    const page = await listNotifications();
+    expect(page.notifications[0]).toMatchObject({ kind: "document_trashed_by_other", resource_id: "d1" });
+    expect(page.notifications[0]!.params.archive_batch_id).toBe("b1");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...trashed, params: "x" }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+  });
+
+  it("listNotifications reads sample_documents, [] when absent, and a bad one never blanks the page", async () => {
+    const changed = {
+      ...row, kind: "document_changed", resource_type: "document", resource_id: "d1",
+      title_key: "notifications.kind.document_changed",
+      // The server sends the verb, a count and the first ids; only strings travel as params.
+      params: { actor: "An", verb: "trashed", document_count: 50, sample_document_ids: ["d1", "d2"] },
+      sample_documents: [{ id: "d1", title: "Kế hoạch" }, { id: "d2" }],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [changed, row] }));
+    const page = await listNotifications();
+    expect(page.notifications[0]!.sample_documents).toEqual([{ id: "d1", title: "Kế hoạch" }, { id: "d2", title: "" }]);
+    expect(page.notifications[0]!.params).toEqual({ actor: "An", verb: "trashed", document_count: "50" });
+    expect(page.notifications[1]!.sample_documents).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...changed, sample_documents: "oops" }, row] }));
+    const degraded = await listNotifications();
+    expect(degraded.notifications).toHaveLength(2);
+    expect(degraded.notifications[0]!.sample_documents).toEqual([]);
+  });
+
+  it("listNotificationDocuments builds the path and cursor query, keeps the row states, and degrades to an empty page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      documents: [
+        { id: "d1", title: "Kế hoạch", kind: "page", trashed: false, shelved: false, deleted: false },
+        { id: "d2", deleted: true },
+      ],
+      next_cursor: "ndc1.abc",
+    }));
+    const page = await listNotificationDocuments("n 1", { cursor: "ndc1.x", limit: 20 });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      "http://api.test/api/v1/me/notifications/n%201/documents?cursor=ndc1.x&limit=20",
+    );
+    expect(page.next_cursor).toBe("ndc1.abc");
+    expect(page.documents[0]).toEqual({ id: "d1", title: "Kế hoạch", kind: "page", trashed: false, shelved: false, deleted: false });
+    expect(page.documents[1]).toEqual({ id: "d2", title: "", kind: "", trashed: false, shelved: false, deleted: true });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: "d1" }], next_cursor: null }));
+    expect((await listNotificationDocuments("n1")).next_cursor).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[1]![0]).toBe("http://api.test/api/v1/me/notifications/n1/documents");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: 7 }], next_cursor: 3 }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json("nope"));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+  });
+
   it("getUnreadCount returns totals and zeros when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ total: 3, by_workspace: { ws1: 2 } }));
     expect(await getUnreadCount()).toEqual({ total: 3, by_workspace: { ws1: 2 } });
@@ -57,13 +133,14 @@ describe("notification endpoints", () => {
     expect(await getUnreadCount()).toEqual({ total: 0, by_workspace: {} });
   });
 
-  it("markRead, markAllRead, markUnread and archive post the right bodies", async () => {
+  it("markRead, markAllRead, markUnread, archive and unarchive post the right bodies", async () => {
     vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: "ok" })));
     await markRead(["n1"]);
     await markAllRead("ws1");
     await markAllRead();
     await markUnread(["n1"]);
     await archive(["n1", "n2"]);
+    await unarchive(["n1"]);
     const bodies = vi.mocked(fetch).mock.calls.map((c) => [c[0], JSON.parse(String((c[1] as RequestInit).body))]);
     expect(bodies).toEqual([
       ["http://api.test/api/v1/me/notifications/read", { ids: ["n1"] }],
@@ -71,7 +148,15 @@ describe("notification endpoints", () => {
       ["http://api.test/api/v1/me/notifications/read", { all: true }],
       ["http://api.test/api/v1/me/notifications/unread", { ids: ["n1"] }],
       ["http://api.test/api/v1/me/notifications/archive", { ids: ["n1", "n2"] }],
+      ["http://api.test/api/v1/me/notifications/unarchive", { ids: ["n1"] }],
     ]);
+  });
+
+  it("markAllRead resolves to the ids it read, [] from an older server", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", ids: ["n1", "n2"] }));
+    expect(await markAllRead("ws1")).toEqual(["n1", "n2"]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await markAllRead("ws1")).toEqual([]);
   });
 
   it("preferences round-trip and degrade to []", async () => {

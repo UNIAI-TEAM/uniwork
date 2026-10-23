@@ -118,12 +118,39 @@ func (h *handlers) reactivateOrgMember(w http.ResponseWriter, r *http.Request) {
 	h.respondOrgMember(w, r, m)
 }
 
+// leaveOrganization resolves the slug through the caller's own membership row
+// rather than orgIDFromSlug: that one refuses a suspended or deletion-pending
+// organization, and a member of one may still leave it (ADR 0032 D9). An
+// outsider still gets 404; the service makes every other decision.
 func (h *handlers) leaveOrganization(w http.ResponseWriter, r *http.Request) {
-	orgID, ok := h.orgIDFromSlug(w, r)
-	if !ok {
+	actorID := middleware.UserID(r.Context())
+	o, _, err := h.OrgMembers.Membership(r.Context(), actorID, chi.URLParam(r, "org"))
+	if err != nil {
+		h.mapServiceError(w, err)
 		return
 	}
-	if err := h.OrgMembers.Leave(r.Context(), middleware.UserID(r.Context()), orgID); err != nil {
+	if err := h.OrgMembers.Leave(r.Context(), actorID, o.ID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+// closeOrganization resolves the slug the way leaveOrganization does, so the
+// owner of a suspended organization hears organization_suspended rather than
+// the generic gate's answer; an outsider still gets 404.
+func (h *handlers) closeOrganization(w http.ResponseWriter, r *http.Request) {
+	var in sdi.CloseOrganizationSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	actorID := middleware.UserID(r.Context())
+	o, _, err := h.OrgMembers.Membership(r.Context(), actorID, chi.URLParam(r, "org"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if err := h.OrgMembers.Close(r.Context(), actorID, o.ID, in.ConfirmSlug); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
@@ -156,17 +183,14 @@ func (h *handlers) inviteToOrganization(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	invs, skipped, err := h.OrgMembers.InviteToOrg(r.Context(), middleware.UserID(r.Context()), orgID, in.Emails, in.OrgRole)
+	invs, skipped, err := h.OrgMembers.InviteToOrg(r.Context(), middleware.UserID(r.Context()), orgID, in.Emails, in.OrgRole, in.WorkspaceIDs)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := make([]sdo.OrgInvitationDTO, 0, len(invs))
 	for _, inv := range invs {
-		out = append(out, sdo.OrgInvitationDTO{
-			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
-			ExpiresAt: rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
-		})
+		out = append(out, toOrgInvitationDTO(inv))
 	}
 	if skipped == nil {
 		skipped = []string{}
@@ -186,13 +210,27 @@ func (h *handlers) listOrgInvitations(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.OrgInvitationDTO, 0, len(rows))
 	for _, inv := range rows {
-		out = append(out, sdo.OrgInvitationDTO{
-			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
-			InvitedByName: pgText(inv.InvitedByName),
-			ExpiresAt:     rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
-		})
+		out = append(out, toOrgInvitationDTO(inv))
 	}
 	respondJSON(w, http.StatusOK, sdo.OrgInvitationListSDO{Invitations: out, Skipped: []string{}})
+}
+
+func toOrgInvitationDTO(inv service.OrgInvitation) sdo.OrgInvitationDTO {
+	return sdo.OrgInvitationDTO{
+		ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
+		InvitedByName: inv.InvitedByName,
+		ExpiresAt:     rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
+		Workspaces: toInvitationWorkspaceDTOs(inv.Workspaces),
+	}
+}
+
+// toInvitationWorkspaceDTOs is never nil: `workspaces` is always an array.
+func toInvitationWorkspaceDTOs(refs []service.WorkspaceRef) []sdo.InvitationWorkspaceDTO {
+	out := make([]sdo.InvitationWorkspaceDTO, 0, len(refs))
+	for _, w := range refs {
+		out = append(out, sdo.InvitationWorkspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name})
+	}
+	return out
 }
 
 func (h *handlers) revokeOrgInvitation(w http.ResponseWriter, r *http.Request) {

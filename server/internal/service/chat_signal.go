@@ -2,17 +2,22 @@ package service
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // SignalVoiceInvite notifies organization members of an outgoing voice call.
-func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID, roomID, callID string) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID, roomID, callID string, video bool) error {
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
 	if err != nil {
@@ -21,8 +26,12 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if isWorkspaceDefaultRoom(room) {
 		return Invalid("cuộc gọi thoại không khả dụng trong phòng workspace")
 	}
-	if room.Kind != chatRoomKindDM && room.Kind != chatRoomKindGroup {
-		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp hoặc nhóm")
+	if room.Kind != chatRoomKindDM && !voiceCallMultiPartyKind(room.Kind) {
+		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp, nhóm hoặc kênh")
+	}
+	// A call rings every member and ends in a log message under the caller's name.
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return err
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -32,12 +41,21 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	s.trackVoiceCallInvite(room, callID, userID, callerName)
+	invitees, err := s.voiceCallInvitees(ctx, room, userID)
+	if err != nil {
+		return err
+	}
+	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video, invitees); err != nil {
+		return err
+	}
+	if err := s.emitVoiceCallRings(ctx, room, userID, callID, invitees); err != nil {
+		dropVoiceCallInvite(room.ID, callID)
+		return err
+	}
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{
-			"room_id": roomID, "call_id": callID,
-			"caller_id": userID, "caller_name": callerName,
+			"room_id": roomID, "call_id": callID, "caller_id": userID,
 		},
 	}
 	return s.publishVoiceRoomSignal(ctx, room, userID, ev)
@@ -45,9 +63,9 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 
 // SignalVoiceAccept notifies room members that a voice call was answered.
 func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID, roomID, callID string) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -56,7 +74,9 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	if err := s.requireVoiceCallActor(ctx, room, userID, true); err != nil {
 		return err
 	}
-	s.trackVoiceCallAccept(roomID, callID)
+	s.trackVoiceCallAccept(roomID, callID, userID)
+	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.closeVoiceCallRings(ctx, roomID, []string{userID})
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{
@@ -68,11 +88,11 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 
 // SignalVoiceHangup notifies room members that a voice call ended.
 func (s *ChatService) SignalVoiceHangup(
-	ctx context.Context, userID, workspaceID, roomID, callID string, durationSeconds *int,
+	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -81,30 +101,29 @@ func (s *ChatService) SignalVoiceHangup(
 	if err := s.requireVoiceCallActor(ctx, room, userID, false); err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindGroup {
+	if voiceCallMultiPartyKind(room.Kind) {
 		key := voiceCallSessionKey(roomID, callID)
-		raw, ok := voiceCallSessions.Load(key)
+		sess, ok := loadVoiceCallSession(key)
 		if !ok {
 			return ErrForbidden
 		}
-		sess := raw.(voiceCallSession)
 		if sess.callerID != userID {
 			return ErrForbidden
 		}
 	}
-	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID, durationSeconds); logErr != nil {
-		return logErr
-	}
+	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
+	// The session is gone either way, so the other side hears the hangup even
+	// when the call log could not be written.
+	logErr := s.finalizeVoiceCall(ctx, room, userID, callID)
 	ev := Event{
 		Type: "chat.voice.hangup",
 		Payload: map[string]string{
 			"room_id": roomID, "call_id": callID, "user_id": userID,
 		},
 	}
-	if pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev); pubErr != nil {
-		return pubErr
-	}
-	return nil
+	pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev)
+	return errors.Join(logErr, pubErr)
 }
 
 // SignalTyping broadcasts a typing indicator for a chat room.
@@ -125,46 +144,70 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 			"room_id": roomID, "user_id": userID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
+	if isWorkspaceDefaultRoom(room) {
 		s.pub.Publish(ctx, workspaceID, ev)
-	default:
-		s.publishChatRoomEvent(ctx, roomID, ev)
+		return nil
 	}
+	s.publishChatRoomEvent(ctx, roomID, ev)
 	return nil
 }
 
-// SignalPresence broadcasts that the caller is online or offline in the workspace.
-func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) error {
+// SignalPresence records a presence heartbeat ("online", the default) or an
+// explicit leave ("offline") in the workspace. The workspace hears about it
+// only when the caller's state changes (chat_presence.go). An online beat
+// returns the users online in the workspace, the caller included; nil when
+// the store could not answer or for a leave. visible says the beating page
+// is in front of its user; only such a beat holds back chat pushes.
+func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string, visible bool) ([]string, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
-		return err
+		return nil, err
 	}
 	normalized := strings.ToLower(strings.TrimSpace(state))
 	if normalized == "" {
 		normalized = "online"
 	}
-	if normalized != "online" && normalized != "offline" {
-		return Invalid("state must be online or offline")
+	switch normalized {
+	case "online":
+		return s.presence().beat(ctx, workspaceID, userID, visible)
+	case "offline":
+		return nil, s.presence().leave(ctx, workspaceID, userID)
+	default:
+		return nil, Invalid("state must be online or offline")
 	}
-	topic := "user.presence"
-	if normalized == "online" {
-		if !shouldPublishPresence(userID, time.Now()) {
-			return nil
-		}
-	} else {
-		clearPresenceThrottle(userID)
-		topic = "user.offline"
-	}
-	s.pub.Publish(ctx, workspaceID, Event{
-		Type: topic,
-		Payload: map[string]string{
-			"user_id": userID,
-		},
-	})
-	return nil
 }
 
-func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom, userID string) {
+// markChatRoomRead moves the caller's read pointer to at and, only when that
+// moves it forward, tells the reader's other tabs and, in a DM, the peer who
+// renders the receipt. Every client that hears chat.room.read reloads its
+// sidebar, so a room-wide one (or a repeat that moved nothing) cost every open
+// client a reload for nothing. A group or a non-default channel instead tells
+// the sockets holding it open with chat.room.member_read, which only refetches
+// that room's member list ("N người đã xem").
+func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, userID string, at pgtype.Timestamptz) error {
+	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.ID, UserID: userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // reading a public channel without joining: no pointer to move
+	}
+	if err != nil {
+		return err
+	}
+	// Before the pointer check: a notification that arrived after the last
+	// read still closes, so the next message pushes again (UNI-1665).
+	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
+	}); err != nil {
+		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
+	}
+	if member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
+		return nil
+	}
+	if err := s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
+		RoomID: room.ID, UserID: userID, LastReadAt: at,
+	}); err != nil {
+		return err
+	}
 	ev := Event{
 		Type: "chat.room.read",
 		Payload: map[string]string{
@@ -172,10 +215,17 @@ func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom,
 			"user_id": userID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
+	s.pub.SendToUser(ctx, userID, ev)
+	if peerID, err := dmPeerUserID(room, userID); err == nil {
+		s.pub.SendToUser(ctx, peerID, ev)
 	}
+	// The default channel's members are the workspace: refetching that list
+	// on every read in every open client costs more than the count is worth.
+	if room.Kind == chatRoomKindGroup || (room.Kind == chatRoomKindChannel && !room.IsDefault) {
+		s.publishChatRoomEvent(ctx, room.ID, Event{
+			Type:    "chat.room.member_read",
+			Payload: map[string]string{"room_id": room.ID, "user_id": userID},
+		})
+	}
+	return nil
 }

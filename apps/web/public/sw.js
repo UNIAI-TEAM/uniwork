@@ -1,7 +1,7 @@
 /* global self, URL */
 // Web Push service worker (F-07 §4.3). Two events and nothing else: no
 // offline cache, no fetch interception. The payload is what the server
-// encrypted: {title, url, tag}; the tag lets the browser replace an earlier
+// encrypted: {title, body?, url, tag}; the tag lets the browser replace an earlier
 // banner from the same notification group instead of stacking them.
 self.addEventListener("push", (event) => {
   let data = {};
@@ -13,6 +13,7 @@ self.addEventListener("push", (event) => {
   const title = data.title || "UniWork";
   event.waitUntil(
     self.registration.showNotification(title, {
+      body: data.body || undefined,
       tag: data.tag || undefined,
       data: { url: data.url || "/" },
       icon: "/icon-192.png",

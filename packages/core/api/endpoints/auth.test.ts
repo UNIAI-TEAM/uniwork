@@ -20,6 +20,7 @@ import {
   resetPassword,
   revokeOtherSessions,
   revokeSession,
+  uploadAvatar,
   verifyEmail,
   verifyMfa,
 } from "./auth";
@@ -96,6 +97,20 @@ describe("auth endpoints", () => {
     const u = await patchMe({ locale: "en" });
     expect(u?.locale).toBe("en");
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ locale: "en" });
+  });
+
+  it("uploadAvatar posts multipart and returns the user or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, avatar_url: "https://cdn/a.png" } }));
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    const u = await uploadAvatar(file);
+    expect(u?.avatar_url).toBe("https://cdn/a.png");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/api/v1/me/avatar");
+    expect(init.body).toBeInstanceOf(FormData);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await expect(uploadAvatar(file)).resolves.toBeNull();
   });
 
   it("forgotPassword posts the email and resolves on 200", async () => {
@@ -202,6 +217,18 @@ describe("email verification and providers", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ sessions: "drift" }));
       expect(await listSessions()).toEqual([]);
 
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({
+          sessions: [
+            { id: "dup", current: false, last_seen_at: "2026-01-01T00:00:00Z" },
+            { id: "dup", current: true, last_seen_at: "2026-01-02T00:00:00Z" },
+          ],
+        }),
+      );
+      expect(await listSessions()).toEqual([
+        { id: "dup", user_agent: "", ip: "", created_at: "", last_seen_at: "2026-01-02T00:00:00Z", current: true },
+      ]);
+
       vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
       await revokeSession("s 1");
       expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain("/api/v1/me/sessions/s%201");
@@ -216,6 +243,20 @@ describe("email verification and providers", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
       await deleteAccount({ password: "pw" });
       expect(getAccessToken()).toBeNull();
+    });
+
+    it.each([
+      [{ password: "wrong" }, "password_incorrect", 403],
+      [{ code: "000000" }, "mfa_code_incorrect", 403],
+      [{ email_confirmation: "x@y.z" }, "email_confirmation_mismatch", 400],
+    ])("deleteAccount surfaces a refused proof once, without a session refresh (%s)", async (body, code, status) => {
+      setAccessToken("tok-4");
+      vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code, message: "m" } }, status));
+      await expect(deleteAccount(body)).rejects.toMatchObject({ code, status });
+      // One request: no refresh, no replay carrying the proof a second time.
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      // The session is not dropped by a refusal.
+      expect(getAccessToken()).toBe("tok-4");
     });
   });
 });

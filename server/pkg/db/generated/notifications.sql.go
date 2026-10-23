@@ -21,12 +21,50 @@ type ArchiveNotificationsParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) ArchiveNotifications(ctx context.Context, arg ArchiveNotificationsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, archiveNotifications, arg.UserID, arg.Ids)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const claimMeetingReminder = `-- name: ClaimMeetingReminder :execrows
+INSERT INTO meeting_reminders (meeting_id, organization_id, workspace_id)
+SELECT m.id, m.organization_id, m.workspace_id FROM meetings m
+WHERE m.id = $1 AND m.status = 'SCHEDULED'
+ON CONFLICT (meeting_id) DO NOTHING
+`
+
+// tenant: by-id
+// The one-shot claim, taken in the transaction that writes the meeting's
+// notifications. A concurrent claim waits on the uncommitted key and then
+// inserts nothing; a meeting cancelled or started since the listing is
+// not claimed at all.
+func (q *Queries) ClaimMeetingReminder(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, claimMeetingReminder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const claimNotificationGroup = `-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+// is an unlocked existence read, so two dispatcher nodes carrying different
+// events of one (user, kind, group_key) can both miss it and merge through
+// UpsertNotification's count + 1. The claim is taken here as a
+// transaction-scoped advisory lock on the group, held until the write
+// commits, so the loser's existence read runs after the winner's row is
+// visible and skips. The key is hashed because advisory locks take bigint
+// keys; a collision only serializes two unrelated groups for one write.
+func (q *Queries) ClaimNotificationGroup(ctx context.Context, claimKey string) error {
+	_, err := q.db.Exec(ctx, claimNotificationGroup, claimKey)
+	return err
 }
 
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
@@ -38,6 +76,7 @@ type CountOwnedNotificationsParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) CountOwnedNotifications(ctx context.Context, arg CountOwnedNotificationsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countOwnedNotifications, arg.UserID, arg.Ids)
 	var column_1 int64
@@ -57,6 +96,7 @@ type CountUnreadNotificationsByWorkspaceRow struct {
 	Unread      int64  `json:"unread"`
 }
 
+// tenant: self
 func (q *Queries) CountUnreadNotificationsByWorkspace(ctx context.Context, userID string) ([]CountUnreadNotificationsByWorkspaceRow, error) {
 	rows, err := q.db.Query(ctx, countUnreadNotificationsByWorkspace, userID)
 	if err != nil {
@@ -81,6 +121,7 @@ const getNotification = `-- name: GetNotification :one
 SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications WHERE id = $1
 `
 
+// tenant: system
 func (q *Queries) GetNotification(ctx context.Context, id string) (Notification, error) {
 	row := q.db.QueryRow(ctx, getNotification, id)
 	var i Notification
@@ -109,6 +150,68 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 	return i, err
 }
 
+const hasNotificationGroupRow = `-- name: HasNotificationGroupRow :one
+SELECT EXISTS (
+  SELECT 1 FROM notifications
+  WHERE user_id = $1
+    AND kind = $2
+    AND group_key = $3
+)
+`
+
+type HasNotificationGroupRowParams struct {
+	UserID   string `json:"user_id"`
+	Kind     string `json:"kind"`
+	GroupKey string `json:"group_key"`
+}
+
+// The historical (batch, recipient) claim of a once-only draft
+// (TRASH-NOTIFY-01): the merge index in UpsertNotification only covers an
+// open row, so a draft that may never repeat itself checks for ANY row of
+// its group - read, archived, purged from view - inside the write
+// transaction. The consumer treats a hit as already delivered.
+// tenant: self
+func (q *Queries) HasNotificationGroupRow(ctx context.Context, arg HasNotificationGroupRowParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasNotificationGroupRow, arg.UserID, arg.Kind, arg.GroupKey)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const insertNotificationDeliveries = `-- name: InsertNotificationDeliveries :many
+INSERT INTO notification_deliveries (event_id, user_id)
+SELECT $1::text, u.user_id FROM unnest($2::text[]) AS u(user_id)
+ON CONFLICT DO NOTHING
+RETURNING user_id
+`
+
+type InsertNotificationDeliveriesParams struct {
+	EventID string   `json:"event_id"`
+	UserIds []string `json:"user_ids"`
+}
+
+// One delivery row per user for an event fanned out at once; the users
+// returned are the ones the event had not reached yet.
+func (q *Queries) InsertNotificationDeliveries(ctx context.Context, arg InsertNotificationDeliveriesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, insertNotificationDeliveries, arg.EventID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertNotificationDelivery = `-- name: InsertNotificationDelivery :execrows
 INSERT INTO notification_deliveries (event_id, user_id) VALUES ($1, $2)
 ON CONFLICT DO NOTHING
@@ -128,7 +231,7 @@ func (q *Queries) InsertNotificationDelivery(ctx context.Context, arg InsertNoti
 }
 
 const listActivePushSubscriptions = `-- name: ListActivePushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
@@ -150,7 +253,38 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 			&i.LastUsedAt,
 			&i.RevokedAt,
 			&i.CreatedAt,
+			&i.SessionID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatMessageRooms = `-- name: ListChatMessageRooms :many
+SELECT id, room_id FROM chat_messages WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+`
+
+type ListChatMessageRoomsRow struct {
+	ID     string `json:"id"`
+	RoomID string `json:"room_id"`
+}
+
+// tenant: by-id
+func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]ListChatMessageRoomsRow, error) {
+	rows, err := q.db.Query(ctx, listChatMessageRooms, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatMessageRoomsRow{}
+	for rows.Next() {
+		var i ListChatMessageRoomsRow
+		if err := rows.Scan(&i.ID, &i.RoomID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -166,6 +300,7 @@ SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1
 `
 
+// tenant: system
 func (q *Queries) ListDigestCandidateUsers(ctx context.Context, createdAt pgtype.Timestamptz) ([]string, error) {
 	rows, err := q.db.Query(ctx, listDigestCandidateUsers, createdAt)
 	if err != nil {
@@ -186,10 +321,74 @@ func (q *Queries) ListDigestCandidateUsers(ctx context.Context, createdAt pgtype
 	return items, nil
 }
 
+const listExistingDocumentCommentIDs = `-- name: ListExistingDocumentCommentIDs :many
+SELECT id FROM document_comments WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+`
+
+// tenant: by-id
+// The live comments behind an inbox page (G8-07 section 1): a notification
+// that names a comment which is gone (hard delete) or tombstoned (deleted_at
+// set) gets comment_deleted=true. Only live rows come back.
+func (q *Queries) ListExistingDocumentCommentIDs(ctx context.Context, ids []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listExistingDocumentCommentIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExistingDocumentIDs = `-- name: ListExistingDocumentIDs :many
+SELECT id, organization_id, archived_at FROM documents WHERE id = ANY($1::text[])
+`
+
+type ListExistingDocumentIDsRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+}
+
+// tenant: by-id
+// The document rows behind an inbox page (G8-07 section 4.6): one query
+// answers existence and trash for up to a page of ids, so Service.List
+// resolves resource_deleted / resource_access_lost without a query per row.
+// organization_id rides along so the read gate runs once per organization.
+func (q *Queries) ListExistingDocumentIDs(ctx context.Context, ids []string) ([]ListExistingDocumentIDsRow, error) {
+	rows, err := q.db.Query(ctx, listExistingDocumentIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExistingDocumentIDsRow{}
+	for rows.Next() {
+		var i ListExistingDocumentIDsRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.ArchivedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExistingMeetingIDs = `-- name: ListExistingMeetingIDs :many
 SELECT id FROM meetings WHERE id = ANY($1::text[])
 `
 
+// tenant: by-id
 func (q *Queries) ListExistingMeetingIDs(ctx context.Context, ids []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listExistingMeetingIDs, ids)
 	if err != nil {
@@ -214,6 +413,7 @@ const listExistingTaskIDs = `-- name: ListExistingTaskIDs :many
 SELECT id FROM tasks WHERE id = ANY($1::text[])
 `
 
+// tenant: by-id
 func (q *Queries) ListExistingTaskIDs(ctx context.Context, ids []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listExistingTaskIDs, ids)
 	if err != nil {
@@ -243,6 +443,7 @@ UNION
 SELECT host_user_id FROM meetings WHERE id = $1
 `
 
+// tenant: system
 // The host plus every participant who accepted the invitation.
 func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listMeetingReminderRecipients, meetingID)
@@ -264,51 +465,46 @@ func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID s
 	return items, nil
 }
 
-const listMeetingsStartingBetween = `-- name: ListMeetingsStartingBetween :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind FROM meetings
-WHERE status = 'SCHEDULED' AND starts_at > $1 AND starts_at <= $2
+const listMeetingsDueReminder = `-- name: ListMeetingsDueReminder :many
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.starts_at
+FROM meetings m
+WHERE m.status = 'SCHEDULED' AND m.starts_at > $1 AND m.starts_at <= $2
+  AND NOT EXISTS (SELECT 1 FROM meeting_reminders r WHERE r.meeting_id = m.id)
+ORDER BY m.starts_at
 `
 
-type ListMeetingsStartingBetweenParams struct {
+type ListMeetingsDueReminderParams struct {
 	StartsAt   pgtype.Timestamptz `json:"starts_at"`
 	StartsAt_2 pgtype.Timestamptz `json:"starts_at_2"`
 }
 
-func (q *Queries) ListMeetingsStartingBetween(ctx context.Context, arg ListMeetingsStartingBetweenParams) ([]Meeting, error) {
-	rows, err := q.db.Query(ctx, listMeetingsStartingBetween, arg.StartsAt, arg.StartsAt_2)
+type ListMeetingsDueReminderRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Title          string             `json:"title"`
+	StartsAt       pgtype.Timestamptz `json:"starts_at"`
+}
+
+// tenant: system
+// Scheduled meetings starting in ($1, $2] whose reminder has not gone out;
+// idx_meetings_scheduled_starts (migration 9991791200000105) bounds the
+// scan to the window.
+func (q *Queries) ListMeetingsDueReminder(ctx context.Context, arg ListMeetingsDueReminderParams) ([]ListMeetingsDueReminderRow, error) {
+	rows, err := q.db.Query(ctx, listMeetingsDueReminder, arg.StartsAt, arg.StartsAt_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Meeting{}
+	items := []ListMeetingsDueReminderRow{}
 	for rows.Next() {
-		var i Meeting
+		var i ListMeetingsDueReminderRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrganizationID,
 			&i.WorkspaceID,
 			&i.Title,
-			&i.Description,
 			&i.StartsAt,
-			&i.EndsAt,
-			&i.RoomName,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.MeetingType,
-			&i.HostUserID,
-			&i.ActualStartAt,
-			&i.ActualEndAt,
-			&i.Timezone,
-			&i.AllowJoinRequest,
-			&i.PreferredProviderKey,
-			&i.Version,
-			&i.UpdatedBy,
-			&i.CanceledBy,
-			&i.CanceledAt,
-			&i.CancelReason,
-			&i.ProjectID,
-			&i.CreatedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -401,6 +597,7 @@ type ListNotificationsParams struct {
 	LimitN      int32       `json:"limit_n"`
 }
 
+// tenant: self
 // Cursor on the ULID id (time-ordered), newest first.
 func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error) {
 	rows, err := q.db.Query(ctx, listNotifications,
@@ -460,6 +657,7 @@ type ListUndigestedNotificationsParams struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// tenant: system
 func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndigestedNotificationsParams) ([]Notification, error) {
 	rows, err := q.db.Query(ctx, listUndigestedNotifications, arg.UserID, arg.CreatedAt)
 	if err != nil {
@@ -501,10 +699,11 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 	return items, nil
 }
 
-const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :execrows
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :many
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
+RETURNING id
 `
 
 type MarkAllNotificationsReadParams struct {
@@ -512,18 +711,50 @@ type MarkAllNotificationsReadParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 }
 
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
+// tenant: self
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markNotificationGroupsRead = `-- name: MarkNotificationGroupsRead :exec
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY($2::text[]) AND read_at IS NULL
+`
+
+type MarkNotificationGroupsReadParams struct {
+	UserID    string   `json:"user_id"`
+	GroupKeys []string `json:"group_keys"`
+}
+
+// tenant: self
+// Reading what a group is about (a chat room, a thread) closes its open row,
+// so the next event opens a new one and pushes again.
+func (q *Queries) MarkNotificationGroupsRead(ctx context.Context, arg MarkNotificationGroupsReadParams) error {
+	_, err := q.db.Exec(ctx, markNotificationGroupsRead, arg.UserID, arg.GroupKeys)
+	return err
 }
 
 const markNotificationPushed = `-- name: MarkNotificationPushed :exec
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) MarkNotificationPushed(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markNotificationPushed, id)
 	return err
@@ -533,6 +764,7 @@ const markNotificationsDigested = `-- name: MarkNotificationsDigested :exec
 UPDATE notifications SET digested_at = now() WHERE id = ANY($1::text[])
 `
 
+// tenant: system
 func (q *Queries) MarkNotificationsDigested(ctx context.Context, ids []string) error {
 	_, err := q.db.Exec(ctx, markNotificationsDigested, ids)
 	return err
@@ -548,6 +780,7 @@ type MarkNotificationsReadParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
 func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markNotificationsRead, arg.UserID, arg.Ids)
 	if err != nil {
@@ -557,8 +790,14 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 }
 
 const markNotificationsUnread = `-- name: MarkNotificationsUnread :execrows
-UPDATE notifications SET read_at = NULL, updated_at = now()
-WHERE user_id = $1 AND id = ANY($2::text[]) AND read_at IS NOT NULL
+UPDATE notifications n SET read_at = NULL, updated_at = now()
+WHERE n.user_id = $1 AND n.id = ANY($2::text[]) AND n.read_at IS NOT NULL
+  AND (n.archived_at IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.archived_at IS NULL
+      AND (o.read_at IS NULL OR (o.id = ANY($2::text[]) AND o.id > n.id))
+  ))
 `
 
 type MarkNotificationsUnreadParams struct {
@@ -566,12 +805,28 @@ type MarkNotificationsUnreadParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// tenant: self
+// A row whose group already has an open row, or a newer row reopened in the
+// same call, stays read: reopening it would break uidx_notifications_open_group.
 func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificationsUnreadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markNotificationsUnread, arg.UserID, arg.Ids)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const revokeDevicePushSubscriptionsForUser = `-- name: RevokeDevicePushSubscriptionsForUser :exec
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1)
+`
+
+// A user-wide revoke closes every push registered from a native device
+// session; browser subscriptions stay, the web has no way to re-register them.
+func (q *Queries) RevokeDevicePushSubscriptionsForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, revokeDevicePushSubscriptionsForUser, userID)
+	return err
 }
 
 const revokePushSubscription = `-- name: RevokePushSubscription :exec
@@ -601,6 +856,50 @@ func (q *Queries) RevokePushSubscriptionByEndpoint(ctx context.Context, arg Revo
 	return result.RowsAffected(), nil
 }
 
+const revokePushSubscriptionsForSession = `-- name: RevokePushSubscriptionsForSession :exec
+UPDATE push_subscriptions SET revoked_at = now()
+WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL
+`
+
+type RevokePushSubscriptionsForSessionParams struct {
+	UserID    string      `json:"user_id"`
+	SessionID pgtype.Text `json:"session_id"`
+}
+
+// Revoking a native device family closes the pushes registered from it.
+func (q *Queries) RevokePushSubscriptionsForSession(ctx context.Context, arg RevokePushSubscriptionsForSessionParams) error {
+	_, err := q.db.Exec(ctx, revokePushSubscriptionsForSession, arg.UserID, arg.SessionID)
+	return err
+}
+
+const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
+UPDATE notifications n SET archived_at = NULL, updated_at = now(),
+  read_at = CASE WHEN n.read_at IS NULL AND EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.read_at IS NULL
+      AND (o.archived_at IS NULL OR (o.id = ANY($2::text[]) AND o.id > n.id))
+  ) THEN now() ELSE n.read_at END
+WHERE n.user_id = $1 AND n.id = ANY($2::text[]) AND n.archived_at IS NOT NULL
+`
+
+type UnarchiveNotificationsParams struct {
+	UserID string   `json:"user_id"`
+	Ids    []string `json:"ids"`
+}
+
+// tenant: self
+// An unread row comes back read when its group already has an open row (a
+// later event opened one while it sat archived), or a newer row of its group
+// comes back unread in the same call: uidx_notifications_open_group allows one.
+func (q *Queries) UnarchiveNotifications(ctx context.Context, arg UnarchiveNotificationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unarchiveNotifications, arg.UserID, arg.Ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const upsertNotification = `-- name: UpsertNotification :one
 
 INSERT INTO notifications (
@@ -610,6 +909,7 @@ INSERT INTO notifications (
 ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
 DO UPDATE SET
   count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
   params = EXCLUDED.params,
   actor_kind = EXCLUDED.actor_kind,
   actor_id = EXCLUDED.actor_id,
@@ -636,6 +936,7 @@ type UpsertNotificationParams struct {
 
 // Notifications (F-07). Every query is keyed by user_id: a notification is
 // the recipient's, and no endpoint reads another person's.
+// tenant: system
 // The merge: an open (unread, unarchived) row for the same (user, group) is
 // bumped instead of duplicated; uidx_notifications_open_group is the target.
 // count > 1 on the returned row tells the caller it merged.
@@ -707,13 +1008,110 @@ func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNo
 	return err
 }
 
+const upsertNotificationsForUsers = `-- name: UpsertNotificationsForUsers :many
+INSERT INTO notifications (
+  id, user_id, organization_id, workspace_id, kind, group_key,
+  resource_type, resource_id, actor_kind, actor_id, title_key, params, correlation_id
+)
+SELECT u.id, u.user_id, $1::text, $2::text, $3::text,
+  $4::text, $5::text, $6::text,
+  $7::text, $8::text, $9::text,
+  $10::text, $11::text
+FROM (SELECT unnest($12::text[]) AS id, unnest($13::text[]) AS user_id) u
+ON CONFLICT (user_id, group_key) WHERE read_at IS NULL AND archived_at IS NULL
+DO UPDATE SET
+  count = notifications.count + 1,
+  resource_id = EXCLUDED.resource_id,
+  params = EXCLUDED.params,
+  actor_kind = EXCLUDED.actor_kind,
+  actor_id = EXCLUDED.actor_id,
+  correlation_id = EXCLUDED.correlation_id,
+  updated_at = now()
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at
+`
+
+type UpsertNotificationsForUsersParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	Kind           string      `json:"kind"`
+	GroupKey       string      `json:"group_key"`
+	ResourceType   string      `json:"resource_type"`
+	ResourceID     string      `json:"resource_id"`
+	ActorKind      string      `json:"actor_kind"`
+	ActorID        string      `json:"actor_id"`
+	TitleKey       string      `json:"title_key"`
+	Params         string      `json:"params"`
+	CorrelationID  pgtype.Text `json:"correlation_id"`
+	Ids            []string    `json:"ids"`
+	UserIds        []string    `json:"user_ids"`
+}
+
+// tenant: system
+// UpsertNotification for one draft fanned out to many users in one
+// statement: ids and user_ids pair up by position, every other column is
+// shared. Same merge target and same merge as UpsertNotification.
+func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNotificationsForUsersParams) ([]Notification, error) {
+	rows, err := q.db.Query(ctx, upsertNotificationsForUsers,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Kind,
+		arg.GroupKey,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ActorKind,
+		arg.ActorID,
+		arg.TitleKey,
+		arg.Params,
+		arg.CorrelationID,
+		arg.Ids,
+		arg.UserIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.GroupKey,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.TitleKey,
+			&i.Params,
+			&i.Count,
+			&i.CorrelationID,
+			&i.ReadAt,
+			&i.ArchivedAt,
+			&i.PushedAt,
+			&i.DigestedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, last_used_at = now()
-RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id
 `
 
 type UpsertPushSubscriptionParams struct {
@@ -723,6 +1121,7 @@ type UpsertPushSubscriptionParams struct {
 	P256dh    string      `json:"p256dh"`
 	Auth      string      `json:"auth"`
 	UserAgent pgtype.Text `json:"user_agent"`
+	SessionID pgtype.Text `json:"session_id"`
 }
 
 func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
@@ -733,6 +1132,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		arg.P256dh,
 		arg.Auth,
 		arg.UserAgent,
+		arg.SessionID,
 	)
 	var i PushSubscription
 	err := row.Scan(
@@ -745,6 +1145,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }

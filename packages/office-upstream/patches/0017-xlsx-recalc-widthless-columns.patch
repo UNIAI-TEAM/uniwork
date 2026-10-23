@@ -1,0 +1,200 @@
+diff --git a/apps/sheets/native/xlsx-engine/src/recalc.rs b/apps/sheets/native/xlsx-engine/src/recalc.rs
+--- a/apps/sheets/native/xlsx-engine/src/recalc.rs
++++ b/apps/sheets/native/xlsx-engine/src/recalc.rs
+@@ -376,7 +376,8 @@
+ 
+ /// IronCalc 0.7.1 rejects a few otherwise valid producer shapes: indentation
+ /// text nodes between worksheet rows, a style table with no `cellStyles`
+-/// entry, and `cellXfs` entries that omit their default `xfId`. The gateway
++/// entry, `cellXfs` entries that omit their default `xfId`, and a `<col>`
++/// with no `width` (an outline, hidden or style-only column). The gateway
+ /// must retain the source archive exactly, so only a throwaway archive used
+ /// for the resident model is normalized here.
+ fn load_recalc_model(path: &Path, path_text: &str) -> Result<Model<'static>, SidecarError> {
+@@ -439,7 +440,7 @@
+         let replacement = if name == "xl/styles.xml" {
+             normalize_styles_xml(&bytes)
+         } else {
+-            compact_sheet_data_xml(&bytes)
++            fill_col_widths(compact_sheet_data_xml(&bytes))
+         };
+         if replacement != bytes {
+             replacements.insert(index, replacement);
+@@ -519,6 +520,98 @@
+     output.into_bytes()
+ }
+ 
++/// Give every `<col>` that has no `width` one, so IronCalc's column import
++/// (which requires the attribute) accepts it. OOXML makes `width` optional and
++/// the gateway writes outline-only, hidden-only and style-only columns without
++/// it. The value is the sheet's `defaultColWidth`, else Excel's 8.43; it only
++/// reaches the throwaway recalc copy, where column widths do not affect values.
++fn fill_col_widths(source: Vec<u8>) -> Vec<u8> {
++    let Ok(text) = std::str::from_utf8(&source) else {
++        return source;
++    };
++    let Some(cols_start) = text.find("<cols") else {
++        return source;
++    };
++    let Some(cols_offset) = text[cols_start..].find("</cols>") else {
++        return source;
++    };
++    let cols_end = cols_start + cols_offset;
++    let default_width = sheet_default_col_width(text).unwrap_or("8.43");
++    let section = &text[cols_start..cols_end];
++    let mut output = String::with_capacity(text.len() + 64);
++    output.push_str(&text[..cols_start]);
++    let mut cursor = 0;
++    let mut changed = false;
++    while let Some(offset) = section[cursor..].find("<col") {
++        let start = cursor + offset;
++        output.push_str(&section[cursor..start]);
++        let next = section.as_bytes().get(start + 4).copied();
++        let Some(end_offset) = section[start..].find('>') else {
++            output.push_str(&section[start..]);
++            cursor = section.len();
++            break;
++        };
++        let end = start + end_offset;
++        let tag = &section[start..=end];
++        let is_col = matches!(
++            next,
++            Some(b'/') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r')
++        );
++        if !is_col || has_attribute(tag, "width") {
++            output.push_str(tag);
++        } else {
++            let body_end = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
++            output.push_str(tag[..body_end].trim_end());
++            output.push_str(&format!(" width=\"{default_width}\""));
++            output.push_str(&tag[body_end..]);
++            changed = true;
++        }
++        cursor = end + 1;
++    }
++    if !changed {
++        return source;
++    }
++    output.push_str(&section[cursor..]);
++    output.push_str(&text[cols_end..]);
++    output.into_bytes()
++}
++
++/// `defaultColWidth` from the worksheet's `<sheetFormatPr>`, when it is a number.
++fn sheet_default_col_width(text: &str) -> Option<&str> {
++    let start = text.find("<sheetFormatPr")?;
++    let end = start + text[start..].find('>')?;
++    let value = attribute_value(&text[start..=end], "defaultColWidth")?;
++    value.parse::<f64>().ok().filter(|width| width.is_finite() && *width > 0.0)?;
++    Some(value)
++}
++
++/// Whether `tag` carries the attribute `name` (whole name, so `width` never
++/// matches `customWidth`).
++fn has_attribute(tag: &str, name: &str) -> bool {
++    attribute_value(tag, name).is_some()
++}
++
++fn attribute_value<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
++    let mut search = 0;
++    while let Some(offset) = tag[search..].find(name) {
++        let at = search + offset;
++        search = at + name.len();
++        let preceded = tag[..at].chars().next_back().is_some_and(char::is_whitespace);
++        let rest = tag[search..].trim_start();
++        if !preceded || !rest.starts_with('=') {
++            continue;
++        }
++        let rest = rest[1..].trim_start();
++        let quote = rest.chars().next()?;
++        if quote != '"' && quote != '\'' {
++            continue;
++        }
++        let close = rest[1..].find(quote)?;
++        return Some(&rest[1..=close]);
++    }
++    None
++}
++
+ fn normalize_styles_xml(source: &[u8]) -> Vec<u8> {
+     let mut normalized = match std::str::from_utf8(source) {
+         Ok(text) => text.to_owned(),
+@@ -680,6 +773,78 @@
+         writer.finish().unwrap();
+     }
+ 
++    /// Rewrite `xl/worksheets/sheet1.xml` of the package at `path`: any
++    /// `<cols>` section is replaced by `cols` (placed before `sheetData`).
++    fn with_sheet_cols(path: &Path, cols: &str) {
++        use std::io::Write as _;
++
++        let source = std::fs::read(path).unwrap();
++        let mut archive = ZipArchive::new(std::io::Cursor::new(source)).unwrap();
++        let mut writer = ZipWriter::new(std::fs::File::create(path).unwrap());
++        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
++        for index in 0..archive.len() {
++            let mut entry = archive.by_index(index).unwrap();
++            let name = entry.name().to_owned();
++            let mut bytes = Vec::new();
++            entry.read_to_end(&mut bytes).unwrap();
++            if name == "xl/worksheets/sheet1.xml" {
++                let mut xml = String::from_utf8(bytes).unwrap();
++                if let (Some(start), Some(end)) = (xml.find("<cols"), xml.find("</cols>")) {
++                    xml.replace_range(start..end + "</cols>".len(), "");
++                }
++                let at = xml.find("<sheetData").unwrap();
++                xml.insert_str(at, cols);
++                bytes = xml.into_bytes();
++            }
++            writer.start_file(name, options).unwrap();
++            writer.write_all(&bytes).unwrap();
++        }
++        writer.finish().unwrap();
++    }
++
++    /// The gateway writes a grouped (outline), hidden or style-only column as
++    /// a `<col>` with no `width` (UNI-953: saving a column group failed with
++    /// "Formula engine import failed"). Recalc still answers, and the source
++    /// package is left byte-identical.
++    #[test]
++    fn recalculates_a_package_with_widthless_columns() {
++        for cols in [
++            "<cols><col min=\"2\" max=\"3\" outlineLevel=\"1\"/></cols>",
++            "<cols><col min=\"2\" max=\"2\" hidden=\"1\"/><col min=\"4\" max=\"4\" width=\"12\" customWidth=\"1\"/></cols>",
++            "<cols><col min=\"1\" max=\"1\" style=\"0\" collapsed=\"1\"></col></cols>",
++        ] {
++            let dir = tempfile::tempdir().unwrap();
++            let path = dir.path().join("widthless.xlsx");
++            fixture(&path);
++            with_sheet_cols(&path, cols);
++            let raw = std::fs::read(&path).unwrap();
++            let mut cache = RecalcCache::new();
++            let result = recalc_cells(&mut cache, &path, &[edit("A1", "100")], &[read_a1_a3()])
++                .unwrap_or_else(|error| panic!("{cols}: {error:?}"));
++            let sum = result.cells.iter().find(|cell| cell.row == 2).unwrap();
++            assert_eq!(sum.formatted, "120", "{cols}");
++            assert_eq!(std::fs::read(&path).unwrap(), raw, "{cols}");
++        }
++    }
++
++    #[test]
++    fn fills_only_missing_col_widths_from_the_sheet_default() {
++        let xml = "<worksheet><sheetFormatPr defaultColWidth=\"10.5\" defaultRowHeight=\"15\"/><cols><col min=\"1\" max=\"1\" width=\"20\" customWidth=\"1\"/><col min=\"2\" max=\"3\" customWidth=\"0\" outlineLevel=\"1\"/><col min=\"4\" max=\"4\" hidden=\"1\"></col></cols><sheetData/></worksheet>";
++        let filled = String::from_utf8(fill_col_widths(xml.as_bytes().to_vec())).unwrap();
++        assert_eq!(
++            filled,
++            "<worksheet><sheetFormatPr defaultColWidth=\"10.5\" defaultRowHeight=\"15\"/><cols><col min=\"1\" max=\"1\" width=\"20\" customWidth=\"1\"/><col min=\"2\" max=\"3\" customWidth=\"0\" outlineLevel=\"1\" width=\"10.5\"/><col min=\"4\" max=\"4\" hidden=\"1\" width=\"10.5\"></col></cols><sheetData/></worksheet>"
++        );
++        let excel_default = "<worksheet><cols><col min=\"2\" max=\"2\" outlineLevel=\"1\"/></cols><sheetData/></worksheet>";
++        assert_eq!(
++            String::from_utf8(fill_col_widths(excel_default.as_bytes().to_vec())).unwrap(),
++            "<worksheet><cols><col min=\"2\" max=\"2\" outlineLevel=\"1\" width=\"8.43\"/></cols><sheetData/></worksheet>"
++        );
++        let untouched = "<worksheet><cols><col min=\"2\" max=\"2\" width=\"9\"/></cols><sheetData/></worksheet>";
++        assert_eq!(fill_col_widths(untouched.as_bytes().to_vec()), untouched.as_bytes());
++        assert_eq!(fill_col_widths(b"<worksheet><sheetData/></worksheet>".to_vec()), b"<worksheet><sheetData/></worksheet>");
++    }
++
+     #[test]
+     fn recalculates_a_package_ironcalc_itself_refuses() {
+         let dir = tempfile::tempdir().unwrap();

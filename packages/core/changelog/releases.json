@@ -1,0 +1,332 @@
+[
+  {
+    "id": "release-1-7-0",
+    "version": "1.7.0",
+    "date": "2026-10-20",
+    "sourceRef": "6e4f970568a4a02d3a9e647558048b9d4fac9874",
+    "contentKey": "v1_7_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "cba68789f9922643c1e51b57f8f6810d23507e22f",
+          "c5db3ec268ccf43bf9b336db1fa571d76fd9d69e4"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "cd57d97c03c0b3e0b03d598d69392631b8237d348",
+          "cdd0a583f74e20745388dd74aefeba55db328c1f5",
+          "caac706f2ad896b32b0fcbae89dd466d42909629f",
+          "c5444b681da437e1adf9ed8893851a17fa86891ba",
+          "c0424076a5c7443babfeeb091d77e84d18446fc28",
+          "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-6-0",
+    "version": "1.6.0",
+    "date": "2026-10-19",
+    "sourceRef": "65c909bed73758a152f42b9a47db1808fc92ac07",
+    "contentKey": "v1_6_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4",
+          "c637118da6a7728102ae5a117c56babe0e609d88e",
+          "c896171fc59d1de0c535d2cd0febe6ca41e7738b9",
+          "ca9583ec607f78bedf7a94c006620f1ee5d7c1081",
+          "c9fccc520a0414af5b9002b19e7d118fb86b13f53",
+          "c356e8ffc953347979413a330e69c7710e6aa9868",
+          "c9c8a3b74619de2d85f0ec70d387853fd1affd587"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ccccea0fc160226064e08619e8012695125b2dc91",
+          "c22ea091760670c281c9996cbb45c136910655dd5",
+          "c961ef62c74f6af3ca50adeb2153fd4c2b1b2c6bb",
+          "ce23e2771c66928dccf84fbd9cda331f37404b685",
+          "c65c909bed73758a152f42b9a47db1808fc92ac07"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c15cfad8411e546621d6df9d7b6503a128bac61cd",
+          "cdefc46087dd47e7b2e383fa681b092a855e46e0f",
+          "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-5-1",
+    "version": "1.5.1",
+    "date": "2026-10-16",
+    "sourceRef": "bcb332c5b378f8b32c02f97c2cb3dffad69753a7",
+    "contentKey": "v1_5_1",
+    "sections": [
+      {
+        "kind": "improvements",
+        "items": [
+          "c31a87b6e474f69e33cd44093e483d24dfe1a4f39"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-5-0",
+    "version": "1.5.0",
+    "date": "2026-10-16",
+    "sourceRef": "396bdf484173223218ed4c7b1b0628a6637ec6f6",
+    "contentKey": "v1_5_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "cee5763d0eba8a1097ad8cce142b06b1f2c59795d",
+          "c055cc969f60bf8f56d5575ab9107fbc60495e67b",
+          "cb8db488814c8f81523fae678d92bf08f62087d6a"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "cfde652d9c629769761cea53dd8c62c816bb5438d",
+          "c0ec00567d931c302d0f8cb9ad80d9e788ed44dfa"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c00ede2f34a81c4247c10125bc13b53f2963e02cc",
+          "cd12a4989a99624ed944cf68d8baa10dce67e56a7",
+          "cb59d1c98dba066ccdad3658a5f8f1c5f2bfdfad8",
+          "c60ce04b243311f6f337b7ccbcdd003e73aeea914",
+          "c7458c4c4acf123f2d4392446cadadca8c5b24a7c",
+          "c3b5dbfd16c9e9698479dc08ae75fea87678df71a",
+          "c6764d566d5eb554969fc4b987ae3e8e3a66708af",
+          "cd363ca48e750a9dfe29aa3efbef9a9c4045c48de",
+          "c13087a29b3cb2ad63dc7a132870cbb4b3018c836",
+          "c8d3b953959e51a40d91645de8e49a89fa4e7a9a2"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-4-0",
+    "version": "1.4.0",
+    "date": "2026-10-15",
+    "sourceRef": "e203954a67dba5ee5be13f20891c486d7e379822",
+    "contentKey": "v1_4_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c4a18daa298613abf3467092d0bcfbcd8f4839d38",
+          "cd864391dc331940a6e92d104ba2186e4d46b7d22",
+          "c5bf0ba007bf770c45d3747e3e6a65258cee259bb",
+          "c15e833f0d3626c8e82a6072b3e099daf3a348c8c",
+          "c27f12b2c5adda86da0e1287ed454005f871f6e66",
+          "c850463a8ea4fb49b75f2b4e84e21d4c7cd5885a8"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c6f6466a03e4580423319bba7ea5911ec0abb5330",
+          "c0498b6cb3ac8b79429d2c30c6390f9bb821b98ab"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "ca7aac4a5db9598982ba06ca143aaa8894443bd09",
+          "ca9d0a49e10ec263e0183245fd49a9d64048c6a2c",
+          "c952d1e2cbe44c531e44845db65257684260f407c",
+          "cdc6f3392be9e174cc19ab9c2ba15b30ffe2be546",
+          "c9e2cc2f55a6485a3ba272b0dbf35ff6a8b45a5d3",
+          "c8028e4cf360302f9b6307889569167b3bc15199c",
+          "cb8cfd349e9dfcb28e8a55e68d8e7b67b6385c325",
+          "cdbf2cf4b3de7db506d7322e2507477cabfb1f331",
+          "c8be2e6dff1e8a2f898595a14e4bc44b641f091d4",
+          "c5d891540b40d0b14088aca2f202b66dfeef08ee1"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-3-0",
+    "version": "1.3.0",
+    "date": "2026-10-14",
+    "sourceRef": "6750c9ca0f82ca5acebc7c32f98f149c31f84197",
+    "contentKey": "v1_3_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c317521eedb704bb64491be34bc99bbeab0b53c3c",
+          "c42b1d55cbd34a928e5d29e5e316f0976f06d44b8",
+          "c342307d9f5222db6fe8c9269527923974cb0b379",
+          "ca56ba0bc29ea8ee7ab217cc110efc7d8bd463207",
+          "c850c91de8bfa831de1dc9a0848d4d6003131d161",
+          "cd62eba07c6caf11db86430d6ca5500445f398d70"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c345cfe2bda271e6ac79e24c3e25fc54aebdc47c3",
+          "cc51ea0749ffbe14a51713e253a253999a70cc1c3",
+          "ccec502219fdaba98b58e7ea89e51e87dc8a5b5f2",
+          "c84572b6d1daa128be83cc20704a700948b1a5ee9",
+          "c2a60ef2f12c13a9527b65cfd03ca991dff658eb8"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cf32bc6febcbeb9950a6e2cea84edcab99fd535d6",
+          "c41036366d2f1d8ef62593e87cd7d23e1eec31cfd",
+          "c23708f9f585b8ca6232132d44fd93fb4ff862b0c",
+          "c936c0301e9464116feee322d97ed825abf8f0f77",
+          "c86ea7aff6ce6bfbf839a3ccec1d955b65e55b447",
+          "ca59d184212dadf80caaca158643727f0bbb428f9",
+          "c1e15e45c393de7c54cc985ffd33b51237d63c853",
+          "ca885949c7befc0fd233ccdedb166fb4c80c9e2c4",
+          "cdc3b3b7163e63384dfb3ee0342e499adab5f2e80",
+          "c9396e4f00e2b6b840ef8513a0a29731e1642c88f",
+          "c611c5cf75edea54315ad5f2d49fceb44001ec6c6",
+          "c8f28bfcc0bc6a39cadd9aa0ab2abba490777a900",
+          "cb940a6207d0b2d06985666abbc223fcfc45c4fe9",
+          "c09d515323c7162116cd98e97609e8d4fe52e5b24",
+          "caca841c7749de9e69bc7d0f2e48e413728d53d1e",
+          "cc6ea1591b460e9232960b5aba194bea83bb3e163",
+          "c98ec32ffe4a7e2deae280fb84e37e31672c5d96a",
+          "cb9550c114f0020415ba41c13d1164a5f5b07c15f",
+          "cdc5e44d123f1e127ce8a18160c91d54a533c9d28"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-2-0",
+    "version": "1.2.0",
+    "date": "2026-10-13",
+    "sourceRef": "f4e2bb9643a298fd11584f44f1cd6a61ba0efc2a",
+    "contentKey": "v1_2_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c2ed272790a5e7f71d9fd77926ad85854dc7df408",
+          "ce480747bc1afa886cce9de6d91949902606cff8a",
+          "cefde3523923a9318a79928fb309010f00fe608cf"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cbb792c946bfaa4df7d8d15502548baa760b1739e",
+          "c75c5ddc68ad9e7a61ff80b2a4c0fb4518e068a25"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-1-0",
+    "version": "1.1.0",
+    "date": "2026-10-13",
+    "sourceRef": "4449109cd71c872845a082d5e449db65c8608428",
+    "contentKey": "v1_1_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "ca1d8c53d5022a921403f4dc38949d308db212f2e",
+          "cadea71f7d7b076297076d43eddb74258e3fbc453",
+          "c568278d78fe988cb444665922b5d161f58f487eb"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c71ffdf93b83f81b3b7b7bb3f6530b58373687b6e",
+          "cb79dc17d1dbcc8783e58379bbf1ff2edb430d04a",
+          "c0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c768fddab7062f11312bfa9bfd8d50c7967dac816",
+          "ccb2733aec4322d35334e953e23ad6058a0149565",
+          "c5e727e48bbd9c29c40c04b707315db20e6c086f1",
+          "cbea7437a334f574eb0916083fe1108575338371d",
+          "cd8d9d6735f802da39818b11f34d4484f1768faf0",
+          "c8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40",
+          "c70e7e68ffc6f459dec9a14f590f82c1146f5d7b3",
+          "c0109dcd7ecfa62901b357636b12b2171e13e903a",
+          "c4ac1f76ba20df9ffe1062b6ce768a2734c0043c2",
+          "c56a8b72a1d4332176ae1361423a64694da765366",
+          "c63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd",
+          "cd7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d",
+          "c7edda0f13968681d35798817688ff6abc3312a61",
+          "c872812edb8f905bd6add41ed8330ced0b92a52d4",
+          "c39042c585c161e0307083cc2b6d959e4cc34b522",
+          "c4449109cd71c872845a082d5e449db65c8608428",
+          "cebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34",
+          "cfc9fab018432964c96177b0205d4d17b0a976ae9",
+          "cbaebb1de6eb919b01291da742a8707bd9adc46a3"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-0-0",
+    "version": "1.0.0",
+    "date": "2026-10-12",
+    "sourceRef": "4b7bd3fc082e033c317b9794b4d9b6a949cb92f0",
+    "contentKey": "initial",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "work",
+          "chat",
+          "meetings",
+          "office",
+          "email",
+          "ask"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "senderImages",
+          "connectionForms",
+          "publicPages"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "mailboxStatus",
+          "smallDialogs"
+        ]
+      }
+    ]
+  }
+]

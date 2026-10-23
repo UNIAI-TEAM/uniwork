@@ -13,7 +13,16 @@ export interface ContentEditorBaseProps {
    * substitute the latest prop value for this base.
    */
   onUpdate?: (markdown: string, baseMarkdown: string) => void;
+  /**
+   * Receives the live serialized document on every editor transaction, before
+   * the debounced persistence callback. Use for derived presentation that must
+   * follow the visible document immediately, such as hiding an attachment card
+   * once its inline node appears.
+   */
+  onDocumentChange?: (markdown: string) => void;
   placeholder?: string;
+  /** Accessible name applied to the contenteditable surface. */
+  ariaLabel?: string;
   className?: string;
   debounceMs?: number;
   onSubmit?: () => void;
@@ -236,4 +245,3 @@ export interface ContentEditorRef {
    */
   adoptContent: (markdown: string) => void;
 }
-

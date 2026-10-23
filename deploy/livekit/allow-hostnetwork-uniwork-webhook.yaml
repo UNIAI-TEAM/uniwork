@@ -1,0 +1,41 @@
+# LiveKit hostNetwork → uniwork-be webhook (Calico IPIP).
+#
+# LiveKit runs hostNetwork on pool-livekit. Cross-node calls to ClusterIP appear
+# with source = node IPv4IPIPTunnelAddr (not InternalIP, not reap-integrations
+# namespace identity). NetworkPolicy on uniwork only allows reap-edge ingress,
+# so webhook delivery times out until this tunnel /32 is allowed on :8080.
+#
+# Discover tunnel addr:
+#   kubectl get node <livekit-node> \
+#     -o jsonpath='{.metadata.annotations.projectcalico\.org/IPv4IPIPTunnelAddr}{"\n"}'
+#
+# Re-apply CIDR when a second pool-livekit worker appears.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-livekit-hostnetwork-uniwork-webhook
+  namespace: uniwork
+  labels:
+    app.kubernetes.io/name: livekit
+    app.kubernetes.io/part-of: uniwork
+    reap.io/role: livekit-webhook-access
+  annotations:
+    reap.io/gate: "LK-001"
+    reap.io/reason: hostNetwork-source-is-calico-ipip-tunnel-addr
+    reap.io/cmc-guidance: "allow IPv4IPIPTunnelAddr not node InternalIP / namespaceSelector"
+    reap.io/livekit-node: "reap-eng-prod-k8s-pool-livekit-worker-cw5zk-lkjht"
+    reap.io/tunnel-addr: "10.244.217.192"
+    reap.io/webhook-url: "http://uniwork-be.uniwork.svc.cluster.local:8080/api/v1/integrations/livekit/webhook"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-be
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.244.217.192/32
+      ports:
+        - protocol: TCP
+          port: 8080

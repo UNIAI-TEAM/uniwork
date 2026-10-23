@@ -5,7 +5,7 @@ import {
   Columns3,
   List,
   Table2,
-  Waves,
+  WavesHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
@@ -32,7 +32,7 @@ const MODE_ICON: Record<TaskSurfaceMode, typeof List> = {
   list: List,
   table: Table2,
   gantt: ChartGantt,
-  swimlane: Waves,
+  swimlane: WavesHorizontal,
 };
 
 const MODE_LABEL_KEY: Record<TaskSurfaceMode, string> = {
@@ -70,7 +70,7 @@ export function TaskModeSwitcher({ modes }: { modes: TaskSurfaceMode[] }) {
               render={
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="toolbar"
                   size="sm"
                   className="gap-1.5"
                   aria-haspopup="menu"

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "version": "1.5.1",
+  "date": "2026-10-16",
+  "ready": true,
+  "sourceRef": "bcb332c5b378f8b32c02f97c2cb3dffad69753a7",
+  "previousSourceRef": "396bdf484173223218ed4c7b1b0628a6637ec6f6",
+  "title": {
+    "vi": "Menu Sản phẩm mở đúng trang tính năng và demo dùng dữ liệu mẫu mới",
+    "en": "Product menu opens each feature page, and demos use new sample data"
+  },
+  "summary": {
+    "vi": "Bản vá cho trang giới thiệu: mỗi mục trong menu Sản phẩm mở trang riêng của tính năng, nút Xem demo trên trang tính năng mở bản demo ngay tại trang, và các bản demo dùng một không gian làm việc mẫu mới. Demo Lịch bám theo màn hình Lịch hiện tại.",
+    "en": "A patch for the marketing site: each entry in the Product menu opens that feature's own page, the Watch demo button on a feature page opens the demo right there, and the demos use a new sample workspace. The Calendar demo follows the current Calendar screen."
+  },
+  "note": {
+    "vi": "Bản vá này chỉ thay đổi trang giới thiệu; ứng dụng UniWork không thay đổi.",
+    "en": "This patch only changes the marketing site; the UniWork app itself is unchanged."
+  },
+  "changes": [
+    {
+      "commit": "7b95083337e4e3eb058014c793ab02928a4807c4",
+      "subject": "docs(changelog): review and publish v1.5.0 — Việt/Anh",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR công bố Changelog v1.5.0 (#326), chỉ đổi các file Changelog, không phải thay đổi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/326"
+      }
+    },
+    {
+      "commit": "b13d6b99001d8be5b4c49a8fe32dde8ad182f59d",
+      "subject": "fix(landing): refresh closing preview and restore product page links",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trên trang giới thiệu, mỗi mục trong menu Sản phẩm nay mở trang riêng của tính năng đó, và nút Xem demo trên trang tính năng mở bản demo ngay tại trang. Hình minh họa cuối trang chủ dùng giao diện sản phẩm hiện tại.",
+        "en": "On the marketing site, each entry in the Product menu now opens that feature's own page, and the Watch demo button on a feature page opens the demo right there. The illustration at the end of the home page uses the product's current interface."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/header-directory.tsx",
+          "apps/web/features/landing/feature-page.tsx",
+          "apps/web/features/landing/final-cta.tsx",
+          "apps/web/features/landing/landing-closing.css",
+          "apps/web/features/landing/animation/landing-motion.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "31a87b6e474f69e33cd44093e483d24dfe1a4f39",
+      "subject": "fix(landing): refresh calendar and replace customer demo data",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Các bản demo trên trang giới thiệu dùng một không gian làm việc, thành viên và task mẫu mới ở cả tiếng Việt và tiếng Anh. Demo Lịch có ô tìm kiếm như màn hình Lịch hiện tại và mở sẵn ở khung 08:00.",
+        "en": "The demos on the marketing site use a new sample workspace, members and tasks in both Vietnamese and English. The Calendar demo has the same search box as the current Calendar screen and opens at 08:00."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/product-demo-data.ts",
+          "apps/web/features/landing/product-task-data.ts",
+          "apps/web/features/landing/product-demo-shell.tsx",
+          "apps/web/features/landing/product-calendar-preview.tsx",
+          "packages/views/calendar/fullcalendar-host.tsx"
+        ]
+      }
+    }
+  ]
+}

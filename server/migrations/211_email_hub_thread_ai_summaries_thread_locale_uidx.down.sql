@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS email_hub_thread_ai_summaries_thread_locale_uidx;

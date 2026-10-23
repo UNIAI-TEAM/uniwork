@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useChatScope } from "./chat-scope";
 import {
   mergeActiveDmContact,
   sidebarFromChatRooms,
@@ -9,10 +12,9 @@ import {
   mentionUnreadMapFromRooms,
   roomPreviewMapFromRooms,
   selectLazyChatScopeRoomIds,
-  useBlockChatUser,
   useChatBlockStatus,
   useChatRooms,
-  useChatVoiceToken,
+  useChatRoom,
   useCreateChatGroup,
   useEnsureWorkspaceChatRoom,
   useInviteChatGroupMembers,
@@ -24,66 +26,81 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
-  useUnblockChatUser,
-  useChatSendOutboxFlush,
+  useSetChatRoomAvatar,
+  useSendChatDocumentMessage,
   useChatSendOutboxCount,
+  useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
+import { refreshRoomTimelineOnOpen } from "@uniwork/core/chat/room-timeline";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useCurrentMember } from "@uniwork/core/permissions";
+import { useChatMessageDeepLink } from "./use-chat-message-deep-link";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
-import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
-import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
+import { chatErrorMessage } from "./chat-error-message";
+import { chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
+import { useChatPageNames } from "./use-chat-page-names";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
+import { givenNameOf } from "./chat-initials";
 import { ChatPageContent } from "./chat-page-content";
+import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
+import { useChatDeliveredAt } from "./chat-delivered";
 import { useChatPageActions } from "./use-chat-page-actions";
+import { useUrlRoomPending } from "./use-chat-page-panels";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
+import { useChatBlockActions } from "./use-chat-block-actions";
 import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatSendOutboxToast } from "./use-chat-send-outbox-toast";
 import { useChatPageSignals } from "./use-chat-page-signals";
+import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
-import { useNativeVoiceCall } from "./use-native-voice-call";
+import { chatComposerDraftKey } from "./chat-composer-draft-key";
+import { readChatComposerDraft, useChatComposerDraftStore } from "@uniwork/core/chat/composer-draft-store";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
-import { VoiceCallOverlay } from "./voice-call-overlay";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import type { Member } from "@uniwork/core/types/workspace";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 
-export function ChatPageView({
-  workspaceId,
-  currentUserId,
-}: {
-  workspaceId: string;
-  currentUserId: string;
-}) {
+/* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
+   change every memo downstream (and re-render the memoised sidebar). */
+const NO_ROOMS: ChatRoomRecord[] = [];
+const NO_NICKNAMES: Record<string, string> = {};
+const NO_MEMBERS: Member[] = [];
+
+export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { workspaceId: string; currentUserId: string; desktopOpen?: ChatDocumentDesktopOpen }) {
   const { t } = useTranslation();
+  const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
-  const workHubEnabled = useFlag("chat_work_hub", false);
   const authReady = useAuthStore((s) => s.status === "authed");
-  const { data: rooms = [], isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
-  const { data: nicknamesByUserId = {} } = useChatNicknames(workspaceId);
-  const { data: workspaceMembers = [] } = useMembers(workspaceId);
+  const { data: rooms = NO_ROOMS, isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
+  const { data: nicknamesByUserId = NO_NICKNAMES } = useChatNicknames(workspaceId);
+  const { data: workspaceMembers = NO_MEMBERS } = useMembers(workspaceId);
+  const refetchRooms = useCallback(() => void refetch(), [refetch]);
   const ensureRoom = useEnsureWorkspaceChatRoom(workspaceId);
   const resolveDM = useResolveDMRoom(workspaceId);
   const resolveDMRef = useRef(resolveDM);
   resolveDMRef.current = resolveDM;
   const createGroup = useCreateChatGroup(workspaceId);
+  const setRoomAvatar = useSetChatRoomAvatar(workspaceId);
   const inviteMembers = useInviteChatGroupMembers(workspaceId);
   const leaveRoom = useLeaveChatRoom(workspaceId);
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
-  useChatSendOutboxFlush(workspaceId, currentUserId);
-  const pendingOutboxCount = useChatSendOutboxCount(workspaceId);
-  const blockUser = useBlockChatUser(workspaceId);
-  const unblockUser = useUnblockChatUser(workspaceId);
+  const sendDocumentMessage = useSendChatDocumentMessage(workspaceId);
+  const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
     () => sidebarFromChatRooms(rooms),
@@ -91,9 +108,10 @@ export function ChatPageView({
   );
 
   const workspaceRoomId = workspaceRoom?.id ?? ensureRoom.data?.room_id ?? null;
+  const workspaceRoomName = workspaceRoomTitle(workspaceRoom?.name, workspaceName, t("chat.workspace_room"));
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
   const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
-  const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
+  const rawRoomPreviews = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
   const unreadBadgesReady = roomsLoaded;
 
   const [target, setTarget] = useState<ChatSidebarTarget>({ kind: "workspace" });
@@ -106,17 +124,14 @@ export function ChatPageView({
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
   const [leavingConversation, setLeavingConversation] = useState(false);
-  const [blockingContact, setBlockingContact] = useState(false);
-  const [unblockingContact, setUnblockingContact] = useState(false);
   const [invitingMembers, setInvitingMembers] = useState(false);
-  const [draft, setDraft] = useState("");
   const [composerPriority, setComposerPriority] = useState<ComposerMessagePriority | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const syncedRef = useRef(false);
+  useChatSendOutboxToast(workspaceId, currentUserId);
 
   const currentMember = useCurrentMember(workspaceId);
 
@@ -131,13 +146,8 @@ export function ChatPageView({
   }, [channels, target]);
   const dmPeerUserId = activeContact?.user_id ?? null;
   const dmContactRoomId = activeContact?.dm_room_id ?? null;
-  const { data: blockStatus } = useChatBlockStatus(
-    workspaceId,
-    dmPeerUserId ?? "",
-    target.kind === "dm" && Boolean(dmPeerUserId),
-  );
-  const dmBlocked =
-    Boolean(blockStatus?.blocked_by_me) || Boolean(blockStatus?.blocked_me);
+  const { data: blockStatus } = useChatBlockStatus(workspaceId, dmPeerUserId ?? "", target.kind === "dm" && Boolean(dmPeerUserId));
+  const dmBlocked = Boolean(blockStatus?.blocked_by_me) || Boolean(blockStatus?.blocked_me);
 
   const contacts = useMemo(
     () => mergeActiveDmContact(roomContacts, activeContact, resolvedDmRoomId),
@@ -168,16 +178,20 @@ export function ChatPageView({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setConnectError(err instanceof Error ? err.message : "dm_failed");
+          setConnectError(chatErrorMessage(err, t, t("chat.dm_failed")));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [dmPeerUserId, dmContactRoomId]);
+  }, [dmPeerUserId, dmContactRoomId, t]);
 
-  const activeRoomId =
-    target.kind === "workspace"
+  // `?room=` from a reload or a link: no room opens (or is marked read) until that one does.
+  const urlRoomPending = useUrlRoomPending({ targetKind: target.kind, workspaceRoomId, roomsLoaded, channels, groups, contacts: roomContacts });
+  const { scope, mismatch: scopeMismatch } = useChatScope({ target, setTarget, rooms, roomsReady: roomsLoaded, contacts: roomContacts, groups });
+  const activeRoomId = urlRoomPending || scopeMismatch
+    ? null
+    : target.kind === "workspace"
       ? workspaceRoomId
       : target.kind === "dm"
         ? (resolvedDmRoomId ?? activeContact?.dm_room_id ?? null)
@@ -192,6 +206,10 @@ export function ChatPageView({
     setComposerPriority(null);
     setActiveThreadRootId(null);
   }, [activeRoomId]);
+  // After the reset above: a notification's `?message=` jumps once its room is open.
+  useChatMessageDeepLink({ activeRoomId, roomsReady: unreadBadgesReady, onJump: setJumpToMessageId });
+
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     useActiveChatRoomStore.getState().setActiveRoom(workspaceId, activeRoomId);
@@ -200,13 +218,19 @@ export function ChatPageView({
     };
   }, [workspaceId, activeRoomId]);
 
-  useChatMentionNotify({ currentUserId, activeRoomId });
+  useEffect(() => {
+    if (!workspaceId || !activeRoomId) return;
+    refreshRoomTimelineOnOpen(queryClient, workspaceId, activeRoomId);
+  }, [workspaceId, activeRoomId, queryClient]);
 
-  const { data: activeRoomMembers = [] } = useChatRoomMembers(
-    workspaceId,
-    activeRoomId ?? "",
-    Boolean(activeRoomId),
-  );
+  useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
+
+  const { data: activeRoomMembers = [] } = useChatRoomMembers(workspaceId, activeRoomId ?? "", Boolean(activeRoomId));
+  // L5: the detail is the only read that answers whether this room accepts
+  // document sends (the caller's send permission; there is no roster cap).
+  const canSendDocument =
+    useChatRoom(workspaceId, activeRoomId ?? "", Boolean(activeRoomId) && !dmBlocked).data
+      ?.can_send_document === true;
   const activeRoomRecord = useMemo(
     () => (activeRoomId ? rooms.find((room) => room.id === activeRoomId) : undefined),
     [activeRoomId, rooms],
@@ -223,16 +247,6 @@ export function ChatPageView({
   const canCreatePolls = roomPermissions.canCreatePolls;
   const canCreateNotes = roomPermissions.canCreateNotes;
 
-  const voiceAllowedRoomIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const room of rooms) {
-      if (room.kind === "dm" || room.kind === "group" || room.kind === "channel") {
-        ids.add(room.id);
-      }
-    }
-    return ids;
-  }, [rooms]);
-
   const chatScopeRoomIds = useMemo(
     () =>
       selectLazyChatScopeRoomIds({
@@ -243,17 +257,16 @@ export function ChatPageView({
     [rooms, activeRoomId, target.kind],
   );
   useChatRoomScopes(chatScopeRoomIds);
-  useChatPageSignals(workspaceId, currentUserId, authReady);
-
-  const peerLastReadAt =
-    target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : null;
+  useChatPageSignals(workspaceId, currentUserId);
 
   const showLoading =
     !authReady ||
-    (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
-    (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
-    (target.kind === "group" && !activeRoomId) ||
-    (target.kind === "channel" && !activeRoomId);
+    urlRoomPending ||
+    (!scopeMismatch &&
+      ((target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
+        (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
+        (target.kind === "group" && !activeRoomId) ||
+        (target.kind === "channel" && !activeRoomId)));
 
   const { groupMemberProfiles, clearGroupMemberProfiles } = useNativeGroupMemberProfiles({
     workspaceId,
@@ -269,11 +282,19 @@ export function ChatPageView({
         currentUserId,
         workspaceMembers,
         groupMemberProfiles,
-        memberDisplayLabel,
+        (member) => resolveChatNicknameForUser(nicknamesByUserId, member.user_id) || memberDisplayLabel(member),
+        // A channel's members are the profiles above, read from its room roster.
+        target.kind === "group" ? activeGroup?.member_user_ids : undefined,
       ),
-    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+    [activeGroup, currentUserId, groupMemberProfiles, nicknamesByUserId, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
+  // The draft lives in the composer's store, keyed by conversation: typing
+  // re-renders the composer, not this page and its sidebar.
+  const composerDraftKey = chatComposerDraftKey(workspaceId, target);
+  const readComposerDraft = useCallback(() => readChatComposerDraft(composerDraftKey), [composerDraftKey]);
+  const setDraft = useChatComposerDraftStore((state) => state.setDraft);
+  const writeComposerDraft = useCallback((value: string) => setDraft(composerDraftKey, value), [composerDraftKey, setDraft]);
 
   const { provisionAndSend, sendMessageBody, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
     useChatPageActions({
@@ -284,17 +305,17 @@ export function ChatPageView({
       activeRoomId,
       activeGroup,
       activeChannel,
-      draft,
-      setDraft,
+      getDraft: readComposerDraft,
+      setDraft: writeComposerDraft,
       replyTo,
       setReplyTo,
       activeThreadRootId,
-      workHubEnabled,
       ensureRoom,
       sendRoomMessage,
       sendThreadMessage,
       resolveDM,
       createGroup,
+      setRoomAvatar,
       inviteMembers,
       leaveRoom,
       setConnectError,
@@ -312,51 +333,30 @@ export function ChatPageView({
       setComposerPriority,
     });
 
-  useEffect(() => {
-    if (!authReady || syncedRef.current) return;
-    syncedRef.current = true;
-    void ensureRoom.mutate();
-  }, [authReady, ensureRoom]);
-
-  useEffect(() => {
-    if (!authReady) return;
-    void refetch();
-  }, [authReady, refetch]);
+  useSyncChatRoomsOnAuth(workspaceId, ensureRoom);
 
   const headerTitle = chatHeaderTitle(
     target,
     contacts,
     groups,
-    t("chat.title"),
+    workspaceRoomName,
     (params) => t("chat.dm_with", params),
     nicknamesByUserId,
     channels,
   );
-  const nameContext = useMemo(
-    () =>
-      buildChatNameContext(
-        contacts,
-        activeContact,
-        activeGroup,
-        groupMemberProfiles,
-        workspaceMembers,
-        nicknamesByUserId,
-      ),
-    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId],
+  const { memberAvatarByUserId, nameContext } = useChatPageNames(
+    contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId,
+  );
+  const seenBy = useChatSeenBy(activeRoomRecord, activeRoomMembers, nameContext, currentUserId);
+  const peerLastReadAt = target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : seenBy.lastReadAt;
+  const deliveredAt = useChatDeliveredAt(activeRoomRecord, activeRoomMembers, currentUserId);
+  const roomPreviewsByRoomId = useMemo(
+    () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
+    [nameContext, rawRoomPreviews],
   );
 
-  const chatVoiceToken = useChatVoiceToken();
-  const mintVoiceToken = useCallback(
-    async (roomId: string, callId: string) => chatVoiceToken.mutateAsync({ roomId, callId }),
-    [chatVoiceToken],
-  );
-  const { voiceCall, startCall, acceptCall, declineCall, leaveCall, endCallForAll, markVoiceConnected, inCall } = useNativeVoiceCall({
-    workspaceId,
-    currentUserId,
-    mintToken: mintVoiceToken,
-    allowedRoomIds: voiceAllowedRoomIds,
-  });
-  const { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+  const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
+  const { handleStartVoiceCall, handleStartVideoCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
     activeContact,
@@ -366,51 +366,41 @@ export function ChatPageView({
     acceptCall,
     declineCall,
   });
+  // "Minh đang nhập…": who types goes by the given name, as the list says it (canvas).
+  const typingNames = useMemo(
+    () => nameContext.map((entry) => ({ ...entry, display_name: givenNameOf(entry.display_name) })),
+    [nameContext],
+  );
   const typingLabel = useNativeTyping({
     workspaceId,
     roomId: activeRoomId,
     currentUserId,
-    nameContext,
-    draft,
+    nameContext: typingNames,
+    draftKey: composerDraftKey,
     enabled: Boolean(activeRoomId) && !showLoading && !dmBlocked,
   });
 
-  const handleBlockContact = useCallback(async () => {
-    if (!activeContact) return;
-    setBlockingContact(true);
-    setConnectError(null);
-    try {
-      await blockUser.mutateAsync(activeContact.user_id);
-      setTarget({ kind: "workspace" });
-      setResolvedDmRoomId(null);
-      setDmSettingsOpen(false);
-    } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.block_failed"));
-    } finally {
-      setBlockingContact(false);
-    }
-  }, [activeContact, blockUser, t]);
+  const leaveBlockedConversation = useCallback(() => {
+    setTarget({ kind: "workspace" });
+    setResolvedDmRoomId(null);
+    setDmSettingsOpen(false);
+  }, []);
+  const { blockingContact, unblockingContact, handleBlockContact, handleUnblockContact } =
+    useChatBlockActions({
+      workspaceId,
+      peerUserId: activeContact?.user_id ?? null,
+      setConnectError,
+      onBlocked: leaveBlockedConversation,
+    });
 
-  const handleUnblockContact = useCallback(async () => {
-    if (!activeContact) return;
-    setUnblockingContact(true);
-    setConnectError(null);
-    try {
-      await unblockUser.mutateAsync(activeContact.user_id);
-    } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.unblock_failed"));
-    } finally {
-      setUnblockingContact(false);
-    }
-  }, [activeContact, unblockUser, t]);
-
-  const { handleSendVoice, handleSendFile } = useChatMediaSend({
+  const { handleSendVoice, handleSendFile, handleSendDocument } = useChatMediaSend({
     activeRoomId,
     targetKind: target.kind,
     replyToId: replyTo?.id,
     ensureRoom,
     sendVoiceMessage,
     sendFileMessage,
+    sendDocumentMessage,
     clearReply: () => setReplyTo(null),
   });
 
@@ -419,109 +409,108 @@ export function ChatPageView({
   }
 
   const callControlsDisabled =
-    !activeRoomId || inCall || chatVoiceToken.isPending || (target.kind === "dm" && dmBlocked);
+    !activeRoomId || inCall || (target.kind === "dm" && dmBlocked);
   const leaveRoomAnd = (cleanup: () => void) => {
     if (activeRoomId) void handleLeaveConversation(activeRoomId, cleanup);
   };
-  const messageRefreshKey = Math.max(
-    sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
-    sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
-  );
-
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ChatPageContent
-        target={target}
-        setTarget={setTarget}
-        currentUserId={currentUserId}
-        headerTitle={headerTitle}
-        contacts={contacts}
-        groups={groups}
-        channels={channels}
-        workHubEnabled={workHubEnabled}
-        activeContact={activeContact}
-        activeGroup={activeGroup}
-        activeChannel={activeChannel}
-        workspaceId={workspaceId}
-        messageRefreshKey={messageRefreshKey}
-        activeRoomId={activeRoomId}
-        showLoading={showLoading}
-        connectError={connectError}
-        pendingOutboxCount={pendingOutboxCount}
-        isWorkspaceError={isError}
-        onRefetchWorkspace={() => void refetch()}
-        workspaceRoomId={workspaceRoomId}
-        unreadByRoomId={unreadByRoomId}
-        mentionUnreadByRoomId={mentionUnreadByRoomId}
-        roomPreviewsByRoomId={roomPreviewsByRoomId}
-        unreadBadgesReady={unreadBadgesReady}
-        nicknamesByUserId={nicknamesByUserId}
-        nameContext={nameContext}
-        replyTo={replyTo}
-        onReplyToChange={setReplyTo}
-        onActiveThreadRootIdChange={setActiveThreadRootId}
-        draft={draft}
-        onDraftChange={setDraft}
-        composerPriority={composerPriority}
-        onComposerPriorityChange={setComposerPriority}
-        onSend={() => void provisionAndSend()}
-        onSendMedia={(body) => void sendMessageBody(body)}
-        onSendVoice={handleSendVoice}
-        onSendFile={handleSendFile}
-        groupSettingsOpen={groupSettingsOpen}
-        onGroupSettingsOpenChange={setGroupSettingsOpen}
-        dmSettingsOpen={dmSettingsOpen}
-        onDmSettingsOpenChange={setDmSettingsOpen}
-        dmBlocked={dmBlocked}
-        dmBlockedByMe={Boolean(blockStatus?.blocked_by_me)}
-        dmBlockedMe={Boolean(blockStatus?.blocked_me)}
-        onBlockContact={() => void handleBlockContact()}
-        onUnblockContact={() => void handleUnblockContact()}
-        blockingContact={blockingContact}
-        unblockingContact={unblockingContact}
-        addMembersOpen={addMembersOpen}
-        onAddMembersOpenChange={setAddMembersOpen}
-        createGroupOpen={createGroupOpen}
-        onCreateGroupOpenChange={setCreateGroupOpen}
-        channelSettingsOpen={channelSettingsOpen}
-        onChannelSettingsOpenChange={setChannelSettingsOpen}
-        creatingGroup={creatingGroup}
-        onCreateGroup={handleCreateGroup}
-        invitingMembers={invitingMembers}
-        onAddGroupMembers={handleAddGroupMembers}
-        leavingConversation={leavingConversation}
-        onLeaveGroup={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
-        onLeaveDm={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
-        onLeaveChannel={() => leaveRoomAnd(() => setChannelSettingsOpen(false))}
-        groupMemberProfiles={groupMemberProfiles}
-        typingLabel={typingLabel}
-        onVoiceCall={() => void handleStartVoiceCall()}
-        voiceCallDisabled={callControlsDisabled}
-        onVideoCall={() => void handleStartVideoCall()}
-        videoCallDisabled={callControlsDisabled}
-        workspaceMembers={workspaceMembers}
-        workspaceSettingsOpen={workspaceSettingsOpen}
-        onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
-        messageSearchOpen={messageSearchOpen}
-        onMessageSearchOpenChange={setMessageSearchOpen}
-        jumpToMessageId={jumpToMessageId}
-        onJumpToMessageIdChange={setJumpToMessageId}
-        chatSendRestricted={chatSendRestricted}
-        chatSendMutedByModerator={chatSendMutedByModerator}
-        canPinMessages={canPinMessages}
-        canCreatePolls={canCreatePolls}
-        canCreateNotes={canCreateNotes}
-        peerLastReadAt={peerLastReadAt}
-        t={t}
-      />
-      <VoiceCallOverlay
-        state={voiceCall}
-        onAccept={() => void handleAcceptVoiceCall()}
-        onDecline={() => void declineCall()}
-        onLeave={leaveCall}
-        onEndForAll={() => void endCallForAll()}
-        onConnected={markVoiceConnected}
-      />
+      <ChatSeenByProvider value={seenBy.value} deliveredAt={deliveredAt}>
+        <ChatPageContent
+          scope={scope}
+          target={target}
+          setTarget={setTarget}
+          currentUserId={currentUserId}
+          headerTitle={headerTitle}
+          workspaceRoomTitle={workspaceRoomName}
+          contacts={contacts}
+          groups={groups}
+          channels={channels}
+          activeContact={activeContact}
+          activeGroup={activeGroup}
+          activeChannel={activeChannel}
+          workspaceId={workspaceId}
+          activeRoomId={activeRoomId}
+          showLoading={showLoading}
+          connectError={connectError}
+          pendingOutboxCount={pendingOutboxCount}
+          isWorkspaceError={isError}
+          onRefetchWorkspace={refetchRooms}
+          workspaceRoomId={workspaceRoomId}
+          unreadByRoomId={unreadByRoomId}
+          mentionUnreadByRoomId={mentionUnreadByRoomId}
+          roomPreviewsByRoomId={roomPreviewsByRoomId}
+          unreadBadgesReady={unreadBadgesReady}
+          nicknamesByUserId={nicknamesByUserId}
+          nameContext={nameContext}
+          replyTo={replyTo}
+          onReplyToChange={setReplyTo}
+          activeThreadRootId={activeThreadRootId}
+          onActiveThreadRootIdChange={setActiveThreadRootId}
+          composerDraftKey={composerDraftKey}
+          composerPriority={composerPriority}
+          onComposerPriorityChange={setComposerPriority}
+          onSend={() => void provisionAndSend()}
+          onSendMedia={(body) => void sendMessageBody(body)}
+          onSendVoice={handleSendVoice}
+          onSendFile={handleSendFile}
+          onSendDocument={handleSendDocument}
+          canSendDocument={canSendDocument}
+          desktopOpen={desktopOpen}
+          onSendThreadReply={(draftKey, rootId) =>
+            void provisionAndSend(() => readChatComposerDraft(draftKey), (value) => setDraft(draftKey, value), rootId)
+          }
+          onSendThreadMedia={(rootId, body) => void sendMessageBody(body, rootId)}
+          groupSettingsOpen={groupSettingsOpen}
+          onGroupSettingsOpenChange={setGroupSettingsOpen}
+          dmSettingsOpen={dmSettingsOpen}
+          onDmSettingsOpenChange={setDmSettingsOpen}
+          dmBlocked={dmBlocked}
+          dmBlockedByMe={Boolean(blockStatus?.blocked_by_me)}
+          dmBlockedMe={Boolean(blockStatus?.blocked_me)}
+          onBlockContact={() => void handleBlockContact()}
+          onUnblockContact={() => void handleUnblockContact()}
+          blockingContact={blockingContact}
+          unblockingContact={unblockingContact}
+          addMembersOpen={addMembersOpen}
+          onAddMembersOpenChange={setAddMembersOpen}
+          createGroupOpen={createGroupOpen}
+          onCreateGroupOpenChange={setCreateGroupOpen}
+          channelSettingsOpen={channelSettingsOpen}
+          onChannelSettingsOpenChange={setChannelSettingsOpen}
+          creatingGroup={creatingGroup}
+          onCreateGroup={handleCreateGroup}
+          invitingMembers={invitingMembers}
+          onAddGroupMembers={handleAddGroupMembers}
+          leavingConversation={leavingConversation}
+          onLeaveGroup={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+          onLeaveDm={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+          onLeaveChannel={() => leaveRoomAnd(() => setChannelSettingsOpen(false))}
+          groupMemberProfiles={groupMemberProfiles}
+          mentionCandidates={mentionCandidates}
+          typingLabel={typingLabel}
+          onVoiceCall={() => void handleStartVoiceCall()}
+          voiceCallDisabled={callControlsDisabled}
+          onVideoCall={() => void handleStartVideoCall()}
+          videoCallDisabled={callControlsDisabled}
+          workspaceMembers={workspaceMembers}
+          memberAvatarByUserId={memberAvatarByUserId}
+          workspaceSettingsOpen={workspaceSettingsOpen}
+          onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
+          messageSearchOpen={messageSearchOpen}
+          onMessageSearchOpenChange={setMessageSearchOpen}
+          jumpToMessageId={jumpToMessageId}
+          onJumpToMessageIdChange={setJumpToMessageId}
+          chatSendRestricted={chatSendRestricted}
+          chatSendMutedByModerator={chatSendMutedByModerator}
+          canPinMessages={canPinMessages}
+          canModerate={roomPermissions.isModerator}
+          canCreatePolls={canCreatePolls}
+          canCreateNotes={canCreateNotes}
+          peerLastReadAt={peerLastReadAt}
+          t={t}
+        />
+      </ChatSeenByProvider>
     </div>
   );
 }

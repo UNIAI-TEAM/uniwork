@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DocumentLevel } from "../../documents/schema";
 
 export const WorkspaceChatRoomSchema = z.object({
   workspace_id: z.string(),
@@ -14,6 +15,52 @@ export const ChatUserLookupSchema = z.object({
 });
 export type ChatUserLookup = z.infer<typeof ChatUserLookupSchema>;
 
+/**
+ * The viewer-resolved document card block on a `kind:"document"` message
+ * (UNI-1966, contract §5). Every field but `document_id` may be absent —
+ * without access the server omits the descriptive fields — and a block that
+ * fails shape drops whole instead of throwing.
+ */
+const documentViewerLevel = (value: unknown): DocumentLevel | undefined => {
+  switch (value) {
+    case "view":
+    case "comment":
+    case "edit":
+    case "manage":
+      return value;
+    default:
+      // Absent or a level the client does not know both read as "none".
+      return value === undefined || value === "" ? undefined : "";
+  }
+};
+
+export const ChatMessageDocumentSchema = z
+  .object({
+    document_id: z.string(),
+    viewer_has_access: z.boolean().optional(),
+    viewer_level: z.unknown().optional().transform(documentViewerLevel),
+    viewer_can_manage: z.boolean().optional(),
+    viewer_can_upload_version: z.boolean().optional(),
+    title: z.string().optional(),
+    format: z.string().optional(),
+    version_number: z.number().optional(),
+    revision: z.string().optional(),
+    can_open_in_app: z.boolean().optional(),
+    /** Sender only: "Đã chia sẻ với N người". */
+    recipient_count: z.number().optional(),
+    /**
+     * Where the card came from (UNI-2012 D8): "upload" owns the document,
+     * "link" only points at one. A value the client does not know falls to
+     * absent, which every reader treats as "upload".
+     */
+    origin: z.enum(["upload", "link"]).optional().catch(undefined),
+    /** Sender's own upload card only: people other than the sender who committed a version. */
+    other_editors_count: z.number().optional().catch(undefined),
+  })
+  .optional()
+  .catch(undefined);
+export type ChatMessageDocument = z.infer<typeof ChatMessageDocumentSchema>;
+
 export const ChatMessageSchema = z.object({
   id: z.string(),
   room_id: z.string(),
@@ -26,10 +73,17 @@ export const ChatMessageSchema = z.object({
   thread_root_id: z.string().optional(),
   reply_count: z.number().optional().default(0),
   last_reply_at: z.string().optional(),
+  /** A root's three latest distinct repliers, newest first (the thread pill's faces). */
+  thread_participant_ids: z.array(z.string()).optional().catch(undefined),
   thread_unread: z.boolean().optional().default(false),
+  /** Set on a thread's root in a thread listing: the caller follows it, unmuted. */
+  thread_following: z.boolean().optional().catch(undefined),
   created_at: z.string(),
+  /** Opaque history position; sent back verbatim to page older messages. */
+  cursor: z.string().optional().catch(undefined),
   edited_at: z.string().optional(),
   pinned: z.boolean().optional().default(false),
+  pinned_at: z.string().optional(),
   mentioned_user_ids: z
     .array(z.string())
     .nullish()
@@ -38,18 +92,58 @@ export const ChatMessageSchema = z.object({
     .record(z.string(), z.number())
     .nullish()
     .transform((value) => value ?? {}),
+  /** Emojis the caller reacted with; a drifted value reads as "none of mine". */
+  my_reactions: z.array(z.string()).optional().catch(undefined),
   voice_call: z
     .object({
       outcome: z.string(),
       duration_seconds: z.number().optional(),
       caller_id: z.string(),
+      participants: z
+        .array(
+          z.object({
+            user_id: z.string(),
+            display_name: z.string().optional().default(""),
+          }),
+        )
+        .optional(),
+      recording_id: z.string().optional(),
+      recording_status: z.string().optional(),
+      recording_url: z.string().optional(),
+      video: z.boolean().optional().catch(undefined),
     })
     .optional(),
+  voice_call_summary: z
+    .object({
+      call_id: z.string(),
+      call_log_message_id: z.string(),
+      summary: z.string().optional().default(""),
+      highlights: z
+        .array(z.string())
+        .nullish()
+        .transform((value) => value ?? []),
+      action_items: z
+        .array(
+          z.object({
+            title: z.string(),
+            owner: z.string().optional().default(""),
+            due: z.string().optional().default(""),
+            source_message_id: z.string().optional().default(""),
+          }),
+        )
+        .nullish()
+        .transform((value) => value ?? []),
+    })
+    .optional(),
+  // url* are signed storage URLs for this viewer (UNI-1633); empty when the
+  // server could not sign one, and dead after url_expires_at.
   voice: z
     .object({
       duration_ms: z.number().optional().default(0),
       content_type: z.string().optional().default(""),
       size_bytes: z.number().optional().default(0),
+      url: z.string().optional().default(""),
+      url_expires_at: z.string().optional().default(""),
     })
     .optional(),
   file: z
@@ -57,8 +151,19 @@ export const ChatMessageSchema = z.object({
       filename: z.string().optional().default(""),
       content_type: z.string().optional().default(""),
       size_bytes: z.number().optional().default(0),
+      url: z.string().optional().default(""),
+      download_url: z.string().optional().default(""),
+      thumb_url: z.string().optional().default(""),
+      url_expires_at: z.string().optional().default(""),
     })
     .optional(),
+  document: ChatMessageDocumentSchema,
+  /**
+   * UNI-1966 (L6): true only for the sender of a `kind:"file"` message whose
+   * verified type is a document kind and that is not linked already. Absent
+   * or drifted reads undefined — a wrong affordance hides, never shows.
+   */
+  can_share_as_document: z.boolean().optional().catch(undefined),
   poll: z
     .object({
       question: z.string(),
@@ -91,10 +196,12 @@ export const ChatMessageSchema = z.object({
         .array(z.string())
         .nullish()
         .transform((value) => value ?? []),
-      votes_by_user: z
-        .record(z.string(), z.array(z.string()))
-        .nullish()
-        .transform((value) => value ?? undefined),
+    })
+    .optional(),
+  poll_vote: z
+    .object({
+      poll_message_id: z.string(),
+      question: z.string(),
     })
     .optional(),
   reminder: z
@@ -118,14 +225,36 @@ export const ChatMessageSchema = z.object({
     })
     .optional(),
   priority: z.enum(["important", "urgent"]).optional(),
+  /** The original author of a forwarded message; never the room it came from. A drifted value reads as not forwarded. */
+  forwarded_from: z
+    .object({
+      sender_id: z.string(),
+      sender_name: z.string().optional().default(""),
+      sent_at: z.string().optional().default(""),
+    })
+    .optional()
+    .catch(undefined),
   // Echo of the sender's idempotency key; a client drops its own queued copy
   // when this comes back, instead of guessing from body and timestamp.
   client_msg_id: z.string().optional(),
 });
 export type ChatMessageRecord = z.infer<typeof ChatMessageSchema>;
 
+/** Keep valid rows when one item drifts — a single bad message must not empty the timeline. */
+function lenientMessageList(items: unknown[]): ChatMessageRecord[] {
+  const out: ChatMessageRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatMessageSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatMessagesListSchema = z.object({
-  messages: z.array(ChatMessageSchema).optional().default([]),
+  messages: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientMessageList(items ?? [])),
 });
 
 export const ChatMessageEnvelopeSchema = z.object({
@@ -138,6 +267,7 @@ export const ChatRoomMemberPermissionsSchema = z.object({
   allow_create_notes: z.boolean().optional().default(true),
   allow_create_polls: z.boolean().optional().default(true),
   allow_send_messages: z.boolean().optional().default(true),
+  allow_forward: z.boolean().optional().default(true),
 });
 export type ChatRoomMemberPermissions = z.infer<typeof ChatRoomMemberPermissionsSchema>;
 
@@ -151,27 +281,68 @@ export const ChatRoomSchema = z.object({
     .array(z.string())
     .nullish()
     .transform((value) => value ?? []),
+  /** A channel's size, the caller included; channels send this instead of member_user_ids. */
+  member_count: z.number().catch(0),
   unread_count: z.number().optional().default(0),
   mention_unread_count: z.number().optional().default(0),
   peer_user_id: z.string().optional(),
   peer_email: z.string().optional(),
   peer_display_name: z.string().optional(),
   peer_last_read_at: z.string().optional(),
+  /** How far the DM peer's devices hold the room (✓✓ grey). */
+  peer_last_delivered_at: z.string().optional().catch(undefined),
+  /** The caller's own read pointer: where "new messages" starts. */
+  last_read_at: z.string().optional().catch(undefined),
   last_message_body: z.string().optional(),
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
   last_message_sender_name: z.string().optional(),
+  /** A call log's outcome (completed, declined, unanswered): an unanswered call from someone else is missed. */
+  last_message_call_outcome: z.string().optional().catch(undefined),
+  /** A voice note's length, for the list line's "· 0:42". */
+  last_message_duration_ms: z.number().optional().catch(undefined),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
   visibility: z.string().optional(),
   project_id: z.string().optional(),
   topic: z.string().optional(),
   is_default: z.boolean().optional(),
+  /** The caller muted this room's notifications; kept on the server, so on every device. */
+  notifications_muted: z.boolean().optional().catch(undefined),
+  /** A group's uploaded avatar, signed; absent when the group shows its members. */
+  avatar_url: z.string().optional().catch(undefined),
+  /**
+   * UNI-1966 (L5), room detail read only: the caller may send a document in
+   * the room — a permission, not the room's size (no recipient cap, UNI-2012).
+   * Absent reads as not allowed, so the composer picker hides rather than
+   * offers a refused send.
+   */
+  can_send_document: z.boolean().optional().catch(undefined),
+  wallpaper: z
+    .object({
+      preset: z.string(),
+      url: z.string().optional(),
+    })
+    .optional()
+    .catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
+/** Keep valid rooms when one row drifts — a single bad room must not empty the sidebar. */
+function lenientRoomList(items: unknown[]): ChatRoomRecord[] {
+  const out: ChatRoomRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatRoomSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatRoomsListSchema = z.object({
-  rooms: z.array(ChatRoomSchema).optional().default([]),
+  rooms: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientRoomList(items ?? [])),
 });
 
 export const ChatRoomEnvelopeSchema = z.object({
@@ -184,6 +355,12 @@ export const ChatRoomMemberSchema = z.object({
   send_restricted: z.boolean().optional().default(false),
   email: z.string(),
   display_name: z.string(),
+  /** The room's creator, whom the server's moderation rules treat apart from `role`. */
+  is_creator: z.boolean().catch(false),
+  /** Main-timeline read cursor (RFC 3339, sub-second); absent if never read. */
+  last_read_at: z.string().optional().catch(undefined),
+  /** How far the member's devices hold the room (never behind a read); absent if never acknowledged. */
+  last_delivered_at: z.string().optional().catch(undefined),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 

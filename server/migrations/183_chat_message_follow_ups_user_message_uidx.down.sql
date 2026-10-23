@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uidx_chat_message_follow_ups_user_message;

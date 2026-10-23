@@ -18,7 +18,9 @@ import (
 //	POST /api/v1/orgs/{org}/members/{userID}/deactivate
 //	POST /api/v1/orgs/{org}/members/{userID}/reactivate
 //	POST /api/v1/orgs/{org}/leave
+//	POST /api/v1/orgs/{org}/close
 //	POST /api/v1/orgs/{org}/transfer-ownership
+//	GET  /api/v1/orgs/{orgID}/office/capabilities
 //	GET  /api/v1/orgs/{org}/invitations
 //	POST /api/v1/orgs/{org}/invitations
 //	DELETE /api/v1/orgs/{org}/invitations/{invitationId}
@@ -99,27 +101,42 @@ func registerOrganizations(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
-		summary:     "Transfer organization ownership",
-		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu.",
+		summary: "Transfer organization ownership",
+		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu: " +
+			"403 password_incorrect khi sai (không phải 401, để client không làm mới phiên rồi gửi lại), 403 password_required khi tài khoản chưa có mật khẩu.",
+		tags: []string{"organizations"},
+		sdi:  sdi.TransferOwnershipSDI{},
+		sdo:  sdo.OrgMemberSDO{},
+		auth: true,
+	})
+	// The Office app capability route (X-03): the features enabled for one
+	// organization, evaluated with the same override resolution as
+	// GET /api/v1/config. It is not the per-document route of the same name
+	// (GET /documents/{documentID}/office/capabilities). A flag hides a
+	// capability and grants nothing; a read writes no audit row.
+	r.Get("/orgs/{orgID}/office/capabilities", h.OfficeAppCapabilities, apiOp{
+		summary:     "Office features enabled for this organization (app)",
+		description: "App desktop đọc: các tính năng Office đang bật cho tổ chức này, đánh giá theo override user > organization > global như GET /api/v1/config. Tắt flag chỉ ẩn năng lực, không phải từ chối quyền. ai_uniwork_formats rỗng khi office_ai_uniwork tắt.",
 		tags:        []string{"organizations"},
-		sdi:         sdi.TransferOwnershipSDI{},
-		sdo:         sdo.OrgMemberSDO{},
+		sdo:         sdo.OfficeAppCapabilitiesSDO{},
 		auth:        true,
 	})
 	r.Get("/orgs/{org}/invitations", h.ListOrgInvitations, apiOp{
 		summary:     "List pending organization invitations",
-		description: "Lời mời cấp tổ chức chưa được chấp nhận và chưa thu hồi.",
+		description: "Lời mời cấp tổ chức chưa được chấp nhận và chưa thu hồi, kèm các workspace mỗi lời mời cấp.",
 		tags:        []string{"organizations"},
 		sdo:         sdo.OrgInvitationListSDO{},
 		auth:        true,
 	})
 	r.Post("/orgs/{org}/invitations", h.InviteToOrganization, apiOp{
-		summary:     "Invite people to the organization",
-		description: "Mời vào tổ chức, không cần workspace. Địa chỉ đã là thành viên bị bỏ qua; địa chỉ đã có lời mời giữ nguyên token cũ.",
-		tags:        []string{"organizations"},
-		sdi:         sdi.OrgInviteSDI{},
-		sdo:         sdo.OrgInvitationListSDO{},
-		auth:        true,
+		summary: "Invite people to the organization",
+		description: "Mời vào tổ chức, kèm 0..n workspace của tổ chức (workspace_ids) người được mời sẽ vào với vai trò member khi chấp nhận. " +
+			"Workspace ngoài tổ chức trả 400 workspace_not_in_organization. Địa chỉ đã là thành viên bị bỏ qua; địa chỉ đã có lời mời " +
+			"giữ nguyên token cũ và nhận lựa chọn workspace mới nhất.",
+		tags: []string{"organizations"},
+		sdi:  sdi.OrgInviteSDI{},
+		sdo:  sdo.OrgInvitationListSDO{},
+		auth: true,
 	})
 	r.Delete("/orgs/{org}/invitations/{invitationId}", h.RevokeOrgInvitation, apiOp{
 		summary:     "Revoke an organization invitation",
@@ -132,6 +149,14 @@ func registerOrganizations(r api, h Routes) {
 		summary:     "Leave an organization",
 		description: "Tự rời tổ chức; xóa luôn tư cách thành viên mọi workspace trong tổ chức. Owner phải chuyển quyền trước.",
 		tags:        []string{"organizations"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/close", h.CloseOrganization, apiOp{
+		summary:     "Close an organization",
+		description: "Chủ sở hữu là thành viên hoạt động duy nhất đóng tổ chức: tổ chức được lưu trữ (không xóa dữ liệu), lời mời đang chờ bị thu hồi, gói dịch vụ bị hủy và chủ sở hữu được tự do tham gia hoặc tạo tổ chức khác. Phải gõ lại slug để xác nhận.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.CloseOrganizationSDI{},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})

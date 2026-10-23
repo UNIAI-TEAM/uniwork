@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import { FileText, Download } from 'lucide-react'
 import { cn } from '@uniwork/ui/lib/utils'
+import { Button } from '@uniwork/ui/components/ui/button'
 import { CODE_LIGATURE_CLASS } from '@uniwork/ui/lib/code-style'
 import { CodeBlock, InlineCode } from './CodeBlock'
 import { isAllowedFileCardHref, preprocessFileCards } from './file-cards'
@@ -47,7 +48,7 @@ export interface MarkdownProps {
   /**
    * Callback when a URL is clicked
    */
-  onUrlClick?: (url: string) => void
+  onUrlClick?: (url: string, event?: React.MouseEvent) => void
   /**
    * Callback when a file path is clicked
    */
@@ -58,7 +59,7 @@ export interface MarkdownProps {
    */
   renderMention?: (props: { type: string; id: string }) => React.ReactNode
   /**
-   * CDN hostname for file card detection (e.g. "cdn.uniwork.app").
+   * CDN hostname for file card detection (e.g. "cdn.uniworkos.com").
    * When provided, enables file card preprocessing and rendering.
    */
   cdnDomain?: string
@@ -76,6 +77,12 @@ export interface MarkdownProps {
    * the views-package `<Attachment>` component.
    */
   renderFileCard?: (props: { href: string; filename: string }) => React.ReactNode
+  /**
+   * Accessible name of the default file card's icon-only download button.
+   * packages/ui has no i18n, so the host passes the translated phrase; without
+   * it the button is named after the file.
+   */
+  fileDownloadLabel?: (filename: string) => string
 }
 
 // File path detection regex - matches paths starting with /, ~/, or ./
@@ -87,11 +94,12 @@ const FILE_PATH_REGEX =
  */
 function createComponents(
   mode: RenderMode,
-  onUrlClick?: (url: string) => void,
+  onUrlClick?: (url: string, event?: React.MouseEvent) => void,
   onFileClick?: (path: string) => void,
   renderMention?: (props: { type: string; id: string }) => React.ReactNode,
   renderImage?: (props: { src: string; alt: string }) => React.ReactNode,
   renderFileCard?: (props: { href: string; filename: string }) => React.ReactNode,
+  fileDownloadLabel?: (filename: string) => string,
 ): Partial<Components> {
   const baseComponents: Partial<Components> = {
     // FileCard: intercept <div data-type="fileCard"> from preprocessFileCards
@@ -111,13 +119,16 @@ function createComponents(
               <p className="truncate text-body">{filename}</p>
             </div>
             {href && (
-              <button
+              <Button
                 type="button"
-                className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground"
+                aria-label={fileDownloadLabel?.(filename) ?? filename}
                 onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
               >
-                <Download className="size-3.5" />
-              </button>
+                <Download aria-hidden className="size-3.5" />
+              </Button>
             )}
           </div>
         )
@@ -184,7 +195,7 @@ function createComponents(
           if (FILE_PATH_REGEX.test(href) && onFileClick) {
             onFileClick(href)
           } else if (onUrlClick) {
-            onUrlClick(href)
+            onUrlClick(href, e)
           } else {
             // Default: open in new window
             window.open(href, '_blank', 'noopener,noreferrer')
@@ -385,11 +396,12 @@ export function Markdown({
   renderMention,
   renderImage,
   renderFileCard,
+  fileDownloadLabel,
   cdnDomain
 }: MarkdownProps): React.JSX.Element {
   const components = React.useMemo(
-    () => createComponents(mode, onUrlClick, onFileClick, renderMention, renderImage, renderFileCard),
-    [mode, onUrlClick, onFileClick, renderMention, renderImage, renderFileCard]
+    () => createComponents(mode, onUrlClick, onFileClick, renderMention, renderImage, renderFileCard, fileDownloadLabel),
+    [mode, onUrlClick, onFileClick, renderMention, renderImage, renderFileCard, fileDownloadLabel]
   )
 
   // Preprocess: convert mention shortcodes, raw URLs and file cards into

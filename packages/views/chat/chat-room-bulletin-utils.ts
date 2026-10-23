@@ -67,3 +67,18 @@ export function bulletinMessagePreview(
   if (text.length === 0) return "…";
   return [...text].length > 120 ? `${[...text].slice(0, 120).join("")}…` : text;
 }
+
+/** "14:05" today, "12 thg 9, 14:05" otherwise — in the app locale, not the browser's. */
+export function formatBulletinTime(iso: string, locale: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (date.toDateString() === now.toDateString()) return time;
+  // Date first, then the time (canvas): Vietnamese toLocaleString would put the time first.
+  const day = date.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+  return `${day}, ${time}`;
+}

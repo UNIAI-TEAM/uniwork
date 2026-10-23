@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 )
 
 // MembershipChecker verifies a user belongs to a workspace.
@@ -38,6 +41,25 @@ type OrganizationResolver func(ctx context.Context, workspaceID string) (organiz
 // parser's business too.
 type TokenParser func(token string) (userID string, err error)
 
+// Identity is what a member socket's access token proves once its session
+// has been checked.
+type Identity struct {
+	UserID    string
+	SessionID string
+	// ExpiresAt closes the socket when the token it was opened with expires;
+	// zero keeps it open.
+	ExpiresAt time.Time
+}
+
+// SessionParser verifies a member socket's access token, including that the
+// session behind it is still live.
+type SessionParser func(ctx context.Context, token string) (Identity, error)
+
+// CloseSessionEnded closes a socket whose access token expired or whose
+// session was revoked. The client refreshes its session before it
+// reconnects; after any other close code it simply reconnects.
+const CloseSessionEnded = 4001
+
 // ScopeAuthorizer decides whether a connection (identified by userID +
 // workspaceID) is allowed to subscribe to a given scope. Implementations
 // typically perform a DB lookup on the underlying resource (task / chat
@@ -46,6 +68,55 @@ type TokenParser func(token string) (userID string, err error)
 type ScopeAuthorizer interface {
 	AuthorizeScope(ctx context.Context, userID, workspaceID, scopeType, scopeID string) (bool, error)
 }
+
+// ScopeReleaser is implemented by a ScopeAuthorizer that caches decisions.
+// The hub calls it when a socket leaves a scope it was authorized for, by
+// unsubscribing or disconnecting, so the next subscription is asked afresh.
+type ScopeReleaser interface {
+	ReleaseScope(userID, workspaceID, scopeType, scopeID string)
+}
+
+// ScopeRevoker is implemented by a ScopeAuthorizer that caches decisions:
+// RevokeScope forgets every decision held for userID on scopeID, whatever
+// workspace asked, or all of userID's when scopeID is "", or every user's on
+// scopeID when userID is "".
+type ScopeRevoker interface {
+	RevokeScope(userID, scopeType, scopeID string)
+}
+
+// ScopeAuthorizers routes each scope type to its own authorizer. A scope type
+// without one is refused.
+type ScopeAuthorizers map[string]ScopeAuthorizer
+
+// AuthorizeScope asks the authorizer registered for scopeType.
+func (m ScopeAuthorizers) AuthorizeScope(ctx context.Context, userID, workspaceID, scopeType, scopeID string) (bool, error) {
+	a, ok := m[scopeType]
+	if !ok || a == nil {
+		return false, nil
+	}
+	return a.AuthorizeScope(ctx, userID, workspaceID, scopeType, scopeID)
+}
+
+// ReleaseScope forwards to the scope type's authorizer when it caches.
+func (m ScopeAuthorizers) ReleaseScope(userID, workspaceID, scopeType, scopeID string) {
+	if r, ok := m[scopeType].(ScopeReleaser); ok {
+		r.ReleaseScope(userID, workspaceID, scopeType, scopeID)
+	}
+}
+
+// RevokeScope forwards to the caching authorizers, every scope type's when
+// scopeType is "".
+func (m ScopeAuthorizers) RevokeScope(userID, scopeType, scopeID string) {
+	for t, a := range m {
+		if r, ok := a.(ScopeRevoker); ok && (scopeType == "" || t == scopeType) {
+			r.RevokeScope(userID, t, scopeID)
+		}
+	}
+}
+
+// scopeAuthorizeTimeout bounds one subscription check, which runs on the
+// socket's read loop: a slow database must not stall the socket's pings.
+const scopeAuthorizeTimeout = 5 * time.Second
 
 var allowedWSOrigins atomic.Value // holds []string
 var trustedProxies atomic.Value   // holds []netip.Prefix
@@ -208,6 +279,23 @@ const (
 	// grow that buffer without bound and OOM the process. Matches the usf daemon
 	// hub limit so both WebSocket surfaces answer this question the same way.
 	inboundReadLimit = 64 * 1024
+
+	// inboundFrameRate and inboundFrameBurst bound how fast one socket may
+	// send frames; past them it is closed with 1008. Steady traffic is a ping
+	// every 25s and the odd subscribe, but a client replays all its scopes on
+	// reconnect and swaps up to 25 lazily subscribed chat rooms as
+	// unsubscribe+subscribe pairs at once, so the burst covers that.
+	inboundFrameRate  = 10
+	inboundFrameBurst = 60
+
+	// maxScopesPerSocket caps the scopes one socket holds, the identity
+	// scopes joined at connect time included. The web client asks for at most
+	// 25 chat rooms plus the open task or meeting.
+	maxScopesPerSocket = 50
+
+	// maxSocketsPerUser caps the workspace sockets one user holds on this
+	// node: a tab per workspace plus the desktop app stays far below it.
+	maxSocketsPerUser = 20
 )
 
 var upgrader = websocket.Upgrader{
@@ -229,6 +317,8 @@ type Client struct {
 	conn           *websocket.Conn
 	send           chan []byte
 	userID         string
+	sessionID      string
+	expiresAt      time.Time
 	workspaceID    string
 	organizationID string
 	// lobbyMeetingID is set for public meeting lobby sockets; subscribed after register.
@@ -237,6 +327,8 @@ type Client struct {
 	// subscriptions is guarded by hub.mu. Tracks the scopes this client is
 	// currently in. Used to clean up rooms on disconnect.
 	subscriptions map[scopeKey]bool
+	// sendClosed is guarded by hub.mu and set when the hub closes send.
+	sendClosed bool
 
 	// lastSeenEventIDs is used by the dual-write broadcaster (and any
 	// future deliverer) to dedup messages that arrived first via the local
@@ -284,6 +376,7 @@ type SubscriptionCallback func(scopeType, scopeID string)
 type Hub struct {
 	rooms      map[scopeKey]map[*Client]bool
 	clients    map[*Client]bool // every connected client (used by global Broadcast and snapshots)
+	perUser    map[string]int   // workspace sockets held per user, guarded by mu
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
@@ -295,6 +388,10 @@ type Hub struct {
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
 	onLastSubscriber  SubscriptionCallback
+
+	// revokes bumps on every RevokeScope so a subscribe in flight can detect
+	// a kick that landed while authorize was still asking the gate.
+	revokes atomic.Uint64
 }
 
 // NewHub creates a new Hub instance.
@@ -302,6 +399,7 @@ func NewHub() *Hub {
 	return &Hub{
 		rooms:      make(map[scopeKey]map[*Client]bool),
 		clients:    make(map[*Client]bool),
+		perUser:    make(map[string]int),
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
@@ -321,6 +419,27 @@ func (h *Hub) SetOrganizationResolver(f OrganizationResolver) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.orgOf = f
+}
+
+func (h *Hub) scopeAuthorizer() ScopeAuthorizer {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.authorizer
+}
+
+// releaseScopes tells a caching authorizer that client no longer holds keys.
+// Only scopes the authorizer decided are released; the identity scopes a
+// socket joins at connect time never went through it.
+func (h *Hub) releaseScopes(client *Client, keys []scopeKey) {
+	r, ok := h.scopeAuthorizer().(ScopeReleaser)
+	if !ok {
+		return
+	}
+	for _, key := range keys {
+		if key.Type == ScopeMeeting {
+			r.ReleaseScope(client.userID, client.workspaceID, key.Type, key.ID)
+		}
+	}
 }
 
 func (h *Hub) organizationResolver() OrganizationResolver {
@@ -361,7 +480,7 @@ func (h *Hub) Run() {
 				h.subscribe(client, ScopeOrganization, client.organizationID)
 			}
 			if client.lobbyMeetingID != "" {
-				h.subscribe(client, ScopeMeeting, client.lobbyMeetingID)
+				h.subscribe(client, ScopeMeetingLobby, client.lobbyMeetingID)
 			}
 			slog.Info("ws client connected", "workspace_id", client.workspaceID, "user_id", client.userID, "total_clients", total)
 
@@ -374,6 +493,41 @@ func (h *Hub) Run() {
 	}
 }
 
+// reserveUserSocket takes one of userID's maxSocketsPerUser workspace
+// socket slots, or reports that none is left.
+func (h *Hub) reserveUserSocket(userID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.perUser[userID] >= maxSocketsPerUser {
+		return false
+	}
+	h.perUser[userID]++
+	return true
+}
+
+func (h *Hub) releaseUserSocket(userID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.releaseUserSocketLocked(userID)
+}
+
+// releaseUserSocketLocked expects h.mu held.
+func (h *Hub) releaseUserSocketLocked(userID string) {
+	if h.perUser[userID]--; h.perUser[userID] <= 0 {
+		delete(h.perUser, userID)
+	}
+}
+
+// forgetClientLocked takes c out of the global set and gives back its
+// socket slot; every path that drops a client goes through it. Expects h.mu held.
+func (h *Hub) forgetClientLocked(c *Client) {
+	delete(h.clients, c)
+	// Lobby sockets carry no workspace and never reserved a slot.
+	if c.workspaceID != "" {
+		h.releaseUserSocketLocked(c.userID)
+	}
+}
+
 // removeClient drops a client from all rooms and the global set.
 func (h *Hub) removeClient(client *Client) {
 	h.mu.Lock()
@@ -381,11 +535,13 @@ func (h *Hub) removeClient(client *Client) {
 		h.mu.Unlock()
 		return
 	}
-	delete(h.clients, client)
+	h.forgetClientLocked(client)
 	subs := client.subscriptions
 	client.subscriptions = nil
 	emptied := make([]scopeKey, 0, len(subs))
+	held := make([]scopeKey, 0, len(subs))
 	for key := range subs {
+		held = append(held, key)
 		if room, ok := h.rooms[key]; ok {
 			delete(room, client)
 			if len(room) == 0 {
@@ -395,12 +551,14 @@ func (h *Hub) removeClient(client *Client) {
 		}
 	}
 	close(client.send)
+	client.sendClosed = true
 	cb := h.onLastSubscriber
 	total := len(h.clients)
 	h.mu.Unlock()
 
 	M.DisconnectsTotal.Add(1)
 	M.ActiveConnections.Add(-1)
+	h.releaseScopes(client, held)
 	if cb != nil {
 		for _, key := range emptied {
 			cb(key.Type, key.ID)
@@ -656,12 +814,19 @@ func (h *Hub) evictSlow(slow []*Client) {
 		Type, ID string
 	}
 	var drainedRooms []emptied
+	type heldScopes struct {
+		client *Client
+		keys   []scopeKey
+	}
+	var released []heldScopes
 	for _, c := range slow {
 		if !h.clients[c] {
 			continue
 		}
-		delete(h.clients, c)
+		h.forgetClientLocked(c)
+		held := heldScopes{client: c, keys: make([]scopeKey, 0, len(c.subscriptions))}
 		for key := range c.subscriptions {
+			held.keys = append(held.keys, key)
 			if room, ok := h.rooms[key]; ok {
 				delete(room, c)
 				if len(room) == 0 {
@@ -670,9 +835,16 @@ func (h *Hub) evictSlow(slow []*Client) {
 				}
 			}
 		}
+		released = append(released, held)
 		c.subscriptions = nil
 		close(c.send)
+		c.sendClosed = true
 		evicted++
+		// Otherwise the read side lives on until the write deadline, still
+		// taking frames from a socket the hub has already dropped.
+		if c.conn != nil {
+			_ = c.conn.Close()
+		}
 	}
 	cb := h.onLastSubscriber
 	h.mu.Unlock()
@@ -681,6 +853,9 @@ func (h *Hub) evictSlow(slow []*Client) {
 		M.ActiveConnections.Add(int64(-evicted))
 		M.DisconnectsTotal.Add(int64(evicted))
 	}
+	for _, r := range released {
+		h.releaseScopes(r.client, r.keys)
+	}
 	for _, r := range drainedRooms {
 		M.DecRoom(r.Type)
 	}
@@ -688,6 +863,136 @@ func (h *Hub) evictSlow(slow []*Client) {
 		for _, r := range drainedRooms {
 			cb(r.Type, r.ID)
 		}
+	}
+}
+
+// drainBatches is how many groups DrainConnections splits the sockets into.
+const drainBatches = 20
+
+// DrainConnections closes every socket with 1012 (service restart) in
+// shuffled batches spread over window, so a deploy hands clients to the
+// other nodes gradually instead of all reconnecting in the same second. Once
+// ctx ends, whatever is left is closed at once.
+func (h *Hub) DrainConnections(ctx context.Context, window time.Duration) {
+	h.mu.RLock()
+	clients := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+	rand.Shuffle(len(clients), func(i, j int) { clients[i], clients[j] = clients[j], clients[i] })
+
+	n := min(drainBatches, len(clients))
+	for i := range n {
+		if i > 0 && ctx.Err() == nil {
+			select {
+			case <-ctx.Done():
+			case <-time.After(window / time.Duration(n)):
+			}
+		}
+		for _, c := range clients[i*len(clients)/n : (i+1)*len(clients)/n] {
+			// One goroutine each: the close frame waits behind any write in
+			// flight, and a stalled socket must not hold up the batch.
+			go c.closeWith(websocket.CloseServiceRestart, "server restarting")
+		}
+	}
+}
+
+// closeWith tells the peer why it is being let go, then drops the
+// connection; the read pump's cleanup unregisters the client.
+func (c *Client) closeWith(code int, text string) {
+	_ = c.conn.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(code, text), time.Now().Add(time.Second))
+	_ = c.conn.Close()
+}
+
+// DisconnectUser closes userID's sockets on this node: every one when
+// workspaceID is "", else those connected to workspaceID. Reconnecting goes
+// through the membership check again, so it ends access the user has lost.
+func (h *Hub) DisconnectUser(userID, workspaceID string) {
+	h.disconnect(userID, websocket.ClosePolicyViolation, "access revoked", func(c *Client) bool {
+		return workspaceID == "" || c.workspaceID == workspaceID
+	})
+}
+
+// DisconnectSession closes the sockets userID opened under sessionID, or all
+// of the user's when sessionID is "".
+func (h *Hub) DisconnectSession(userID, sessionID string) {
+	h.disconnect(userID, CloseSessionEnded, "session ended", func(c *Client) bool {
+		return sessionID == "" || c.sessionID == sessionID
+	})
+}
+
+func (h *Hub) disconnect(userID string, code int, text string, match func(*Client) bool) {
+	if userID == "" {
+		return
+	}
+	if r, ok := h.scopeAuthorizer().(ScopeRevoker); ok {
+		r.RevokeScope(userID, "", "")
+	}
+	h.closeWhere(code, text, func(c *Client) bool { return c.userID == userID && match(c) })
+}
+
+// DisconnectOrganization closes every socket on this node connected to a
+// workspace of organizationID and returns them. Scope grants need no revoking:
+// they are keyed by workspace, and reconnecting to one of these is refused.
+func (h *Hub) DisconnectOrganization(organizationID string) []*Client {
+	if organizationID == "" {
+		return nil
+	}
+	return h.closeWhere(websocket.ClosePolicyViolation, "organization suspended", func(c *Client) bool {
+		return c.organizationID == organizationID
+	})
+}
+
+func (h *Hub) closeWhere(code int, text string, match func(*Client) bool) []*Client {
+	h.mu.RLock()
+	var hit []*Client
+	for c := range h.clients {
+		if c.conn != nil && match(c) {
+			hit = append(hit, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range hit {
+		go c.closeWith(code, text)
+	}
+	return hit
+}
+
+// RevokeScope asks the authorizer afresh, past its cache, whether each of
+// userID's sockets holding (scopeType, scopeID) may keep it, and drops it
+// from those it no longer admits: a member kicked from a private room loses
+// it, one who left a public channel they can still read does not. An empty
+// userID rechecks every socket holding the scope.
+func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
+	h.revokes.Add(1)
+	auth := h.scopeAuthorizer()
+	if r, ok := auth.(ScopeRevoker); ok {
+		r.RevokeScope(userID, scopeType, scopeID)
+	}
+	h.mu.RLock()
+	var holders []*Client
+	for c := range h.rooms[sk(scopeType, scopeID)] {
+		if userID == "" || c.userID == userID {
+			holders = append(holders, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range holders {
+		h.recheck(c, scopeType, scopeID)
+	}
+}
+
+func (h *Hub) recheck(c *Client, scopeType, scopeID string) {
+	auth := h.scopeAuthorizer()
+	reason := "forbidden"
+	if auth != nil {
+		reason = c.authorizeScope(auth, scopeType, scopeID)
+	}
+	if reason != "" && h.unsubscribe(c, scopeType, scopeID) {
+		h.releaseScopes(c, []scopeKey{sk(scopeType, scopeID)})
+		c.refuseSubscribe(scopeType, scopeID, reason)
 	}
 }
 
@@ -773,7 +1078,7 @@ func writeWSAuthErrorAndClose(conn *websocket.Conn, payload []byte, attrs ...any
 
 // HandleWebSocket upgrades an HTTP connection to WebSocket with cookie or
 // first-message auth.
-func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
+func HandleWebSocket(hub *Hub, mc MembershipChecker, parse SessionParser, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
 	if workspaceID == "" {
 		if slug := r.URL.Query().Get("workspace_slug"); slug != "" && resolveSlug != nil {
@@ -791,6 +1096,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 	}
 
 	var userID string
+	var id Identity
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -812,15 +1118,25 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
 			return
 		}
-		uid, errMsg := authenticateToken(tokenStr, parse)
-		if errMsg != "" {
-			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
+		id, err = parse(r.Context(), tokenStr)
+		if err != nil || strings.TrimSpace(id.UserID) == "" {
+			writeWSAuthErrorAndClose(conn, []byte(`{"error":"invalid token"}`), "workspace_id", workspaceID)
 			return
 		}
+		uid := id.UserID
 		if !mc.IsMember(r.Context(), uid, workspaceID) {
 			writeWSAuthErrorAndClose(
 				conn,
 				[]byte(`{"error":"not a member of this workspace"}`),
+				"workspace_id", workspaceID,
+				"user_id", uid,
+			)
+			return
+		}
+		if !hub.reserveUserSocket(uid) {
+			writeWSAuthErrorAndClose(
+				conn,
+				[]byte(`{"error":"too many connections"}`),
 				"workspace_id", workspaceID,
 				"user_id", uid,
 			)
@@ -835,6 +1151,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 			"workspace_id", workspaceID,
 			"user_id", userID,
 		) {
+			hub.releaseUserSocket(userID)
 			conn.Close()
 			return
 		}
@@ -871,6 +1188,8 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 		conn:           conn,
 		send:           make(chan []byte, 256),
 		userID:         userID,
+		sessionID:      id.SessionID,
+		expiresAt:      id.ExpiresAt,
 		workspaceID:    workspaceID,
 		organizationID: organizationID,
 	}
@@ -892,7 +1211,18 @@ type subPayload struct {
 	ID    string `json:"id"`
 }
 
+// recoverPump keeps a panic in one socket's pump from killing the process:
+// it is logged, and the pump's own cleanup tears down that socket only.
+// Defer it directly (recover only works there) and first, so it runs last.
+func (c *Client) recoverPump(pump string) {
+	if r := recover(); r != nil {
+		slog.Error("ws: pump panic", "pump", pump, "panic", r, "stack", string(debug.Stack()),
+			"user_id", c.userID, "workspace_id", c.workspaceID)
+	}
+}
+
 func (c *Client) readPump() {
+	defer c.recoverPump("read")
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
@@ -903,6 +1233,7 @@ func (c *Client) readPump() {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
+	limiter := rate.NewLimiter(inboundFrameRate, inboundFrameBurst)
 
 	for {
 		_, raw, err := c.conn.ReadMessage()
@@ -920,6 +1251,20 @@ func (c *Client) readPump() {
 			case websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure):
 				slog.Debug("websocket read error", "error", err, "user_id", c.userID, "workspace_id", c.workspaceID)
 			}
+			break
+		}
+		// Any inbound data frame renews the deadline. Proxies that drop
+		// WebSocket control ping/pong still pass application frames, and
+		// clients send {"type":"ping"} as a keepalive through idle LBs.
+		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		if !limiter.Allow() {
+			slog.Warn("ws: inbound frame rate exceeded, closing",
+				"user_id", c.userID,
+				"workspace_id", c.workspaceID,
+			)
+			_ = c.conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "rate limit"),
+				time.Now().Add(writeWait))
 			break
 		}
 		c.handleFrame(raw)
@@ -960,78 +1305,124 @@ func (c *Client) handleFrame(raw []byte) {
 }
 
 func (c *Client) handleSubscribe(scope, id string) {
+	if scope == ScopeTask || scope == ScopeChat || scope == ScopeMeeting {
+		held, full := c.holds(scope, id)
+		if held {
+			// Authorized when it was taken: a repeat must not cost a lookup.
+			c.ackSubscribe(scope, id)
+			return
+		}
+		if full {
+			c.refuseSubscribe(scope, id, "too_many_scopes")
+			return
+		}
+	}
 	switch scope {
 	case ScopeWorkspace, ScopeUser, ScopeOrganization:
 		// Implicit scopes — only allowed if it matches the connection identity.
 		if (scope == ScopeWorkspace && id != c.workspaceID) ||
 			(scope == ScopeUser && id != c.userID) ||
 			(scope == ScopeOrganization && (c.organizationID == "" || id != c.organizationID)) {
-			M.SubscribeDeniedTotal(scope).Add(1)
-			c.sendJSON(map[string]any{
-				"type": "subscribe_error",
-				"payload": map[string]string{
-					"scope": scope,
-					"id":    id,
-					"error": "forbidden",
-				},
-			})
+			c.refuseSubscribe(scope, id, "forbidden")
 			return
 		}
 		// Already auto-subscribed at connect time; reply ack idempotently.
 		c.hub.subscribe(c, scope, id)
 	case ScopeTask, ScopeChat:
-		auth := c.hub.authorizer
-		if auth != nil {
-			ok, err := auth.AuthorizeScope(context.Background(), c.userID, c.workspaceID, scope, id)
-			if err != nil || !ok {
-				M.SubscribeDeniedTotal(scope).Add(1)
-				reason := "forbidden"
-				if err != nil {
-					reason = "lookup_failed"
-				}
-				c.sendJSON(map[string]any{
-					"type": "subscribe_error",
-					"payload": map[string]string{
-						"scope": scope,
-						"id":    id,
-						"error": reason,
-					},
-				})
+		startRevokes := c.hub.revokes.Load()
+		if auth := c.hub.scopeAuthorizer(); auth != nil {
+			if reason := c.authorizeScope(auth, scope, id); reason != "" {
+				c.refuseSubscribe(scope, id, reason)
 				return
 			}
 		}
 		c.hub.subscribe(c, scope, id)
+		if c.hub.revokes.Load() != startRevokes {
+			c.hub.recheck(c, scope, id)
+		}
+		if !c.holdsScope(scope, id) {
+			return
+		}
 	case ScopeMeeting:
-		M.SubscribeDeniedTotal(scope).Add(1)
-		c.sendJSON(map[string]any{
-			"type": "subscribe_error",
-			"payload": map[string]string{
-				"scope": scope,
-				"id":    id,
-				"error": "forbidden",
-			},
-		})
-		return
+		// Unlike task and chat, a meeting with no gate wired is refused: the
+		// scope carries in-room traffic, so it fails closed. A lobby socket
+		// has no workspace and already hears its meeting on the lobby scope.
+		startRevokes := c.hub.revokes.Load()
+		auth := c.hub.scopeAuthorizer()
+		if auth == nil || c.workspaceID == "" {
+			c.refuseSubscribe(scope, id, "forbidden")
+			return
+		}
+		if reason := c.authorizeScope(auth, scope, id); reason != "" {
+			c.refuseSubscribe(scope, id, reason)
+			return
+		}
+		c.hub.subscribe(c, scope, id)
+		if c.hub.revokes.Load() != startRevokes {
+			c.hub.recheck(c, scope, id)
+		}
+		if !c.holdsScope(scope, id) {
+			return
+		}
 	default:
-		M.SubscribeDeniedTotal(scope).Add(1)
-		c.sendJSON(map[string]any{
-			"type": "subscribe_error",
-			"payload": map[string]string{
-				"scope": scope,
-				"id":    id,
-				"error": "unknown_scope",
-			},
-		})
+		c.refuseSubscribe(scope, id, "unknown_scope")
 		return
 	}
+	c.ackSubscribe(scope, id)
+}
+
+func (c *Client) holdsScope(scope, id string) bool {
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	return c.subscriptions[sk(scope, id)]
+}
+
+func (c *Client) ackSubscribe(scope, id string) {
 	c.sendJSON(map[string]any{
 		"type":    "subscribe_ack",
 		"payload": map[string]string{"scope": scope, "id": id},
 	})
 }
 
+// holds reports whether the socket already holds (scope, id), and whether it
+// is at maxScopesPerSocket and so may take no other scope.
+func (c *Client) holds(scope, id string) (held, full bool) {
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	return c.subscriptions[sk(scope, id)], len(c.subscriptions) >= maxScopesPerSocket
+}
+
+// authorizeScope returns "" when auth admits this socket to (scope, id), or
+// the reason it does not.
+func (c *Client) authorizeScope(auth ScopeAuthorizer, scope, id string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), scopeAuthorizeTimeout)
+	defer cancel()
+	ok, err := auth.AuthorizeScope(ctx, c.userID, c.workspaceID, scope, id)
+	if err != nil {
+		return "lookup_failed"
+	}
+	if !ok {
+		return "forbidden"
+	}
+	return ""
+}
+
+func (c *Client) refuseSubscribe(scope, id, reason string) {
+	M.SubscribeDeniedTotal(scope).Add(1)
+	c.sendJSON(map[string]any{
+		"type": "subscribe_error",
+		"payload": map[string]string{
+			"scope": scope,
+			"id":    id,
+			"error": reason,
+		},
+	})
+}
+
 func (c *Client) handleUnsubscribe(scope, id string) {
-	c.hub.unsubscribe(c, scope, id)
+	if c.hub.unsubscribe(c, scope, id) {
+		c.hub.releaseScopes(c, []scopeKey{sk(scope, id)})
+	}
 	c.sendJSON(map[string]any{
 		"type":    "unsubscribe_ack",
 		"payload": map[string]string{"scope": scope, "id": id},
@@ -1040,10 +1431,18 @@ func (c *Client) handleUnsubscribe(scope, id string) {
 
 // sendJSON best-effort encodes v and pushes it to the client's send channel.
 // Drops the message if the channel is full (the writePump will be evicted by
-// the next BroadcastToScope cycle).
+// the next BroadcastToScope cycle) or the hub has already dropped the client.
+// The hub closes send under its write lock, so checking sendClosed under the
+// read lock makes the send safe: the read pump of an evicted socket can still
+// be handling a frame (C1: a send on the closed channel crashed the process).
 func (c *Client) sendJSON(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
+		return
+	}
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	if c.sendClosed {
 		return
 	}
 	select {
@@ -1053,9 +1452,20 @@ func (c *Client) sendJSON(v any) {
 }
 
 func (c *Client) writePump() {
+	defer c.recoverPump("write")
 	ticker := time.NewTicker(pingPeriod)
+	// Application keepalive beats edge/LB idle cuts (~50s) that ignore
+	// WebSocket control frames. Interval stays under the observed cut.
+	appKeepalive := time.NewTicker(25 * time.Second)
+	var expired <-chan time.Time
+	if !c.expiresAt.IsZero() {
+		expiry := time.NewTimer(time.Until(c.expiresAt))
+		defer expiry.Stop()
+		expired = expiry.C
+	}
 	defer func() {
 		ticker.Stop()
+		appKeepalive.Stop()
 		c.conn.Close()
 	}()
 
@@ -1071,11 +1481,22 @@ func (c *Client) writePump() {
 				slog.Warn("websocket write error", "error", err, "user_id", c.userID, "workspace_id", c.workspaceID)
 				return
 			}
+		case <-appKeepalive.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ping"}`)); err != nil {
+				return
+			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
+		case <-expired:
+			// The token vouched for this socket only until it expired; the
+			// client refreshes its session and reconnects with a live one.
+			_ = c.conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(CloseSessionEnded, "token expired"), time.Now().Add(writeWait))
+			return
 		}
 	}
 }

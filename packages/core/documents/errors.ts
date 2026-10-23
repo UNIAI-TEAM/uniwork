@@ -1,0 +1,182 @@
+import { ApiError, errorClassOf, errorCode, errorFields } from "../api/http";
+import { DOCUMENT_ACCESS_LEVELS, type DocumentAccessLevel, type DocumentErrorClass } from "../types/document";
+
+// Maps the stable wire codes of C-01 §14.5 onto the client-side classes the
+// save machine and the UI branch on — a mirror of errorClassByCode in
+// server/internal/handler/dto/sdo/error_class.go. Codes, not statuses, are
+// the primary signal: two codes can share a status and mean different
+// classes. The last two entries are absent from the server table today; they
+// only fire when the server sent no error_class at all, which means the
+// client still has to recover alone.
+const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
+  revision_conflict: "conflict",
+  document_version_conflict: "conflict",
+  idempotency_payload_mismatch: "conflict",
+  idempotency_key_reuse: "conflict",
+  idempotency_in_flight: "conflict",
+  upload_already_committed: "conflict",
+  copy_consent_required: "conflict",
+  owner_requires_copy: "conflict",
+  document_upload_invalid: "conflict",
+  // A folder create or rename asked for a name a live sibling holds (E6
+  // FD-02). The server stamps the class, so this entry only fires when the
+  // stamp is missing; it keeps the mirror true to errorClassByCode.
+  folder_name_taken: "conflict",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved. The server stamps read_only; this entry mirrors
+  // error_class.go when the stamp is stripped or the client predates it.
+  document_shelved: "read_only",
+  my_folder_locked: "conflict",
+  // UNI-2055 W2: a workspace folder cannot move into My Folder or under it.
+  folder_into_my_folder: "conflict",
+  document_deleted: "gone",
+  quota_exceeded: "quota",
+  forbidden: "permission",
+  member_deactivated: "permission",
+  workspace_seat_required: "permission",
+  organization_suspended: "permission",
+  not_meeting_host: "permission",
+  ai_context_forbidden: "permission",
+  ai_tool_not_allowed: "permission",
+  platform_role_insufficient: "permission",
+  // The offline lease is revoked, from an older policy epoch, gone or its
+  // signature no longer verifies (G5-D1 row 15): the app drops its committed
+  // copy and keeps the locked drafts. Mirrors error_class.go.
+  offline_lease_revoked: "permission",
+  not_found: "missing",
+  engine_incompatible: "incompatible",
+  unauthorized: "session",
+  invalid_token: "session",
+  invalid_code: "session",
+  // The desktop device session is gone (device_revoked) or its refresh token
+  // was already spent (refresh_reused): both run the session recovery path.
+  // Mirrors error_class.go.
+  device_revoked: "session",
+  refresh_reused: "session",
+  // 423: someone else holds the edit lock (UNI-1645). The server carries no
+  // class for it, so this entry is the only path to "locked" - without it a
+  // 423 classifies unknown and the save machine keeps retrying.
+  document_locked: "locked",
+  // Client-only fallbacks for plausible codes the server table omits.
+  document_version_unchanged: "conflict",
+  file_too_large: "quota",
+};
+
+function statusToClass(status: number): DocumentErrorClass | null {
+  switch (status) {
+    case 401:
+      return "session";
+    case 403:
+      return "permission";
+    case 404:
+      return "missing";
+    case 409:
+      return "conflict";
+    case 410:
+      return "gone";
+    // 422 deliberately absent: it means "understood but rejected", which
+    // spans conflict codes AND validation failures — a bare 422 must not
+    // freeze the save machine in conflict. Codes carry the real meaning;
+    // an unrecognized 422 falls to "unknown" and stays retryable.
+    default:
+      return null;
+  }
+}
+
+export interface ClassifiedDocumentError {
+  /** A declared class, or "unknown" for network failures, timeouts and
+   *  anything the classifier cannot place. */
+  cls: DocumentErrorClass | "unknown";
+  code: string | null;
+  fields: Record<string, unknown> | undefined;
+}
+
+/**
+ * Classify a failed documents call. The server's `error.error_class` stamp
+ * (lane g1-05e) wins; an absent or unknown stamp falls back to the stable
+ * code, then the status. Non-ApiError rejections (network down, abort,
+ * transport timeout) are "unknown": the caller keeps the draft and retries
+ * rather than escalating to a terminal state.
+ */
+export function classifyDocumentError(err: unknown): ClassifiedDocumentError {
+  if (err instanceof ApiError) {
+    // The server's declared class wins; an unknown or absent stamp falls
+    // back to the stable code, then the status.
+    const declared = errorClassOf(err);
+    if (declared) {
+      return { cls: declared, code: err.code || null, fields: err.fields };
+    }
+    const code = errorCode(err);
+    if (code && CODE_TO_CLASS[code]) {
+      return { cls: CODE_TO_CLASS[code], code, fields: errorFields(err) };
+    }
+    const byStatus = statusToClass(err.status);
+    if (byStatus) return { cls: byStatus, code: code ?? null, fields: errorFields(err) };
+    return { cls: "unknown", code: code ?? null, fields: errorFields(err) };
+  }
+  return { cls: "unknown", code: null, fields: undefined };
+}
+
+/** The conflict classes after which a save must stop and ask, never retry on
+ *  a silently newer base (plan G1-05 save-state contract). */
+export function isConflictClass(cls: DocumentErrorClass | "unknown"): boolean {
+  return cls === "conflict";
+}
+
+/**
+ * The people a batch share refused (UNI-1641): a 422
+ * `principal_not_in_organization` carries the offending ids, in request
+ * order, in `fields.principal_ids`. Null for any other failure, so the caller
+ * falls back to the generic message; non-string entries are dropped.
+ */
+export function sharePrincipalsNotInOrganization(err: unknown): string[] | null {
+  if (errorCode(err) !== "principal_not_in_organization") return null;
+  const ids = errorFields(err)?.principal_ids;
+  if (!Array.isArray(ids)) return null;
+  return ids.filter((id): id is string => typeof id === "string" && id !== "");
+}
+
+/**
+ * The ceiling on a share for the document's own workspace (SH-S1 Q-S1). The
+ * server answers that refusal — 422 `level_not_allowed`, the home row tops out
+ * below manage — with the top level it does take in `fields.max`. The code is
+ * deliberately unclassified (`dto/sdo/error_class.go`: the caller may share,
+ * so not permission; nothing needs a reload, so not conflict), so it never
+ * reaches CODE_TO_CLASS and this helper is the client's whole reading of it.
+ * Null for any other failure, so a caller keeps its own state instead of
+ * lowering a level that was never refused.
+ */
+export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | null {
+  if (errorCode(err) !== "level_not_allowed") return null;
+  const max = errorFields(err)?.max;
+  if (typeof max !== "string") return null;
+  return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
+}
+
+/**
+ * True when a purge or restore request targeted a document that is not in the
+ * trash (`400 document_not_in_trash`, RESTORE-01 §2 P-1). Deliberately
+ * unclassified so it does not trigger save-conflict, quota or gone recovery.
+ */
+export function isDocumentNotInTrashError(err: unknown): boolean {
+  return errorCode(err) === "document_not_in_trash";
+}
+
+/**
+ * True when an archive or purge subtree exceeded the per-command node bound
+ * (`400`/`422 folder_too_large`, FD-06 / RESTORE-01 §2 P-7). Deliberately
+ * unclassified so it does not trigger billing quota or save-conflict recovery.
+ */
+export function isFolderTooLargeError(err: unknown): boolean {
+  return errorCode(err) === "folder_too_large";
+}
+
+/**
+ * True when a write refused because the document sits in "Lưu trữ" (`409
+ * document_shelved`, ARCHIVE-01 §0/§3). Views switch the open document to its
+ * read-only shell off this - U-10 invalidates the document so the UI settles
+ * while the caller keeps the unsent draft.
+ */
+export function isDocumentShelvedError(err: unknown): boolean {
+  return errorCode(err) === "document_shelved";
+}

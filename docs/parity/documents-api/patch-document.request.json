@@ -1,0 +1,11 @@
+{
+  "revision": "41",
+  "title": "Kế hoạch Q4 (bản nháp)",
+  "content": {
+    "type": "doc",
+    "content": [
+      { "type": "heading", "attrs": { "level": 2 }, "content": [ { "type": "text", "text": "Kế hoạch Q4" } ] },
+      { "type": "paragraph", "content": [ { "type": "text", "text": "Mục tiêu quý này đã cập nhật." } ] }
+    ]
+  }
+}

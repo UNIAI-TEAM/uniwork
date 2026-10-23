@@ -249,7 +249,7 @@ Danh sách command **bắt buộc** ghi audit trong đợt này (thêm dần b�
 | task | `task.created`, `task.updated`, `task.deleted`, `task.comment_added` |
 | meeting | mọi `event_type` hiện có của `meeting_audit_logs`, đổi sang action `meeting.<verb>` chữ thường |
 | auth | `auth.login_succeeded`, `auth.login_failed`, `auth.password_reset_requested`, `auth.password_changed`, `auth.session_revoked` — `workspace_id` NULL, `organization_id` = org đang active hoặc `''`? → **Không.** Auth ghi với `organization_id` của user nếu có đúng một org, còn lại ghi một dòng cho mỗi org user thuộc về (câu hỏi mở §11) |
-| chat | `chat.room.created`, `chat.room.member_added`, `chat.room.member_removed`, `chat.message.deleted` (không audit tạo/sửa tin nhắn: quá nhiều, đã có lịch sử trong bảng) |
+| chat | `chat.room.created`, `chat.room.member_added`, `chat.room.member_removed`, `chat.room.member_updated`, `chat.message.deleted` (không audit tạo/sửa tin nhắn: quá nhiều, đã có lịch sử trong bảng) |
 
 ### 4.3 Correlation id
 

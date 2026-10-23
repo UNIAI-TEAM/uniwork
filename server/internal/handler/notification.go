@@ -16,11 +16,17 @@ func toNotificationDTO(it notification.Item) sdo.NotificationDTO {
 	if !json.Valid(params) {
 		params = json.RawMessage("{}")
 	}
+	var samples []sdo.NotificationSampleDocumentDTO
+	for _, d := range it.SampleDocuments {
+		samples = append(samples, sdo.NotificationSampleDocumentDTO{ID: d.ID, Title: d.Title})
+	}
 	return sdo.NotificationDTO{
 		ID: it.ID, Kind: it.Kind, WorkspaceID: it.WorkspaceID.String, OrganizationID: it.OrganizationID,
-		ResourceType: it.ResourceType, ResourceID: it.ResourceID, ResourceDeleted: it.ResourceDeleted,
+		ResourceType: it.ResourceType, ResourceID: it.ResourceID, ResourceDeleted: it.ResourceDeleted, ResourceParentID: it.ResourceParentID,
+		ResourceAccessLost: it.ResourceAccessLost, CommentDeleted: it.CommentDeleted,
 		ActorKind: it.ActorKind, ActorID: it.ActorID, TitleKey: it.TitleKey, Params: params, Count: it.Count,
 		ReadAt: notification.OptTime(it.ReadAt), CreatedAt: notification.OptTime(it.CreatedAt), UpdatedAt: notification.OptTime(it.UpdatedAt),
+		SampleDocuments: samples,
 	}
 }
 
@@ -66,9 +72,16 @@ func (h *handlers) markNotificationsRead(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	userID := middleware.UserID(r.Context())
+	// all=true answers with the ids it read, so "mark all" can be undone;
+	// explicit ids already sit with the caller.
+	read := []string{}
 	var err error
 	if in.All {
-		_, err = h.Notifications.MarkAllRead(r.Context(), userID, in.WorkspaceID)
+		var ids []string
+		ids, err = h.Notifications.MarkAllRead(r.Context(), userID, in.WorkspaceID)
+		if ids != nil {
+			read = ids
+		}
 	} else {
 		err = h.Notifications.MarkRead(r.Context(), userID, in.IDs)
 	}
@@ -76,7 +89,7 @@ func (h *handlers) markNotificationsRead(w http.ResponseWriter, r *http.Request)
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+	respondJSON(w, 200, sdo.NotificationsReadSDO{Status: "ok", IDs: read})
 }
 
 func (h *handlers) markNotificationsUnread(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +110,18 @@ func (h *handlers) archiveNotifications(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := h.Notifications.Archive(r.Context(), middleware.UserID(r.Context()), in.IDs); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) unarchiveNotifications(w http.ResponseWriter, r *http.Request) {
+	var in sdi.NotificationIDsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Notifications.Unarchive(r.Context(), middleware.UserID(r.Context()), in.IDs); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
@@ -147,7 +172,7 @@ func (h *handlers) subscribePush(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent())
+	err := h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent(), in.Platform)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

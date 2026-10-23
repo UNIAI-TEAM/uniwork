@@ -297,9 +297,7 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 				"depends_on_task_id": dependsOnID, "type": depType,
 			},
 		}),
-	}, audit.Event{Topic: "task.updated", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+	}, dependencyEvents(task.WorkspaceID, task.ID, dependsOnID)...); err != nil {
 		return db.TaskDependency{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -352,12 +350,26 @@ func (s *TaskService) RemoveDependency(ctx context.Context, actor Actor, taskID,
 				"depends_on_task_id": dependsOnTaskID, "type": depType,
 			},
 		}, nil),
-	}, audit.Event{Topic: "task.updated", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+	}, dependencyEvents(task.WorkspaceID, task.ID, dependsOnTaskID)...); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// dependencyEvents names both tasks of a dependency, which relates them both.
+// The Work Graph edge of blocks(a, b) is b→a, and only b's projection writes
+// it. With a alone named, b was reached through a's projection, which cannot
+// see an edge b's projection has not committed yet: a dependency removed
+// while b was being projected left the edge open with nothing marked to close
+// it.
+func dependencyEvents(workspaceID string, taskIDs ...string) []audit.Event {
+	evs := make([]audit.Event, 0, len(taskIDs))
+	for _, id := range taskIDs {
+		evs = append(evs, audit.Event{Topic: "task.updated", Payload: map[string]string{
+			"task_id": id, "workspace_id": workspaceID,
+		}})
+	}
+	return evs
 }
 
 func (s *TaskService) detectParentCycle(ctx context.Context, taskID, newParentID string) error {

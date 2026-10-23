@@ -1,0 +1,127 @@
+{
+  "preparedOn": "2026-10-12",
+  "content": "Real application interfaces with isolated demonstration records; no generated interface artwork.",
+  "assets": [
+    {
+      "file": "tasks.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 26136,
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 35566,
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 23948,
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.vi.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 50524,
+      "source": "real document editor capture from scripts/office-landing/capture.mjs"
+    },
+    {
+      "file": "tasks.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 25258,
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 34610,
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 23644,
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.en.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 46364,
+      "source": "real document editor capture from scripts/office-landing/capture.mjs"
+    },
+    {
+      "file": "tasks.vi.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 20488,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.vi.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 35134,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.vi.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 20894,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.vi.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 62194,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/documents/{document}"
+    },
+    {
+      "file": "tasks.en.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 18872,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/tasks"
+    },
+    {
+      "file": "chat.en.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 33898,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/chat"
+    },
+    {
+      "file": "meetings.en.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 20276,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/meetings"
+    },
+    {
+      "file": "docs.en.dark.webp",
+      "width": 940,
+      "height": 680,
+      "bytes": 56684,
+      "theme": "dark",
+      "source": "authenticated local app /{org}/{workspace}/documents/{document}"
+    }
+  ],
+  "darkPreparedOn": "2026-10-13"
+}

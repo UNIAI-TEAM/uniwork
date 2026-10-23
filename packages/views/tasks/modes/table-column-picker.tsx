@@ -6,6 +6,7 @@ import {
   TABLE_SYSTEM_COLUMNS,
   type TableSystemColumnKey,
 } from "@uniwork/core/tasks/stores/view-store";
+import type { TaskProperty } from "@uniwork/core/types";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -21,16 +22,22 @@ import { Input } from "@uniwork/ui/components/ui/input";
 
 type ColumnLabelKey = TableSystemColumnKey;
 
+const NO_PROPERTIES: ReadonlyMap<string, TaskProperty> = new Map();
+
 /**
- * Column visibility picker. Property columns stay visible-disabled until the
- * property catalog capability ships.
+ * Column visibility picker: system columns, then the workspace's active
+ * custom properties. While the property capability is off, the property
+ * section stays visible-disabled with its reason.
  */
 export function TableColumnPicker({
   trigger,
+  properties = NO_PROPERTIES,
   propertiesDisabled = true,
   propertiesDisabledReason,
 }: {
   trigger: ReactElement;
+  /** The property catalog by id; archived properties are not offered. */
+  properties?: ReadonlyMap<string, TaskProperty>;
   propertiesDisabled?: boolean;
   propertiesDisabledReason?: string;
 }) {
@@ -39,7 +46,7 @@ export function TableColumnPicker({
   const tableColumns = useViewStore((state) => state.tableColumns);
   const toggleTableColumn = useViewStore((state) => state.toggleTableColumn);
   const selected = useMemo(
-    () => new Set(tableColumns.map((column) => column.key)),
+    () => new Set<string>(tableColumns.map((column) => column.key)),
     [tableColumns],
   );
   const query = search.trim().toLocaleLowerCase();
@@ -48,6 +55,14 @@ export function TableColumnPicker({
       .toLocaleLowerCase()
       .includes(query),
   );
+  const propertyColumns = propertiesDisabled
+    ? []
+    : [...properties.values()]
+        .filter((property) => !property.archived_at)
+        .sort((a, b) => a.position - b.position)
+        .filter((property) => property.name.toLocaleLowerCase().includes(query));
+  const noResults =
+    systemColumns.length === 0 && (propertiesDisabled || propertyColumns.length === 0);
 
   return (
     <DropdownMenu>
@@ -82,32 +97,50 @@ export function TableColumnPicker({
               ))}
             </DropdownMenuGroup>
           ) : null}
-          <>
-            {systemColumns.length > 0 ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                {t("tasks.table.columns.property_section")}
-              </DropdownMenuLabel>
-              <div className="px-2 py-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto w-full justify-start px-2 py-1.5 text-caption text-muted-foreground"
-                  disabled={propertiesDisabled}
-                  title={
-                    propertiesDisabled
-                      ? (propertiesDisabledReason ??
-                        t("capabilities.unknown"))
-                      : undefined
-                  }
-                >
-                  {t("tasks.table.columns.properties_stub")}
-                </Button>
-              </div>
-            </DropdownMenuGroup>
-          </>
-          {systemColumns.length === 0 ? (
+          {propertiesDisabled ? (
+            <>
+              {systemColumns.length > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  {t("tasks.table.columns.property_section")}
+                </DropdownMenuLabel>
+                <div className="px-2 py-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto w-full justify-start px-2 py-1.5 text-caption text-muted-foreground"
+                    disabled
+                    title={propertiesDisabledReason ?? t("capabilities.unknown")}
+                  >
+                    {t("tasks.table.columns.properties_stub")}
+                  </Button>
+                </div>
+              </DropdownMenuGroup>
+            </>
+          ) : propertyColumns.length > 0 ? (
+            <>
+              {systemColumns.length > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  {t("tasks.table.columns.property_section")}
+                </DropdownMenuLabel>
+                {propertyColumns.map((property) => {
+                  const key = `property:${property.id}` as const;
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={key}
+                      checked={selected.has(key)}
+                      onCheckedChange={() => toggleTableColumn(key)}
+                    >
+                      <span className="truncate">{property.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </>
+          ) : null}
+          {noResults ? (
             <p className="px-2 py-6 text-center text-caption text-muted-foreground">
               {t("tasks.table.columns.no_results")}
             </p>

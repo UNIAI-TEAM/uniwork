@@ -69,6 +69,22 @@ func errChatThreadAlreadySynced() error {
 	return coded(http.StatusConflict, "chat_thread_already_synced", "thread đã nối với một task khác")
 }
 
+func errChatTaskAlreadySynced() error {
+	return coded(http.StatusConflict, "chat_task_already_synced", "task đã nối với một thread khác")
+}
+
+func errChatThreadSyncPrivate() error {
+	return coded(http.StatusBadRequest, "chat_thread_sync_private", "không thể đồng bộ thread của phòng riêng tư sang task")
+}
+
+// chatRoomIsPrivate reports whether a room is narrower than its workspace.
+// A task's comments are read by the whole workspace, so a private room's
+// thread replies must never be mirrored into them.
+func chatRoomIsPrivate(room db.ChatRoom) bool {
+	return room.Kind != chatRoomKindWorkspace &&
+		(room.Kind != chatRoomKindChannel || room.Visibility != chatVisibilityPublic)
+}
+
 func errChatProjectNotFound() error {
 	return coded(http.StatusNotFound, "project_not_found", "không tìm thấy project")
 }
@@ -119,6 +135,16 @@ func (s *ChatService) loadMessageForLink(
 	return room, msg, nil
 }
 
+// requireLinkWriter: reading a room is enough to see its links and synced
+// threads, but changing them changes what everyone in the room sees, so it
+// needs the same standing as writing there: an active member who may send.
+func (s *ChatService) requireLinkWriter(ctx context.Context, userID, workspaceID string, room db.ChatRoom) error {
+	if _, err := s.authorizeRoom(ctx, userID, workspaceID, room.ID); err != nil {
+		return err
+	}
+	return s.requireCanSendInRoom(ctx, userID, room.ID, room)
+}
+
 func chatMessageLinkRow(row db.ChatMessageLink) ChatMessageLinkRow {
 	return ChatMessageLinkRow{
 		ID: row.ID, MessageID: row.MessageID, TargetType: row.TargetType,
@@ -137,6 +163,13 @@ func (s *ChatService) CreateTaskFromMessage(
 	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
 		return db.Task{}, err
+	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return db.Task{}, err
+	}
+	// Refused before the task exists, so a refusal leaves nothing behind.
+	if in.SyncThread && chatRoomIsPrivate(room) {
+		return db.Task{}, errChatThreadSyncPrivate()
 	}
 	if in.ProjectID != nil && strings.TrimSpace(*in.ProjectID) != "" {
 		ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -219,6 +252,9 @@ func (s *ChatService) LinkChatMessage(
 	if err != nil {
 		return ChatMessageLinkRow{}, err
 	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return ChatMessageLinkRow{}, err
+	}
 	task, err := s.tasks.Get(ctx, userID, targetID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
@@ -239,16 +275,40 @@ func (s *ChatService) LinkChatMessage(
 	return s.insertMessageLink(ctx, userID, room, msg, targetType, targetID, chatLinkRelationMentions)
 }
 
-// ListChatMessageLinks returns links for one message.
-func (s *ChatService) ListChatMessageLinks(
-	ctx context.Context, userID, workspaceID, messageID string,
+// maxRoomMessageLinkIDs caps one batch: a timeline page is 50 messages and the
+// client keeps a few pages in memory, so 200 covers it with room to spare.
+const maxRoomMessageLinkIDs = 200
+
+// ListRoomMessageLinks returns the links of many messages in one room, so a
+// timeline asks once instead of once per message. Ids outside the room simply
+// have no rows; the room gate is the only visibility check needed.
+func (s *ChatService) ListRoomMessageLinks(
+	ctx context.Context, userID, workspaceID, roomID string, messageIDs []string,
 ) ([]ChatMessageLinkRow, error) {
-	_, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
-	if err != nil {
+	if _, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID); err != nil {
 		return nil, err
 	}
-	rows, err := s.q.ListChatMessageLinksByMessage(ctx, db.ListChatMessageLinksByMessageParams{
-		MessageID: msg.ID, WorkspaceID: workspaceID,
+	seen := make(map[string]struct{}, len(messageIDs))
+	ids := make([]string, 0, len(messageIDs))
+	for _, id := range messageIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) > maxRoomMessageLinkIDs {
+		return nil, Invalid(fmt.Sprintf("tối đa %d tin nhắn mỗi lần", maxRoomMessageLinkIDs))
+	}
+	if len(ids) == 0 {
+		return []ChatMessageLinkRow{}, nil
+	}
+	rows, err := s.q.ListChatMessageLinksByRoomMessages(ctx, db.ListChatMessageLinksByRoomMessagesParams{
+		RoomID: roomID, MessageIds: ids,
 	})
 	if err != nil {
 		return nil, err
@@ -260,24 +320,78 @@ func (s *ChatService) ListChatMessageLinks(
 	return out, nil
 }
 
-// UnlinkChatMessage removes a link from a message.
+// The info panel shows a few linked tasks and a "see all" count.
+const (
+	chatRoomLinkedTasksDefault = 20
+	chatRoomLinkedTasksMax     = 50
+)
+
+// ListRoomLinkedTasks returns the tasks this room's messages link to, each
+// once, most recently linked first, and how many there are in all. Reading the
+// room is enough, as for the links themselves; the tasks are the path
+// workspace's, which the room gate already required the caller to belong to.
+func (s *ChatService) ListRoomLinkedTasks(
+	ctx context.Context, userID, workspaceID, roomID string, limit int,
+) ([]db.ListChatRoomLinkedTasksRow, int, error) {
+	if _, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 {
+		limit = chatRoomLinkedTasksDefault
+	}
+	// shortcut: tasks linked from another workspace of an org-level DM/group are omitted; gate each task's workspace if the panel must show them.
+	rows, err := s.q.ListChatRoomLinkedTasks(ctx, db.ListChatRoomLinkedTasksParams{
+		RoomID: roomID, WorkspaceID: workspaceID, RowLimit: int32(min(limit, chatRoomLinkedTasksMax)),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	total := 0
+	if len(rows) > 0 {
+		total = int(rows[0].Total)
+	}
+	return rows, total, nil
+}
+
+// UnlinkChatMessage removes a link from a message (requireLinkWriter).
 func (s *ChatService) UnlinkChatMessage(
 	ctx context.Context, userID, workspaceID, messageID, linkID string,
 ) error {
-	_, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
+	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
 		return err
 	}
-	n, err := s.q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
-		ID: linkID, WorkspaceID: workspaceID, MessageID: msg.ID,
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	targetID, err := q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
+		ID: linkID, RoomID: room.ID, MessageID: msg.ID,
 	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	// Same topic as linking: clients refetch the message's links either way,
+	// so other viewers stop showing the task without waiting for staleTime.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		Actor: Human(userID), Action: audit.ActionChatMessageUnlinked,
+		ResourceType: "chat_message", ResourceID: msg.ID,
+		Metadata: map[string]any{"link_id": linkID},
+	}, audit.Event{Topic: "chat.message.linked", Payload: map[string]string{
+		"room_id": room.ID, "message_id": msg.ID, "target_id": targetID,
+	}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *ChatService) insertMessageLink(
@@ -290,7 +404,7 @@ func (s *ChatService) insertMessageLink(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	row, err := q.CreateChatMessageLink(ctx, db.CreateChatMessageLinkParams{
 		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: anchorWS, RoomID: room.ID,
@@ -347,6 +461,9 @@ func (s *ChatService) SyncThreadTask(
 	if err != nil {
 		return db.ChatThreadTaskLink{}, err
 	}
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return db.ChatThreadTaskLink{}, err
+	}
 	if !threadAllowedOnRoom(room) {
 		return db.ChatThreadTaskLink{}, errChatThreadNotFound()
 	}
@@ -360,11 +477,23 @@ func (s *ChatService) SyncThreadTask(
 	if task.WorkspaceID != workspaceID {
 		return db.ChatThreadTaskLink{}, errChatLinkTargetNotFound()
 	}
+	// After the task checks, so a foreign task still answers 404 here.
+	if chatRoomIsPrivate(room) {
+		return db.ChatThreadTaskLink{}, errChatThreadSyncPrivate()
+	}
 	if existing, err := s.q.GetChatThreadTaskLinkByThread(ctx, root.ID); err == nil {
 		if existing.TaskID == taskID {
 			return existing, nil
 		}
 		return db.ChatThreadTaskLink{}, errChatThreadAlreadySynced()
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return db.ChatThreadTaskLink{}, err
+	}
+	if other, err := s.q.GetChatThreadTaskLinkByTask(ctx, taskID); err == nil {
+		if other.ThreadRootID != root.ID {
+			return db.ChatThreadTaskLink{}, errChatTaskAlreadySynced()
+		}
+		return other, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.ChatThreadTaskLink{}, err
 	}
@@ -375,7 +504,7 @@ func (s *ChatService) SyncThreadTask(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	anchorWS := roomAnchorWorkspaceID(room)
 	row, err := q.CreateChatThreadTaskLink(ctx, db.CreateChatThreadTaskLinkParams{
 		ID: util.NewID(), OrganizationID: orgID, WorkspaceID: anchorWS, RoomID: room.ID,
@@ -404,20 +533,39 @@ func (s *ChatService) SyncThreadTask(
 	return row, nil
 }
 
-// UnsyncThreadTask removes the thread↔task link.
+// UnsyncThreadTask removes the thread↔task link with its audit row and a
+// chat.thread.unlinked event in one transaction (ADR 0009); the Work Graph
+// closes the task's DISCUSSED_IN edge from that event (C-11 §5.2).
 func (s *ChatService) UnsyncThreadTask(ctx context.Context, userID, workspaceID, threadRootID string) error {
-	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
+	room, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
 		return err
 	}
-	n, err := s.q.DeleteChatThreadTaskLinkByThread(ctx, db.DeleteChatThreadTaskLinkByThreadParams{
-		ThreadRootID: root.ID, WorkspaceID: workspaceID,
-	})
+	if err := s.requireLinkWriter(ctx, userID, workspaceID, room); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	link, err := q.UnlinkChatThreadTask(ctx, db.UnlinkChatThreadTaskParams{ThreadRootID: root.ID, WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: link.OrganizationID, WorkspaceID: link.WorkspaceID,
+		Actor: Human(userID), Action: audit.ActionChatThreadTaskUnlinked,
+		ResourceType: "chat_thread", ResourceID: root.ID,
+		Metadata: map[string]any{"task_id": link.TaskID, "direction": link.Direction},
+	}, audit.Event{Topic: "chat.thread.unlinked", Payload: map[string]string{
+		"room_id": link.RoomID, "thread_root_id": root.ID, "task_id": link.TaskID,
+	}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

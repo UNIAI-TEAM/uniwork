@@ -1,0 +1,698 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+// isoReference is one write on B's own route whose body names a row of
+// another tenant. The path is always filled with B's ids; the body is built
+// twice from the same template — once naming B's own rows (the control: the
+// request is well-formed and B may make it) and once naming A's rows (the
+// attack: refused, nothing of A's in the answer, no B row left pointing at A).
+type isoReference struct {
+	method, pattern, what string
+	query                 string
+	// body is a JSON template: isoRef("key") is the referenced tenant's row,
+	// isoOwn("key") is always B's.
+	body any
+	// allow2xx marks a filter or a batch: answering is fine as long as it
+	// shows and changes nothing of A's.
+	allow2xx bool
+	// docKey names the fixture document the path's {documentID} should name
+	// instead of the default page (for an anchor case, a file document).
+	docKey string
+	// noControl says why the own-ids request is not sent (it is
+	// destructive, or there is no own counterpart).
+	noControl string
+	// idempotent adds an Idempotency-Key header.
+	idempotent bool
+	// covers names the request DTO fields the case attacks
+	// ("CreateTaskSDI.project_id"); TestEveryBodyIDFieldHasAReferenceCase
+	// requires every id field of every SDI to be covered or exempted.
+	covers []string
+	// mustNotContain lists strings the attack's answer may not hold even
+	// when it is 2xx (a URL, a ticket).
+	mustNotContain []string
+	// multipart, when set, makes the case a multipart request instead of a
+	// JSON one: its fields resolve like body (so a field may name the other
+	// tenant's row), and the file part is fixed. A route whose SDI carries
+	// formData tags only (the chat media sends) has no JSON body to attack.
+	multipart *isoMultipart
+	// multipartFields are the form fields of a multipart case, resolved with
+	// isoResolve before they are sent.
+	multipartFields map[string]any
+	// afterControl runs after the own-rows control in referenceControls.
+	afterControl func(t *testing.T, w *isoWorld)
+	// afterAttack runs after each cross-tenant / member-of-both reference
+	// attack to assert the stored state (e.g. an empty source on a stored row).
+	afterAttack func(t *testing.T, w *isoWorld, label string)
+}
+
+type isoRef string       // the referenced tenant's row
+type isoOwn string       // always the caller's own row
+type isoUnique string    // a title unique to the case and the referenced tenant
+type isoAt time.Duration // a timestamp this far from now, RFC3339
+
+// isoResolve fills a template: ref is the tenant whose rows isoRef names;
+// salt keeps isoUnique titles apart across cases.
+func isoResolve(v any, own, ref *isoTenant, salt string) any {
+	switch x := v.(type) {
+	case isoRef:
+		return ref.ids[string(x)]
+	case isoOwn:
+		return own.ids[string(x)]
+	case isoAt:
+		return time.Now().Add(time.Duration(x)).UTC().Truncate(time.Minute).Format(time.RFC3339)
+	case isoUnique:
+		return string(x) + " " + isoHash(salt+string(x)+ref.tag)
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = isoResolve(e, own, ref, salt)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = isoResolve(e, own, ref, salt)
+		}
+		return out
+	}
+	return v
+}
+
+func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
+	salt := c.method + c.pattern + c.what
+	if c.multipart != nil {
+		mp := *c.multipart
+		fields := make(map[string]string, len(c.multipartFields))
+		for k, v := range c.multipartFields {
+			fields[k] = fmt.Sprint(isoResolve(v, own, ref, salt))
+		}
+		mp.fields = fields
+		return isoBody{multipart: &mp, headers: map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(salt)}}
+	}
+	if c.body == nil {
+		return isoBody{}
+	}
+	b := isoBody{json: isoResolve(c.body, own, ref, salt)}
+	if c.idempotent {
+		key, _ := json.Marshal(b.json)
+		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
+	}
+	return b
+}
+
+// refPath fills c.pattern for tn. A case with docKey names that fixture
+// document in {documentID} instead of the default page - an anchor case needs
+// a file document, which a page is not.
+func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
+	t.Helper()
+	path, ok := isoPath(t, c.pattern, tn)
+	if !ok || c.docKey == "" {
+		return path, ok
+	}
+	replaced := strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1)
+	if replaced == path {
+		replaced = strings.Replace(path, tn.ids["accessRequestDocument"], tn.get(t, c.docKey), 1)
+	}
+	return replaced, true
+}
+
+func isoHash(s string) string {
+	var h uint32 = 2166136261
+	for i := 0; i < len(s); i++ {
+		h = (h ^ uint32(s[i])) * 16777619
+	}
+	return string(rune('a'+h%26)) + string(rune('a'+(h/26)%26)) + string(rune('a'+(h/676)%26)) + string(rune('a'+(h/17576)%26))
+}
+
+// The owner's own rows each tenant also has an id for: "peer" is the plain
+// member, so a reference to A's peer is a person outside B's organization.
+var isoReferences = []isoReference{
+	// Tasks.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "project", body: map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}, covers: []string{"CreateTaskSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "parent", body: map[string]any{"title": isoUnique("ref"), "parent_task_id": isoRef("task2")}, covers: []string{"CreateTaskSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "assignee", body: map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "label", body: map[string]any{"title": isoUnique("ref"), "label_ids": []any{isoRef("label")}}, covers: []string{"CreateTaskSDI.label_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "attachment", body: map[string]any{"title": isoUnique("ref"), "attachment_ids": []any{isoRef("attachment")}},
+		noControl: "the attachment is already attached to a task; a staged one would be needed", covers: []string{"CreateTaskSDI.attachment_ids"}},
+	{method: "PATCH", pattern: "/api/v1/tasks/{taskID}", what: "assignee", body: map[string]any{"assignee_id": isoRef("peer")}, covers: []string{"PatchTaskSDI.assignee_id"}},
+	{method: "PATCH", pattern: "/api/v1/tasks/{taskID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchTaskSDI.project_id"}},
+	{method: "PUT", pattern: "/api/v1/tasks/{taskID}/parent", what: "parent", body: map[string]any{"parent_task_id": isoRef("task2")}, covers: []string{"SetTaskParentSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/tasks/{taskID}/dependencies", what: "depends on", body: map[string]any{"depends_on_task_id": isoRef("task2"), "type": "related"},
+		noControl: "the fixture already links task to task2", covers: []string{"SetTaskDependencySDI.depends_on_task_id"}},
+	{method: "POST", pattern: "/api/v1/tasks/{taskID}/labels", what: "label", body: map[string]any{"label_id": isoRef("label")},
+		noControl: "the fixture already attaches this label", covers: []string{"AttachTaskLabelSDI.label_id"}},
+	{method: "POST", pattern: "/api/v1/tasks/{taskID}/comments", what: "reply parent", body: map[string]any{"body": "ref", "parent_id": isoRef("taskComment")}, covers: []string{"CreateCommentSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-update", what: "task ids", allow2xx: true,
+		body: map[string]any{"task_ids": []any{isoRef("task2")}, "updates": map[string]any{"priority": "high"}}, covers: []string{"BatchUpdateTasksSDI.task_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-delete", what: "task ids", allow2xx: true,
+		body: map[string]any{"task_ids": []any{isoRef("task2")}}, noControl: "deleting B's own task would break later cases", covers: []string{"BatchDeleteTasksSDI.task_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/query", what: "project filter", allow2xx: true,
+		body: map[string]any{"project_id": isoRef("project")}, covers: []string{"QueryTasksSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/pins", what: "pinned task", body: map[string]any{"item_type": "task", "item_id": isoRef("task2")}, covers: []string{"CreatePinSDI.item_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/task-views", what: "project scope", body: map[string]any{
+		"name": isoUnique("ref"), "scope_type": "project", "scope_id": isoRef("project"), "visibility": "private", "definition_version": 1,
+		"query": map[string]any{}, "display": map[string]any{}}, covers: []string{"CreateTaskViewSDI.scope_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/projects", what: "lead", body: map[string]any{
+		"title": isoUnique("ref"), "status": "planned", "priority": "none", "lead_type": "member", "lead_id": isoRef("peer")}, covers: []string{"CreateProjectSDI.lead_id"}},
+
+	// Chat.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/groups", what: "members", body: map[string]any{
+		"name": isoUnique("ref"), "member_user_ids": []any{isoRef("peer"), isoOwn("third")}}, covers: []string{"CreateGroupSDI.member_user_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/dm", what: "other person", body: map[string]any{"user_id": isoRef("peer")}, covers: []string{"ResolveDMSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members", what: "new member", body: map[string]any{
+		"member_user_ids": []any{isoRef("peer")}}, noControl: "the peer is already in B's group", covers: []string{"InviteGroupMembersSDI.member_user_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "project", body: map[string]any{
+		"name": "ref-channel", "visibility": "public", "project_id": isoRef("project")}, covers: []string{"CreateChatChannelSDI.project_id"}},
+	{method: "PATCH", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels/{roomID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"UpdateChatChannelSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links", what: "linked task", body: map[string]any{
+		"target_type": "task", "target_id": isoRef("task2")}, covers: []string{"CreateChatMessageLinkSDI.target_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward", what: "target room", body: map[string]any{
+		"target_room_ids": []any{isoRef("room")}}, covers: []string{"ForwardChatMessageSDI.target_room_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/threads/{messageID}/task-sync", what: "synced task", body: map[string]any{"task_id": isoRef("task2")}, covers: []string{"SyncThreadTaskSDI.task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "project", body: map[string]any{
+		"title": isoUnique("ref"), "project_id": isoRef("project")}, covers: []string{"CreateTaskFromMessageSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "assignee", body: map[string]any{
+		"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskFromMessageSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
+		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
+	// The document send is multipart (formData tags), so its reply target is
+	// attacked through the form: A's message id as reply_to_message_id, with
+	// the other fields valid so the refusal can only be the reply target.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", what: "reply to",
+		multipart: &isoMultipart{filename: "ref.md", contentType: "text/markdown", content: []byte("# ref\n")},
+		multipartFields: map[string]any{
+			"client_msg_id":       "iso-ref-document-send",
+			"share_level":         "comment",
+			"reply_to_message_id": isoRef("message"),
+		}},
+	// The link send (UNI-2012 D5) names a document by id: A's document sent into
+	// B's own room is not found, never shared, and B's room keeps no message
+	// naming it. No client_msg_id, so the attack can never replay the control.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "document", body: map[string]any{
+		"document_id": isoRef("document"), "share_level": "comment"}, covers: []string{"SendChatDocumentLinkSDI.document_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "reply to", body: map[string]any{
+		"document_id": isoOwn("document"), "share_level": "comment", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatDocumentLinkSDI.reply_to_message_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
+		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
+		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "conversation", body: map[string]any{
+		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// B's conversation, A's answer id: the id names no row there, so the stream
+	// refuses before any model call and supersedes nothing of A's or B's. The
+	// own-rows control would supersede B's seeded answer, so it is not sent.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "regenerate message",
+		body:        map[string]any{"conversation_id": isoOwn("conversation"), "regenerate_message_id": isoRef("aiAnswer")},
+		noControl:   "regenerating B's own answer would supersede the seeded one later cases read",
+		afterAttack: isoRegenerateChangedNothing,
+		covers:      []string{"AskUniSDI.regenerate_message_id"}},
+
+	// Meetings.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "attendee", body: map[string]any{
+		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(48 * time.Hour), "ends_at": isoAt(49 * time.Hour),
+		"attendee_user_ids": []any{isoRef("peer")}}, covers: []string{"CreateMeetingSDI.attendee_user_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "project", body: map[string]any{
+		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(72 * time.Hour), "ends_at": isoAt(73 * time.Hour),
+		"project_id": isoRef("project")}, covers: []string{"CreateMeetingSDI.project_id"}},
+	{method: "PATCH", pattern: "/api/v1/meetings/{meetingID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchMeetingSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/invitations", what: "invitee", body: map[string]any{"user_id": isoRef("peer")},
+		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/host-transfer", what: "new host", body: map[string]any{"new_host_user_id": isoRef("peer")},
+		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},
+		covers: []string{"JoinMeetingSDI.invite_link_id"}},
+	// Each case converts its own item of the meeting's summary (the world
+	// seeds four), so its control leaves the others free. The people and
+	// projects named are checked before whether an item was converted.
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "assignee", body: map[string]any{
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 0, "assignee_id": isoRef("peer")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "project", body: map[string]any{
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 1, "project_id": isoRef("project")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "summary", body: map[string]any{
+		"summary_id": isoRef("meetingSummary"), "items": []any{map[string]any{"index": 2}}},
+		covers: []string{"SummaryTasksSDI.summary_id"}},
+
+	// Documents.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
+		"title": isoUnique("ref"), "kind": "page", "parent_id": isoRef("document")}, covers: []string{"CreateDocumentSDI.parent_id"}},
+	// The folder kind of the same create (E6 FD-02): the duplicate check of a
+	// folder name runs under the workspace tree lock, and it must never answer
+	// 409 for a parent of another tenant - the parent gate decides first.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
+		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
+	// UNI-2055 (ADR 0037): the folder is a workspace folder of its tenant, so
+	// the members of A may create in it, but B's owner, in another tenant, gets
+	// a refusal for a page created under it.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "page under a foreign workspace folder", body: map[string]any{
+		"title": isoUnique("ref in folder"), "kind": "page", "parent_id": isoRef("folder")}},
+	// The large-upload create route (BIGUP-S1): parent_id names a page or
+	// folder of the same workspace, checked before any session or part URL is
+	// created. Its control is also the route's write control, because the
+	// 4-open-per-person limit leaves no budget for a third seeded session.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/upload-sessions", what: "parent page", idempotent: true,
+		body: map[string]any{
+			"filename": "iso-ref-big.md", "size_bytes": isoUploadSessionSize,
+			"probe":     map[string]any{"head_b64": isoUploadSessionHead, "central_dir_b64": "", "cd_offset": 0, "cd_size": 0},
+			"parent_id": isoRef("document"),
+		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
+		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
+	// DOC-07 (UNI-1631 §4.3, BE-SD7-10): the source pair is kept only when the
+	// requester reads that task in the document's OWN organization, so a
+	// foreign task is dropped silently and the stored row's source_id stays
+	// empty. The case targets restrictedDocument at edit (B's owner holds only
+	// a view break-glass grant on it), so the create reaches source validation
+	// and stores a pending row instead of exiting early as already sufficient.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/access-requests", what: "task source of another tenant",
+		docKey: "restrictedDocument", allow2xx: true,
+		body:         map[string]any{"requested_level": "edit", "source_kind": "task", "source_id": isoRef("task")},
+		afterControl: isoAccessRequestSourceAfterControl,
+		afterAttack:  isoAccessRequestSourceAfterAttack,
+		covers:       []string{"CreateDocumentAccessRequestSDI.source_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
+		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{
+		"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "organization principal", body: map[string]any{
+		"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "user principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}}}, covers: []string{"DocumentAccessItemSDI.principal_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "workspace principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "organization principal", body: map[string]any{
+		"items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
+		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{
+		"body": "ref", "kind": "comment", "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""},
+		"base_version_id": isoRef("anchorVersionID")},
+		covers: []string{"CreateDocumentCommentSDI.base_version_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "version of another document", docKey: "anchorDoc", body: map[string]any{
+		"version_id": isoRef("anchorVersionID"), "anchors": []any{}}, covers: []string{"PutDocumentCommentAnchorsSDI.version_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/comments/anchors", what: "comment of another document", docKey: "anchorDoc", allow2xx: true, body: map[string]any{
+		"version_id": isoOwn("anchorVersionID"), "anchors": []any{map[string]any{
+			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""}, "state": "exact"}}},
+		covers: []string{"DocumentCommentAnchorItemSDI.comment_id"}},
+	// UNI-2045 SV-9: B's owner names A's file in the zip request. The job is
+	// accepted and skips the id as not_found, so 2xx is fine as long as the
+	// answer shows nothing of A's and no row of A's changes.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/download-jobs", what: "documents of another tenant", allow2xx: true,
+		body:   map[string]any{"document_ids": []any{isoRef("fileDocument")}},
+		covers: []string{"CreateDocumentDownloadJobSDI.document_ids"}},
+	// UNI-2052: B's owner plans a folder upload under A's folder. lockPageParent
+	// classifies the parent by the caller's tenant pair first, so the answer is
+	// 404 and nothing of B's comes to point at A.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads", what: "parent folder", idempotent: true, body: map[string]any{
+		"parent_id": isoRef("folder"), "root_name": "Iso ref upload", "share_with_workspace": false,
+		"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso-ref.md", "size_bytes": 3}}},
+		covers: []string{"CreateFolderUploadSDI.parent_id"}},
+	// UNI-2052 w2: B's owner completes B's own batch naming A's file_key. A
+	// file_key is looked up inside the batch the path names, so A's key is
+	// not_found like any unknown one: 200, nothing of A's in the answer (the
+	// key itself is what B sent) and no row of A's changes. file_key does not
+	// end in _id, so it carries no covers entry.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", what: "file_key of another tenant's batch", allow2xx: true,
+		body: map[string]any{"files": []map[string]any{{"file_key": isoRef("folderUploadFileKey"), "etag": `"iso"`}}}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
+		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{
+		"consent": "copy", "job_id": isoRef("officeJob")}, noControl: "a serialize job is not a convert job", covers: []string{"CopyDocumentSDI.job_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "staged upload", idempotent: true, body: map[string]any{
+		"consent": "copy", "upload_id": isoRef("copyUpload")}, covers: []string{"CopyDocumentSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/files/blank", what: "parent page", idempotent: true, body: map[string]any{
+		"format": "md", "title": isoUnique("ref"), "parent_id": isoRef("document")}, noControl: "the office stub engine never finishes a blank document", covers: []string{"CreateBlankDocumentFileSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/save", what: "parent page", idempotent: true, body: map[string]any{
+		"title": isoUnique("ref"), "parent_id": isoRef("document")}, covers: []string{"SaveSourceFileSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
+		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "chat room for version line", idempotent: true, allow2xx: true,
+		noControl: "committing consumes chatCommitUpload and advances fileDocument's revision; the attack itself commits B's upload (200 OK) while naming A's room",
+		body:      map[string]any{"upload_id": isoOwn("chatCommitUpload"), "base_revision": "2", "chat_room_id": isoRef("room")},
+		covers:    []string{"CommitDocumentVersionSDI.chat_room_id"}},
+	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{
+		"upload_id": isoRef("frameUpload"), "base_revision": isoOwn("frameRevision")}, covers: []string{"CommitOfficeFrameVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/assets/sign", what: "image of another document", body: map[string]any{
+		"asset_ids": []any{isoRef("frameAsset")}}, covers: []string{"SignOfficeFrameAssetsSDI.asset_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/files/resolve", what: "file ids", allow2xx: true, body: map[string]any{
+		"file_ids": []any{isoRef("file")}}, covers: []string{"ResolveFilesSDI.file_ids"},
+		noControl:      "resolve answers files the caller staged; the fixture's files are already claimed, so B's own answers file_not_found too",
+		mustNotContain: []string{`"url":"`, "ticket="}},
+
+	// Office desktop bridge.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/preview/scopes", what: "asset", body: map[string]any{
+		"job_id": "ref", "assets": []any{map[string]any{"key": "images/a.png", "asset_id": isoRef("asset")}}},
+		covers: []string{"PreviewAssetSDI.asset_id"}},
+	{method: "POST", pattern: "/api/v1/auth/desktop/logout", what: "device session", body: map[string]any{
+		"device_session_id": isoRef("deviceSession"), "deployment_id": "default", "scope": "family"},
+		noControl: "logging out B's own device would end the session the later cases hold", covers: []string{"DesktopLogoutSDI.device_session_id"}},
+	{method: "POST", pattern: "/api/v1/auth/desktop/authorize", what: "pending attempt", body: map[string]any{
+		"attempt_id": isoRef("desktopAttempt"), "csrf_token": "ref", "decision": "approve"},
+		noControl: "approving B's own attempt would need the CSRF token only its consent page was shown", covers: []string{"DesktopConsentSDI.attempt_id"}},
+	// T6 of the offline lease threat model: A's signed lease replayed on B's
+	// own document from B's device names a row that is not B's.
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
+		"lease": isoRef("offlineLease")}},
+	// OQ-C6: an unknown comment id is dropped; the matrix still proves nothing of A's is read and no row of B's points at A (B's launch row stores NULL).
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/office/sessions", what: "comment of another document", allow2xx: true, body: map[string]any{
+		"operation": "view", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment, "comment_id": isoRef("fileDocComment")},
+		covers: []string{"CreateOfficeLaunchSessionSDI.comment_id"}},
+	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{
+		"launch_ticket": isoRef("launchTicket"), "client_id": "uniwork-office", "deployment_id": "default", "device_session_id": isoRef("deviceSession")},
+		noControl: "a redeemed ticket is spent, and the matrix signs B in with a browser token, not a device bearer", covers: []string{"ExchangeOfficeLaunchSessionSDI.device_session_id"}},
+
+	// Organization and people.
+	{method: "PATCH", pattern: "/api/v1/orgs/{org}/people/{userID}/profile", what: "department", body: map[string]any{"department_id": isoRef("department")}, covers: []string{"ProfileSDI.department_id"}},
+	{method: "PATCH", pattern: "/api/v1/orgs/{org}/people/{userID}/profile", what: "manager", body: map[string]any{"manager_id": isoRef("peer")},
+		noControl: "a person cannot manage themself; the own peer is the profile's subject", covers: []string{"ProfileSDI.manager_id"}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "parent", body: map[string]any{"name": isoUnique("ref"), "parent_id": isoRef("department")}, covers: []string{"DepartmentSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/departments", what: "head", body: map[string]any{"name": isoUnique("ref head"), "head_user_id": isoRef("peer")}, covers: []string{"DepartmentSDI.head_user_id"}},
+	{method: "PUT", pattern: "/api/v1/orgs/{org}/departments/order", what: "ids", allow2xx: true, body: map[string]any{"ids": []any{isoRef("department")}}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/invitations", what: "granted workspace", body: map[string]any{
+		"emails": []any{"iso-ref-invitee@example.com"}, "org_role": "member", "workspace_ids": []any{isoRef("ws")}},
+		covers: []string{"OrgInviteSDI.workspace_ids"}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/transfer-ownership", what: "new owner", body: map[string]any{
+		"to_user_id": isoRef("peer"), "password": "password123"}, noControl: "transferring B's ownership would end the run", covers: []string{"TransferOwnershipSDI.to_user_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/agents", what: "agent", body: map[string]any{"agent_id": isoRef("agent")},
+		noControl: "B's agent was created in B's workspace already", covers: []string{"AddWorkspaceAgentSDI.agent_id"}},
+
+	// The caller's own inbox and directory: another tenant's rows are not
+	// theirs to touch or find.
+	{method: "POST", pattern: "/api/v1/me/notifications/read", what: "notification ids", body: map[string]any{"ids": []any{isoRef("notification")}}},
+	{method: "POST", pattern: "/api/v1/me/notifications/unread", what: "notification ids", body: map[string]any{"ids": []any{isoRef("notification")}}},
+	{method: "POST", pattern: "/api/v1/me/notifications/archive", what: "notification ids", body: map[string]any{"ids": []any{isoRef("notification")}}},
+	{method: "POST", pattern: "/api/v1/me/notifications/unarchive", what: "notification ids", body: map[string]any{"ids": []any{isoRef("notification")}}},
+	{method: "GET", pattern: "/api/v1/workspaces/{workspaceID}/chat/users/lookup", what: "email of a person in another tenant", allow2xx: true,
+		query: "?email={peerEmail}"},
+	{method: "GET", pattern: "/api/v1/workspaces/{workspaceID}/chat/users/lookup", what: "user id of a person in another tenant", allow2xx: true,
+		query: "?user_id={peerID}"},
+
+	// Fields the first matrix run left without a case.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "members", body: map[string]any{
+		"name": isoUnique("ref-members"), "visibility": "private", "member_user_ids": []any{isoRef("peer")}},
+		covers: []string{"CreateChatChannelSDI.member_user_ids"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/move", what: "parent page", body: map[string]any{
+		"parent_id": isoRef("document"), "revision": "1"}, noControl: "B's page is already at the root; moving it under itself is refused",
+		covers: []string{"MoveDocumentSDI.parent_id"}},
+	// The folder kind of the move (E6 FD-02): a folder is the one document the
+	// move locks the tree for and renames "(n)" against the destination, and a
+	// destination of another tenant must be refused before either happens.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/move", what: "folder into a foreign folder", docKey: "folder",
+		body:      map[string]any{"parent_id": isoRef("folder"), "revision": "1"},
+		noControl: "the own-ids control would move B's folder into itself, which is a cycle, and every later case then reads a stale revision"},
+	// The document edit lock (UNI-1645 §6 step 6). A lock id is looked up
+	// under the path's document in its organization, so A's id is "another
+	// tenure": 409 edit_lock_changed, or 423 on the gated write, before any
+	// revision check - never a read of A's row.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/edit-requests/{requestID}/answer", what: "lock of the request",
+		body: map[string]any{"decision": "decline", "lock_id": isoRef("docEditLock")}, covers: []string{"AnswerDocumentEditRequestSDI.lock_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/edit-lock/take-over", what: "expected tenure",
+		body:   map[string]any{"editor_id": "01J8X4ED1T0R0000000000000B", "client": "desktop", "expected_lock_id": isoRef("peerEditLock")},
+		covers: []string{"TakeOverDocumentEditLockSDI.expected_lock_id"}},
+	{method: "PATCH", pattern: "/api/v1/documents/{documentID}", what: "edit lock of the write", docKey: "lockDocument",
+		body: map[string]any{"revision": isoOwn("lockDocumentRevision"), "edit_lock_id": isoRef("docEditLock"),
+			"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "edited"}}}}}},
+		covers: []string{"PatchDocumentSDI.edit_lock_id"}},
+	{method: "POST", pattern: "/api/v1/tasks/{taskID}/subscribe", what: "subscriber", body: map[string]any{"user_id": isoRef("owner"), "user_type": "member"},
+		covers: []string{"SubscribeTaskSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "thread", body: map[string]any{
+		"room_id": isoOwn("room"), "thread_root_id": isoRef("message")}, covers: []string{"ChatCatchUpSDI.thread_root_id"}},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/task-view-preferences", what: "project scope", body: map[string]any{
+		"scope_type": "project", "scope_id": isoRef("project"), "prefs": map[string]any{"layout": "list"}},
+		covers: []string{"PutTaskViewPreferenceSDI.scope_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/table/rows", what: "filters", allow2xx: true, body: map[string]any{
+		"query": map[string]any{"filter": map[string]any{"assignee_ids": []any{isoRef("peer")}, "project_ids": []any{isoRef("project")}, "label_ids": []any{isoRef("label")}}},
+		"limit": 50}, covers: []string{"TableFilterSDI.assignee_ids", "TableFilterSDI.project_ids", "TableFilterSDI.label_ids"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/table/rows", what: "children of", allow2xx: true, body: map[string]any{
+		"parent_id": isoRef("task"), "hierarchy": true, "limit": 50}, covers: []string{"TableRowsSDI.parent_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/pins", what: "pinned project", body: map[string]any{"item_type": "project", "item_id": isoRef("project")}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/pins", what: "pinned view", body: map[string]any{"item_type": "task_view", "item_id": isoRef("view")}},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/projects/{projectID}", what: "lead", body: map[string]any{
+		"revision": 1, "lead_type": "member", "lead_id": isoRef("peer")}, noControl: "B's project has moved past revision 1 by now",
+		covers: []string{"PutProjectSDI.lead_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", what: "option", body: map[string]any{
+		"option_id": isoRef("pollOption")}, covers: []string{"VoteChatPollSDI.option_id"}},
+	{method: "POST", pattern: "/api/v1/me/notifications/read", what: "workspace filter", allow2xx: true, body: map[string]any{
+		"all": true, "workspace_id": isoRef("ws")}, covers: []string{"NotificationIDsSDI.workspace_id"}},
+	{method: "POST", pattern: "/api/v1/me/onboarding/complete", what: "workspace", allow2xx: true, body: map[string]any{
+		"completion_path": "joined", "workspace_id": isoRef("ws")}, noControl: "B's owner is onboarded already",
+		covers: []string{"CompleteOnboardingSDI.workspace_id"}},
+
+	// Email hub.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/send", what: "mailbox", body: map[string]any{
+		"account_id": isoRef("emailAccount"), "to": []any{"someone@example.com"}, "subject": "ref", "body_text": "ref"},
+		noControl: "sending needs an SMTP server", covers: []string{"SendEmailHubSDI.account_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/send", what: "replied thread", body: map[string]any{
+		"account_id": isoOwn("emailAccount"), "reply_to_thread_id": isoRef("emailThread"), "to": []any{"someone@example.com"}, "subject": "ref", "body_text": "ref"},
+		noControl: "sending needs an SMTP server", covers: []string{"SendEmailHubSDI.reply_to_thread_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "assignee", body: map[string]any{
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}},
+		covers: []string{"SummaryTaskItemSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "project", body: map[string]any{
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
+		covers: []string{"SummaryTaskItemSDI.project_id"}},
+}
+
+// referenceControls sends each reference case with B's own rows: the request
+// must be accepted, or the attack's refusal could be a malformed body rather
+// than the tenancy check.
+func (w *isoWorld) referenceControls(t *testing.T) {
+	t.Helper()
+	for _, c := range isoReferences {
+		if c.noControl != "" {
+			continue
+		}
+		path, ok := c.refPath(t, w.bravo)
+		if !ok {
+			continue
+		}
+		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
+		if status < 200 || status >= 300 {
+			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
+		} else if c.afterControl != nil {
+			c.afterControl(t, w)
+		}
+	}
+}
+
+// isoRegenerateChangedNothing requires both tenants' seeded Ask UNI turn to be
+// as seeded: no answer of either was superseded (other cases add rows).
+func isoRegenerateChangedNothing(t *testing.T, w *isoWorld, label string) {
+	t.Helper()
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		var rows, superseded int
+		if err := w.pool.QueryRow(context.Background(), `SELECT count(*), count(superseded_at) FROM ai_messages WHERE organization_id = $1`, tn.orgID).Scan(&rows, &superseded); err != nil {
+			t.Fatal(err)
+		}
+		if rows < 2 || superseded != 0 {
+			t.Errorf("%s: tenant %s has %d ai_messages (%d superseded), want none superseded", label, tn.tag, rows, superseded)
+		}
+	}
+}
+
+// isoAccessRequestSourceAfterControl verifies the own-rows control stored B's
+// task on the pending request row and removes that row so the attack passes do
+// not hit 409 access_request_pending before reaching source validation.
+func isoAccessRequestSourceAfterControl(t *testing.T, w *isoWorld) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Fatalf("reference control access request stored row: %v", err)
+	}
+	if sourceKind != "task" || sourceID != w.bravo.ids["task"] {
+		t.Errorf("reference control access request source = (%q, %q), want (\"task\", %q)",
+			sourceKind, sourceID, w.bravo.ids["task"])
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// isoAccessRequestSourceAfterAttack requires the foreign-source attack to have
+// stored a pending request row on B's restrictedDocument with an empty source,
+// and removes the row so the member-of-both pass reaches the same code path.
+func isoAccessRequestSourceAfterAttack(t *testing.T, w *isoWorld, label string) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Errorf("%s: expected a stored pending document_access_requests row on B's restrictedDocument: %v", label, err)
+		return
+	}
+	if sourceKind != "" || sourceID != "" {
+		t.Errorf("%s: stored pending request has source (%q, %q), want empty source", label, sourceKind, sourceID)
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// isoRefFieldExempt lists request DTO id fields no reference case attacks,
+// each with the reason another pass covers it or it names no tenant row.
+// editLockIDExempt is why the three other gated writes need no reference
+// case of their own (UNI-1645 §6 step 6).
+const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
+
+var isoRefFieldExempt = map[string]string{
+	"FlagOverrideSDI.scope_id":                    "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
+	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"SendChatDocumentLinkSDI.client_msg_id":       "the client's idempotency key, not a row",
+	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
+	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",
+	"MintChatVoiceTokenSDI.room_id":               "the route names no other row: the cross-tenant pass sends A's room in the body",
+	"ResolveInviteLinkSDI.link_id":                "public route: the link id comes with its secret, and holding both is the grant",
+	"SummarizeEmailHubThreadSDI.account_id":       "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"PatchEmailHubThreadSDI.account_id":           "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"EmailHubSummaryTasksSDI.account_id":          "the mixed pass sends B's workspace with A's thread and A's account in the body",
+
+	// Office desktop bridge. client_id and deployment_id are the public
+	// desktop client and the deployment profile: values from the server's
+	// DESKTOP_AUTH_CLIENT_ID / DESKTOP_AUTH_DEPLOYMENT_IDS allowlists, compared
+	// for equality, never looked up as rows.
+	"CreateOfficeLaunchSessionSDI.client_id":         "the configured desktop client id (allowlist), not a row",
+	"CreateOfficeLaunchSessionSDI.deployment_id":     "a configured deployment profile (allowlist), not a row",
+	"ExchangeOfficeLaunchSessionSDI.client_id":       "the configured desktop client id (allowlist), not a row",
+	"ExchangeOfficeLaunchSessionSDI.deployment_id":   "a configured deployment profile (allowlist), not a row",
+	"DesktopExchangeSDI.client_id":                   "the configured desktop client id (allowlist), not a row; the one-time code with its PKCE verifier is the credential",
+	"DesktopExchangeSDI.deployment_id":               "a configured deployment profile (allowlist), not a row",
+	"DesktopLogoutSDI.deployment_id":                 "a configured deployment profile (allowlist); the device row must also carry it, and the device id is attacked by its own case",
+	"DesktopRefreshSDI.deployment_id":                "a configured deployment profile (allowlist); the device row must also carry it",
+	"DesktopRefreshSDI.device_session_id":            "public route: the rotating refresh token is the credential; a wrong token for a device id reaches replay detection, which revokes that device by design",
+	"CreatePreviewScopeSDI.job_id":                   "an opaque label of the render the frame shows, signed into the capability; the capability still lists only assets the document owns (PreviewAssetSDI.asset_id has the case)",
+	"RevokeDesktopDeviceSDI.device_session_id":       "documentary body: DELETE /auth/desktop/devices/{deviceSessionID} keeps the id in the path, and the self pass attacks it with A's device",
+	"RevokeOfficeLaunchSessionSDI.launch_session_id": "documentary body: DELETE /office/sessions/{launchSessionID} keeps the id in the path, a tenant parameter the matrix attacks with A's receipt",
+	"SwitchResolutionSDI.organization_id":            "compared only with the caller's own active organizations, read under their membership lock; any other id is a mismatch answered 409 with the caller's own conflicts before a row of it is read, locked or written (TestSwitchResolveMustMatchTheConflicts: another tenant's organization)",
+	"SwitchResolutionSDI.transfer_to_user_id":        "only ever looked up as a member of the caller's own organization they own; somebody outside it has no such row and the switch rolls back with the caller's own conflicts (TestSwitchResolveMustMatchTheConflicts: a transfer to somebody outside the organization)",
+	"McpConsentSDI.organization_id":                  "the self pass sends A's live CSRF token and B's own organization against A's claimed attempt (400 csrf_invalid); TestIsolationMCP approves B's own attempt with B's own CSRF token into A's organization (403), and TestMcpApproveRefusals holds the same refusal against a stand-alone organization",
+
+	// The document edit lock (UNI-1645 §6 step 6).
+	"CommitDocumentVersionSDI.edit_lock_id":    editLockIDExempt,
+	"RestoreDocumentVersionSDI.edit_lock_id":   editLockIDExempt,
+	"CommitOfficeFrameVersionSDI.edit_lock_id": editLockIDExempt,
+	"AcquireDocumentEditLockSDI.editor_id":     "a client-minted editor instance id, not a row",
+	"TakeOverDocumentEditLockSDI.editor_id":    "a client-minted editor instance id, not a row",
+}
+
+// A body field that names another row is an attack surface the path passes
+// never see: every id field of every request DTO has an isoReferences case,
+// or an entry in isoRefFieldExempt saying why it needs none.
+func TestEveryBodyIDFieldHasAReferenceCase(t *testing.T) {
+	covered := map[string]bool{}
+	for _, c := range isoReferences {
+		for _, f := range c.covers {
+			covered[f] = true
+		}
+	}
+	fset := token.NewFileSet()
+	paths, err := filepath.Glob(filepath.Join("dto", "sdi", "*.go"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no request DTOs under dto/sdi: %v", err)
+	}
+	seen := map[string]bool{}
+	var missing []string
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				ts, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				st, ok := ts.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+				for _, field := range st.Fields.List {
+					if field.Tag == nil {
+						continue
+					}
+					tag, _ := strconv.Unquote(field.Tag.Value)
+					name := strings.Split(reflect.StructTag(tag).Get("json"), ",")[0]
+					if !strings.HasSuffix(name, "_id") && !strings.HasSuffix(name, "_ids") {
+						continue
+					}
+					key := ts.Name.Name + "." + name
+					seen[key] = true
+					if _, exempt := isoRefFieldExempt[key]; !exempt && !covered[key] {
+						missing = append(missing, key)
+					}
+				}
+			}
+		}
+	}
+	var stale []string
+	for key := range covered {
+		if !seen[key] {
+			stale = append(stale, key+" (covers)")
+		}
+	}
+	for key := range isoRefFieldExempt {
+		if !seen[key] {
+			stale = append(stale, key+" (exempt)")
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(stale)
+	if len(missing) > 0 {
+		t.Errorf("request fields naming a row with no isoReferences case (add one with covers, or exempt it with a reason):\n  %s", strings.Join(missing, "\n  "))
+	}
+	if len(stale) > 0 {
+		t.Errorf("covers / isoRefFieldExempt entries that name no DTO field:\n  %s", strings.Join(stale, "\n  "))
+	}
+}

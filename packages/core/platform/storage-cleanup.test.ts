@@ -36,11 +36,13 @@ describe("clearWorkspaceStorage", () => {
       storageKey: "uniwork_test_draft",
       workspaceScoped: true,
       resetInMemory: vi.fn(),
+      isOwnedBy: () => true,
     });
     registerDraftCleanup({
       storageKey: "uniwork_test_global_draft",
       workspaceScoped: false,
       resetInMemory: vi.fn(),
+      isOwnedBy: () => true,
     });
 
     clearWorkspaceStorage(adapter, "ws_123");

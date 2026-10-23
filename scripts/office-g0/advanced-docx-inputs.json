@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "savedAt": "2000-01-01T00:00:00.000Z",
+  "chart": {
+    "kind": "bar",
+    "title": "Quarterly volume",
+    "categories": ["Q1", "Q2", "Q3"],
+    "series": [
+      {"name": "North", "values": [12, 18, 15]},
+      {"name": "South", "values": [7, 11, 9]}
+    ]
+  },
+  "watermark": {
+    "text": "UNIWORK FIXTURE",
+    "fontFamily": "Calibri",
+    "colorHex": "808080",
+    "opacity": 0.25,
+    "diagonal": true,
+    "bold": false
+  },
+  "chartBody": [
+    "Chart fixture",
+    "Before chart sentinel 314159",
+    "After chart sentinel 271828"
+  ],
+  "watermarkBody": [
+    "Watermark fixture",
+    "First page sentinel 314159",
+    "Second page",
+    "Second page sentinel 271828"
+  ]
+}

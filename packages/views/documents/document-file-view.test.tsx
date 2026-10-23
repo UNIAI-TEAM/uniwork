@@ -1,0 +1,685 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
+import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
+import { initI18n } from "@uniwork/core/i18n";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
+import { DocumentSchema, type Document } from "@uniwork/core/types/document";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
+import { registerLeaveGuard } from "../navigation";
+import { localeAdapter, requestMock, wrap } from "../test/api-mock";
+import { DocumentFileView } from "./document-file-view";
+import { onWriteRefused } from "./edit-lock-refusal";
+
+const featureFlagMock = vi.hoisted(() => ({
+  useFlag: vi.fn((_key: string, fallback: boolean) => fallback),
+}));
+vi.mock("@uniwork/core/feature-flags", () => featureFlagMock);
+
+const { t } = initI18n();
+
+const WS = "ws1";
+
+/** The wire schema parses server enums leniently; the exported type narrows them. */
+function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Document {
+  return {
+    ...parsed,
+    kind: parsed.kind as Document["kind"],
+    visibility: parsed.visibility as Document["visibility"],
+    my_level: parsed.my_level as Document["my_level"],
+    via: parsed.via as Document["via"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
+  };
+}
+
+function fileDocument(over: Record<string, unknown> = {}): Document {
+  return narrowDocument(DocumentSchema.parse({
+    id: "d1",
+    workspace_id: WS,
+    kind: "file",
+    title: "Báo cáo",
+    revision: "3",
+    current_version: 2,
+    my_level: "edit",
+    file: {
+      file_id: "f1",
+      version_id: "v2",
+      version: 2,
+      filename: "báo-cáo.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 482_133,
+      checksum_sha256: "a".repeat(64),
+    },
+    created_at: "2026-09-28T03:00:00Z",
+    updated_at: "2026-09-28T03:00:00Z",
+    ...over,
+  }));
+}
+
+const versions = [
+  {
+    id: "v2",
+    document_id: "d1",
+    version: 2,
+    kind: "file",
+    reason: "upload",
+    size_bytes: 482_133,
+    checksum_sha256: "a".repeat(64),
+    created_at: "2026-09-28T03:00:00Z",
+  },
+  {
+    id: "v1",
+    document_id: "d1",
+    version: 1,
+    kind: "file",
+    reason: "upload",
+    size_bytes: 1024,
+    checksum_sha256: "b".repeat(64),
+    created_at: "2026-09-27T03:00:00Z",
+  },
+];
+
+function mockApi(overrides: Record<string, unknown> = {}) {
+  requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+    if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) {
+      return Promise.resolve({ versions, next_cursor: null, ...overrides });
+    }
+    return Promise.resolve({});
+  });
+}
+
+function renderView(doc = fileDocument(), readonly = false) {
+  return render(wrap(<DocumentFileView wsId={WS} doc={doc} readonly={readonly} />));
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  requestMock.mockReset();
+  featureFlagMock.useFlag.mockReset().mockImplementation((_key, fallback) => fallback);
+});
+
+describe("DocumentFileView", () => {
+  it("shows what the file is, version by version", async () => {
+    mockApi();
+    renderView();
+
+    expect(screen.getByText("báo-cáo.pdf")).toBeInTheDocument();
+    expect(screen.getByText("application/pdf · 470,8 KB")).toBeInTheDocument();
+    expect(screen.getByText("a".repeat(64))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.file.history_title"))).toBeInTheDocument();
+    expect(await screen.findByText(t("documents.file.version_row", { no: 2 }))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.file.version_row", { no: 1 }))).toBeInTheDocument();
+  });
+
+  it("promises nothing about editing here: no Office button", async () => {
+    mockApi();
+    renderView();
+
+    expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Office/i })).toBeNull();
+    // Only download and "new version" are offered.
+    expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.file.new_version") })).toBeInTheDocument();
+  });
+
+  it("tells a reader what they can do now, without the upload a reader does not have", async () => {
+    mockApi();
+    renderView(fileDocument({ my_level: "view" }), true);
+
+    expect(screen.getByText(t("documents.file.no_web_editor_description_readonly"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_description"))).toBeNull();
+  });
+
+  it("offers the editor the upload in the same notice", async () => {
+    mockApi();
+    renderView();
+
+    expect(screen.getByText(t("documents.file.no_web_editor_description"))).toBeInTheDocument();
+  });
+
+  it("hides the write actions on a read-only file", async () => {
+    mockApi();
+    renderView(fileDocument({ my_level: "view" }), true);
+
+    expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.file.new_version") })).toBeNull();
+    // The permission reason is stated, apart from the editor/format note.
+    expect(screen.getByTestId("document-file-readonly")).toHaveTextContent(t("documents.file.readonly_hint"));
+  });
+
+  it("names the comment level on a read-only file opened through a comment share (UNI-1994)", async () => {
+    mockApi();
+    renderView(fileDocument({ my_level: "comment" }), true);
+
+    expect(screen.getByTestId("document-file-readonly")).toHaveTextContent(t("documents.file.readonly_comment_hint"));
+    expect(screen.getByText(t("documents.save.readonly_comment"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+  });
+
+  it("states no permission reason for a reader who can edit", () => {
+    mockApi();
+    renderView();
+    expect(screen.queryByTestId("document-file-readonly")).toBeNull();
+  });
+
+  it("mounts the injected Office host only when the flag is enabled", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockReturnValue(true);
+    const officeHost = vi.fn(({ readonly: isReadonly }: { readonly: boolean }) => (
+      <div data-testid="office-host" data-readonly={String(isReadonly)}>Office host</div>
+    ));
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toHaveAttribute("data-readonly", "true");
+    expect(officeHost).toHaveBeenCalled();
+    expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true }));
+    expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
+  });
+
+  it("falls back to the file card when the format's own flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_pdf" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-host")).toBeNull();
+    expect(officeHost).not.toHaveBeenCalled();
+    // The card says why: the format's editing is turned off (not "a later step").
+    expect(screen.getByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
+  });
+
+  it("keeps the generic card note when no Office host is mounted", async () => {
+    mockApi();
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} />));
+
+    expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+  });
+
+  it("keeps the editor when only another format's flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_docx" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+  });
+
+  describe("organization-scoped flags", () => {
+    const orgConfig = (flags: Record<string, boolean>) => requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/config?organization_id=org1") return Promise.resolve({ flags });
+      return Promise.resolve({ versions: [], next_cursor: null });
+    });
+
+    it("asks /config for the document's organization and honours its format override", async () => {
+      // The host-wide flags say on; the organization says the PDF format is off.
+      featureFlagMock.useFlag.mockReturnValue(true);
+      orgConfig({ office_engine: true, office_pdf: false });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      // Asserted once the answer has settled: the card names the cause only then.
+      expect(await screen.findByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/config?organization_id=org1", expect.anything());
+      expect(screen.queryByTestId("office-host")).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it("mounts the editor once the organization's answer has both flags on", async () => {
+      orgConfig({ office_engine: true });
+      const officeHost = () => <div data-testid="office-host">Office host</div>;
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("says it is checking, not that editing is off, while the answer is loading", async () => {
+      let answer!: (body: unknown) => void;
+      requestMock.mockImplementation((path: string) => path.startsWith("/api/v1/config")
+        ? new Promise((resolve) => { answer = resolve; })
+        : Promise.resolve({ versions: [], next_cursor: null }));
+      const officeHost = () => <div data-testid="office-host">Office host</div>;
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByText(t("documents.file.office_checking", { format: "PDF" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      act(() => answer({ flags: { office_engine: true } }));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("stays on the file card, saying it could not check, when the config is rejected or malformed", async () => {
+      requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("offline")) : Promise.resolve({ versions: [], next_cursor: null })));
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      const { unmount } = render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      // The rejection (and its one retry) has settled when the "could not check" copy shows.
+      expect(await screen.findByText(t("documents.file.office_unknown_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(requestMock.mock.calls.filter(([path]) => String(path).startsWith("/api/v1/config"))).toHaveLength(2);
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+      unmount();
+
+      requestMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/v1/config") ? { flags: "yes" } : { versions: [], next_cursor: null }));
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      expect(await screen.findByText(t("documents.file.office_unknown_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+
+      // Try again asks once more; a good answer then mounts the editor.
+      requestMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/v1/config") ? { flags: { office_engine: true } } : { versions: [], next_cursor: null }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.file.office_unknown_retry") }));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    describe("a live editor and a flag refresh (F7)", () => {
+      function renderLive(qc: QueryClient) {
+        const officeHost = () => <div data-testid="office-host">Office host</div>;
+        return render(
+          <QueryClientProvider client={qc}>
+            <LocaleAdapterProvider adapter={localeAdapter}>
+              <DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />
+            </LocaleAdapterProvider>
+          </QueryClientProvider>,
+        );
+      }
+      const refetch = (qc: QueryClient) => act(async () => { await qc.invalidateQueries({ queryKey: ["office-public-config"] }); });
+      const testClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
+
+      it("keeps the editor mounted when a refresh fails", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true });
+        renderLive(qc);
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("blip")) : Promise.resolve({ versions: [], next_cursor: null })));
+        await refetch(qc);
+        await waitFor(() => expect(qc.getQueryState(["office-public-config", "org1"])?.status).toBe("error"));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+      });
+
+      it("closes the editor on a settled off answer, through the leave guards", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true });
+        renderLive(qc);
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        // A dirty editor refuses the first time (the reader cancels the leave dialog).
+        const guard = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+        const release = registerLeaveGuard(guard);
+        orgConfig({ office_engine: true, office_pdf: false });
+        await refetch(qc);
+        await waitFor(() => expect(guard).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+        release();
+
+        // With nothing left to protect, the next settled off answer closes it.
+        await refetch(qc);
+        expect(await screen.findByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+        expect(screen.queryByTestId("office-host")).toBeNull();
+      });
+
+      it("closes a live .txt editor through the leave guards when office_markdown settles off, like a .md editor", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true });
+        const txt = fileDocument({
+          organization_id: "org1",
+          file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) },
+        });
+        const officeHost = () => <div data-testid="office-host">Office host</div>;
+        render(
+          <QueryClientProvider client={qc}>
+            <LocaleAdapterProvider adapter={localeAdapter}>
+              <DocumentFileView wsId={WS} doc={txt} readonly={false} officeEditorHost={officeHost} />
+            </LocaleAdapterProvider>
+          </QueryClientProvider>,
+        );
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        // A dirty editor refuses the first time (the reader cancels the leave dialog).
+        const guard = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+        const release = registerLeaveGuard(guard);
+        orgConfig({ office_engine: true, office_markdown: false });
+        await refetch(qc);
+        await waitFor(() => expect(guard).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+        release();
+
+        // With nothing left to protect, the next settled off answer closes it onto the card.
+        await refetch(qc);
+        expect(await screen.findByText(t("documents.file.office_off_title", { format: "Markdown" }))).toBeInTheDocument();
+        expect(screen.queryByTestId("office-host")).toBeNull();
+      });
+    });
+  });
+
+  it("keeps download and upload reachable from the page menu while the editor is mounted", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockReturnValue(true);
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    const pageMenu = (
+      <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+    );
+    const view = render(wrap(
+      <HeaderActionsSlotProvider>
+        {pageMenu}
+        <DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />
+      </HeaderActionsSlotProvider>,
+    ));
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.download_original") })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.upload_version") }));
+    expect(await screen.findByText(t("documents.upload.version_title"))).toBeInTheDocument();
+    view.unmount();
+
+    render(wrap(
+      <HeaderActionsSlotProvider>
+        {pageMenu}
+        <DocumentFileView wsId={WS} doc={fileDocument({ my_level: "view" })} readonly officeEditorHost={officeHost} />
+      </HeaderActionsSlotProvider>,
+    ));
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.download_original") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.upload_version") })).toBeNull();
+  });
+
+  it("stages a new version and commits it on the base it started from", async () => {
+    const calls: { path: string; opts?: { method?: string; body?: unknown; headers?: Record<string, string> } }[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown; headers?: Record<string, string> }) => {
+      calls.push({ path, opts });
+      if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) {
+        return Promise.resolve({ versions, next_cursor: null });
+      }
+      if (path === "/api/v1/documents/d1/uploads") {
+        return Promise.resolve({
+          upload_id: "f2",
+          checksum_sha256: "c".repeat(64),
+          size_bytes: 2048,
+          claim_expires_at: "2026-09-28T04:00:00Z",
+        });
+      }
+      if (path === "/api/v1/documents/d1/versions/commit") {
+        return Promise.resolve({
+          document: fileDocument({ revision: "4" }),
+          version: { ...versions[0], id: "v3", version: 3 },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    fireEvent.change(input, {
+      target: { files: [new File(["new"], "báo-cáo.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.path === "/api/v1/documents/d1/versions/commit")).toBe(true),
+    );
+    const commit = calls.find((c) => c.path === "/api/v1/documents/d1/versions/commit");
+    expect(commit?.opts?.body).toEqual({ upload_id: "f2", base_revision: "3" });
+    expect(commit?.opts?.headers?.["Idempotency-Key"]).toBeTruthy();
+    const upload = calls.find((c) => c.path === "/api/v1/documents/d1/uploads");
+    expect(upload?.opts?.method).toBe("POST");
+    // Same key for the pair: the commit reconciles the upload it staged.
+    expect(upload?.opts?.headers?.["Idempotency-Key"]).toBe(commit?.opts?.headers?.["Idempotency-Key"]);
+    await waitFor(() => expect(screen.queryByLabelText(t("documents.upload.pick"))).toBeNull());
+  });
+
+  it("keeps a failed commit in the dialog instead of claiming a version", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) {
+        return Promise.resolve({ versions, next_cursor: null });
+      }
+      if (path === "/api/v1/documents/d1/uploads") {
+        return Promise.resolve({
+          upload_id: "f2",
+          checksum_sha256: "c".repeat(64),
+          size_bytes: 2048,
+          claim_expires_at: "2026-09-28T04:00:00Z",
+        });
+      }
+      if (path.endsWith("/versions/commit")) return Promise.reject(new Error("stale"));
+      return Promise.resolve({});
+    });
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [new File(["new"], "báo-cáo.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("stale");
+  });
+
+  it("refuses a new version over upload_max_bytes before making any upload request", async () => {
+    const calls: string[] = [];
+    requestMock.mockImplementation((path: string) => {
+      calls.push(path);
+      if (path.startsWith("/api/v1/documents/d1/versions")) {
+        return Promise.resolve({ versions, next_cursor: null });
+      }
+      return Promise.resolve({});
+    });
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    expect(await screen.findByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+    const huge = new File(["new"], "báo-cáo.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [huge] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "báo-cáo.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+    expect(calls.some((p) => p.includes("/uploads"))).toBe(false);
+  });
+
+
+  it("downloads the bytes through the authenticated proxy route", async () => {
+    mockApi();
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
+      Promise.resolve(
+        new Response(new Blob(["bytes"], { type: "application/pdf" }), {
+          status: 200,
+          headers: { "Content-Type": "application/pdf" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:document"),
+      revokeObjectURL: vi.fn(),
+    });
+    // jsdom cannot navigate; the click on the synthetic anchor would log an
+    // unimplemented-navigation error.
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.download") }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/v1/documents/d1/download");
+  });
+  // A .txt file opens in the markdown frame (plain mode) like a .md file: the
+  // office_txt_open flag is gone (user 2026-10-21), so only office_engine and
+  // office_markdown in the organization's own answer decide. By extension only,
+  // a bare text/plain mime never maps.
+  describe("a .txt file opens like a .md file", () => {
+    const txtDocument = (filename = "ghi-chu.txt", mime = "text/plain") => fileDocument({
+      organization_id: "org1",
+      file: {
+        file_id: "f1", version_id: "v2", version: 2, filename,
+        mime_type: mime, size_bytes: 128, checksum_sha256: "a".repeat(64),
+      },
+    });
+
+    const orgConfig = (flags: Record<string, boolean>) => requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/config?organization_id=org1") return Promise.resolve({ flags });
+      return Promise.resolve({ versions: [], next_cursor: null });
+    });
+
+    it.each(["ghi-chu.txt", "README.TXT"])("mounts the markdown editor on %s with no txt key anywhere in the organization's answer", async (filename) => {
+      orgConfig({ office_engine: true });
+      const officeHost = vi.fn(({ readonly: isReadonly }: { readonly: boolean }) => (
+        <div data-testid="office-host" data-readonly={String(isReadonly)}>Office host</div>
+      ));
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument(filename)} readonly officeEditorHost={officeHost} />));
+
+      expect(await screen.findByTestId("office-host")).toHaveAttribute("data-readonly", "true");
+      expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true, officeFormat: "md" }));
+      expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
+    });
+
+    it("ignores a leftover office_txt_open key: off in the answer does not close the editor", async () => {
+      orgConfig({ office_engine: true, office_txt_open: false });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("says it is checking while the organization's answer is loading, then mounts the editor", async () => {
+      let answer!: (body: unknown) => void;
+      requestMock.mockImplementation((path: string) => path.startsWith("/api/v1/config")
+        ? new Promise((resolve) => { answer = resolve; })
+        : Promise.resolve({ versions: [], next_cursor: null }));
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(screen.getByText(t("documents.file.office_checking", { format: "Markdown" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+
+      act(() => answer({ flags: { office_engine: true } }));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("keeps the card with the Markdown-off notice when office_markdown is off, even with a txt key on", async () => {
+      featureFlagMock.useFlag.mockReturnValue(true);
+      orgConfig({ office_engine: true, office_markdown: false, office_txt_open: true });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(await screen.findByText(t("documents.file.office_off_title", { format: "Markdown" }))).toBeInTheDocument();
+      expect(screen.queryByTestId("office-host")).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it("keeps the card with the Office-off notice when the engine is off", async () => {
+      orgConfig({ office_engine: false });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(await screen.findByText(t("documents.file.office_off_title", { format: "Markdown" }))).toBeInTheDocument();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it("keeps the card with the could-not-check notice after a failed read, like any Office format", async () => {
+      requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("offline")) : Promise.resolve({ versions: [], next_cursor: null })));
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(
+        <DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />,
+        new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } }),
+      ));
+      expect(await screen.findByText(t("documents.file.office_unknown_title", { format: "Markdown" }))).toBeInTheDocument();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it.each(["notes.csv", "app.log", "no-extension"])("never opens %s in the editor, text/plain or not", async (filename) => {
+      orgConfig({ office_engine: true });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(
+        <DocumentFileView wsId={WS} doc={txtDocument(filename)} readonly={false} officeEditorHost={officeHost} />,
+        new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } }),
+      ));
+
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// UNI-1645 CFE-1-2 / CFE-1-12: the file-version commit under the edit lock.
+describe("DocumentFileView: new version under the edit lock", () => {
+  async function pickAndSubmit(name = "báo-cáo.pdf") {
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [new File(["new"], name, { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+  }
+  type Call = { path: string; opts?: { method?: string; body?: Record<string, unknown>; headers?: Record<string, string> } };
+  function mockCommit(calls: Call[], commit: (n: number) => unknown) {
+    let n = 0;
+    requestMock.mockImplementation((path: string, opts?: Call["opts"]) => {
+      calls.push({ path, opts });
+      if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) return Promise.resolve({ versions, next_cursor: null });
+      if (path === "/api/v1/documents/d1/uploads") {
+        return Promise.resolve({ upload_id: "f2", checksum_sha256: "c".repeat(64), size_bytes: 2048, claim_expires_at: "2026-09-28T04:00:00Z" });
+      }
+      if (path === "/api/v1/documents/d1/versions/commit") return commit(++n);
+      return Promise.resolve({});
+    });
+  }
+  const committed = () => ({ document: fileDocument({ revision: "4" }), version: { ...versions[0], id: "v3", version: 3 } });
+
+  it("the commit carries edit_lock_id when this tab holds the lock", async () => {
+    const calls: Call[] = [];
+    mockCommit(calls, () => Promise.resolve(committed()));
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderView();
+      await pickAndSubmit();
+      await waitFor(() => expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(true));
+      expect(calls.find((c) => c.path.endsWith("/versions/commit"))?.opts?.body).toEqual({ upload_id: "f2", base_revision: "3", edit_lock_id: "L1" });
+    } finally {
+      forgetHeldEditLock("L1");
+    }
+  });
+
+  it("a retry under another lock id uses a new idempotency key, and a 423 is reported to the page", async () => {
+    const calls: Call[] = [];
+    mockCommit(calls, (n) => (n === 1 ? Promise.reject(new ApiError("đang bị khóa", "document_locked", 423, undefined, { holder_name: "An" })) : Promise.resolve(committed())));
+    const refused = vi.fn();
+    const off = onWriteRefused("d1", refused);
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderView();
+      await pickAndSubmit();
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+      );
+      expect(alert).not.toHaveTextContent("đang bị khóa");
+      expect(refused).toHaveBeenCalledWith({ holder_name: "An" }, "L1");
+      forgetHeldEditLock("L1");
+      registerHeldEditLock("d1", "L2");
+      fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+      await waitFor(() => expect(calls.filter((c) => c.path.endsWith("/versions/commit"))).toHaveLength(2));
+      const [first, second] = calls.filter((c) => c.path.endsWith("/versions/commit"));
+      expect(second?.opts?.body).toMatchObject({ edit_lock_id: "L2" });
+      expect(second?.opts?.headers?.["Idempotency-Key"]).not.toBe(first?.opts?.headers?.["Idempotency-Key"]);
+    } finally {
+      off();
+      forgetHeldEditLock("L1");
+      forgetHeldEditLock("L2");
+    }
+  });
+});

@@ -14,6 +14,14 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
+// formatURLExpiry is a signed URL's expiry, or empty when nothing was signed.
+func formatURLExpiry(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return at.UTC().Format(time.RFC3339)
+}
+
 func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	kind := m.Kind
 	if kind == "" {
@@ -22,7 +30,7 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	out := sdo.ChatMessageDTO{
 		ID: m.ID, RoomID: m.RoomID, WorkspaceID: m.WorkspaceID,
 		SenderID: m.SenderID, SenderDisplayName: m.SenderDisplayName,
-		Kind: kind, Body: m.Body, CreatedAt: m.CreatedAt.Format(time.RFC3339),
+		Kind: kind, Body: m.Body, CreatedAt: m.CreatedAt.Format(time.RFC3339), Cursor: m.Cursor(),
 	}
 	if m.ReplyToMessageID != nil {
 		out.ReplyToMessageID = m.ReplyToMessageID
@@ -36,11 +44,18 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.LastReplyAt != nil {
 		out.LastReplyAt = m.LastReplyAt.Format(time.RFC3339)
 	}
+	out.ThreadParticipantIDs = m.ThreadParticipantIDs
 	if m.ThreadUnread {
 		out.ThreadUnread = true
 	}
+	if m.ThreadFollowing {
+		out.ThreadFollowing = true
+	}
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
+	}
+	if len(m.MyReactions) > 0 {
+		out.MyReactions = m.MyReactions
 	}
 	if len(m.MentionedUserIDs) > 0 {
 		out.MentionedUserIDs = m.MentionedUserIDs
@@ -48,8 +63,17 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.Pinned {
 		out.Pinned = true
 	}
+	if m.PinnedAt != "" {
+		out.PinnedAt = m.PinnedAt
+	}
+	if m.CanShareAsDocument {
+		out.CanShareAsDocument = true
+	}
 	if m.Priority != "" {
 		out.Priority = m.Priority
+	}
+	if f := m.ForwardedFrom; f != nil {
+		out.ForwardedFrom = &sdo.ChatForwardedFromDTO{SenderID: f.SenderID, SenderName: f.SenderName, SentAt: f.SentAt.Format(time.RFC3339)}
 	}
 	if m.ClientMsgID != "" {
 		out.ClientMsgID = m.ClientMsgID
@@ -58,25 +82,88 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 		out.EditedAt = m.EditedAt.Format(time.RFC3339)
 	}
 	if m.VoiceCall != nil {
+		participants := make([]sdo.VoiceCallParticipantDTO, 0, len(m.VoiceCall.Participants))
+		for _, p := range m.VoiceCall.Participants {
+			participants = append(participants, sdo.VoiceCallParticipantDTO{
+				UserID: p.UserID, DisplayName: p.DisplayName,
+			})
+		}
 		out.VoiceCall = &sdo.VoiceCallLogDTO{
 			Outcome:         m.VoiceCall.Outcome,
 			DurationSeconds: m.VoiceCall.DurationSeconds,
 			CallerID:        m.VoiceCall.CallerID,
+			Video:           m.VoiceCall.Video,
+			Participants:    participants,
+			RecordingID:     m.VoiceCall.RecordingID,
+			RecordingStatus: m.VoiceCall.RecordingStatus,
+			RecordingURL:    m.VoiceCall.RecordingURL,
+		}
+	}
+	if m.VoiceCallSummary != nil {
+		items := make([]sdo.VoiceCallSummaryActionItemDTO, 0, len(m.VoiceCallSummary.ActionItems))
+		for _, item := range m.VoiceCallSummary.ActionItems {
+			items = append(items, sdo.VoiceCallSummaryActionItemDTO{
+				Title: item.Title, Owner: item.Owner, Due: item.Due, SourceMessageID: item.SourceMessageID,
+			})
+		}
+		out.VoiceCallSummary = &sdo.VoiceCallSummaryDTO{
+			CallID:           m.VoiceCallSummary.CallID,
+			CallLogMessageID: m.VoiceCallSummary.CallLogMessageID,
+			Summary:          m.VoiceCallSummary.Summary,
+			Highlights:       m.VoiceCallSummary.Highlights,
+			ActionItems:      items,
 		}
 	}
 	if m.Voice != nil {
 		out.Voice = &sdo.VoiceMessageDTO{
-			DurationMS:  m.Voice.DurationMS,
-			ContentType: m.Voice.ContentType,
-			SizeBytes:   m.Voice.SizeBytes,
+			DurationMS:   m.Voice.DurationMS,
+			ContentType:  m.Voice.ContentType,
+			SizeBytes:    m.Voice.SizeBytes,
+			URL:          m.Voice.URL,
+			URLExpiresAt: formatURLExpiry(m.Voice.URLExpiresAt),
 		}
 	}
 	if m.File != nil {
 		out.File = &sdo.FileMessageDTO{
-			Filename:    m.File.Filename,
-			ContentType: m.File.ContentType,
-			SizeBytes:   m.File.SizeBytes,
+			Filename:     m.File.Filename,
+			ContentType:  m.File.ContentType,
+			SizeBytes:    m.File.SizeBytes,
+			URL:          m.File.URL,
+			DownloadURL:  m.File.DownloadURL,
+			ThumbURL:     m.File.ThumbURL,
+			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
 		}
+	}
+	if m.Document != nil {
+		block := &sdo.DocumentMessageDTO{
+			DocumentID:      m.Document.DocumentID,
+			ViewerHasAccess: m.Document.HasAccess,
+		}
+		// Without access the block carries the id and the false flag and
+		// nothing else: no title, format or revision of a document the caller
+		// cannot read (UNI-1966 §5).
+		if m.Document.HasAccess {
+			block.ViewerLevel = m.Document.Level
+			block.ViewerCanManage = m.Document.CanManage
+			block.ViewerCanUploadVersion = m.Document.CanUploadVersion
+			block.Title = m.Document.Title
+			block.Format = m.Document.Format
+			block.VersionNumber = int(m.Document.VersionNumber)
+			block.Revision = strconv.FormatInt(m.Document.Revision, 10)
+			block.CanOpenInApp = m.Document.CanOpenInApp
+		}
+		if m.Document.HasRecipientCount {
+			count := m.Document.RecipientCount
+			block.RecipientCount = &count
+		}
+		// The origin is the message's own and carries no document data, so it
+		// is set with or without access; the editors count is the sender's.
+		block.Origin = m.Document.Origin
+		if m.Document.HasOtherEditorsCount {
+			count := m.Document.OtherEditorsCount
+			block.OtherEditorsCount = &count
+		}
+		out.Document = block
 	}
 	if m.Poll != nil {
 		options := make([]sdo.ChatPollOptionDTO, 0, len(m.Poll.Options))
@@ -97,7 +184,12 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 				HideVoters:           m.Poll.Settings.HideVoters,
 			},
 			ViewerOptionIDs: m.Poll.ViewerOptionIDs,
-			VotesByUser:     m.Poll.VotesByUser,
+		}
+	}
+	if m.PollVote != nil {
+		out.PollVote = &sdo.ChatPollVoteActivityDTO{
+			PollMessageID: m.PollVote.PollMessageID,
+			Question:      m.PollVote.Question,
 		}
 	}
 	if m.Reminder != nil {
@@ -130,6 +222,7 @@ func toChatRoomMemberPermissionsDTO(p service.ChatRoomMemberPermissions) *sdo.Ch
 		AllowCreateNotes:   p.AllowCreateNotes,
 		AllowCreatePolls:   p.AllowCreatePolls,
 		AllowSendMessages:  p.AllowSendMessages,
+		AllowForward:       p.AllowForward,
 	}
 }
 
@@ -140,14 +233,27 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	}
 	out := sdo.ChatRoomDTO{
 		ID: r.ID, Kind: r.Kind, Name: r.Name, WorkspaceID: r.WorkspaceID,
-		MemberUserIDs: memberIDs, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
+		MemberUserIDs: memberIDs, MemberCount: r.MemberCount, UnreadCount: r.UnreadCount, MentionUnreadCount: r.MentionUnreadCount,
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
+		LastMessageCallOutcome: r.LastMessageCallOutcome, LastMessageDurationMS: r.LastMessageDurationMS,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
+		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL, CanSendDocument: r.CanSendDocument,
 	}
+	wallPreset := strings.TrimSpace(r.WallpaperPreset)
+	if wallPreset == "" {
+		wallPreset = "default"
+	}
+	out.Wallpaper = &sdo.ChatRoomWallpaperDTO{Preset: wallPreset, URL: r.WallpaperURL}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
+	}
+	if r.PeerLastDeliveredAt != nil {
+		out.PeerLastDeliveredAt = r.PeerLastDeliveredAt.UTC().Format(time.RFC3339Nano)
+	}
+	if r.LastReadAt != nil {
+		out.LastReadAt = r.LastReadAt.UTC().Format(time.RFC3339Nano)
 	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
@@ -173,7 +279,13 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 		}
 		before = &t
 	}
-	return service.ListChatMessagesInput{Before: before, Limit: limit}, nil
+	// mark_read=0 keeps last_read_at so CatchUp still sees unread after open.
+	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
+	return service.ListChatMessagesInput{
+		Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")),
+		After:  strings.TrimSpace(r.URL.Query().Get("after")),
+		Before: before, Limit: limit, SkipMarkRead: skipMarkRead,
+	}, nil
 }
 
 func (h *handlers) getWorkspaceChatRoom(w http.ResponseWriter, r *http.Request) {
@@ -233,47 +345,6 @@ func (h *handlers) ensureWorkspaceChatRoom(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (h *handlers) listWorkspaceChatMessages(w http.ResponseWriter, r *http.Request) {
-	wsID := chi.URLParam(r, "workspaceID")
-	in, err := parseChatMessageListQuery(r)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
-		return
-	}
-	msgs, err := h.Chat.ListWorkspaceMessages(r.Context(), middleware.UserID(r.Context()), wsID, in)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
-	for _, m := range msgs {
-		out = append(out, toChatMessageDTO(m))
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
-}
-
-func (h *handlers) sendWorkspaceChatMessage(w http.ResponseWriter, r *http.Request) {
-	var in sdi.SendChatMessageSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	msg, err := h.Chat.SendWorkspaceMessage(
-		r.Context(),
-		middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"),
-		service.SendChatMessageInput{
-			Body:             in.Body,
-			ReplyToMessageID: in.ReplyToMessageID,
-			ClientMsgID:      in.ClientMsgID,
-		},
-	)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
-}
-
 func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
 	wsID := chi.URLParam(r, "workspaceID")
 	rooms, err := h.Chat.ListChatRooms(r.Context(), middleware.UserID(r.Context()), wsID)
@@ -286,6 +357,24 @@ func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toChatRoomDTO(room))
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"rooms": out})
+}
+
+func (h *handlers) chatUnreadSummary(w http.ResponseWriter, r *http.Request) {
+	sum, err := h.Chat.UnreadSummary(r.Context(), middleware.UserID(r.Context()))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.ChatUnreadSummarySDO{
+		Direct:     sdo.ChatUnreadTotalsDTO{Unread: sum.Direct.Unread, Mentions: sum.Direct.Mentions},
+		Workspaces: make([]sdo.ChatWorkspaceUnreadDTO, 0, len(sum.Workspaces)),
+	}
+	for _, ws := range sum.Workspaces {
+		out.Workspaces = append(out.Workspaces, sdo.ChatWorkspaceUnreadDTO{
+			WorkspaceID: ws.WorkspaceID, Unread: ws.Unread, Mentions: ws.Mentions,
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 func (h *handlers) resolveDM(w http.ResponseWriter, r *http.Request) {
@@ -342,6 +431,36 @@ func (h *handlers) leaveChatRoom(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
+	err := h.Chat.MarkRoomRead(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) muteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, true)
+}
+
+func (h *handlers) unmuteChatRoom(w http.ResponseWriter, r *http.Request) {
+	h.setChatRoomMuted(w, r, false)
+}
+
+func (h *handlers) setChatRoomMuted(w http.ResponseWriter, r *http.Request, muted bool) {
+	err := h.Chat.SetRoomNotificationsMuted(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), muted,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) removeWorkspaceChatRoomMember(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.RemoveChatRoomMember(
 		r.Context(),
@@ -370,10 +489,17 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.ChatRoomMemberDTO, 0, len(members))
 	for _, m := range members {
-		out = append(out, sdo.ChatRoomMemberDTO{
+		dto := sdo.ChatRoomMemberDTO{
 			UserID: m.UserID, Role: m.Role, SendRestricted: m.SendRestricted,
-			Email: m.Email, DisplayName: m.DisplayName,
-		})
+			Email: m.Email, DisplayName: m.DisplayName, IsCreator: m.IsCreator,
+		}
+		if m.LastReadAt != nil {
+			dto.LastReadAt = m.LastReadAt.UTC().Format(time.RFC3339Nano)
+		}
+		if m.LastDeliveredAt != nil {
+			dto.LastDeliveredAt = m.LastDeliveredAt.UTC().Format(time.RFC3339Nano)
+		}
+		out = append(out, dto)
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
 }
@@ -420,6 +546,9 @@ func patchMemberPermissionsFromSDI(
 	if in.AllowSendMessages != nil {
 		current.AllowSendMessages = *in.AllowSendMessages
 	}
+	if in.AllowForward != nil {
+		current.AllowForward = *in.AllowForward
+	}
 	return current
 }
 
@@ -431,6 +560,23 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := chi.URLParam(r, "roomID")
 	wsID := chi.URLParam(r, "workspaceID")
 	actorID := middleware.UserID(r.Context())
+	settingsChange := in.Name != nil || in.Topic != nil || in.MemberPermissions != nil
+	if in.Wallpaper == nil && !settingsChange {
+		if _, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+		return
+	}
+	if in.Wallpaper != nil {
+		if err := h.Chat.UpdateChatRoomWallpaperPreset(
+			r.Context(), actorID, wsID, roomID, in.Wallpaper.Preset,
+		); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+	}
 	var merged *service.ChatRoomMemberPermissions
 	if in.MemberPermissions != nil {
 		current, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID)
@@ -441,21 +587,22 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		next := patchMemberPermissionsFromSDI(current, in.MemberPermissions)
 		merged = &next
 	}
-	perms, err := h.Chat.UpdateChatRoomSettings(
-		r.Context(), actorID, wsID, roomID,
-		service.UpdateChatRoomSettingsInput{Name: in.Name, MemberPermissions: merged},
-	)
+	settingsChange = in.Name != nil || in.Topic != nil || merged != nil
+	var perms service.ChatRoomMemberPermissions
+	var err error
+	if settingsChange {
+		perms, err = h.Chat.UpdateChatRoomSettings(
+			r.Context(), actorID, wsID, roomID,
+			service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
+		)
+	} else {
+		perms, err = h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID)
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberPermissionsDTO{
-		AllowChangeProfile: perms.AllowChangeProfile,
-		AllowPinContent:    perms.AllowPinContent,
-		AllowCreateNotes:   perms.AllowCreateNotes,
-		AllowCreatePolls:   perms.AllowCreatePolls,
-		AllowSendMessages:  perms.AllowSendMessages,
-	})
+	respondJSON(w, http.StatusOK, toChatRoomMemberPermissionsDTO(perms))
 }
 
 func (h *handlers) listChatRoomMessages(w http.ResponseWriter, r *http.Request) {
@@ -519,7 +666,7 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 					HideResultsUntilVote: in.Poll.Settings.HideResultsUntilVote,
 					HideVoters:           in.Poll.Settings.HideVoters,
 				},
-				ReplyToMessageID: in.ReplyToMessageID,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Reminder != nil {
@@ -529,10 +676,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendReminderMessageInput{
-				Body:             in.Reminder.Body,
-				RemindAt:         in.Reminder.RemindAt,
-				Repeat:           in.Reminder.Repeat,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Reminder.Body,
+				RemindAt:    in.Reminder.RemindAt,
+				Repeat:      in.Reminder.Repeat,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Note != nil {
@@ -542,9 +689,9 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendNoteMessageInput{
-				Body:             in.Note.Body,
-				PinToTop:         in.Note.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Body:        in.Note.Body,
+				PinToTop:    in.Note.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else if in.Post != nil {
@@ -554,10 +701,10 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			workspaceID,
 			roomID,
 			service.SendPostMessageInput{
-				Title:            in.Post.Title,
-				Body:             in.Post.Body,
-				PinToTop:         in.Post.PinToTop,
-				ReplyToMessageID: in.ReplyToMessageID,
+				Title:       in.Post.Title,
+				Body:        in.Post.Body,
+				PinToTop:    in.Post.PinToTop,
+				ClientMsgID: in.ClientMsgID,
 			},
 		)
 	} else {
@@ -593,6 +740,41 @@ func (h *handlers) voteChatPollMessage(w http.ResponseWriter, r *http.Request) {
 		chi.URLParam(r, "roomID"),
 		chi.URLParam(r, "messageID"),
 		in.OptionID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
+func (h *handlers) getChatPollVoters(w http.ResponseWriter, r *http.Request) {
+	votes, err := h.Chat.ChatPollVoters(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatPollVotersSDO{VotesByUser: votes})
+}
+
+func (h *handlers) addChatPollOptionMessage(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AddChatPollOptionSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	msg, err := h.Chat.AddChatPollOptionMessage(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+		in.Label,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -734,6 +916,31 @@ func (h *handlers) searchChatRoomMessages(w http.ResponseWriter, r *http.Request
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "roomID"),
+		in,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, toChatMessageDTO(m))
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
+}
+
+// searchChatMessages is the sidebar's search: every room of mine in one scope.
+func (h *handlers) searchChatMessages(w http.ResponseWriter, r *http.Request) {
+	in, err := parseChatSearchQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
+		return
+	}
+	msgs, err := h.Chat.SearchMessages(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		strings.TrimSpace(r.URL.Query().Get("scope")),
 		in,
 	)
 	if err != nil {

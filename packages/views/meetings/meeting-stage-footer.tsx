@@ -1,49 +1,63 @@
 "use client";
 
 import { useParticipants } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { Hand } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
-import { MeetingCaptionsOverlay } from "./meeting-captions";
+import { meetingLocale } from "./meeting-datetime";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 const DOCK_HIDE_DELAY_MS = 750;
 const DOCK_INTERACTION_GRACE_MS = 2800;
-const DOCK_ANIM_MS = 280;
+// Matches `duration-standard` on the dock: collapse the dock's height only
+// after it has faded, so the stage below reflows once instead of every frame.
+const DOCK_FADE_MS = 200;
 const FOOTER_EDGE_PAD_PX = 12;
 const DOCK_RESERVE_BUFFER_PX = 8;
 const MIN_DOCK_RESERVE_PX = 80;
 const COLLAPSED_RESERVE_MIN_PX = 8;
 
+/** Joins and leaves are always followed; a rename is the one other change the names show. */
+const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
+
 function MeetingHandsBanner({ className }: { className?: string }) {
-  const { t } = useTranslation();
   const { hands } = useMeetingSignals();
-  const participants = useParticipants();
-
+  // The roster is only read while a hand is up: the rest of the time the
+  // banner follows no room event at all.
   if (hands.length === 0) return null;
+  return <HandsBannerNames hands={hands} className={className} />;
+}
 
-  const names = hands.map((identity) => {
-    const participant = participants.find((p) => p.identity === identity);
-    return participant?.name || participant?.identity || identity;
-  });
+function HandsBannerNames({ hands, className }: { hands: readonly string[]; className?: string }) {
+  const { t, i18n } = useTranslation();
+  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
+
+  const names = new Intl.ListFormat(meetingLocale(i18n.language), {
+    style: "long",
+    type: "conjunction",
+  }).format(
+    hands.map((identity) => {
+      const participant = participants.find((p) => p.identity === identity);
+      return participant?.name || participant?.identity || identity;
+    }),
+  );
 
   return (
     <div
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-none flex w-fit max-w-[min(100%,48rem)] items-center gap-2 rounded-xl bg-warning/95 px-3 py-2 text-label font-medium text-background shadow-sm backdrop-blur-sm",
+        "pointer-events-none flex w-fit max-w-[min(100%,48rem)] items-center gap-2 rounded-xl bg-warning-solid px-3 py-2 text-label font-medium text-on-solid shadow-floating",
         className,
       )}
       data-testid="meeting-hands-banner"
     >
       <Hand aria-hidden className="size-4 shrink-0" />
       <span className="min-w-0 truncate">
-        {t("meetings.handsRaised", { count: hands.length })}
-        {": "}
-        {names.join(", ")}
+        {t("meetings.handsRaisedNames", { count: hands.length, names })}
       </span>
     </div>
   );
@@ -60,19 +74,25 @@ function reserveTotal(contentPx: number, collapsed = false): number {
   return contentPx + edge + buffer;
 }
 
-export function MeetingStageFooter({
+/** Memoized: the stage memoizes the prompt, captions and control bar it passes. */
+export const MeetingStageFooter = memo(function MeetingStageFooter({
   stageContentRef,
   captionsOn,
-  captionsInterim,
-  captionsLastFinal,
+  captions,
+  prompt,
   controlBar,
   className,
   onReserveHeightChange,
 }: {
   stageContentRef: RefObject<HTMLDivElement | null>;
   captionsOn: boolean;
-  captionsInterim: string;
-  captionsLastFinal: string;
+  /** The captions overlay; it keeps its own state so its updates stay local. */
+  captions?: ReactNode;
+  /**
+   * A card stacked above everything else (the vote prompt). It sits inside the
+   * measured stack, so the stage reserve grows with it and the tiles reflow once.
+   */
+  prompt?: ReactNode;
   controlBar: ReactNode;
   className?: string;
   onReserveHeightChange?: (heightPx: number) => void;
@@ -125,12 +145,17 @@ export function MeetingStageFooter({
 
     const dockHeight = dock.scrollHeight;
     let overhead = 0;
+    let rows = 0;
     for (const child of stack.children) {
       if (child === dock) continue;
-      overhead += (child as HTMLElement).getBoundingClientRect().height;
+      const height = (child as HTMLElement).getBoundingClientRect().height;
+      // An empty prompt slot (`empty:hidden`) stays in the DOM but takes no row and no gap.
+      if (height <= 0) continue;
+      overhead += height;
+      rows += 1;
     }
     const gapPx = Number.parseFloat(getComputedStyle(stack).rowGap) || 8;
-    const gaps = Math.max(0, stack.children.length - 1) * gapPx;
+    const gaps = rows * gapPx;
     const expandedContent = Math.max(overhead + gaps + dockHeight, MIN_DOCK_RESERVE_PX);
     const collapsedContent = Math.max(overhead + gaps, 0);
 
@@ -207,6 +232,16 @@ export function MeetingStageFooter({
   const dockHidden = autoHide && !revealed;
   const dockHiddenRef = useRef(dockHidden);
   dockHiddenRef.current = dockHidden;
+  const [dockCollapsed, setDockCollapsed] = useState(dockHidden);
+
+  useEffect(() => {
+    if (!dockHidden) {
+      setDockCollapsed(false);
+      return;
+    }
+    const id = setTimeout(() => setDockCollapsed(true), DOCK_FADE_MS);
+    return () => clearTimeout(id);
+  }, [dockHidden]);
 
   // Derive reserve from intrinsic sizes (scrollHeight + siblings), not live stack height during animation.
   useEffect(() => {
@@ -251,19 +286,23 @@ export function MeetingStageFooter({
         ref={measureRef}
         className="flex w-fit max-w-full flex-col items-center gap-2 sm:gap-2.5"
       >
-        <MeetingHandsBanner />
-        {captionsOn ? (
-          <MeetingCaptionsOverlay interim={captionsInterim} lastFinal={captionsLastFinal} embedded />
+        {prompt ? (
+          // The footer lets clicks through to the stage; the card takes its own.
+          // `empty:hidden` drops the wrapper while the card renders nothing.
+          <div className="pointer-events-auto max-w-full empty:hidden">{prompt}</div>
         ) : null}
+        <MeetingHandsBanner />
+        {captionsOn ? captions : null}
         <div
           ref={dockShellRef}
+          // Only transform and opacity animate; the height snaps once the fade
+          // is over. The collapsed dock stays focusable (no display:none) so a
+          // keyboard user tabbing in brings it back via onFocusCapture.
           className={cn(
-            "pointer-events-auto w-fit max-w-full origin-bottom transition-[max-height,transform,opacity,margin] ease-out motion-reduce:transition-none",
-            dockHidden
-              ? "pointer-events-none max-h-0 translate-y-2 scale-95 opacity-0"
-              : "max-h-24 translate-y-0 scale-100 opacity-100",
+            "pointer-events-auto w-fit max-w-full origin-bottom transition-[transform,opacity] duration-standard ease-out motion-reduce:transition-none",
+            dockHidden ? "pointer-events-none translate-y-2 opacity-0" : "translate-y-0 opacity-100",
+            dockCollapsed && "max-h-0",
           )}
-          style={{ transitionDuration: `${DOCK_ANIM_MS}ms` }}
           data-testid="meeting-control-dock"
         >
           {controlBar}
@@ -271,4 +310,4 @@ export function MeetingStageFooter({
       </div>
     </div>
   );
-}
+});

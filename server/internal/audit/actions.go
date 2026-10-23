@@ -24,6 +24,9 @@ const (
 	ActionMemberReactivated            = "member.reactivated"
 	ActionMemberLeft                   = "member.left"
 	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
+	// The sole owner closes the organization (ADR 0032): it is archived, not
+	// erased, and the owner is free to join or found another.
+	ActionOrganizationClosed = "organization.closed"
 
 	// People and departments (F-03). profile.updated covers both the self-edit
 	// and the administrator's edit; the row records which company-owned facts
@@ -35,8 +38,11 @@ const (
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
 
-	ActionWorkspaceCreated = "workspace.created"
-	ActionWorkspaceUpdated = "workspace.updated"
+	ActionWorkspaceCreated         = "workspace.created"
+	ActionWorkspaceUpdated         = "workspace.updated"
+	ActionCalendarConnected        = "calendar.connected"
+	ActionCalendarSelectionUpdated = "calendar.selection_updated"
+	ActionCalendarDisconnected     = "calendar.disconnected"
 
 	ActionWorkspaceMemberAdded       = "workspace_member.added"
 	ActionWorkspaceMemberRoleChanged = "workspace_member.role_changed"
@@ -88,44 +94,255 @@ const (
 	ActionProjectResourceUpdated = "project_resource.updated"
 	ActionProjectResourceDeleted = "project_resource.deleted"
 
-	ActionAuthLoginSucceeded         = "auth.login_succeeded"
-	ActionAuthLoginFailed            = "auth.login_failed"
-	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
-	ActionAuthPasswordChanged        = "auth.password_changed"
-	ActionAuthSessionRevoked         = "auth.session_revoked"
-	ActionAuthMFAEnabled             = "auth.mfa_enabled"
-	ActionAuthMFADisabled            = "auth.mfa_disabled"
+	ActionAuthLoginSucceeded          = "auth.login_succeeded"
+	ActionAuthLoginFailed             = "auth.login_failed"
+	ActionAuthPasswordResetRequested  = "auth.password_reset_requested"
+	ActionAuthPasswordChanged         = "auth.password_changed"
+	ActionAuthSessionRevoked          = "auth.session_revoked"
+	ActionAuthDesktopStarted          = "auth.desktop_started"
+	ActionAuthDesktopConsentApproved  = "auth.desktop_consent_approved"
+	ActionAuthDesktopConsentCancelled = "auth.desktop_consent_cancelled"
+	ActionAuthDesktopSessionCreated   = "auth.desktop_session_created"
+	ActionAuthDesktopTokenRotated     = "auth.desktop_token_rotated"
+	ActionAuthDesktopSessionRevoked   = "auth.desktop_session_revoked"
+	ActionAuthMFAEnabled              = "auth.mfa_enabled"
+	ActionAuthMFADisabled             = "auth.mfa_disabled"
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
 
-	ActionChatRoomCreated       = "chat.room.created"
-	ActionChatRoomMemberAdded   = "chat.room.member_added"
-	ActionChatRoomMemberRemoved = "chat.room.member_removed"
-	ActionChatChannelUpdated    = "chat.channel.updated"
-	ActionChatChannelArchived   = "chat.channel.archived"
-	ActionChatMessageLinked     = "chat.message.linked"
-	ActionChatThreadTaskLinked  = "chat.thread.task_linked"
+	ActionChatRoomCreated         = "chat.room.created"
+	ActionChatRoomMemberAdded     = "chat.room.member_added"
+	ActionChatRoomMemberRemoved   = "chat.room.member_removed"
+	ActionChatChannelUpdated      = "chat.channel.updated"
+	ActionChatChannelArchived     = "chat.channel.archived"
+	ActionChatMessageLinked       = "chat.message.linked"
+	ActionChatMessageUnlinked     = "chat.message.unlinked"
+	ActionChatThreadTaskLinked    = "chat.thread.task_linked"
+	ActionChatThreadTaskUnlinked  = "chat.thread.task_unlinked"
+	ActionChatFollowUpCreated     = "chat.follow_up.created"
+	ActionChatFollowUpUpdated     = "chat.follow_up.updated"
+	ActionChatFollowUpCompleted   = "chat.follow_up.completed"
+	ActionChatFollowUpDeleted     = "chat.follow_up.deleted"
+	ActionChatMessageDeleted      = "chat.message.deleted"
+	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
+	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
+	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
+	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
+	ActionChatMessageForwarded    = "chat.message.forwarded"
 
-	ActionSubscriptionChanged = "subscription.changed"
+	ActionSubscriptionChanged    = "subscription.changed"
+	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
+
+	// Documents (UNI-675): created today through the owner seam
+	// (C-01 §13.5); the public page/file commands add their own rows as
+	// those lands (G1-04+).
+	ActionDocumentCreated = "document.created"
+	// G1-03 (UNI-677): a file version committed from a staged upload, a
+	// binary restore pointing back to an earlier file, and a page asset.
+	ActionDocumentVersionCreated  = "document.version_created"
+	ActionDocumentVersionRestored = "document.version_restored"
+	ActionDocumentAssetUploaded   = "document.asset_uploaded"
+	// G5-07 (UNI-1345): a commit attempt took over a logical intent whose
+	// previous attempt's claim expired, fencing that attempt for good.
+	ActionDocumentCommitIntentRenewed = "document.commit_intent_renewed"
+
+	// Document access (UNI-676): shares and public links on one document,
+	// and the organization's public-link switch.
+	ActionDocumentShared       = "document.shared"
+	ActionDocumentShareRevoked = "document.share_revoked"
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	ActionDocumentBreakGlassGranted = "document.break_glass_granted"
+	ActionDocumentBreakGlassRevoked = "document.break_glass_revoked"
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level - the (visibility, workspace_level) pair of one document. One row
+	// per home-row change, the plain visibility PATCH included; the level of
+	// a home row never exceeds edit (Q-S1).
+	ActionDocumentWorkspaceAccessChanged = "document.workspace_access_changed"
+	ActionDocumentLinkCreated            = "document.link_created"
+	ActionDocumentLinkRevoked            = "document.link_revoked"
+	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// ActionDocumentsAccessReportExported is one access report export
+	// (UNI-1643): ids, the filter and counts, never a name.
+	ActionDocumentsAccessReportExported = "documents.access_report_exported"
+	// ActionDocumentsDownloadJobCreated is one multi-document zip download
+	// requested (UNI-2045 SV-9): the job id and the requested document ids, never a title.
+	ActionDocumentsDownloadJobCreated = "documents.download_job_created"
+	// Folder upload (UNI-2052): one row per PLAN (the batch, its folders and
+	// counts, never a filename), per cancel and per sweep expiry. Each folder
+	// and document the batch creates also gets its own document.created row.
+	ActionDocumentsFolderUploadPlanned  = "documents.folder_upload_planned"
+	ActionDocumentsFolderUploadCanceled = "documents.folder_upload_canceled"
+	ActionDocumentsFolderUploadExpired  = "documents.folder_upload_expired"
+
+	// Document comments + favorites (UNI-681): the document half of the
+	// shared comment core. The reaction actions stay document-scoped so
+	// the outbox payload carries document_id, not a probed task_id.
+	ActionDocumentCommentAdded           = "document.comment_added"
+	ActionDocumentCommentUpdated         = "document.comment_updated"
+	ActionDocumentCommentDeleted         = "document.comment_deleted"
+	ActionDocumentCommentResolved        = "document.comment_resolved"
+	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
+	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
+	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentCommentAnchorsUpdated  = "document.comment_anchors_updated"
+	ActionDocumentFavorited              = "document.favorited"
+	ActionDocumentUnfavorited            = "document.unfavorited"
+
+	// Pages (UNI-678, G1-04a): a PATCH of title, icon or the working copy.
+	// Metadata only - the page JSON never reaches audit. The visibility half
+	// of a PATCH moved to document.workspace_access_changed with SH-S1.
+	ActionDocumentUpdated = "document.updated"
+
+	// Document tree and lifecycle (UNI-678, G1-04b): a move, the archive
+	// and restore of a batch (one row per affected document, the batch id
+	// in metadata), the retention purge of a document and the version
+	// compaction sweep of the maintenance worker.
+	ActionDocumentMoved             = "document.moved"
+	ActionDocumentArchived          = "document.archived"
+	ActionDocumentRestored          = "document.restored"
+	ActionDocumentDeleted           = "document.deleted"
+	ActionDocumentVersionsCompacted = "document.versions_compacted"
+	ActionDocumentAssetPurged       = "document.asset_purged"
+
+	// Document edit lock (UNI-1645, addendum §5.1): the one editor of a
+	// document. Acquire covers a handover claim and "edit here"; release
+	// carries the end reason in metadata (the holder, the sweeper, the
+	// consumer, an archive); a take-over is its own row. The heartbeat is
+	// never audited. Requests (D3) are created, answered and cancelled.
+	ActionDocumentEditLockAcquired    = "document.edit_lock_acquired"
+	ActionDocumentEditLockReleased    = "document.edit_lock_released"
+	ActionDocumentEditLockTakenOver   = "document.edit_lock_taken_over"
+	ActionDocumentEditHoldStarted     = "document.edit_hold_started"
+	ActionDocumentEditHoldRenewed     = "document.edit_hold_renewed"
+	ActionDocumentEditHoldEnded       = "document.edit_hold_ended"
+	ActionDocumentEditRequestCreated  = "document.edit_request_created"
+	ActionDocumentEditRequestAnswered = "document.edit_request_answered"
+	ActionDocumentEditRequestCanceled = "document.edit_request_cancelled"
+
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, kept forever
+	// and read-only - "archived" is the trash. One row per document of the
+	// batch, the batch id in metadata and in the event payload.
+	ActionDocumentShelved   = "document.shelved"
+	ActionDocumentUnshelved = "document.unshelved"
+
+	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
+	// document asked its managers for access. The requester is the actor, the
+	// metadata carries the request id, the level and whether a message was
+	// sent - never the message text, which lives only in the request row.
+	// A manager's answer is its own row: approved carries the granted level and
+	// the share it created (absent when the requester was already at the
+	// level), declined carries nothing but the request id. The requester is
+	// never the actor of either.
+	ActionDocumentAccessRequested = "document.access_requested"
+	// The manager's answers (w2), plus the cancellation recorded when a pending
+	// request closes because the document was archived or the requester is no
+	// longer an active member.
+	ActionDocumentAccessRequestApproved  = "document.access_request_approved"
+	ActionDocumentAccessRequestDeclined  = "document.access_request_declined"
+	ActionDocumentAccessRequestCancelled = "document.access_request_cancelled"
+
+	// Office launch tickets are document-scoped business capabilities. They
+	// intentionally have no outbox event; these rows are the durable audit
+	// trail for create, atomic redeem and explicit revoke.
+	ActionOfficeLaunchSessionCreated  = "office.launch_session_created"
+	ActionOfficeLaunchSessionRedeemed = "office.launch_session_redeemed"
+	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
+	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
+
+	// Office offline leases (G5-08s, decision G5-D1 row 16): grant, renew,
+	// release and revoke of one device's lease on one document, each with an
+	// office_lease.* outbox row; a revoke names its reason in metadata. The
+	// policy bump is the uniwork-admin org-wide revoke (admin_actions too).
+	ActionOfficeOfflineLeaseGranted  = "office.offline_lease_granted"
+	ActionOfficeOfflineLeaseRenewed  = "office.offline_lease_renewed"
+	ActionOfficeOfflineLeaseReleased = "office.offline_lease_released"
+	ActionOfficeOfflineLeaseRevoked  = "office.offline_lease_revoked"
+	ActionOfficeOfflinePolicyBumped  = "office.offline_policy_bumped"
+
+	// Saved signatures (UNI-925 B6): a person's reusable signature images,
+	// stored server-side. Rows are personal and only the owner's own editor
+	// consumes them, so they audit without an outbox event.
+	ActionSignatureCreated = "signature.created"
+	ActionSignatureDeleted = "signature.deleted"
+
+	// Personal AI provider credentials (UNI-1008, ADR 0029). Only the owner's
+	// own settings read them, so they audit without an outbox event; the
+	// metadata names the provider, never the key.
+	ActionAICredentialSaved   = "ai.credential.saved"
+	ActionAICredentialDeleted = "ai.credential.deleted"
+
+	// Email Hub (UNI-1237): the owner connects (or reconnects) a mailbox and
+	// disconnects one (cache dropped);
+	// a mailbox whose provider refused its credential is marked needs-reconnect
+	// instead (cache kept), so no node keeps retrying a revoked password.
+	ActionEmailHubAccountConnected    = "email_hub_account.connected"
+	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
+	ActionEmailHubAccountAuthFailed   = "email_hub_account.auth_failed"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
-	ActionOrganizationSuspended   = "organization.suspended"
-	ActionOrganizationUnsuspended = "organization.unsuspended"
-	ActionPlatformRoleGranted     = "platform_role.granted"
-	ActionPlatformRoleRevoked     = "platform_role.revoked"
-	ActionFlagOverrideSet         = "flag.override_set"
-	ActionFlagOverrideDeleted     = "flag.override_deleted"
+	ActionOrganizationSuspended    = "organization.suspended"
+	ActionOrganizationUnsuspended  = "organization.unsuspended"
+	ActionPlatformRoleGranted      = "platform_role.granted"
+	ActionPlatformRoleRevoked      = "platform_role.revoked"
+	ActionFlagOverrideSet          = "flag.override_set"
+	ActionFlagOverrideDeleted      = "flag.override_deleted"
+	ActionPlanCreated              = "plan.created"
+	ActionDemoRequestCreated       = "demo_request.created"
+	ActionDemoRequestStatusUpdated = "demo_request.status_updated"
+	ActionPlanUpdated              = "plan.updated"
+	ActionPlanFeatureUpdated       = "plan.feature_updated"
+
+	// An operator closed a desktop device session family on the owner's behalf.
+	ActionDesktopDeviceRevoked = "desktop_device.revoked"
+
+	// MCP connector (UNI-1308): consent creates a grant; a person or an org
+	// admin revokes it; a replayed code or refresh token closes its family.
+	ActionMcpGrantCreated                   = "mcp_grant.created"
+	ActionMcpGrantRevoked                   = "mcp_grant.revoked"
+	ActionMcpGrantScopeChanged              = "mcp_grant.scope_changed"
+	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
+	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
+	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+
+	// An organization owner/admin chose which Claude models Ask UNI offers
+	// (AskUNIService.SetAskModels).
+	ActionOrganizationAskModelsChanged = "organization.ask_models_changed"
+
+	// A cancelled meeting brought back (MeetingService.Restore).
+	ActionMeetingRestored = "meeting.restored"
+
+	// A host turned action items of a meeting summary into tasks: one row
+	// for the batch, beside the task.created row of each task
+	// (MeetingService.CreateTasksFromSummary, UNI-1853).
+	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+
+	// A host or admin generated the meeting's AI summary
+	// (MeetingService.Summarize); metadata names the summary and the usage
+	// row that paid for it.
+	ActionMeetingSummaryCreated = "meeting.summary_created"
 
 	ActionAuditExportRequested = "audit.export_requested"
+	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"
+
+	ActionPrivacyExportRequested     = "privacy.export_requested"
+	ActionPrivacyExported            = "privacy.exported"
+	ActionPrivacyDeletionRequested   = "privacy.deletion_requested"
+	ActionPrivacyDeletionCancelled   = "privacy.deletion_cancelled"
+	ActionPrivacyOrganizationDeleted = "privacy.organization_deleted"
+
+	// Multipart upload sessions for large files (BIGUP S1-b / UNI-1862).
+	ActionDocumentUploadSessionOpened    = "document.upload_session_opened"
+	ActionDocumentUploadSessionCompleted = "document.upload_session_completed"
+	ActionDocumentUploadSessionAborted   = "document.upload_session_aborted"
+	ActionDocumentUploadSessionExpired   = "document.upload_session_expired"
 )
 
 // Chat message create and update are deliberately not audited: the volume is
-// large and chat_messages already holds the history (OPEN_QUESTIONS A4). A
-// chat.message.deleted action belongs here the day a delete command exists;
-// listing it before then would be a promise the coverage test cannot check.
+// large and chat_messages already holds the history (OPEN_QUESTIONS A4).
 
 // NoOrganization is the organization_id used for credential events. Logging in
 // has no organization context — the user may belong to none, one or several —

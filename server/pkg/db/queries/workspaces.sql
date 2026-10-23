@@ -4,34 +4,72 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetWorkspaceByID :one
+-- tenant: by-id
 SELECT * FROM workspaces WHERE id = $1;
 
--- name: UpdateWorkspaceName :one
-UPDATE workspaces SET name = $2, updated_at = now()
-WHERE id = $1
+-- name: UpdateWorkspaceProfile :one
+-- A NULL argument keeps the column as it is.
+UPDATE workspaces SET
+  name        = COALESCE(sqlc.narg('name'), name),
+  description = COALESCE(sqlc.narg('description'), description),
+  slug        = COALESCE(sqlc.narg('slug'), slug),
+  task_prefix = COALESCE(sqlc.narg('task_prefix'), task_prefix),
+  updated_at  = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
 RETURNING *;
 
+-- name: SetWorkspaceIcon :one
+-- Writes both icon columns at once: a workspace shows an emoji or a file,
+-- never both (workspaces_one_icon).
+UPDATE workspaces
+SET icon_emoji = sqlc.narg('icon_emoji'), icon_file_id = sqlc.narg('icon_file_id'), updated_at = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+RETURNING *;
+
+-- name: GetWorkspaceIconFileIDForUpdate :one
+SELECT icon_file_id FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: GetWorkspaceForUpdate :one
+-- The locked row a settings change is computed from (spec 2026-10-14 §4.4).
+SELECT * FROM workspaces
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListWorkspaceIconFileIDs :many
+-- tenant: system
+-- FileService asks which of these files a workspace still shows.
+SELECT icon_file_id FROM workspaces
+WHERE icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: GetWorkspaceBySlugs :one
+-- tenant: by-id
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE o.slug = $1 AND w.slug = $2;
 
 -- name: GetWorkspaceWithOrg :one
+-- tenant: by-id
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.id = $1;
 
 -- name: ListWorkspacesForUser :many
+-- tenant: self
 -- Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+-- An archived organization (closed or deleted) keeps its workspace rows for a
+-- restore (ADR 0032 D4), but nobody can open them, so they are not listed.
 SELECT DISTINCT ON (w.created_at, w.id) w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
-WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+WHERE (m.user_id IS NOT NULL OR om.role IN ('owner','admin')) AND o.status <> 'archived'
 ORDER BY w.created_at, w.id;
 
 -- name: GetWorkspaceAccess :one
+-- tenant: by-id
 -- '' = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
 -- organization_member_deactivated rides along so RequireMember can refuse a
 -- member the organization has switched off (F-03): their workspace rows stay,
@@ -39,6 +77,8 @@ ORDER BY w.created_at, w.id;
 -- let them in.
 SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
        w.organization_id, o.status AS organization_status,
+       COALESCE(om.role, '')::text AS organization_role,
+       o.deletion_scheduled_at,
        (om.deactivated_at IS NOT NULL)::boolean AS organization_member_deactivated
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
@@ -47,8 +87,8 @@ LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND 
 WHERE w.id = $1;
 
 -- name: AddWorkspaceMember :exec
-INSERT INTO workspace_members (workspace_id, user_id, role)
-VALUES ($1, $2, $3)
+INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
 -- name: GetWorkspaceMember :one
@@ -56,11 +96,41 @@ SELECT * FROM workspace_members WHERE workspace_id = $1 AND user_id = $2;
 
 -- name: ListWorkspaceMembers :many
 SELECT m.workspace_id, m.user_id, m.role, m.created_at,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM workspace_members m
 JOIN users u ON u.id = m.user_id
 WHERE m.workspace_id = $1
 ORDER BY m.created_at;
+
+-- name: FilterActiveWorkspaceMemberUserIDs :many
+-- tenant: by-id
+-- Same admission as GetWorkspaceAccess / RequireMember, in one query for
+-- many user ids (chat reminder delivery on large channels, UNI-1727).
+SELECT input.user_id::text AS user_id
+FROM unnest(sqlc.arg(user_ids)::text[]) AS input(user_id)
+JOIN workspaces w ON w.id = sqlc.arg(workspace_id)::text
+JOIN organizations o ON o.id = w.organization_id
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = input.user_id
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = input.user_id
+WHERE COALESCE(m.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
+  AND o.status = 'active'
+  AND om.deactivated_at IS NULL
+  AND (o.deletion_scheduled_at IS NULL OR om.role = 'owner')
+ORDER BY input.user_id;
+
+-- name: ListAssignableMembers :many
+-- Who can be given a task in the workspace: its members and the
+-- organization's owners and admins (implicit workspace admins), active only.
+-- Email is left out on purpose: the MCP connector hands this to an AI app.
+SELECT u.id::text AS user_id, u.display_name::text AS display_name,
+       COALESCE(wm.role, 'org_' || om.role)::text AS role
+FROM organization_members om
+JOIN users u ON u.id = om.user_id
+LEFT JOIN workspace_members wm ON wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = om.user_id
+WHERE om.organization_id = sqlc.arg(organization_id)::text
+  AND om.deactivated_at IS NULL
+  AND (wm.user_id IS NOT NULL OR om.role IN ('owner', 'admin'))
+ORDER BY lower(u.display_name), u.id;
 
 -- name: CreateInvitation :one
 -- workspace_id is NULL for an invitation to the organization itself (F-03);
@@ -69,14 +139,37 @@ INSERT INTO invitations (id, organization_id, workspace_id, email, role, org_rol
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
--- name: GetInvitationByToken :one
-SELECT * FROM invitations
-WHERE token = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
+-- name: LockInvitationByToken :one
+-- tenant: token
+-- Accepting reads the invitation under a row lock, whatever its state, so a
+-- revoke or a second accept running at the same moment queues behind it.
+SELECT * FROM invitations WHERE token = $1 FOR UPDATE;
 
--- name: MarkInvitationAccepted :exec
-UPDATE invitations SET accepted_at = now() WHERE id = $1;
+-- name: GetInvitationByTokenAnyState :one
+-- tenant: token
+-- The invitation page reads the invitation whatever its state, so it can say
+-- why a link no longer works, with the names the invitee is shown: the
+-- organization, the workspace when there is one, and who sent it. Unlocked:
+-- accepting reads it again under LockInvitationByToken.
+SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
+       i.expires_at, i.accepted_at, i.revoked_at,
+       o.name AS organization_name, o.slug AS organization_slug,
+       w.name AS workspace_name, w.slug AS workspace_slug,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN workspaces w ON w.id = i.workspace_id
+LEFT JOIN users u ON u.id = i.invited_by
+WHERE i.token = $1;
+
+-- name: MarkInvitationAccepted :execrows
+-- tenant: by-id
+-- Zero rows means the invitation stopped being pending; the accept rolls back.
+UPDATE invitations SET accepted_at = now()
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now();
 
 -- name: ListInvitationsForEmail :many
+-- tenant: self
 -- The workspace columns are nullable now: an organization-level invitation has
 -- no workspace, so the join has to be outer or those rows disappear from the
 -- invitee's own list (F-03).
@@ -92,9 +185,13 @@ WHERE i.email = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expi
 ORDER BY i.created_at DESC;
 
 -- name: ListPendingOrganizationInvitations :many
-SELECT i.*, u.display_name AS invited_by_name
+-- An invitation sent from a workspace names it; the outer join keeps the
+-- organization-level ones, which have none.
+SELECT i.*, u.display_name AS invited_by_name,
+       w.name AS workspace_name, w.slug AS workspace_slug
 FROM invitations i
 LEFT JOIN users u ON u.id = i.invited_by
+LEFT JOIN workspaces w ON w.id = i.workspace_id AND w.organization_id = i.organization_id
 WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC;
 
@@ -104,10 +201,42 @@ WHERE organization_id = $1 AND lower(email) = lower($2)
   AND workspace_id IS NULL AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 LIMIT 1;
 
+-- name: ListWorkspacesInOrgByIDs :many
+-- The workspaces an organization invitation may grant: only the
+-- organization's own, so an id from another tenant simply is not found.
+SELECT id, name, slug FROM workspaces
+WHERE organization_id = $1 AND id = ANY(sqlc.arg(ids)::text[])
+ORDER BY created_at, id;
+
+-- name: AddInvitationWorkspace :exec
+INSERT INTO invitation_workspaces (invitation_id, workspace_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteInvitationWorkspaces :exec
+DELETE FROM invitation_workspaces
+WHERE invitation_id = $1 AND organization_id = $2;
+
+-- name: ListInvitationWorkspaces :many
+-- What an invitation grants, oldest workspace first (the order the post-login
+-- resolver lands in). The join drops a workspace that no longer exists and
+-- keeps the grant inside the invitation's organization.
+SELECT iw.invitation_id, w.id, w.name, w.slug
+FROM invitation_workspaces iw
+JOIN workspaces w ON w.id = iw.workspace_id AND w.organization_id = iw.organization_id
+WHERE iw.invitation_id = ANY(sqlc.arg(invitation_ids)::text[]) AND iw.organization_id = ANY(sqlc.arg(organization_ids)::text[])
+ORDER BY w.created_at, w.id;
+
 -- name: RevokeInvitation :one
 UPDATE invitations SET revoked_at = now()
 WHERE id = $1 AND organization_id = $2 AND accepted_at IS NULL AND revoked_at IS NULL
 RETURNING *;
+
+-- name: RevokePendingInvitationsForOrg :execrows
+-- A closed organization takes nobody in: its open invitations are revoked
+-- with it, and the rows stay for the trail.
+UPDATE invitations SET revoked_at = now()
+WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL;
 
 -- name: UpdateWorkspaceMemberRole :one
 UPDATE workspace_members
@@ -120,6 +249,7 @@ DELETE FROM workspace_members
 WHERE workspace_id = $1 AND user_id = $2;
 
 -- name: SetWorkspaceMatrixRoomID :one
+-- tenant: by-id
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -129,3 +259,9 @@ UPDATE workspaces
 SET task_prefix = $2, updated_at = now()
 WHERE id = $1 AND organization_id = $3
 RETURNING *;
+
+-- name: LockWorkspaceSlugs :exec
+-- Serializes slug changes and workspace creation in one organization, so the
+-- check that a slug is nobody else's alias and the write that follows see
+-- the same rows (spec 2026-10-14 §4.4).
+SELECT pg_advisory_xact_lock(hashtextextended('workspace-slug:' || sqlc.arg(organization_id)::text, 0));

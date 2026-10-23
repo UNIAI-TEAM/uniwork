@@ -4,6 +4,7 @@ import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@uniwork/ui/lib/utils"
+import { UI_FLOATING_TRANSITION_CLASS } from "@uniwork/ui/lib/motion"
 import { ChevronRightIcon, CheckIcon } from "lucide-react"
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
@@ -53,7 +54,11 @@ function DropdownMenuContent({
             e.stopPropagation()
             onClick?.(e)
           }}
-          className={cn("z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-surface-raised p-1 text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border duration-100 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn(
+            "z-50 max-h-(--available-height) min-w-32 overflow-x-hidden overflow-y-auto rounded-lg bg-surface-raised p-1 text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border outline-none data-ending-style:overflow-hidden",
+            UI_FLOATING_TRANSITION_CLASS,
+            className
+          )}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -147,7 +152,10 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn("w-auto min-w-[96px] rounded-lg bg-surface-raised p-1 text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+      className={cn(
+        "w-auto min-w-[96px] rounded-lg bg-surface-raised p-1 text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border",
+        className
+      )}
       align={align}
       alignOffset={alignOffset}
       side={side}

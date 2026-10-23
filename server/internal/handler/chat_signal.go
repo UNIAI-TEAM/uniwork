@@ -18,7 +18,7 @@ func (h *handlers) signalChatVoiceInvite(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.Chat.SignalVoiceInvite(
 		r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID, in.Video,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -50,7 +50,7 @@ func (h *handlers) signalChatVoiceHangup(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.Chat.SignalVoiceHangup(
 		r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID, in.DurationSeconds,
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -98,15 +98,16 @@ func (h *handlers) signalChatPresence(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Chat.SignalPresence(
+	online, err := h.Chat.SignalPresence(
 		r.Context(),
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		in.State,
+		in.Visible,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+	respondJSON(w, http.StatusOK, sdo.ChatPresenceSDO{Status: "ok", OnlineUserIDs: online})
 }

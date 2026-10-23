@@ -1,29 +1,51 @@
 "use client";
-import type { ComponentProps } from "react";
-import { useRef, useState } from "react";
+import type { ComponentProps, PointerEvent as ReactPointerEvent, RefObject } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   isTrackReference,
+  useConnectionQualityIndicator,
   useIsMuted,
   useIsSpeaking,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
-import { Track } from "livekit-client";
-import { Eye, EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
+import { ConnectionQuality, Track } from "livekit-client";
+import { Hand, Lock, MicOff, MonitorUp, Volume2, WifiLow, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
+import { Toaster } from "@uniwork/ui/components/ui/sonner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { useMeetingSignals } from "./use-meeting-signals";
+import {
+  cameraTileSize,
+  DEFAULT_CAMERA_ASPECT,
+  screenShareTileSize,
+  stageFillSize,
+  tileControlButtons,
+  tileRingTone,
+  type TileRingTone,
+} from "./conference-layout";
+import { MeetingPresentingBar, MeetingPresentingCard } from "./meeting-screen-share-notices";
+import { MeetingConnectionNotice } from "./meeting-connection-notice";
+import { ownSharePreview, useTileFullscreen } from "./screen-share";
+import { holdScreenShareFullscreen } from "./share-adaptive-stream";
+import { useParticipantSignal } from "./use-meeting-signals";
+import { MeetingTileActions } from "./meeting-tile-actions";
+import { useMicLocked } from "./meeting-moderation";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRoleChip } from "./meeting-role-chip";
+import type { MeetingParticipantRole } from "./meeting-signals";
+
+/** How long a tap keeps a tile's controls up before they step aside again. */
+const TOUCH_REVEAL_MS = 4000;
+
+const RING: Record<TileRingTone, string> = {
+  hand: "ring-2 ring-inset ring-warning",
+  speaking: "ring-2 ring-inset ring-success",
+  pinned: "ring-2 ring-inset ring-brand",
+  idle: "ring-1 ring-inset ring-surface-border",
+};
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -34,168 +56,164 @@ function hasPlayableVideo(track: TrackReferenceOrPlaceholder | undefined): boole
   return Boolean(track.publication.track) && !track.publication.isMuted;
 }
 
-function MicStatusBadge({ muted, speaking }: { muted: boolean; speaking: boolean }) {
-  if (muted) {
-    return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
-        <MicOff aria-hidden className="size-3.5" />
-      </span>
-    );
-  }
-  if (speaking) {
-    return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
-        <Volume2 aria-hidden className="size-3.5" />
-      </span>
-    );
-  }
-  return null;
+/**
+ * The playing video's width/height, following resolution changes. Until the
+ * element reports its own size it takes the publication's advertised size,
+ * so a 4:3 or ultrawide share opens in its shape instead of jumping from 16:9.
+ */
+function useVideoAspect(
+  ref: RefObject<HTMLVideoElement | null>,
+  active: boolean,
+  trackSid: string | null,
+  advertised: number | null,
+): number {
+  const [aspect, setAspect] = useState(advertised ?? DEFAULT_CAMERA_ASPECT);
+  useEffect(() => {
+    // Only until the element knows better: once it reports its own size, the
+    // advertised one (which can lag a rotation) must not override it.
+    const video = ref.current;
+    if (advertised && !(video && video.videoWidth > 0)) setAspect(advertised);
+  }, [ref, advertised, trackSid]);
+  useEffect(() => {
+    const video = ref.current;
+    if (!active || !video) return;
+    const read = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) setAspect(video.videoWidth / video.videoHeight);
+    };
+    read();
+    video.addEventListener("loadedmetadata", read);
+    video.addEventListener("resize", read);
+    return () => {
+      video.removeEventListener("loadedmetadata", read);
+      video.removeEventListener("resize", read);
+    };
+  }, [ref, active, trackSid]);
+  return aspect;
 }
 
-function TileActionButton({
-  compact,
-  className,
-  ...props
-}: ComponentProps<typeof Button> & { compact?: boolean }) {
+function StatusBadge({ className, ...props }: ComponentProps<"span">) {
   return (
-    <Button
-      type="button"
-      size="icon"
-      variant="ghost"
-      className={cn(
-        "rounded-full text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover",
-        compact ? "size-7" : "size-8",
-        className,
-      )}
+    <span
+      role="img"
+      className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", className)}
       {...props}
     />
   );
 }
 
-function MeetingTileHoverActions({
-  participant,
-  name,
-  pinned,
-  compact,
-  canHost,
-  micMuted,
-  visible,
-  onMenuOpenChange,
-  onPin,
-}: {
-  participant: Participant;
-  name: string;
-  pinned: boolean;
-  compact: boolean;
-  canHost: boolean;
-  micMuted: boolean;
-  visible: boolean;
-  onMenuOpenChange: (open: boolean) => void;
-  onPin: () => void;
-}) {
+function MicStatusBadge({ muted, locked, speaking }: { muted: boolean; locked: boolean; speaking: boolean }) {
   const { t } = useTranslation();
-  const { requestMute } = useMeetingSignals();
-  const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
-  const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
-  const showHostMute = canHost && !participant.isLocal && !micMuted;
-
-  return (
-    <div
-      className={cn(
-        "absolute inset-0 z-30 flex items-center justify-center transition-opacity motion-reduce:transition-none",
-        visible
-          ? "pointer-events-auto opacity-100"
-          : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
-      )}
-    >
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-black/35 motion-reduce:transition-none motion-safe:transition-opacity"
-      />
-      <div
-        className={cn(
-          "relative flex items-center gap-0.5 rounded-full bg-meeting-bar-bg/95 p-0.5 ring-1 ring-meeting-bar-border backdrop-blur-sm",
-          compact && "gap-0",
-        )}
-      >
-        <TileActionButton
-          compact={compact}
-          aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
-          aria-pressed={pinned}
-          onClick={onPin}
-        >
-          {pinned ? (
-            <PinOff aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          ) : (
-            <Pin aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          )}
-        </TileActionButton>
-
-        {showHostMute ? (
-          <TileActionButton
-            compact={compact}
-            aria-label={t("meetings.muteParticipant", { name })}
-            onClick={() => requestMute(participant.identity)}
-          >
-            <MicOff aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </TileActionButton>
-        ) : null}
-
-        <DropdownMenu onOpenChange={onMenuOpenChange}>
-          <DropdownMenuTrigger
-            render={
-              <TileActionButton
-                compact={compact}
-                aria-label={t("meetings.participantActions", { name })}
-                className="data-popup-open:bg-meeting-bar-chip-hover"
-              />
-            }
-          >
-            <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="min-w-44">
-            <DropdownMenuItem onClick={onPin}>
-              {pinned ? (
-                <PinOff aria-hidden className="size-4" />
-              ) : (
-                <Pin aria-hidden className="size-4" />
-              )}
-              {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              {isHidden ? (
-                <Eye aria-hidden className="size-4" />
-              ) : (
-                <EyeOff aria-hidden className="size-4" />
-              )}
-              {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
-            </DropdownMenuItem>
-            {showHostMute ? (
-              <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
-                <MicOff aria-hidden className="size-4" />
-                {t("meetings.muteParticipant", { name })}
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
+  // A lock outranks a mute: it says why the mic stays off, and who can lift it.
+  if (locked) {
+    return (
+      <StatusBadge aria-label={t("meetings.micLocked")} className="bg-warning-solid text-on-solid">
+        <Lock aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  if (muted) {
+    return (
+      <StatusBadge aria-label={t("meetings.micIsOff")} className="bg-destructive-solid text-on-solid">
+        <MicOff aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  if (speaking) {
+    return (
+      <StatusBadge aria-label={t("meetings.speaking")} className="bg-success-solid text-on-solid">
+        <Volume2 aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  return null;
 }
 
-export function MeetingParticipantTile({
-  participant,
-  track,
-  compact = false,
-  expanded = false,
-  canHost = false,
-}: {
+/** Only a weak or lost link earns a badge; a healthy one is the default and says nothing. */
+function ConnectionQualityBadge({ participant }: { participant: Participant }) {
+  const { t } = useTranslation();
+  const { quality } = useConnectionQualityIndicator({ participant });
+  if (quality === ConnectionQuality.Poor) {
+    return (
+      <StatusBadge aria-label={t("meetings.connectionPoor")} className="bg-warning-solid text-on-solid">
+        <WifiLow aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  if (quality === ConnectionQuality.Lost) {
+    return (
+      <StatusBadge aria-label={t("meetings.connectionQualityLost")} className="bg-destructive-solid text-on-solid">
+        <WifiOff aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  return null;
+}
+
+/**
+ * Touch has no hover: a tap on the tile toggles its controls, and they step
+ * aside again after a few seconds or on a tap anywhere else. A tap on a
+ * control itself is left to that control.
+ */
+function useTouchReveal(tileRef: RefObject<HTMLDivElement | null>, hold: boolean) {
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!revealed || hold) return;
+    const timer = window.setTimeout(() => setRevealed(false), TOUCH_REVEAL_MS);
+    const onPointerDown = (event: PointerEvent) => {
+      if (!tileRef.current?.contains(event.target as Node)) setRevealed(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [revealed, hold, tileRef]);
+
+  const onTilePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return;
+    if ((event.target as Element).closest("[data-tile-controls]")) return;
+    setRevealed((v) => !v);
+  };
+
+  return { revealed, onTilePointerDown };
+}
+
+type MeetingParticipantTileProps = {
   participant: Participant;
   track?: TrackReferenceOrPlaceholder;
   compact?: boolean;
   expanded?: boolean;
   canHost?: boolean;
-}) {
+  roleChip?: MeetingParticipantRole | null;
+  /** The person's photo, shown while their camera is off. */
+  avatarUrl?: string;
+  /**
+   * `cell`: the tile centres in its own grid cell. `stage`: it is the main
+   * tile of a presentation group and sizes itself from the stage, leaving the
+   * strip's room (see STRIP_RESERVE_X in conference-layout).
+   */
+  placement?: "cell" | "stage";
+  /**
+   * The media track and whether it plays, read by the parent at its render.
+   * The publication object is mutated in place, so the memo compares these
+   * snapshots rather than the publication.
+   */
+  videoTrack?: unknown;
+  videoOn?: boolean;
+};
+
+function MeetingParticipantTileImpl({
+  participant,
+  track,
+  compact = false,
+  expanded = false,
+  canHost = false,
+  roleChip = null,
+  avatarUrl,
+  placement = "cell",
+  videoOn,
+}: MeetingParticipantTileProps) {
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
@@ -204,14 +222,24 @@ export function MeetingParticipantTile({
   const pinned = pinnedIdentity === participant.identity;
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
-  const { hands, reactions } = useMeetingSignals();
-  const handRaised = hands.includes(participant.identity);
-  const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
+  const micLocked = useMicLocked(participant);
+  const { handRaised, reaction } = useParticipantSignal(participant.identity);
   const name = displayName(participant);
-  const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
-  const isScreenShare =
-    track && isTrackReference(track) && track.source === Track.Source.ScreenShare;
-  const showVideo = !compact && hasPlayableVideo(track);
+  const isScreenShare = Boolean(
+    track && isTrackReference(track) && track.source === Track.Source.ScreenShare,
+  );
+  // A share says whose screen it is, so it never reads as a second camera
+  // tile of the same person; a thumbnail has room for "You" but not the name.
+  const label = isScreenShare
+    ? t("meetings.presentingName", { name })
+    : participant.isLocal
+      ? compact
+        ? t("meetings.you")
+        : t("meetings.youSuffix", { name })
+      : name;
+  // Thumbnails play video too: adaptive stream subscribes them at the small
+  // simulcast layer, so the avatar only stands in when the camera is off.
+  const showVideo = videoOn ?? hasPlayableVideo(track);
   const isLocalCamera =
     participant.isLocal && track && isTrackReference(track) && track.source === Track.Source.Camera;
   const showNameLabel = !expanded || showExpandedLabels;
@@ -220,16 +248,97 @@ export function MeetingParticipantTile({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const showHoverActions = hovered || focused || menuOpen;
+  const touch = useTouchReveal(tileRef, menuOpen);
+  // Room the corner controls take: one button width each (2rem, or 2.75rem
+  // on a coarse pointer, where buttons grow to 44px) plus their padding and
+  // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
+  // menu, where a flat 8rem cut every name to one letter. The host's mute
+  // keeps its slot once the mic is off (see MeetingTileActions).
+  const hostMuteButton = canHost && !participant.isLocal;
+  // The quick mute is one slot on a fine pointer and none on a coarse one
+  // (the menu keeps it): three 44px buttons left a phone's tile no name.
+  const otherButtons =
+    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) - (hostMuteButton ? 1 : 0);
+  const buttonCount = hostMuteButton ? `(${otherButtons} + var(--tile-mute-slot))` : `${otherButtons}`;
+  // Speaking and a raised hand belong to the person's camera tile; lit on the
+  // share as well, the presenter's voice flashed two tiles at once.
+  const ring = isScreenShare
+    ? tileRingTone({ handRaised: false, speaking: false, pinned: false })
+    : tileRingTone({ handRaised, speaking, pinned });
+  // Your own share of a tab is drawn back to you, a window only on request
+  // (it may hold the meeting itself); a whole screen stays a card, or it
+  // would show the meeting inside itself. See ownSharePreview.
+  const ownShare = Boolean(isScreenShare && participant.isLocal);
+  const ownCapture =
+    ownShare && track && isTrackReference(track) ? track.publication.track?.mediaStreamTrack : undefined;
+  const previewDefault = ownSharePreview(ownCapture);
+  const previewable = previewDefault !== "none";
+  // The presenter may put the preview away (a busy screen, a slow machine) or
+  // bring a window's back; the choice follows the capture across stage, grid,
+  // strip and a reconnect's republish (see hiddenSharePreviews).
+  const captureId = ownCapture?.id ?? "";
+  const previewChoice = useMeetingViewSessionStore((s) => s.hiddenSharePreviews[captureId]);
+  const setSharePreviewHidden = useMeetingViewSessionStore((s) => s.setSharePreviewHidden);
+  const setPreviewHidden = (hidden: boolean) => setSharePreviewHidden(captureId, hidden);
+  const previewHidden = previewChoice ?? previewDefault === "hidden";
+  const ownPreview = previewable && !previewHidden;
+  const presenting = ownShare && !ownPreview;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // Anyone but the presenter may watch a share full screen; a thumbnail is
+  // brought to the stage first.
+  const shareTrack = isScreenShare && track && isTrackReference(track) ? track.publication.track : undefined;
+  const fullscreen = useTileFullscreen(tileRef, videoRef, isScreenShare && !ownShare && !compact, (video) =>
+    holdScreenShareFullscreen(shareTrack, video),
+  );
+  const offerFullscreen = fullscreen.available && (showVideo || fullscreen.active);
+  // Full screen leaves no edge to leave and keeps the toggle focused, so a
+  // pause hides the overlays there instead of hover and focus.
+  const showActions = fullscreen.active
+    ? !fullscreen.idle
+    : hovered || focused || menuOpen || touch.revealed;
+  const overlaysAway = fullscreen.active && fullscreen.idle;
+  // Full screen adds its button to the chip, and is the only one there while
+  // on (see MeetingTileActions).
+  const controlCount = fullscreen.active ? "1" : offerFullscreen ? `(${buttonCount} + 1)` : buttonCount;
+  // A shared screen keeps its corners: a big radius clipped the logo, menus
+  // or close button that usually sit there.
+  const radius = fullscreen.active
+    ? "rounded-none"
+    : compact
+      ? "rounded-2xl"
+      : isScreenShare
+        ? "rounded-xl"
+        : "rounded-3xl";
+  // A tile takes its video's shape and centres in its cell: a camera may crop
+  // its sides a little (see cameraTileSize), a screen share never crops, so
+  // the frame hugs the shared screen whatever shape the cell takes.
+  const fitVideo = !compact && !presenting;
+  const videoSid = track && isTrackReference(track) ? track.publication.trackSid : null;
+  const dimensions = track && isTrackReference(track) ? track.publication.dimensions : undefined;
+  const advertisedAspect =
+    dimensions && dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : null;
+  const videoAspect = useVideoAspect(videoRef, fitVideo && showVideo, videoSid, advertisedAspect);
+  // A tile with no picture has no shape to keep: it fills its cell, so a
+  // phone's grid of camera-off tiles is not three short bands in tall cells.
+  const shaped = fitVideo && (showVideo || isScreenShare);
+  const tileStyle = shaped
+    ? (isScreenShare ? screenShareTileSize : cameraTileSize)(videoAspect, placement === "stage")
+    : placement === "stage"
+      ? stageFillSize()
+      : undefined;
 
-  return (
+  const tile = (
     <div
       ref={tileRef}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onPointerDown={(e) => {
-        if (e.pointerType === "touch") setHovered(true);
+      // Pointer (not mouse) events: a tap fires compatibility mouseenter with
+      // no mouseleave, which used to leave the controls stuck over the face.
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") setHovered(true);
       }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") setHovered(false);
+      }}
+      onPointerDown={touch.onTilePointerDown}
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -237,34 +346,38 @@ export function MeetingParticipantTile({
         }
       }}
       className={cn(
-        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-[280ms] motion-safe:ease-out motion-reduce:transition-none",
-        compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
+        // One corner button's width, for the name chip's room beside them.
+        "[--tile-control:2rem] [--tile-mute-slot:1] pointer-coarse:[--tile-control:2.75rem] pointer-coarse:[--tile-mute-slot:0]",
+        radius,
+        overlaysAway && "cursor-none",
+        // Full screen drops the size worked out for the cell: the tile is the
+        // whole screen and the share fits inside it (object-contain).
+        fullscreen.active
+          ? "size-full"
+          : compact
+            ? "aspect-[4/3]"
+            : placement === "cell" && (shaped ? "h-full" : "size-full"),
       )}
+      style={fullscreen.active ? undefined : tileStyle}
       data-hand-raised={handRaised || undefined}
       data-pinned={pinned || undefined}
       data-speaking={speaking || undefined}
     >
       <div
         aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-0 z-20",
-          compact ? "rounded-2xl" : "rounded-3xl",
-          pinned && "ring-2 ring-inset ring-brand",
-          speaking &&
-            !pinned &&
-            "ring-2 ring-inset ring-success motion-safe:animate-pulse motion-reduce:animate-none",
-          handRaised && !pinned && "ring-2 ring-inset ring-warning",
-          !pinned && !speaking && !handRaised && "ring-1 ring-inset ring-surface-border",
-        )}
+        className={cn("pointer-events-none absolute inset-0 z-20", radius, RING[ring])}
       />
-      <MeetingTileHoverActions
+      <MeetingTileActions
         participant={participant}
         name={name}
         pinned={pinned}
         compact={compact}
         canHost={canHost}
         micMuted={micMuted}
-        visible={showHoverActions}
+        screenShare={isScreenShare}
+        visible={showActions}
+        fullscreen={offerFullscreen ? { active: fullscreen.active, onToggle: fullscreen.toggle } : undefined}
         onMenuOpenChange={setMenuOpen}
         onPin={handlePin}
       />
@@ -275,17 +388,15 @@ export function MeetingParticipantTile({
         )}
       >
         {handRaised ? (
-          <span
+          <StatusBadge
             aria-label={t("meetings.handRaised")}
-            className={cn(
-              "flex items-center justify-center rounded-full bg-warning text-background",
-              compact ? "size-6" : "size-7",
-            )}
+            className={cn("bg-warning-solid text-on-solid", !compact && "size-7")}
           >
             <Hand aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </span>
+          </StatusBadge>
         ) : null}
-        <MicStatusBadge muted={micMuted} speaking={speaking} />
+        <ConnectionQualityBadge participant={participant} />
+        <MicStatusBadge muted={micMuted} locked={micLocked} speaking={speaking} />
       </div>
       {reaction ? (
         <span
@@ -296,35 +407,117 @@ export function MeetingParticipantTile({
           {reaction.value}
         </span>
       ) : null}
-      {showVideo && isTrackReference(track) ? (
+      {presenting ? (
+        <MeetingPresentingCard
+          compact={compact}
+          onShowPreview={previewable ? () => setPreviewHidden(false) : undefined}
+          windowShare={previewDefault === "hidden"}
+        />
+      ) : showVideo && isTrackReference(track) ? (
         <VideoTrack
+          ref={videoRef}
           trackRef={track}
+          onDoubleClick={offerFullscreen ? fullscreen.toggle : undefined}
           className={cn(
             "absolute inset-0 size-full",
-            isScreenShare ? "object-contain bg-muted" : "object-cover",
+            isScreenShare ? "bg-meeting-video-bg object-contain" : "object-cover",
             isLocalCamera && mirrorCamera && "scale-x-[-1]",
           )}
         />
+      ) : compact ? (
+        // The name chip owns the bottom band, so the face centres above it.
+        <div className="flex min-h-0 flex-1 items-center justify-center pb-5">
+          <MeetingPersonAvatar
+            name={name}
+            avatarUrl={avatarUrl}
+            size="lg"
+            tone="stage"
+            className="ring-2 ring-meeting-bar-border"
+          />
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <MeetingPersonAvatar
             name={name}
-            size={compact ? "sm" : "default"}
-            className={cn(compact ? "size-10" : "size-16", "ring-2 ring-brand/30")}
+            avatarUrl={avatarUrl}
+            size="stage"
+            // Grows with the tile (its cell is the size container) within bounds.
+            className="size-[clamp(3.5rem,24cqmin,9rem)] ring-2 ring-meeting-bar-border"
           />
         </div>
       )}
-      {showNameLabel ? (
+      {/* Full screen shows this tile alone, so the room's notices (muted by
+          the host, a share stopped, a reconnect) show here too, top centre,
+          clear of the exit button. The page's own outlets stay in the
+          accessibility tree in full screen and announce each notice, so these
+          copies are for the eyes only: second live regions read it twice. */}
+      {fullscreen.active ? (
+        <div aria-hidden className="contents">
+          <Toaster position="top-center" className="toaster group absolute!" />
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
+            <MeetingConnectionNotice />
+          </div>
+        </div>
+      ) : null}
+      {/* The presenter's own preview carries the bar in place of the name chip:
+          "X is presenting" about yourself says the same thing twice. */}
+      {ownPreview ? <MeetingPresentingBar compact={compact} onHidePreview={() => setPreviewHidden(true)} /> : null}
+      {presenting || ownPreview ? null : showNameLabel ? (
         <span
           className={cn(
-            "pointer-events-none absolute z-10 max-w-[calc(100%-2.5rem)] truncate rounded-full px-2.5 py-0.5 text-caption backdrop-blur-sm",
+            "pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
             "bg-meeting-tile-name-bg text-meeting-tile-name-foreground",
-            compact ? "bottom-1.5 left-1.5" : "bottom-2 left-2 sm:bottom-3 sm:left-3",
+            "transition-opacity duration-fast motion-reduce:transition-none",
+            overlaysAway && "opacity-0",
+            // Leave the bottom-right corner to the tile controls.
+            compact
+              ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
+              : "bottom-2 left-2 sm:bottom-3 sm:left-3",
+            // The corner controls only need room while they show (see
+            // buttonCount); kept always, a phone's tile cut every name short.
+            !compact && !showActions && "max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)]",
+            // A thumbnail is too narrow for the name and the controls at once.
+            // A thumbnail keeps the name beside its one control, cut short.
+            compact && showActions && "max-w-[calc(100%-var(--tile-control)-1rem)]",
           )}
+          style={
+            !compact && showActions
+              ? { maxWidth: `calc(100% - (${controlCount} * var(--tile-control) + 1.5rem))` }
+              : undefined
+          }
         >
-          {label}
+          {isScreenShare ? <MonitorUp aria-hidden className="size-3.5 shrink-0" /> : null}
+          <span className="min-w-0 truncate">{label}</span>
+          {roleChip && !isScreenShare ? <MeetingRoleChip role={roleChip} /> : null}
         </span>
-      ) : null}
+      ) : (
+        // The label is hidden for a clean full view; the name still reaches assistive tech.
+        <span className="sr-only">{label}</span>
+      )}
     </div>
   );
+
+  if (!fitVideo || placement === "stage") return tile;
+  return (
+    <div className="flex size-full min-h-0 min-w-0 items-center justify-center [container-type:size]">{tile}</div>
+  );
 }
+
+/**
+ * useTracks hands out fresh track objects on every room event; compare what a
+ * tile draws, so a speaker change repaints the tiles it touches, not all.
+ */
+export const MeetingParticipantTile = memo(
+  MeetingParticipantTileImpl,
+  (a, b) =>
+    a.participant === b.participant &&
+    a.track?.source === b.track?.source &&
+    a.videoTrack === b.videoTrack &&
+    a.videoOn === b.videoOn &&
+    a.compact === b.compact &&
+    a.expanded === b.expanded &&
+    a.canHost === b.canHost &&
+    a.roleChip === b.roleChip &&
+    a.avatarUrl === b.avatarUrl &&
+    a.placement === b.placement,
+);

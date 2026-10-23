@@ -1,0 +1,9 @@
+{
+  // Repo strictness first, Expo's module/JSX/customConditions last so they win;
+  // noUncheckedIndexedAccess has no Expo counterpart and survives.
+  "extends": ["@uniwork/tsconfig/react-library.json", "expo/tsconfig.base"],
+  "compilerOptions": {
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts", "expo-env.d.ts"]
+}

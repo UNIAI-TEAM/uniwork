@@ -1,3 +1,4 @@
+import { isImeComposing } from "../utils";
 import {
   getShortcutPlatform,
   getShortcutRuntime,
@@ -37,7 +38,18 @@ export interface ShortcutActionDefinition {
   defaultShortcut: ShortcutChord | null;
   /** Whether the global handler may run while focus is inside an editor/control. */
   allowInEditable: boolean;
+  /**
+   * The chord is also a Word/Office editing chord (Ctrl+J justify, Ctrl+K link,
+   * Ctrl+[ ] font size), so it stands down while focus is inside a document
+   * editor — an element under `DOCUMENT_EDITOR_SCOPE`. Outside the document
+   * editor, and in composers and inputs, the global action keeps the chord.
+   */
+  editorWins: boolean;
 }
+
+/** Marks the UniNote page editor's DOM so global chords can tell it from a composer. */
+export const DOCUMENT_EDITOR_SCOPE_ATTRIBUTE = "data-shortcut-scope";
+export const DOCUMENT_EDITOR_SCOPE = "document-editor";
 
 export function createShortcutChord(
   key: string,
@@ -65,7 +77,33 @@ const primary = (key: string) =>
  * about the thing you are typing.
  */
 export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
-  { id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
+  { id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true, editorWins: true },
+  { id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true, editorWins: true },
+  { id: "createTask", category: "general", defaultShortcut: createShortcutChord("C"), allowInEditable: false, editorWins: false },
+  { id: "findInTask", category: "general", defaultShortcut: primary("F"), allowInEditable: true, editorWins: false },
+  // Mod+Shift+O — known gap: Chrome on Windows/Linux binds Ctrl+Shift+O to its
+  // bookmark manager, so on those web builds the default never reaches the page.
+  // Recordable rather than reserved: desktop receives it, and Settings lets
+  // affected users rebind. allowInEditable because jumping threads while
+  // drafting a comment is the common case.
+  {
+    id: "openThreadNav",
+    category: "general",
+    defaultShortcut: createShortcutChord("O", { primary: true, shift: true }),
+    allowInEditable: true,
+    editorWins: false,
+  },
+  { id: "send", category: "general", defaultShortcut: createShortcutChord("Enter", { primary: true }), allowInEditable: true, editorWins: false },
+  { id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false, editorWins: true },
+  { id: "goForward", category: "navigation", defaultShortcut: primary("]"), allowInEditable: false, editorWins: true },
+  { id: "goInbox", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goTasks", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goMyTasks", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goProjects", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goMeetings", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goChat", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goPeople", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
+  { id: "goSettings", category: "navigation", defaultShortcut: null, allowInEditable: false, editorWins: false },
 ];
 
 export const SHORTCUT_ACTION_BY_ID = Object.fromEntries(
@@ -216,6 +254,36 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   );
 }
 
+/**
+ * Whether the target sits inside the UniNote page editor, where Office chords
+ * win over global ones. A read-only editor binds nothing, so only an editable
+ * scope counts.
+ */
+export function isDocumentEditorShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return target.closest(`[${DOCUMENT_EDITOR_SCOPE_ATTRIBUTE}="${DOCUMENT_EDITOR_SCOPE}"][contenteditable="true"]`) !== null;
+}
+
+const PORTAL_LAYER_SELECTOR =
+  '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]';
+
+/**
+ * Whether an open popup (menu, dialog, listbox) owns the keyboard. Popups are
+ * portaled to the body, so page-level listeners still see their keypresses;
+ * the `data-base-ui-inert` marker catches modal layers even when focus never
+ * left the page.
+ */
+export function isPortalLayerShortcutTarget(target: EventTarget | null): boolean {
+  if (typeof document === "undefined") return false;
+  if (document.querySelector("[data-base-ui-inert]") !== null) return true;
+  return target instanceof Element && target.closest(PORTAL_LAYER_SELECTOR) !== null;
+}
+
+/** A focused control already handled it, the key is auto-repeating, or an IME is composing. */
+export function shouldIgnoreGlobalShortcutEvent(event: KeyboardEvent): boolean {
+  return event.defaultPrevented || event.repeat || isImeComposing(event);
+}
+
 const PRIMARY_RESERVED_KEYS = new Set([
   // Window operations the app itself owns on every runtime: W closes the
   // tab, R/F5 is the reload guard, Q quits.
@@ -224,6 +292,10 @@ const PRIMARY_RESERVED_KEYS = new Set([
   "A", "C", "V", "X", "Y", "Z",
   // Zoom accelerators: fixed app shortcuts on desktop, browser zoom on web.
   "Equals", "Plus", "Minus", "Underscore", "0",
+  // The shared sidebar primitive (packages/ui/components/ui/sidebar.tsx) owns
+  // Cmd/Ctrl+B on window and ignores defaultPrevented, so a product action
+  // bound to it would fire alongside the sidebar toggle.
+  "B",
 ]);
 
 // Accelerators owned by the browser UI around a tab: print, address bar,
@@ -238,6 +310,12 @@ const PRIMARY_RESERVED_KEYS = new Set([
 const BROWSER_ONLY_PRIMARY_RESERVED_KEYS = new Set([
   "P", "L", "T", "N", "D", "U",
 ]);
+
+// Chromium reserves tab cycling and closing (IsReservedCommandOrKey): the page
+// never receives Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageUp / Ctrl+PageDown or
+// Ctrl+F4, and the desktop shell and the Office apps use them for their own
+// tabs and sheets. macOS cycles tabs with literal Control, not Command.
+const TAB_CYCLE_KEYS = new Set(["Tab", "PageUp", "PageDown"]);
 
 /** Browser/window/OS accelerators the app cannot reliably own in `runtime`. */
 export function isReservedShortcut(
@@ -255,14 +333,19 @@ export function isReservedShortcut(
   }
 
   if (platform === "macos") {
+    if (modifiers.control && TAB_CYCLE_KEYS.has(key)) return true;
     if (modifiers.primary && (key === "Space" || key === "Tab" || key === "M" || key === "H")) return true;
     if (modifiers.control && ["Up", "Down", "Left", "Right"].includes(key)) return true;
+    // The sidebar primitive matches ctrlKey as well as metaKey on every
+    // platform, so literal Control+B toggles it on macOS too.
+    if (modifiers.control && key === "B") return true;
   } else {
     // Windows/Super shortcuts are owned by the shell/window manager and often
     // never reach the browser. Reject all of them instead of pretending a
     // recorded binding will be dependable.
     if (modifiers.meta) return true;
     if (modifiers.alt && (key === "Tab" || key === "F4")) return true;
+    if (modifiers.primary && (TAB_CYCLE_KEYS.has(key) || key === "F4")) return true;
   }
 
   return false;
@@ -285,6 +368,23 @@ function hasCommandModifier(shortcut: ShortcutChord): boolean {
 }
 
 /**
+ * Cmd/Ctrl+F, with any extra modifier. It belongs to find: the task detail
+ * page answers `findInTask`, and the chat page (use-chat-find-shortcut.ts)
+ * opens message search from the same action's chord, so any other action bound
+ * to it would fire alongside that search. Literal Control+F stays reserved on
+ * macOS too: it is the text-field "cursor forward" key and a find chord in
+ * several shells.
+ */
+export function isFindShortcut(
+  shortcut: ShortcutChord,
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): boolean {
+  const { modifiers, key } = shortcut;
+  if (key !== "F") return false;
+  return modifiers.primary || (platform === "macos" && modifiers.control);
+}
+
+/**
  * Product-level safety policy layered on top of OS/browser reservations.
  * Plain text keys are useful for non-editable navigation (for example `C`),
  * but an action allowed inside editors must not fire while the user types.
@@ -301,6 +401,7 @@ export function isShortcutAllowedForAction(
   // Tab is focus navigation (and Ctrl+Tab is browser tab navigation) on every
   // supported platform. It is never a dependable product-level binding.
   if (shortcut.key === "Tab") return false;
+  if (actionId !== "findInTask" && isFindShortcut(shortcut, platform)) return false;
   const hasModifier = hasShortcutModifier(shortcut);
   const hasCommand = hasCommandModifier(shortcut);
 

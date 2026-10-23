@@ -1,14 +1,16 @@
 "use client";
-import { useEffect } from "react";
-import { paths } from "@uniwork/core/paths";
-import { useWorkspace } from "@uniwork/views/layout/workspace-context";
-import { useNavigation } from "@uniwork/views/navigation";
+import { Suspense, lazy } from "react";
 
+// The home screen pulls every section; lazy keeps the route entry chunk light.
+const HomeView = lazy(() =>
+  import("@uniwork/views/home/home-view").then((m) => ({ default: m.HomeView })),
+);
+
+/** Workspace root: the home screen. */
 export default function WorkspaceHome() {
-  const { workspace } = useWorkspace();
-  const { replace } = useNavigation();
-  useEffect(() => {
-    replace(paths.workspace(workspace.organization_slug, workspace.slug).tasks());
-  }, [replace, workspace]);
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <HomeView />
+    </Suspense>
+  );
 }

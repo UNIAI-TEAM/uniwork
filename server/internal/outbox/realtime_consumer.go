@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type Publisher interface {
 	PublishWorkspace(ctx context.Context, workspaceID, topic string, payload map[string]string)
 	PublishScope(ctx context.Context, scopeType, scopeID, topic string, payload map[string]string)
 	PublishUser(ctx context.Context, userID, topic string, payload map[string]string)
+	PublishUsers(ctx context.Context, userIDs []string, topic string, payload map[string]string)
 }
 
 // MemberResolver answers "who is in this chat room". ScopeRoom events are
@@ -100,6 +102,11 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 			return nil
 		}
 		c.pub.PublishScope(ctx, "organization", payload["organization_id"], ev.Topic, payload)
+	case ScopeMeeting:
+		if payload["meeting_id"] == "" {
+			return nil
+		}
+		c.pub.PublishScope(ctx, "meeting", payload["meeting_id"], ev.Topic, payload)
 	case ScopeChat:
 		if payload["room_id"] == "" {
 			return nil
@@ -114,9 +121,11 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 		if err != nil {
 			return fmt.Errorf("realtime: members of %s: %w", roomID, err)
 		}
-		for _, userID := range ids {
-			c.pub.PublishUser(ctx, userID, ev.Topic, payload)
+		// A removed member has left by delivery time; the row still names them, and they must hear it.
+		if uid := payload["user_id"]; uid != "" && !slices.Contains(ids, uid) {
+			ids = append(ids, uid)
 		}
+		c.pub.PublishUsers(ctx, ids, ev.Topic, payload)
 	}
 	return nil
 }

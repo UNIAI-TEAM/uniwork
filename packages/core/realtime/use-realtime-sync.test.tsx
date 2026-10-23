@@ -1,10 +1,20 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
+import * as authApi from "../api/endpoints/auth";
 import * as chatApi from "../api/endpoints/chat";
+import type { ChatRoomRecord } from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { documentKeys } from "../documents/keys";
+import { emailHubKeys } from "../email-hub/hooks";
+import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
+import { graphKeys } from "../graph/keys";
+import { setSessionUser } from "../auth/hooks";
+import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
+import type { Task } from "../types/task";
+import type { User } from "../types/user";
 import { useRealtimeSync } from "./use-realtime-sync";
 
 /**
@@ -29,6 +39,12 @@ function fakeClient() {
   return client as unknown as WSClient & typeof client;
 }
 
+/** A chat list a screen shows: realtime only asks the server for those (UNI-1078). */
+function shown(qc: QueryClient, queryKey: QueryKey, data: unknown) {
+  qc.setQueryData(queryKey, data);
+  new QueryObserver(qc, { queryKey, enabled: false }).subscribe(() => {});
+}
+
 function setup() {
   const qc = new QueryClient();
   const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -39,8 +55,62 @@ function setup() {
   return { qc, invalidate, client };
 }
 
+const timelineRows = (qc: QueryClient, roomId: string) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", roomId));
+  return data ? flattenRoomTimeline(data) : [];
+};
+
+const messageRow = (id: string): chatApi.ChatMessageRecord => ({
+  id,
+  room_id: "dm1",
+  workspace_id: "ws1",
+  sender_id: "u2",
+  sender_display_name: "Bob",
+  kind: "text",
+  body: id,
+  created_at: "2026-01-01T10:00:00Z",
+  pinned: false,
+  mentioned_user_ids: [],
+  reactions: {},
+  reply_count: 0,
+  thread_unread: false,
+});
+
 const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+
+/** A task detail record as `GET /api/v1/tasks/{id}` caches it under `["task", id]`. */
+const detail = (over: Partial<Task> = {}): Task => ({
+  id: "t1",
+  organization_id: "o1",
+  workspace_id: "ws1",
+  number: 1,
+  identifier: "ALP-1",
+  revision: 5,
+  title: "Tiêu đề cũ",
+  description: "Mô tả của người khác",
+  status: "todo",
+  priority: "medium",
+  assignee_kind: "human",
+  due_date: "2026-09-01",
+  position: 0,
+  kind: "normal",
+  created_by: "u1",
+  created_by_kind: "human",
+  created_at: "2026-09-01T00:00:00Z",
+  updated_at: "2026-09-01T00:00:00Z",
+  ...over,
+});
+
+/** A task.updated frame as the server emits it for a title change (every value a string). */
+const patchFrame = (over: Record<string, string> = {}): Record<string, string> => ({
+  task_id: "t1",
+  workspace_id: "ws1",
+  revision_before: "5",
+  revision: "7",
+  title: "Tiêu đề mới",
+  ...over,
+});
 
 describe("useRealtimeSync", () => {
   afterEach(() => {
@@ -56,6 +126,37 @@ describe("useRealtimeSync", () => {
     });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([JSON.stringify(["tasks", "ws1"]), JSON.stringify(["task", "t1"])]),
+    );
+  });
+
+  it("refreshes the workspace list and every open workspace on workspace.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "workspace.updated", payload: { workspace_id: "ws1", organization_id: "o1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([JSON.stringify(["workspaces"]), JSON.stringify(["workspace"])]),
+    );
+  });
+
+  it("refetches the workspace's tasks on workspace.updated so identifiers show a new prefix", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "workspace.updated", payload: { workspace_id: "ws1", organization_id: "o1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["tasks", "ws1"]),
+        JSON.stringify(["my-tasks", "ws1"]),
+        JSON.stringify(["tasks-query", "ws1"]),
+        JSON.stringify(["tasks-grouped", "ws1"]),
+        JSON.stringify(["tasks-table", "ws1"]),
+        JSON.stringify(["task"]),
+      ]),
     );
   });
 
@@ -90,6 +191,45 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
   });
 
+  describe("work graph refresh", () => {
+    // Task A's Related panel lists neighbour B by title and status, so an
+    // event about B must reach A's cached graph, not only B's own node.
+    const panelA = graphKeys.neighbors("ws1", "TASK", "tA");
+    const otherWorkspace = graphKeys.neighbors("ws2", "TASK", "tA");
+    const page = { node: null, items: [], next_cursor: "" };
+    const invalidated = (qc: QueryClient, key: readonly unknown[]) =>
+      qc.getQueryState(key)?.isInvalidated === true;
+
+    it.each([
+      ["task.updated", { task_id: "tB" }],
+      ["task.created", { task_id: "tB" }],
+      ["task.deleted", { task_id: "tB" }],
+      ["chat.thread.linked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
+      ["chat.thread.unlinked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
+    ])("%s refreshes an open graph panel now and again after the projector lag", (type, payload) => {
+      vi.useFakeTimers();
+      const { qc, client } = setup();
+      qc.setQueryData(panelA, page);
+      qc.setQueryData(otherWorkspace, page);
+      client.emit({ type, payload });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(invalidated(qc, panelA)).toBe(true);
+      // Settle the panel as its refetch would, then wait out the projector.
+      qc.setQueryData(panelA, page);
+      act(() => {
+        vi.advanceTimersByTime(2_749);
+      });
+      expect(invalidated(qc, panelA)).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(invalidated(qc, panelA)).toBe(true);
+      expect(invalidated(qc, otherWorkspace)).toBe(false);
+    });
+  });
+
   it("invalidates projects on project.created", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -103,6 +243,51 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["project", "ws1", "p1"]),
       ]),
     );
+  });
+
+  it("refreshes the mailbox list on email_hub.inbox_changed, so an auto-disconnected mailbox drops out", () => {
+    const { invalidate, client } = setup();
+    client.emit({ type: "email_hub.inbox_changed", payload: { account_id: "a1", user_id: "u1" } });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(emailHubKeys.accounts("ws1")));
+  });
+
+  it.each(["email_hub.inbox_changed", "email_hub.new_mail"] as const)(
+    "%s invalidates unread and canonical sidebar counts",
+    (type) => {
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { account_id: "a1", user_id: "u1" } });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([
+          JSON.stringify(emailHubKeys.unread("ws1")),
+          JSON.stringify(emailHubKeys.sidebarCounts("ws1", "a1")),
+        ]),
+      );
+    },
+  );
+
+  it("keeps Email Hub caches intact on new_mail and invalidates them on inbox_changed", () => {
+    vi.useFakeTimers();
+    const { qc, client } = setup();
+    const listKey = emailHubKeys.threads("ws1", "a1", "INBOX", {});
+    const conversationKey = emailHubKeys.conversation("ws1", "a1", "th1");
+    qc.setQueryData(listKey, { pages: [], pageParams: [] });
+    qc.setQueryData(conversationKey, { messages: [] });
+
+    client.emit({
+      type: "email_hub.new_mail",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(false);
+
+    client.emit({
+      type: "email_hub.inbox_changed",
+      payload: { account_id: "a1", user_id: "u1", workspace_id: "ws1" },
+    });
+
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(conversationKey)?.isInvalidated).toBe(true);
   });
 
   it("invalidates catalog statuses on task_status.created", () => {
@@ -125,12 +310,14 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["task-view-prefs", "ws1"]));
   });
 
-  it("invalidates subscribers on task.subscribed without writing the frame", () => {
+  it("invalidates subscribers on task.subscribed without writing the frame, even a patch-shaped one", () => {
     vi.useFakeTimers();
     const { qc, invalidate, client } = setup();
+    const cached = detail();
+    qc.setQueryData(["task", "t1"], cached);
     client.emit({
       type: "task.subscribed",
-      payload: { task_id: "t1", user_id: "smuggled-user" },
+      payload: { ...patchFrame(), user_id: "smuggled-user" },
     });
     act(() => {
       vi.advanceTimersByTime(250);
@@ -141,7 +328,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["task-subscribers", "t1"]),
       ]),
     );
-    expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
+    expect(qc.getQueryData(["task", "t1"])).toBe(cached);
     expect(qc.getQueryData(["task-subscribers", "t1"])).toBeUndefined();
   });
 
@@ -156,6 +343,7 @@ describe("useRealtimeSync", () => {
       expect.arrayContaining([
         JSON.stringify(["notifications", "list"]),
         JSON.stringify(["notifications", "unread-count"]),
+        JSON.stringify(["chat", "unread-summary"]),
       ]),
     );
   });
@@ -208,6 +396,46 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meetings", "ws1"]));
   });
 
+  it("invalidates calendar queries on task.updated and meeting.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.updated", payload: { task_id: "t1", workspace_id: "ws1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+
+    invalidate.mockClear();
+    client.emit({ type: "meeting.created", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
+  it("invalidates calendar queries on participant.invited", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "participant.invited", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
+  it("skips calendar invalidation when frame workspace_id mismatches hook wsId", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type: "task.updated",
+      payload: { task_id: "t1", workspace_id: "other-ws" },
+    });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
   it("refreshes join requests on join_request.created", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -234,14 +462,170 @@ describe("useRealtimeSync", () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("never writes the payload anywhere — the cache is refreshed from the API", () => {
+  it("writes nothing from a task.updated frame without the revision pair, even one carrying a Patch field", () => {
     vi.useFakeTimers();
-    const { qc, client } = setup();
-    client.emit({ type: "task.updated", payload: { task_id: "t1", title: "smuggled" } });
+    const { qc, invalidate, client } = setup();
+    const cached = detail();
+    qc.setQueryData(["task", "t1"], cached);
+    client.emit({ type: "task.updated", payload: { task_id: "t1", workspace_id: "ws1", title: "smuggled" } });
     act(() => {
       vi.advanceTimersByTime(250);
     });
-    expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
+    expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+  });
+
+  // ADR 0015: the task.updated row lists title, status, priority and due_date in
+  // Patch. A frame carrying them beside revision_before/revision patches a detail
+  // entry that already sits at revision_before; everything else still refetches.
+  describe("task.updated patch", () => {
+    const listRoots = [
+      JSON.stringify(["tasks", "ws1"]),
+      JSON.stringify(["my-tasks", "ws1"]),
+      JSON.stringify(["tasks-query", "ws1"]),
+      JSON.stringify(["tasks-table", "ws1"]),
+      JSON.stringify(["task-children", "t1"]),
+      JSON.stringify(["audit", "history", "ws1", "task", "t1"]),
+    ];
+
+    it("patches the detail entry and list rows at once, leaves the detail key out of the wave; lists still invalidate", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      qc.setQueryData(["task", "t1"], detail());
+      qc.setQueryData(["tasks-query", "ws1", "infinite", "h"], {
+        pages: [{ tasks: [detail()], total: 1, limit: 50, offset: 0 }],
+        pageParams: [0],
+      });
+      client.emit({ type: "task.updated", payload: patchFrame({ status: "in_progress" }) });
+      // Before the debounced wave: the patch is not waiting for a refetch.
+      const expected = detail({ title: "Tiêu đề mới", status: "in_progress", revision: 7 });
+      expect(qc.getQueryData(["task", "t1"])).toEqual(expected);
+      expect(
+        qc.getQueryData<{ pages: { tasks: Task[] }[] }>(["tasks-query", "ws1", "infinite", "h"])?.pages[0]?.tasks,
+      ).toEqual([expected]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["task", "t1"]));
+      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining(listRoots));
+      // The graph trails the task (ADR 0019): a patched detail never skips it.
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["graph", "ws1"]));
+    });
+
+    it("does not patch, keeps the cached revision and invalidates when the frame carries a content key outside Patch", () => {
+      // What a bundle built before a later ADR added start_date to Patch would
+      // see. Patching the title and taking the revision would leave start_date
+      // stale behind a current revision, so the frame falls back to a refetch.
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      const rows = [detail()];
+      qc.setQueryData(["task", "t1"], cached);
+      qc.setQueryData(["tasks", "ws1"], rows);
+      client.emit({ type: "task.updated", payload: patchFrame({ start_date: "2026-10-01" }) });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(qc.getQueryData<{ revision: number }>(["task", "t1"])?.revision).toBe(5);
+      expect(qc.getQueryData(["tasks", "ws1"])).toBe(rows);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("patches list rows but still invalidates the detail key when the detail entry is behind", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const behind = detail({ revision: 4 });
+      qc.setQueryData(["task", "t1"], behind);
+      qc.setQueryData(["tasks", "ws1"], [detail()]);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      expect(qc.getQueryData(["tasks", "ws1"])).toEqual([detail({ title: "Tiêu đề mới", revision: 7 })]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(behind);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("invalidates the detail entry as before when its revision is not revision_before", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail({ revision: 6 });
+      qc.setQueryData(["task", "t1"], cached);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("never creates a detail entry from a frame", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryCache().find({ queryKey: ["task", "t1"] })).toBeUndefined();
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+    });
+
+    it("keeps the cached revision and invalidates when the revisions match but no Patch field is present", () => {
+      // What an outbox row written before f00f289 looks like (mixed input).
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      qc.setQueryData(["task", "t1"], cached);
+      const { title: _title, ...noPatchField } = patchFrame();
+      client.emit({ type: "task.updated", payload: noPatchField });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(qc.getQueryData<{ revision: number }>(["task", "t1"])?.revision).toBe(5);
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+    });
+
+    it("invalidates, not patches, a detail entry whose settle refetch already landed at the frame's revision", () => {
+      // usePutTask and useUpdateTask never write the server's response into the
+      // cache; they invalidate on settle. When that refetch lands before the
+      // outbox frame, the entry already sits at (or past) the frame's revision,
+      // so the guard skips it.
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const fromRefetch = detail({ title: "Tiêu đề mới", revision: 7 });
+      qc.setQueryData(["task", "t1"], fromRefetch);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(fromRefetch);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it.each(["task.created", "task.deleted"])("only invalidates on %s, even with a patch-shaped payload", (type) => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      qc.setQueryData(["task", "t1"], cached);
+      client.emit({ type, payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
   });
 
   it("patches room messages on chat.message.created without list invalidation", async () => {
@@ -262,7 +646,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), []);
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -270,15 +654,94 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))).toHaveLength(1);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(keysCalled(invalidate)).toEqual([
+      JSON.stringify(chatKeys.voiceRecordings("ws1", "dm1")),
+    ]);
+    expect(timelineRows(qc, "dm1")).toHaveLength(1);
     vi.useRealTimers();
   });
 
-  it("patches workspace messages when the event targets the workspace room", async () => {
+  // UNI-2012 D3-B: the server emits chat.message.updated to every room that holds a
+  // document card; the FE needs no document index, the existing frame refetches the card.
+  it("re-reads and patches a kind=document card on chat.message.updated", async () => {
+    vi.useFakeTimers();
+    const card = (version: number) => ({
+      id: "doc-msg",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u2",
+      sender_display_name: "Bob",
+      kind: "document",
+      body: "bao-cao.docx",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+      document: { document_id: "D1", viewer_has_access: true, viewer_level: "comment" as const, version_number: version },
+    });
+    const get = vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(card(2));
+    const qc = new QueryClient();
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[card(1)]], pageParams: [null] });
+    const client = fakeClient();
+    renderHook(() => useRealtimeSync(client, "ws1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    client.emit({ type: "chat.message.updated", payload: { room_id: "dm1", message_id: "doc-msg" } });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+    expect(get).toHaveBeenCalledWith("ws1", "dm1", "doc-msg");
+    const rows = timelineRows(qc, "dm1");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.document?.version_number).toBe(2);
+    vi.useRealTimers();
+  });
+
+  // UNI-1693: the sidebar counts only the main timeline (thread_root_id IS NULL).
+  it("does not count a default-channel thread reply as unread or as a mention", async () => {
+    vi.useFakeTimers();
+    setSessionUser({
+      id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    const { qc, client } = setup();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room", kind: "channel", is_default: true, name: "General", workspace_id: "ws1",
+        member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
+      },
+    ]);
+    const counts = () => {
+      const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0];
+      return [room?.unread_count, room?.mention_unread_count];
+    };
+    const emitBoth = async (payload: Record<string, string>) => {
+      client.emit({ type: "chat.message.created", payload });
+      client.emit({ type: "chat.mention.created", payload });
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+        await Promise.resolve();
+      });
+    };
+
+    await emitBoth({ room_id: "ws-room", message_id: "r1", sender_id: "u2", thread_root_id: "root1" });
+    expect(counts()).toEqual([0, 0]);
+
+    // A main-timeline message from the same sender still counts.
+    await emitBoth({ room_id: "ws-room", message_id: "m2", sender_id: "u2" });
+    expect(counts()).toEqual([1, 1]);
+    resetAuthStoreForTests();
+    vi.useRealTimers();
+  });
+
+  it("patches the workspace room timeline when that room is open", async () => {
     vi.useFakeTimers();
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
       id: "m1",
@@ -296,8 +759,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
-    qc.setQueryData(chatKeys.messages("ws1"), []);
+    shown(qc, chatKeys.roomMessages("ws1", "ws-room"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -305,11 +767,14 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "ws-room", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(keysCalled(invalidate)).toEqual([
+      JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
+    ]);
+    expect(timelineRows(qc, "ws-room")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -332,23 +797,23 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), [
-      {
-        id: "root1",
-        room_id: "dm1",
-        workspace_id: "ws1",
-        sender_id: "u1",
-        sender_display_name: "Ada",
-        kind: "text",
-        body: "root",
-        created_at: "2026-01-01T10:00:00Z",
-        pinned: false,
-        mentioned_user_ids: [],
-        reactions: {},
-        reply_count: 0,
-        thread_unread: false,
-      },
-    ]);
+    const root: chatApi.ChatMessageRecord = {
+      id: "root1",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "Ada",
+      kind: "text",
+      body: "root",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+    };
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pageParams: [null], pages: [[root]] });
+    shown(qc, chatKeys.threadMessages("ws1", "dm1", "root1"), { pageParams: [null], pages: [[root]] });
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
@@ -358,29 +823,118 @@ describe("useRealtimeSync", () => {
       payload: { room_id: "dm1", thread_root_id: "root1", message_id: "r1" },
     });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
+    expect(timelineRows(qc, "dm1").map((m) => m.id)).toEqual(["root1"]);
+    expect(timelineRows(qc, "dm1")[0]?.reply_count).toBe(1);
     expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.map((m) => m.id),
-    ).toEqual(["root1"]);
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.[0]?.reply_count,
-    ).toBe(1);
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "dm1", "root1")),
-    ).toHaveLength(1);
+      qc.getQueryData<RoomTimeline>(chatKeys.threadMessages("ws1", "dm1", "root1"))?.pages[0]?.map((m) => m.id),
+    ).toEqual(["root1", "r1"]);
     vi.useRealTimers();
   });
 
-  it("refreshes the room list on chat.room.activity", () => {
+  // C3: a sidebar refetch costs the server a query per room; a frame must not
+  // abort one in flight (the server keeps running it) to start another.
+  it("sends every sidebar refresh through the chat scheduler without cancelling one in flight", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.created", payload: { room_id: "r1" } } as WSMessage);
+    client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const rooms = JSON.stringify(chatKeys.rooms("ws1"));
+    const roomCalls = invalidate.mock.calls.filter(
+      (call) => JSON.stringify((call[0] as { queryKey: unknown }).queryKey) === rooms,
+    );
+    expect(roomCalls).toEqual([[{ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false }]]);
+    vi.useRealTimers();
+  });
+
+  it("refreshes the room list on chat.room.activity", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
+    vi.useRealTimers();
+  });
+
+  // UNI-1672: a channel created, renamed, archived or unarchived by someone
+  // else reaches the sidebar, the channel directory and project channels.
+  it.each(["chat.channel.created", "chat.channel.updated", "chat.channel.archived"] as const)(
+    "refreshes the sidebar and channel lists on %s",
+    async (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { room_id: "c1", workspace_id: "ws1" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      const called = keysCalled(invalidate);
+      expect(called).toContain(JSON.stringify(["chat", "channels", "ws1"]));
+      expect(called).toContain(JSON.stringify(["chat", "project-channels", "ws1"]));
+      const rooms = JSON.stringify(chatKeys.rooms("ws1"));
+      const roomCalls = invalidate.mock.calls.filter(
+        (call) => JSON.stringify((call[0] as { queryKey: unknown }).queryKey) === rooms,
+      );
+      expect(roomCalls).toEqual([[{ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false }]]);
+      vi.useRealTimers();
+    },
+  );
+
+  // C10: one invite is one frame, which refreshes the room list and members.
+  it("refreshes the room list and members on chat.room.members_added", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.members_added", payload: { room_id: "g1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const called = keysCalled(invalidate);
+    expect(called).toContain(JSON.stringify(chatKeys.rooms("ws1")));
+    expect(called).toContain(JSON.stringify(chatKeys.roomMembers("ws1", "g1")));
+    vi.useRealTimers();
+  });
+
+  // "N người đã xem": a member's read refreshes that room's members, nothing else.
+  it("refreshes only the room's members on chat.room.member_read", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_read", payload: { room_id: "g1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "g1"))]);
+    vi.useRealTimers();
+  });
+
+  // ✓✓ grey: a member's device acknowledged the room, so only its members (their cursors) refetch.
+  it("refreshes only the room's members on chat.room.member_delivered", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_delivered", payload: { room_id: "dm1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "dm1"))]);
+    vi.useRealTimers();
+  });
+
+  // ADR 0035: a stored link card refreshes only that room's cards.
+  it("refreshes only the room's link cards on chat.message.preview_ready", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.message.preview_ready", payload: { room_id: "g1", message_id: "m1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomLinkPreviewsRoom("ws1", "g1"))]);
+    vi.useRealTimers();
   });
 
   it("invalidates message links on chat.message.linked without dropping message cache", () => {
@@ -402,7 +956,7 @@ describe("useRealtimeSync", () => {
         thread_unread: false,
       },
     ];
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), messages);
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [messages], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -415,15 +969,279 @@ describe("useRealtimeSync", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
-    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
+    expect(timelineRows(qc, "dm1")).toEqual(messages);
   });
 
-  it("invalidates workspace keys after a reconnect without every message list", () => {
+  // Documents frames are ids-only: the workspace root is the prefix of every
+  // document key (detail, versions, downloadMeta), so each of the ten wired
+  // topics below pushes exactly that root.
+  describe("documents", () => {
+    const docRoot = JSON.stringify(["documents", "ws1"]);
+
+    it.each([
+      "document.created",
+      "document.batch_uploaded",
+      "document.updated",
+      "document.version_created",
+      "document.shared",
+      "document.share_revoked",
+      "document.workspace_access_changed",
+      "document.link_created",
+      "document.link_revoked",
+      "document.favorited",
+      "document.unfavorited",
+    ] as const)("invalidates the workspace documents root on %s", (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+    });
+
+    // SHAREDBYME-01 (UNI-1851): `documentKeys.sharedByMe(wsId)` sits under the
+    // workspace root, so share and workspace-access frames mark a cached
+    // Shared-by-me query invalidated without a separate realtime key.
+    it.each([
+      "document.shared",
+      "document.share_revoked",
+      "document.workspace_access_changed",
+    ] as const)("invalidates a cached sharedByMe query on %s", (type) => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const sharedByMeKey = documentKeys.sharedByMe("ws1");
+      const otherWsKey = documentKeys.sharedByMe("ws2");
+      qc.setQueryData(sharedByMeKey, { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
+      qc.setQueryData(otherWsKey, { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
+      client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+      expect(qc.getQueryState(sharedByMeKey)?.isInvalidated).toBe(true);
+      expect(qc.getQueryState(otherWsKey)?.isInvalidated).toBe(false);
+      vi.useRealTimers();
+    });
+
+    // FD-06 (UNI-1466): the tree frames refresh the workspace root too, which
+    // covers the tree, the folder content, search results and an open delete
+    // dialog's archive-impact counts. ARCHIVE-01 (UNI-1845): document.shelved /
+    // document.unshelved ride the same wave so the shelved list under the root
+    // refreshes. Ids only, no cache patching.
+    it.each(["document.moved", "document.archived", "document.restored", "document.shelved", "document.unshelved"] as const)(
+      "invalidates the workspace root and the archive impact under it on %s",
+      (type) => {
+        vi.useFakeTimers();
+        const { qc, invalidate, client } = setup();
+        const impact = ["documents", "ws1", "archive-impact", "d1"];
+        const tree = ["documents", "ws1", "tree", "", "folders_only"];
+        qc.setQueryData(impact, { folders: 1, documents: 1, total: 3, max_nodes: 1000, too_large: false });
+        qc.setQueryData(tree, { documents: [] });
+        qc.setQueryData(documentKeys.shelved("ws1"), { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
+        client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(docRoot);
+        expect(qc.getQueryState(impact)?.isInvalidated).toBe(true);
+        expect(qc.getQueryState(tree)?.isInvalidated).toBe(true);
+        expect(qc.getQueryState(documentKeys.shelved("ws1"))?.isInvalidated).toBe(true);
+        // Invalidation only: the cached counts are not rewritten by the frame.
+        expect(qc.getQueryData(impact)).toEqual({
+          folders: 1,
+          documents: 1,
+          total: 3,
+          max_nodes: 1000,
+          too_large: false,
+        });
+        vi.useRealTimers();
+      },
+    );
+
+    it.each(["document.moved", "document.archived", "document.restored", "document.shelved", "document.unshelved"] as const)(
+      "ignores %s stamped with another workspace",
+      (type) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({ type, payload: { document_id: "d1", workspace_id: "ws2" } } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).not.toContain(docRoot);
+        vi.useRealTimers();
+      },
+    );
+
+    // Source files (chat, task attachment, recording, email) raise no
+    // document.* frame: their own frames mark the sources list stale, the
+    // chatty ones through a longer window. Keys only, no payload cached.
+    describe("sources", () => {
+      const sourcesRoot = JSON.stringify(["documents", "ws1", "sources"]);
+
+      it.each([
+        ["attachment.uploaded", { attachment_id: "a1", task_id: "t1", workspace_id: "ws1" }],
+        ["attachment.deleted", { attachment_id: "a1", task_id: "t1", workspace_id: "ws1" }],
+        ["recording.ready", { meeting_id: "m1" }],
+      ] as const)("invalidates the sources list on %s after the usual wave", (type, payload) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({ type, payload } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(sourcesRoot);
+        vi.useRealTimers();
+      });
+
+      it.each([
+        ["chat.message.created", { room_id: "dm1", message_id: "m1", sender_id: "u2" }],
+        ["chat.message.deleted", { room_id: "dm1", message_id: "m1" }],
+        ["email_hub.new_mail", { account_id: "acc1", user_id: "u1", workspace_id: "ws1" }],
+      ] as const)("coalesces %s bursts into one slow refresh", (type, payload) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        for (let i = 0; i < 5; i += 1) client.emit({ type, payload } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(keysCalled(invalidate)).not.toContain(sourcesRoot);
+        act(() => {
+          vi.advanceTimersByTime(4000);
+        });
+        expect(keysCalled(invalidate).filter((k) => k === sourcesRoot)).toHaveLength(1);
+        vi.useRealTimers();
+      });
+
+      it("ignores a task attachment frame stamped with another workspace", () => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({
+          type: "attachment.uploaded",
+          payload: { attachment_id: "a1", task_id: "t1", workspace_id: "ws2" },
+        } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(6000);
+        });
+        expect(keysCalled(invalidate)).not.toContain(sourcesRoot);
+        vi.useRealTimers();
+      });
+
+      it("refreshes the sources list when the socket reconnects", () => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.reconnect();
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        // The reconnect refresh covers it through the documents root prefix.
+        expect(keysCalled(invalidate)).toContain(JSON.stringify(["documents", "ws1"]));
+        vi.useRealTimers();
+      });
+    });
+
+    it("ignores a document frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.updated",
+        payload: { document_id: "d1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(docRoot);
+    });
+
+    // Comment frames change nothing but the thread: exactly the comment key of
+    // the document the frame names is invalidated, never the document root.
+    it.each([
+      "document.comment_added",
+      "document.comment_updated",
+      "document.comment_deleted",
+      "document.comment_resolved",
+      "document.comment_unresolved",
+      "document.comment_reaction_added",
+      "document.comment_reaction_removed",
+      "document.comment_anchors_updated",
+    ] as const)("invalidates only the comment key on %s", (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type,
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws1" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      const keys = keysCalled(invalidate);
+      expect(keys).toContain(JSON.stringify(["documents", "ws1", "doc", "d1", "comments"]));
+      expect(keys).not.toContain(docRoot);
+      vi.useRealTimers();
+    });
+
+    it("ignores a comment frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.comment_added",
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate).filter((k) => k.startsWith('["documents"'))).toEqual([]);
+      vi.useRealTimers();
+    });
+
+    it.each(["document.favorited", "document.unfavorited"] as const)(
+      "refreshes the favorites prefix on %s",
+      (type) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({
+          type,
+          payload: { document_id: "d1", workspace_id: "ws1" },
+        } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(JSON.stringify(["documents", "favorites"]));
+        vi.useRealTimers();
+      },
+    );
+  });
+
+  // UNI-1662: a reconnect refreshes an open timeline's newest page (a read
+  // `after` misses edits and deletes); a resubscribe still reads `after` (H5).
+  it("catches open chat timelines up after a reconnect and a chat resubscribe", async () => {
+    vi.useFakeTimers();
+    const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
+    const { qc, invalidate, client } = setup();
+    const newest = { ...messageRow("m1"), cursor: "1.m1" };
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[newest]], pageParams: [null] });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    client.emit({ type: "subscribe_ack", payload: { scope: "chat", id: "dm1" } } as unknown as WSMessage);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith("ws1", "dm1", expect.objectContaining({ after: "1.m1" }));
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(chatKeys.roomMessages("ws1", "dm1")));
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(chatKeys.roomMessagesRoot("ws1")));
+    vi.useRealTimers();
+  });
+
+  it("invalidates workspace keys and open chat timelines after a reconnect", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.reconnect();
-    act(() => {
-      vi.advanceTimersByTime(250);
+    // The sidebar comes through the chat scheduler: debounce plus jitter.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([
@@ -435,12 +1253,265 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
+        JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
+        JSON.stringify(["documents", "ws1"]),
+        JSON.stringify(["chat", "room-members", "ws1"]),
+        JSON.stringify(["chat", "follow-ups", "ws1"]),
+        JSON.stringify(["chat", "followed-threads", "ws1"]),
+        JSON.stringify(["chat", "channels", "ws1"]),
+        JSON.stringify(["chat", "project-channels", "ws1"]),
       ]),
     );
-    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "messages", "ws1"]));
-    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "room-messages", "ws1"]));
+  });
+
+  it("coalesces transcript.appended until the longer debounce", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["meeting-transcript", "m1"]));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(keysCalled(invalidate).filter((k) => k === JSON.stringify(["meeting-transcript", "m1"]))).toHaveLength(1);
+  });
+});
+
+describe("useRealtimeSync › meeting summary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["summary.created", "summary.tasks_linked"])(
+    "refreshes the meeting's summary and activity on %s",
+    (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["meeting-summary", "m1"]), JSON.stringify(["meeting-activity", "m1"])]),
+      );
+    },
+  );
+});
+
+describe("useRealtimeSync › home summary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const home = JSON.stringify(["home", "ws1", "summary"]);
+
+  it.each([
+    { type: "task.created", payload: { task_id: "t1" } },
+    { type: "task.updated", payload: { task_id: "t1" } },
+    { type: "task.deleted", payload: { task_id: "t1" } },
+    { type: "meeting.started", payload: { meeting_id: "m1" } },
+    { type: "participant.invited", payload: { meeting_id: "m1" } },
+    { type: "notification.created", payload: { notification_id: "n1" } },
+  ])("refreshes the home summary on $type", ({ type, payload }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(home);
+  });
+
+  it("leaves the home summary alone for chat traffic", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.created", payload: { room_id: "r1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(home);
+  });
+});
+
+describe("useRealtimeSync › meeting attendance", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const attendance = JSON.stringify(["meeting-attendance", "m1"]);
+  const participants = JSON.stringify(["meeting-participants", "m1"]);
+  const activity = JSON.stringify(["meeting-activity", "m1"]);
+
+  it.each([
+    { type: "attendance.marked", extra: [] as string[] },
+    { type: "attendance.updated", extra: [] as string[] },
+    { type: "attendance.finalized", extra: [activity] },
+    { type: "attendance.reopened", extra: [activity] },
+    { type: "participant.updated", extra: [participants] },
+    // A roster change moves someone onto or off the roll.
+    { type: "participant.invited", extra: [participants] },
+    { type: "participant.removed", extra: [participants] },
+    { type: "invitation.responded", extra: [participants] },
+    { type: "join_request.approved", extra: [participants] },
+    // The quorum lives on the meeting.
+    { type: "meeting.updated", extra: [] as string[] },
+  ])("refreshes the roll on $type", ({ type, extra }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(attendance);
+    for (const k of extra) expect(keys).toContain(k);
+  });
+});
+
+
+describe("useRealtimeSync › meeting motions", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const motions = JSON.stringify(["meeting-motions", "m1"]);
+  const activity = JSON.stringify(["meeting-activity", "m1"]);
+
+  it.each([
+    { type: "motion.created", extra: [] as string[] },
+    { type: "motion.updated", extra: [] as string[] },
+    { type: "motion.deleted", extra: [] as string[] },
+    // Opening and closing are timeline rows.
+    { type: "motion.opened", extra: [activity] },
+    { type: "motion.closed", extra: [activity] },
+    // Standing decides who joins the next roll and what my_ballot says.
+    { type: "participant.updated", extra: [] as string[] },
+    // Ending the meeting closes and counts every open motion.
+    { type: "meeting.ended", extra: [] as string[] },
+  ])("refreshes the motion list on $type", ({ type, extra }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(motions);
+    for (const k of extra) expect(keys).toContain(k);
+  });
+
+  it("refreshes only the tallies on a ballot, at most once a second", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    const list = JSON.stringify(["meeting-motions", "m1", "list"]);
+    for (let i = 0; i < 20; i++) {
+      client.emit({ type: "motion.ballot_cast", payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    }
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(list);
+    act(() => {
+      vi.advanceTimersByTime(750);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys.filter((k) => k === list)).toHaveLength(1);
+    expect(keys).not.toContain(motions);
+  });
+
+  it("keeps the timeline still for a ballot", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "motion.ballot_cast", payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(activity);
+  });
+});
+
+describe("useRealtimeSync › own organization membership", () => {
+  const me: User = {
+    id: "u1",
+    email: "a@b.c",
+    display_name: "A",
+    onboarded_at: "2026-10-01T00:00:00Z",
+    email_verified_at: "2026-10-01T00:00:00Z",
+    onboarding_questionnaire: {},
+    locale: "vi",
+  };
+  const organizations = JSON.stringify(["organizations"]);
+  const workspaces = JSON.stringify(["workspaces"]);
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    resetAuthStoreForTests();
+  });
+
+  it.each(["member.left", "member.joined"] as const)(
+    "%s for the signed-in user refreshes the organization and workspace lists and the session user",
+    async (type) => {
+      vi.useFakeTimers();
+      setSessionUser(me);
+      const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue({ ...me, display_name: "A2" });
+      const { invalidate, client } = setup();
+      // Done in another tab: this tab learns it only from the frame (ADR 0032).
+      client.emit({ type, payload: { organization_id: "o1", user_id: "u1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([organizations, workspaces]));
+      expect(fetchMe).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(useAuthStore.getState().user?.display_name).toBe("A2"));
+    },
+  );
+
+  it("organization.closed refreshes the lists and the session user of the members it reaches", async () => {
+    vi.useFakeTimers();
+    setSessionUser(me);
+    const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue(me);
+    const { invalidate, client } = setup();
+    client.emit({ type: "organization.closed", payload: { organization_id: "o1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([organizations, workspaces]));
+    await vi.waitFor(() => expect(fetchMe).toHaveBeenCalledTimes(1));
+  });
+
+  it("a session user that changed while /me was out is not overwritten", async () => {
+    setSessionUser(me);
+    let answer: (u: User) => void = () => {};
+    vi.spyOn(authApi, "me").mockReturnValue(new Promise<User | null>((r) => (answer = r)));
+    const { client } = setup();
+    client.emit({ type: "member.left", payload: { organization_id: "o1", user_id: "u1" } } as WSMessage);
+    setSessionUser({ ...me, id: "u9" });
+    answer({ ...me, display_name: "stale" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(useAuthStore.getState().user?.id).toBe("u9");
+  });
+
+  it("someone else's membership change leaves the caller's lists and session alone", () => {
+    vi.useFakeTimers();
+    setSessionUser(me);
+    const fetchMe = vi.spyOn(authApi, "me").mockResolvedValue(me);
+    const { invalidate, client } = setup();
+    client.emit({ type: "member.left", payload: { organization_id: "o1", user_id: "u2" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["people"]));
+    expect(keys).not.toContain(organizations);
+    expect(keys).not.toContain(workspaces);
+    expect(fetchMe).not.toHaveBeenCalled();
   });
 });

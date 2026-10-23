@@ -22,23 +22,44 @@ afterEach(async () => {
 });
 
 describe("LocaleSwitch", () => {
-  it("offers the other language, in that language, and switches to it", async () => {
+  it("shows both languages as a radio group, each named in its own language, and switches", async () => {
     render(
       <LocaleAdapterProvider adapter={localeAdapter}>
         <LocaleSwitch />
       </LocaleAdapterProvider>,
     );
-    const toEnglish = screen.getByRole("button", { name: "Chuyển sang English" });
-    expect(toEnglish).toHaveTextContent("English");
-    expect(toEnglish).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("radiogroup", { name: "Ngôn ngữ" })).toBeInTheDocument();
+    const vi_ = screen.getByRole("radio", { name: "Tiếng Việt" });
+    const en = screen.getByRole("radio", { name: "English" });
+    expect(vi_).toBeChecked();
+    expect(en.closest("label")).toHaveAttribute("lang", "en");
 
-    fireEvent.click(toEnglish);
+    fireEvent.click(en);
 
     expect(localeAdapter.persist).toHaveBeenCalledWith("en");
     expect(document.documentElement.lang).toBe("en");
-    // The button now points back the other way, in Vietnamese.
-    const toVietnamese = await screen.findByRole("button", { name: "Switch to Tiếng Việt" });
-    expect(toVietnamese).toHaveTextContent("Tiếng Việt");
-    expect(toVietnamese).toHaveAttribute("lang", "vi");
+    expect(await screen.findByRole("radiogroup", { name: "Language" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "English" })).toBeChecked();
+  });
+
+  it("does nothing when the current language is chosen again", () => {
+    render(
+      <LocaleAdapterProvider adapter={localeAdapter}>
+        <LocaleSwitch />
+      </LocaleAdapterProvider>,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Tiếng Việt" }));
+    expect(localeAdapter.persist).not.toHaveBeenCalled();
+  });
+
+  it("keeps two mounted switches in separate groups", () => {
+    render(
+      <LocaleAdapterProvider adapter={localeAdapter}>
+        <LocaleSwitch />
+        <LocaleSwitch />
+      </LocaleAdapterProvider>,
+    );
+    const [a, b] = screen.getAllByRole("radio", { name: "English" });
+    expect(a).not.toHaveAttribute("name", b!.getAttribute("name")!);
   });
 });

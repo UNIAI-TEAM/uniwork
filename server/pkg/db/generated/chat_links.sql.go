@@ -121,12 +121,13 @@ func (q *Queries) CreateChatThreadTaskLink(ctx context.Context, arg CreateChatTh
 const createMirroredChatThreadReply = `-- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body,
-  reply_to_message_id, thread_root_id, mirrored_from_comment_id
+  reply_to_message_id, thread_root_id, mirrored_from_comment_id, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6,
-  $7, $8, $9
+  $7, $8, $9,
+  $10
 )
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
 type CreateMirroredChatThreadReplyParams struct {
@@ -139,6 +140,7 @@ type CreateMirroredChatThreadReplyParams struct {
 	ReplyToMessageID      pgtype.Text `json:"reply_to_message_id"`
 	ThreadRootID          pgtype.Text `json:"thread_root_id"`
 	MirroredFromCommentID pgtype.Text `json:"mirrored_from_comment_id"`
+	OrganizationID        string      `json:"organization_id"`
 }
 
 func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateMirroredChatThreadReplyParams) (ChatMessage, error) {
@@ -152,6 +154,7 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 		arg.ReplyToMessageID,
 		arg.ThreadRootID,
 		arg.MirroredFromCommentID,
+		arg.OrganizationID,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -172,52 +175,113 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 		&i.ReplyCount,
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
-const deleteChatMessageLink = `-- name: DeleteChatMessageLink :execrows
+const deleteChatMessageLink = `-- name: DeleteChatMessageLink :one
 DELETE FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2 AND message_id = $3
+WHERE id = $1 AND room_id = $2 AND message_id = $3
+RETURNING target_id
 `
 
 type DeleteChatMessageLinkParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	MessageID   string `json:"message_id"`
+	ID        string `json:"id"`
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
 }
 
-func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessageLinkParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteChatMessageLink, arg.ID, arg.WorkspaceID, arg.MessageID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// tenant: by-id
+// Scoped by room, not workspace, for the same reason as the room batch above.
+func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessageLinkParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteChatMessageLink, arg.ID, arg.RoomID, arg.MessageID)
+	var target_id string
+	err := row.Scan(&target_id)
+	return target_id, err
 }
 
-const deleteChatThreadTaskLinkByThread = `-- name: DeleteChatThreadTaskLinkByThread :execrows
-DELETE FROM chat_thread_task_links
-WHERE thread_root_id = $1 AND workspace_id = $2
+const deleteChatMessageLinksByTask = `-- name: DeleteChatMessageLinksByTask :many
+DELETE FROM chat_message_links
+WHERE organization_id = $1 AND target_type = 'task' AND target_id = $2
+RETURNING room_id, message_id
 `
 
-type DeleteChatThreadTaskLinkByThreadParams struct {
-	ThreadRootID string `json:"thread_root_id"`
-	WorkspaceID  string `json:"workspace_id"`
+type DeleteChatMessageLinksByTaskParams struct {
+	OrganizationID string `json:"organization_id"`
+	TargetID       string `json:"target_id"`
 }
 
-func (q *Queries) DeleteChatThreadTaskLinkByThread(ctx context.Context, arg DeleteChatThreadTaskLinkByThreadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteChatThreadTaskLinkByThread, arg.ThreadRootID, arg.WorkspaceID)
+type DeleteChatMessageLinksByTaskRow struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
+// Deleting a task takes its card off every message it was linked from.
+func (q *Queries) DeleteChatMessageLinksByTask(ctx context.Context, arg DeleteChatMessageLinksByTaskParams) ([]DeleteChatMessageLinksByTaskRow, error) {
+	rows, err := q.db.Query(ctx, deleteChatMessageLinksByTask, arg.OrganizationID, arg.TargetID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []DeleteChatMessageLinksByTaskRow{}
+	for rows.Next() {
+		var i DeleteChatMessageLinksByTaskRow
+		if err := rows.Scan(&i.RoomID, &i.MessageID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteChatThreadTaskLinksByTask = `-- name: DeleteChatThreadTaskLinksByTask :many
+DELETE FROM chat_thread_task_links
+WHERE organization_id = $1 AND task_id = $2
+RETURNING room_id, thread_root_id
+`
+
+type DeleteChatThreadTaskLinksByTaskParams struct {
+	OrganizationID string `json:"organization_id"`
+	TaskID         string `json:"task_id"`
+}
+
+type DeleteChatThreadTaskLinksByTaskRow struct {
+	RoomID       string `json:"room_id"`
+	ThreadRootID string `json:"thread_root_id"`
+}
+
+// Deleting a task frees the threads it synced with, in the same transaction.
+func (q *Queries) DeleteChatThreadTaskLinksByTask(ctx context.Context, arg DeleteChatThreadTaskLinksByTaskParams) ([]DeleteChatThreadTaskLinksByTaskRow, error) {
+	rows, err := q.db.Query(ctx, deleteChatThreadTaskLinksByTask, arg.OrganizationID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeleteChatThreadTaskLinksByTaskRow{}
+	for rows.Next() {
+		var i DeleteChatThreadTaskLinksByTaskRow
+		if err := rows.Scan(&i.RoomID, &i.ThreadRootID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatMessageByMirroredComment = `-- name: GetChatMessageByMirroredComment :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredFromCommentID pgtype.Text) (ChatMessage, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByMirroredComment, mirroredFromCommentID)
 	var i ChatMessage
@@ -239,35 +303,8 @@ func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredF
 		&i.ReplyCount,
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
-	)
-	return i, err
-}
-
-const getChatMessageLink = `-- name: GetChatMessageLink :one
-SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2
-`
-
-type GetChatMessageLinkParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-}
-
-func (q *Queries) GetChatMessageLink(ctx context.Context, arg GetChatMessageLinkParams) (ChatMessageLink, error) {
-	row := q.db.QueryRow(ctx, getChatMessageLink, arg.ID, arg.WorkspaceID)
-	var i ChatMessageLink
-	err := row.Scan(
-		&i.ID,
+		&i.FileID,
 		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.RoomID,
-		&i.MessageID,
-		&i.TargetType,
-		&i.TargetID,
-		&i.Relation,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -283,6 +320,7 @@ type GetChatMessageLinkByPairParams struct {
 	TargetID   string `json:"target_id"`
 }
 
+// tenant: parent message_id
 func (q *Queries) GetChatMessageLinkByPair(ctx context.Context, arg GetChatMessageLinkByPairParams) (ChatMessageLink, error) {
 	row := q.db.QueryRow(ctx, getChatMessageLinkByPair, arg.MessageID, arg.TargetType, arg.TargetID)
 	var i ChatMessageLink
@@ -309,6 +347,7 @@ ORDER BY created_at ASC
 LIMIT 1
 `
 
+// tenant: system
 func (q *Queries) GetChatThreadTaskLinkByTask(ctx context.Context, taskID string) (ChatThreadTaskLink, error) {
 	row := q.db.QueryRow(ctx, getChatThreadTaskLinkByTask, taskID)
 	var i ChatThreadTaskLink
@@ -332,6 +371,7 @@ SELECT id, organization_id, workspace_id, room_id, thread_root_id, task_id, dire
 WHERE thread_root_id = $1
 `
 
+// tenant: parent thread_root_id
 func (q *Queries) GetChatThreadTaskLinkByThread(ctx context.Context, threadRootID string) (ChatThreadTaskLink, error) {
 	row := q.db.QueryRow(ctx, getChatThreadTaskLinkByThread, threadRootID)
 	var i ChatThreadTaskLink
@@ -350,63 +390,25 @@ func (q *Queries) GetChatThreadTaskLinkByThread(ctx context.Context, threadRootI
 	return i, err
 }
 
-const listChatMessageLinksByMessage = `-- name: ListChatMessageLinksByMessage :many
+const listChatMessageLinksByRoomMessages = `-- name: ListChatMessageLinksByRoomMessages :many
 SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE message_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC
-`
-
-type ListChatMessageLinksByMessageParams struct {
-	MessageID   string `json:"message_id"`
-	WorkspaceID string `json:"workspace_id"`
-}
-
-func (q *Queries) ListChatMessageLinksByMessage(ctx context.Context, arg ListChatMessageLinksByMessageParams) ([]ChatMessageLink, error) {
-	rows, err := q.db.Query(ctx, listChatMessageLinksByMessage, arg.MessageID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ChatMessageLink{}
-	for rows.Next() {
-		var i ChatMessageLink
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.RoomID,
-			&i.MessageID,
-			&i.TargetType,
-			&i.TargetID,
-			&i.Relation,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listChatMessageLinksByMessages = `-- name: ListChatMessageLinksByMessages :many
-SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE workspace_id = $1
+WHERE room_id = $1
   AND message_id = ANY($2::text[])
 ORDER BY created_at ASC
 `
 
-type ListChatMessageLinksByMessagesParams struct {
-	WorkspaceID string   `json:"workspace_id"`
-	MessageIds  []string `json:"message_ids"`
+type ListChatMessageLinksByRoomMessagesParams struct {
+	RoomID     string   `json:"room_id"`
+	MessageIds []string `json:"message_ids"`
 }
 
-func (q *Queries) ListChatMessageLinksByMessages(ctx context.Context, arg ListChatMessageLinksByMessagesParams) ([]ChatMessageLink, error) {
-	rows, err := q.db.Query(ctx, listChatMessageLinksByMessages, arg.WorkspaceID, arg.MessageIds)
+// tenant: parent room_id
+// One room's timeline asks for the links of every message it shows at once,
+// instead of one request per message. The room is the only scope: DM and
+// group rooms are org-level and their links carry the creator's workspace, so
+// a viewer arriving from another workspace must still see them.
+func (q *Queries) ListChatMessageLinksByRoomMessages(ctx context.Context, arg ListChatMessageLinksByRoomMessagesParams) ([]ChatMessageLink, error) {
+	rows, err := q.db.Query(ctx, listChatMessageLinksByRoomMessages, arg.RoomID, arg.MessageIds)
 	if err != nil {
 		return nil, err
 	}
@@ -435,4 +437,113 @@ func (q *Queries) ListChatMessageLinksByMessages(ctx context.Context, arg ListCh
 		return nil, err
 	}
 	return items, nil
+}
+
+const listChatRoomLinkedTasks = `-- name: ListChatRoomLinkedTasks :many
+SELECT
+  t.id, t.workspace_id, t.number, t.title, t.status, t.priority,
+  t.assignee_id, t.assignee_kind,
+  COALESCE(NULLIF(u.display_name, ''), u.email, a.name, '')::text AS assignee_name,
+  t.due_date,
+  l.linked_at,
+  (COUNT(*) OVER ())::int AS total
+FROM (
+  SELECT target_id, MAX(created_at)::timestamptz AS linked_at
+  FROM chat_message_links
+  WHERE room_id = $1 AND target_type = 'task'
+  GROUP BY target_id
+) l
+JOIN tasks t ON t.id = l.target_id AND t.workspace_id = $2
+LEFT JOIN users u ON t.assignee_kind = 'human' AND u.id = t.assignee_id
+LEFT JOIN agents a ON t.assignee_kind = 'agent' AND a.id = t.assignee_id
+ORDER BY l.linked_at DESC, t.id DESC
+LIMIT $3
+`
+
+type ListChatRoomLinkedTasksParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+	RowLimit    int32  `json:"row_limit"`
+}
+
+type ListChatRoomLinkedTasksRow struct {
+	ID           string             `json:"id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	Number       int64              `json:"number"`
+	Title        string             `json:"title"`
+	Status       string             `json:"status"`
+	Priority     string             `json:"priority"`
+	AssigneeID   pgtype.Text        `json:"assignee_id"`
+	AssigneeKind string             `json:"assignee_kind"`
+	AssigneeName string             `json:"assignee_name"`
+	DueDate      pgtype.Date        `json:"due_date"`
+	LinkedAt     pgtype.Timestamptz `json:"linked_at"`
+	Total        int32              `json:"total"`
+}
+
+// The info panel's "tasks from this conversation": each task linked from one
+// room's messages once, most recently linked first, with the full count.
+// Only tasks of the workspace the service admitted the caller to.
+func (q *Queries) ListChatRoomLinkedTasks(ctx context.Context, arg ListChatRoomLinkedTasksParams) ([]ListChatRoomLinkedTasksRow, error) {
+	rows, err := q.db.Query(ctx, listChatRoomLinkedTasks, arg.RoomID, arg.WorkspaceID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatRoomLinkedTasksRow{}
+	for rows.Next() {
+		var i ListChatRoomLinkedTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Number,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.AssigneeKind,
+			&i.AssigneeName,
+			&i.DueDate,
+			&i.LinkedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unlinkChatThreadTask = `-- name: UnlinkChatThreadTask :one
+DELETE FROM chat_thread_task_links
+WHERE thread_root_id = $1 AND workspace_id = $2
+RETURNING id, organization_id, workspace_id, room_id, thread_root_id, task_id, direction, created_by, created_by_kind, created_at
+`
+
+type UnlinkChatThreadTaskParams struct {
+	ThreadRootID string `json:"thread_root_id"`
+	WorkspaceID  string `json:"workspace_id"`
+}
+
+// C-11: the unsync command returns the link it removed, for its audit row
+// and its chat.thread.unlinked event.
+func (q *Queries) UnlinkChatThreadTask(ctx context.Context, arg UnlinkChatThreadTaskParams) (ChatThreadTaskLink, error) {
+	row := q.db.QueryRow(ctx, unlinkChatThreadTask, arg.ThreadRootID, arg.WorkspaceID)
+	var i ChatThreadTaskLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.RoomID,
+		&i.ThreadRootID,
+		&i.TaskID,
+		&i.Direction,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+	)
+	return i, err
 }

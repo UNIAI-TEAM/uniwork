@@ -3,15 +3,59 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
+
+// A UniWork AI turn may hold its slot for the whole 55 s, so its three routes
+// are exempt from LoadShed by pattern (G6-03a §7.4): a few slow turns must not
+// shed the rest of the pod, while a route that is not exempt still is. The
+// shed answer is the one carrying code server_busy, which keeps this assertion
+// apart from the 503 a UniWork AI route answers when its service is absent.
+func TestAIUniworkLoadShedExemption(t *testing.T) {
+	d := Deps{}
+	d.Cfg.HTTPMaxInFlight = 1
+	r := New(d).(chi.Router)
+	release := make(chan struct{})
+	defer close(release)
+	started := make(chan struct{})
+	r.Get("/api/v1/loadshed-block", func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	})
+	go r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/loadshed-block", nil))
+	<-started
+
+	for _, path := range []string{
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+	} {
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
+		if strings.Contains(rec.Body.String(), "server_busy") {
+			t.Errorf("%s was shed while the one in-flight slot was held; the route pattern must be exempt", path)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil))
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "server_busy") {
+		t.Errorf("GET /api/v1/tasks = %d %s while the one slot was held, want 503 server_busy", rec.Code, rec.Body.String())
+	}
+}
 
 // The router must never replace r.RemoteAddr with a forwarded header: the
 // rate limiter keys its buckets by RemoteAddr and only consults
@@ -39,6 +83,76 @@ func TestRouterKeepsRemoteAddrDespiteForwardedHeaders(t *testing.T) {
 	}
 	if seen != "203.0.113.7:4242" {
 		t.Fatalf("RemoteAddr was rewritten to %q", seen)
+	}
+}
+
+// Kubelet probes must never wait on Redis: the global rate limiter sits in
+// front of every route, and when its Redis call stalls (pool exhausted,
+// server hung) a probe that waits past its 1s timeout gets the pod killed.
+// The LiveKit webhook skips the limiter too: all its events share LiveKit's
+// one address, and a refused event is dropped. The fake server below accepts
+// connections and never answers; a request that skips the limiter never dials
+// it, and one that does not is the control that the dial is observable.
+func TestProbesAndLiveKitWebhookSkipTheGlobalRateLimiter(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var held []net.Conn
+	var mu sync.Mutex
+	accepted := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(held)
+	}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			held = append(held, c)
+			mu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range held {
+			_ = c.Close()
+		}
+	})
+	rdb := redis.NewClient(&redis.Options{Addr: ln.Addr().String(), ReadTimeout: 3 * time.Second, MaxRetries: -1})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	r := New(Deps{Redis: rdb})
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/healthz", nil),
+		httptest.NewRequest(http.MethodGet, "/readyz", nil),
+		httptest.NewRequest(http.MethodPost, "/api/v1/integrations/livekit/webhook", nil),
+	} {
+		start := time.Now()
+		r.ServeHTTP(httptest.NewRecorder(), req)
+		if took := time.Since(start); took > 500*time.Millisecond {
+			t.Fatalf("%s %s waited %v on Redis", req.Method, req.URL.Path, took)
+		}
+	}
+	// Dialling is synchronous in the client, so any limiter call above has
+	// been accepted by now; give the accept loop a moment to record it.
+	time.Sleep(50 * time.Millisecond)
+	if n := accepted(); n != 0 {
+		t.Fatalf("probes or the LiveKit webhook reached the rate limiter (%d Redis connections)", n)
+	}
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/meetings/m1/motions", nil))
+	deadline := time.Now().Add(2 * time.Second)
+	for accepted() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("control: a limited route never dialled Redis, so the check above proves nothing")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

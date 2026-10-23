@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   EntitlementSchema,
+  InvoiceSchema,
   PlanSchema,
   SubscriptionSchema,
+  type Invoice,
   type Plan,
   type SubscriptionView,
 } from "../../types/billing";
@@ -15,6 +17,7 @@ const SubscriptionResponse = z.object({
   entitlements: z.array(EntitlementSchema).optional().default([]),
 });
 const CheckoutResponse = z.object({ url: z.string() });
+const InvoicesResponse = z.object({ invoices: z.array(InvoiceSchema) });
 
 const enc = encodeURIComponent;
 
@@ -62,4 +65,12 @@ export async function createCheckout(
   return parseWithFallback<{ url: string }>(raw, CheckoutResponse, { url: "" }, {
     endpoint: "POST /api/v1/orgs/{org}/billing/checkout",
   }).url;
+}
+
+/** Paid checkout history for the organization (newest first). */
+export async function listInvoices(orgId: string, limit = 50): Promise<Invoice[]> {
+  const raw = await request(`/api/v1/orgs/${enc(orgId)}/billing/invoices?limit=${limit}`);
+  return parseWithFallback<{ invoices: Invoice[] }>(raw, InvoicesResponse, { invoices: [] }, {
+    endpoint: "GET /api/v1/orgs/{org}/billing/invoices",
+  }).invoices;
 }

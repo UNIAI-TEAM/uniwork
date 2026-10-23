@@ -1,0 +1,29 @@
+/* Keep the shipped mailbox layout inside the existing landing preview size. */
+.product-demo-content .manual-preview > .product-email-preview { padding: 0; }
+.product-demo-shell[data-demo-feature=email] .preview-main,
+.product-demo-shell[data-demo-feature=email] .preview-main > [role=tabpanel]:not([hidden]),
+.product-demo-shell[data-demo-feature=email] .manual-preview:not([hidden]),
+.product-current-email-player { height: 100%; min-height: 0; }
+.product-demo-email-presentation { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
+.product-demo-email-playback-slot { display: flex; justify-content: center; min-width: 44px; }
+.product-email-preview { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--foreground); text-align: left; }
+.product-email-inline-controls { display: flex; justify-content: flex-end; flex-shrink: 0; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+.product-email-stage { position: relative; isolation: isolate; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.feature-page-visual > .product-current-email-player { height: min(760px, 85dvh); }
+.product-email-scene, .product-email-workspace { height: 100%; min-height: 0; }
+.product-email-workspace { display: flex; min-width: 0; background: var(--background); }
+.product-email-workspace > aside { background: var(--background); }
+.product-email-main, .product-email-reader { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.product-email-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.product-email-reading-body { display: flex; flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.product-email-message { display: flex; flex: 1; flex-direction: column; align-self: flex-start; gap: 24px; width: 100%; min-width: 0; max-width: 896px; margin-inline: auto; padding: 24px 32px 40px; }
+.product-email-ai { display: flex; flex-direction: column; gap: 16px; flex-shrink: 0; width: 320px; padding: 16px; border-left: 1px solid var(--border); background: var(--surface); }
+.product-email-notice { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 12px; padding: 6px 16px; border-top: 1px solid var(--border); background: var(--muted); font-size: var(--text-caption); }
+.product-email-field { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 16px; }
+.product-email-field > :first-child { width: 56px; flex-shrink: 0; color: var(--muted-foreground); font-size: var(--text-caption); font-weight: 500; }
+.product-email-field > :nth-child(2) { flex: 1; min-width: 0; }
+@media (max-width: 1023px) {
+  .product-email-reading-body { flex-direction: column; }
+  .product-email-message { padding: 20px 16px 32px; }
+  .product-email-ai { width: 100%; border-top: 1px solid var(--border); border-left: 0; }
+}

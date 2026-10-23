@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type MouseEventHandler, ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LayoutGrid, Settings2, SmilePlus } from "lucide-react";
+import { LayoutGrid, FaceSlightlySmilingPlus, Settings } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import {
@@ -17,98 +17,11 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAdjustViewDialog } from "./meeting-adjust-view-dialog";
-import { MEETING_DARK_BAR_CHIP } from "./meeting-dark-bar";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
-import { REACTIONS } from "./meeting-signals";
+import { REACTIONS, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-
-/** Filled destructive on the dark bar. */
-export const SOLID_DESTRUCTIVE =
-  "border-destructive !bg-destructive text-brand-foreground hover:!bg-destructive/90 focus-visible:border-destructive focus-visible:ring-destructive/30";
-
-export function IconControl({
-  label,
-  pressed,
-  tone,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string;
-  pressed?: boolean;
-  tone?: "off" | "active" | "copilot";
-  onClick?: MouseEventHandler<HTMLButtonElement>;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            size="icon-lg"
-            variant={
-              tone === "off"
-                ? "outline"
-                : tone === "active"
-                  ? "brand"
-                  : tone === "copilot"
-                    ? "brand"
-                    : pressed
-                      ? "secondary"
-                      : "outline"
-            }
-            aria-label={label}
-            aria-pressed={pressed}
-            disabled={disabled}
-            onClick={onClick}
-            className={cn(
-              MEETING_DARK_BAR_CHIP,
-              tone === "off" && SOLID_DESTRUCTIVE,
-              tone === "active" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90 [&_svg]:!text-brand-foreground",
-              tone === "copilot" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90 [&_svg]:!text-brand-foreground",
-              tone === "off" && "[&_svg]:!text-brand-foreground",
-              !tone && !pressed && "border-meeting-bar-border",
-              pressed && !tone && "!bg-meeting-bar-chip-hover",
-            )}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-export function MenuControl({
-  caption,
-  pressed,
-  onClick,
-  disabled,
-  children,
-}: {
-  caption: string;
-  pressed?: boolean;
-  onClick?: MouseEventHandler<HTMLButtonElement>;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Button
-      type="button"
-      variant={pressed ? "secondary" : "ghost"}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-      className="h-11 w-full justify-start gap-3"
-    >
-      {children}
-      {caption}
-    </Button>
-  );
-}
+import { MEETING_CHIP } from "./meeting-control";
+export { IconControl, MenuControl, MEETING_CHIP } from "./meeting-control";
 
 export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) {
   const { t } = useTranslation();
@@ -126,7 +39,7 @@ export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) 
               <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
             }
           >
-            <Settings2 aria-hidden />
+            <Settings aria-hidden />
             {label}
           </DialogTrigger>
         }
@@ -147,15 +60,15 @@ export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) 
                   <Button
                     type="button"
                     size="icon-lg"
-                    variant="outline"
+                    variant="meetingChip"
                     aria-label={label}
-                    className={MEETING_DARK_BAR_CHIP}
+                    className={MEETING_CHIP}
                   />
                 }
               />
             }
           >
-            <Settings2 aria-hidden />
+            <Settings aria-hidden />
           </TooltipTrigger>
           <TooltipContent side="top">{label}</TooltipContent>
         </Tooltip>
@@ -201,9 +114,9 @@ export function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
                   <Button
                     type="button"
                     size="icon-lg"
-                    variant="outline"
+                    variant="meetingChip"
                     aria-label={label}
-                    className={MEETING_DARK_BAR_CHIP}
+                    className={MEETING_CHIP}
                   />
                 }
               />
@@ -232,7 +145,7 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
             <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
           }
         >
-          <SmilePlus aria-hidden />
+          <FaceSlightlySmilingPlus aria-hidden />
           {label}
         </PopoverTrigger>
       ) : (
@@ -241,22 +154,23 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
             <Button
               type="button"
               size="icon-lg"
-              variant="outline"
+              variant="meetingChip"
               aria-label={label}
-              className={MEETING_DARK_BAR_CHIP}
+              className={MEETING_CHIP}
             />
           }
         >
-          <SmilePlus aria-hidden />
+          <FaceSlightlySmilingPlus aria-hidden />
         </PopoverTrigger>
       )}
-      <PopoverContent side="top" className="flex w-auto gap-1 p-1.5">
+      {/* `dark`: the popup portals to <body>, away from the dark stage it belongs to. */}
+      <PopoverContent side="top" className="dark flex w-auto gap-1 p-1.5">
         {REACTIONS.map((r) => (
           <button
             key={r}
             type="button"
-            aria-label={r}
-            className="flex size-10 items-center justify-center rounded-full text-title hover:bg-muted"
+            aria-label={t(reactionLabelKey(r) ?? "meetings.react")}
+            className="flex size-11 items-center justify-center rounded-full text-title hover:bg-muted"
             onClick={() => {
               react(r);
               setOpen(false);

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { usePutProject } from "@uniwork/core/tasks";
+import { useProjectFieldSave } from "./use-project-field-save";
 import type {
   ProjectColumnKey,
   ProjectSortDirection,
@@ -19,11 +19,18 @@ import {
   LIST_GRID_BOTTOM_CLEARANCE,
   type ListGridSortDirection,
 } from "@uniwork/ui/components/ui/list-grid";
+import { resolveClickIntent } from "../navigation";
+import type { AssigneeOption } from "../tasks/pickers/assignee-picker";
 import { ProjectIcon } from "./components/project-icon";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "./components/project-badge";
+import { ProjectLeadPicker } from "./components/project-lead-picker";
 import { ProjectProgressRing } from "./components/project-progress";
 import { ProjectRowActions } from "./components/project-row-actions";
-import { formatRelativeDate } from "./project-row-metrics";
+import {
+  formatRelativeDate,
+  type OpenProject,
+} from "./project-row-metrics";
+import { useListScrollReset } from "./use-list-scroll-reset";
 
 const COLUMN_WIDTHS: Record<ProjectColumnKey, number> = {
   priority: 116,
@@ -94,40 +101,35 @@ function ProjectTableRow({
   project,
   pinned,
   canDelete,
+  canEdit,
   isColVisible,
   selected,
   onToggleSelect,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   project: Project;
   pinned: boolean;
   canDelete: boolean;
+  canEdit: boolean;
   isColVisible: (key: ProjectColumnKey) => boolean;
   selected: boolean;
   onToggleSelect: () => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
-  const { t } = useTranslation();
-  const putProject = usePutProject(workspaceId);
-  const handleUpdate = useCallback(
-    (patch: { status?: string; priority?: string }) =>
-      putProject.mutate({
-        projectId: project.id,
-        body: { ...patch, revision: project.revision },
-        ifMatch: String(project.revision),
-      }),
-    [project.id, project.revision, putProject],
-  );
+  const handleUpdate = useProjectFieldSave(workspaceId, project);
 
   return (
     <ListGridRow
       className={`h-11 cursor-pointer ${selected ? "bg-accent/30" : ""}`}
-      onClick={() => onOpenProject(project.id)}
+      onClick={(e) => onOpenProject(project.id, resolveClickIntent(e))}
+      onAuxClick={(e) => {
+        if (e.button === 1) onOpenProject(project.id, "background-tab");
+      }}
     >
       <CheckboxCell checked={selected} onToggle={onToggleSelect} />
       <ListGridCell className="gap-2">
@@ -140,6 +142,7 @@ function ProjectTableRow({
           project={project}
           onUpdate={(p) => handleUpdate(p)}
           align="start"
+          disabled={!canEdit}
         />
       </ListGridCell>
 
@@ -153,6 +156,7 @@ function ProjectTableRow({
             project={project}
             onUpdate={(p) => handleUpdate(p)}
             align="start"
+            disabled={!canEdit}
           />
         </ListGridCell>
       ) : (
@@ -168,10 +172,17 @@ function ProjectTableRow({
       )}
 
       {isColVisible("lead") ? (
-        <ListGridCell className="hidden @2xl:flex">
-          <span className="min-w-0 truncate text-caption text-muted-foreground">
-            {resolveLeadName(project) ?? t("projects.lead.no_lead")}
-          </span>
+        <ListGridCell
+          className="hidden @2xl:flex"
+          onClick={stopRowNavigation}
+          onAuxClick={stopRowNavigation}
+        >
+          <ProjectLeadPicker
+            project={project}
+            options={leadOptions}
+            onChange={handleUpdate}
+            disabled={!canEdit}
+          />
         </ListGridCell>
       ) : (
         <ListGridCell className="hidden px-0 @2xl:flex" />
@@ -313,6 +324,7 @@ export function ProjectsListTable({
   projects,
   pinnedIds,
   canDelete,
+  canEdit,
   sortField,
   sortDirection,
   isColVisible,
@@ -322,12 +334,14 @@ export function ProjectsListTable({
   onSort,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
+  scrollResetKey,
 }: {
   workspaceId: string;
   projects: Project[];
   pinnedIds: Set<string>;
   canDelete: boolean;
+  canEdit: (project: Project) => boolean;
   sortField: ProjectSortField;
   sortDirection: ProjectSortDirection;
   isColVisible: (key: ProjectColumnKey) => boolean;
@@ -335,16 +349,22 @@ export function ProjectsListTable({
   onToggleSelect: (id: string) => void;
   onToggleAll: () => void;
   onSort: (field: ProjectSortField) => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
+  scrollResetKey: string | number;
 }) {
   const selectedCount = projects.filter((p) => selectedIds.has(p.id)).length;
   const allSelected = projects.length > 0 && selectedCount === projects.length;
   const someSelected = selectedCount > 0 && !allSelected;
+  const scrollRef = useListScrollReset<HTMLDivElement>(scrollResetKey);
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto @container">
+    <div
+      ref={scrollRef}
+      data-slot="project-list-scroll"
+      className="min-h-0 flex-1 overflow-auto @container"
+    >
       <ListGrid
         className={`${GRID_COLS} @2xl:min-w-[var(--pjc-minw)]`}
         style={{
@@ -368,12 +388,13 @@ export function ProjectsListTable({
             project={project}
             pinned={pinnedIds.has(project.id)}
             canDelete={canDelete}
+            canEdit={canEdit(project)}
             isColVisible={isColVisible}
             selected={selectedIds.has(project.id)}
             onToggleSelect={() => onToggleSelect(project.id)}
             onOpenProject={onOpenProject}
             locale={locale}
-            resolveLeadName={resolveLeadName}
+            leadOptions={leadOptions}
           />
         ))}
       </ListGrid>

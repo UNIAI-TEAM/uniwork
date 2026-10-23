@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useTask } from "@uniwork/core/tasks";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
+import {
+  RightSidebarToggle,
+  useAnimatedRightSidebar,
+} from "../../layout/animated-right-sidebar";
 import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
+import { TaskDetailHeaderActions } from "./components/task-detail-header-actions";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
+import { TaskDetailThreadTocRail } from "./components/thread-toc-rail";
+import { TaskFindScope } from "./find/task-find-scope";
+import { useRecordTaskVisit } from "./hooks/use-record-task-visit";
 import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-restore";
 import { useTaskFieldSave } from "./hooks/use-task-field-save";
+import { TaskThreadNavProvider } from "./thread-nav-context";
 
 /**
  * Suite task detail shell mounted from the web task detail route.
@@ -21,11 +30,23 @@ export function TaskDetailSuitePage(props: {
   taskId: string;
   /** Wired when the actions menu lands (Task 7+). */
   onDeleted?: () => void;
+  /** Host-level actions such as closing a contextual detail panel. */
+  headerActions?: ReactNode;
+  /** Compact hosts can start with properties collapsed while keeping the toggle. */
+  defaultPropertiesOpen?: boolean;
 }) {
-  const { workspaceId, taskId } = props;
+  const {
+    workspaceId,
+    taskId,
+    onDeleted,
+    headerActions,
+    defaultPropertiesOpen = true,
+  } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
-  const { data: task, isLoading, isError, refetch } = useTask(taskId);
+  const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
+  useRecordTaskVisit({ workspaceId, taskId, task, error });
+  const sidebarController = useAnimatedRightSidebar(defaultPropertiesOpen);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const attachScroll = useCallback((el: HTMLElement | null) => {
     setScrollEl(el);
@@ -52,7 +73,11 @@ export function TaskDetailSuitePage(props: {
   if (isLoading) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <BreadcrumbHeader segments={segments} leaf={t("common.loading")} />
+        <BreadcrumbHeader
+          segments={segments}
+          leaf={t("common.loading")}
+          actions={headerActions}
+        />
       </div>
     );
   }
@@ -60,34 +85,71 @@ export function TaskDetailSuitePage(props: {
   if (isError || !task) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <BreadcrumbHeader segments={segments} leaf={t("tasks.detail.not_found")} />
+        <BreadcrumbHeader
+          segments={segments}
+          leaf={t("tasks.detail.not_found")}
+          actions={headerActions}
+        />
       </div>
     );
   }
 
-  const leaf =
-    task.identifier?.trim() ||
-    task.title ||
-    t("tasks.detail.title_placeholder");
+  const identifier = task.identifier?.trim();
+  const leaf = [identifier, task.title].filter(Boolean).join(" ") || t("tasks.detail.title_placeholder");
 
   return (
     <div
       className="flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="task-detail-suite"
     >
-      <BreadcrumbHeader
-        segments={segments}
-        leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
-      />
       <TaskDetailResizableLayout
+        sidebarController={sidebarController}
+        sidebarLabel={t("tasks.detail.sidebar_toggle")}
+        sidebarDefaultSize={defaultPropertiesOpen ? "28%" : 0}
         main={
-          <TaskDetailEditors
-            task={task}
-            workspaceId={workspaceId}
-            scrollContainerRef={attachScroll}
-            onSaveTitle={(title) => saveField({ title })}
-            onSaveDescription={(description) => saveField({ description })}
-          />
+          <div
+            className="relative flex h-full min-h-0 flex-col"
+            data-testid="task-detail-main-pane"
+          >
+            <TaskThreadNavProvider scrollContainerEl={scrollEl}>
+              <BreadcrumbHeader
+                segments={segments}
+                leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
+                actions={
+                  <>
+                    <TaskDetailHeaderActions
+                      workspaceId={workspaceId}
+                      task={task}
+                      tasksHref={tasksHref}
+                      onDeleted={onDeleted}
+                    />
+                    <RightSidebarToggle
+                      controller={sidebarController}
+                      label={t("tasks.detail.sidebar_toggle")}
+                    />
+                    {headerActions}
+                  </>
+                }
+              />
+              {/* The editors element is created here and handed to the find scope
+                  as children, so find state changing inside the scope (every
+                  keystroke) never re-renders them. */}
+              <TaskFindScope
+                taskId={taskId}
+                container={scrollEl}
+                description={task.description ?? ""}
+              >
+                <TaskDetailEditors
+                  task={task}
+                  workspaceId={workspaceId}
+                  scrollContainerRef={attachScroll}
+                  onSaveTitle={(title) => saveField({ title })}
+                  onSaveDescription={(description) => saveField({ description })}
+                />
+              </TaskFindScope>
+              <TaskDetailThreadTocRail taskId={taskId} />
+            </TaskThreadNavProvider>
+          </div>
         }
         sidebar={
           <TaskDetailPropertiesSidebarSlot

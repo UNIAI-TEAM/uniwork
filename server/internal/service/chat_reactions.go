@@ -2,24 +2,39 @@ package service
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 const maxReactionEmojiLen = 16
 
+// A chat reaction is one emoji (a ZWJ family or a flag runs past 16 bytes),
+// and a message holds a bounded number of distinct ones: every reaction kind
+// is fanned out to the room and stored on the message row.
+const (
+	maxChatReactionEmojiBytes = 32
+	maxChatReactionKinds      = 50
+)
+
 type chatMessageMetadata struct {
-	Reactions        map[string][]string  `json:"reactions"`
-	Pinned           bool                 `json:"pinned,omitempty"`
-	MentionedUserIDs []string             `json:"mentioned_user_ids,omitempty"`
-	Poll             *ChatPollPayload     `json:"poll,omitempty"`
-	Reminder         *ChatReminderPayload `json:"reminder,omitempty"`
-	Note             *ChatNotePayload     `json:"note,omitempty"`
-	Post             *ChatPostPayload     `json:"post,omitempty"`
-	Priority         string               `json:"priority,omitempty"`
+	Reactions        map[string][]string          `json:"reactions"`
+	Pinned           bool                         `json:"pinned,omitempty"`
+	PinnedAt         string                       `json:"pinned_at,omitempty"`
+	MentionedUserIDs []string                     `json:"mentioned_user_ids,omitempty"`
+	MentionsAll      bool                         `json:"mentions_all,omitempty"`
+	Poll             *ChatPollPayload             `json:"poll,omitempty"`
+	PollVote         *ChatPollVoteActivityPayload `json:"poll_vote,omitempty"`
+	Reminder         *ChatReminderPayload         `json:"reminder,omitempty"`
+	Note             *ChatNotePayload             `json:"note,omitempty"`
+	Post             *ChatPostPayload             `json:"post,omitempty"`
+	Priority         string                       `json:"priority,omitempty"`
+	ForwardedFrom    *ChatForwardedFrom           `json:"forwarded_from,omitempty"`
 }
 
-func reactionCountsFromMetadata(raw []byte) map[string]int {
-	meta := decodeChatMessageMetadata(raw)
+func reactionCountsFromMetadata(meta chatMessageMetadata) map[string]int {
 	if len(meta.Reactions) == 0 {
 		return nil
 	}
@@ -37,16 +52,19 @@ func reactionCountsFromMetadata(raw []byte) map[string]int {
 }
 
 func toggleReactionInMetadata(raw []byte, userID, emoji string) ([]byte, error) {
-	emoji = strings.TrimSpace(emoji)
-	if emoji == "" || len(emoji) > maxReactionEmojiLen {
-		return nil, Invalid("emoji không hợp lệ")
+	emoji, err := validateChatReactionEmoji(emoji)
+	if err != nil {
+		return nil, err
 	}
 	userID = strings.ToUpper(strings.TrimSpace(userID))
 	meta := decodeChatMessageMetadata(raw)
 	if meta.Reactions == nil {
 		meta.Reactions = map[string][]string{}
 	}
-	ids := meta.Reactions[emoji]
+	ids, exists := meta.Reactions[emoji]
+	if !exists && len(meta.Reactions) >= maxChatReactionKinds {
+		return nil, Invalid("tin nhắn đã có quá nhiều loại cảm xúc")
+	}
 	found := false
 	next := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -69,9 +87,79 @@ func toggleReactionInMetadata(raw []byte, userID, emoji string) ([]byte, error) 
 		meta.Reactions[emoji] = next
 	}
 	if len(meta.Reactions) == 0 {
+		return patchMetadataKey(raw, "reactions", nil)
+	}
+	return patchMetadataKey(raw, "reactions", meta.Reactions)
+}
+
+// validateChatReactionEmoji accepts one bounded emoji: no letters, whitespace
+// or control characters, and at least one non-ASCII rune (a keycap such as
+// 1️⃣ keeps its ASCII digit).
+func validateChatReactionEmoji(emoji string) (string, error) {
+	emoji = strings.TrimSpace(emoji)
+	if emoji == "" || len(emoji) > maxChatReactionEmojiBytes {
+		return "", Invalid("emoji không hợp lệ")
+	}
+	nonASCII := false
+	for _, r := range emoji {
+		if unicode.IsLetter(r) || unicode.IsSpace(r) || unicode.IsControl(r) {
+			return "", Invalid("emoji không hợp lệ")
+		}
+		if r >= utf8.RuneSelf {
+			nonASCII = true
+		}
+	}
+	if !nonASCII {
+		return "", Invalid("emoji không hợp lệ")
+	}
+	return emoji, nil
+}
+
+// patchMetadataKey rewrites one top-level key of a message's metadata and
+// keeps every other key byte for byte. The typed struct above does not know
+// the file, voice or call-log fields, so round-tripping through it would drop
+// an attachment's object key the first time someone reacted to it. A nil
+// value removes the key.
+func patchMetadataKey(raw []byte, key string, value any) ([]byte, error) {
+	fields := map[string]json.RawMessage{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+			fields = map[string]json.RawMessage{}
+		}
+	}
+	if value == nil {
+		delete(fields, key)
+	} else {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		fields[key] = encoded
+	}
+	if len(fields) == 0 {
 		return []byte("{}"), nil
 	}
-	return json.Marshal(meta)
+	return json.Marshal(fields)
+}
+
+// myReactionsFromMetadata lists the emojis viewerID has reacted with, sorted,
+// so a client can show its own reactions as pressed.
+func myReactionsFromMetadata(meta chatMessageMetadata, viewerID string) []string {
+	viewer := strings.ToUpper(strings.TrimSpace(viewerID))
+	if viewer == "" {
+		return nil
+	}
+	var out []string
+	for emoji, userIDs := range meta.Reactions {
+		for _, id := range userIDs {
+			if strings.ToUpper(strings.TrimSpace(id)) == viewer {
+				out = append(out, emoji)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func decodeChatMessageMetadata(raw []byte) chatMessageMetadata {
@@ -88,19 +176,23 @@ func decodeChatMessageMetadata(raw []byte) chatMessageMetadata {
 	return meta
 }
 
-func pinFromMetadata(raw []byte) bool {
-	return decodeChatMessageMetadata(raw).Pinned
-}
-
 func togglePinInMetadata(raw []byte) ([]byte, bool, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.Pinned = !meta.Pinned
-	if !meta.Pinned && len(meta.Reactions) == 0 {
-		return []byte("{}"), false, nil
-	}
-	out, err := json.Marshal(meta)
+	pinned := !decodeChatMessageMetadata(raw).Pinned
+	out, err := patchMetadataKey(raw, "pinned", pinMetadataValue(pinned))
 	if err != nil {
 		return nil, false, err
 	}
-	return out, meta.Pinned, nil
+	var pinnedAt any
+	if pinned {
+		pinnedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	out, err = patchMetadataKey(out, "pinned_at", pinnedAt)
+	return out, pinned, err
+}
+
+func pinMetadataValue(pinned bool) any {
+	if pinned {
+		return true
+	}
+	return nil
 }

@@ -1,0 +1,132 @@
+"use client";
+
+import { create } from "zustand";
+
+export type ChatVoicePlaybackStatus = "idle" | "loading" | "playing" | "paused" | "error";
+
+/** The speeds the pill steps through (WebMessageKinds). */
+const RATES = [1, 1.5, 2] as const;
+
+type ChatVoicePlaybackState = {
+  /** The voice message that owns the player, if any. */
+  activeId: string | null;
+  status: ChatVoicePlaybackStatus;
+  positionMs: number;
+  /** From the media element once it knows; 0 until then (webm often never says). */
+  durationMs: number;
+  /** Speed for every voice message, kept in memory only: it lasts until the page reloads. */
+  rate: number;
+};
+
+// Resets merge over the state, so they leave the chosen speed alone.
+const IDLE: Omit<ChatVoicePlaybackState, "rate"> = {
+  activeId: null,
+  status: "idle",
+  positionMs: 0,
+  durationMs: 0,
+};
+
+/**
+ * One voice player for the whole chat. The audio element lives here, not in
+ * a message row, so playback keeps going when the virtual list unmounts the
+ * row that started it, and starting another message pauses the first.
+ */
+export const useChatVoicePlaybackStore = create<ChatVoicePlaybackState>()(() => ({ ...IDLE, rate: 1 }));
+
+let audio: HTMLAudioElement | null = null;
+let source: string | null = null;
+let loadToken = 0;
+
+function set(partial: Partial<ChatVoicePlaybackState>) {
+  useChatVoicePlaybackStore.setState(partial);
+}
+
+function releaseSource() {
+  if (audio) {
+    audio.pause();
+    audio.removeAttribute("src");
+  }
+  source = null;
+}
+
+function ensureAudio(): HTMLAudioElement {
+  if (audio) return audio;
+  const el = new Audio();
+  el.preload = "auto";
+  el.ontimeupdate = () => set({ positionMs: Math.round(el.currentTime * 1000) });
+  el.onloadedmetadata = () => {
+    if (Number.isFinite(el.duration)) set({ durationMs: Math.round(el.duration * 1000) });
+  };
+  el.onplay = () => set({ status: "playing" });
+  el.onpause = () => {
+    if (useChatVoicePlaybackStore.getState().status === "playing") set({ status: "paused" });
+  };
+  el.onended = () => set({ status: "paused", positionMs: 0 });
+  el.onerror = () => {
+    if (el.getAttribute("src")) set({ status: "error" });
+  };
+  audio = el;
+  return el;
+}
+
+/**
+ * Play or pause one voice message. resolveUrl gives the signed storage URL
+ * the audio streams from (UNI-1633). A different message takes the player
+ * over: the one playing stops.
+ */
+export async function toggleChatVoicePlayback(id: string, resolveUrl: () => Promise<string>): Promise<void> {
+  const state = useChatVoicePlaybackStore.getState();
+  if (state.activeId === id && audio && source) {
+    if (state.status === "playing") {
+      audio.pause();
+      return;
+    }
+    try {
+      await audio.play();
+    } catch {
+      set({ status: "error" });
+    }
+    return;
+  }
+  if (state.activeId === id && state.status === "loading") return;
+
+  const token = ++loadToken;
+  releaseSource();
+  useChatVoicePlaybackStore.setState({ ...IDLE, activeId: id, status: "loading" });
+  try {
+    const url = await resolveUrl();
+    if (token !== loadToken) return;
+    const el = ensureAudio();
+    source = url;
+    el.src = url;
+    // Loading a source resets the speed to the default one.
+    el.defaultPlaybackRate = el.playbackRate = useChatVoicePlaybackStore.getState().rate;
+    await el.play();
+  } catch {
+    if (token === loadToken) set({ status: "error" });
+  }
+}
+
+/** Move the playhead of the active message. */
+export function seekChatVoicePlayback(id: string, positionMs: number): void {
+  const state = useChatVoicePlaybackStore.getState();
+  if (state.activeId !== id || !audio) return;
+  const clamped = Math.max(0, positionMs);
+  audio.currentTime = clamped / 1000;
+  set({ positionMs: Math.round(clamped) });
+}
+
+/** Step the speed 1× → 1,5× → 2× → 1×, for the message playing and every one after it. */
+export function cycleChatVoicePlaybackRate(): void {
+  const { rate } = useChatVoicePlaybackStore.getState();
+  const next = RATES[(RATES.indexOf(rate as (typeof RATES)[number]) + 1) % RATES.length] ?? 1;
+  if (audio) audio.defaultPlaybackRate = audio.playbackRate = next;
+  set({ rate: next });
+}
+
+/** Stop and forget whatever is playing (leaving the room, signing out). */
+export function stopChatVoicePlayback(): void {
+  loadToken += 1;
+  releaseSource();
+  useChatVoicePlaybackStore.setState(IDLE);
+}

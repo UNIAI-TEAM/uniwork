@@ -1,0 +1,41 @@
+# Golden flow 3: join a call from the test room.
+#
+# The nightly has one account, so the call has no second party. The test room
+# is a group (or a channel other than the workspace's own), where a call goes
+# straight to the media room instead of ringing a peer: the voice button
+# invites, the server mints a LiveKit token, the app joins LiveKit, and
+# "Connected · mm:ss" appears only once LiveKit reports the room connected.
+# Hanging up as the caller ends it for everyone and returns to the room.
+# Not proven here: ringing a peer (DM), answering an incoming call, audio
+# between two people. Voice, not video: a CI simulator has no camera.
+appId: com.uniworkos.chat.staging
+name: Join a call
+tags:
+  - golden
+---
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+- extendedWaitUntil:
+    visible:
+      id: room-call-voice
+    timeout: 30000
+- tapOn:
+    id: room-call-voice
+- extendedWaitUntil:
+    visible:
+      id: call-active
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "(Connected|Đã kết nối) · .+"
+    timeout: 30000
+- tapOn:
+    id: call-mute
+- tapOn:
+    id: call-hangup
+- extendedWaitUntil:
+    notVisible:
+      id: call-active
+    timeout: 15000
+- assertVisible:
+    id: conversation-${MAESTRO_ROOM_ID}

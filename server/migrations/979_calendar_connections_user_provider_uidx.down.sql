@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY calendar_connections_user_provider_uidx;

@@ -7,11 +7,39 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 })
+
+func TestExceptPathsSkipsOnlyTheExactPaths(t *testing.T) {
+	var wrapped []string
+	block := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			wrapped = append(wrapped, r.URL.Path)
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	h := ExceptPaths(block, "/healthz", "/readyz")(okHandler)
+	for path, want := range map[string]int{
+		"/healthz":           http.StatusOK,
+		"/readyz":            http.StatusOK,
+		"/healthz/extra":     http.StatusTooManyRequests,
+		"/api/v1/auth/login": http.StatusTooManyRequests,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != want {
+			t.Errorf("%s: status %d, want %d", path, rec.Code, want)
+		}
+	}
+	if len(wrapped) != 2 {
+		t.Fatalf("middleware saw %v, want only the two non-probe paths", wrapped)
+	}
+}
 
 func TestRateLimit_NilRedis(t *testing.T) {
 	mw := RateLimit(nil, 5, time.Minute, nil)
@@ -298,5 +326,150 @@ func TestParseTrustedProxies_InvalidSkipped(t *testing.T) {
 	nets := ParseTrustedProxies("10.0.0.0/8, not-a-cidr, 172.16.0.0/12")
 	if len(nets) != 2 {
 		t.Fatalf("expected 2 valid CIDRs (invalid skipped), got %d", len(nets))
+	}
+}
+
+func TestRateLimitBucket_SharesOneBudgetAcrossPaths(t *testing.T) {
+	// A route whose path carries an id must not hand out one budget per id.
+	rdb := newRedisTestClient(t)
+	user := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	handler := RateLimitByIdentityBucket(rdb, "export", 2, time.Minute, nil, user)(okHandler)
+	send := func(path, uid string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.2.1:9000"
+		req.Header.Set("X-Test-User", uid)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for _, path := range []string{"/documents/a/export", "/documents/b/export"} {
+		if code := send(path, "u1"); code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d", path, code)
+		}
+	}
+	if code := send("/documents/c/export", "u1"); code != http.StatusTooManyRequests {
+		t.Fatalf("third document: expected 429, got %d", code)
+	}
+	// Another user on the same address has its own budget.
+	if code := send("/documents/c/export", "u2"); code != http.StatusOK {
+		t.Fatalf("other user: expected 200, got %d", code)
+	}
+}
+
+// Keyed by the concrete path, every message id was a fresh budget: one person
+// toggling reactions across messages was never limited. Per route, every id
+// under one pattern shares the caller's budget, and two callers behind one
+// address do not share theirs.
+func TestRateLimitPerRoute_SharesOneBudgetAcrossIDs(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	who := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	r := chi.NewRouter()
+	limit := RateLimitPerRoute(rdb, 2, time.Minute, nil, who)
+	r.With(limit).Post("/rooms/{roomID}/messages/{messageID}/reactions", okHandler)
+	r.With(limit).Post("/rooms/{roomID}/messages/{messageID}/pin", okHandler)
+
+	send := func(user, path string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.2.1:9000"
+		req.Header.Set("X-Test-User", user)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i, path := range []string{"/rooms/r1/messages/m1/reactions", "/rooms/r2/messages/m2/reactions"} {
+		if code := send("alice", path); code != http.StatusOK {
+			t.Fatalf("request %d: status %d, want 200", i+1, code)
+		}
+	}
+	if code := send("alice", "/rooms/r3/messages/m3/reactions"); code != http.StatusTooManyRequests {
+		t.Fatalf("a third id under the same route: status %d, want 429", code)
+	}
+	if code := send("alice", "/rooms/r3/messages/m3/pin"); code != http.StatusOK {
+		t.Fatalf("another route: status %d, want its own budget", code)
+	}
+	if code := send("bob", "/rooms/r3/messages/m3/reactions"); code != http.StatusOK {
+		t.Fatalf("another caller on the same address: status %d, want their own budget", code)
+	}
+}
+
+// A bucket may name its own refusal code (G6-03b §5.2): the ai-uniwork bucket
+// answers ai_rate_limited so the client tells a limiter 429 of the UniWork
+// turn from every other bucket's rate_limited, which stays the default for a
+// bucket that names no code.
+func TestRateLimitBucketRefusalCode(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	send := func(h http.Handler, path string) (int, string, string) {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.3.1:9000"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		var body struct {
+			Error struct{ Code string } `json:"error"`
+		}
+		_ = json.NewDecoder(rec.Body).Decode(&body)
+		return rec.Code, body.Error.Code, rec.Header().Get("Retry-After")
+	}
+
+	uniwork := RateLimitByIdentityBucket(rdb, "ai-uniwork", 1, time.Minute, nil, nil, "ai_rate_limited")(okHandler)
+	other := RateLimitByIdentityBucket(rdb, "ai-cloud", 1, time.Minute, nil, nil)(okHandler)
+
+	if code, _, _ := send(uniwork, "/documents/d1/ai/uniwork/chat/completions"); code != http.StatusOK {
+		t.Fatalf("first turn: status %d, want 200", code)
+	}
+	code, refusal, retry := send(uniwork, "/documents/d2/ai/uniwork/chat/completions")
+	if code != http.StatusTooManyRequests || refusal != "ai_rate_limited" {
+		t.Fatalf("second turn = %d %s, want 429 ai_rate_limited", code, refusal)
+	}
+	if retry != "60" {
+		t.Fatalf("Retry-After = %q, want the 60 s window", retry)
+	}
+
+	if code, _, _ := send(other, "/orgs/o1/ai/cloud/search"); code != http.StatusOK {
+		t.Fatalf("first cloud tool: status %d, want 200", code)
+	}
+	if code, refusal, _ := send(other, "/orgs/o1/ai/cloud/images"); code != http.StatusTooManyRequests || refusal != "rate_limited" {
+		t.Fatalf("a bucket without a code = %d %s, want 429 rate_limited", code, refusal)
+	}
+}
+
+// The document edit requests (UNI-1645 R8) answer edit_request_rate_limited
+// with fields.retry_after_s from this limiter and from their database cap
+// alike, so the client reads one shape.
+func TestRateLimitBucketRetryAfter_CarriesCodeAndRetryAfterField(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	user := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	handler := RateLimitByIdentityBucketRetryAfter(rdb, "edit-request", 1, time.Minute, nil, user, "edit_request_rate_limited")(okHandler)
+	send := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.3.1:9000"
+		req.Header.Set("X-Test-User", "u1")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := send("/documents/a/edit-requests"); rec.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec.Code)
+	}
+	rec := send("/documents/b/edit-requests")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second document: expected 429 (one budget across documents), got %d", rec.Code)
+	}
+	var body struct {
+		Error struct {
+			Code   string         `json:"code"`
+			Fields map[string]any `json:"fields"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
+	}
+	if body.Error.Code != "edit_request_rate_limited" {
+		t.Errorf("code = %q, want edit_request_rate_limited", body.Error.Code)
+	}
+	if got, ok := body.Error.Fields["retry_after_s"].(float64); !ok || got != 60 {
+		t.Errorf("fields.retry_after_s = %v, want 60", body.Error.Fields["retry_after_s"])
+	}
+	if rec.Header().Get("Retry-After") != "60" {
+		t.Errorf("Retry-After = %q, want 60", rec.Header().Get("Retry-After"))
 	}
 }

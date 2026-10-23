@@ -1,0 +1,17 @@
+{
+  "fixture": "uniwork-office-contract-fixture/open-failure@1",
+  "description": "The P3 failure-class report: a failed open returns a named class bound to the document id, never a blank substitute.",
+  "value": {
+    "outcome": "failed",
+    "document_id": "01J8Z0D000000000000000DOC",
+    "format": "docx",
+    "failure_class": "wrong_password",
+    "message": "The password is incorrect for this document.",
+    "engine_error": null
+  },
+  "expected": {
+    "valid": true,
+    "failure_class": "wrong_password",
+    "blank_document_substitution": false
+  }
+}

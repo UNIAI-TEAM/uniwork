@@ -1,0 +1,244 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
+import type {
+  DocumentComment,
+  DocumentCommentMentionWithoutAccess,
+} from "@uniwork/core/types/document";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AppLink } from "../navigation";
+import { DocumentCommentComposer, type SendOptions, type SendOutcome } from "./document-comment-composer";
+import { DocumentCommentEntry } from "./document-comment-entry";
+import type { MentionNames } from "./document-comment-body";
+import { K } from "./document-comments-keys";
+import {
+  anchorLabel,
+  anchorStateKey,
+  canResolveCommentThread,
+  replyTargetOf,
+  type CommentDocContext,
+  type DocumentThread,
+} from "./document-comments-model";
+
+// One thread of the panel (S12 "Một thread" / S13 list rows): a list item
+// named by its author, anchor label and state (aria-labelledby, no composed
+// string), the root with its anchor line and Reply / Resolve / Reopen, the
+// replies indented oldest first, and the reply box when open. A write the
+// server refuses leaves the thread as it was and says so under it.
+
+export interface ThreadActions {
+  reply: (parentId: string, body: string, opts?: SendOptions) => Promise<SendOutcome>;
+  edit: (commentId: string, body: string) => Promise<boolean>;
+  remove: (commentId: string) => Promise<boolean>;
+  setResolved: (commentId: string, resolved: boolean) => Promise<boolean>;
+  reload: () => void;
+}
+
+export interface ThreadContext {
+  wsId: string;
+  documentId: string;
+  orgId: string;
+  doc?: CommentDocContext | null;
+  /** The caller may list workspace members: the picker asks for `include=no_access` (G8-18). */
+  canSeeMembers?: boolean;
+  names: MentionNames;
+  nameOf: (comment: Pick<DocumentComment, "author_id" | "author" | "display_name">) => string;
+  nameOfId: (userId: string) => string;
+  currentUserId: string | undefined;
+  /** comment, edit or manage: reply, edit/delete own posts. */
+  canWrite: boolean;
+  /** manage: edit/delete anyone's posts too. */
+  canModerate: boolean;
+  /** Id of the panel status line while sending is blocked. */
+  blockedReasonId?: string;
+  deletedKey: string;
+  postSendNotices?: ReadonlyMap<string, DocumentCommentMentionWithoutAccess[]>;
+  /**
+   * Where a lost comment's version opens read-only (UNI-2033), or null when it cannot: the page URL
+   * `?version=N&comment=<id>` and N. Absent = the panel offers no such action.
+   */
+  versionView?: (root: DocumentComment) => { href: string; versionNo: number } | null;
+  actions: ThreadActions;
+}
+
+export function DocumentCommentThread({
+  thread,
+  ctx,
+  focusRequest,
+  onFocusHandled,
+  highlighted = false,
+}: {
+  thread: DocumentThread;
+  ctx: ThreadContext;
+  /** A deep link named this thread: tint the whole card. */
+  highlighted?: boolean;
+  /**
+   * "heading" for a deep link, "resolve" after Resolve/Reopen moved the thread between groups,
+   * "scroll" for a deep link while the editor holds focus: reveal the thread, leave focus alone.
+   */
+  focusRequest?: "heading" | "resolve" | "scroll" | null;
+  onFocusHandled: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? DEFAULT_LOCALE;
+  const { root, replies } = thread;
+  const [replying, setReplying] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement & HTMLParagraphElement>(null);
+  const resolveRef = useRef<HTMLButtonElement>(null);
+  const authorId = useId();
+  const anchorId = useId();
+  const stateId = useId();
+  const statusId = useId();
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    const target = focusRequest === "resolve" ? (resolveRef.current ?? headingRef.current) : headingRef.current;
+    target?.scrollIntoView?.({ block: "nearest" });
+    if (focusRequest !== "scroll") target?.focus();
+    onFocusHandled();
+  }, [focusRequest, onFocusHandled]);
+
+  const anchor = root.kind === "comment" ? anchorLabel(root.anchor, locale) : null;
+  const stateKey = root.kind === "comment" ? anchorStateKey(root.anchor_state) : null;
+  const resolved = !!root.resolved_at;
+  const deleted = !!root.deleted_at;
+  const viewVersion = root.kind === "comment" && root.anchor_state === "lost" && !deleted ? ctx.versionView?.(root) ?? null : null;
+  const target = replyTargetOf(thread);
+  const mine = (comment: DocumentComment) =>
+    !!ctx.currentUserId && comment.author_id === ctx.currentUserId && comment.author_kind !== "agent";
+  const permissionsOf = (comment: DocumentComment) => {
+    const allowed = ctx.canWrite && (mine(comment) || ctx.canModerate);
+    return { canEdit: allowed, canDelete: allowed };
+  };
+  const canResolve = canResolveCommentThread({
+    canWrite: ctx.canWrite,
+    level: ctx.doc?.my_level ?? "view",
+    currentUserId: ctx.currentUserId,
+    root,
+  });
+  const guard = async (run: () => Promise<boolean>) => {
+    setFailed(false);
+    const ok = await run();
+    if (!ok) setFailed(true);
+    return ok;
+  };
+
+  const labelledBy = [deleted ? null : authorId, anchor ? anchorId : null, stateKey ? stateId : null, resolved ? statusId : null]
+    .filter(Boolean)
+    .join(" ");
+
+  const meta = anchor || stateKey || resolved || viewVersion ? (
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-micro text-muted-foreground">
+      {anchor ? <span id={anchorId} title={anchor.title}>{t(anchor.key, anchor.values)}</span> : null}
+      {stateKey ? (
+        <span id={stateId} className="font-medium text-warning-soft-foreground" data-anchor-state={root.anchor_state}>
+          {t(stateKey)}
+        </span>
+      ) : null}
+      {viewVersion ? (
+        <AppLink href={viewVersion.href} data-anchor-action="view-version" className="font-medium text-primary underline-offset-2 hover:underline">
+          {t(K.collabAnchorViewVersion, { n: viewVersion.versionNo })}
+        </AppLink>
+      ) : null}
+      {resolved ? <span id={statusId} className="rounded bg-muted px-1.5 font-medium text-foreground">{t(K.collabResolved)}</span> : null}
+    </p>
+  ) : null;
+
+  const entryFor = (comment: DocumentComment, isRoot: boolean) => (
+    <DocumentCommentEntry
+      wsId={ctx.wsId}
+      documentId={ctx.documentId}
+      documentWorkspaceId={ctx.doc?.workspace_id}
+      comment={comment}
+      authorName={ctx.nameOf(comment)}
+      authorId={isRoot ? authorId : undefined}
+      names={ctx.names}
+      nameOf={ctx.nameOfId}
+      permissions={permissionsOf(comment)}
+      onEdit={(body) => guard(() => ctx.actions.edit(comment.id, body))}
+      onDelete={() => guard(() => ctx.actions.remove(comment.id))}
+      onTombstone={ctx.actions.reload}
+      headingRef={isRoot ? headingRef : undefined}
+      meta={isRoot ? meta : undefined}
+      reply={!isRoot}
+      mentionsWithoutAccess={ctx.postSendNotices?.get(comment.id) ?? comment.mentions_without_access}
+    >
+      {isRoot && ctx.canWrite && !deleted ? (
+        <div className="mt-1 -ml-2 flex flex-wrap gap-0.5">
+          {target && !replying ? (
+            <Button type="button" variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setReplying(true)}>
+              {t(K.collabReply)}
+            </Button>
+          ) : null}
+          {canResolve ? (
+            <Button
+              ref={resolveRef}
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="text-muted-foreground"
+              onClick={() => void guard(() => ctx.actions.setResolved(root.id, !resolved))}
+            >
+              {resolved ? t(K.collabReopen) : t(K.collabResolve)}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </DocumentCommentEntry>
+  );
+
+  return (
+    <li
+      aria-labelledby={labelledBy || undefined}
+      data-testid={`document-thread-${root.id}`}
+      data-thread-kind={root.kind}
+      data-highlighted={highlighted || undefined}
+      className={cn(
+        "overflow-clip rounded-lg border bg-card transition-colors duration-700",
+        highlighted ? "border-primary/60 bg-primary/5" : "border-border/60",
+      )}
+    >
+      {deleted && meta ? <div className="px-3 pt-2">{meta}</div> : null}
+      {entryFor(root, true)}
+      {replies.length > 0 ? (
+        <ul className="mb-2 ml-7 mr-3 space-y-1 border-l border-border pl-3">
+          {replies.map((reply) => (
+            <li key={reply.id}>{entryFor(reply, false)}</li>
+          ))}
+        </ul>
+      ) : null}
+      {replying && target ? (
+        <div className="border-t border-border/60 p-3">
+          <DocumentCommentComposer
+            wsId={ctx.wsId}
+            documentId={ctx.documentId}
+            orgId={ctx.orgId}
+            parentId={target.id}
+            placeholderKey={K.collabComposerReply}
+            deletedKey={ctx.deletedKey}
+            blockedReasonId={ctx.blockedReasonId}
+            doc={ctx.doc}
+            canSeeMembers={ctx.canSeeMembers}
+            renderPostSendInline={false}
+            autoFocus
+            onSend={async (body, opts) => {
+              const outcome = await ctx.actions.reply(target.id, body, opts);
+              const status = typeof outcome === "string" ? outcome : outcome.status;
+              if (status === "sent") setReplying(false);
+              return outcome;
+            }}
+            onCancel={() => setReplying(false)}
+            testId={`document-reply-composer-${root.id}`}
+          />
+        </div>
+      ) : null}
+      {failed ? (
+        <p role="alert" className="px-3 pb-2 text-caption text-destructive">{t(K.collabActionFailed)}</p>
+      ) : null}
+    </li>
+  );
+}

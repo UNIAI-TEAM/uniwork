@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -167,6 +169,29 @@ func (h *handlers) getAuditExport(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.AuditExportSDO{Export: h.toAuditExportDTO(exp)})
 }
 
+// downloadAuditExport streams a finished export through FileService's proxy
+// path: AuditService.DownloadExport re-checks the reader's audit permission
+// and the 24 hour window on every call, so a download_url is never a standing
+// grant the way the legacy storage URL was (T10).
+func (h *handlers) downloadAuditExport(w http.ResponseWriter, r *http.Request) {
+	exp, err := h.Audit.DownloadExport(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "orgID"), chi.URLParam(r, "exportID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer exp.Reader.Close()
+
+	w.Header().Set("Content-Type", exp.ContentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(exp.Reader.File.SizeBytes, 10))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, exp.Filename))
+	if _, err := io.Copy(w, exp.Reader.Body); err != nil {
+		h.Log.Error("audit export stream", "err", err, "export_id", chi.URLParam(r, "exportID"))
+	}
+}
+
 // toAuditExportDTO derives the status from the timestamps rather than storing
 // a status column, so the two can never disagree.
 func (h *handlers) toAuditExportDTO(e db.AuditExport) sdo.AuditExportDTO {
@@ -185,8 +210,16 @@ func (h *handlers) toAuditExportDTO(e db.AuditExport) sdo.AuditExportDTO {
 		s := e.ExpiresAt.Time.UTC().Format(time.RFC3339)
 		out.ExpiresAt = &s
 	}
-	if e.ObjectKey.Valid && h.Storage != nil && e.CompletedAt.Valid &&
-		time.Since(e.CompletedAt.Time) < auditExportLinkTTL {
+	switch {
+	case e.FileID.Valid && e.ExpiresAt.Valid && time.Now().Before(e.ExpiresAt.Time):
+		// A FileService row: the link is the authenticated route that
+		// re-checks permission and the window on every download.
+		url := fmt.Sprintf("/api/v1/orgs/%s/audit/exports/%s/download", e.OrganizationID, e.ID)
+		out.DownloadURL = &url
+	case e.ObjectKey.Valid && h.Storage != nil && e.CompletedAt.Valid &&
+		time.Since(e.CompletedAt.Time) < auditExportLinkTTL:
+		// A row the legacy path wrote before the cutover still resolves to
+		// the storage URL it was completed with.
 		url := h.Storage.ObjectURL(e.ObjectKey.String)
 		out.DownloadURL = &url
 	}

@@ -8,10 +8,25 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 // An alert without a runbook is a pager that says "something is wrong" at
 // 3am and nothing else; a runbook without an alert is prose nobody will ever
-// open under pressure. Both directions fail here.
+// open under pressure - unless it is a listed operator runbook, opened by a
+// deploy step. Both directions fail here.
 
 const SECTIONS = ["## Triệu chứng", "## Kiểm tra", "## Khắc phục", "## Leo thang"];
 const RUNBOOK_DIR = "docs/runbooks";
+
+/** Operator runbooks: opened by a deploy step or a change review, not by a
+ * pager. They keep the four sections and the status line like every runbook
+ * here; only the alert-linkage rules below skip them. Add a name with the
+ * reason it has no alert. */
+const OPERATOR_RUNBOOKS = new Set([
+  "documents-folder-name-index.md", // FD-02 (UNI-1462): release-order check after the folder-name index deploy
+  "unichat-desktop-release.md", // UniChat D2 (UNI-1835): cutting, checking and rolling back a desktop release
+  "unichat-mobile-release.md", // UniChat M4 (UNI-1836): store builds, OTA and rollback of the mobile app
+  "unichat-pilot.md", // UniChat Q1 (UNI-1838): daily triage and stop rules of the internal pilot
+  "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
+  "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
+  "browser-notifications.md", // UNI-1965: deploy and manual acceptance of browser permission + Web Push (no pager)
+]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
 // ponytail: line scanner, not a YAML parser — rules are flat `- alert:` blocks;
@@ -32,7 +47,11 @@ const runbookFiles = () =>
 
 test("every alert has a runbook_url whose file exists and is named after the alert", () => {
   const all = rules();
-  assert.equal(all.length, 8, "spec §6.5 lists eight alerts");
+  assert.equal(
+    all.length,
+    28,
+    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts",
+  );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);
     assert.equal(path.basename(r.runbook_url), `${r.alert}.md`, `${r.alert}: runbook_url must end in <AlertName>.md`);
@@ -49,9 +68,12 @@ test("every runbook has the four sections in order and a status line", () => {
   }
 });
 
-test("every runbook is referenced by an alert", () => {
+test("every runbook is referenced by an alert or is a listed operator runbook", () => {
   const referenced = new Set(rules().map((r) => `${r.alert}.md`));
-  const orphans = runbookFiles().filter((f) => !referenced.has(f));
+  for (const f of OPERATOR_RUNBOOKS) {
+    assert.ok(fs.existsSync(path.join(root, RUNBOOK_DIR, f)), `operator runbook listed but missing: ${f}`);
+  }
+  const orphans = runbookFiles().filter((f) => !referenced.has(f) && !OPERATOR_RUNBOOKS.has(f));
   assert.deepEqual(orphans, [], `runbooks without an alert: ${orphans.join(", ")}`);
 });
 

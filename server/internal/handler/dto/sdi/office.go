@@ -1,0 +1,64 @@
+package sdi
+
+import "encoding/json"
+
+// SDI types for the Office surface (plan G2-07 / UNI-690; C-01 §6.2). The
+// client chooses an operation from the allowlist and never an engine route,
+// a storage key or an engine address: the server picks the engine endpoint
+// and the output target. base_revision is the decimal revision string the
+// writer saw (same encoding as the other document writes).
+
+// StartOfficeJobSDI is POST /api/v1/documents/{documentID}/office/jobs
+// (+ Idempotency-Key header). operation is one of open, edit, serialize, export,
+// convert; export and convert answer unsupported_operation until an engine
+// lane binds it; convert (Q7, G2-07b) takes target_format - xlsx for an xls
+// document, docx for an odt one - and stages an OOXML output plus a change
+// list that POST .../copies with job_id accepts. format is optional and, when
+// present, must match the document's format.
+type StartOfficeJobSDI struct {
+	Operation    string           `json:"operation" description:"open | edit | serialize | export | convert" example:"edit"`
+	Format       *string          `json:"format" description:"docx | xlsx | pptx | pdf | md | html | xls | odt; phải khớp định dạng tài liệu" example:"md"`
+	BaseRevision *string          `json:"base_revision" description:"Revision nền dạng chuỗi thập phân client thấy; bỏ trống = revision hiện tại" example:"41"`
+	ModelRef     *string          `json:"document_model_ref" description:"Tham chiếu document model của editor; chỉ dùng cho serialize" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	Edits        *[]OfficeEditSDI `json:"edits,omitempty" description:"Danh sách edit cho operation=edit; tối đa 10000 operations"`
+	TargetFormat *string          `json:"target_format" description:"Định dạng đích của convert: xlsx cho xls, docx cho odt; thao tác khác bỏ trống" example:"xlsx"`
+}
+
+// OfficeEditSDI mirrors the engine's deliberately open edit operation. The
+// target/style/range/attributes payloads stay raw so the handler does not
+// invent a format-specific schema; the engine contract validates their shape.
+type OfficeEditSDI struct {
+	Op         string          `json:"op" example:"set_cell"`
+	Target     json.RawMessage `json:"target,omitempty"`
+	Text       string          `json:"text,omitempty"`
+	Style      json.RawMessage `json:"style,omitempty"`
+	Range      json.RawMessage `json:"range,omitempty"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
+}
+
+// CreateBlankDocumentFileSDI is POST
+// /api/v1/workspaces/{workspaceID}/documents/files/blank (+ Idempotency-Key
+// header): creates a new document whose first version holds bytes the engine
+// produced or the server seeded. Only formats with a blank generator are
+// accepted (md, html, xlsx, docx, pptx, pdf, txt); any other format answers
+// unsupported_operation and stores nothing.
+type CreateBlankDocumentFileSDI struct {
+	Format      string  `json:"format" description:"md, html, xlsx, docx, pptx, pdf hoặc txt (Văn bản: tệp untitled.txt, text/plain, mở bằng module markdown ở chế độ văn bản thuần); định dạng khác trả unsupported_operation" example:"docx"`
+	Title       string  `json:"title" minLength:"1" description:"Tiêu đề tài liệu, 1-500 ký tự" example:"Ghi chú họp"`
+	ParentID    *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Visibility  *string `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
+}
+
+// CopyDocumentSDI is POST /api/v1/documents/{documentID}/copies
+// (+ Idempotency-Key header). consent must be "copy": a copy that could lose
+// or re-scope content is an explicit choice (C-01 §14.4). The copy keeps the
+// source's acl_owner_id, visibility and live share rows; the caller needs
+// edit on the source.
+type CopyDocumentSDI struct {
+	Consent  string  `json:"consent" description:"Bắt buộc \"copy\"; thiếu hoặc khác trả copy_consent_required" example:"copy"`
+	Title    *string `json:"title" description:"Tiêu đề bản sao; bỏ trống = \"<nguồn> (bản sao)\"" example:"Kế hoạch Q4 (bản sao)"`
+	ParentID *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cho bản sao; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	JobID    *string `json:"job_id" description:"Chấp nhận job convert đã completed của tài liệu này: bản sao là output OOXML kèm provenance; bỏ trống = bản sao cùng định dạng" example:"01J8X4JOB0N1P2Q3R4S5T6U7V8"`
+	UploadID *string `json:"upload_id" description:"ULID bản tải lên đã stage của chính tài liệu này bởi cùng người gọi để tạo phiên bản đầu của bản sao thay vì bản đầu hiện tại; loại trừ lẫn nhau với job_id" example:"01J8X4FIL0N1P2Q3R4S5T6U7V8"`
+}

@@ -25,7 +25,8 @@ function routeTemplates(dir: string): string[] {
         const segs = rel
           .split("/")
           .filter((s) => s && !s.startsWith("(")) // route groups are invisible
-          .map((s) => (s.startsWith("[") ? ":" + s.slice(1, -1) : s));
+          .map((s) => (s.startsWith("[") ? ":parameter" : s));
+        if (rel.includes("[[...")) out.push("/" + segs.slice(0, -1).join("/"));
         out.push("/" + segs.join("/"));
       }
     }
@@ -45,25 +46,54 @@ function builderTemplates(): string[] {
     paths.register(),
     paths.verify(),
     paths.authCallback(),
+    paths.desktopAuthorize(),
+    paths.connectAuthorize(),
+    paths.unichatStart(),
     paths.forgotPassword(),
     paths.resetPassword(),
     paths.onboarding(),
+    paths.getStarted(),
+    paths.noWorkspace(),
     paths.newWorkspace(),
     paths.invitations(),
     paths.workspaces(),
     paths.invite(ID),
     paths.meetingInvite(ID),
     paths.meetingInviteRoom(ID),
+    paths.publicShare(ID),
+    paths.solutions.product(),
+    paths.solutions.root(),
+    paths.features(),
+    paths.feature(ID),
+    paths.learn(),
+    paths.changelog(),
+    paths.pricing(),
+    paths.enterprise(),
+    paths.requestDemo(),
+    paths.apps.root(),
+    paths.apps.office(),
+    paths.apps.unichat(),
+    paths.about(),
+    paths.security(),
+    paths.privacy(),
+    paths.guide(ID),
+    paths.vietnamese(),
+    paths.vietnamese([ID]),
+    paths.solutions.operations(),
+    paths.whyUniwork(),
     paths.admin.root(),
     paths.admin.organizations(),
+    paths.admin.demoRequests(),
     paths.admin.organization(ID),
     paths.admin.flags(),
+    paths.admin.plans(),
+    paths.admin.invoices(),
     paths.admin.trace(),
     paths.admin.quota(),
     paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.members(), ws.people(), ws.person(ID), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.chatSettings(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.document(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

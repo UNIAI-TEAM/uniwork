@@ -104,9 +104,9 @@ function CodeBlockView({ node }: NodeViewProps) {
             }
           >
             {view === "preview" ? (
-              <CodeIcon className="h-3.5 w-3.5" />
+              <CodeIcon className="size-3.5" />
             ) : (
-              <Eye className="h-3.5 w-3.5" />
+              <Eye className="size-3.5" />
             )}
           </button>
         )}
@@ -118,9 +118,9 @@ function CodeBlockView({ node }: NodeViewProps) {
           aria-label={t("editor.code_block.copy_code")}
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="size-3.5" />
           ) : (
-            <Copy className="h-3.5 w-3.5" />
+            <Copy className="size-3.5" />
           )}
         </button>
       </div>

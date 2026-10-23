@@ -1,0 +1,107 @@
+"use client";
+
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { CheckCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { ChatRoomMemberRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import { furthestReadAt, isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import type { ChatMenuParts } from "./chat-message-menu-items";
+import type { ChatMessage } from "./chat-messages";
+import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
+import { chatPersonFaceClass } from "./chat-person-card";
+import { initialOf } from "./chat-initials";
+import type { NameContextEntry } from "./native-chat-message-mapping";
+import { ChatPeerDeliveredAtContext } from "./chat-delivered";
+
+type SeenBy = { members: readonly ChatRoomMemberRecord[]; nameContext: NameContextEntry[] };
+
+/*
+ * The open room's read pointers, for a group or a non-default channel only
+ * (null elsewhere). A context, not a row prop: a member reading moves the
+ * pointers often, and only an open ⋯ menu reads them, so the memoised rows
+ * stay put.
+ */
+const SeenByContext = createContext<SeenBy | null>(null);
+
+/**
+ * Seen-by for the open room: the context value, and the furthest read pointer
+ * among the others for the timeline's one "Đã xem" mark. Off (null, null) in
+ * a DM, which reads its peer's pointer from the room, and in the workspace's
+ * default room, where everyone is a member.
+ */
+export function useChatSeenBy(
+  room: Pick<ChatRoomRecord, "kind" | "is_default"> | undefined,
+  members: readonly ChatRoomMemberRecord[],
+  nameContext: NameContextEntry[],
+  currentUserId: string,
+): { value: SeenBy | null; lastReadAt: string | null } {
+  const enabled = room?.kind === "group" || (room?.kind === "channel" && !room.is_default);
+  const value = useMemo(() => (enabled ? { members, nameContext } : null), [enabled, members, nameContext]);
+  const lastReadAt = useMemo(
+    () => (enabled ? furthestReadAt(members, currentUserId) : null),
+    [currentUserId, enabled, members],
+  );
+  return { value, lastReadAt };
+}
+
+/** The open room's receipts: who has seen what (⋯ menu) and how far everyone else has received it (✓✓ grey). */
+export function ChatSeenByProvider({
+  value,
+  deliveredAt = null,
+  children,
+}: {
+  value: SeenBy | null;
+  deliveredAt?: string | null;
+  children: ReactNode;
+}) {
+  return (
+    <ChatPeerDeliveredAtContext.Provider value={deliveredAt}>
+      <SeenByContext.Provider value={value}>{children}</SeenByContext.Provider>
+    </ChatPeerDeliveredAtContext.Provider>
+  );
+}
+
+/**
+ * "N người đã xem" at the top of an own message's ⋯ menu, opening the readers.
+ * Nothing for a thread reply: the pointers follow the main timeline only.
+ */
+/** "Đã xem bởi N người", last in your own message's menu: the readers in a submenu. */
+export function ChatSeenByMenuItem({ message, parts: P }: { message: ChatMessage; parts: ChatMenuParts }) {
+  const { t } = useTranslation();
+  const seenBy = useContext(SeenByContext);
+  if (!seenBy || message.threadRootId) return null;
+  const readers = seenBy.members.filter(
+    (member) => member.user_id !== message.sender && isMessageSeenByPeer(message.ts, member.last_read_at),
+  );
+  if (readers.length === 0) return null;
+  const names = new Map(seenBy.nameContext.map((entry) => [entry.user_id, entry.display_name.trim()]));
+  return (
+    <>
+      <P.Separator />
+      <P.Sub>
+        <P.SubTrigger>
+          <CheckCheck className="size-4 text-brand" aria-hidden />
+          {t("chat.seen_by_count", { count: readers.length })}
+        </P.SubTrigger>
+        <P.SubContent className="max-h-72 min-w-48 overflow-y-auto">
+          {readers.map((member) => {
+            const name = names.get(member.user_id) || member.display_name.trim() || member.email;
+            return (
+              <P.Item key={member.user_id}>
+                <ActorAvatar
+                  name={name}
+                  initials={initialOf(name)}
+                  avatarUrl={resolveAvatarUrlFromNameContext(seenBy.nameContext, member.user_id)}
+                  size="md"
+                  className={chatPersonFaceClass(member.user_id)}
+                />
+                <span className="min-w-0 truncate">{name}</span>
+              </P.Item>
+            );
+          })}
+        </P.SubContent>
+      </P.Sub>
+    </>
+  );
+}

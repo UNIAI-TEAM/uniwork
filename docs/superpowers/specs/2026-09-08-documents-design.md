@@ -1,6 +1,6 @@
 # UniWork — Documents (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage)
 
-> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11).
+> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi. **Amendment 2026-09-26 (§14), người dùng duyệt 2026-09-27:** sau G0 = GO (ADR 0021) và hợp đồng FileService FS-C1 — byte qua FileService (`file_id`, đọc bằng proxy, `ReleaseInTx`), cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save. **Sửa 2026-10-16 (UNI-1780):** §6.1 và mục kiểm thử 12 khớp ADR 0009 — tự lưu có dòng audit, không có frame.
 
 **Ngày:** 2026-09-08
 **Issue:** UNI-437 · C-01 · Bounded context Document · P0
@@ -27,7 +27,7 @@ Tính chất đo được:
 7. **Agent là đồng tác giả, không phải người ghi trực tiếp.** `created_by_kind = agent` có chỗ ngay từ schema; agent đọc theo quyền thành viên; agent ghi chỉ qua `agent_action_proposals` (ADR 0010) — action type định nghĩa ở đây, thực thi ở Giai đoạn A.
 8. **Empty state trung thực.** Không có tài liệu thì nói cách tạo trang đầu tiên hoặc tải tệp; không có số dung lượng giả (bản cũ từng hiện "342.6 GB of 1 TB").
 
-**Ngoài phạm vi C-01:** bình luận trên tài liệu (đợt sau, dùng cùng cơ chế `task_comments`/reactions của F-05 — câu hỏi mở §12.3), xuất PDF (chỉ Markdown/HTML), OCR/preview DOCX/XLSX phía server (mở bằng tải về), quét virus, ký số, template tài liệu, import từ Google Docs/Notion, wiki/knowledge base có cấu trúc (A-04), Work Graph edges (C-11 — spec này chỉ để lại `document_id` làm đích), mobile (C-08 đọc-only sau khi C-01 ship).
+**Ngoài phạm vi C-01:** OCR cho PDF scan (mốc sau), quét virus, ký số, template tài liệu, import từ Google Docs/Notion, wiki/knowledge base có cấu trúc (A-04), Work Graph edges (C-11 — spec này chỉ để lại `document_id` làm đích), mobile (C-08 đọc-only sau khi C-01 ship). Phạm vi yêu cầu G0 gồm editor và preview cho sáu định dạng lõi DOCX/XLSX/PPTX/PDF/Markdown/HTML trên web và desktop; PDF phải sửa được nội dung có lớp chữ, còn annotation hoặc lớp chữ đè không thay thế chỉnh sửa nội dung. PDF export/conversion chỉ theo các thao tác được kiểm kê và Q7-B loss/copy rules; không có tuyên bố export rộng hơn. Đây là kết quả mục tiêu theo Q1-B/Q2-A, không khẳng định tính năng đã giao. Bình luận tài liệu thuộc C-01 và dùng chung cơ chế bình luận task; các giới hạn Work Product tại §13 vẫn giữ nguyên.
 
 ## 2. Quyết định đã chốt
 
@@ -48,6 +48,7 @@ Tính chất đo được:
 | 13 | **Xóa hai bước:** archive (ẩn, khôi phục được, 30 ngày) → purge bởi job (xóa row + object) | Không có nút xóa vĩnh viễn ngay trên UI; audit giữ |
 | 14 | **Feature flag `documents`** theo org (mặc định tắt), route và nav ẩn khi tắt; entitlement flag `documents.public_links`, quota `storage.bytes` | Đúng luật rollout (FEATURE_WORKFLOW bước 4, bước 7) |
 | 15 | **Không port mã bản cũ.** Kế thừa: mô hình quyền (user/workspace/tenant share), 9 case cách ly, nhật ký truy cập, `storage_ref` chỉ là con trỏ. Bỏ: textarea markdown, comments client-side, "lịch sử" trong bộ nhớ, `DocumentApi` NOT_IMPLEMENTED, quota giả | §10 |
+| 16 | **Tài liệu có thể thuộc sở hữu của một Kết quả công việc** (`owner_kind` + `owner_id`). Khi thuộc sở hữu: không đứng trong cây tài liệu của workspace, không có chia sẻ và liên kết công khai riêng, mức quyền **ủy quyền** sang Work Product | ADR 0016 chốt Document là kho duy nhất. Nếu tài liệu của một deliverable vẫn tự chia sẻ được thì có **hai cửa vào cùng một nội dung** — đúng cái mà "một kho duy nhất" muốn tránh. Bổ sung 2026-09-16, chi tiết §13 |
 
 ## 3. Dữ liệu
 
@@ -260,7 +261,7 @@ trong 5 phút không ghi thêm dòng (kiểm ở service bằng query dòng cu�
 | `paragraph`, `heading{level 1..3}`, `bulletList`, `orderedList{start}`, `listItem`, `taskList`, `taskItem{checked}`, `blockquote`, `codeBlock{language}`, `horizontalRule`, `hardBreak` | như ghi |
 | `image{src, alt, width}` | `src` **phải** là `asset://{ulid}` — URL ngoài bị loại |
 | `table`, `tableRow`, `tableCell{colspan,rowspan}`, `tableHeader` | ≤ 200 hàng × 20 cột |
-| `mention{kind:'user'|'task'|'document'|'meeting', id, label}` | id ULID; label là snapshot, client re-resolve theo quyền |
+| `mention{kind:'user'\|'task'\|'document'\|'meeting', id, label}` | id ULID; label là snapshot, client re-resolve theo quyền |
 | `text` với mark `bold`, `italic`, `underline`, `strike`, `code`, `link{href}` | `href` chỉ `https://`, `mailto:`, hoặc đường dẫn nội bộ từ `paths` |
 
 Server: `document.Sanitize(raw) (content, text, err)` — node/mark/attr lạ bị **loại** (không lỗi),
@@ -333,6 +334,23 @@ Agent: `RequireAgentMember` cho đọc; agent không bao giờ có `edit` trực
 proposal (§8). Platform admin `/admin/*` không đọc nội dung tài liệu (đã là luật F-11); admin chỉ
 thấy đếm và dung lượng theo org.
 
+> **Bổ sung 2026-10-14 (UNI-1413 G8-18, UNI-1628 DOC-05)** — bộ mức quyền và quyền admin được ký lại ở
+> [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md); §4 này **không viết lại**, đọc kèm phụ lục.
+> Phụ lục thay: (1) thang `view < edit < manage` thành `view < comment < edit < manage` và bảng hành động ở trên (thêm cột
+> Comment; viết bình luận cần Comment hoặc Edit); (2) dòng `manage nếu … effective ws role ∈ {owner, admin}` **chỉ cho tài liệu
+> `visibility=workspace`**: trên tài liệu `restricted` admin quản lý nhưng không đọc nội dung, trừ truy cập khẩn cấp có ghi vết
+> (DOC-05). Mọi dòng khác của §4 giữ nguyên.
+
+> **Bổ sung 2026-10-15 (UNI-1629 DOC-02, UNI-1630 DOC-06, UNI-1631 DOC-07)** — "Hạn chế" một chạm khi tạo (mặc định vẫn
+> `workspace`), chuyển quyền sở hữu (`acl_owner_id`) từng tài liệu và hàng loạt khi vô hiệu hóa thành viên, và xin quyền truy
+> cập (không tự cấp, thẻ khóa `variant="member"`, người quản lý duyệt) ở [phụ lục truy cập](2026-10-15-documents-access-addendum.md);
+> §4 này **không viết lại**, phụ lục chỉ thêm lệnh và cổng `canAdminister()` của DOC-05.
+
+> **Bổ sung 2026-10-15 (SRS Share v1.0)** — [phụ lục căn chỉnh SRS Share](2026-10-15-documents-share-srs-addendum.md) thay
+> dòng `edit nếu visibility=workspace ∧ actor là effective member` bằng **dòng Workspace gốc** có mức riêng (`workspace_level`
+> ∈ view/comment/edit, mặc định `edit` cho tài liệu có sẵn), đổi mặc định tạo ở gốc thành **riêng tư** (`restricted`), và thêm
+> ghi quyền theo lô (tất cả hoặc không), nguồn quyền, phạm vi chia sẻ trên danh sách và thông báo `document_shared`.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau
@@ -389,16 +407,28 @@ Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/document
 
 ### 5.5 Lỗi ổn định
 
-`revision_conflict` (422), `document_too_large` (413), `document_cycle`, `document_too_deep`,
-`cross_workspace_reference`, `principal_not_in_organization`, `document_link_limit`,
-`document_version_unchanged` (409), `unsupported_media_type` (415 — MIME ngoài allowlist hoặc
-không khớp magic bytes), `file_too_large` (413), `quota_exceeded` / `entitlement_required`
-(từ entitlement), `feature_disabled` (404), `forbidden` / `not_found`. Thêm một lần ở
-`mapServiceError`.
+`revision_conflict` (422; tự lưu trang C-01 hiện hữu), `document_version_conflict` (409; mã Office đề xuất, chờ DOC-005 được chấp nhận), `document_too_large` (413), `document_cycle`, `document_too_deep`, `cross_workspace_reference`, `principal_not_in_organization`, `document_link_limit`, `document_version_unchanged` (409), `document_owned_by_work_product` (409 — thao tác chia sẻ, liên kết công khai, đổi visibility, di chuyển cây hoặc archive trên tài liệu thuộc sở hữu; §13), `unsupported_media_type` (415 — MIME ngoài allowlist hoặc không khớp magic bytes), `file_too_large` (413), `quota_exceeded` / `entitlement_required` (từ entitlement), `feature_disabled` (404), `forbidden` / `not_found`. Thêm một lần ở `mapServiceError`.
 
-MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/
-markdown/csv, zip. **Không** nhận html/svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType`.
-Tải về luôn `attachment` (không render inline) trừ ảnh asset.
+Hai loại xung đột phiên bản được ánh xạ tới cùng lớp ổn định `errorClass = conflict`; client xử lý theo lớp lỗi, không suy luận từ HTTP status hay đọc nội dung thông báo. Mã 422 cho trang là hiện hữu; mã Office 409 là đề xuất, không khẳng định endpoint Office đã triển khai.
+
+MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/markdown/csv, zip, và **HTML** (`text/html`, đuôi `.html`/`.htm`). **Không** nhận svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType` và trả 415 `unsupported_media_type` khi hai bên không khớp. Tải về luôn `attachment` (không render inline) trừ ảnh asset; **HTML không bao giờ được render inline từ origin của app**.
+
+**HTML — luật nhận, lưu và preview (bổ sung 2026-09-25; ADR 0021, hàng `E-HTML-CYCLE`, DOC-004).** Phạm vi G0 có
+editor HTML, nên `text/html` được nhận như mọi định dạng lõi khác, với các điều kiện sau:
+
+- **Nhận:** đuôi `.html`/`.htm` và `http.DetectContentType` phải cùng nói `text/html`; lệch → 415. Trần 50 MiB và
+  quota `storage.bytes` như file khác, không có ngoại lệ.
+- **Lưu:** lưu **nguyên byte** người dùng tải lên (không viết lại, không sanitize phía server) thành một version của
+  Document `kind = file`, checksum SHA-256 như hiện có; tải về vẫn `attachment`. HTML không được trích xuất vào tìm
+  kiếm/AI ở G0.
+- **Preview và sửa (cách ly bắt buộc):** mọi hiển thị nội dung HTML phải nằm trong iframe **`sandbox` không có
+  `allow-same-origin`** (origin mờ) trên một **host khác** origin của app — không phải chỉ khác cổng: đo trong
+  `E-HTML-CYCLE` cho thấy cookie scoped theo host nên hai cổng cùng host **không** phải cách ly. Nội dung nạp qua
+  `srcdoc`/blob hoặc từ chính host preview, không kèm credential app; preview không đọc được storage/cookie của app
+  (phía app, `contentDocument` là `null`) và `fetch` tới API app bị từ chối. Script trong tài liệu **được** chạy
+  trong sandbox origin mờ đó (đã đo bằng `F-HTML-SCRIPT`); ngoài sandbox đó, mọi đường render inline đều bị cấm.
+- **Hệ quả cho G1/G2/G3:** cần host preview riêng, chính sách asset tương đối cho HTML/Markdown (hàng `E-HTML-CYCLE`
+  sao asset cạnh tài liệu đã lưu), và test cách ly chạy trên host đó; desktop re-home scheme là việc G4 (ADR 0021).
 
 ## 6. Sự kiện, realtime, worker
 
@@ -424,8 +454,11 @@ với phòng); hub kiểm quyền view lúc subscribe qua `effectiveLevel`. Ghi 
 Audit (`audit_coverage_test.go` thêm hàng): `document.created`, `document.updated` (diff
 `title, icon, visibility, parent_id`), `document.archived`, `document.restored`, `document.deleted`,
 `document.version_created`, `document.version_restored`, `document.shared`, `document.share_revoked`,
-`document.link_created`, `document.link_revoked`, `document.file_uploaded`. Tự lưu nội dung **không**
-audit từng lần (đã có phiên bản + `updated_by`); được thay bằng `document.version_created(auto)`.
+`document.link_created`, `document.link_revoked`, `document.file_uploaded`. Mỗi lần lưu đã commit —
+kể cả tự lưu — vẫn ghi một dòng audit `document.updated` trong cùng transaction (ADR 0009,
+ADR 0012), mang `revision` mới và cờ *nội dung có đổi hay không*, **không bao giờ** mang nội dung
+trang; chỉ frame `document.updated` mới hẹp ở title/icon/visibility/move, còn mốc tự động vẫn riêng
+(`document.version_created(auto)`, không mỗi phím gõ).
 
 ### 6.2 Notification (kind mới, spec Notifications §4.1)
 
@@ -464,11 +497,11 @@ audit từng lần (đã có phiên bản + `updated_by`); được thay bằng 
 | `packages/core/permissions/rules.ts` | `canViewDocument`, `canEditDocument`, `canManageDocument` mirror §4 |
 | `packages/core/paths/paths.ts` | `workspace(org, ws).documents()`, `.document(id)`; `share.document(token)` → `/share/{token}`; reserved slug `share`, `documents` |
 | `packages/core/feature-flags` | `useFlag("documents", false)` gate nav + route |
-| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "Trang mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
+| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "UniNote mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
 | `packages/views/documents/document-tree.tsx` | Cây 5 cấp, mở/đóng, kéo thả đổi cha (cùng `position.ts`), bàn phím ←→↑↓ |
 | `packages/views/documents/document-detail-view.tsx` | `/documents/{id}`: `BreadcrumbHeader` (cây › tiêu đề), trạng thái lưu ("Đã lưu 10:32" / "Đang lưu…" / "Xung đột"), nút Chia sẻ, Phiên bản, menu ⋯ (xuất, nhật ký, lưu trữ) |
 | `packages/views/documents/document-editor.tsx` | **`next/dynamic`-free**: lazy qua `React.lazy` trong views (không `next/*`), chunk riêng; TipTap + extensions của schema; toolbar nổi; dán ảnh → upload asset → chèn `asset://` |
-| `packages/views/documents/document-file-view.tsx` | `kind=file`: thẻ tệp (icon theo MIME, kích thước, phiên bản), nút Tải về / Tải phiên bản mới; không preview trong app đợt này (PDF cũng tải về — §12.5) |
+| `packages/views/documents/document-file-view.tsx` | `kind=file`: thẻ tệp (icon MIME, kích thước, phiên bản), nút Tải về / Tải phiên bản mới; mục tiêu G0 là preview/editor cho sáu định dạng lõi DOCX/XLSX/PPTX/PDF/Markdown/HTML trên web và desktop. PDF hỗ trợ sửa nội dung có lớp chữ; chỉ thêm annotation hoặc lớp chữ đè không đạt yêu cầu. Đây là phạm vi yêu cầu, không phải trạng thái đã ship |
 | `packages/views/documents/conflict-dialog.tsx` | Khi 422: "Người khác vừa lưu" — xem bản của họ / giữ bản của tôi thành phiên bản `manual` "Bản của tôi lúc hh:mm" rồi nạp bản mới |
 | `packages/views/documents/version-history-sheet.tsx` | Danh sách phiên bản, xem, khôi phục (confirm), đặt tên mốc |
 | `packages/views/documents/share-dialog.tsx` | Visibility, thêm người/workspace/tổ chức + mức, danh sách share sống + thu hồi, mục Liên kết (ẩn khi entitlement/setting tắt, kèm lý do) |
@@ -552,7 +585,7 @@ access log `via = ai_context`, citation `href` = `paths.document(id)`.
 9. `TestAccessLog` — GET ghi `view` với `correlation_id` = trace id; gộp 5 phút; lỗi INSERT không làm GET thất bại (metric tăng); agent đọc ghi `actor_kind = agent`.
 10. `TestArchivePurge` — archive cha kéo con; restore; purger xóa row + object sau `purge_after`, audit `document.deleted` system; object xóa thất bại → có dòng outbox retry.
 11. `TestTree` — chu trình → `document_cycle`; depth 6 → `document_too_deep`; move khác workspace → `cross_workspace_reference`.
-12. `TestDocumentAuditAndOutbox` — mỗi command §6.1 có audit + outbox trong tx; rollback → không có gì; tự lưu **không** tạo audit.
+12. `TestDocumentAuditAndOutbox` — mỗi command §6.1 có audit + outbox trong tx; rollback → không có gì; tự lưu **có** dòng audit `document.updated` (revision + cờ nội dung đổi, không có nội dung trang) nhưng **không** có frame/outbox `document.updated` cho workspace.
 13. Arch: chỉ `service/document*.go` gọi query `Document*`; `internal/document` (sanitize) không import `service`; `audit_coverage_test` có đủ hàng; `swagger_test` thấy mọi route; migration lint xanh.
 14. Lát cắt 3: `TestCrdtRelay` — update persist trước khi phát; snapshot xóa update ≤ id; client không có `edit` bị từ chối subscribe; update > 64 KiB → 413.
 
@@ -611,9 +644,363 @@ tắt flag; migration forward-compatible.
 
 1. **CRDT ở C hay để A?** Spec đặt ở lát cắt 3 với Go relay (không dịch vụ Node). Phương án khác: Hocuspocus (Node) — ít code hơn nhưng thêm một process phải vận hành và on-prem (E-01) phải đóng gói thêm. Đề xuất: giữ lát cắt 3, quyết định bật sau pilot lát cắt 1–2.
 2. **Liên kết công khai mặc định tắt** ở cấp org và cần entitlement — có làm pilot khó gửi tài liệu cho khách không? Đề xuất: giữ tắt mặc định, org admin bật một lần; gói Team trở lên có entitlement.
-3. **Bình luận trên tài liệu** ngay trong C-01 (thêm lát cắt) hay chờ F-05 lát cắt 5 (comment thread dùng chung) ship rồi nối? Đề xuất: chờ, để một cơ chế bình luận cho cả task và tài liệu.
+3. **Bình luận trên tài liệu** dùng chung cơ chế bình luận với task; bình luận được lưu theo document và hỗ trợ nhắc tên cùng thông báo. Đây là phạm vi yêu cầu của C-01, không phải tuyên bố đã ship; G1 sở hữu dữ liệu, quyền và audit.
 4. **Share có kế thừa xuống trang con không?** Spec: không (mỗi tài liệu tự share; trang con chỉ kế thừa `visibility` lúc tạo). Kế thừa làm UI phức tạp và bản cũ không có. Đề xuất: giữ không, xem lại khi có yêu cầu thật.
-5. **Xem PDF trong app** (iframe presigned inline) thay vì tải về? Rẻ nhưng mở bề mặt XSS/phishing của PDF; đề xuất: đợt sau, sau C-10.
+5. **Preview và sửa PDF trong app** thuộc phạm vi editor sáu định dạng; PDF phải sửa nội dung có lớp chữ theo Q2-A. Annotation hoặc thêm lớp chữ đè không thay thế thao tác sửa nội dung. OCR cho PDF scan vẫn ở mốc sau; preview/editor là kết quả mục tiêu, không phải claim đã giao.
 6. **Retention nhật ký truy cập**: giữ mãi (như audit) hay 365 ngày? Ảnh hưởng C-06 export. Đề xuất: giữ mãi ở C, chính sách retention làm cùng C-06.
 7. **Trần tệp 50 MiB** đủ cho pilot (bản vẽ, video ngắn)? Đề xuất: 50 MiB mặc định, entitlement `documents.max_file_bytes` nếu có khách cần hơn.
 8. **Tên nav**: "Tài liệu" (đề xuất) hay "Docs" như IA V2? Ảnh hưởng glossary.
+
+---
+
+## 13. Bổ sung 2026-09-16 — tài liệu thuộc sở hữu của một Kết quả công việc
+
+> Viết 2026-09-16 sau đợt đối chiếu bản nháp `unidigiwork` (commit `9f07c85a`). Nguồn:
+> **ADR 0016** — Work Product là bounded context riêng, Document là kho duy nhất.
+> Điều kiện để C-14 (UNI-634) khởi động.
+>
+> **§13 SỬA các mục đã duyệt sau đây — chúng cần được duyệt lại cùng §13:**
+> §2 (thêm quyết định 16) · §3.1 (thêm hai cột, ba constraint, đổi mệnh đề `WHERE` của
+> index `160` và `161`) · §4 (thêm một nhánh vào `effectiveLevel`) · §5.3 (chặn năm thao
+> tác) · §5.5 (thêm một mã lỗi) · §9.1 (thêm test) · §11 (đổi nội dung lát cắt 1).
+> Nói cách khác đây **không** phải "chỉ thêm một khái niệm" — đừng đọc §1–§12 như thể
+> chúng còn nguyên trạng ngày 2026-09-08.
+
+### 13.1 Vì sao
+
+C-14 "Kết quả công việc" là deliverable nghiệp vụ: thứ người ta soạn, duyệt và giao. Một
+deliverable tồn tại đồng thời ở nhiều biểu diễn — bản soạn trong ứng dụng, bản DOCX, bản PDF.
+
+ADR 0016 chốt: **Work Product không sở hữu byte.** Mọi tệp và phiên bản nhị phân nằm ở
+Document. Nghĩa là mỗi biểu diễn của một Kết quả công việc **là một tài liệu** trong spec này.
+
+Điều đó sinh ra đúng một vấn đề. Nếu tài liệu ấy vẫn là một tài liệu bình thường thì nó
+đứng trong cây tài liệu của workspace, tự chia sẻ được, tự tạo liên kết công khai được —
+tức có **hai cửa vào cùng một nội dung**, mỗi cửa một bộ quyền và một nút thu hồi. Đó đúng
+là thứ mà quyết định "một kho duy nhất" muốn tránh.
+
+Lời giải là quyền sở hữu: tài liệu thuộc một Kết quả công việc thì **ủy quyền toàn bộ
+quyết định quyền** cho Kết quả công việc đó.
+
+### 13.2 Hai điều C-01 đã đáp ứng, không phải làm lại
+
+Ghi lại để người viết plan không mở lại câu hỏi đã đóng:
+
+1. **Phiên bản nhị phân đã có.** `document_versions` (§3.2) mang `object_key`, `mime_type`,
+   `size_bytes`, `checksum_sha256`, và `documents.file_version_id` trỏ bản hiện hành. C-15
+   (nhập DOCX) và C-16 (Office Bridge) dùng thẳng, không cần bảng mới.
+2. **Nhiều định dạng không cần một tài liệu ôm nhiều định dạng.** Một Kết quả công việc có
+   **N tài liệu thuộc sở hữu**, mỗi tài liệu một định dạng, mỗi tài liệu giữ lịch sử phiên
+   bản riêng. Bản soạn trong ứng dụng là `kind = page`; bản DOCX và PDF là `kind = file`.
+
+### 13.3 Schema — hai cột trên `documents` (§3.1)
+
+```sql
+-- thêm vào CREATE TABLE documents
+owner_kind  TEXT,   -- NULL | 'work_product'  (mở rộng về sau nếu có chủ sở hữu loại khác)
+owner_id    TEXT,   -- NULL | id Kết quả công việc
+CONSTRAINT documents_owner_pair_check
+  CHECK ((owner_kind IS NULL AND owner_id IS NULL) OR (owner_kind IS NOT NULL AND owner_id IS NOT NULL)),
+CONSTRAINT documents_owner_kind_check
+  CHECK (owner_kind IS NULL OR owner_kind IN ('work_product')),
+-- tài liệu thuộc sở hữu không đứng trong cây
+CONSTRAINT documents_owned_no_parent_check
+  CHECK (owner_kind IS NULL OR parent_id IS NULL)
+```
+
+Index bổ sung (một câu lệnh một file, `CONCURRENTLY` — ADR 0001):
+
+```sql
+-- liệt kê biểu diễn của một Kết quả công việc
+CREATE INDEX CONCURRENTLY idx_documents_owner
+  ON documents (owner_kind, owner_id) WHERE owner_id IS NOT NULL AND archived_at IS NULL;
+```
+
+**Không** thêm khóa ngoại tới bảng Work Product (ADR 0001); C-14 giữ tính toàn vẹn ở tầng
+service, trong cùng transaction với lệnh tạo biểu diễn.
+
+**`documents.owner_id` là nguồn sự thật của quyền sở hữu.** C-14 có một bảng
+`work_product_representations` mang `role` và `format`, nhưng bảng đó là **thuộc tính hiển
+thị**, không phải sổ quyền. Mọi quyết định về quyền đọc cùng một cột duy nhất ở đây. Bất
+biến bắt buộc, có test hai chiều ở §13.7:
+
+> Với mọi `documents` có `owner_id IS NOT NULL` và `archived_at IS NULL`, tồn tại **đúng
+> một** biểu diễn sống trỏ về đúng work product đó, cùng `organization_id` và
+> `workspace_id`. Và ngược lại.
+
+Không có đường biến một tài liệu đang thuộc sở hữu thành tài liệu của một Work Product
+khác: gắn lại bị từ chối (index duy nhất của C-14 §4.2 không có mệnh đề
+`WHERE archived_at IS NULL` chính vì lý do này).
+
+Hai index cây hiện có (`160`, `161`) phải thêm `AND owner_id IS NULL` vào mệnh đề `WHERE`, và
+mọi truy vấn cây/danh sách/sidebar/"gần đây" lọc `owner_id IS NULL`. Index tìm kiếm (`162`)
+**giữ nguyên** — nội dung của biểu diễn vẫn phải tìm được, nhưng kết quả trả về qua đường
+Kết quả công việc, không phải qua danh sách tài liệu (§13.5).
+
+### 13.4 Quyền — ủy quyền, không cộng thêm
+
+`DocumentService.effectiveLevel` (§4) thêm một nhánh **đặt trước mọi nhánh khác**:
+
+```
+nếu doc.owner_kind = 'work_product':
+    trả về  ownerLevel.Resolve(ctx, actor, doc.owner_id)   via=owner
+    — không đọc documents.shares, không xét visibility, không xét created_by
+```
+
+**Hợp đồng interface và chiều phụ thuộc.** Work Product gọi Document (ADR 0016: Document là
+kho), và Document cần hỏi Work Product để tính quyền — nếu viết ngây thơ thì hai gói import
+chéo nhau. Chốt:
+
+- Interface `OwnerLevelResolver` **do gói Document khai**:
+  `Resolve(ctx, actor Actor, ownerID string) (Level, error)`. Nhận **id**, không nhận object.
+- Gói Work Product **cài** nó và đăng ký lúc dựng service. Gói Document **không bao giờ**
+  import gói Work Product.
+- Bản cài đặt của C-14 **không được đọc bảng `documents`** — nếu nó đọc thì sinh vòng lặp
+  runtime qua `effectiveLevel`.
+- Arch test giữ cả hai chiều (§13.7 test 7).
+
+Hai bất biến:
+
+- **Không bao giờ rộng hơn Work Product.** Tài liệu thuộc sở hữu không thể được xem bởi
+  người không xem được Kết quả công việc, bằng bất kỳ đường nào.
+- **Không có đường vòng.** Người có `manage` trên Kết quả công việc không vì thế mà có
+  `manage` trên các tài liệu **không** thuộc sở hữu của nó.
+
+Các thao tác sau bị từ chối với `document_owned_by_work_product` (409) khi tài liệu thuộc
+sở hữu — với mọi mức quyền, kể cả ws owner/admin:
+
+| Thao tác | Vì sao chặn |
+|---|---|
+| Tạo / thu hồi chia sẻ (§5.3) | Cửa thứ hai vào nội dung |
+| Tạo / thu hồi liên kết công khai | Như trên, và là bề mặt ẩn danh |
+| Đổi `visibility` | Quyền do Work Product quyết |
+| Đặt `parent_id` (di chuyển vào cây) | Tài liệu thuộc sở hữu không đứng trong cây |
+| Archive / khôi phục archive trực tiếp | Vòng đời theo Work Product (§13.6) |
+
+Vẫn cho phép bình thường: mở, sửa nội dung và tiêu đề, tạo phiên bản, khôi phục, tải phiên
+bản tệp mới, dán ảnh, xem nhật ký truy cập, tải về — tất cả theo mức mà `workProductLevel`
+trả về.
+
+Agent: không đổi. `RequireAgentMember` cho đọc, tối đa `view`, ghi qua proposal (§8).
+
+### 13.5 Bề mặt người dùng
+
+- **Cây tài liệu và danh sách** không hiện tài liệu thuộc sở hữu. Chúng xuất hiện ở trang
+  chi tiết Kết quả công việc, dưới dạng danh sách biểu diễn.
+- **Tìm kiếm.** Endpoint danh sách tài liệu (`GET …/documents?q=`, §5.1) **loại** tài liệu
+  thuộc sở hữu cùng với phần lọc `owner_id IS NULL` — nó là endpoint danh sách, không phải
+  endpoint tìm kiếm riêng. Nội dung của biểu diễn vẫn tìm được, nhưng **qua endpoint tìm
+  kiếm của C-14**, không qua đây: C-14 sở hữu truy vấn join
+  `documents.search_text` (owned) → biểu diễn → Kết quả công việc, lọc bằng
+  `WorkProductService.EffectiveLevel`, và trả về **Kết quả công việc** chứ không trả tài
+  liệu trần. Index `162` giữ nguyên chính là để truy vấn đó chạy được.
+- **Nhật ký truy cập** (§3.6) giữ nguyên trên tài liệu. Nhờ vậy "ai đã xem deliverable này"
+  vẫn tra được, và C-14 đọc lại nhật ký của các biểu diễn để hiển thị ở một chỗ.
+
+### 13.6 Vòng đời
+
+- **Tạo biểu diễn:** C-14 gọi lệnh của Document trong **cùng transaction** với lệnh nghiệp
+  vụ của mình; tài liệu sinh ra đã mang `owner_kind` + `owner_id` ngay từ INSERT — không có
+  khoảnh khắc nào nó là tài liệu tự do.
+- **Gỡ một biểu diễn = archive *cả hai* trong một transaction**: dòng biểu diễn của C-14
+  **và** tài liệu (đặt `archived_at` + `purge_after`). Archive một bên thôi sẽ tạo ra tài
+  liệu mồ côi — biến mất khỏi cây (bị lọc `owner_id IS NULL`), biến mất khỏi trang Kết quả
+  công việc (không còn biểu diễn sống), không ai mở được, `purge_after` NULL nên không bao
+  giờ bị dọn, mà vẫn tính vào quota `storage.bytes`. Đây là lỗi phải có test (§13.7 test 6).
+- **Archive Kết quả công việc** → archive mọi tài liệu thuộc sở hữu (cùng `purge_after`).
+  Khôi phục → khôi phục theo.
+- Cascade này đi qua **đường service nội bộ**, không qua lệnh công khai — nếu không thì luật
+  "archive trực tiếp bị chặn" ở §13.4 sẽ tự chặn chính nó.
+- **Purge: một job, hai lệnh, đúng thứ tự.** Job của Document (§6.3) gọi
+  `WorkProductService.PurgeExpired()` **trước**, rồi `DocumentService.PurgeExpired()`. Mỗi
+  service chỉ xóa bảng của mình — gói Document không được xóa bảng của Work Product, vì đó
+  là đảo chiều phụ thuộc mà ADR 0016 dựng lên. Thứ tự này cũng tránh việc mốc nghiệp vụ trỏ
+  vào phiên bản tài liệu đã bị xóa giữa chừng.
+- **Không** có đường chuyển một tài liệu thuộc sở hữu thành tài liệu tự do, và không có
+  đường gắn nó sang một Work Product khác. Cần thì mở câu hỏi mới.
+
+### 13.7 Kiểm thử bắt buộc (thêm vào §9.1 và §9.2)
+
+Go, Postgres thật:
+
+1. `effectiveLevel` trên tài liệu thuộc sở hữu trả đúng mức của Work Product và `via = owner`.
+   **Phiên bản đầy đủ** — chứng minh bằng share sống level=`manage` cho người không có quyền
+   trên Work Product → vẫn `none` → 404 — cần bảng `document_shares` (migration `168`–`176`),
+   **thuộc lát cắt 2**. Ở **lát cắt 1** chạy phiên bản yếu hơn: mức trả về khớp
+   `OwnerLevelResolver` cho cả bốn mức, và `visibility` cùng `created_by` của tài liệu không
+   ảnh hưởng kết quả. Test đầy đủ bổ sung ở lát cắt 2, ghi vào plan của lát đó.
+2. Năm thao tác ở bảng §13.4 trả `document_owned_by_work_product` (409), kể cả khi actor là
+   ws owner.
+3. Tài liệu thuộc sở hữu không xuất hiện trong truy vấn cây, danh sách, sidebar, "gần đây".
+4. Archive Work Product → mọi tài liệu thuộc sở hữu có `archived_at` và `purge_after`.
+5. Cách ly tổ chức: Work Product của tổ chức A không sở hữu được tài liệu của tổ chức B
+   (kiểm ở tầng service, vì không có FK).
+6. **Bất biến hai chiều giữa hai bảng** (§13.3): với mọi tài liệu sống có `owner_id`, tồn tại
+   đúng một biểu diễn sống trỏ đúng work product đó, cùng `organization_id` và `workspace_id`;
+   và với mọi biểu diễn sống, tài liệu tương ứng có `owner_id` khớp. Gỡ biểu diễn → **cả hai**
+   có `archived_at` và `purge_after`. Đây là loại lỗi mà "không FK" (ADR 0001) đánh đổi lấy tốc
+   độ, và cách trả giá đúng là một test.
+7. **Arch test hai chiều cho interface** (§13.4): gói Document không import gói Work Product;
+   bản cài `OwnerLevelResolver` của Work Product không đọc bảng `documents`.
+8. Migration lint xanh với hai cột và ba constraint mới.
+
+Frontend: `canViewDocument` / `canEditDocument` / `canManageDocument` trong
+`packages/core/permissions/rules.ts` mirror nhánh ủy quyền và cite dòng Go tương ứng.
+
+### 13.8 Ảnh hưởng tới §11 phân rã delivery
+
+Hai cột, ba constraint, một index, nhánh `effectiveLevel` và năm thao tác bị chặn thuộc
+**lát cắt 1**. Chúng phải xong trước khi C-14 lát cắt 1 (UNI-639) bắt đầu.
+
+`workProductLevel` là hàm do C-14 cung cấp. Trong lát cắt 1 của C-01, khi C-14 chưa tồn
+tại, nhánh ủy quyền được viết sau một interface và có một bản cài đặt trả `none` cho mọi
+actor — nghĩa là **không tài liệu nào thuộc sở hữu tồn tại được cho tới khi C-14 cắm vào**.
+Fail-closed, không fail-open.
+
+---
+
+## 14. Amendment 2026-09-26 — byte qua FileService, cột còn thiếu, bảng lỗi DOC-005 và một hình dạng API save
+
+> **Trạng thái amendment:** **đã duyệt ngày 2026-09-27** (người dùng, U-3 trong plan G1-G2 §1.3); có hiệu lực. Nơi
+> §1-§13 mâu thuẫn với mục này, mục này thắng. Viết bởi Advisor G1-G2 (UNI-657) sau G0 = GO. Không sửa chữ của các
+> mục đã duyệt; mỗi mục dưới đây nói rõ nó thay câu nào.
+
+### 14.1 Vì sao
+
+Ba việc xảy ra sau ngày duyệt 2026-09-08:
+
+1. **FileService (UNI-726) thành pipeline file chung** (2026-09-24). Hợp đồng
+   [FS-C1](2026-09-24-file-service-contract.md) cấm module tự giữ key/URL, tự xóa byte hay tự dựng ledger/cleanup
+   (§5.2, §5.7), và đặt policy purpose `document_file`/`document_asset`: 50 MiB / 10 MiB, checksum bắt buộc,
+   **đọc bằng proxy** (§3). ADR 0024 (accepted 2026-09-27) ghi quyết định kiến trúc tương ứng.
+2. **DOC-005 được nghiệm thu ở mức G0** (`docs/office/g0/login-sync-contract.md`, Advisor g118, 2026-09-25): bảng lỗi
+   §4, thứ tự kiểm ở commit §3, fingerprint idempotency §3.1, provenance bản sao §7.1.
+3. **G0 = GO** (2026-09-25, ADR 0021): Office sáu định dạng dùng kho này, nên version cần metadata engine và bản sao
+   chuyển đổi cần provenance.
+
+### 14.2 Byte qua FileService (thay §2 #6, #11, #12, #13; §3.2; §3.3; §5.1; §5.3; §5.4; §6.3; §10)
+
+| Câu đã duyệt | Đọc thành |
+| --- | --- |
+| §2 #6 "DB chỉ giữ `object_key` + metadata; byte nằm ở object storage đã có" | DB giữ `file_id` của FileService; byte, key, bucket và backend thuộc FileService. Quota vẫn là `storage.bytes` của tổ chức |
+| §2 #11 "tải về = 302 sang presigned GET 5 phút …, fallback stream cho `LocalStorage`" | Tải về luôn stream qua route Go của Documents: kiểm quyền, ghi access log, rồi `files.Service.Open` (HEAD/Range). Không presign byte tài liệu, vì DOC-004 không cho client thấy vị trí lưu và thu quyền phải chặn ngay lần đọc kế tiếp |
+| §2 #12 "Ảnh dán vào trang là `document_assets` (bảng riêng, cùng object storage)" | `document_assets` giữ `file_id` với purpose `document_asset`; `asset://{id}` trong JSON trỏ tới asset, không tới file hay URL |
+| §2 #13 "purge bởi job (xóa row + object)" | Purge xóa row và gọi `ReleaseInTx` trong cùng transaction; byte do GC FileService xóa sau khi `ReferenceProvider` của Documents thôi giữ |
+| §3.2 `object_key TEXT` và `document_versions_payload_check … (kind = 'file' AND object_key IS NOT NULL)` | `file_id TEXT` (không FK) và `CHECK ((kind = 'page' AND content IS NOT NULL) OR (kind = 'file' AND file_id IS NOT NULL))`. `mime_type`, `size_bytes`, `checksum_sha256` giữ làm bản chụp lúc tạo version, lấy từ `files.File` đã `ready`, không từ client |
+| §3.3 `object_key TEXT NOT NULL` | `file_id TEXT NOT NULL`. `orphaned_at` giữ: đó là mốc Documents dùng để tính hạn giữ 7 ngày trong `ReferenceProvider` |
+| §5.1 `POST …/documents/files`: "ghi object trước, row sau; lỗi row → xóa object" | `files.Service.Upload` (ngoài transaction, đo byte thật, checksum) rồi một transaction: kiểm quyền và quota, tạo row, `ClaimInTx`, audit/outbox. Lỗi transaction để file ở trạng thái chưa claim; GC FileService dọn sau hạn claim 24 giờ. Documents không xóa gì |
+| §5.1 `GET …/download`, §5.3 `GET /public/documents/{token}` (file), §5.4 `GET …/assets/{assetID}`: "302 presigned" | Stream qua route Go như hàng §2 #11. Public link kiểm flag org, hạn và thu hồi trước mỗi lần đọc; asset công khai đi qua route theo token, không qua route cần đăng nhập |
+| §6.3 `DocumentPurger`: "xóa object ngoài tx (`DeleteKeys`; thất bại → outbox `storage.delete_requested`)"; "Asset `orphaned_at < now - 7 ngày` cùng cách" | Purger xóa row và `ReleaseInTx` trong một transaction; không `DeleteKeys`, không topic `storage.delete_requested`. Asset quá 7 ngày: provider thôi trả `retention`, Documents `ReleaseInTx` khi gỡ row |
+| §6.3 meter `storage.bytes`: "`SUM(size_bytes)` của versions + assets chưa purge" | Byte trang (bản làm việc + mốc) cộng byte của các `file_id` **khác nhau** mà Documents còn giữ trong tổ chức; một `file_id` tính một lần dù nhiều mốc trỏ tới (FileService T1-Q9). Upload chưa claim dùng hook reservation của FileService, không cộng hai lần |
+| §10 hàng `storage_ref`: "Giữ `object_key` + `checksum_sha256` + `size_bytes`" | Giữ `file_id` + bản chụp `checksum_sha256`/`size_bytes` |
+| §10 hàng `DocumentApi`: "mọi byte qua Go + presigned" | Mọi byte qua Go + FileService, đọc bằng proxy |
+
+`ReferenceProvider` của Documents (FS-C1 §6) trả hold cho: phiên bản hiện hành và cũ (`version_history`), tài liệu
+archive hoặc soft delete chưa purge (`soft_deleted`), asset còn trong nội dung (`active`) hoặc chưa quá 7 ngày từ
+`orphaned_at` (`retention`). Registry FileService chỉ bật purpose Documents khi provider này qua test (G1-03).
+
+**Asset của mốc cũ (người dùng quyết 2026-09-27, finding G1-01 BE F-6):** `orphaned_at` chỉ nói bản làm việc thôi
+tham chiếu asset; nó không phải lý do thả byte khi một mốc còn giữ trong `document_versions` vẫn trỏ tới asset đó.
+Provider trả `version_history` cho asset mà nội dung của bất kỳ mốc chưa purge nào của tài liệu còn tham chiếu, dù
+`orphaned_at` đã quá 7 ngày; `released` chỉ khi cả bản làm việc lẫn mọi mốc chưa purge đều không còn tham chiếu và
+đã qua 7 ngày giữ. Khôi phục một mốc đặt lại `orphaned_at = NULL` cho mọi asset mà nội dung được khôi phục tham chiếu,
+trong cùng transaction với phiên bản `restore`. Byte giữ thêm tính vào meter `storage.bytes` như mọi `file_id` còn giữ
+(một lần mỗi `file_id`). Phân công: quy tắc hold và test trong provider thuộc G1-03; khôi phục đặt lại `orphaned_at`
+thuộc G1-04. Mục đích: khôi phục mốc không bao giờ ra ảnh vỡ.
+
+### 14.3 Cột còn thiếu (bổ sung §3.1, §3.2 và bảng idempotency)
+
+```sql
+-- documents (§3.1): người nắm quyền quản lý tách khỏi người tạo
+acl_owner_id           TEXT,      -- mặc định = created_by khi created_by_kind = 'human'; bản sao giữ acl_owner_id của nguồn
+
+-- document_versions (§3.2): build nào đã tạo ra byte này
+engine_name            TEXT,      -- NULL cho page và file tải lên thẳng
+engine_version         TEXT,      -- dạng genoffice@<pin>+uniwork-office.<n>
+contract_version       TEXT,      -- ví dụ uniwork-office-engine-contract/1
+protocol_version       TEXT,
+
+-- documents (§3.1): nguồn gốc của bản sao chuyển đổi (Q7-B, DOC-005 §7.1)
+source_document_id     TEXT,
+source_version_id      TEXT,
+source_revision        BIGINT,
+source_format          TEXT,
+source_engine          TEXT,
+target_format          TEXT,
+source_checksum_sha256 TEXT,
+conversion_reason      TEXT,      -- 'convert' | 'lossy_same_format'
+CONSTRAINT documents_source_pair_check
+  CHECK ((source_document_id IS NULL) = (source_version_id IS NULL))
+
+-- idempotency_keys (bảng hiện có): DOC-005 §3.1
+payload_fingerprint    TEXT       -- nullable; bản ghi cũ NULL nghĩa là "chưa biết", không phải "khớp"
+```
+
+API công khai không nhận `acl_owner_id` hay các cột `source_*`; service tự gán và kiểm cùng tổ chức/workspace.
+Fingerprint là hash chuẩn hóa của thao tác, document, base và checksum byte cùng các lựa chọn đổi kết quả, không chỉ
+tên file. Số migration cấp lúc tích hợp (§14.6).
+
+### 14.4 Một hình dạng API save cho phiên bản file (thay §5.2 hàng `versions/file`)
+
+G0 để lại ba hình dạng: DOC-005 §3 (upload rồi commit), §5.2 ở trên (`POST …/versions/file` multipart) và plan G1-G2 cũ
+(multipart + commit nội bộ). Chọn một, theo DOC-005:
+
+| Method & path | Mô tả |
+| --- | --- |
+| `POST /documents/{documentID}/uploads` multipart `file` | Cần `edit`. Stream vào `files.Service.Upload` (purpose `document_file`). Trả `{upload_id, checksum_sha256, size_bytes, claim_expires_at}`; `upload_id` **là** `file_id` của FileService. Chưa tạo version |
+| `POST /documents/{documentID}/versions/commit` `{upload_id, base_revision}` + `Idempotency-Key` | Kiểm theo thứ tự DOC-005 §3: session → tombstone → idempotency (có fingerprint) → quyền (kiểm lại) → engine → base → quota; rồi `ClaimInTx`, insert version `reason = upload`, đổi `file_version_id`, `revision + 1`, audit/outbox, lưu phản hồi idempotency trong một transaction |
+
+`POST …/versions/file` bỏ. Output của engine (G2) đi cùng `versions/commit`, với `upload_id` là `file_id` mà
+`RegisterProviderOutput` cấp cho job. Tạo tài liệu file mới vẫn là một multipart `POST /workspaces/{workspaceID}/documents/files`
+(§5.1, đã sửa ở §14.2). Tạo bản sao chuyển đổi dùng `POST /documents/{documentID}/copies` (plan G1-G2 §6.2), bắt buộc
+`consent: "copy"`.
+
+### 14.5 Bảng lỗi (bổ sung §5.5)
+
+§5.5 ghi `document_version_conflict` là "mã Office đề xuất, chờ DOC-005 được chấp nhận". DOC-005 đã được chấp nhận ở
+mức G0, nên mã này là hợp đồng cho endpoint Office khi endpoint đó ship. Mọi lỗi mang thêm `error.error_class` trên
+wire (snake_case theo `docs/conventions.md`; DOC-005 và §5.5 viết `errorClass` là tên trong model JS). Mã bổ sung, mỗi
+mã một lần ở `mapServiceError`:
+
+| Code | HTTP | `error_class` | Khi nào |
+| --- | --- | --- | --- |
+| `revision_conflict` | 422 | `conflict` | Như §5.5 (trang) |
+| `document_version_conflict` | 409 | `conflict` | Base của commit file/Office đã cũ |
+| `document_deleted` | 410 | `gone` | Tài liệu đã purge hoặc tombstone |
+| `idempotency_payload_mismatch` | 409 | `conflict` | Cùng key, khác fingerprint. Tên duy nhất; engine-contract G0 gọi là `payload_fingerprint_mismatch`, hợp nhất ở G1-03 |
+| `idempotency_key_reuse` | 409 | `conflict` | Cùng key, khác actor |
+| `idempotency_in_flight` | 409 | `conflict` | Request cùng key đang chạy |
+| `upload_already_committed` | 409 | `conflict` | `upload_id` đã claim cho version khác |
+| `copy_consent_required` | 409 | `conflict` | Bản sao mất mát thiếu `consent: "copy"` |
+| `owner_requires_copy` | 409 | `conflict` | Ghi đè nguồn khi chuyển đổi, hoặc copy tài liệu thuộc sở hữu khi C-14 chưa có |
+| `engine_incompatible` | 409 | `incompatible` | Engine/contract/protocol của client ngoài dải hỗ trợ |
+| `quota_exceeded` | **403** | `quota` | Giữ mã hiện có của repo (`entitlement.go`, FS-C1 §7); DOC-005 ghi 413 là giá trị của model G0 |
+| `forbidden` / `not_found` | 403 / 404 | `permission` / `missing` | Như hiện có |
+
+Lỗi của FileService (FS-C1 §7) được bọc lại, không lộ nguyên dạng cho client:
+
+| Mã FileService | Documents trả | Ghi chú |
+| --- | --- | --- |
+| `file_type_rejected` | `unsupported_media_type` (415) | Mã C-01 hiện có |
+| `file_too_large` | `file_too_large` (413) | Mã C-01 hiện có |
+| `file_not_found` | `not_found` (404) | Không xác nhận file tồn tại |
+| `file_not_ready`, `file_claim_expired`, `file_upload_canceled`, `file_deleting` | `document_upload_invalid` (409, `conflict`, `fields.reason` = mã gốc) | Mã mới do amendment này đề xuất; client tải lên lại |
+| `file_already_claimed` | `upload_already_committed` (409) | Chỉ xảy ra khi hủy một upload đã commit |
+| `idempotency_conflict` | `idempotency_payload_mismatch` (409) | Documents dẫn key idempotency của FileService từ key của chính request |
+| `file_purpose_unknown`, `file_purpose_disabled`, `file_scope_invalid` | 500, log | Documents tự dựng purpose/scope từ context đã kiểm quyền, nên đây là lỗi cấu hình hoặc lỗi code phía server, không phải lỗi của client |
+| `storage_unavailable` | `storage_unavailable` (503) | Giữ nguyên; client giữ nháp và thử lại |
+
+Việc `upload_id` đã gắn vào một version khác do Documents tự kiểm (FileService cho phép dùng lại `file_id` trong cùng
+tổ chức theo T1-Q3), và trả `upload_already_committed`.
+
+### 14.6 Số migration (thay số ở §3 và §11)
+
+Các số 159-179 trong §3/§11 đã bị migration khác dùng (develop `c6b567f0` tới 217). G1-01 giữ register migration và cấp
+số từ số lớn nhất trên develop lúc tích hợp; tên file giữ phần mô tả (`documents`, `document_versions`, …). Mỗi index
+vẫn một file `CONCURRENTLY` (ADR 0001).
+
+### 14.7 Không đổi
+
+Mô hình trang/tệp, cây, quyền ba mức, visibility, chia sẻ, liên kết công khai, nhật ký truy cập, worker auto-version và
+compactor, sự kiện ids-only, §13 (sở hữu bởi Work Product) và luật HTML 2026-09-25 giữ nguyên. Amendment này không mở
+luồng lưu thứ hai và không đổi mã HTTP hiện có của repo.

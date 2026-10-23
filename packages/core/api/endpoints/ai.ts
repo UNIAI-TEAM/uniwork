@@ -3,14 +3,18 @@ import {
   AiCapabilitiesSchema,
   AiConversationSchema,
   AiMessageSchema,
+  AskModelsSchema,
   AiUsageSummarySchema,
   AskUniResponseSchema,
+  ChatCatchUpResponseSchema,
   type AiCapabilities,
   type AiConversation,
   type AiMessage,
   type AiUsageSummary,
   type AskUniInput,
   type AskUniResponse,
+  type ChatCatchUpInput,
+  type ChatCatchUpResponse,
 } from "../../types/ai";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -23,8 +27,20 @@ const DISABLED: AiCapabilities = {
   ask_uni: false,
   meeting_summary: false,
   quota: { used_tokens: 0, limit_tokens: null },
+  models: [],
+  auto_model: "",
 };
 const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
+const EMPTY_CATCH_UP: ChatCatchUpResponse = {
+  summary: "",
+  highlights: [],
+  highlight_items: [],
+  action_items: [],
+  message_count: 0,
+  mode: "unread",
+  since: "",
+  usage: { input_tokens: 0, output_tokens: 0 },
+};
 
 export async function getAiCapabilities(wsId: string): Promise<AiCapabilities> {
   const raw = await request(`/api/v1/workspaces/${wsId}/ai/capabilities`);
@@ -45,8 +61,16 @@ export async function askUni(wsId: string, body: AskUniInput): Promise<AskUniRes
   return parsed.data;
 }
 
-export async function listAiConversations(wsId: string): Promise<AiConversation[]> {
-  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations`);
+/** CatchUp degrades to empty brief on malformed payloads (UI shows empty state). */
+export async function chatCatchUp(wsId: string, body: ChatCatchUpInput): Promise<ChatCatchUpResponse> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/chat/catch-up`, { method: "POST", body });
+  return parseWithFallback(raw, ChatCatchUpResponseSchema, EMPTY_CATCH_UP, {
+    endpoint: "POST /api/v1/workspaces/{id}/ai/chat/catch-up",
+  });
+}
+
+export async function listAiConversations(wsId: string, q?: string): Promise<AiConversation[]> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations${q ? `?q=${encodeURIComponent(q)}` : ""}`);
   return parseWithFallback<{ conversations: AiConversation[] }>(
     raw,
     ConversationsResponse,
@@ -85,5 +109,42 @@ export async function getOrgAiUsage(orgId: string, from?: string, to?: string): 
   const raw = await request(`/api/v1/orgs/${orgId}/ai/usage${usageQuery(from, to)}`);
   return parseWithFallback<AiUsageSummary>(raw, AiUsageSummarySchema, EMPTY_USAGE, {
     endpoint: "GET /api/v1/orgs/{id}/ai/usage",
+  });
+}
+
+/** The models an organization switched on for Ask UNI; a malformed answer reads as none. */
+export async function getAskModels(orgId: string): Promise<string[]> {
+  const raw = await request(`/api/v1/orgs/${orgId}/ai/ask-models`);
+  return parseWithFallback<{ models: string[] }>(raw, AskModelsSchema, { models: [] }, {
+    endpoint: "GET /api/v1/orgs/{id}/ai/ask-models",
+  }).models;
+}
+
+export async function putAskModels(orgId: string, models: string[]): Promise<string[]> {
+  const raw = await request(`/api/v1/orgs/${orgId}/ai/ask-models`, { method: "PUT", body: { models } });
+  return parseWithFallback<{ models: string[] }>(raw, AskModelsSchema, { models }, {
+    endpoint: "PUT /api/v1/orgs/{id}/ai/ask-models",
+  }).models;
+}
+
+export interface AiFeedbackInput {
+  rating: "up" | "down";
+  reason?: string;
+  note?: string;
+}
+
+export async function putAiFeedback(conversationId: string, messageId: string, body: AiFeedbackInput): Promise<void> {
+  await request(`/api/v1/ai/conversations/${conversationId}/messages/${messageId}/feedback`, { method: "PUT", body });
+}
+
+export async function deleteAiFeedback(conversationId: string, messageId: string): Promise<void> {
+  await request(`/api/v1/ai/conversations/${conversationId}/messages/${messageId}/feedback`, { method: "DELETE" });
+}
+
+/** Returns the renamed conversation, or null when the answer is malformed (the rename itself succeeded). */
+export async function renameAiConversation(conversationId: string, title: string): Promise<AiConversation | null> {
+  const raw = await request(`/api/v1/ai/conversations/${conversationId}`, { method: "PATCH", body: { title } });
+  return parseWithFallback<AiConversation | null>(raw, AiConversationSchema, null, {
+    endpoint: "PATCH /api/v1/ai/conversations/{id}",
   });
 }

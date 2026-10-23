@@ -1,15 +1,17 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 
 const extendMutate = vi.fn();
+const endMutate = vi.fn();
 
 vi.mock("@uniwork/core/meetings", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/meetings")>();
   return {
     ...actual,
     useExtendMeeting: () => ({ mutate: extendMutate, isPending: false }),
+    useEndMeeting: () => ({ mutate: endMutate, isPending: false }),
   };
 });
 
@@ -34,8 +36,24 @@ describe("MeetingScheduleBanner", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-03T09:00:00.000Z"));
-    const { container: far } = render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
-    expect(far).toBeEmptyDOMElement();
+    render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    expect(screen.queryByTestId("meeting-schedule-banner-slot")).not.toBeInTheDocument();
+    // Only the empty live region is there, waiting.
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    vi.useRealTimers();
+  });
+
+  it("keeps the live region mounted and only changes its text when the last minute starts", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T09:58:30.000Z"));
+    render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    act(() => {
+      vi.advanceTimersByTime(40_000);
+    });
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Còn một phút theo lịch. Phòng không tự đóng.");
     vi.useRealTimers();
   });
 
@@ -78,6 +96,11 @@ describe("MeetingScheduleBanner", () => {
     expect(screen.getByTestId("meeting-schedule-banner")).toHaveTextContent("Đang họp ngoài giờ");
     fireEvent.click(screen.getByRole("button", { name: "Thêm 15 phút" }));
     expect(extendMutate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Kết thúc họp" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Kết thúc cuộc họp?");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kết thúc họp" }));
+    expect(endMutate).toHaveBeenCalledWith("m1", expect.any(Object));
     vi.useRealTimers();
   });
 });

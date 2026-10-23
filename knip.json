@@ -3,16 +3,38 @@
   "exclude": [
     "catalog"
   ],
+  "ignoreIssues": {
+    "packages/core/office/docs-frame-protocol.ts": [
+      "duplicates"
+    ]
+  },
   "workspaces": {
     ".": {
+      "ignore": [
+        "scripts/landing-film/**",
+        "docs/office/pdf-export/**"
+      ],
       "entry": [
         "scripts/**/*.mjs",
-        "scripts/load/*.k6.js"
+        "scripts/load/*.k6.js",
+        "scripts/office-g0/*.ts",
+        "docs/office/g3g4/samples/web-launch-ticket.mjs"
+      ],
+      "ignoreBinaries": [
+        "rustc",
+        "awk",
+        "go",
+        "dbus-run-session"
       ],
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
-        "k6"
+        "lucide-react",
+        "k6",
+        "sharp",
+        "jszip",
+        "esbuild",
+        "electron"
       ]
     },
     "apps/web": {
@@ -20,16 +42,55 @@
         "public/sw.js"
       ]
     },
+    "apps/chat-desktop": {
+      "entry": [
+        "electron-builder.ts"
+      ]
+    },
+    "apps/chat-mobile": {
+      "ignoreDependencies": [
+        "@babel/plugin-transform-react-jsx",
+        "@expo-google-fonts/inter",
+        "@expo-google-fonts/plus-jakarta-sans",
+        "@rn-primitives/avatar",
+        "@rn-primitives/switch",
+        "expo-updates",
+        "react-native-css-interop"
+      ],
+      "entry": [
+        "scripts/sync-i18n.mjs"
+      ]
+    },
     "packages/*": {},
+    "packages/office-engine": {
+      "entry": [
+        "test/replay/adapter-entry.ts",
+        "test/replay/g2-04-replay.mjs"
+      ],
+      "ignoreDependencies": [
+        "harfbuzzjs"
+      ]
+    },
+    "packages/office-upstream": {
+      "ignore": [
+        "upstream/**"
+      ]
+    },
     "packages/views": {
       "ignoreExportsUsedInFile": true
     },
     "e2e": {
       "entry": [
-        "*.spec.ts"
+        "*.spec.ts",
+        "office-g0/**/*.{mjs,mts}",
+        "playwright.office-g0*.config.ts"
       ],
       "ignoreBinaries": [
         "go"
+      ],
+      "ignoreDependencies": [
+        "pdfjs-dist",
+        "@napi-rs/canvas"
       ]
     },
     "packages/tsconfig": {

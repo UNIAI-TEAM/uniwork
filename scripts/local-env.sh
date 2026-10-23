@@ -54,6 +54,13 @@ NEXT_PUBLIC_WS_URL="${NEXT_PUBLIC_WS_URL:-ws://localhost:${PORT}}"
 NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-${FRONTEND_ORIGIN}}"
 LOCAL_UPLOAD_BASE_URL="${LOCAL_UPLOAD_BASE_URL:-http://localhost:${PORT}}"
 E2E_BASE_URL="${E2E_BASE_URL:-${FRONTEND_ORIGIN}}"
+# Storage is never defaulted here (FileService, UNI-747): local disk must be
+# written down, and an unset STORAGE_BACKEND means minio. Say so before the
+# server refuses to start, instead of picking a backend on the user's behalf.
+if [ -z "${STORAGE_BACKEND+x}" ] && [ -z "${MINIO_ENDPOINT:-}" ]; then
+  echo "warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start." >&2
+  echo "         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example)." >&2
+fi
 # Keep the browser and the server on the same dev code unless overridden.
 E2E_VERIFICATION_CODE="${E2E_VERIFICATION_CODE:-${DEV_VERIFICATION_CODE:-123456}}"
 

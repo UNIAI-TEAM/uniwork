@@ -9,6 +9,8 @@
 // module to reach a pure keyboard predicate would drag the whole editor
 // dependency graph into a header popover.
 
+import { getDesktopBridge } from "@uniwork/core/platform";
+
 /**
  * Keys that accept the currently highlighted suggestion row.
  *
@@ -42,12 +44,14 @@ export type PickerNavigationDirection = "next" | "prev";
  * Resolves a key press to a suggestion-list move, or `null` when the key is not
  * navigation.
  *
- * Arrow keys are the canonical bindings. `Ctrl+N`/`Ctrl+J` (down) and
- * `Ctrl+P`/`Ctrl+K` (up) are additive Emacs/readline aliases that the command
- * bar already accepts for free: it is built on cmdk, whose `vimBindings` option
- * (on by default) maps exactly this set. Mirroring it here means the pickers
- * stop being the one place in the product where that muscle memory dies
- * (UNI-5495).
+ * Arrow keys are the canonical bindings. `Ctrl+J` (down) and `Ctrl+K` (up) are
+ * additive readline aliases that the command bar already accepts for free: it
+ * is built on cmdk, whose `vimBindings` option (on by default) maps them
+ * (UNI-5495). `Ctrl+N` (down) and `Ctrl+P` (up) are aliases only inside the
+ * UniChat desktop shell, where nothing reserves them and the command bar's cmdk
+ * already honours them, so one app does not answer the same chord two ways. On
+ * web they are not aliases: Chromium reserves `Ctrl+N` (new window) and `Ctrl+P`
+ * is print, so the page cannot own them (the registry's web-only Ctrl+P rule).
  *
  * `Cmd`-based aliases are deliberately absent. cmdk does not bind them either,
  * so the command bar never supported them, and `Cmd+P`/`Cmd+N` are browser and
@@ -73,12 +77,14 @@ export function pickerNavigationDirection(
   }
   // Lowercase because Caps Lock reports "N" without setting shiftKey.
   switch (event.key.toLowerCase()) {
-    case "n":
     case "j":
       return "next";
-    case "p":
     case "k":
       return "prev";
+    case "n":
+      return getDesktopBridge() !== null ? "next" : null;
+    case "p":
+      return getDesktopBridge() !== null ? "prev" : null;
     default:
       return null;
   }

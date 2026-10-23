@@ -19,10 +19,30 @@ var builtInTaskStatuses = []BuiltInTaskStatus{
 	{Key: "todo", Name: "Todo", Description: "Queued for work.", Color: "#6b7280", Category: "todo", Position: 1024},
 	{Key: "in_progress", Name: "In Progress", Description: "Actively being worked on.", Color: "#f59e0b", Category: "in_progress", Position: 2048},
 	{Key: "in_review", Name: "In Review", Description: "Waiting on human review.", Color: "#22c55e", Category: "in_review", Position: 3072},
+	{Key: "blocked", Name: "Blocked", Description: "Stalled on a dependency.", Color: "#ef4444", Category: "blocked", Position: 3584},
 	{Key: "done", Name: "Done", Description: "Completed.", Color: "#3b82f6", Category: "done", Position: 4096},
-	{Key: "blocked", Name: "Blocked", Description: "Stalled on a dependency.", Color: "#ef4444", Category: "blocked", Position: 5120},
 	{Key: "cancelled", Name: "Cancelled", Description: "Decided not to do.", Color: "#6b7280", Category: "cancelled", Position: 6144},
 }
+
+// The four status groups (UniAI's): each owns a position band of
+// statusGroupSpan, in this order, so a group's statuses sort together on the
+// board and in every picker whatever order the group is given inside.
+var (
+	statusGroupOf = map[string]string{
+		"backlog": "not_started", "todo": "not_started",
+		"in_progress": "started", "in_review": "started", "blocked": "started",
+		"done": "completed", "cancelled": "closed",
+	}
+	statusGroupCategories = map[string][]string{
+		"not_started": {"backlog", "todo"},
+		"started":     {"in_progress", "in_review", "blocked"},
+		"completed":   {"done"},
+		"closed":      {"cancelled"},
+	}
+	statusGroupBase = map[string]float64{"not_started": 0, "started": 2048, "completed": 4096, "closed": 6144}
+)
+
+const statusGroupSpan float64 = 2048
 
 // BuiltInTaskStatuses returns a copy of the canonical seven statuses.
 func BuiltInTaskStatuses() []BuiltInTaskStatus {

@@ -301,6 +301,16 @@ func (s *TaskService) DeleteTaskPropertyValue(ctx context.Context, actor Actor, 
 	if err != nil {
 		return db.Task{}, err
 	}
+	// The property must be one of this workspace's, as on set: otherwise any
+	// id - another tenant's included - answers 200 and lands in the audit
+	// trail as a change to this task.
+	if _, err := s.q.GetTaskPropertyByID(ctx, db.GetTaskPropertyByIDParams{
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, ID: propertyID,
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return db.Task{}, ErrNotFound
+	} else if err != nil {
+		return db.Task{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.Task{}, err

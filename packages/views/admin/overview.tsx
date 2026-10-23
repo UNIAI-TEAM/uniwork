@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, Building2, CheckCircle2, PauseCircle, Radio, RefreshCw, Send, XCircle } from "lucide-react";
+import { Activity, CircleAlert, Building2, CircleCheck, CirclePause, Radio, RefreshCw, Send, CircleX } from "lucide-react";
 import { useAdminOrganizations, useAdminSystem } from "@uniwork/core/admin";
 import { paths } from "@uniwork/core/paths";
 import type { AdminSystem } from "@uniwork/core/types";
@@ -67,7 +67,7 @@ function OverviewBody({ system }: { system: AdminSystem }) {
   return (
     <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
       <Signal
-        icon={system.readiness.ready ? CheckCircle2 : XCircle}
+        icon={system.readiness.ready ? CircleCheck : CircleX}
         label={t("readiness")}
         value={system.readiness.ready ? t("ready_yes") : t("ready_no")}
         tone={system.readiness.ready ? "ok" : "bad"}
@@ -97,7 +97,7 @@ function OverviewBody({ system }: { system: AdminSystem }) {
         linkLabel={t("open_organizations")}
       />
       <Signal
-        icon={PauseCircle}
+        icon={CirclePause}
         label={t("suspended")}
         value={suspendedCount}
         tone={suspendedCount > 0 ? "warn" : "ok"}
@@ -128,7 +128,7 @@ export function AdminOverviewView() {
         title={t("title")}
         description={<UpdatedAt at={system.dataUpdatedAt} />}
         actions={
-          <Button size="sm" variant="outline" disabled={system.isFetching} onClick={() => void system.refetch()}>
+          <Button size="sm" variant="toolbar" disabled={system.isFetching} onClick={() => void system.refetch()}>
             <RefreshCw aria-hidden="true" className={cn("size-3.5", system.isFetching && "animate-spin")} />
             {t("refresh")}
           </Button>
@@ -138,7 +138,7 @@ export function AdminOverviewView() {
         <Skeleton className="m-4 h-40" />
       ) : system.isError || !system.data ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

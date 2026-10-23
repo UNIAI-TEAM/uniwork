@@ -111,8 +111,10 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
 	store := storage.NewLocalStorageFromEnv()
 	tasks := service.NewTaskService(pool, q, ws, store)
-	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
+	fp := &meetingspkg.FakeProvider{RecordingEnabled: true}
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, fp, service.MeetingRuntime{HMACKey: []byte("test")})
 	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
+	chatSvc.SetConference(fp)
 	chatSvc.SetTasks(tasks)
 	// AI_PROVIDER=fake in the test env turns the gateway on with the
 	// deterministic provider; unset leaves it disabled, as in production
@@ -129,6 +131,8 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	testFlagOverrides = flagOverrides
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, nil, nil)
+	ents := service.NewEntitlementService(pool, q)
+	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -145,9 +149,13 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Tasks:         tasks,
+		Home:          service.NewHomeService(q, ws),
+		Calendar:      service.NewCalendarService(q, ws),
+		EmailHub:      service.NewEmailHubService(q, ws, nil),
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
+		Privacy:       service.NewPrivacyExportService(pool, q, orgs),
 		Billing:       billingSvc,
 		Admin:         adminSvc,
 		FeatureFlags:  flags,
@@ -159,7 +167,14 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Storage:       store,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
+		Signatures:    service.NewSignatureService(pool, q, orgs),
+		AICredentials: aiCredentials,
+		// Wired so a non-member meets the membership refusal, not "not configured".
+		AIBYOK:  service.NewAIBYOKService(orgs, ents, aiCredentials, gateway),
+		AICloud: service.NewAICloudService(orgs, ents, gateway),
 	}
+	d.Graph = service.NewGraphService(q, orgs, ws, chatSvc)
+	d.Graph.SetFlags(flags)
 	return d, pool
 }
 
@@ -369,12 +384,13 @@ func TestAuthProvidersReflectsGoogleConfig(t *testing.T) {
 	}
 }
 
-func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
+func TestRegisterPicksLocaleFromCookieElseEnglish(t *testing.T) {
 	srv := newTestServer(t)
+	// No cookie: English, whatever the browser prefers.
 	body, _ := json.Marshal(map[string]string{"email": "loc@example.com", "password": "password123", "display_name": "L"})
 	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/auth/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Language", "vi-VN,vi;q=0.9")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -382,7 +398,7 @@ func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
 	var out map[string]any
 	_ = json.NewDecoder(res.Body).Decode(&out)
 	if got := out["user"].(map[string]any)["locale"]; got != "en" {
-		t.Fatalf("locale from Accept-Language: want en, got %v", got)
+		t.Fatalf("no cookie: want en, got %v", got)
 	}
 
 	body, _ = json.Marshal(map[string]string{"email": "loc2@example.com", "password": "password123", "display_name": "L"})

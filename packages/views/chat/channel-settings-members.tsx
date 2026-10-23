@@ -1,99 +1,127 @@
 "use client";
 
 import { useState } from "react";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useTranslation } from "react-i18next";
-import {
-  useChatRoomMembers,
-  useRemoveChatRoomMember,
-} from "@uniwork/core/chat";
+import { useChatRoomMembers } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
-import { ChatSettingsCollapsibleSection } from "./chat-settings-ui";
+import {
+  ChatMemberFace,
+  ChatMemberListError,
+  ChatMemberListSkeleton,
+  ChatMemberRow,
+  ChatSettingsCollapsibleSection,
+} from "./chat-settings-ui";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
+import { useRoomMemberModeration } from "./use-room-member-moderation";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 
 export function ChannelSettingsMembers({
   open,
   workspaceId,
-  roomId,
+  room,
   currentUserId,
   youLabel,
+  memberAvatarByUserId = {},
+  onMessage,
 }: {
   open: boolean;
   workspaceId: string;
-  roomId: string;
+  room: ChatRoomRecord;
   currentUserId: string;
   youLabel: string;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
+  onMessage?: (member: ChatMemberMessageTarget) => void;
 }) {
   const { t } = useTranslation();
-  const { data: members = [] } = useChatRoomMembers(workspaceId, roomId, open);
-  const removeMember = useRemoveChatRoomMember(workspaceId);
+  const { data: members = [], isPending, isError, refetch } = useChatRoomMembers(workspaceId, room.id, open);
+  const moderation = useRoomMemberModeration({ workspaceId, roomId: room.id });
   const currentMember = useCurrentMember(workspaceId);
   const roomPermissions = useResolvedRoomPermissions({
+    room,
     members,
     currentUserId,
     wsRole: currentMember.role,
   });
   const isModerator = roomPermissions.isModerator;
   const [membersOpen, setMembersOpen] = useState(true);
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
-
-  const runKick = (userId: string, label: string) => {
-    const confirmed = window.confirm(t("chat.channel.kick_confirm", { name: label }));
-    if (!confirmed) return;
-    setBusyUserId(userId);
-    void removeMember.mutateAsync({ roomId, userId }).finally(() => setBusyUserId(null));
-  };
-
   return (
     <ChatSettingsCollapsibleSection
       title={t("chat.channel.members_section")}
-      summary={t("chat.channel.member_count", { count: members.length })}
+      summary={isPending || isError ? undefined : t("chat.channel.member_count", { count: members.length })}
       open={membersOpen}
       onOpenChange={setMembersOpen}
+      flush
     >
-      <ul className="space-y-2">
-        {members.map((member) => {
-          const isSelf = member.user_id === currentUserId;
-          const label = isSelf
-            ? youLabel
-            : member.display_name.trim() || member.email || member.user_id;
-          return (
-            <li
-              key={member.user_id}
-              className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
-            >
-              <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-body font-medium text-foreground">{label}</p>
-                <p className="truncate text-caption text-muted-foreground">
-                  {member.role === "admin" ? t("chat.room_role_admin") : member.email}
-                </p>
-              </div>
-              {!isSelf && isModerator && member.role === "member" ? (
-                <ChatRoomMemberActions
-                  label={label}
-                  canPromote={false}
-                  canDemote={false}
-                  canMute={false}
-                  canUnmute={false}
-                  canKick
-                  busy={busyUserId === member.user_id}
-                  onPromote={() => undefined}
-                  onDemote={() => undefined}
-                  onMute={() => undefined}
-                  onUnmute={() => undefined}
-                  onKick={() => runKick(member.user_id, label)}
-                />
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      {isPending ? (
+        <ChatMemberListSkeleton label={t("chat.members_loading")} />
+      ) : isError ? (
+        <ChatMemberListError onRetry={() => void refetch()} />
+      ) : (
+        <ul>
+          {settingsMemberOrder(members, currentUserId).map((member) => {
+            const isSelf = member.user_id === currentUserId;
+            const label = isSelf ? youLabel : member.display_name.trim() || member.email || member.user_id;
+            return (
+              <ChatMemberRow
+                key={member.user_id}
+                avatar={
+                  <ChatMemberFace
+                    userId={member.user_id}
+                    name={member.display_name.trim() || label}
+                    avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
+                  />
+                }
+                name={label}
+                detail={member.role === "admin" ? t("chat.room_role_admin") : member.email}
+                detailTone={member.role === "admin" ? "admin" : undefined}
+                profile={{
+                  userId: member.user_id,
+                  email: member.email,
+                  avatarUrl: lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id),
+                  onMessage:
+                    !isSelf && onMessage
+                      ? () =>
+                          onMessage({
+                            user_id: member.user_id,
+                            email: member.email,
+                            display_name: member.display_name.trim() || member.email,
+                          })
+                      : undefined,
+                }}
+                actions={
+                  !isSelf && isModerator && member.role === "member" ? (
+                    <ChatRoomMemberActions
+                      label={label}
+                      canPromote={false}
+                      canDemote={false}
+                      canMute={false}
+                      canUnmute={false}
+                      canKick
+                      busy={moderation.busyUserId === member.user_id}
+                      onPromote={() => undefined}
+                      onDemote={() => undefined}
+                      onMute={() => undefined}
+                      onUnmute={() => undefined}
+                      onKick={() =>
+                        moderation.requestRemove(
+                          member.user_id,
+                          label,
+                          t("chat.channel.kick_confirm", { name: label }),
+                        )
+                      }
+                    />
+                  ) : null
+                }
+              />
+            );
+          })}
+        </ul>
+      )}
+      {moderation.confirmDialog}
     </ChatSettingsCollapsibleSection>
   );
 }

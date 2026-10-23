@@ -66,6 +66,13 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 			return nil
 		case route == "/api/v1/ws":
 			return nil
+		case strings.HasPrefix(route, "/oauth/"), strings.HasPrefix(route, "/.well-known/"), route == "/mcp":
+			// RFC bodies outside the api wrapper (ADR 0031); they must not
+			// appear in the spec either.
+			if _, ok := spec.Paths[strings.TrimSuffix(route, "/")]; ok {
+				t.Errorf("%s %s is on the OpenAPI spec; RFC routes stay outside the api wrapper", method, route)
+			}
+			return nil
 		case strings.HasSuffix(route, "/lobby-ws"):
 			return nil
 		case method == http.MethodOptions:
@@ -99,5 +106,43 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 	}
 	if !strings.Contains(string(loginSDI), "an@acme.vn") {
 		t.Fatalf("login SDI missing example: %s", loginSDI)
+	}
+
+	for name, raw := range map[string]json.RawMessage{
+		"task upload operation":      spec.Paths["/api/v1/tasks/{taskID}/attachments"],
+		"workspace upload operation": spec.Paths["/api/v1/workspaces/{workspaceID}/attachments"],
+		"task upload SDI":            spec.Components.Schemas["FormDataSdiUploadTaskAttachmentSDI"],
+		"workspace upload SDI":       spec.Components.Schemas["FormDataSdiUploadWorkspaceAttachmentSDI"],
+	} {
+		if !strings.Contains(string(raw), "MP4") {
+			t.Errorf("%s does not document MP4: %s", name, raw)
+		}
+	}
+
+	// The directory and its CSV export share their filter query params.
+	for route, want := range map[string][]string{
+		"/api/v1/orgs/{org}/people":     {"q", "department_id", "manager_id", "role", "status", "cursor", "limit"},
+		"/api/v1/orgs/{org}/people.csv": {"q", "department_id", "manager_id", "role", "status"},
+	} {
+		var ops map[string]struct {
+			Parameters []struct {
+				Name string `json:"name"`
+				In   string `json:"in"`
+			} `json:"parameters"`
+		}
+		if err := json.Unmarshal(spec.Paths[route], &ops); err != nil {
+			t.Fatalf("%s: %v", route, err)
+		}
+		got := map[string]bool{}
+		for _, p := range ops["get"].Parameters {
+			if p.In == "query" {
+				got[p.Name] = true
+			}
+		}
+		for _, name := range want {
+			if !got[name] {
+				t.Errorf("GET %s: query param %q missing from the spec", route, name)
+			}
+		}
 	}
 }

@@ -4,6 +4,7 @@ import { setAccessToken } from "../session";
 import {
   batchDeleteTasks,
   batchUpdateTasks,
+  getAssigneeFrequency,
   listMyTasks,
   putTask,
   queryTasks,
@@ -76,6 +77,23 @@ describe("tasks-suite endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
       "http://api.test/api/v1/workspaces/ws1/my-tasks?relation=assigned&limit=10",
     );
+  });
+
+  it("getAssigneeFrequency returns the ranked items for the workspace", async () => {
+    const items = [
+      { assignee_kind: "human", assignee_id: "u2", frequency: 3 },
+      { assignee_kind: "agent", assignee_id: "a1", frequency: 1 },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items }));
+    await expect(getAssigneeFrequency("ws1")).resolves.toEqual(items);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      "http://api.test/api/v1/workspaces/ws1/assignee-frequency",
+    );
+  });
+
+  it("getAssigneeFrequency degrades to no ranking on a malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ assignee_id: 7 }] }));
+    await expect(getAssigneeFrequency("ws1")).resolves.toEqual([]);
   });
 
   it("putTask sends revision headers and returns null on drift", async () => {

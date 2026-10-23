@@ -42,10 +42,11 @@ export async function listChatThreadMessages(
   workspaceId: string,
   roomId: string,
   threadRootId: string,
-  opts: { limit?: number; before?: string } = {},
+  opts: { limit?: number; cursor?: string; before?: string } = {},
 ): Promise<ChatMessageRecord[]> {
   const q = new URLSearchParams();
   if (opts.limit != null) q.set("limit", String(opts.limit));
+  if (opts.cursor) q.set("cursor", opts.cursor);
   if (opts.before) q.set("before", opts.before);
   const qs = q.toString() ? `?${q}` : "";
   const raw = await request(
@@ -103,17 +104,23 @@ export async function unfollowChatThread(
   });
 }
 
+const ThreadReadSchema = z.object({
+  previous_read_at: z.string().optional().catch(undefined),
+});
+
+/** Marks the thread read; resolves to the read pointer it replaced, or null. */
 export async function markChatThreadRead(
   workspaceId: string,
   threadRootId: string,
-): Promise<void> {
+): Promise<string | null> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/threads/${enc(threadRootId)}/read`,
     { method: "POST" },
   );
-  parseWithFallback(raw, StatusSchema, { ok: true }, {
+  const out = parseWithFallback(raw, ThreadReadSchema, { previous_read_at: undefined }, {
     endpoint: "POST .../threads/{id}/read",
   });
+  return out.previous_read_at || null;
 }
 
 export async function listFollowedChatThreads(

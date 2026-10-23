@@ -32,8 +32,10 @@ export function isScheduledMeetingLive(
 }
 
 /**
- * Status the list and detail badge should show. After `ends_at` the room is
- * closed to joiners even if the server row is still IN_PROGRESS.
+ * Status the list and detail badge should show. IN_PROGRESS past ends_at is
+ * overtime (join closed, host may extend or end). A scheduled window that
+ * passed without the meeting ever starting is MISSED — it did not end, it did
+ * not happen, and the host still has to reschedule or cancel it.
  */
 export function displayMeetingStatus(
   meeting: { ends_at: string; status?: string },
@@ -41,6 +43,26 @@ export function displayMeetingStatus(
 ): string {
   const status = meeting.status || "SCHEDULED";
   if (status === "ENDED" || status === "CANCELED") return status;
-  if (isPastScheduledEnd(meeting.ends_at, nowMs)) return "ENDED";
-  return status;
+  if (!isPastScheduledEnd(meeting.ends_at, nowMs)) return status;
+  return status === "IN_PROGRESS" ? "OVERTIME" : "MISSED";
+}
+
+/**
+ * When the next of these meetings turns MISSED on the viewer's clock: the
+ * earliest `ends_at` not yet passed among the SCHEDULED ones, or null. At that
+ * instant the row leaves the "not started" filter for the "missed" one on the
+ * server too (ends_at < now), so a list open across it has to ask again.
+ */
+export function nextMissedAt(
+  meetings: readonly { ends_at: string; status?: string }[],
+  nowMs = Date.now(),
+): number | null {
+  let next: number | null = null;
+  for (const m of meetings) {
+    if ((m.status || "SCHEDULED") !== "SCHEDULED") continue;
+    const end = Date.parse(m.ends_at);
+    if (!Number.isFinite(end) || end < nowMs) continue;
+    if (next === null || end < next) next = end;
+  }
+  return next;
 }

@@ -1,0 +1,11 @@
+{
+  "method": "Built-in image_gen; lossless-alpha WebP optimization with sharp",
+  "source": "scripts/landing-mascot/uni-horse-v2-blink-master.png",
+  "reference": "New v2 base; eyes-closed matching frame",
+  "exactPrompt": "Use case: precise-object-edit. Input: this exact transparent horse mascot is the edit target. Create ONE matching animation frame: BOTH eyes gently CLOSED in a happy natural blink, with softly curved upper lids and no visible blue irises. Change ONLY the two eyes. Keep every other pixel and all geometry unchanged: exact face, head position, ears, hair, mouth/smile, lifted waving foreleg, body, tail, clothes, feet, canvas dimensions, placement, silhouette, colors, and lighting. Do not enlarge, shrink, rotate, reframe, repaint other body parts or move anything. This is an aligned blinking frame for crossfading over the original illustration. Preserve genuinely transparent RGBA background. No text, logos, badges or additional elements.\n",
+  "width": 1200,
+  "height": 1200,
+  "hasAlpha": true,
+  "bytes": 168304,
+  "sha256": "6dcb5cbd57cdccd747cf892398049606b4fb8f4a3a0144458186faff23d83119"
+}

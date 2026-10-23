@@ -1,4 +1,20 @@
+import emojiMartVi from "@emoji-mart/data/i18n/vi.json";
+
 const MEDIA_MESSAGE_PATTERN = /^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/;
+
+// Hosts the picker itself produces (Tenor, the offline GIF set, twemoji
+// stickers). Any other host stays text: an inline image would fetch from a
+// sender-chosen server and tell it who opened the room and when.
+const MEDIA_HOSTS = new Set(["media.tenor.com", "media.giphy.com", "cdn.jsdelivr.net"]);
+
+function isAllowedMediaUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && MEDIA_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export function twemojiStickerUrl(emoji: string): string {
   const codePoints = [...emoji]
@@ -13,16 +29,53 @@ export function formatChatMediaMessageBody(url: string, alt: string): string {
 }
 
 export function isChatMediaMessageBody(body: string): boolean {
-  return MEDIA_MESSAGE_PATTERN.test(body.trim());
+  return parseChatMediaMessageBody(body) !== null;
 }
 
 export function parseChatMediaMessageBody(body: string): { url: string; alt: string } | null {
   const match = body.trim().match(MEDIA_MESSAGE_PATTERN);
-  if (!match?.[1]) return null;
+  if (!match?.[1] || !isAllowedMediaUrl(match[1])) return null;
   const altMatch = body.trim().match(/^!\[([^\]]*)\]/);
   return { url: match[1], alt: altMatch?.[1]?.trim() || "media" };
 }
 
 export function normalizeExpressionSearchQuery(query: string): string {
   return query.trim().toLowerCase();
+}
+
+export type ChatMediaLabels = { sticker: string; gif: string; image: string };
+
+/**
+ * A sticker, GIF or image message in words, for every place that shows a
+ * message as one line of text (list preview, pinned bar, reply quote,
+ * search). The body is markdown (`![sticker:ăn mừng](https://…)`) and must
+ * never reach those places raw. Null when the body is not a media message.
+ */
+export function describeChatMediaBody(body: string, labels: ChatMediaLabels): string | null {
+  const parsed = parseChatMediaMessageBody(body);
+  if (!parsed) return null;
+  const [prefix, ...rest] = parsed.alt.split(":");
+  const name = rest.join(":").trim();
+  if (prefix === "sticker") return name ? `${labels.sticker} · ${name}` : labels.sticker;
+  if (prefix === "gif" || parsed.url.toLowerCase().includes(".gif")) {
+    return name ? `${labels.gif} · ${name}` : labels.gif;
+  }
+  return labels.image;
+}
+
+/**
+ * emoji-mart's strings in Vietnamese, with the canvas's own words for search
+ * and the two sections it names; undefined (its English) in any other language.
+ */
+export function emojiPickerStrings(language: string, t: (key: string) => string): object | undefined {
+  if (!language.startsWith("vi")) return undefined;
+  return {
+    ...emojiMartVi,
+    search: t("chat.emoji_search"),
+    categories: {
+      ...emojiMartVi.categories,
+      frequent: t("chat.emoji_frequent"),
+      people: t("chat.emoji_people"),
+    },
+  };
 }

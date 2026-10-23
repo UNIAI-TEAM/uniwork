@@ -21,7 +21,7 @@ describe("accent themes", () => {
 
   it("writes the four derivation properties tokens.css reads", () => {
     // A missing property makes oklch() invalid and the brand slot falls back to
-    // the inherited violet — a silent no-op rather than an error.
+    // the inherited default blue — a silent no-op rather than an error.
     applyAccent("blue", document.documentElement);
     const root = document.documentElement;
     expect(root.getAttribute("data-accent")).toBe("blue");
@@ -65,5 +65,20 @@ describe("accent themes", () => {
     new Function(accentBootScript())();
     expect(document.documentElement.getAttribute("data-accent")).toBe("mint");
     expect(document.documentElement.style.getPropertyValue("--accent-h")).toBe(String(ACCENTS.mint.h));
+  });
+
+  it("keeps a page with no picker in step with another tab", () => {
+    // Only Settings mounts useAccent, so the boot script's own listener is
+    // what re-accents every other page when another tab picks.
+    new Function(accentBootScript())();
+    const root = document.documentElement;
+    window.localStorage.setItem(ACCENT_STORAGE_KEY, "teal");
+    window.dispatchEvent(new StorageEvent("storage", { key: ACCENT_STORAGE_KEY }));
+    expect(root.getAttribute("data-accent")).toBe("teal");
+    expect(root.style.getPropertyValue("--accent-l-dark")).toBe(String(ACCENTS.teal.lDark));
+    window.localStorage.setItem(ACCENT_STORAGE_KEY, DEFAULT_ACCENT);
+    window.dispatchEvent(new StorageEvent("storage", { key: ACCENT_STORAGE_KEY }));
+    expect(root.hasAttribute("data-accent")).toBe(false);
+    expect(root.style.getPropertyValue("--accent-h")).toBe("");
   });
 });

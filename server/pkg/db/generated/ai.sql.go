@@ -11,10 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const aiClearMessageFeedback = `-- name: AiClearMessageFeedback :exec
+DELETE FROM ai_message_feedback WHERE organization_id = $1 AND message_id = $2 AND created_by = $3
+`
+
+type AiClearMessageFeedbackParams struct {
+	OrganizationID string `json:"organization_id"`
+	MessageID      string `json:"message_id"`
+	CreatedBy      string `json:"created_by"`
+}
+
+func (q *Queries) AiClearMessageFeedback(ctx context.Context, arg AiClearMessageFeedbackParams) error {
+	_, err := q.db.Exec(ctx, aiClearMessageFeedback, arg.OrganizationID, arg.MessageID, arg.CreatedBy)
+	return err
+}
+
 const aiCreateConversation = `-- name: AiCreateConversation :one
 INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at
+RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source
 `
 
 type AiCreateConversationParams struct {
@@ -42,6 +57,7 @@ func (q *Queries) AiCreateConversation(ctx context.Context, arg AiCreateConversa
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TitleSource,
 	)
 	return i, err
 }
@@ -50,8 +66,19 @@ const aiDeleteConversation = `-- name: AiDeleteConversation :exec
 DELETE FROM ai_conversations WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiDeleteConversation(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, aiDeleteConversation, id)
+	return err
+}
+
+const aiDeleteConversationFeedback = `-- name: AiDeleteConversationFeedback :exec
+DELETE FROM ai_message_feedback WHERE conversation_id = $1
+`
+
+// tenant: parent conversation_id
+func (q *Queries) AiDeleteConversationFeedback(ctx context.Context, conversationID string) error {
+	_, err := q.db.Exec(ctx, aiDeleteConversationFeedback, conversationID)
 	return err
 }
 
@@ -59,6 +86,7 @@ const aiDeleteMessages = `-- name: AiDeleteMessages :exec
 DELETE FROM ai_messages WHERE conversation_id = $1
 `
 
+// tenant: parent conversation_id
 func (q *Queries) AiDeleteMessages(ctx context.Context, conversationID string) error {
 	_, err := q.db.Exec(ctx, aiDeleteMessages, conversationID)
 	return err
@@ -67,23 +95,27 @@ func (q *Queries) AiDeleteMessages(ctx context.Context, conversationID string) e
 const aiFinishUsageEvent = `-- name: AiFinishUsageEvent :one
 UPDATE ai_usage_events SET
   status = $2, reason_code = $3, rate_id = $4, input_tokens = $5, output_tokens = $6,
-  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now()
+  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now(),
+  cache_read_tokens = $10, cache_write_tokens = $11
 WHERE id = $1
-RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens
 `
 
 type AiFinishUsageEventParams struct {
-	ID           string      `json:"id"`
-	Status       string      `json:"status"`
-	ReasonCode   pgtype.Text `json:"reason_code"`
-	RateID       pgtype.Text `json:"rate_id"`
-	InputTokens  int32       `json:"input_tokens"`
-	OutputTokens int32       `json:"output_tokens"`
-	CostMicros   int64       `json:"cost_micros"`
-	LatencyMs    pgtype.Int4 `json:"latency_ms"`
-	ToolCalls    string      `json:"tool_calls"`
+	ID               string      `json:"id"`
+	Status           string      `json:"status"`
+	ReasonCode       pgtype.Text `json:"reason_code"`
+	RateID           pgtype.Text `json:"rate_id"`
+	InputTokens      int32       `json:"input_tokens"`
+	OutputTokens     int32       `json:"output_tokens"`
+	CostMicros       int64       `json:"cost_micros"`
+	LatencyMs        pgtype.Int4 `json:"latency_ms"`
+	ToolCalls        string      `json:"tool_calls"`
+	CacheReadTokens  int32       `json:"cache_read_tokens"`
+	CacheWriteTokens int32       `json:"cache_write_tokens"`
 }
 
+// tenant: by-id
 func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEventParams) (AiUsageEvent, error) {
 	row := q.db.QueryRow(ctx, aiFinishUsageEvent,
 		arg.ID,
@@ -95,6 +127,8 @@ func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEvent
 		arg.CostMicros,
 		arg.LatencyMs,
 		arg.ToolCalls,
+		arg.CacheReadTokens,
+		arg.CacheWriteTokens,
 	)
 	var i AiUsageEvent
 	err := row.Scan(
@@ -120,14 +154,18 @@ func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEvent
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
 
 const aiGetConversation = `-- name: AiGetConversation :one
-SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at FROM ai_conversations WHERE id = $1
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversation, error) {
 	row := q.db.QueryRow(ctx, aiGetConversation, id)
 	var i AiConversation
@@ -139,14 +177,49 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TitleSource,
+	)
+	return i, err
+}
+
+const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE id = $1 AND conversation_id = $2
+`
+
+type AiGetMessageInConversationParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: parent conversation_id
+func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessageInConversationParams) (AiMessage, error) {
+	row := q.db.QueryRow(ctx, aiGetMessageInConversation, arg.ID, arg.ConversationID)
+	var i AiMessage
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.Role,
+		&i.Content,
+		&i.Citations,
+		&i.UsageEventID,
+		&i.CreatedAt,
+		&i.Notice,
+		&i.Steps,
+		&i.Followups,
+		&i.Focus,
+		&i.Mentions,
+		&i.SupersededAt,
+		&i.Model,
 	)
 	return i, err
 }
 
 const aiGetUsageEvent = `-- name: AiGetUsageEvent :one
-SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events WHERE id = $1
+SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens FROM ai_usage_events WHERE id = $1
 `
 
+// tenant: by-id
 func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent, error) {
 	row := q.db.QueryRow(ctx, aiGetUsageEvent, id)
 	var i AiUsageEvent
@@ -173,14 +246,17 @@ func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent,
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model
 `
 
 type AiInsertMessageParams struct {
@@ -191,6 +267,12 @@ type AiInsertMessageParams struct {
 	Content        string      `json:"content"`
 	Citations      string      `json:"citations"`
 	UsageEventID   pgtype.Text `json:"usage_event_id"`
+	Notice         pgtype.Text `json:"notice"`
+	Steps          string      `json:"steps"`
+	Followups      string      `json:"followups"`
+	Focus          pgtype.Text `json:"focus"`
+	Mentions       string      `json:"mentions"`
+	Model          string      `json:"model"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -202,6 +284,12 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Content,
 		arg.Citations,
 		arg.UsageEventID,
+		arg.Notice,
+		arg.Steps,
+		arg.Followups,
+		arg.Focus,
+		arg.Mentions,
+		arg.Model,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -213,6 +301,13 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.Citations,
 		&i.UsageEventID,
 		&i.CreatedAt,
+		&i.Notice,
+		&i.Steps,
+		&i.Followups,
+		&i.Focus,
+		&i.Mentions,
+		&i.SupersededAt,
+		&i.Model,
 	)
 	return i, err
 }
@@ -259,9 +354,9 @@ const aiInsertUsageEvent = `-- name: AiInsertUsageEvent :one
 
 INSERT INTO ai_usage_events (
   id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id,
-  provider, model, status, reason_code, source_count, truncated, correlation_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+  provider, model, status, reason_code, source_count, truncated, correlation_id, run_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens
 `
 
 type AiInsertUsageEventParams struct {
@@ -279,6 +374,7 @@ type AiInsertUsageEventParams struct {
 	SourceCount    int32       `json:"source_count"`
 	Truncated      bool        `json:"truncated"`
 	CorrelationID  string      `json:"correlation_id"`
+	RunID          pgtype.Text `json:"run_id"`
 }
 
 // AI Gateway (F-09). Every query here is named Ai*: server/internal/arch_test.go
@@ -300,6 +396,7 @@ func (q *Queries) AiInsertUsageEvent(ctx context.Context, arg AiInsertUsageEvent
 		arg.SourceCount,
 		arg.Truncated,
 		arg.CorrelationID,
+		arg.RunID,
 	)
 	var i AiUsageEvent
 	err := row.Scan(
@@ -325,6 +422,9 @@ func (q *Queries) AiInsertUsageEvent(ctx context.Context, arg AiInsertUsageEvent
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
@@ -358,8 +458,43 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 	return i, err
 }
 
+const aiListConversationCitations = `-- name: AiListConversationCitations :many
+SELECT citations FROM ai_messages
+WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant' AND superseded_at IS NULL
+ORDER BY created_at ASC, id ASC
+`
+
+type AiListConversationCitationsParams struct {
+	OrganizationID string `json:"organization_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// Every citation set a conversation's live answers stored, oldest first and
+// with no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them
+// (R2). An answer a regenerate replaced is not shown, so its sources are not
+// known to the client and number anew.
+func (q *Queries) AiListConversationCitations(ctx context.Context, arg AiListConversationCitationsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiListConversationCitations, arg.OrganizationID, arg.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var citations string
+		if err := rows.Scan(&citations); err != nil {
+			return nil, err
+		}
+		items = append(items, citations)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiListConversations = `-- name: AiListConversations :many
-SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at FROM ai_conversations
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations
 WHERE workspace_id = $1 AND user_id = $2
 ORDER BY updated_at DESC
 LIMIT 20
@@ -387,6 +522,7 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 			&i.Title,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TitleSource,
 		); err != nil {
 			return nil, err
 		}
@@ -399,9 +535,14 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM (
+  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
+) m ORDER BY created_at ASC, id ASC
 `
 
+// tenant: parent conversation_id
+// The latest 200 messages, oldest first: a long conversation keeps its end.
+// Answers a regenerate replaced (superseded_at) stay stored but are not shown.
 func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]AiMessage, error) {
 	rows, err := q.db.Query(ctx, aiListMessages, conversationID)
 	if err != nil {
@@ -420,6 +561,13 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.Citations,
 			&i.UsageEventID,
 			&i.CreatedAt,
+			&i.Notice,
+			&i.Steps,
+			&i.Followups,
+			&i.Focus,
+			&i.Mentions,
+			&i.SupersededAt,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}
@@ -429,6 +577,162 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const aiRenameConversation = `-- name: AiRenameConversation :one
+UPDATE ai_conversations SET title = $2, title_source = 'user' WHERE id = $1
+RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source
+`
+
+type AiRenameConversationParams struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// tenant: by-id
+func (q *Queries) AiRenameConversation(ctx context.Context, arg AiRenameConversationParams) (AiConversation, error) {
+	row := q.db.QueryRow(ctx, aiRenameConversation, arg.ID, arg.Title)
+	var i AiConversation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TitleSource,
+	)
+	return i, err
+}
+
+const aiSearchConversations = `-- name: AiSearchConversations :many
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations
+WHERE workspace_id = $1 AND user_id = $2
+  AND uw_fold_search(title) ILIKE $3::text ESCAPE '\'
+ORDER BY updated_at DESC
+LIMIT 50
+`
+
+type AiSearchConversationsParams struct {
+	WorkspaceID   string `json:"workspace_id"`
+	UserID        string `json:"user_id"`
+	SearchPattern string `json:"search_pattern"`
+}
+
+// search_pattern is a folded ILIKE pattern the service escapes.
+func (q *Queries) AiSearchConversations(ctx context.Context, arg AiSearchConversationsParams) ([]AiConversation, error) {
+	rows, err := q.db.Query(ctx, aiSearchConversations, arg.WorkspaceID, arg.UserID, arg.SearchPattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AiConversation{}
+	for rows.Next() {
+		var i AiConversation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Title,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TitleSource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const aiSetGeneratedTitle = `-- name: AiSetGeneratedTitle :execrows
+UPDATE ai_conversations SET title = $2, title_source = 'generated'
+WHERE id = $1 AND title_source = 'question'
+`
+
+type AiSetGeneratedTitleParams struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// tenant: by-id
+// Only a title still taken from the question may be replaced; a user's rename wins.
+func (q *Queries) AiSetGeneratedTitle(ctx context.Context, arg AiSetGeneratedTitleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, aiSetGeneratedTitle, arg.ID, arg.Title)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const aiSumRunUsage = `-- name: AiSumRunUsage :one
+SELECT COUNT(*)::bigint AS calls,
+  COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+  COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+  COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+  COALESCE(SUM(cache_write_tokens), 0)::bigint AS cache_write_tokens,
+  COALESCE(SUM(cost_micros), 0)::bigint AS cost_micros
+FROM ai_usage_events
+WHERE organization_id = $1 AND run_id = $2::text
+`
+
+type AiSumRunUsageParams struct {
+	OrganizationID string `json:"organization_id"`
+	RunID          string `json:"run_id"`
+}
+
+type AiSumRunUsageRow struct {
+	Calls            int64 `json:"calls"`
+	InputTokens      int64 `json:"input_tokens"`
+	OutputTokens     int64 `json:"output_tokens"`
+	CacheReadTokens  int64 `json:"cache_read_tokens"`
+	CacheWriteTokens int64 `json:"cache_write_tokens"`
+	CostMicros       int64 `json:"cost_micros"`
+}
+
+// What one Ask UNI run spent, across every call that carried its run id.
+func (q *Queries) AiSumRunUsage(ctx context.Context, arg AiSumRunUsageParams) (AiSumRunUsageRow, error) {
+	row := q.db.QueryRow(ctx, aiSumRunUsage, arg.OrganizationID, arg.RunID)
+	var i AiSumRunUsageRow
+	err := row.Scan(
+		&i.Calls,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
+		&i.CostMicros,
+	)
+	return i, err
+}
+
+const aiSupersedeMessage = `-- name: AiSupersedeMessage :execrows
+UPDATE ai_messages m SET superseded_at = now()
+WHERE m.id = $1 AND m.conversation_id = $2 AND m.superseded_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM ai_messages n
+    WHERE n.conversation_id = m.conversation_id AND n.superseded_at IS NULL AND n.id <> m.id
+      AND (n.created_at, n.id) > (m.created_at, m.id))
+`
+
+type AiSupersedeMessageParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: parent conversation_id
+// Only a live message with no later live one: of two regenerates racing for
+// the same answer, one changes a row and the other changes none.
+func (q *Queries) AiSupersedeMessage(ctx context.Context, arg AiSupersedeMessageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, aiSupersedeMessage, arg.ID, arg.ConversationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const aiTouchConversation = `-- name: AiTouchConversation :exec
@@ -441,8 +745,45 @@ type AiTouchConversationParams struct {
 	Title string `json:"title"`
 }
 
+// tenant: by-id
 func (q *Queries) AiTouchConversation(ctx context.Context, arg AiTouchConversationParams) error {
 	_, err := q.db.Exec(ctx, aiTouchConversation, arg.ID, arg.Title)
+	return err
+}
+
+const aiUpsertMessageFeedback = `-- name: AiUpsertMessageFeedback :exec
+INSERT INTO ai_message_feedback (id, organization_id, workspace_id, conversation_id, message_id, rating, reason, note, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (message_id, created_by)
+DO UPDATE SET rating = EXCLUDED.rating, reason = EXCLUDED.reason, note = EXCLUDED.note, updated_at = now()
+WHERE ai_message_feedback.organization_id = EXCLUDED.organization_id
+`
+
+type AiUpsertMessageFeedbackParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	Rating         string `json:"rating"`
+	Reason         string `json:"reason"`
+	Note           string `json:"note"`
+	CreatedBy      string `json:"created_by"`
+}
+
+// tenant: parent conversation_id
+func (q *Queries) AiUpsertMessageFeedback(ctx context.Context, arg AiUpsertMessageFeedbackParams) error {
+	_, err := q.db.Exec(ctx, aiUpsertMessageFeedback,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.Rating,
+		arg.Reason,
+		arg.Note,
+		arg.CreatedBy,
+	)
 	return err
 }
 

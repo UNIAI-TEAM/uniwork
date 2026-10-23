@@ -22,6 +22,7 @@ type Metrics interface {
 	IncNotificationMerged()
 	IncPushSent(result string)
 	IncDigestSent()
+	IncPushSuppressed(kind string)
 }
 
 // Consumer is the single source of notifications: it reads committed events
@@ -38,11 +39,36 @@ type Consumer struct {
 
 // NewConsumer wires the consumer. members is WorkspaceService in production.
 func NewConsumer(pool *pgxpool.Pool, q *db.Queries, members MemberChecker) *Consumer {
-	return &Consumer{pool: pool, q: q, env: env{q: q, members: members}, recorder: audit.NewRecorder(), log: slog.Default()}
+	return &Consumer{pool: pool, q: q, env: env{q: q, members: members, docMemo: newDocCommandMemo()}, recorder: audit.NewRecorder(), log: slog.Default()}
 }
 
 // SetMetrics attaches counters; called once from main.
 func (c *Consumer) SetMetrics(m Metrics) { c.metrics = m }
+
+// SetOrgMembers wires the organization permission port used by
+// organization-scoped rules. Unwired, those rules deliver nothing.
+func (c *Consumer) SetOrgMembers(o OrgMemberChecker) { c.env.orgs = o }
+
+// SetDocumentReaders wires the document permission port the document rules
+// filter recipients through. DocumentService satisfies it; the package
+// declares it here so notification never imports internal/service. Unwired,
+// the document rules deliver nothing rather than guessing.
+func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
+
+// SetDocumentAdministrators wires the administer port DOC-07's request rule
+// filters its recipient list through (R1-6). DocumentService satisfies it.
+// Unwired, the rule sends nothing: without it the package cannot tell a
+// document's manager from a stranger.
+func (c *Consumer) SetDocumentAdministrators(d DocumentAdministerChecker) { c.env.docAdmins = d }
+
+// SetMeetingSummaries wires the AI-summary availability port the meeting
+// summary nudge asks. MeetingService satisfies it. Unwired, the nudge is
+// never sent.
+func (c *Consumer) SetMeetingSummaries(s SummaryChecker) { c.env.summaries = s }
+
+// SetCallRinging lets the call rule skip a person the call no longer rings.
+// Without it every ring inside its window is delivered.
+func (c *Consumer) SetCallRinging(r CallRingChecker) { c.env.calls = r }
 
 // Name identifies the consumer in dispatcher errors.
 func (*Consumer) Name() string { return "notification" }
@@ -97,6 +123,15 @@ func (c *Consumer) deliver(ctx context.Context, eventID, correlationID string, d
 	for _, d := range drafts {
 		prefs := matrices[d.UserID].For(d.Kind)
 		if !prefs.InApp {
+			// A mention row is still claimed when the channel is off: the
+			// claim-only transaction stops the row from notifying later,
+			// after the person re-enables InApp and edits keep the mention
+			// (contract-collab section 8.2).
+			if d.Claim != nil {
+				if err := c.claim(ctx, d); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if err := c.write(ctx, eventID, correlationID, d, prefs); err != nil {
@@ -104,6 +139,27 @@ func (c *Consumer) deliver(ctx context.Context, eventID, correlationID string, d
 		}
 	}
 	return nil
+}
+
+// claim resolves a mention row without writing a notification: the same
+// UPDATE the write path uses, in its own transaction. 0 rows means somebody
+// else already claimed it, which is not an error for the silent path.
+func (c *Consumer) claim(ctx context.Context, d Draft) error {
+	tx, err := c.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	claimed, err := c.q.WithTx(tx).ClaimDocumentCommentMention(ctx, db.ClaimDocumentCommentMentionParams{
+		ID: d.Claim.MentionID, OrganizationID: d.OrganizationID,
+	})
+	if err != nil {
+		return err
+	}
+	if claimed == 0 {
+		return nil
+	}
+	return tx.Commit(ctx)
 }
 
 func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d Draft, prefs Prefs) error {
@@ -120,6 +176,53 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	}
 	if n == 0 {
 		return nil // already delivered to this user by an earlier attempt
+	}
+	if d.DocChange != nil {
+		return c.writeDocChange(ctx, tx, q, correlationID, d, prefs)
+	}
+	// The once-per-group claim (BE-TN-3): the open-row merge index only
+	// dedupes a notification nobody has touched yet. A kind that is one
+	// notice per recipient and batch forever - the trash notice, whose
+	// elected top node can change under a pending event - must not write a
+	// second row when the first was already read or archived.
+	//
+	// The claim is taken, not merely checked (BE-TN-9): an existence read on
+	// its own is unlocked, so two nodes carrying two different events of one
+	// group - the sibling elected after a restore or purge while the original
+	// top's own write is still in flight - would both miss the row and merge
+	// through the upsert's count + 1. The transaction-scoped advisory lock
+	// below makes the loser's read run after the winner committed, so it sees
+	// the row and skips. The delivery claim above stays first: a redelivery
+	// of an event already delivered never takes the lock.
+	if d.OncePerGroup {
+		if err := q.ClaimNotificationGroup(ctx, d.UserID+":"+d.Kind+":"+d.GroupKey); err != nil {
+			return err
+		}
+		exists, err := q.HasNotificationGroupRow(ctx, db.HasNotificationGroupRowParams{
+			UserID: d.UserID, Kind: d.Kind, GroupKey: d.GroupKey,
+		})
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+	}
+	// The mention claim shares this transaction with the notification row
+	// and its outbox rows (contract-collab section 8.2): the UPDATE only
+	// matches while nobody claimed the row, so concurrent consumers and
+	// outbox replays commit exactly one notification; 0 rows commits
+	// nothing - not even the delivery row - and drops the draft.
+	if d.Claim != nil {
+		claimed, err := q.ClaimDocumentCommentMention(ctx, db.ClaimDocumentCommentMentionParams{
+			ID: d.Claim.MentionID, OrganizationID: d.OrganizationID,
+		})
+		if err != nil {
+			return err
+		}
+		if claimed == 0 {
+			return nil
+		}
 	}
 	params, err := json.Marshal(d.Params)
 	if err != nil {

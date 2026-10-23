@@ -20,6 +20,24 @@ func TestTokenRoundtrip(t *testing.T) {
 	}
 }
 
+// A browser session is marked in the token so RequireAuthWithDevice can skip
+// the device-session lookup; desktop tokens never carry the mark.
+func TestWebSessionMarkRoundtrip(t *testing.T) {
+	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	web, err := m.MintWebSession("user_123", "sess_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, err := m.ParseAccessToken(web)
+	if err != nil || at.UserID != "user_123" || at.SessionID != "sess_1" || !at.Web {
+		t.Fatalf("ParseAccessToken(web) = %+v %v", at, err)
+	}
+	desktop, _ := m.MintSession("user_123", "dev_1")
+	if at, err := m.ParseAccessToken(desktop); err != nil || at.Web {
+		t.Fatalf("ParseAccessToken(desktop) web=%v err=%v, want false nil", at.Web, err)
+	}
+}
+
 func TestExpiredTokenRejected(t *testing.T) {
 	m := TokenMinter{Secret: []byte("test-secret"), TTL: -time.Minute}
 	tok, _ := m.Mint("user_123")

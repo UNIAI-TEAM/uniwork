@@ -4,21 +4,64 @@ import "encoding/json"
 
 // NotificationDTO is one inbox row. title_key + params render client-side.
 type NotificationDTO struct {
-	ID              string          `json:"id" example:"01K4NOTIF00000000000000001"`
-	Kind            string          `json:"kind" description:"task_assigned, task_status_changed, task_commented, mentioned, meeting_invited, meeting_starting, member_added, role_changed, audit_export_ready" example:"task_assigned"`
-	WorkspaceID     string          `json:"workspace_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	OrganizationID  string          `json:"organization_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V9"`
-	ResourceType    string          `json:"resource_type" description:"task, meeting, workspace hoặc audit_export" example:"task"`
-	ResourceID      string          `json:"resource_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
-	ResourceDeleted bool            `json:"resource_deleted" description:"true khi task/meeting đích không còn" example:"false"`
-	ActorKind       string          `json:"actor_kind" description:"human, agent hoặc system" example:"human"`
-	ActorID         string          `json:"actor_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VB"`
-	TitleKey        string          `json:"title_key" description:"Khoá i18n, client render với params" example:"notifications.kind.task_assigned"`
-	Params          json.RawMessage `json:"params" description:"Tham số cho title_key: tên đã snapshot lúc sự kiện" example:"{\"actor\":\"An\",\"task\":\"Viết spec\"}"`
-	Count           int32           `json:"count" description:"Số sự kiện đã gộp vào dòng này" example:"1"`
-	ReadAt          string          `json:"read_at,omitempty" example:"2026-09-06T08:00:00Z"`
-	CreatedAt       string          `json:"created_at" example:"2026-09-06T07:59:00Z"`
-	UpdatedAt       string          `json:"updated_at" example:"2026-09-06T07:59:00Z"`
+	ID              string `json:"id" example:"01K4NOTIF00000000000000001"`
+	Kind            string `json:"kind" description:"task_assigned, task_status_changed, task_commented, mentioned, meeting_invited, meeting_starting, member_added, role_changed, audit_export_ready" example:"task_assigned"`
+	WorkspaceID     string `json:"workspace_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	OrganizationID  string `json:"organization_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V9"`
+	ResourceType    string `json:"resource_type" description:"task, meeting, workspace, audit_export, chat_message hoặc email_account" example:"task"`
+	ResourceID      string `json:"resource_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	ResourceDeleted bool   `json:"resource_deleted" description:"true khi task/meeting/tin nhắn chat đích không còn" example:"false"`
+	// ResourceAccessLost is true when the recipient can no longer read the
+	// document a notification names (G8-07). The link stays; the snippet keys
+	// are removed from params.
+	ResourceAccessLost bool `json:"resource_access_lost" description:"true khi người nhận không còn đọc được tài liệu đích; params đã bỏ snippet" example:"false"`
+	// CommentDeleted is true when the document notification's comment no
+	// longer exists (deleted or tombstoned). The document link still opens
+	// when the document is readable.
+	CommentDeleted bool `json:"comment_deleted" description:"true khi bình luận của thông báo không còn (đã xóa hoặc tombstone)" example:"false"`
+	// ResourceParentID is where a resource with no page of its own lives: a
+	// chat message's room.
+	ResourceParentID string `json:"resource_parent_id,omitempty" description:"Với chat_message: id phòng chứa tin nhắn" example:"01J8X4K2M0N1P2Q3R4S5T6U7VC"`
+	// SampleDocuments is set for document_changed rows only: up to three
+	// documents of the notice the caller can read now, resolved at read time.
+	SampleDocuments []NotificationSampleDocumentDTO `json:"sample_documents,omitempty" description:"Chỉ với document_changed: tối đa 3 tài liệu mẫu mà người gọi đọc được tại lúc đọc (tài liệu không đọc được bị bỏ; tài liệu đã xóa hẳn chỉ có tiêu đề khi động từ là deleted)"`
+	ActorKind       string                          `json:"actor_kind" description:"human, agent hoặc system" example:"human"`
+	ActorID         string                          `json:"actor_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VB"`
+	TitleKey        string                          `json:"title_key" description:"Khoá i18n, client render với params" example:"notifications.kind.task_assigned"`
+	Params          json.RawMessage                 `json:"params" description:"Tham số cho title_key: tên đã snapshot lúc sự kiện" example:"{\"actor\":\"An\",\"task\":\"Viết spec\"}"`
+	Count           int32                           `json:"count" description:"Số sự kiện đã gộp vào dòng này" example:"1"`
+	ReadAt          string                          `json:"read_at,omitempty" example:"2026-09-06T08:00:00Z"`
+	CreatedAt       string                          `json:"created_at" example:"2026-09-06T07:59:00Z"`
+	UpdatedAt       string                          `json:"updated_at" example:"2026-09-06T07:59:00Z"`
+}
+
+// NotificationSampleDocumentDTO is one sample document of a document_changed row.
+type NotificationSampleDocumentDTO struct {
+	ID    string `json:"id" example:"01K4DOC000000000000000001"`
+	Title string `json:"title" description:"Tiêu đề hiện tại; với tài liệu đã xóa hẳn là ảnh chụp lúc xóa" example:"Kế hoạch Q4"`
+}
+
+// NotificationDocumentDTO is one document of a notification as the caller sees it now.
+type NotificationDocumentDTO struct {
+	ID      string `json:"id" example:"01K4DOC000000000000000001"`
+	Title   string `json:"title,omitempty" description:"Tiêu đề hiện tại; vắng với tài liệu đã xóa hẳn (trừ khi động từ là deleted: ảnh chụp lúc xóa)" example:"Kế hoạch Q4"`
+	Kind    string `json:"kind,omitempty" description:"Loại tài liệu (page, docx, xlsx…); vắng với tài liệu đã xóa hẳn" example:"page"`
+	Trashed bool   `json:"trashed" description:"true khi tài liệu đang ở Thùng rác (với động từ trashed: người gọi đọc được trước lệnh và còn quyền đọc nên còn thấy; động từ khác: chỉ khi người gọi quản lý được)" example:"false"`
+	Shelved bool   `json:"shelved" description:"true khi tài liệu đang ở kho lưu trữ" example:"false"`
+	Deleted bool   `json:"deleted" description:"true khi tài liệu đã bị xóa hẳn" example:"false"`
+}
+
+// NotificationDocumentsSDO is GET /api/v1/me/notifications/{notificationID}/documents.
+type NotificationDocumentsSDO struct {
+	Documents  []NotificationDocumentDTO `json:"documents" description:"Chỉ tài liệu người gọi đọc được tại lúc đọc, theo thứ tự id; tài liệu đã xóa hẳn là mục deleted"`
+	NextCursor *string                   `json:"next_cursor" description:"Cursor trang kế; null khi hết trang" example:"ndc1.eyJpZCI6IjAxSzRET0MifQ.sig"`
+}
+
+// NotificationsReadSDO is POST /api/v1/me/notifications/read. With all=true,
+// ids are the rows it read, so the client can undo it with /unread.
+type NotificationsReadSDO struct {
+	Status string   `json:"status" example:"ok"`
+	IDs    []string `json:"ids" description:"Với all=true: các id vừa đánh dấu đã đọc; rỗng khi gửi ids" example:"[\"01K4NOTIF00000000000000001\"]"`
 }
 
 // NotificationListSDO is GET /api/v1/me/notifications.

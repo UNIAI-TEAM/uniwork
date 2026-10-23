@@ -97,13 +97,219 @@ func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {
 	}
 }
 
+func TestPutTaskSuiteUpdatesDescription(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "PUT description", "description": "Before",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	taskID := task["id"].(string)
+	revision := task["revision"].(float64)
+
+	res, out = doJSON(t, srv, "PUT", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"revision": revision, "description": "After",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("put: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if task["description"] != "After" {
+		t.Fatalf("description=%v want After", task["description"])
+	}
+	if task["revision"] != revision+1 {
+		t.Fatalf("revision=%v want %v", task["revision"], revision+1)
+	}
+
+	res, out = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("get after put: %d %v", res.StatusCode, out)
+	}
+	reloaded := out["task"].(map[string]any)
+	if reloaded["description"] != "After" {
+		t.Fatalf("reloaded description=%v want After", reloaded["description"])
+	}
+	if reloaded["revision"] != revision+1 {
+		t.Fatalf("reloaded revision=%v want %v", reloaded["revision"], revision+1)
+	}
+
+	res, out = doJSON(t, srv, "PUT", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"revision": revision + 1, "description": "",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("clear description: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("get after clear: %d %v", res.StatusCode, out)
+	}
+	reloaded = out["task"].(map[string]any)
+	if reloaded["description"] != "" {
+		t.Fatalf("cleared description=%v want empty", reloaded["description"])
+	}
+	if reloaded["revision"] != revision+2 {
+		t.Fatalf("cleared revision=%v want %v", reloaded["revision"], revision+2)
+	}
+}
+
+func TestPatchTaskHTTPStartDate(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Start date qua PATCH",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create: %d %v", res.StatusCode, out)
+	}
+	taskID := out["task"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": "2026-09-20"})
+	if res.StatusCode != 200 {
+		t.Fatalf("set start_date: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	if task["start_date"] != "2026-09-20" {
+		t.Fatalf("start_date = %v, want 2026-09-20", task["start_date"])
+	}
+	revisionAfterSet := task["revision"].(float64)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": nil})
+	if res.StatusCode != 200 {
+		t.Fatalf("clear start_date: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if task["start_date"] != nil {
+		t.Fatalf("start_date after clear = %v, want nil", task["start_date"])
+	}
+	if task["revision"].(float64) <= revisionAfterSet {
+		t.Fatalf("revision after clear = %v, want > %v", task["revision"], revisionAfterSet)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": "bad"})
+	if res.StatusCode != 400 {
+		t.Fatalf("bad start_date: %d %v", res.StatusCode, out)
+	}
+	errObj, _ := out["error"].(map[string]any)
+	if errObj["code"] != "invalid_request" {
+		t.Fatalf("code=%v want invalid_request body=%v", errObj["code"], out)
+	}
+}
+
+func TestPatchTaskHTTPScheduleTimes(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Timed task", "start_date": "2026-09-20", "due_date": "2026-09-20",
+		"start_at": "2026-09-20T02:00:00Z", "due_at": "2026-09-20T03:00:00Z",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create timed task: %d %v", res.StatusCode, out)
+	}
+	taskID := out["task"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_date": "2026-09-21", "due_date": "2026-09-21",
+		"start_at": "2026-09-21T07:30:00Z", "due_at": "2026-09-21T09:00:00Z",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("patch timed task: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	if task["start_at"] != "2026-09-21T07:30:00Z" || task["due_at"] != "2026-09-21T09:00:00Z" {
+		t.Fatalf("schedule = %v/%v, want updated instants; task=%v", task["start_at"], task["due_at"], task)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": nil, "due_at": nil,
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("clear timed task: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if _, ok := task["start_at"]; ok {
+		t.Fatalf("start_at should be absent after clear: %v", task)
+	}
+	if _, ok := task["due_at"]; ok {
+		t.Fatalf("due_at should be absent after clear: %v", task)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": "2026-09-21T07:30:00Z",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("single schedule bound: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": "2026-09-21T09:00:00Z", "due_at": "2026-09-21T07:30:00Z",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("reversed schedule: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+	res, labelOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/task-labels", token, map[string]any{
+		"name": "Create parity", "color": "#ef4444",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create label: %d %v", res.StatusCode, labelOut)
+	}
+	labelID := labelOut["label"].(map[string]any)["id"].(string)
+
+	res, parentOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Parent",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create parent: %d %v", res.StatusCode, parentOut)
+	}
+	parentID := parentOut["task"].(map[string]any)["id"].(string)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title":          "Context child",
+		"status":         "in_progress",
+		"priority":       "none",
+		"parent_task_id": parentID,
+		"start_date":     "2026-09-17",
+		"due_date":       "2026-09-20",
+		"start_at":       "2026-09-17T02:00:00Z",
+		"due_at":         "2026-09-17T03:30:00Z",
+		"stage":          3,
+		"label_ids":      []string{labelID},
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create child: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	for key, want := range map[string]any{
+		"status": "in_progress", "priority": "none", "parent_task_id": parentID,
+		"start_date": "2026-09-17", "due_date": "2026-09-20",
+		"start_at": "2026-09-17T02:00:00Z", "due_at": "2026-09-17T03:30:00Z", "stage": float64(3),
+	} {
+		if task[key] != want {
+			t.Fatalf("%s = %#v, want %#v; task=%v", key, task[key], want, task)
+		}
+	}
+	res, labelsOut := doJSON(t, srv, "GET", "/api/v1/tasks/"+task["id"].(string)+"/labels", token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list created labels: %d %v", res.StatusCode, labelsOut)
+	}
+	labels := labelsOut["labels"].([]any)
+	if len(labels) != 1 || labels[0].(map[string]any)["id"] != labelID {
+		t.Fatalf("created labels = %v, want %s", labels, labelID)
+	}
+}
+
 func TestBatchUpdateHTTPUpdatesThree(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 
 	ids := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
 		res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
-			"title": "B", "priority": "low",
+			"title": "B", "priority": "low", "allow_duplicate": true,
 		})
 		if res.StatusCode != 200 {
 			t.Fatalf("create: %d %v", res.StatusCode, out)

@@ -38,9 +38,18 @@ func (a aiQuota) Record(ctx context.Context, in ai.UsageRecord) error {
 	if in.Tokens <= 0 {
 		return nil
 	}
+	// The caller's MeterKey is the idempotency key when it named the logical
+	// call (G6-03b: UniWork AI's "uniwork-ai:<run id>:<seq>", design §6.4), so
+	// a replayed attempt or a reconciled row is the same key and the meter
+	// swallows it. Empty keeps the per-event key, which is what every other
+	// capability gets.
+	key := in.MeterKey
+	if key == "" {
+		key = "ai:" + in.UsageEventID
+	}
 	return a.ent.RecordUsage(ctx, a.ent.q, ConsumeInput{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, Meter: FeatureAITokens, Delta: in.Tokens,
-		Actor: in.Actor, RefType: "ai_usage_event", RefID: in.UsageEventID, IdempotencyKey: "ai:" + in.UsageEventID,
+		Actor: in.Actor, RefType: "ai_usage_event", RefID: in.UsageEventID, IdempotencyKey: key,
 	})
 }
 

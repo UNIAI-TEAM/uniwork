@@ -65,7 +65,11 @@ export function useBoardDragPan<T extends HTMLElement>() {
       const el = ref.current;
       if (!el) return;
       const target = event.target as Element | null;
-      if (target && target.closest(INTERACTIVE_SELECTOR)) return;
+      // React bubbles portalled events (menus, dialogs opened from a card)
+      // through the component tree to this handler, although their DOM is
+      // not inside the board. Only a press on the board itself may pan.
+      if (!target || !el.contains(target)) return;
+      if (target.closest(INTERACTIVE_SELECTOR)) return;
 
       pointerIdRef.current = event.pointerId;
       activeRef.current = false;

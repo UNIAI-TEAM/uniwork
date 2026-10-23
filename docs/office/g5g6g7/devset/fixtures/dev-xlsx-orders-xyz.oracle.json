@@ -1,0 +1,155 @@
+{
+  "fixtureId": "dev-xlsx-orders-xyz",
+  "format": "xlsx",
+  "fixtureSha256": "91b97fad50ad034d86d1db670c1156e9546b70d80c3c9e046f6c47ec750b8eda",
+  "synthetic": true,
+  "sheetNames": [
+    "Bán hàng T1",
+    "Kiểm toán"
+  ],
+  "sheets": {
+    "Bán hàng T1": {
+      "dataRange": "A2:I7",
+      "headerRow": 1,
+      "hiddenRows": [
+        6
+      ],
+      "totalsRows": [
+        8,
+        9
+      ],
+      "autoFilter": "A1:I7",
+      "columns": {
+        "X": "D",
+        "Y": "E",
+        "Z": "F",
+        "netRevenue": "G",
+        "unitAfterDiscount": "H",
+        "codeLookup": "I"
+      },
+      "zStorage": [
+        {
+          "cell": "F2",
+          "orderId": "BH-101",
+          "stored": 0.05,
+          "kind": "percent (5%)",
+          "discountFraction": 0.05
+        },
+        {
+          "cell": "F3",
+          "orderId": "BH-102",
+          "stored": 10,
+          "kind": "plain number 10 (10%)",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F4",
+          "orderId": "BH-103",
+          "stored": 0.1,
+          "kind": "percent (10%)",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F5",
+          "orderId": "BH-104",
+          "stored": null,
+          "kind": "blank (0%)",
+          "discountFraction": 0
+        },
+        {
+          "cell": "F6",
+          "orderId": "BH-105",
+          "stored": 0.1,
+          "kind": "percent (10%, hidden row)",
+          "discountFraction": 0.1
+        },
+        {
+          "cell": "F7",
+          "orderId": "BH-106",
+          "stored": null,
+          "kind": "blank (0%)",
+          "discountFraction": 0
+        }
+      ],
+      "totals": {
+        "withHiddenRow6": {
+          "sumX": 65,
+          "netRevenue": 61020
+        },
+        "withoutHiddenRow6": {
+          "sumX": 53,
+          "netRevenue": 51300
+        },
+        "byBranchWithHidden": {
+          "Miền Bắc": 23400,
+          "Miền Trung": 24120,
+          "Miền Nam": 13500
+        },
+        "byBranchVisibleOnly": {
+          "Miền Bắc": 23400,
+          "Miền Trung": 14400,
+          "Miền Nam": 13500
+        },
+        "unitAfterDiscountValidCount": 5,
+        "unitAfterDiscountValidSum": 5070,
+        "unitAfterDiscountValidAvg": 1014
+      },
+      "errorCells": [
+        {
+          "cell": "H7",
+          "formula": "G7/D7",
+          "error": "#DIV/0!"
+        },
+        {
+          "cell": "I7",
+          "formula": "VLOOKUP(A7,'Kiểm toán'!$A$2:$B$6,2,FALSE)",
+          "error": "#N/A"
+        }
+      ]
+    },
+    "Kiểm toán": {
+      "staleCacheCells": [
+        {
+          "cell": "D2",
+          "formula": "LEGACYCACHE(B2,C2)",
+          "staleCachedValue": 99999,
+          "trueProduct": 10000
+        },
+        {
+          "cell": "D3",
+          "formula": "B3*C3",
+          "staleCachedValue": 88888,
+          "trueProduct": 10000
+        }
+      ],
+      "unsupportedFormulaCells": [
+        {
+          "cell": "D4",
+          "formula": "FILTERXML(B4,\"//tygia\")",
+          "unsupportedFunction": "FILTERXML",
+          "error": "#NAME?"
+        }
+      ],
+      "localeAndRounding": {
+        "textNumberCell": {
+          "cell": "B5",
+          "text": "1.250,5",
+          "type": "text"
+        },
+        "numericCell": {
+          "cell": "B6",
+          "value": 800,
+          "type": "number"
+        },
+        "sumB5B6NumericOnly": 800,
+        "skippedTextCount": 1,
+        "roundingRuleCell": "E5",
+        "d5Raw": 3200.756,
+        "d5RoundedInt": 3201,
+        "d6Raw": 1450.244,
+        "d6RoundedInt": 1450,
+        "sumD5D6": 4651
+      }
+    }
+  }
+}

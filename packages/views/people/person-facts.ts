@@ -54,3 +54,26 @@ function zoneName(locale: string, timeZone: string, timeZoneName: "long" | "shor
     return "";
   }
 }
+
+/**
+ * The wall-clock time where this person is, "14:05" — the fact the timezone
+ * row exists for: whether they are at their desk right now. Empty when the
+ * zone is unknown to the browser, so the row falls back to the zone alone.
+ */
+export function localTimeIn(value: string, language?: string, now: Date = new Date()): string {
+  const zone = value.trim();
+  if (zone === "") return "";
+  try {
+    return new Intl.DateTimeFormat(localeOf(language), { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+  } catch {
+    return "";
+  }
+}
+
+/** A stored RFC 3339 instant as a date in the reader's language; empty when absent or unreadable. */
+export function formatInstantDate(value: string | undefined, language?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(localeOf(language), { dateStyle: "long" });
+}

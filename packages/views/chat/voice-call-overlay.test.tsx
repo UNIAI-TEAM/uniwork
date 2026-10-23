@@ -3,24 +3,30 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { VoiceCallOverlay } from "./voice-call-overlay";
+import { useCallRingtone } from "./use-call-ringtone";
 
 vi.mock("./use-call-ringtone", () => ({
   useCallRingtone: vi.fn(),
 }));
 
+const mockUseCallRingtone = vi.mocked(useCallRingtone);
+
 vi.mock("./voice-call-pre-connect", () => ({
   PreConnectFloatingCall: ({
     peerName,
     statusLabel,
+    notice,
     children,
   }: {
     peerName: string;
     statusLabel: string;
+    notice?: React.ReactNode;
     children: React.ReactNode;
   }) => (
     <div data-testid="preconnect">
       <span>{peerName}</span>
       <span>{statusLabel}</span>
+      {notice}
       {children}
     </div>
   ),
@@ -39,9 +45,16 @@ const handlers = {
   onAccept: vi.fn(),
   onDecline: vi.fn(),
   onLeave: vi.fn(),
+  onDisconnected: vi.fn(),
   onEndForAll: vi.fn(),
   onConnected: vi.fn(),
+  onRetryEnded: vi.fn(),
+  onDismissEnded: vi.fn(),
+  panelMode: "expanded" as const,
+  onPanelModeChange: vi.fn(),
 };
+
+const overlayProps = { workspaceId: "ws1", ...handlers };
 
 describe("VoiceCallOverlay", () => {
   it("renders incoming call actions", () => {
@@ -55,7 +68,7 @@ describe("VoiceCallOverlay", () => {
             peerName: "Long",
             callKind: "dm",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -79,7 +92,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: true,
             callKind: "dm",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -100,7 +113,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: false,
             callKind: "group",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -123,7 +136,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: true,
             callKind: "group",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -131,10 +144,87 @@ describe("VoiceCallOverlay", () => {
     expect(await screen.findByTestId("active-session")).toBeInTheDocument();
   });
 
-  it("returns null while idle", () => {
-    const { container } = render(
-      wrap(<VoiceCallOverlay state={{ status: "idle" }} {...handlers} />),
+  it("renders no panel while idle, only the empty announcer", () => {
+    render(wrap(<VoiceCallOverlay state={{ status: "idle" }} {...overlayProps} />));
+    expect(screen.queryByTestId("preconnect")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-call-ended-announcer")).toBeEmptyDOMElement();
+  });
+
+  it("says why a call ended and offers to call back", () => {
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "ended",
+            reason: "no_answer",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "dm",
+            outgoing: true,
+          }}
+          {...overlayProps}
+        />,
+      ),
     );
-    expect(container).toBeEmptyDOMElement();
+
+    expect(screen.getByTestId("voice-call-ended-announcer")).toHaveTextContent("Không ai nghe máy");
+    fireEvent.click(screen.getByLabelText("Gọi lại"));
+    expect(handlers.onRetryEnded).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("Đóng"));
+    expect(handlers.onDismissEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ring for an incoming channel call", () => {
+    mockUseCallRingtone.mockClear();
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "incoming",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "channel",
+          }}
+          {...overlayProps}
+        />,
+      ),
+    );
+    expect(mockUseCallRingtone).toHaveBeenCalledWith(null);
+  });
+
+  it("rings for an incoming group call", () => {
+    mockUseCallRingtone.mockClear();
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "incoming",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "group",
+          }}
+          {...overlayProps}
+        />,
+      ),
+    );
+    expect(mockUseCallRingtone).toHaveBeenCalledWith("incoming");
+  });
+
+  it("names the blocked device on an incoming call and lets the viewer retry answering", () => {
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{ status: "incoming", callId: "c1", roomId: "r1", peerName: "Long", callKind: "dm" }}
+          incomingDeviceError={{ kind: "audioinput", failure: "in_use" }}
+          {...overlayProps}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Micro đang được ứng dụng khác dùng.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Thử lại")).toBeInTheDocument();
   });
 });

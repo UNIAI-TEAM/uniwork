@@ -139,3 +139,140 @@ func TestPushConsumerIdentityAndOff(t *testing.T) {
 		t.Fatal("push off must acknowledge rows")
 	}
 }
+
+func TestRuleChatFollowUpCreated(t *testing.T) {
+	f := newFixture(t)
+	payload := `{"follow_up_id":"fu1","workspace_id":"` + f.wsID + `","user_id":"` + f.owner.ID + `","message_id":"msg1","room_id":"room1"}`
+	ev := db.OutboxEvent{
+		ID: "ev-fu", Topic: "chat.follow_up.created", Payload: payload,
+		ActorKind: pgtype.Text{String: "human", Valid: true},
+		ActorID:   pgtype.Text{String: f.owner.ID, Valid: true},
+	}
+	if err := f.consumer.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].Kind != KindChatFollowUp || got[0].ResourceID != "msg1" {
+		t.Fatalf("follow-up inbox = %+v", got)
+	}
+	if got[0].GroupKey != "chat_follow_up:fu1" || got[0].WorkspaceID.String != f.wsID {
+		t.Fatalf("follow-up attribution = %+v", got[0])
+	}
+	// Incomplete payload is a no-op.
+	if err := f.consumer.Handle(f.ctx, db.OutboxEvent{
+		ID: "ev-fu-empty", Topic: "chat.follow_up.created", Payload: `{"user_id":"x"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.inbox(t, f.owner.ID)) != 1 {
+		t.Fatal("incomplete payload created a row")
+	}
+
+	// msg1 does not exist: the row is flagged gone and links to Chat itself.
+	svc := NewService(f.q, PushConfig{})
+	items, err := svc.List(f.ctx, f.owner.ID, ListInput{WorkspaceID: f.wsID})
+	if err != nil || len(items) != 1 || !items[0].ResourceDeleted || items[0].ResourceParentID != "" {
+		t.Fatalf("missing message item = %+v err=%v", items, err)
+	}
+	if u, err := ResourceURL(f.ctx, f.q, "http://app", got[0]); err != nil || u != "http://app/notif-org/notif-ws/chat" {
+		t.Fatalf("missing message url = %q err=%v", u, err)
+	}
+
+	// A real message resolves to its room, and the link opens on it.
+	room, err := f.q.CreateChatRoom(f.ctx, db.CreateChatRoomParams{
+		ID: "room-fu", Kind: "channel", WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
+		OrganizationID: f.orgID, Name: "Chung", LivekitRoomName: "lk-room-fu",
+		CreatedBy: f.owner.ID, CreatedByKind: "human", Visibility: "public",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := f.q.CreateChatMessage(f.ctx, db.CreateChatMessageParams{
+		ID: "msg-fu", RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: f.wsID, SenderID: f.owner.ID, SenderKind: "human", Body: "nhắc tôi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consumer.Handle(f.ctx, db.OutboxEvent{
+		ID: "ev-fu-2", Topic: "chat.follow_up.created",
+		Payload:   `{"follow_up_id":"fu2","workspace_id":"` + f.wsID + `","user_id":"` + f.owner.ID + `","message_id":"` + msg.ID + `"}`,
+		ActorKind: pgtype.Text{String: "human", Valid: true}, ActorID: pgtype.Text{String: f.owner.ID, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	items, err = svc.List(f.ctx, f.owner.ID, ListInput{WorkspaceID: f.wsID})
+	if err != nil || len(items) != 2 || items[0].ResourceDeleted || items[0].ResourceParentID != room.ID {
+		t.Fatalf("live message item = %+v err=%v", items, err)
+	}
+	if u, err := ResourceURL(f.ctx, f.q, "http://app", items[0].Notification); err != nil ||
+		u != "http://app/notif-org/notif-ws/chat?room=room-fu&message=msg-fu" {
+		t.Fatalf("live message url = %q err=%v", u, err)
+	}
+}
+
+func TestFollowUpNotificationClosesWhenDoneOrDeleted(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "follow-up", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg1, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{Body: "một"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fu1, err := chat.CreateFollowUp(f.ctx, f.owner.ID, f.wsID, msg1.ID, "nhớ", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.follow_up.created")
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].ReadAt.Valid {
+		t.Fatalf("follow-up inbox unread = %+v", got)
+	}
+	if len(f.inbox(t, f.member.ID)) != 0 {
+		t.Fatal("member should not receive the owner's follow-up row")
+	}
+	if _, err := chat.CompleteFollowUp(f.ctx, f.owner.ID, f.wsID, fu1.ID); err != nil {
+		t.Fatal(err)
+	}
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 1 || !got[0].ReadAt.Valid {
+		t.Fatalf("after complete: %+v", got)
+	}
+
+	msg2, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{Body: "hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fu2, err := chat.CreateFollowUp(f.ctx, f.owner.ID, f.wsID, msg2.ID, "xóa", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.follow_up.created")
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 2 || got[0].ReadAt.Valid {
+		t.Fatalf("second follow-up unread = %+v", got)
+	}
+	if err := chat.DeleteFollowUp(f.ctx, f.owner.ID, f.wsID, fu2.ID); err != nil {
+		t.Fatal(err)
+	}
+	got = f.inbox(t, f.owner.ID)
+	if len(got) != 2 || !got[0].ReadAt.Valid {
+		t.Fatalf("after delete: %+v", got)
+	}
+	since := time.Now().Add(-24 * time.Hour)
+	undigested, err := f.q.ListUndigestedNotifications(f.ctx, db.ListUndigestedNotificationsParams{
+		UserID: f.owner.ID, CreatedAt: pgtype.Timestamptz{Time: since, Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range undigested {
+		if row.Kind == KindChatFollowUp && !row.ReadAt.Valid {
+			t.Fatalf("undigested follow-up = %+v", row)
+		}
+	}
+}

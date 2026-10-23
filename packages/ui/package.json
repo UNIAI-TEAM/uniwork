@@ -12,6 +12,7 @@
     "./components/ui/*": "./components/ui/*.tsx",
     "./lib/utils": "./lib/utils.ts",
     "./brand": "./brand/logo.tsx",
+    "./brand/unichat-icon": "./brand/unichat-icon.tsx",
     "./brand/*": "./brand/*.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/base.css": "./styles/base.css",
@@ -23,6 +24,9 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@dnd-kit/core": "catalog:",
+    "@dnd-kit/sortable": "catalog:",
+    "@dnd-kit/utilities": "catalog:",
     "@emoji-mart/data": "^1.2.1",
     "@number-flow/react": "^0.6.1",
     "@tanstack/react-table": "catalog:",
@@ -70,6 +74,7 @@
     "eslint": "^9.32.0",
     "jsdom": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

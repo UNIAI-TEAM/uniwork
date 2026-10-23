@@ -19,6 +19,19 @@ export const MIN_MEETING_TILES = 4;
 export const MAX_MEETING_TILES = 16;
 export const DEFAULT_MEETING_TILES = 6;
 
+/** Past this many people on the roster, a newcomer joins with the mic off unless they chose otherwise. */
+export const CROWDED_MEETING_SIZE = 10;
+
+/**
+ * Whether prejoin starts with the mic on: the person's last choice when they
+ * made one; otherwise on, except in a crowded meeting, where an open mic is
+ * noise for everyone (and churn for the room's speaker detection).
+ */
+export function prejoinMicOn(remembered: boolean | null, rosterSize: number | undefined): boolean {
+  if (remembered !== null) return remembered;
+  return rosterSize === undefined || rosterSize <= CROWDED_MEETING_SIZE;
+}
+
 export interface MeetingRoomPreferencesState {
   mirrorCamera: boolean;
   showExpandedLabels: boolean;
@@ -30,6 +43,8 @@ export interface MeetingRoomPreferencesState {
   viewLayout: MeetingViewLayout;
   maxTiles: number;
   hideTilesWithoutVideo: boolean;
+  /** The mic choice last made in prejoin; null until the person makes one. */
+  joinWithMic: boolean | null;
   setMirrorCamera: (value: boolean) => void;
   setShowExpandedLabels: (value: boolean) => void;
   setControlBarAutoHide: (value: boolean) => void;
@@ -38,6 +53,7 @@ export interface MeetingRoomPreferencesState {
   setViewLayout: (value: MeetingViewLayout) => void;
   setMaxTiles: (value: number) => void;
   setHideTilesWithoutVideo: (value: boolean) => void;
+  setJoinWithMic: (value: boolean) => void;
 }
 
 export const MEETING_BACKGROUND_PRESETS: readonly MeetingBackgroundPreset[] = [
@@ -81,6 +97,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
       viewLayout: "auto",
       maxTiles: DEFAULT_MEETING_TILES,
       hideTilesWithoutVideo: false,
+      joinWithMic: null,
       setMirrorCamera: (mirrorCamera) => set({ mirrorCamera }),
       setShowExpandedLabels: (showExpandedLabels) => set({ showExpandedLabels }),
       setControlBarAutoHide: (controlBarAutoHide) => set({ controlBarAutoHide }),
@@ -91,6 +108,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
       setMaxTiles: (maxTiles) =>
         set({ maxTiles: Math.min(MAX_MEETING_TILES, Math.max(MIN_MEETING_TILES, maxTiles)) }),
       setHideTilesWithoutVideo: (hideTilesWithoutVideo) => set({ hideTilesWithoutVideo }),
+      setJoinWithMic: (joinWithMic) => set({ joinWithMic }),
     }),
     {
       name: "uniwork-meeting-room-preferences",
@@ -104,6 +122,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
         viewLayout: state.viewLayout,
         maxTiles: state.maxTiles,
         hideTilesWithoutVideo: state.hideTilesWithoutVideo,
+        joinWithMic: state.joinWithMic,
       }),
     },
   ),

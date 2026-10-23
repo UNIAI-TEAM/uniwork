@@ -25,7 +25,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByRole("button", { name: `Tạo Đội E2E ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`);
 
   // tạo task
@@ -44,11 +44,11 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
   // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
-  await page.getByRole("button", { name: "Tạo", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo cuộc họp", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings/[0-9A-Z]+`), { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "Họp e2e" })).toBeVisible();
 
-  // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
+  // mở phòng: chấp nhận các trạng thái (LiveKit cấu hình, chưa cấu hình, hoặc chưa trả lời)
   await page.getByRole("button", { name: "Bắt đầu" }).click();
   // Detail → /room lands on the pre-join screen, whose join button carries
   // the same label; the second click is what asks the server for a token.
@@ -57,8 +57,17 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
     page
-      .getByText("LiveKit chưa được cấu hình trên server")
-      .or(page.getByText("Đang chờ người chủ trì bắt đầu cuộc họp"))
+      .getByText("Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.")
+      // The smoke user hosts this meeting, so an unstarted room reads as theirs to start.
+      .or(page.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" }))
+      // LiveKit configured but not answering (a runner whose env names a LiveKit
+      // nobody started): the room is asked for and the lobby waits for it.
+      .or(page.getByRole("heading", { name: "Đang chuẩn bị phòng họp…" }))
       .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
+});
+
+test("đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng", async ({ page }) => {
+  await page.goto("/khong-ton-tai-dau-ca");
+  await expect(page.getByTestId("app-not-found")).toBeVisible();
 });

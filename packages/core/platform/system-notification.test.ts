@@ -43,6 +43,7 @@ function payload(
     slug: "workspace-a",
     itemId: "item-1",
     issueKey: "issue-1",
+    href: "/acme/team/inbox",
     title: "Mentioned you",
     body: "in a comment",
     ...overrides,
@@ -112,7 +113,13 @@ describe("showWebNotification", () => {
     showWebNotification(payload());
     expect(created).toHaveLength(1);
     expect(created[0]?.title).toBe("Mentioned you");
-    expect(created[0]?.options).toMatchObject({ body: "in a comment", tag: "item-1" });
+    expect(created[0]?.options).toMatchObject({ body: "in a comment", tag: "item-1", silent: false });
+  });
+
+  it("goes quiet when the payload asks for no sound", () => {
+    installWindow(FakeNotification);
+    showWebNotification(payload({ silent: true }));
+    expect(created[0]?.options).toMatchObject({ silent: true });
   });
 
   it("routes a click to the registered handler and closes the banner", () => {
@@ -127,6 +134,21 @@ describe("showWebNotification", () => {
     expect(focus).toHaveBeenCalledTimes(1);
     expect(created[0]?.instance.close).toHaveBeenCalledTimes(1);
     expect(onClick).toHaveBeenCalledWith(payload());
+  });
+
+  it("asks the UniChat shell to focus its window on click", () => {
+    const focusWindow = vi.fn();
+    (globalThis as Record<string, unknown>).window = {
+      Notification: FakeNotification,
+      focus: () => {},
+      desktopAPI: { app: "unichat", focusWindow },
+    };
+
+    showWebNotification(payload());
+    created[0]?.instance.onclick?.();
+
+    expect(focusWindow).toHaveBeenCalledTimes(1);
+    expect(created[0]?.instance.close).toHaveBeenCalledTimes(1);
   });
 
   it("swallows constructors that throw (e.g. service-worker-only engines)", () => {

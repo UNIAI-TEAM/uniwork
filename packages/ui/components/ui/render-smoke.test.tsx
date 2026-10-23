@@ -92,3 +92,16 @@ describe("every primitive", () => {
     });
   }
 });
+
+/**
+ * Variants added here rather than vendored: the root mount above only renders
+ * the default, so each one is mounted by name.
+ */
+describe("local variants", () => {
+  it("Alert warning reads as a recoverable state on the warning-soft slots", async () => {
+    const { Alert } = await import("./alert");
+    const { container } = render(createElement(Alert, { variant: "warning" }));
+    expect(container.firstElementChild?.className).toContain("bg-warning-soft");
+    expect(container.firstElementChild?.className).toContain("text-warning-soft-foreground");
+  });
+});

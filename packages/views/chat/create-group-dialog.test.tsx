@@ -22,8 +22,15 @@ const members = [
 ];
 
 vi.mock("./workspace-member-picker", () => ({
+  useMemberPickerFocus: () => ({
+    inputRef: { current: null },
+    listRef: { current: null },
+    focusInput: () => undefined,
+    focusFirstRow: () => undefined,
+  }),
   useWorkspaceMemberPicker: () => ({
     filteredMembers: members,
+    hasOtherMembers: true,
     isLoading: false,
     lookup: { isFetching: false, isFetched: false, data: null },
     lookupEnabled: false,
@@ -73,6 +80,7 @@ vi.mock("./workspace-member-picker", () => ({
     </ul>
   ),
   ExternalMemberLookupRow: () => null,
+  WorkspaceMemberLookupResult: () => null,
 }));
 
 beforeAll(() => {
@@ -96,12 +104,23 @@ describe("CreateGroupDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Tên nhóm"), { target: { value: "Squad" } });
+    // The name is optional, and the label says so (not the placeholder).
+    // The server refuses a name past 80 characters, the same cap as a rename.
+    expect(screen.getByLabelText("Tên nhóm (tùy chọn)")).toHaveAttribute("maxlength", "80");
+    fireEvent.change(screen.getByLabelText("Tên nhóm (tùy chọn)"), { target: { value: "Squad" } });
+    // "How many are missing" is said once, beside the submit button.
+    expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
+    expect(screen.queryByText(/cần ít nhất/)).toBeNull();
+    // The rows are checkboxes: a second pick unticks.
+    fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tran Hoang Long" }));
     fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    expect(screen.getByText("Nhóm gồm bạn và 2 người")).toBeInTheDocument();
 
     const startButton = screen.getByRole("button", { name: "Tạo nhóm chat" });
-    expect(startButton).not.toBeDisabled();
+    expect(startButton).not.toHaveAttribute("aria-disabled");
     fireEvent.click(startButton);
 
     expect(onCreate).toHaveBeenCalledWith(
@@ -110,6 +129,24 @@ describe("CreateGroupDialog", () => {
         expect.objectContaining({ user_id: "u2" }),
       ]),
       "Squad",
+      null,
     );
+  });
+
+  it("hands the photo picked beside the name to onCreate", () => {
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+    URL.revokeObjectURL = vi.fn();
+    const onCreate = vi.fn();
+    const { container } = render(
+      wrap(<CreateGroupDialog open onOpenChange={vi.fn()} workspaceId="ws1" currentUserId="self" onCreate={onCreate} />),
+    );
+    expect(screen.getByRole("button", { name: "Đổi ảnh nhóm" })).toBeInTheDocument();
+    const photo = new File(["png"], "g.png", { type: "image/png" });
+    fireEvent.change(container.ownerDocument.querySelector('input[type="file"]')!, { target: { files: [photo] } });
+    expect(container.ownerDocument.querySelector('img[src="blob:preview"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tran Hoang Long" }));
+    fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tạo nhóm chat" }));
+    expect(onCreate).toHaveBeenCalledWith(expect.any(Array), "", photo);
   });
 });

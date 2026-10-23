@@ -10,7 +10,11 @@ type Routes struct {
 	WS     http.HandlerFunc
 
 	Config                     http.HandlerFunc
+	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
+	CreateDemoRequest          http.HandlerFunc
+	AdminListDemoRequests      http.HandlerFunc
+	AdminUpdateDemoRequest     http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
 	AdminGetOrganization       http.HandlerFunc
@@ -24,17 +28,55 @@ type Routes struct {
 	AdminListAllFlagOverrides  http.HandlerFunc
 	AdminSetFlagOverride       http.HandlerFunc
 	AdminDeleteFlagOverride    http.HandlerFunc
+	AdminListPlans             http.HandlerFunc
+	AdminCreatePlan            http.HandlerFunc
+	AdminUpdatePlan            http.HandlerFunc
+	AdminUpdatePlanFeature     http.HandlerFunc
+	AdminListInvoices          http.HandlerFunc
+	AdminListPaymentIntents    http.HandlerFunc
+	AdminRefundInvoice         http.HandlerFunc
+	AdminConfirmInvoiceRefund  http.HandlerFunc
 
-	Register       http.HandlerFunc
-	Login          http.HandlerFunc
-	ForgotPassword http.HandlerFunc
-	ResetPassword  http.HandlerFunc
-	Refresh        http.HandlerFunc
-	Logout         http.HandlerFunc
-	MFAVerify      http.HandlerFunc
-	AuthProviders  http.HandlerFunc
-	GoogleStart    http.HandlerFunc
-	GoogleCallback http.HandlerFunc
+	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
+	// 0031), mounted by registerMCP.
+	McpProtectedResource   http.HandlerFunc
+	McpAuthorizationServer http.HandlerFunc
+	McpAuthorize           http.HandlerFunc
+	McpToken               http.HandlerFunc
+	McpRegister            http.HandlerFunc
+	McpRevoke              http.HandlerFunc
+	McpServe               http.HandlerFunc
+
+	// MCP connector, web side (registerConnect): consent, connected apps, the
+	// organization's switch.
+	McpConsent            http.HandlerFunc
+	McpConsentCommand     http.HandlerFunc
+	MyConnectedApps       http.HandlerFunc
+	RevokeMyConnectedApp  http.HandlerFunc
+	OrgConnectedApps      http.HandlerFunc
+	RevokeOrgConnectedApp http.HandlerFunc
+	OrgMcpPolicy          http.HandlerFunc
+	SetOrgMcpPolicy       http.HandlerFunc
+	SetOrgMcpWritePolicy  http.HandlerFunc
+
+	Register              http.HandlerFunc
+	Login                 http.HandlerFunc
+	ForgotPassword        http.HandlerFunc
+	ResetPassword         http.HandlerFunc
+	Refresh               http.HandlerFunc
+	Logout                http.HandlerFunc
+	MFAVerify             http.HandlerFunc
+	AuthProviders         http.HandlerFunc
+	GoogleStart           http.HandlerFunc
+	GoogleCallback        http.HandlerFunc
+	DesktopStart          http.HandlerFunc
+	DesktopConsent        http.HandlerFunc
+	DesktopConsentCommand http.HandlerFunc
+	DesktopExchange       http.HandlerFunc
+	DesktopRefresh        http.HandlerFunc
+	DesktopLogout         http.HandlerFunc
+	DesktopDevices        http.HandlerFunc
+	DesktopRevokeDevice   http.HandlerFunc
 
 	Me                  http.HandlerFunc
 	PatchMe             http.HandlerFunc
@@ -64,6 +106,7 @@ type Routes struct {
 	DeactivateOrgMember http.HandlerFunc
 	ReactivateOrgMember http.HandlerFunc
 	LeaveOrganization   http.HandlerFunc
+	CloseOrganization   http.HandlerFunc
 
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
@@ -84,11 +127,14 @@ type Routes struct {
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
+	UploadWorkspaceIcon http.HandlerFunc
+	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
 	CreateInvitation    http.HandlerFunc
+	PreviewInvitation   http.HandlerFunc
 	AcceptInvitation    http.HandlerFunc
 
 	SeedWelcomeTask http.HandlerFunc
@@ -106,6 +152,7 @@ type Routes struct {
 	BatchUpdateTasks      http.HandlerFunc
 	BatchDeleteTasks      http.HandlerFunc
 	ListMyTasks           http.HandlerFunc
+	GetAssigneeFrequency  http.HandlerFunc
 	ListTaskChildren      http.HandlerFunc
 	ListChildrenByParents http.HandlerFunc
 	ChildTaskProgress     http.HandlerFunc
@@ -122,6 +169,7 @@ type Routes struct {
 	DeleteTaskStatus        http.HandlerFunc
 	ReorderTaskStatuses     http.HandlerFunc
 	ListTaskLabels          http.HandlerFunc
+	ListTaskLabelLinks      http.HandlerFunc
 	GetTaskLabel            http.HandlerFunc
 	CreateTaskLabel         http.HandlerFunc
 	PutTaskLabel            http.HandlerFunc
@@ -142,10 +190,49 @@ type Routes struct {
 	DeleteTaskView        http.HandlerFunc
 	GetTaskViewPreference http.HandlerFunc
 	PutTaskViewPreference http.HandlerFunc
-	ListPins              http.HandlerFunc
-	CreatePin             http.HandlerFunc
-	DeletePin             http.HandlerFunc
-	ReorderPins           http.HandlerFunc
+
+	GetHomeSummary               http.HandlerFunc
+	GetHomePreference            http.HandlerFunc
+	PutHomePreference            http.HandlerFunc
+	ListCalendarEvents           http.HandlerFunc
+	ListCalendarConnections      http.HandlerFunc
+	StartCalendarConnection      http.HandlerFunc
+	CompleteCalendarConnection   http.HandlerFunc
+	ListExternalCalendars        http.HandlerFunc
+	SelectExternalCalendars      http.HandlerFunc
+	DisconnectCalendarConnection http.HandlerFunc
+	ListCalendarSidebar          http.HandlerFunc
+	WorkspaceCalendar            http.HandlerFunc
+
+	ListEmailHubAccounts          http.HandlerFunc
+	GetEmailHubUnreadCount        http.HandlerFunc
+	GetEmailHubSidebarCounts      http.HandlerFunc
+	ConnectEmailHubAccount        http.HandlerFunc
+	StartEmailHubOAuth            http.HandlerFunc
+	GetEmailHubProviders          http.HandlerFunc
+	DisconnectEmailHubAccount     http.HandlerFunc
+	ListEmailHubImapLabels        http.HandlerFunc
+	ListEmailHubThreads           http.HandlerFunc
+	GetEmailHubThread             http.HandlerFunc
+	ListEmailHubConversation      http.HandlerFunc
+	GetEmailHubThreadSummary      http.HandlerFunc
+	SummarizeEmailHubThread       http.HandlerFunc
+	CreateEmailHubSummaryTasks    http.HandlerFunc
+	DownloadEmailHubAttachment    http.HandlerFunc
+	PatchEmailHubThread           http.HandlerFunc
+	SendEmailHub                  http.HandlerFunc
+	ListEmailHubScheduledSends    http.HandlerFunc
+	CancelEmailHubScheduledSend   http.HandlerFunc
+	RetryEmailHubScheduledSend    http.HandlerFunc
+	SyncEmailHub                  http.HandlerFunc
+	WatchEmailHub                 http.HandlerFunc
+	SubscribeEmailHubInboxWatch   http.HandlerFunc
+	UnsubscribeEmailHubInboxWatch http.HandlerFunc
+	CompleteEmailHubOAuth         http.HandlerFunc
+	ListPins                      http.HandlerFunc
+	CreatePin                     http.HandlerFunc
+	DeletePin                     http.HandlerFunc
+	ReorderPins                   http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc
@@ -158,37 +245,39 @@ type Routes struct {
 	PutProjectResource    http.HandlerFunc
 	DeleteProjectResource http.HandlerFunc
 
-	UpdateComment          http.HandlerFunc
-	DeleteComment          http.HandlerFunc
-	ResolveComment         http.HandlerFunc
-	UnresolveComment       http.HandlerFunc
-	AddCommentReaction     http.HandlerFunc
-	RemoveCommentReaction  http.HandlerFunc
-	AddTaskReaction        http.HandlerFunc
-	RemoveTaskReaction     http.HandlerFunc
-	ListTaskSubscribers    http.HandlerFunc
-	SubscribeTask          http.HandlerFunc
-	UnsubscribeTask        http.HandlerFunc
-	UnsubscribeTaskSubtree http.HandlerFunc
-	ListTaskAttachments    http.HandlerFunc
-	UploadTaskAttachment   http.HandlerFunc
-	GetAttachment          http.HandlerFunc
-	GetAttachmentContent   http.HandlerFunc
-	DownloadAttachment     http.HandlerFunc
-	DeleteAttachment       http.HandlerFunc
-	GetTaskTimeline        http.HandlerFunc
-	CommentSubTaskPreview  http.HandlerFunc
-	CreateCommentSubTasks  http.HandlerFunc
-	PreviewCommentTriggers http.HandlerFunc
+	UpdateComment             http.HandlerFunc
+	DeleteComment             http.HandlerFunc
+	ResolveComment            http.HandlerFunc
+	UnresolveComment          http.HandlerFunc
+	AddCommentReaction        http.HandlerFunc
+	RemoveCommentReaction     http.HandlerFunc
+	AddTaskReaction           http.HandlerFunc
+	RemoveTaskReaction        http.HandlerFunc
+	ListTaskSubscribers       http.HandlerFunc
+	SubscribeTask             http.HandlerFunc
+	UnsubscribeTask           http.HandlerFunc
+	UnsubscribeTaskSubtree    http.HandlerFunc
+	ListTaskAttachments       http.HandlerFunc
+	UploadTaskAttachment      http.HandlerFunc
+	UploadWorkspaceAttachment http.HandlerFunc
+	GetAttachment             http.HandlerFunc
+	GetAttachmentContent      http.HandlerFunc
+	DownloadAttachment        http.HandlerFunc
+	DeleteAttachment          http.HandlerFunc
+	CommentSubTaskPreview     http.HandlerFunc
+	CreateCommentSubTasks     http.HandlerFunc
+	PreviewCommentTriggers    http.HandlerFunc
 
 	// WorkManagementCapabilityStub backs every catalogue disposition:stubbed route.
 	WorkManagementCapabilityStub http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
+	ListNotificationDocuments  http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
 	ArchiveNotifications       http.HandlerFunc
+	UnarchiveNotifications     http.HandlerFunc
 	GetNotificationPreferences http.HandlerFunc
 	PutNotificationPreferences http.HandlerFunc
 	PushConfig                 http.HandlerFunc
@@ -196,19 +285,43 @@ type Routes struct {
 	UnsubscribePush            http.HandlerFunc
 
 	AiCapabilities       http.HandlerFunc
+	GetOrgAskModels      http.HandlerFunc
+	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
+	AskUniStream         http.HandlerFunc
+	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc
 	DeleteAiConversation http.HandlerFunc
+	RenameAiConversation http.HandlerFunc
+	SetAiFeedback        http.HandlerFunc
+	ClearAiFeedback      http.HandlerFunc
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
-	ListPlans          http.HandlerFunc
-	GetSubscription    http.HandlerFunc
-	ChangePlan         http.HandlerFunc
-	CancelSubscription http.HandlerFunc
-	ResumeSubscription http.HandlerFunc
-	CreateCheckout     http.HandlerFunc
+	AiByokChatCompletions http.HandlerFunc
+	AiByokMessages        http.HandlerFunc
+	AiByokGenerate        http.HandlerFunc
+	AiByokModels          http.HandlerFunc
+	AiCloudStatus         http.HandlerFunc
+	AiCloudSearch         http.HandlerFunc
+	AiCloudImages         http.HandlerFunc
+	AiCloudAnalyzeMedia   http.HandlerFunc
+	AiCloudTranscribe     http.HandlerFunc
+	// UniWork AI (G6-03a): the org session route, the desktop document route
+	// and the web frame's mount of the same turn.
+	AiUniworkChatCompletions            http.HandlerFunc
+	AiUniworkDocumentChatCompletions    http.HandlerFunc
+	OfficeFrameAiUniworkChatCompletions http.HandlerFunc
+
+	ListPlans           http.HandlerFunc
+	GetSubscription     http.HandlerFunc
+	ChangePlan          http.HandlerFunc
+	CancelSubscription  http.HandlerFunc
+	ResumeSubscription  http.HandlerFunc
+	CreateCheckout      http.HandlerFunc
+	ListInvoices        http.HandlerFunc
+	VNPayBillingWebhook http.HandlerFunc
 
 	ListOrgAgents       http.HandlerFunc
 	CreateOrgAgent      http.HandlerFunc
@@ -224,117 +337,362 @@ type Routes struct {
 	ListAuditExports    http.HandlerFunc
 	CreateAuditExport   http.HandlerFunc
 	GetAuditExport      http.HandlerFunc
+	DownloadAuditExport http.HandlerFunc
 
-	ListMeetings          http.HandlerFunc
-	CreateMeeting         http.HandlerFunc
-	CreateInstantMeeting  http.HandlerFunc
-	GetMeeting            http.HandlerFunc
-	UpdateMeeting         http.HandlerFunc
-	DeleteMeeting         http.HandlerFunc
-	StartMeeting          http.HandlerFunc
-	EndMeeting            http.HandlerFunc
-	ExtendMeeting         http.HandlerFunc
-	CancelMeeting         http.HandlerFunc
-	TransferHost          http.HandlerFunc
-	ListNotes             http.HandlerFunc
-	CreateNote            http.HandlerFunc
-	MeetingToken          http.HandlerFunc
-	JoinMeeting           http.HandlerFunc
-	ListParticipants      http.HandlerFunc
-	InviteParticipant     http.HandlerFunc
-	ListInvitations       http.HandlerFunc
-	RespondInvitation     http.HandlerFunc
-	RemoveParticipant     http.HandlerFunc
-	SetParticipantPublish http.HandlerFunc
-	ListInviteLinks       http.HandlerFunc
-	CreateInviteLink      http.HandlerFunc
-	RevokeInviteLink      http.HandlerFunc
-	ResolveInviteLink     http.HandlerFunc
-	ListJoinRequests      http.HandlerFunc
-	CreateJoinRequest     http.HandlerFunc
-	ApproveJoinRequest    http.HandlerFunc
-	RejectJoinRequest     http.HandlerFunc
-	CancelJoinRequest     http.HandlerFunc
-	MeetingStatistics     http.HandlerFunc
-	MeetingActivity       http.HandlerFunc
-	AppendTranscript      http.HandlerFunc
-	AppendAgentTranscript http.HandlerFunc
-	ListTranscript        http.HandlerFunc
-	AppendChatMessage     http.HandlerFunc
-	ListChatMessages      http.HandlerFunc
-	GetMeetingSummary     http.HandlerFunc
-	CreateSummary         http.HandlerFunc
-	CreateSummaryTasks    http.HandlerFunc
-	StartRecording        http.HandlerFunc
-	StopRecording         http.HandlerFunc
-	ListRecordings        http.HandlerFunc
-	MeetingCalendar       http.HandlerFunc
-	MeetingCapabilities   http.HandlerFunc
-	LiveKitWebhook        http.HandlerFunc
-	MeetingLobbyWS        http.HandlerFunc
+	ListPrivacyExports    http.HandlerFunc
+	CreatePrivacyExport   http.HandlerFunc
+	CreatePrivacyDeletion http.HandlerFunc
+	CancelPrivacyDeletion http.HandlerFunc
+	GetPrivacyExport      http.HandlerFunc
+	DownloadPrivacyExport http.HandlerFunc
 
-	LookupChatUser              http.HandlerFunc
-	GetChatBlockStatus          http.HandlerFunc
-	BlockChatUser               http.HandlerFunc
-	UnblockChatUser             http.HandlerFunc
-	ListChatNicknames           http.HandlerFunc
-	SetChatNickname             http.HandlerFunc
-	SearchChatGifs              http.HandlerFunc
-	TrendingChatGifs            http.HandlerFunc
-	SearchChatStickers          http.HandlerFunc
-	TrendingChatStickers        http.HandlerFunc
-	GetChatMediaStatus          http.HandlerFunc
-	MintChatVoiceToken          http.HandlerFunc
-	ListPendingChatVoiceInvites http.HandlerFunc
-	GetWorkspaceChatRoom        http.HandlerFunc
-	EnsureWorkspaceChatRoom     http.HandlerFunc
-	ListChatRooms               http.HandlerFunc
-	ResolveDM                   http.HandlerFunc
-	CreateChatGroup             http.HandlerFunc
-	InviteChatGroupMembers      http.HandlerFunc
-	CreateChatChannel           http.HandlerFunc
-	ListChatChannels            http.HandlerFunc
-	ListProjectChatChannels     http.HandlerFunc
-	UpdateChatChannel           http.HandlerFunc
-	JoinChatChannel             http.HandlerFunc
-	ArchiveChatChannel          http.HandlerFunc
-	UnarchiveChatChannel        http.HandlerFunc
-	ListChatThreadMessages      http.HandlerFunc
-	SendChatThreadMessage       http.HandlerFunc
-	FollowChatThread            http.HandlerFunc
-	UnfollowChatThread          http.HandlerFunc
-	MarkChatThreadRead          http.HandlerFunc
-	ListChatThreads             http.HandlerFunc
-	CreateTaskFromChatMessage   http.HandlerFunc
-	CreateChatMessageLink       http.HandlerFunc
-	ListChatMessageLinks        http.HandlerFunc
-	DeleteChatMessageLink       http.HandlerFunc
-	SyncChatThreadTask          http.HandlerFunc
-	UnsyncChatThreadTask        http.HandlerFunc
-	ListChatRoomMembers         http.HandlerFunc
-	PatchChatRoomMember         http.HandlerFunc
-	PatchChatRoom               http.HandlerFunc
-	RemoveChatRoomMember        http.HandlerFunc
-	LeaveChatRoom               http.HandlerFunc
-	ListWorkspaceChatMessages   http.HandlerFunc
-	SendWorkspaceChatMessage    http.HandlerFunc
-	ListChatRoomMessages        http.HandlerFunc
-	GetChatRoomMessage          http.HandlerFunc
-	SearchChatRoomMessages      http.HandlerFunc
-	ListChatRoomMessagesAround  http.HandlerFunc
-	SendChatRoomMessage         http.HandlerFunc
-	SendChatVoiceMessage        http.HandlerFunc
-	StreamChatVoiceMessage      http.HandlerFunc
-	SendChatFileMessage         http.HandlerFunc
-	StreamChatFileMessage       http.HandlerFunc
-	VoteChatPollMessage         http.HandlerFunc
-	ToggleChatMessageReaction   http.HandlerFunc
-	EditChatMessage             http.HandlerFunc
-	DeleteChatMessage           http.HandlerFunc
-	ToggleChatMessagePin        http.HandlerFunc
-	SignalChatVoiceInvite       http.HandlerFunc
-	SignalChatVoiceAccept       http.HandlerFunc
-	SignalChatVoiceHangup       http.HandlerFunc
-	SignalChatTyping            http.HandlerFunc
-	SignalChatPresence          http.HandlerFunc
+	GraphNeighbors http.HandlerFunc
+	GraphHistory   http.HandlerFunc
+
+	ListMeetings                   http.HandlerFunc
+	CreateMeeting                  http.HandlerFunc
+	CreateInstantMeeting           http.HandlerFunc
+	GetMeeting                     http.HandlerFunc
+	UpdateMeeting                  http.HandlerFunc
+	DeleteMeeting                  http.HandlerFunc
+	StartMeeting                   http.HandlerFunc
+	EndMeeting                     http.HandlerFunc
+	ExtendMeeting                  http.HandlerFunc
+	CancelMeeting                  http.HandlerFunc
+	RestoreMeeting                 http.HandlerFunc
+	TransferHost                   http.HandlerFunc
+	ListNotes                      http.HandlerFunc
+	CreateNote                     http.HandlerFunc
+	MeetingToken                   http.HandlerFunc
+	JoinMeeting                    http.HandlerFunc
+	ListParticipants               http.HandlerFunc
+	InviteParticipant              http.HandlerFunc
+	ListInvitations                http.HandlerFunc
+	RespondInvitation              http.HandlerFunc
+	RemoveParticipant              http.HandlerFunc
+	SetParticipantPublish          http.HandlerFunc
+	PatchParticipant               http.HandlerFunc
+	GetAttendance                  http.HandlerFunc
+	MarkAttendance                 http.HandlerFunc
+	ClearAttendanceMark            http.HandlerFunc
+	FinalizeAttendance             http.HandlerFunc
+	ReopenAttendance               http.HandlerFunc
+	ListMotions                    http.HandlerFunc
+	ListMyBallots                  http.HandlerFunc
+	ListMotionVoters               http.HandlerFunc
+	CreateMotion                   http.HandlerFunc
+	UpdateMotion                   http.HandlerFunc
+	DeleteMotion                   http.HandlerFunc
+	OpenMotion                     http.HandlerFunc
+	CloseMotion                    http.HandlerFunc
+	CastBallot                     http.HandlerFunc
+	ListInviteLinks                http.HandlerFunc
+	CreateInviteLink               http.HandlerFunc
+	RevokeInviteLink               http.HandlerFunc
+	ResolveInviteLink              http.HandlerFunc
+	ListJoinRequests               http.HandlerFunc
+	CreateJoinRequest              http.HandlerFunc
+	ApproveJoinRequest             http.HandlerFunc
+	RejectJoinRequest              http.HandlerFunc
+	CancelJoinRequest              http.HandlerFunc
+	MeetingStatistics              http.HandlerFunc
+	MeetingActivity                http.HandlerFunc
+	AppendTranscript               http.HandlerFunc
+	AppendAgentTranscript          http.HandlerFunc
+	ListTranscript                 http.HandlerFunc
+	AppendChatMessage              http.HandlerFunc
+	ListChatMessages               http.HandlerFunc
+	GetMeetingSummary              http.HandlerFunc
+	CreateSummary                  http.HandlerFunc
+	CreateSummaryTasks             http.HandlerFunc
+	StartRecording                 http.HandlerFunc
+	StopRecording                  http.HandlerFunc
+	ListRecordings                 http.HandlerFunc
+	GetMeetingRecordingPlaybackURL http.HandlerFunc
+	StreamMeetingRecording         http.HandlerFunc
+	MeetingCalendar                http.HandlerFunc
+	MeetingCapabilities            http.HandlerFunc
+	LiveKitWebhook                 http.HandlerFunc
+	MeetingLobbyWS                 http.HandlerFunc
+
+	LookupChatUser                   http.HandlerFunc
+	GetChatBlockStatus               http.HandlerFunc
+	BlockChatUser                    http.HandlerFunc
+	UnblockChatUser                  http.HandlerFunc
+	ListChatNicknames                http.HandlerFunc
+	SetChatNickname                  http.HandlerFunc
+	SearchChatGifs                   http.HandlerFunc
+	TrendingChatGifs                 http.HandlerFunc
+	SearchChatStickers               http.HandlerFunc
+	TrendingChatStickers             http.HandlerFunc
+	GetChatMediaStatus               http.HandlerFunc
+	MintChatVoiceToken               http.HandlerFunc
+	ListPendingChatVoiceInvites      http.HandlerFunc
+	ListChatCallLogs                 http.HandlerFunc
+	GetWorkspaceChatRoom             http.HandlerFunc
+	EnsureWorkspaceChatRoom          http.HandlerFunc
+	ListChatRooms                    http.HandlerFunc
+	ChatUnreadSummary                http.HandlerFunc
+	ResolveDM                        http.HandlerFunc
+	CreateChatGroup                  http.HandlerFunc
+	InviteChatGroupMembers           http.HandlerFunc
+	CreateChatChannel                http.HandlerFunc
+	ListChatChannels                 http.HandlerFunc
+	ListProjectChatChannels          http.HandlerFunc
+	UpdateChatChannel                http.HandlerFunc
+	JoinChatChannel                  http.HandlerFunc
+	ArchiveChatChannel               http.HandlerFunc
+	UnarchiveChatChannel             http.HandlerFunc
+	ListChatThreadMessages           http.HandlerFunc
+	SendChatThreadMessage            http.HandlerFunc
+	FollowChatThread                 http.HandlerFunc
+	UnfollowChatThread               http.HandlerFunc
+	MarkChatThreadRead               http.HandlerFunc
+	ListChatThreads                  http.HandlerFunc
+	CreateTaskFromChatMessage        http.HandlerFunc
+	CreateChatMessageLink            http.HandlerFunc
+	ForwardChatMessage               http.HandlerFunc
+	ListChatRoomMessageLinks         http.HandlerFunc
+	ListChatRoomLinkPreviews         http.HandlerFunc
+	ListChatRoomLinkedTasks          http.HandlerFunc
+	GetChatRoomSharedSummary         http.HandlerFunc
+	TranscribeChatVoiceMessage       http.HandlerFunc
+	DeleteChatMessageLink            http.HandlerFunc
+	SyncChatThreadTask               http.HandlerFunc
+	UnsyncChatThreadTask             http.HandlerFunc
+	ListChatFollowUps                http.HandlerFunc
+	CreateChatFollowUp               http.HandlerFunc
+	PatchChatFollowUp                http.HandlerFunc
+	DeleteChatFollowUp               http.HandlerFunc
+	ConvertChatFollowUpToTask        http.HandlerFunc
+	ListChatRoomMembers              http.HandlerFunc
+	PatchChatRoomMember              http.HandlerFunc
+	PatchChatRoom                    http.HandlerFunc
+	UploadChatRoomAvatar             http.HandlerFunc
+	UploadChatRoomWallpaper          http.HandlerFunc
+	RemoveChatRoomAvatar             http.HandlerFunc
+	RemoveChatRoomMember             http.HandlerFunc
+	LeaveChatRoom                    http.HandlerFunc
+	MarkChatRoomRead                 http.HandlerFunc
+	AckChatDelivered                 http.HandlerFunc
+	MuteChatRoom                     http.HandlerFunc
+	UnmuteChatRoom                   http.HandlerFunc
+	ListChatRoomMessages             http.HandlerFunc
+	GetChatRoomMessage               http.HandlerFunc
+	SearchChatRoomMessages           http.HandlerFunc
+	SearchChatMessages               http.HandlerFunc
+	ListChatRoomMessagesAround       http.HandlerFunc
+	SendChatRoomMessage              http.HandlerFunc
+	SendChatVoiceMessage             http.HandlerFunc
+	SendChatFileMessage              http.HandlerFunc
+	SendChatDocumentMessage          http.HandlerFunc
+	SendChatDocumentLink             http.HandlerFunc
+	ShareChatMessageAsDocument       http.HandlerFunc
+	GetChatRoomDetail                http.HandlerFunc
+	GetChatPollVoters                http.HandlerFunc
+	VoteChatPollMessage              http.HandlerFunc
+	AddChatPollOptionMessage         http.HandlerFunc
+	ToggleChatMessageReaction        http.HandlerFunc
+	EditChatMessage                  http.HandlerFunc
+	DeleteChatMessage                http.HandlerFunc
+	ToggleChatMessagePin             http.HandlerFunc
+	SignalChatVoiceInvite            http.HandlerFunc
+	SignalChatVoiceAccept            http.HandlerFunc
+	SignalChatVoiceHangup            http.HandlerFunc
+	StartChatVoiceRecording          http.HandlerFunc
+	StopChatVoiceRecording           http.HandlerFunc
+	GetActiveChatVoiceRecording      http.HandlerFunc
+	ListChatVoiceRecordings          http.HandlerFunc
+	GetChatVoiceRecordingPlaybackURL http.HandlerFunc
+	StreamChatVoiceRecording         http.HandlerFunc
+	SignalChatTyping                 http.HandlerFunc
+	SignalChatPresence               http.HandlerFunc
+
+	// FileService read path (T4): the caller's staged uploads and the
+	// ticketed proxy route (router/files.go).
+	ResolveWorkspaceFiles http.HandlerFunc
+	GetFileContent        http.HandlerFunc
+
+	// Documents (C-01 §5 + §14; UNI-679, G1-05a): page CRUD-lite, file
+	// upload/commit/download, versions and embedded assets.
+	CreateDocument          http.HandlerFunc
+	EnsureMyFolder          http.HandlerFunc
+	CreateDocumentFile      http.HandlerFunc
+	CreateBlankDocumentFile http.HandlerFunc
+	StartOfficeJob          http.HandlerFunc
+	GetOfficeJob            http.HandlerFunc
+	GetOfficeJobOutput      http.HandlerFunc
+	CancelOfficeJob         http.HandlerFunc
+	OfficeCapability        http.HandlerFunc
+	OfficeAppCapabilities   http.HandlerFunc
+	CreateOfficeLaunch      http.HandlerFunc
+	ExchangeOfficeLaunch    http.HandlerFunc
+	RevokeOfficeLaunch      http.HandlerFunc
+	CopyDocument            http.HandlerFunc
+	// Documents "other sources" (UNI-1305 item C).
+	ListDocumentSources    http.HandlerFunc
+	DownloadDocumentSource http.HandlerFunc
+	SaveDocumentSource     http.HandlerFunc
+	// A view-only Office frame over a source file (UNI-1869): the session
+	// mint, then the frame-token routes Deps.OfficeFrameAuth guards.
+	MintSourceOfficeFrameToken  http.HandlerFunc
+	OpenOfficeFrameSource       http.HandlerFunc
+	GetOfficeFrameSourceContent http.HandlerFunc
+	GetDocument                 http.HandlerFunc
+	PatchDocument               http.HandlerFunc
+	UploadDocumentFile          http.HandlerFunc
+	CommitDocumentVersion       http.HandlerFunc
+	LookupCommitIntent          http.HandlerFunc
+	ListDocumentVersions        http.HandlerFunc
+	CreateDocumentVersion       http.HandlerFunc
+	GetDocumentVersion          http.HandlerFunc
+	RestoreDocumentVersion      http.HandlerFunc
+	UploadDocumentAsset         http.HandlerFunc
+	GetDocumentAsset            http.HandlerFunc
+	DownloadDocument            http.HandlerFunc
+	CreateDocumentDownloadJob   http.HandlerFunc
+	CreateFolderUpload          http.HandlerFunc
+	GetFolderUpload             http.HandlerFunc
+	CancelFolderUpload          http.HandlerFunc
+	PutFolderUploadContent      http.HandlerFunc
+	CompleteFolderUpload        http.HandlerFunc
+	GetDocumentDownloadJob      http.HandlerFunc
+	DownloadDocumentDownloadJob http.HandlerFunc
+	CreatePreviewScope          http.HandlerFunc
+	GetPreviewAsset             http.HandlerFunc
+
+	// Large upload sessions (BIGUP-S1, UNI-1862): the three create routes, and
+	// the session routes a session token or a frame token reaches.
+	CreateWorkspaceUploadSession http.HandlerFunc
+	CreateDocumentUploadSession  http.HandlerFunc
+	CreateFrameUploadSession     http.HandlerFunc
+	GetUploadSession             http.HandlerFunc
+	GetFrameUploadSession        http.HandlerFunc
+	CompleteUploadSession        http.HandlerFunc
+	CompleteFrameUploadSession   http.HandlerFunc
+	AbortUploadSession           http.HandlerFunc
+	AbortFrameUploadSession      http.HandlerFunc
+
+	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
+	// routes Deps.OfficeFrameAuth guards.
+	MintOfficeFrameToken     http.HandlerFunc
+	OpenOfficeFrameDocument  http.HandlerFunc
+	GetOfficeFrameContent    http.HandlerFunc
+	UploadOfficeFrameFile    http.HandlerFunc
+	CommitOfficeFrameVersion http.HandlerFunc
+	ListOfficeFrameRecents   http.HandlerFunc
+	UploadOfficeFrameAsset   http.HandlerFunc
+	SignOfficeFrameAssets    http.HandlerFunc
+	ResolveOfficeFrameAssets http.HandlerFunc
+	GetOfficeFrameAsset      http.HandlerFunc
+	GetOfficeFrameLinked     http.HandlerFunc
+	GetOfficeFrameAvatar     http.HandlerFunc
+	// PDF export of the frame's document (UNI-1013, W8).
+	ExportOfficeFramePDF http.HandlerFunc
+	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
+	OfficeFrameAiCredentialsList     http.HandlerFunc
+	OfficeFrameAiCredentialSave      http.HandlerFunc
+	OfficeFrameAiCredentialDelete    http.HandlerFunc
+	OfficeFrameAiByokChatCompletions http.HandlerFunc
+	OfficeFrameAiByokMessages        http.HandlerFunc
+	OfficeFrameAiByokGenerate        http.HandlerFunc
+	OfficeFrameAiByokModels          http.HandlerFunc
+	OfficeFrameAiCloudStatus         http.HandlerFunc
+	OfficeFrameAiCloudSearch         http.HandlerFunc
+	OfficeFrameAiCloudImages         http.HandlerFunc
+	OfficeFrameAiCloudAnalyzeMedia   http.HandlerFunc
+	OfficeFrameAiCloudTranscribe     http.HandlerFunc
+
+	// Document comments + favorites (G1-07, UNI-681; lane 07b).
+	ListDocumentComments          http.HandlerFunc
+	CreateDocumentComment         http.HandlerFunc
+	UpdateDocumentComment         http.HandlerFunc
+	DeleteDocumentComment         http.HandlerFunc
+	ResolveDocumentComment        http.HandlerFunc
+	ReopenDocumentComment         http.HandlerFunc
+	AddDocumentCommentReaction    http.HandlerFunc
+	RemoveDocumentCommentReaction http.HandlerFunc
+	// ListDocumentCommentRevisions is the edit history (G8-03, UNI-1398).
+	ListDocumentCommentRevisions  http.HandlerFunc
+	ListDocumentMentionCandidates http.HandlerFunc
+	// PutDocumentCommentAnchors is the editor's anchor map (G8-04, UNI-1399).
+	PutDocumentCommentAnchors http.HandlerFunc
+	FavoriteDocument          http.HandlerFunc
+	UnfavoriteDocument        http.HandlerFunc
+	ListDocumentFavorites     http.HandlerFunc
+
+	// Saved signatures (UNI-925 B6): the caller's own signature images.
+	ListSavedSignatures  http.HandlerFunc
+	CreateSavedSignature http.HandlerFunc
+	DeleteSavedSignature http.HandlerFunc
+
+	// Personal AI provider credentials (UNI-1008, ADR 0029).
+	ListAICredentials  http.HandlerFunc
+	SaveAICredential   http.HandlerFunc
+	DeleteAICredential http.HandlerFunc
+
+	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
+	// §5.3, §5.4; UNI-679, G1-05b).
+	ListDocuments       http.HandlerFunc
+	ListRecentDocuments http.HandlerFunc
+	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
+	ListFavoriteDocuments http.HandlerFunc
+	ListDocumentChanges   http.HandlerFunc
+	// Offline lease of one desktop device on one document (G5-08s).
+	PutOfficeOfflineLease    http.HandlerFunc
+	DeleteOfficeOfflineLease http.HandlerFunc
+
+	// Document edit lock and edit requests (UNI-1645, R1-R10).
+	GetDocumentEditLock       http.HandlerFunc
+	AcquireDocumentEditLock   http.HandlerFunc
+	HeartbeatDocumentEditLock http.HandlerFunc
+	ReleaseDocumentEditLock   http.HandlerFunc
+	TakeOverDocumentEditLock  http.HandlerFunc
+	PutDocumentEditHold       http.HandlerFunc
+	ClearDocumentEditHold     http.HandlerFunc
+	CreateDocumentEditRequest http.HandlerFunc
+	AnswerDocumentEditRequest http.HandlerFunc
+	CancelDocumentEditRequest http.HandlerFunc
+
+	ListSharedWithMe               http.HandlerFunc
+	DocumentAccessReport           http.HandlerFunc
+	ExportDocumentAccessReport     http.HandlerFunc
+	DocumentAccessReportSummary    http.HandlerFunc
+	DocumentAccessReportPrincipals http.HandlerFunc
+	DocumentTree                   http.HandlerFunc
+	MoveDocument                   http.HandlerFunc
+	ArchiveDocument                http.HandlerFunc
+	ArchiveImpact                  http.HandlerFunc
+	RestoreDocument                http.HandlerFunc
+	PurgeDocument                  http.HandlerFunc
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
+	// kept forever - "archive" is the trash.
+	ShelveDocument              http.HandlerFunc
+	UnshelveDocument            http.HandlerFunc
+	ListDocumentShares          http.HandlerFunc
+	ListDocumentShareCandidates http.HandlerFunc
+	CreateDocumentShare         http.HandlerFunc
+	CreateDocumentShareBatch    http.HandlerFunc
+	UpdateDocumentAccess        http.HandlerFunc
+	RevokeDocumentShare         http.HandlerFunc
+	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
+	// managers list, approve and decline. The create answer is uniform (202)
+	// so the route never proves the document exists.
+	CreateDocumentAccessRequest  http.HandlerFunc
+	ListDocumentAccessRequests   http.HandlerFunc
+	ApproveDocumentAccessRequest http.HandlerFunc
+	DeclineDocumentAccessRequest http.HandlerFunc
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	CreateDocumentBreakGlass http.HandlerFunc
+	RevokeDocumentBreakGlass http.HandlerFunc
+	GetDocumentAdminSummary  http.HandlerFunc
+	CreateDocumentLink       http.HandlerFunc
+	RevokeDocumentLink       http.HandlerFunc
+	ListDocumentAccessLogs   http.HandlerFunc
+	GetDocumentSettings      http.HandlerFunc
+	SetDocumentSettings      http.HandlerFunc
+	GetPublicDocument        http.HandlerFunc
+	DownloadPublicDocument   http.HandlerFunc
+	GetPublicDocumentAsset   http.HandlerFunc
 }

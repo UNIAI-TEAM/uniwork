@@ -2,7 +2,9 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 )
 
 var (
@@ -26,6 +28,39 @@ var (
 	ErrQuotaExceeded        = errors.New("quota_exceeded")
 	ErrSubscriptionInactive = errors.New("subscription_inactive")
 )
+
+// ErrPasswordIncorrect: a signed-in caller re-entered their password to
+// confirm an action (handing an organization over) and it did not match.
+// It is not ErrInvalidCredentials on purpose: that one answers 401, which the
+// client reads as an expired session and answers by refreshing and replaying
+// the request — the password would be checked, and sent, twice. Login keeps
+// 401 invalid_credentials.
+var ErrPasswordIncorrect = errors.New("password_incorrect")
+
+func errPasswordIncorrect() error {
+	return CodedError{Code: "password_incorrect", Status: http.StatusForbidden, Msg: "mật khẩu không đúng", Err: ErrPasswordIncorrect}
+}
+
+// Account deletion asks someone already signed in to prove it is them
+// (DeleteAccount): the password, else a two-factor code, else the typed email
+// address. A wrong proof is refused with its own code and never 401, for the
+// reason ErrPasswordIncorrect gives. A wrong password reuses that code.
+//
+// ErrMfaCodeIncorrect is not ErrInvalidCode on purpose either: invalid_code
+// carries error_class "session" (an emailed verification code, a sign-in
+// step), which tells a client to run session recovery.
+var (
+	ErrMfaCodeIncorrect          = errors.New("mfa_code_incorrect")
+	ErrEmailConfirmationMismatch = errors.New("email_confirmation_mismatch")
+)
+
+func errMfaCodeIncorrect() error {
+	return CodedError{Code: "mfa_code_incorrect", Status: http.StatusForbidden, Msg: "mã xác thực hai lớp không đúng", Err: ErrMfaCodeIncorrect}
+}
+
+func errEmailConfirmationMismatch() error {
+	return CodedError{Code: "email_confirmation_mismatch", Status: http.StatusBadRequest, Msg: "địa chỉ email nhập lại không khớp", Err: ErrEmailConfirmationMismatch}
+}
 
 // Organization status values (F-11). Anything but active is closed to the
 // organization's own members; only /api/v1/admin reaches it.
@@ -54,6 +89,41 @@ func errMemberDeactivated() error {
 	return CodedError{Code: "member_deactivated", Status: http.StatusForbidden, Msg: "tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này", Err: ErrMemberDeactivated}
 }
 
+// ErrWorkspaceSeatRequired is what the copy command answers a caller who may
+// edit the source (a share, a link) but holds no seat in the source's
+// workspace (BE-12-201). It is separate from ErrForbidden on purpose: the
+// desktop client tells "you are not a member of this workspace" (ask for a
+// seat) from "you may not edit the destination folder" (pick another), and
+// RequireMember itself stays a plain ErrForbidden for every other caller.
+var ErrWorkspaceSeatRequired = errors.New("workspace_seat_required")
+
+func errWorkspaceSeatRequired() error {
+	return CodedError{Code: "workspace_seat_required", Status: http.StatusForbidden, Msg: "bạn cần là thành viên của không gian làm việc này để tạo bản sao ở đó", Err: ErrWorkspaceSeatRequired}
+}
+
+// ErrOrganizationDeletionScheduled is what both membership gates answer for a
+// member of an organization whose deletion is waiting out its five days. The
+// owner still passes, so they can download files and cancel.
+var ErrOrganizationDeletionScheduled = errors.New("organization_deletion_scheduled")
+
+func errOrganizationDeletionScheduled(at time.Time) error {
+	when := at.In(time.FixedZone("ICT", 7*3600)).Format("02/01/2006")
+	return CodedError{
+		Code:   "organization_deletion_scheduled",
+		Status: http.StatusForbidden,
+		Msg:    fmt.Sprintf("tổ chức sẽ bị xóa vào %s. Chỉ chủ sở hữu còn vào được.", when),
+		Err:    ErrOrganizationDeletionScheduled,
+	}
+}
+
+// errInvitationForAnotherEmail refuses an invitation redeemed by an account
+// whose address is not the one it was sent to. The answer names no address:
+// the person holding the link learns only that they must sign in as the
+// invitee.
+func errInvitationForAnotherEmail() error {
+	return CodedError{Code: "invitation_email_mismatch", Status: http.StatusForbidden, Msg: "lời mời này gửi tới một email khác", Err: ErrForbidden}
+}
+
 // ErrLastOwner: an organization always has exactly one owner, so the last one
 // cannot leave or be demoted — they transfer ownership first.
 var ErrLastOwner = errors.New("last_owner")
@@ -68,6 +138,94 @@ var ErrOwnerMustTransfer = errors.New("owner_must_transfer")
 
 func errOwnerMustTransfer() error {
 	return CodedError{Code: "owner_must_transfer", Status: http.StatusConflict, Msg: "bạn đang là chủ sở hữu tổ chức; hãy chuyển quyền trước khi xóa tài khoản", Err: ErrOwnerMustTransfer}
+}
+
+// One account, one organization (ADR 0032). Each sentinel is wrapped in a
+// CodedError so the handler writes the code and its details; errors.Is
+// still matches the sentinel.
+var (
+	ErrAlreadyInOrganization      = errors.New("already_in_organization")
+	ErrOrganizationSwitchRequired = errors.New("organization_switch_required")
+	ErrMemberInOtherOrganization  = errors.New("member_in_other_organization")
+)
+
+// errAlreadyInOrganization names the caller's own organization, so the client
+// can point them at it; it is theirs, so nothing leaks.
+func errAlreadyInOrganization(current OrganizationRef) error {
+	return CodedError{
+		Code: "already_in_organization", Status: http.StatusConflict,
+		Msg:    "mỗi tài khoản chỉ thuộc một tổ chức; hãy rời tổ chức hiện tại trước",
+		Err:    ErrAlreadyInOrganization,
+		Fields: map[string]any{"organization": current},
+	}
+}
+
+// errOrganizationSwitchRequired carries the caller's organizations that stand
+// in the way and what each one needs before the invitation can be accepted.
+func errOrganizationSwitchRequired(conflicts []MembershipConflict) error {
+	return CodedError{
+		Code: "organization_switch_required", Status: http.StatusConflict,
+		Msg:    "bạn đang thuộc một tổ chức khác; cần rời tổ chức đó trước khi tham gia",
+		Err:    ErrOrganizationSwitchRequired,
+		Fields: map[string]any{"conflicts": conflicts},
+	}
+}
+
+// errMemberInOtherOrganization refuses a reactivation without naming the
+// organization the person moved to: that one is another tenant's business.
+func errMemberInOtherOrganization() error {
+	return CodedError{
+		Code: "member_in_other_organization", Status: http.StatusConflict,
+		Msg: "người này đã tham gia một tổ chức khác", Err: ErrMemberInOtherOrganization,
+	}
+}
+
+// ErrInvitationGone: the invitation exists but no longer lets anybody in. The
+// three codes say why, so the invitation page can tell the person, and the
+// switch it was part of has rolled back entirely (spec §4.4, AC-10).
+var ErrInvitationGone = errors.New("invitation_gone")
+
+func errInvitationExpired() error {
+	return CodedError{Code: "invitation_expired", Status: http.StatusGone, Msg: "lời mời đã hết hạn", Err: ErrInvitationGone}
+}
+
+func errInvitationRevoked() error {
+	return CodedError{Code: "invitation_revoked", Status: http.StatusGone, Msg: "lời mời đã bị thu hồi", Err: ErrInvitationGone}
+}
+
+func errInvitationAccepted() error {
+	return CodedError{Code: "invitation_accepted", Status: http.StatusGone, Msg: "lời mời đã được dùng", Err: ErrInvitationGone}
+}
+
+// errMembershipBusy answers a switch that lost a lock race Postgres had to
+// break (a deadlock or a serialization failure). Nothing was changed, and the
+// same request sent again decides on what the other one committed.
+func errMembershipBusy() error {
+	return CodedError{
+		Code: "membership_busy", Status: http.StatusConflict,
+		Msg: "một thay đổi tổ chức khác đang diễn ra; hãy thử lại", Err: ErrConflict,
+	}
+}
+
+// Closing an organization (ADR 0032 D5) needs the owner to be its only active
+// member and the slug typed back as confirmation.
+var (
+	ErrOrganizationHasMembers = errors.New("organization_has_members")
+	ErrCloseConfirmMismatch   = errors.New("close_confirm_mismatch")
+)
+
+func errOrganizationHasMembers() error {
+	return CodedError{
+		Code: "organization_has_members", Status: http.StatusConflict,
+		Msg: "tổ chức vẫn còn thành viên khác; hãy chuyển quyền sở hữu thay vì đóng", Err: ErrOrganizationHasMembers,
+	}
+}
+
+func errCloseConfirmMismatch() error {
+	return CodedError{
+		Code: "close_confirm_mismatch", Status: http.StatusBadRequest,
+		Msg: "địa chỉ tổ chức nhập lại không khớp", Err: ErrCloseConfirmMismatch,
+	}
 }
 
 func errCannotDeactivateSelf() error {
@@ -101,6 +259,10 @@ func (e CodedError) Error() string {
 
 func (e CodedError) Unwrap() error { return e.Err }
 
+// CodeValue lets transport middleware classify additive error codes without
+// importing the service package (which would invert the layer dependency).
+func (e CodedError) CodeValue() string { return e.Code }
+
 func coded(status int, code, msg string) error {
 	return CodedError{Code: code, Status: status, Msg: msg}
 }
@@ -110,10 +272,27 @@ func codedIs(err error, code string) bool {
 	return errors.As(err, &ce) && ce.Code == code
 }
 
+// errMeetingVersionConflict is a meeting edit made against a version that is
+// no longer current (MCP, ADR 0033).
+func errMeetingVersionConflict(current int32) error {
+	return CodedError{
+		Code: "revision_conflict", Status: http.StatusConflict, Msg: "cuộc họp đã được người khác thay đổi; tải lại rồi thử lại",
+		Err: ErrConflict, Fields: map[string]any{"want": current},
+	}
+}
+
 func errInvalidState() error {
 	return coded(http.StatusConflict, "invalid_meeting_state", "thao tác không hợp lệ với trạng thái cuộc họp hiện tại")
 }
 
 func errNotHost() error {
 	return coded(http.StatusForbidden, "not_meeting_host", "chỉ chủ tọa hoặc quản trị workspace mới được thực hiện")
+}
+
+func errNotClerk() error {
+	return coded(http.StatusForbidden, "not_meeting_clerk", "chỉ chủ tọa, thư ký hoặc quản trị workspace mới được thực hiện")
+}
+
+func errNotProjectEditor() error {
+	return coded(http.StatusForbidden, "not_project_editor", "chỉ người tạo, người phụ trách hoặc quản trị workspace mới được sửa dự án")
 }

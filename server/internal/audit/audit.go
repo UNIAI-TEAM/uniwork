@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -21,15 +22,22 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Kind is who acted. The three values are fixed by ADR 0007: an agent is an
+// Kind is who acted. ADR 0007 fixes human, agent and system: an agent is an
 // actor in its own right, and "system" covers scheduled jobs and workers that
 // act with nobody's authority.
+//
+// Guest (ADR 0007 update 2026-10-01) is a meeting guest who joined by invite
+// link without an account — the first guest command audited is a ballot. It
+// only ever appears as an audit_events / outbox_events actor, never in a
+// business table's `_kind` column: those keep their CHECK of
+// human/agent/system, and a guest creates no row that has an author.
 type Kind string
 
 const (
 	KindHuman  Kind = "human"
 	KindAgent  Kind = "agent"
 	KindSystem Kind = "system"
+	KindGuest  Kind = "guest"
 )
 
 // Actor identifies who performed a command.
@@ -43,6 +51,10 @@ func User(id string) Actor { return Actor{Kind: KindHuman, ID: id} }
 
 // System is the actor for a worker or scheduled job; id is the job name.
 func System(job string) Actor { return Actor{Kind: KindSystem, ID: job} }
+
+// Guest is the actor for a meeting guest; id is the guest session id
+// (meeting_participants.guest_id), never a user id.
+func Guest(id string) Actor { return Actor{Kind: KindGuest, ID: id} }
 
 // Change is the before/after of one field. Nothing else of the row is stored:
 // a full snapshot would put PII in a table that can never be edited.
@@ -64,9 +76,12 @@ type Entry struct {
 	Metadata       map[string]any
 }
 
-// Event is one row on the outbox. Payload carries ids only — a consumer that
-// needs content refetches it, so an event can never leak a field the reader is
-// not allowed to see.
+// Event is one row on the outbox. Payload carries ids, and, only on a frame
+// that carries patch fields, the revision_before/revision pair that guards them. The only
+// content it may carry is a field the topic's catalogue row lists in
+// outbox.EventDef.Patch, which ADR 0015 limits to fields every receiver of
+// that topic may already read. Any other content a consumer needs it
+// refetches, so an event never leaks a field the reader is not allowed to see.
 type Event struct {
 	Topic   string
 	Version int
@@ -76,6 +91,10 @@ type Event struct {
 	// Record; set them explicitly when emitting without an audit row.
 	OrganizationID string
 	WorkspaceID    string
+
+	// AvailableAt delays delivery. The zero value is delivered immediately,
+	// which is every event except a scheduled organization deletion.
+	AvailableAt time.Time
 }
 
 // Counter receives one call per audit row written, for the Prometheus
@@ -116,7 +135,7 @@ func (r *Recorder) Record(ctx context.Context, q *db.Queries, e Entry, emit ...E
 	if err != nil {
 		return err
 	}
-	metadata, err := encodeJSON(e.Metadata)
+	metadata, err := encodeJSON(withVia(e.Metadata, info.Via))
 	if err != nil {
 		return err
 	}
@@ -153,6 +172,132 @@ func (r *Recorder) Record(ctx context.Context, q *db.Queries, e Entry, emit ...E
 		}
 	}
 	return nil
+}
+
+// Recorded is one command's worth of Record input inside a batch: the audit
+// entry and the events it emits, exactly as Record takes them.
+type Recorded struct {
+	Entry  Entry
+	Events []Event
+}
+
+// RecordMany is Record for a command that touches many rows at once (a folder
+// archive): the same validation, the same rows - one audit row and the emitted
+// outbox rows per element, in order - written with one statement per table
+// instead of one round trip per row. Nothing is skipped or merged; a batch is
+// only a faster way to write what Record would have written.
+func (r *Recorder) RecordMany(ctx context.Context, q *db.Queries, batch []Recorded) error {
+	if q == nil {
+		return fmt.Errorf("audit: nil queries")
+	}
+	if len(batch) == 0 {
+		return nil
+	}
+	info := RequestFromContext(ctx)
+	correlationID := info.CorrelationID
+	if correlationID == "" {
+		correlationID = util.NewID()
+	}
+	type auditRow struct {
+		ID             string `json:"id"`
+		OrganizationID string `json:"organization_id"`
+		WorkspaceID    string `json:"workspace_id"`
+		ActorKind      string `json:"actor_kind"`
+		ActorID        string `json:"actor_id"`
+		Action         string `json:"action"`
+		ResourceType   string `json:"resource_type"`
+		ResourceID     string `json:"resource_id"`
+		Changes        string `json:"changes"`
+		Metadata       string `json:"metadata"`
+		CorrelationID  string `json:"correlation_id"`
+		RequestID      string `json:"request_id"`
+		IPAddress      string `json:"ip_address"`
+		UserAgent      string `json:"user_agent"`
+	}
+	type outboxRow struct {
+		ID             string `json:"id"`
+		WorkspaceID    string `json:"workspace_id"`
+		OrganizationID string `json:"organization_id"`
+		Topic          string `json:"topic"`
+		Payload        string `json:"payload"`
+		EventVersion   int    `json:"event_version"`
+		CorrelationID  string `json:"correlation_id"`
+		ActorKind      string `json:"actor_kind"`
+		ActorID        string `json:"actor_id"`
+	}
+	audits := make([]auditRow, 0, len(batch))
+	var outbox []outboxRow
+	for _, rec := range batch {
+		e := rec.Entry
+		if e.Action == "" || e.ResourceType == "" {
+			return fmt.Errorf("audit: entry needs action and resource_type")
+		}
+		if e.Actor.Kind == "" {
+			return fmt.Errorf("audit: entry needs an actor kind")
+		}
+		changes, err := encodeJSON(e.Changes)
+		if err != nil {
+			return err
+		}
+		metadata, err := encodeJSON(withVia(e.Metadata, info.Via))
+		if err != nil {
+			return err
+		}
+		audits = append(audits, auditRow{
+			ID: util.NewID(), OrganizationID: e.OrganizationID, WorkspaceID: e.WorkspaceID,
+			ActorKind: string(e.Actor.Kind), ActorID: e.Actor.ID, Action: e.Action,
+			ResourceType: e.ResourceType, ResourceID: e.ResourceID, Changes: changes, Metadata: metadata,
+			CorrelationID: correlationID, RequestID: info.RequestID, IPAddress: info.IP, UserAgent: info.UserAgent,
+		})
+		for _, ev := range rec.Events {
+			if ev.Topic == "" {
+				return fmt.Errorf("audit: event needs a topic")
+			}
+			if ev.OrganizationID == "" {
+				ev.OrganizationID = e.OrganizationID
+			}
+			if ev.WorkspaceID == "" {
+				ev.WorkspaceID = e.WorkspaceID
+			}
+			version := ev.Version
+			if version == 0 {
+				version = 1
+			}
+			payload := ev.Payload
+			if payload == nil {
+				payload = map[string]string{}
+			}
+			b, err := json.Marshal(payload)
+			if err != nil {
+				return err
+			}
+			outbox = append(outbox, outboxRow{
+				ID: util.NewID(), WorkspaceID: ev.WorkspaceID, OrganizationID: ev.OrganizationID,
+				Topic: ev.Topic, Payload: string(b), EventVersion: version, CorrelationID: correlationID,
+				ActorKind: string(e.Actor.Kind), ActorID: e.Actor.ID,
+			})
+		}
+	}
+	rows, err := json.Marshal(audits)
+	if err != nil {
+		return err
+	}
+	if err := q.InsertAuditEventsBatch(ctx, rows); err != nil {
+		return err
+	}
+	if r.Counter != nil {
+		for _, rec := range batch {
+			r.Counter.IncAuditEvent(rec.Entry.Action)
+		}
+	}
+	if len(outbox) == 0 {
+		return nil
+	}
+	rows, err = json.Marshal(outbox)
+	if err != nil {
+		return err
+	}
+	return q.InsertDomainOutboxEventsBatch(ctx, rows)
 }
 
 // Emit writes outbox rows without an audit row. It exists for infrastructure
@@ -201,6 +346,7 @@ func (r *Recorder) insertEvent(ctx context.Context, q *db.Queries, correlationID
 		CorrelationID:  optText(correlationID),
 		ActorKind:      optText(string(actor.Kind)),
 		ActorID:        optText(actor.ID),
+		AvailableAt:    optTime(ev.AvailableAt),
 	})
 }
 
@@ -223,4 +369,11 @@ func optText(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
+}
+
+func optTime(t time.Time) pgtype.Timestamptz {
+	if t.IsZero() {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: t, Valid: true}
 }

@@ -37,3 +37,53 @@ func TestNoInheritedCompatKeysArePublished(t *testing.T) {
 		}
 	}
 }
+
+// The web frame of every genoffice module has its own flag (UNI-1013 docs,
+// UNI-1014/1015/1016 the others): on by default (user decision 2026-10-09,
+// CONTRACT C14), public, owner office, one review date.
+func TestOfficeWebModuleFlagsArePublicOnByDefaultAndReviewed(t *testing.T) {
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	for _, key := range []string{"office_docs_web", "office_pdf_web", "office_markdown_web", "office_html_web", "office_slides_web", "office_sheets_web"} {
+		f, ok := Lookup(key)
+		if !ok {
+			t.Fatalf("%s is not declared", key)
+		}
+		if !f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2026, 12, 5)) {
+			t.Fatalf("%s = %+v, want default on, public, owner office, review 2026-12-05", key, f)
+		}
+		if v, published := flags[key]; !published || !v {
+			t.Fatalf("%s published=%v value=%v, want published and true", key, published, v)
+		}
+	}
+}
+
+func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	for _, key := range []string{"office_docx", "office_xlsx", "office_pptx", "office_pdf", "office_markdown", "office_html"} {
+		f, ok := Lookup(key)
+		if !ok {
+			t.Fatalf("%s is not declared", key)
+		}
+		if !f.Default || !f.Public || f.Owner != "office" {
+			t.Fatalf("%s = %+v, want default on, public, owner office", key, f)
+		}
+		if v, published := flags[key]; !published || !v {
+			t.Fatalf("%s published=%v value=%v, want published and true", key, published, v)
+		}
+	}
+	engine, ok := Lookup("office_engine")
+	if !ok || !engine.Default {
+		t.Fatalf("office_engine = %+v ok=%v, want declared and default on", engine, ok)
+	}
+}
+
+func TestOfficeTxtOpenFlagIsGone(t *testing.T) {
+	// .txt opens like .md with no flag of its own (UNI-2046): the key is not
+	// declared and not published to the web.
+	if _, ok := Lookup("office_txt_open"); ok {
+		t.Fatal("office_txt_open is still declared")
+	}
+	if _, published := EvaluateFrontendPublicFlags(context.Background(), nil)["office_txt_open"]; published {
+		t.Fatal("office_txt_open is still published")
+	}
+}

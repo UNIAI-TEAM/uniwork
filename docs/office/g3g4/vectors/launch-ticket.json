@@ -1,0 +1,20 @@
+{
+  "name": "office launch ticket vectors",
+  "ttl_seconds": 120,
+  "clock_skew_seconds": 30,
+  "valid": [
+    {
+      "id": "valid-ticket",
+      "ticket": "ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde",
+      "issuer": "office-launch",
+      "single_use": true,
+      "expected_outcome": "accepted-by-deep-link-parser"
+    }
+  ],
+  "invalid": [
+    { "id": "login-code-prefix", "ticket": "code_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "login_code" },
+    { "id": "too-short", "ticket": "ticket_short", "expected_reason": "invalid_ticket" },
+    { "id": "login-state-prefix", "ticket": "state_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "login_code" },
+    { "id": "oversized", "ticket_length": 193, "expected_reason": "oversized_ticket" }
+  ]
+}

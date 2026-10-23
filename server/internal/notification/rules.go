@@ -5,21 +5,74 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// refused is a gate answer meaning "not a member now"; any other error is an
+// outage the outbox must retry (UNI-1709).
+func refused(err error) bool {
+	return errors.Is(err, service.ErrForbidden) || errors.Is(err, service.ErrNotFound) ||
+		errors.Is(err, service.ErrMemberDeactivated) || errors.Is(err, service.ErrOrganizationSuspended)
+}
 
 // MemberChecker is the one membership gate (CLAUDE.md § Database and
 // Migration Rules); WorkspaceService satisfies it. A recipient who is no
 // longer a member gets nothing.
 type MemberChecker interface {
 	RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error)
+}
+
+// OrgMemberChecker is the organization membership gate for organization-level
+// notifications. OrganizationService satisfies it without this package
+// importing internal/service.
+type OrgMemberChecker interface {
+	RequireMember(ctx context.Context, orgID, userID string) (db.OrganizationMember, error)
+}
+
+// DocumentReadChecker is the document permission port the document comment
+// rules filter recipients through: a person is only notified while they can
+// read the document right now. DocumentService implements it; it is
+// injected through SetDocumentReaders so this package never imports
+// internal/service (arch test).
+type DocumentReadChecker interface {
+	CanReadDocument(ctx context.Context, userID, documentID string) (bool, error)
+	FilterDocumentReaders(ctx context.Context, documentID string, userIDs []string) ([]string, error)
+}
+
+// DocumentAdministerChecker is the administer twin of DocumentReadChecker
+// (DOC-07, R1-6): the subset of userIDs that may administer the document right
+// now. The existing read port cannot answer it - an AdminScope caller
+// administers a restricted document they cannot read - so the request rule
+// needs its own. DocumentService implements it; it is injected through
+// SetDocumentAdministrators, and unwired the request rule sends nothing.
+type DocumentAdministerChecker interface {
+	FilterDocumentAdministrators(ctx context.Context, documentID string, userIDs []string) ([]string, error)
+}
+
+// SummaryChecker says whether AI meeting summaries are open to an
+// organization (plan and model). MeetingService implements it; it is
+// injected through SetMeetingSummaries so the rule never guesses (C-11 §9.1 V1).
+type SummaryChecker interface {
+	SummaryAvailable(ctx context.Context, orgID string) bool
+}
+
+// MentionClaim names the durable mention row a draft may deliver at most
+// once: the consumer claims it (ClaimDocumentCommentMention) inside the same
+// transaction that writes the notification, and 0 rows updated drops the
+// draft (contract-collab section 8.2).
+type MentionClaim struct {
+	MentionID string
 }
 
 // Draft is a notification a rule wants to create for one user. The consumer
@@ -35,12 +88,43 @@ type Draft struct {
 	ActorKind      string
 	ActorID        string
 	Params         map[string]string
+	// Claim is set on mention drafts: the rule only reads mention rows, the
+	// consumer's write() claims the row in the notification's own tx.
+	Claim *MentionClaim
+	// OncePerGroup is set on drafts that may never write a second row for
+	// the same (user, kind, group_key) - the open-row merge upsert alone
+	// does not cover a first row already read or archived (BE-TN-3). The
+	// consumer takes a transaction-scoped advisory lock on the group and then
+	// checks for an existing row inside the notification's own transaction,
+	// so a concurrent event of the same group waits and treats the committed
+	// row as already delivered (BE-TN-9).
+	OncePerGroup bool
+	// DocChange is set on document_changed drafts (UNI-2056): the consumer
+	// folds them by their own window instead of the open-row upsert.
+	DocChange *DocChange
 }
 
-// env is what a rule may touch: read queries and the membership gate.
+// CallRingChecker says whether a chat call still rings for a user: live, and
+// not answered by them here or on another device. ChatService implements it
+// over its in-memory call sessions, so it answers for this node only: the
+// backend runs one replica (deploy/app/uniwork/values.yaml), the same
+// assumption the call's token mint makes. It is injected through SetCallRinging.
+type CallRingChecker interface {
+	VoiceCallRinging(roomID, callID, userID string) bool
+}
+
+// env is what a rule may touch: read queries, the membership gate and the
+// injected document-read resolver.
 type env struct {
-	q       *db.Queries
-	members MemberChecker
+	q         *db.Queries
+	members   MemberChecker
+	orgs      OrgMemberChecker
+	docs      DocumentReadChecker
+	docAdmins DocumentAdministerChecker
+	summaries SummaryChecker
+	calls     CallRingChecker
+	// docMemo keeps the per-command lookups of the document_changed rules.
+	docMemo *docCommandMemo
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -48,12 +132,59 @@ type env struct {
 type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error)
 
 var rules = map[string]rule{
-	"task.updated":        ruleTaskUpdated,
-	"task.comment_added":  ruleTaskCommentAdded,
-	"participant.invited": ruleParticipantInvited,
-	"member.joined":       ruleMemberJoined,
-	"member.role_changed": ruleRoleChanged,
-	"audit.exported":      ruleAuditExported,
+	"task.updated":           ruleTaskUpdated,
+	"task.comment_added":     ruleTaskCommentAdded,
+	"document.comment_added": ruleDocumentCommentAdded,
+	// A page body that newly names a reader (UNI-1968): the save writes the
+	// event, this rule decides who may still read it.
+	"document.body_mentioned": ruleDocumentBodyMentioned,
+	// The edit-time mentions and the resolve notification of the UNI-1337
+	// table (contract-collab section 8.3, G8-05).
+	"document.comment_updated":  ruleDocumentCommentUpdated,
+	"document.comment_resolved": ruleDocumentCommentResolved,
+	// The edit lock (UNI-1645): the holder, the requester and the previous
+	// holder each get one notification, addressed by payload.user_id.
+	"document.edit_requested":        ruleDocumentEditRequested,
+	"document.edit_request_answered": ruleDocumentEditRequestAnswered,
+	"document.lock_taken_over":       ruleDocumentEditTakenOver,
+	// DOC-05 (UNI-1628): an admin opened emergency view access to a
+	// restricted document; the owner must hear about it.
+	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
+	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
+	// effective level on the document.
+	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
+	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
+	// the answer that reaches the requester wherever they are.
+	"document.access_requested":       ruleDocumentAccessRequested,
+	"document.access_request_decided": ruleDocumentAccessRequestDecided,
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
+	// document; the ACL owner hears once per archive batch.
+	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
+	// DOC-CHANGE-NOTIFY (UNI-2056): one document_changed notice per
+	// recipient per command for every in-scope change of a document
+	// somebody besides the actor can read. The topics that already had a
+	// notify-lane consumer carry their verb themselves; every other verb
+	// arrives on the server-only document.change_noticed, so the frame
+	// topics of a rename, restore, shelve, access change, link or version
+	// keep no consumer here and stay on the realtime lane (BE-R1-1).
+	"document.moved":          ruleDocumentMovedChange,
+	"document.deleted":        ruleDocumentDeletedChange,
+	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.change_noticed": ruleDocumentChangeNoticed,
+
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"chat.reminder.due":      ruleChatReminderDue,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
+	"meeting.ended":          ruleMeetingEnded,
+
+	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
+	"chat.dm.received":           chatMessageRule(KindChatDM),
+	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
+	"chat.voice.invite_received": ruleChatVoiceInviteReceived,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -94,7 +225,7 @@ func changedFields(ctx context.Context, q *db.Queries, ev outbox.Row, action, re
 		return nil, nil
 	}
 	row, err := q.GetAuditEventByCorrelation(ctx, db.GetAuditEventByCorrelationParams{
-		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID,
+		CorrelationID: ev.CorrelationID.String, Action: action, ResourceID: resourceID, Before: ev.CreatedAt,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -127,6 +258,7 @@ type recipients struct {
 	wsID  string
 	seen  map[string]bool
 	order []string
+	err   error
 }
 
 func newRecipients(ctx context.Context, e env, ev outbox.Row, wsID string) *recipients {
@@ -142,6 +274,9 @@ func (r *recipients) add(userID string) {
 	}
 	if r.wsID != "" {
 		if _, err := r.e.members.RequireMember(r.ctx, r.wsID, userID); err != nil {
+			if !refused(err) && r.err == nil {
+				r.err = err
+			}
 			return
 		}
 	}
@@ -149,7 +284,10 @@ func (r *recipients) add(userID string) {
 	r.order = append(r.order, userID)
 }
 
-func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params map[string]string) []Draft {
+func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params map[string]string) ([]Draft, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	out := make([]Draft, 0, len(r.order))
 	for _, uid := range r.order {
 		out = append(out, Draft{
@@ -158,7 +296,7 @@ func (r *recipients) drafts(orgID, kind, groupKey, resType, resID string, params
 			ActorKind: actorKindOf(r.ev), ActorID: r.ev.ActorID.String, Params: params,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // actorKindOf defaults to system for rows written before actor_kind existed.
@@ -201,7 +339,11 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	if _, ok := changes["assignee_id"]; ok && task.AssigneeID.Valid && task.AssigneeKind == string(audit.KindHuman) {
 		r := newRecipients(ctx, e, ev, task.WorkspaceID)
 		r.add(task.AssigneeID.String)
-		out = append(out, r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, params)...)
+		ds, err := r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 	if status, ok := changeTo(changes, "status"); ok {
 		sp := map[string]string{"actor": params["actor"], "task": task.Title, "status": status}
@@ -212,7 +354,11 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 		if task.CreatedByKind == string(audit.KindHuman) {
 			r.add(task.CreatedBy)
 		}
-		out = append(out, r.drafts(orgID, KindTaskStatusChanged, "task:"+task.ID+":status", "task", task.ID, sp)...)
+		ds, err := r.drafts(orgID, KindTaskStatusChanged, "task:"+task.ID+":status", "task", task.ID, sp)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 	return out, nil
 }
@@ -273,7 +419,11 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 		for _, uid := range r.order {
 			mentioned[uid] = true
 		}
-		out = append(out, r.drafts(orgID, KindMentioned, "task:"+task.ID+":mention:"+p["comment_id"], "task", task.ID, params)...)
+		ds, err := r.drafts(orgID, KindMentioned, "task:"+task.ID+":mention:"+p["comment_id"], "task", task.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
 	}
 
 	r := newRecipients(ctx, e, ev, task.WorkspaceID)
@@ -291,7 +441,805 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 			r.add(c.AuthorID)
 		}
 	}
-	out = append(out, r.drafts(orgID, KindTaskCommented, "task:"+task.ID+":commented", "task", task.ID, params)...)
+	ds, err := r.drafts(orgID, KindTaskCommented, "task:"+task.ID+":commented", "task", task.ID, params)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, ds...)
+	return out, nil
+}
+
+// isActorOfEvent reports whether uid is the human actor of the event; a rule
+// never notifies somebody about their own action.
+func isActorOfEvent(ev outbox.Row, uid string) bool {
+	return ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid
+}
+
+// documentCommentContext loads the document and comment an event names, and
+// proves the pair belongs to the event's own tenant. ok=false means "nothing
+// to do": the document or comment is gone, or the row is not the event's.
+func documentCommentContext(ctx context.Context, e env, ev outbox.Row, p map[string]string) (db.Document, db.DocumentComment, bool, error) {
+	if p["document_id"] == "" || p["comment_id"] == "" {
+		return db.Document{}, db.DocumentComment{}, false, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Document{}, db.DocumentComment{}, false, nil
+	}
+	if err != nil {
+		return db.Document{}, db.DocumentComment{}, false, err
+	}
+	// The id came from the event payload: only trust a document that lives
+	// in the event's own tenant pair.
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return db.Document{}, db.DocumentComment{}, false, nil
+	}
+	comment, err := e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+		ID: p["comment_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return doc, db.DocumentComment{}, false, nil // deleted between the event and this delivery
+	}
+	if err != nil {
+		return db.Document{}, db.DocumentComment{}, false, err
+	}
+	return doc, comment, true, nil
+}
+
+// ruleDocumentBodyMentioned drafts the person a page-body mention newly named
+// (UNI-1968, BODY-MENTION-NOTIFY). The save already dropped the actor, an
+// agent, an id outside the document's organization and anybody past the
+// per-save cap (service.newBodyMentionRecipients); this rule is the
+// delivery-time half, so the recipient list is decided when the frame goes
+// out, never when the save was written:
+//
+//   - the document is re-read and must still be the event's own tenant pair,
+//     because the id in the payload came off the wire;
+//   - user_id == author_id is skipped, so a self-mention never notifies;
+//   - read access is re-checked with FilterDocumentReaders, so a person who
+//     lost the document between the save and this run gets no row and no push
+//     and no title leaks.
+//
+// The group key carries the person, so two mentions of one reader on two
+// saves merge into one open row and one push.
+func ruleDocumentBodyMentioned(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["user_id"]
+	if e.docs == nil || p["document_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if uid == p["author_id"] || isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentBodyMentioned,
+		GroupKey:       "document:" + doc.ID + ":body_mention:" + uid,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+		},
+	}}, nil
+}
+
+// ruleDocumentCommentAdded drafts the create-time recipients of the UNI-1337
+// table (contract-collab section 8.3): the people whose mention row nobody
+// claimed yet, and - for a reply - the parent's author when no mention
+// already speaks for them. A new comment or thread without a mention notifies
+// nobody, with one conditional exception (UNI-2012 D6): the document's human
+// ACL owner hears document_commented when somebody else comments on a
+// document that still has a live chat card, because that is how a person who
+// sent a file in chat learns the manager reviewed it. UNI-1337's removal of the
+// blanket comment notice stands for every other document.
+func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	out, err := documentCommentMentionRule(ctx, e, ev, p, true)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := ownerCommentedDraft(ctx, e, ev, p, out)
+	if err != nil || owner == nil {
+		return out, err
+	}
+	return append(out, *owner), nil
+}
+
+// ownerCommentedDraft is the D6 notice: one document_commented draft for the
+// human ACL owner, only when the commenter is not the owner, the owner is not
+// already drafted by a mention or reply, the document has at least one live
+// chat card in its organization, and the owner can still read it (re-checked at
+// delivery time, so a share revoked since the comment yields nothing).
+func ownerCommentedDraft(ctx context.Context, e env, ev outbox.Row, p map[string]string, drafts []Draft) (*Draft, error) {
+	if e.docs == nil {
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil || !ok || comment.DeletedAt.Valid {
+		return nil, err
+	}
+	if !doc.AclOwnerID.Valid || doc.OwnerKind.Valid {
+		return nil, nil
+	}
+	owner := doc.AclOwnerID.String
+	if isActorOfEvent(ev, owner) || (comment.AuthorKind == string(audit.KindHuman) && comment.AuthorID == owner) {
+		return nil, nil
+	}
+	for _, d := range drafts {
+		if d.UserID == owner {
+			return nil, nil
+		}
+	}
+	hasCard, err := e.q.OrganizationHasLiveChatDocumentCard(ctx, db.OrganizationHasLiveChatDocumentCardParams{
+		OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
+	})
+	if err != nil || !hasCard {
+		return nil, err
+	}
+	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{owner})
+	if err != nil || len(readers) == 0 {
+		return nil, err
+	}
+	return &Draft{
+		UserID: owner, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentCommented, GroupKey: "document:" + doc.ID + ":commented:" + comment.ID,
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+			"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
+		},
+	}, nil
+}
+
+// ruleDocumentCommentUpdated drafts the edit-time mentions only (UNI-1336
+// "mentions on edit"): an edit can add or drop mention tokens, but it never
+// re-announces a reply, so the reply arm stays out.
+func ruleDocumentCommentUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	return documentCommentMentionRule(ctx, e, ev, p, false)
+}
+
+// documentCommentMentionRule is the create/edit body: it reads the comment's
+// unclaimed active mention rows (the rules never write; the claim happens in
+// the consumer's transaction, section 8.2) and re-checks read access at
+// delivery time, so a share revoked between the comment and this run yields
+// no draft and no claim.
+func documentCommentMentionRule(ctx context.Context, e env, ev outbox.Row, p map[string]string, withReply bool) ([]Draft, error) {
+	if e.docs == nil {
+		// No document permission port wired: silent beats leaking a snippet
+		// to someone who cannot read the document.
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil || !ok {
+		return nil, err
+	}
+	if comment.DeletedAt.Valid {
+		return nil, nil
+	}
+	rows, err := e.q.ListClaimableDocumentCommentMentions(ctx, db.ListClaimableDocumentCommentMentionsParams{
+		CommentID: comment.ID, DocumentID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var parent db.DocumentComment
+	hasParent := false
+	if withReply && comment.ParentCommentID.Valid {
+		parent, err = e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+			ID: comment.ParentCommentID.String, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// The parent was hard-deleted between the reply and this run.
+		case err != nil:
+			return nil, err
+		default:
+			hasParent = true
+		}
+	}
+	// One read gate for everyone the drafts depend on: the mention rows and
+	// the parent's author.
+	candidates := make([]string, 0, len(rows)+1)
+	for _, r := range rows {
+		candidates = append(candidates, r.UserID)
+	}
+	if hasParent && parent.AuthorKind == string(audit.KindHuman) {
+		candidates = append(candidates, parent.AuthorID)
+	}
+	readable := map[string]bool{}
+	if len(candidates) > 0 {
+		readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, candidates)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range readers {
+			readable[id] = true
+		}
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
+	}
+	kind := KindDocumentMentioned
+	if comment.CommentType == "discussion" {
+		kind = KindDocumentDiscussionMentioned
+	}
+	var out []Draft
+	touched := map[string]bool{}
+	for _, r := range rows {
+		// A row's creator is the author of its token: a self-mention never
+		// notifies the person who wrote it, whichever actor triggers this
+		// event - a later edit by another member that keeps the token must
+		// not resurrect it.
+		if !readable[r.UserID] || isActorOfEvent(ev, r.UserID) || r.CreatedBy == r.UserID {
+			continue
+		}
+		touched[r.UserID] = true
+		out = append(out, Draft{
+			UserID: r.UserID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: kind, GroupKey: "document:" + doc.ID + ":mention:" + comment.ID,
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+			Claim: &MentionClaim{MentionID: r.ID},
+		})
+	}
+	if hasParent && parent.AuthorKind == string(audit.KindHuman) {
+		uid := parent.AuthorID
+		if touched[uid] || isActorOfEvent(ev, uid) || !readable[uid] {
+			return out, nil
+		}
+		replyKind := KindDocumentCommentReplied
+		if comment.CommentType == "discussion" {
+			replyKind = KindDocumentDiscussionReplied
+		}
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: replyKind, GroupKey: "document:" + doc.ID + ":replied:" + comment.ID,
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+		})
+	}
+	return out, nil
+}
+
+// ruleDocumentCommentResolved tells the comment's author (while still able to
+// read) and the document's owners at that moment (human ACL owner while still
+// an effective member, plus every live user share at manage; USER OQ-C7
+// decided 2026-10-20, UNI-2032) when a Comment is resolved: only kind=comment
+// resolves notify, a Discussion stays silent, the actor never hears their own
+// resolve, and an author who is also an owner receives one notice. There is no
+// workspace-admin fallback here.
+func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil {
+		return nil, nil
+	}
+	doc, comment, ok, err := documentCommentContext(ctx, e, ev, p)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	if comment.DeletedAt.Valid || !comment.ResolvedAt.Valid || comment.CommentType != "comment" {
+		return nil, nil
+	}
+	seen := map[string]bool{}
+	var recipients []string
+	add := func(uid string) {
+		if uid == "" || seen[uid] || isActorOfEvent(ev, uid) {
+			return
+		}
+		seen[uid] = true
+		recipients = append(recipients, uid)
+	}
+	if comment.AuthorKind == string(audit.KindHuman) && !isActorOfEvent(ev, comment.AuthorID) {
+		readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{comment.AuthorID})
+		if err != nil {
+			return nil, err
+		}
+		for _, uid := range readers {
+			add(uid)
+		}
+	}
+	if e.docAdmins != nil {
+		candidates, err := documentManagerCandidates(ctx, e, doc)
+		if err != nil {
+			return nil, err
+		}
+		if len(candidates) > 0 {
+			admins, err := e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
+			if err != nil {
+				return nil, err
+			}
+			for _, uid := range admins {
+				add(uid)
+			}
+		}
+	}
+	if len(recipients) == 0 {
+		return nil, nil
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
+	}
+	groupKey := "document:" + doc.ID + ":resolved:" + comment.ID
+	actorKind := actorKindOf(ev)
+	out := make([]Draft, 0, len(recipients))
+	for _, uid := range recipients {
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentCommentResolved, GroupKey: groupKey,
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKind, ActorID: ev.ActorID.String,
+			Params: params,
+		})
+	}
+	return out, nil
+}
+
+// ruleDocumentBreakGlassGranted tells the document's ACL owner that an admin
+// opened emergency view access to it; with no ACL owner who is still in the
+// workspace, the workspace owners (never the admin who opened it) hear
+// instead. The params carry ids plus the two names the title renders, never
+// the reason.
+func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["document_id"] == "" || p["grant_id"] == "" {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The id came from the event payload: only trust a document that lives
+	// in the event's own tenant pair.
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	r := newRecipients(ctx, e, ev, doc.WorkspaceID)
+	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {
+		r.add(doc.AclOwnerID.String)
+	}
+	if len(r.order) == 0 {
+		members, err := e.q.ListWorkspaceMembers(ctx, doc.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range members {
+			if m.Role == "owner" {
+				r.add(m.UserID)
+			}
+		}
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"document_id": doc.ID, "grant_id": p["grant_id"],
+	}
+	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
+}
+
+// ruleDocumentShared notifies a person when a direct user share raised their
+// effective level on the document (SH-S3, UNI-1782; addendum §8, §10 Q-S2).
+// The mutation transaction stamps notify_user_id on the event only when that
+// rise holds; this rule re-checks CanReadDocument at delivery time so a grant
+// revoked before the consumer runs sends nothing.
+func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["notify_user_id"]
+	if e.docs == nil || p["document_id"] == "" || p["share_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	var level string
+	sh, err := e.q.GetLiveDocumentShareByID(ctx, db.GetLiveDocumentShareByIDParams{
+		ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		if sh.PrincipalType != "user" || sh.PrincipalID != uid {
+			return nil, nil
+		}
+		level = sh.Level
+	case errors.Is(err, pgx.ErrNoRows):
+		// The grant was revoked before delivery. Recover the ORIGINAL level
+		// from the share row the event names - revoked history included -
+		// never from an audit row keyed by correlation/action/document/time,
+		// which cannot tell one batch recipient from another (SH-S3 R1-09).
+		revoked, err := e.q.GetDocumentShareByID(ctx, db.GetDocumentShareByIDParams{
+			ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if revoked.PrincipalType != "user" || revoked.PrincipalID != uid {
+			return nil, nil
+		}
+		level = revoked.Level
+	default:
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentShared,
+		GroupKey:       "document:" + doc.ID + ":shared",
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+			"level":       level,
+		},
+	}}, nil
+}
+
+// ruleDocumentAccessRequested tells a document's managers that somebody asked
+// for access (DOC-07 §3.1): the ACL owner while they are still an effective
+// member, and everyone holding a live manage share; when neither exists, the
+// workspace owners and admins hear instead - the people who could administer
+// the document through AdminScope, and who may not hold a share row at all.
+//
+// The recipient list is filtered through FilterDocumentAdministrators at
+// delivery time, so a manager whose share was revoked, or who was demoted or
+// deactivated since the request, hears nothing. The actor is never a
+// recipient: a manager who asks for a document they administer hears no
+// request of their own. The document is read by id, so only the event's own
+// tenant pair is trusted.
+func ruleDocumentAccessRequested(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID := p["document_id"]
+	if docID == "" || p["request_id"] == "" {
+		return nil, nil
+	}
+	if e.docAdmins == nil {
+		// No administer port wired: the rule cannot tell a manager from a
+		// stranger, and sending the document's title to the wrong person is
+		// worse than silence (fail closed, like SetDocumentReaders).
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, docID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	candidates, err := documentManagerCandidates(ctx, e, doc)
+	if err != nil {
+		return nil, err
+	}
+	admins, err := e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
+	if err != nil {
+		return nil, err
+	}
+	if len(admins) == 0 {
+		// The ACL owner and the manage shares are all gone or no longer
+		// effective, so the workspace owners and admins take over (§3.1): they
+		// administer a restricted document through AdminScope and may hold no
+		// share row at all.
+		fallback, err := workspaceAdminCandidates(ctx, e, doc)
+		if err != nil {
+			return nil, err
+		}
+		if admins, err = e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, fallback); err != nil {
+			return nil, err
+		}
+	}
+	if len(admins) == 0 {
+		return nil, nil
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"document_id": doc.ID, "request_id": p["request_id"],
+	}
+	out := make([]Draft, 0, len(admins))
+	for _, uid := range admins {
+		if uid == "" || isActorOfEvent(ev, uid) {
+			continue
+		}
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentAccessRequested, GroupKey: "document:" + doc.ID + ":access_requests",
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+		})
+	}
+	return out, nil
+}
+
+// documentManagerCandidates is the §3.1 recipient list: the ACL owner and every
+// live user share at manage. Whether any of them still administers the document
+// is what FilterDocumentAdministrators answers; the caller falls back to the
+// workspace owners and admins only when that filtered list comes back empty,
+// which is exactly §3.1's "the ACL owner (while an effective member) and the
+// live manage shares; when this set is empty, the workspace's owners and
+// admins".
+func documentManagerCandidates(ctx context.Context, e env, doc db.Document) ([]string, error) {
+	shares, err := e.q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {
+		add(doc.AclOwnerID.String)
+	}
+	for _, sh := range shares {
+		if sh.PrincipalType == "user" && sh.Level == string(service.DocumentLevelManage) {
+			add(sh.PrincipalID)
+		}
+	}
+	return out, nil
+}
+
+// workspaceAdminCandidates is the §3.1 fallback list: the owners and admins of
+// the document's own workspace plus the organization's owners and admins (who
+// are implicit workspace admins even without a workspace_members row). Active
+// membership is decided by the administer filter's gates, not here (BE-SD7-7).
+func workspaceAdminCandidates(ctx context.Context, e env, doc db.Document) ([]string, error) {
+	members, err := e.q.ListWorkspaceMembers(ctx, doc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	orgAdmins, err := e.q.ListOrgAdminUserIDs(ctx, doc.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(members)+len(orgAdmins))
+	var out []string
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	for _, m := range members {
+		if m.Role == "owner" || m.Role == "admin" {
+			add(m.UserID)
+		}
+	}
+	for _, id := range orgAdmins {
+		add(id)
+	}
+	return out, nil
+}
+
+// ruleDocumentAccessRequestDecided tells the requester what a manager answered
+// (DOC-07 §3.1, §4.4). The kind follows the decision: approved names the
+// document, because by the time the row renders the requester can read it;
+// declined never names it, because they never could. An approved requester who
+// is no longer an active member hears nothing (the read port refuses them); a
+// declined one still hears, because the row carries no content - the
+// organization gate alone decides, through OrgMemberChecker.
+func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["user_id"]
+	docID := p["document_id"]
+	if uid == "" || docID == "" || p["request_id"] == "" {
+		return nil, nil
+	}
+	req, err := e.q.GetDocumentAccessRequest(ctx, db.GetDocumentAccessRequestParams{
+		OrganizationID: ev.OrganizationID.String, DocumentID: docID, ID: p["request_id"],
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if req.CreatedBy != uid {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, docID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	kind := KindDocumentAccessDeclined
+	groupKey := "document:" + doc.ID + ":access_declined"
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "document_id": doc.ID}
+	switch req.Status {
+	case "approved":
+		// The requester just gained access; the read port re-checks it at
+		// delivery time, so a grant revoked before the consumer runs sends
+		// nothing.
+		if e.docs == nil {
+			return nil, nil
+		}
+		canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+		if err != nil || !canRead {
+			return nil, err
+		}
+		kind = KindDocumentAccessApproved
+		groupKey = "document:" + doc.ID + ":access_approved"
+		params["document"] = doc.Title
+	case "declined":
+		// No document name, ever: the requester was never allowed to read it
+		// (§3.4). Only the organization gate is re-checked.
+		if e.orgs == nil {
+			return nil, nil
+		}
+		if _, err := e.orgs.RequireMember(ctx, doc.OrganizationID, uid); err != nil {
+			if refused(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+	default:
+		// cancelled writes no event at all; a frame carrying one sends nothing.
+		return nil, nil
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: kind, GroupKey: groupKey,
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+	}}, nil
+}
+
+// ruleDocumentTrashed tells the ACL owners of an archive batch's documents
+// that somebody else moved their work to the trash (TRASH-NOTIFY-01, addendum
+// §4 N-2/N-3). One document.archived row lands per node, all sharing
+// archive_batch_id, while the person wants one row per batch: the rule
+// answers with a draft only on the event whose document is the recipient's
+// top-most node of the batch - the owned node with the fewest ancestors also
+// in the batch, the smaller id breaking a tie. The group key carries
+// recipient and batch, and OncePerGroup makes the write path treat any
+// existing row of the group - read, archived or still open - as the claim
+// already taken, so a re-elected top after a restore or purge can never
+// produce a second row nor bump the merge count (BE-TN-3). The batch read
+// itself is the narrow ACL projection: one event per node would otherwise
+// re-read a full Document row, content included, for every sibling
+// (BE-TN-7); only the elected top's title is fetched, once per owner.
+// A node restored or purged before the event is consumed dropped its batch
+// id and leaves the read; an archived event arriving after the batch was
+// purged reads an empty batch and emits nothing, and purge itself emits
+// document.deleted, which has no rule (N-5).
+func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID, batchID, wsID := p["document_id"], p["archive_batch_id"], p["workspace_id"]
+	if wsID == "" && ev.WorkspaceID.Valid {
+		wsID = ev.WorkspaceID.String
+	}
+	if docID == "" || batchID == "" || wsID == "" {
+		return nil, nil
+	}
+	orgID, err := orgOf(ctx, e.q, ev, wsID)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := e.q.ListDocumentArchiveBatchAcl(ctx, db.ListDocumentArchiveBatchAclParams{
+		OrganizationID: orgID, WorkspaceID: wsID, ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+	})
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+	inBatch := make(map[string]db.ListDocumentArchiveBatchAclRow, len(nodes))
+	for _, d := range nodes {
+		inBatch[d.ID] = d
+	}
+	depth := func(d db.ListDocumentArchiveBatchAclRow) (n int) {
+		for p := d.ParentID; p.Valid && inBatch[p.String].ID != ""; p = inBatch[p.String].ParentID {
+			n++
+		}
+		return n
+	}
+	byOwner := map[string][]db.ListDocumentArchiveBatchAclRow{}
+	purgeAfter := ""
+	for _, d := range nodes {
+		if !d.ArchivedAt.Valid {
+			continue
+		}
+		if purgeAfter == "" && d.PurgeAfter.Valid {
+			purgeAfter = d.PurgeAfter.Time.Format(time.RFC3339)
+		}
+		if d.AclOwnerID.Valid {
+			byOwner[d.AclOwnerID.String] = append(byOwner[d.AclOwnerID.String], d)
+		}
+	}
+	var out []Draft
+	for owner, docs := range byOwner {
+		top := docs[0]
+		for _, d := range docs[1:] {
+			if dt, tt := depth(d), depth(top); dt < tt || (dt == tt && d.ID < top.ID) {
+				top = d
+			}
+		}
+		if top.ID != docID {
+			continue // this owner's draft rides the event of their top node
+		}
+		// The elected node's title is the one full-row read: the batch
+		// projection carries no content columns, and a node purged between
+		// the two reads means the batch is gone and no notice is owed (N-5).
+		doc, err := e.q.GetDocumentByID(ctx, top.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		r := newRecipients(ctx, e, ev, wsID)
+		r.add(owner)
+		params := map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title, "date": purgeAfter,
+			"document_id": top.ID, "archive_batch_id": batchID, "count": strconv.Itoa(len(docs) - 1),
+		}
+		ds, err := r.drafts(orgID, KindDocumentTrashedByOther,
+			"document:"+batchID+":trashed:"+owner, "document", top.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ds {
+			ds[i].OncePerGroup = true
+		}
+		out = append(out, ds...)
+	}
 	return out, nil
 }
 
@@ -317,7 +1265,7 @@ func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[str
 	r := newRecipients(ctx, e, ev, m.WorkspaceID)
 	r.add(part.UserID.String)
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "meeting": m.Title}
-	return r.drafts(orgID, KindMeetingInvited, "meeting:"+m.ID+":invited", "meeting", m.ID, params), nil
+	return r.drafts(orgID, KindMeetingInvited, "meeting:"+m.ID+":invited", "meeting", m.ID, params)
 }
 
 func ruleMemberJoined(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -335,7 +1283,7 @@ func ruleMemberJoined(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(p["user_id"])
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "workspace": ws.Name}
-	return r.drafts(ws.OrganizationID, KindMemberAdded, "workspace:"+wsID+":added", "workspace", wsID, params), nil
+	return r.drafts(ws.OrganizationID, KindMemberAdded, "workspace:"+wsID+":added", "workspace", wsID, params)
 }
 
 func ruleRoleChanged(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -358,7 +1306,7 @@ func ruleRoleChanged(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(p["user_id"])
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "workspace": ws.Name, "role": role}
-	return r.drafts(ws.OrganizationID, KindRoleChanged, "workspace:"+wsID+":role", "workspace", wsID, params), nil
+	return r.drafts(ws.OrganizationID, KindRoleChanged, "workspace:"+wsID+":role", "workspace", wsID, params)
 }
 
 func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
@@ -372,5 +1320,211 @@ func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]s
 		Kind: KindAuditExportReady, GroupKey: "export:" + p["export_id"],
 		ResourceType: "audit_export", ResourceID: p["export_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["account_id"] == "" {
+		return nil, nil
+	}
+	acc, err := e.q.GetEmailHubAccountByID(ctx, p["account_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if acc.UserID != p["user_id"] {
+		return nil, nil
+	}
+	// A mailbox row and its queued event can outlive the recipient's access.
+	// Re-check current organization membership before reading unread state or
+	// producing any in-app/push delivery.
+	if e.orgs == nil {
+		return nil, nil
+	}
+	if _, err := e.orgs.RequireMember(ctx, acc.OrganizationID, acc.UserID); err != nil {
+		return nil, nil
+	}
+	counts, err := e.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: "INBOX", LabelFilter: "",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if counts.Unread == 0 {
+		return nil, nil
+	}
+	wsID := p["workspace_id"]
+	if wsID == "" {
+		if wsID, err = userWorkspaceIn(ctx, e.q, p["user_id"], acc.OrganizationID); err != nil {
+			return nil, err
+		}
+	}
+	if wsID != "" {
+		if e.members == nil {
+			return nil, nil
+		}
+		if _, err := e.members.RequireMember(ctx, wsID, acc.UserID); err != nil {
+			return nil, nil
+		}
+	}
+	params := map[string]string{
+		"mailbox": acc.EmailAddress,
+		"count":   fmt.Sprintf("%d", counts.Unread),
+	}
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: acc.OrganizationID, WorkspaceID: wsID,
+		Kind: KindEmailHubNewMail, GroupKey: "email_hub:" + acc.ID + ":mail",
+		ResourceType: "email_account", ResourceID: acc.ID,
+		ActorKind: string(audit.KindSystem), ActorID: "", Params: params,
+	}}, nil
+}
+
+func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["follow_up_id"] == "" || p["workspace_id"] == "" || p["message_id"] == "" {
+		return nil, nil
+	}
+	ws, err := e.q.GetWorkspaceByID(ctx, p["workspace_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Personal reminder: the creator is the recipient even when they are the actor.
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: ws.OrganizationID, WorkspaceID: p["workspace_id"],
+		Kind: KindChatFollowUp, GroupKey: service.ChatFollowUpNotifyGroup(p["follow_up_id"]),
+		ResourceType: "chat_message", ResourceID: p["message_id"],
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+// ruleChatReminderDue tells every member of the room a reminder posted there
+// is due (H16): the reminder worker emits the event per occurrence, so a
+// repeat lands as a new delivery merged into the same unread row.
+func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	msg, err := e.q.GetChatMessageByID(ctx, p["message_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if msg.DeletedAt.Valid {
+		return nil, nil
+	}
+	room, err := e.q.GetChatRoomByID(ctx, msg.RoomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if room.ArchivedAt.Valid {
+		return nil, nil // archived after the worker emitted: the room is closed
+	}
+	members, err := e.q.ListChatRoomMemberUserIDs(ctx, msg.RoomID)
+	if err != nil {
+		return nil, err
+	}
+	params := map[string]string{"body": snippet(msg.Body)}
+	groupKey := "chat_reminder:" + msg.ID
+	// Workspace channels share one workspace id for every member; batch the
+	// membership gate instead of RequireMember per recipient (UNI-1727).
+	if wsID := room.WorkspaceID.String; wsID != "" && room.Kind != "dm" && room.Kind != "group" {
+		eligible, err := e.q.FilterActiveWorkspaceMemberUserIDs(ctx, db.FilterActiveWorkspaceMemberUserIDsParams{
+			WorkspaceID: wsID, UserIds: members,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]Draft, 0, len(eligible))
+		for _, uid := range eligible {
+			if ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid {
+				continue
+			}
+			out = append(out, Draft{
+				UserID: uid, OrganizationID: msg.OrganizationID, WorkspaceID: wsID,
+				Kind: KindChatReminder, GroupKey: groupKey,
+				ResourceType: "chat_message", ResourceID: msg.ID,
+				ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+			})
+		}
+		return out, nil
+	}
+	var out []Draft
+	for _, uid := range members {
+		wsID, err := chatRecipientWorkspace(ctx, e, room, uid)
+		if err != nil {
+			return nil, err
+		}
+		if wsID == "" {
+			continue
+		}
+		r := newRecipients(ctx, e, ev, wsID)
+		r.add(uid)
+		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, groupKey,
+			"chat_message", msg.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
+}
+
+// ruleMeetingEnded nudges the host to summarize a meeting that has something
+// to summarize and no summary yet (C-11 §9.1 V1). It never calls a model.
+// Personal reminder: the host is the recipient even when they ended the
+// meeting themselves, so the draft is built here rather than through
+// recipients.add, which drops the actor.
+func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.summaries == nil {
+		return nil, nil
+	}
+	m, err := e.q.GetMeeting(ctx, p["meeting_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// GetMeeting is by-id: the row must belong to the event's tenant.
+	if (ev.OrganizationID.Valid && m.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && m.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	if m.Status != "ENDED" || m.HostUserID == "" {
+		return nil, nil
+	}
+	if !e.summaries.SummaryAvailable(ctx, m.OrganizationID) {
+		return nil, nil
+	}
+	if _, err := e.q.GetLatestMeetingSummary(ctx, m.ID); err == nil {
+		return nil, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	has, err := e.q.HasMeetingSummarySource(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, nil
+	}
+	if _, err := e.members.RequireMember(ctx, m.WorkspaceID, m.HostUserID); err != nil {
+		if refused(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return []Draft{{
+		UserID: m.HostUserID, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
+		Kind: KindMeetingSummaryReminder, GroupKey: "meeting:" + m.ID + ":summary_reminder",
+		ResourceType: "meeting", ResourceID: m.ID,
+		ActorKind: string(audit.KindSystem), ActorID: "meeting_summary_reminder",
+		Params: map[string]string{"meeting": m.Title},
 	}}, nil
 }

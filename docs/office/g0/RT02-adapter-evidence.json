@@ -1,0 +1,339 @@
+{
+  "issue": "UNI-668",
+  "parent_issue": "UNI-656",
+  "task": "DOC-004 engine/editor/storage contract - real DOC-003 adapter fault evidence (task 4.4)",
+  "contract_version": "uniwork-office-engine-contract/1",
+  "transport": "loopback-http-post",
+  "base_url": "http://127.0.0.1:5392",
+  "lab": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.office-g0-adapter-lab",
+  "evidence_kind": "real_engine_evidence",
+  "generated_at": "2026-09-20T20:02:09.963Z",
+  "node": "v22.23.2",
+  "platform": "win32",
+  "total": 11,
+  "passed": 11,
+  "failed": 0,
+  "unavailable": 0,
+  "oracle_digest": "bae36e364475441967d8bf092e1c34b43d11a14c5239745be6bc08b8de0f5cad",
+  "adapter_error_map": {
+    "method_not_allowed": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.method"
+    },
+    "bad_json": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.body"
+    },
+    "bad_view_id": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.viewId"
+    },
+    "bad_input": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.input"
+    },
+    "bad_path": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.path"
+    },
+    "outside_lab": {
+      "code": "not_found",
+      "error_class": "missing",
+      "retryable": false,
+      "field_path": null
+    },
+    "not_found": {
+      "code": "not_found",
+      "error_class": "missing",
+      "retryable": false,
+      "field_path": null
+    },
+    "no_route": {
+      "code": "unsupported_operation",
+      "error_class": "incompatible",
+      "retryable": false,
+      "field_path": null
+    },
+    "host_closed": {
+      "code": "engine_crashed",
+      "error_class": "engine",
+      "retryable": true,
+      "field_path": null
+    },
+    "session_exists": {
+      "code": null,
+      "error_class": "contract_violation",
+      "retryable": false,
+      "field_path": "transport.viewId"
+    },
+    "no_session": {
+      "code": "not_found",
+      "error_class": "missing",
+      "retryable": false,
+      "field_path": null
+    },
+    "engine_error": {
+      "code": "engine_result_invalid",
+      "error_class": "engine",
+      "retryable": true,
+      "field_path": null
+    },
+    "engine_result_invalid": {
+      "code": "engine_result_invalid",
+      "error_class": "engine",
+      "retryable": true,
+      "field_path": null
+    },
+    "engine_timeout": {
+      "code": "engine_timeout",
+      "error_class": "engine",
+      "retryable": true,
+      "field_path": null
+    }
+  },
+  "evidence": {
+    "kind": "real_engine_evidence",
+    "engine": "DOC-003 spike engine host (UNI-667) e2e/office-g0/engine-host.mts",
+    "upstream_pin": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "what_it_proves": "the real DOC-003 engine host, driven over its loopback transport, refuses the faulty calls this contract names and completes a real docx edit and PDF read",
+    "what_it_does_not_prove": "browser rendering, the Go service, product auth/ACL/tenant isolation, object storage, packaging, or the six-browser DOC-003 flows (UNI-667 owns those)"
+  },
+  "cases": [
+    {
+      "id": "adapter-unreachable-host-maps-to-engine-crashed",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": false,
+        "ok": false,
+        "mapped_code": "engine_crashed",
+        "mapped_class": "engine",
+        "retryable": true
+      },
+      "observed": {
+        "reachable": false,
+        "ok": false,
+        "mapped_code": "engine_crashed",
+        "mapped_class": "engine",
+        "retryable": true
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-method-not-allowed-is-a-caller-fault",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "transport_status": 405,
+        "adapter_code": "method_not_allowed",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.method"
+      },
+      "observed": {
+        "reachable": true,
+        "transport_status": 405,
+        "adapter_code": "method_not_allowed",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.method"
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-bad-json-is-a-caller-fault",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "transport_status": 400,
+        "adapter_code": "bad_json",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.body"
+      },
+      "observed": {
+        "reachable": true,
+        "transport_status": 400,
+        "adapter_code": "bad_json",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.body"
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-unknown-route-is-a-typed-refusal",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "adapter_code": "no_route",
+        "ok": false,
+        "mapped_code": "unsupported_operation",
+        "mapped_class": "incompatible",
+        "retryable": false
+      },
+      "observed": {
+        "reachable": true,
+        "adapter_code": "no_route",
+        "ok": false,
+        "mapped_code": "unsupported_operation",
+        "mapped_class": "incompatible",
+        "retryable": false
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-view-traversal-refused-before-work",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "adapter_code": "bad_view_id",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "escaped_dir_created": false
+      },
+      "observed": {
+        "reachable": true,
+        "adapter_code": "bad_view_id",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "escaped_dir_created": false
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-outside-lab-path-refused",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "ok": false,
+        "refused_adapter_code": "outside_lab",
+        "mapped_class": "missing"
+      },
+      "observed": {
+        "reachable": true,
+        "ok": false,
+        "refused_adapter_code": "outside_lab",
+        "mapped_class": "missing"
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-malformed-engine-input-is-typed",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "adapter_code": "engine_error",
+        "ok": false,
+        "mapped_code": "engine_result_invalid",
+        "mapped_class": "engine",
+        "retryable": true
+      },
+      "observed": {
+        "reachable": true,
+        "adapter_code": "engine_error",
+        "ok": false,
+        "mapped_code": "engine_result_invalid",
+        "mapped_class": "engine",
+        "retryable": true
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-missing-required-input-is-refused",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "adapter_code": "bad_input",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.input"
+      },
+      "observed": {
+        "reachable": true,
+        "adapter_code": "bad_input",
+        "ok": false,
+        "mapped_class": "contract_violation",
+        "field_path": "transport.input"
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-real-docx-edit-roundtrip-persists",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "ok": true,
+        "edit_persisted": true,
+        "all_originals_retained": true,
+        "persisted_hash_matches_reported": true,
+        "output_bytes_gt_0": true,
+        "persisted_bytes_gt_0": true
+      },
+      "observed": {
+        "reachable": true,
+        "ok": true,
+        "edit_persisted": true,
+        "all_originals_retained": true,
+        "persisted_hash_matches_reported": true,
+        "output_bytes_gt_0": true,
+        "persisted_bytes_gt_0": true
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-real-pdf-text-read-returns-fixture-text",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "ok": true,
+        "page_count": 2,
+        "text_contains_fixture_line": true
+      },
+      "observed": {
+        "reachable": true,
+        "ok": true,
+        "page_count": 2,
+        "text_contains_fixture_line": true
+      },
+      "mismatches": []
+    },
+    {
+      "id": "adapter-real-pptx-open-and-close-cycle",
+      "pass": true,
+      "unavailable": false,
+      "expect": {
+        "reachable": true,
+        "ok": true,
+        "slide_count": 2,
+        "session_closed": true
+      },
+      "observed": {
+        "reachable": true,
+        "ok": true,
+        "slide_count": 2,
+        "session_closed": true
+      },
+      "mismatches": []
+    }
+  ]
+}

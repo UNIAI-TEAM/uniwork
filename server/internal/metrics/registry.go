@@ -27,7 +27,17 @@ type Registry struct {
 	Outbox        *Outbox
 	Notifications *Notifications
 	AI            *AI
+	AIUniwork     *AIUniwork
+	AIAsk         *AIAsk
 	WebVitals     *WebVitals
+	Documents     *Documents
+	Office        *Office
+	OfficeChanges *OfficeChangeFeed
+	OfficeLeases  *OfficeLease
+	Billing       *Billing
+	Graph         *Graph
+	Mcp           *Mcp
+	Readiness     *Readiness
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -48,7 +58,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
 		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
+		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
+		reg.MustRegister(NewGraphDirtyCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
@@ -75,8 +87,30 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	aiMetrics := NewAI()
 	reg.MustRegister(aiMetrics.Collectors()...)
 
+	aiUniworkMetrics := NewAIUniwork()
+	aiAskMetrics := NewAIAsk()
+	reg.MustRegister(aiAskMetrics.Collectors()...)
+	reg.MustRegister(aiUniworkMetrics.Collectors()...)
+
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
+
+	documentMetrics := NewDocuments()
+	reg.MustRegister(documentMetrics.Collectors()...)
+	officeMetrics := NewOffice()
+	reg.MustRegister(officeMetrics.Collectors()...)
+	officeChangeMetrics := NewOfficeChangeFeed()
+	reg.MustRegister(officeChangeMetrics.Collectors()...)
+	officeLeaseMetrics := NewOfficeLease()
+	reg.MustRegister(officeLeaseMetrics.Collectors()...)
+	billingMetrics := NewBilling()
+	reg.MustRegister(billingMetrics.Collectors()...)
+	graphMetrics := NewGraph()
+	reg.MustRegister(graphMetrics.Collectors()...)
+	mcpMetrics := NewMcp()
+	reg.MustRegister(mcpMetrics.Collectors()...)
+	readinessMetrics := NewReadiness()
+	reg.MustRegister(readinessMetrics.Collectors()...)
 
 	return &Registry{
 		Gatherer:      reg,
@@ -86,7 +120,17 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Outbox:        outboxMetrics,
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
+		AIUniwork:     aiUniworkMetrics,
+		AIAsk:         aiAskMetrics,
 		WebVitals:     webVitals,
+		Documents:     documentMetrics,
+		Office:        officeMetrics,
+		OfficeChanges: officeChangeMetrics,
+		OfficeLeases:  officeLeaseMetrics,
+		Billing:       billingMetrics,
+		Graph:         graphMetrics,
+		Mcp:           mcpMetrics,
+		Readiness:     readinessMetrics,
 	}
 }
 

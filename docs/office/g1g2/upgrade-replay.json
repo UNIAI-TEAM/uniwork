@@ -1,0 +1,17 @@
+{
+  "kind": "uniwork-office-upgrade-replay",
+  "note": "G2-07b (UNI-690). Committed-version shapes the pinned engine build must read back. Before ANY engine pin change: point OFFICE_ENGINE_TEST_URL at the candidate build, run TestDocumentOfficeUpgradeReplay, and only then add the candidate to office.ReadableEngineVersions and move engine_version here. scripts/office/integration.test.mjs fails when this pin and the Go/TS pin disagree.",
+  "engine_version": "genoffice@09485f88+uniwork-office.0",
+  "contract_version": "uniwork-office-engine-contract/1",
+  "protocol_version": 1,
+  "fixtures": [
+    { "id": "F-DOCX-SIMPLE", "format": "docx", "replay": ["download"], "why": "no server-side docx handler in this build: recovery path only" },
+    { "id": "F-PPTX-STD", "format": "pptx", "replay": ["download"], "why": "no server-side pptx handler in this build: recovery path only" },
+    { "id": "F-XLSX-KITCHEN", "format": "xlsx", "replay": ["download", "open"] },
+    { "id": "F-PDF-TEXT", "format": "pdf", "replay": ["download", "open", "serialize"] },
+    { "id": "F-MD-FULL", "format": "md", "replay": ["download", "serialize"] },
+    { "id": "F-HTML-VI", "format": "html", "replay": ["download", "serialize"] },
+    { "id": "F-LEGACY-XLS", "format": "xls", "replay": ["download", "convert"], "target_format": "xlsx" },
+    { "id": "F-UNSUPPORTED-ODT", "format": "odt", "replay": ["download", "convert"], "target_format": "docx" }
+  ]
+}

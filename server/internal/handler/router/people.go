@@ -18,13 +18,15 @@ func registerPeople(r api, h Routes) {
 		summary:     "Search the people directory",
 		description: "Tìm theo tên/email/chức danh/phòng ban (không dấu cũng khớp), lọc theo department_id, manager_id, role, status; phân trang bằng cursor.",
 		tags:        []string{"people"},
+		sdi:         sdi.PeopleListSDI{},
 		sdo:         sdo.PeopleListSDO{},
 		auth:        true,
 	})
 	r.Get("/orgs/{org}/people.csv", h.ExportPeople, apiOp{
 		summary:     "Export the directory as CSV",
-		description: "Trả text/csv (có BOM UTF-8 để Excel đọc đúng tiếng Việt), tối đa 10.000 dòng. Chỉ owner/admin; ghi nhật ký people.exported.",
+		description: "Trả text/csv (có BOM UTF-8 để Excel đọc đúng tiếng Việt), tối đa 10.000 dòng, theo cùng bộ lọc với danh sách (không có status thì xuất cả người đã vô hiệu hóa). Chỉ owner/admin; ghi nhật ký people.exported.",
 		tags:        []string{"people"},
+		sdi:         sdi.PeopleFilterSDI{},
 		produces:    "text/csv; charset=utf-8",
 		auth:        true,
 	})

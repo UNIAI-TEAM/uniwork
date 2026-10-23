@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -54,12 +56,17 @@ func (h *handlers) createChatMessageLink(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, map[string]any{"link": toChatMessageLinkDTO(link)})
 }
 
-func (h *handlers) listChatMessageLinks(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.Chat.ListChatMessageLinks(
+func (h *handlers) listChatRoomMessageLinks(w http.ResponseWriter, r *http.Request) {
+	var ids []string
+	if raw := r.URL.Query().Get("message_ids"); raw != "" {
+		ids = strings.Split(raw, ",")
+	}
+	rows, err := h.Chat.ListRoomMessageLinks(
 		r.Context(),
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
-		chi.URLParam(r, "messageID"),
+		chi.URLParam(r, "roomID"),
+		ids,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -70,6 +77,63 @@ func (h *handlers) listChatMessageLinks(w http.ResponseWriter, r *http.Request) 
 		out = append(out, toChatMessageLinkDTO(row))
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatMessageLinkListSDO{Links: out})
+}
+
+func (h *handlers) listChatRoomLinkedTasks(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	rows, total, err := h.Chat.ListRoomLinkedTasks(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		limit,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.ChatRoomLinkedTaskDTO, 0, len(rows))
+	for _, row := range rows {
+		dto := sdo.ChatRoomLinkedTaskDTO{
+			ID: row.ID, WorkspaceID: row.WorkspaceID, Number: row.Number, Title: row.Title,
+			Status: row.Status, Priority: row.Priority, LinkedAt: row.LinkedAt.Time.UTC().Format(time.RFC3339),
+		}
+		if row.AssigneeID.Valid && row.AssigneeID.String != "" {
+			dto.AssigneeID, dto.AssigneeKind, dto.AssigneeName = row.AssigneeID.String, row.AssigneeKind, row.AssigneeName
+		}
+		if row.DueDate.Valid {
+			dto.DueDate = row.DueDate.Time.Format(time.DateOnly)
+		}
+		out = append(out, dto)
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatRoomLinkedTaskListSDO{Tasks: out, Total: total})
+}
+
+func (h *handlers) getChatRoomSharedSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := h.Chat.RoomSharedSummary(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	photos := make([]sdo.ChatSharedPhotoDTO, 0, len(summary.RecentPhotos))
+	for _, p := range summary.RecentPhotos {
+		photos = append(photos, sdo.ChatSharedPhotoDTO{
+			MessageID: p.MessageID, FileID: p.FileID, Title: p.Title, URL: p.URL, ThumbURL: p.ThumbURL,
+			URLExpiresAt: formatURLExpiry(p.URLExpiresAt), CreatedAt: p.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatRoomSharedSummarySDO{
+		Counts: sdo.ChatRoomSharedCountsDTO{
+			Photo: summary.Photos, GIF: summary.GIFs, Video: summary.Videos,
+			File: summary.Files, Link: summary.Links, Voice: summary.Voices,
+		},
+		RecentPhotos: photos,
+	})
 }
 
 func (h *handlers) deleteChatMessageLink(w http.ResponseWriter, r *http.Request) {

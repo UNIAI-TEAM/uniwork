@@ -5,34 +5,37 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import type { AvatarSize } from "@uniwork/ui/lib/avatar-size";
 import { cn } from "@uniwork/ui/lib/utils";
 
-/** Avatar with an optional green online presence badge. */
+/** Avatar with an optional online presence dot. */
 export function ChatPresenceAvatar({
   name,
   initials,
+  avatarUrl,
   size = "sm",
   online = false,
   className,
+  avatarClassName,
 }: {
   name: string;
   initials: string;
-  size?: AvatarSize;
+  avatarUrl?: string | null;
+  /** `fluid` leaves the diameter and type to `avatarClassName` (the list's 48px face). */
+  size?: AvatarSize | "fluid";
   online?: boolean;
   className?: string;
+  /** Classes for the circle itself: its size when fluid, the initials' fill. */
+  avatarClassName?: string;
 }) {
   const { t } = useTranslation();
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
-      <ActorAvatar name={name} initials={initials} size={size} />
-      {online ? (
-        <span
-          className={cn(
-            "absolute right-0 bottom-0 rounded-full bg-success ring-2 ring-background",
-            size === "xl" ? "size-3" : "size-2",
-          )}
-          aria-label={t("chat.presence_online")}
-          title={t("chat.presence_online")}
-        />
-      ) : null}
+      <ActorAvatar
+        name={name}
+        initials={initials}
+        avatarUrl={avatarUrl}
+        size={size}
+        className={avatarClassName}
+        status={online ? { tone: "success", label: t("chat.presence_online") } : undefined}
+      />
     </span>
   );
 }

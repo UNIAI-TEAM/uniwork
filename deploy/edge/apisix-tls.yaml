@@ -1,0 +1,12 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: uniwork-tls
+  namespace: reap-edge
+spec:
+  hosts:
+    - uniworkos.com
+    - preview.uniworkos.com
+  secret:
+    name: uniwork-tls
+    namespace: reap-edge

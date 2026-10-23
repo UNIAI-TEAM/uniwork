@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eBaseUrl } from "./api-url";
 import { verifyEmail } from "./auth-nav";
 
 // Smoke onboarding: đăng ký → welcome → về bạn → tổ chức → workspace → bỏ qua mời
@@ -35,7 +36,7 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   // Workspace
   await page.getByRole("heading", { name: "Đặt tên workspace." }).waitFor();
   await page.getByLabel("Tên workspace").fill("Đội Alpha");
-  await expect(page.getByText(`localhost:3000/to-chuc-${stamp}/`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`${new URL(e2eBaseUrl).host}/to-chuc-${stamp}/`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Tạo Đội Alpha" }).click();
 
   // Mời — bỏ qua
@@ -43,10 +44,10 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`), { timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Đã hiểu" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Mở task hướng dẫn" })).toBeVisible({ timeout: 15_000 });
   await Promise.all([
     page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
-    page.getByRole("button", { name: "Đã hiểu" }).click(),
+    page.getByRole("button", { name: "Mở task hướng dẫn" }).click(),
   ]);
   // Suite detail: title starts as a readonly control; sub-task input is also a textbox.
   await expect(page.getByRole("button", { name: "Bắt đầu với UniWork" })).toBeVisible({

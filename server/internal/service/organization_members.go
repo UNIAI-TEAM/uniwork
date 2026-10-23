@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -50,11 +51,24 @@ type OrganizationMemberService struct {
 	// them after main has built the mail stack.
 	render mail.Renderer
 	out    mail.Enqueuer
+	// files is optional: with FileService wired, member avatars stored as
+	// file ids resolve to presigned URLs (UNI-744).
+	files files.Service
+	// emailHub is optional: wired, Leave revokes the OAuth grants of the
+	// mailboxes it disconnects (spec §5.5).
+	emailHub *EmailHubService
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
 	return &OrganizationMemberService{pool: pool, q: q, orgs: orgs, ent: NewEntitlementService(pool, q)}
 }
+
+// SetFiles selects the FileService path for avatar URL emission.
+func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
+
+// SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it
+// once EmailHubService exists.
+func (s *OrganizationMemberService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 
 // MemberPage is one keyset page of the organization's membership.
 type MemberPage struct {
@@ -103,6 +117,11 @@ func (s *OrganizationMemberService) Members(ctx context.Context, actorID, orgID,
 		last := page.Members[len(page.Members)-1]
 		page.NextCursor = encodeMemberCursor(last.DisplayName, last.UserID)
 	}
+	decorateMemberAvatars(ctx, s.files, page.Members, func(r db.ListOrganizationMembersRow) avatarRow {
+		return avatarRow{UserID: r.UserID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.ListOrganizationMembersRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
 	return page, nil
 }
 
@@ -228,6 +247,13 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err != nil {
 		return db.OrganizationMember{}, err
 	}
+	// Room membership drives fan-out, follower and unread reads; a person the
+	// gates refuse must not stay listed in the organization's rooms.
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
 	}); err != nil {
@@ -236,8 +262,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	// Sessions are per user, not per organization: revoking them while the
 	// person still belongs somewhere else would sign them out of a tenant that
 	// never asked for it.
+	leases := 0
 	if othersLeft == 0 {
-		if err := q.RevokeAllRefreshTokensForUser(ctx, targetID); err != nil {
+		if leases, err = revokeAllUserSessions(ctx, q, targetID); err != nil {
 			return db.OrganizationMember{}, err
 		}
 	}
@@ -256,6 +283,7 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err := tx.Commit(ctx); err != nil {
 		return db.OrganizationMember{}, err
 	}
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	return updated, nil
 }
 
@@ -277,15 +305,41 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 	if target.Role == OrgRoleAdmin && actor.Role != OrgRoleOwner {
 		return db.OrganizationMember{}, ErrForbidden
 	}
-	if err := s.ent.CheckQuota(ctx, orgID, FeatureMembersMax, 1); err != nil {
-		return db.OrganizationMember{}, err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.OrganizationMember{}, err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// A person who has moved to another organization since is not pulled
+	// back (ADR 0032); the refusal does not say where they went.
+	if err := lockMembership(ctx, q, targetID); err != nil {
+		return db.OrganizationMember{}, err
+	}
+	current, err := activeOrganizations(ctx, q, targetID)
+	if err != nil {
+		return db.OrganizationMember{}, err
+	}
+	for _, o := range current {
+		if o.ID != orgID {
+			return db.OrganizationMember{}, errMemberInOtherOrganization()
+		}
+	}
+	// Count the seat while deactivated_at is still set. Clearing it first
+	// makes snapshotCount include this person, then Consume adds one more,
+	// so the last open seat is refused.
+	if err := s.ent.Consume(ctx, q, ConsumeInput{
+		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(actorID),
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
+	// Gives back the rooms Deactivate left; it reads deactivated_at, so it
+	// runs before the clear.
+	if err := q.RestoreChatRoomsLeftAtDeactivation(ctx, db.RestoreChatRoomsLeftAtDeactivationParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	updated, err := q.ClearOrganizationMemberDeactivated(ctx, db.ClearOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: targetID,
 	})
@@ -293,11 +347,6 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 		return db.OrganizationMember{}, ErrConflict
 	}
 	if err != nil {
-		return db.OrganizationMember{}, err
-	}
-	if err := s.ent.Consume(ctx, q, ConsumeInput{
-		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(actorID),
-	}); err != nil {
 		return db.OrganizationMember{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -321,46 +370,101 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 // organization row and every workspace row inside it go in one transaction.
 // The owner cannot leave — they hand the organization over first.
 func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID string) error {
-	m, err := s.orgs.RequireMember(ctx, orgID, actorID)
-	if err != nil {
-		return err
-	}
-	if m.Role == OrgRoleOwner {
-		return errLastOwner()
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := lockMembership(ctx, q, actorID); err != nil {
+		return err
+	}
+	mailboxes, err := s.leaveQ(ctx, q, actorID, orgID, nil)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
+	return nil
+}
+
+// leaveQ is Leave's transaction body, for a caller that already holds the
+// account's membership lock in q's transaction. The decision is made under the
+// row lock: an ownership transfer to the leaver that commits first makes them
+// the owner, and they are then refused instead of leaving the organization
+// without one. The caller cleans up the returned mailboxes after commit.
+//
+// It does not go through RequireMember: a member or admin of a suspended
+// organization, or of one waiting for deletion, may still leave it (ADR 0032
+// D9). A deactivated row is refused as everywhere else. meta lands on the
+// member.left audit row (the invitation a switch left for, spec §5).
+func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, actorID, orgID string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
+		OrganizationID: orgID, UserID: actorID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrForbidden
+	}
+	if err != nil {
+		return nil, err
+	}
+	org, err := q.GetOrganizationByID(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case m.DeactivatedAt.Valid:
+		return nil, errMemberDeactivated()
+	case org.Status != OrganizationActive && org.Status != OrganizationSuspended:
+		return nil, errOrganizationSuspended()
+	case m.Role == OrgRoleOwner:
+		return nil, errLastOwner()
+	}
 	if err := q.DeleteWorkspaceMembershipsInOrg(ctx, db.DeleteWorkspaceMembershipsInOrgParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {
-		return err
+		return nil, err
+	}
+	// A person who leaves takes no AI connector access with them (spec §8).
+	if err := revokeMcpGrantsForUserInOrg(ctx, q, orgID, actorID); err != nil {
+		return nil, err
+	}
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return nil, err
+	}
+	mailboxes, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
+		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
 	}
 	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
 	}); err != nil {
-		return err
+		return nil, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		Actor:          audit.User(actorID),
 		Action:         audit.ActionMemberLeft,
 		ResourceType:   "organization_member", ResourceID: actorID,
-		Changes: audit.Diff(map[string]any{"role": m.Role}, nil),
+		Changes:  audit.Diff(map[string]any{"role": m.Role}, nil),
+		Metadata: meta,
 	}, audit.Event{Topic: "member.left", Payload: map[string]string{
 		"organization_id": orgID, "user_id": actorID,
 	}}); err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Commit(ctx)
+	return mailboxes, nil
 }
 
 // requireAdmin is the gate every administrative command starts with.

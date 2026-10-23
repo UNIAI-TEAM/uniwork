@@ -19,7 +19,11 @@ interface CollectionPageHeaderProps {
   /** Module tint for the leading glyph; omitted, it stays neutral. */
   tone?: Tint;
   title: ReactNode;
+  /** A collection embedded in a larger page keeps that page's heading hierarchy. */
+  headingAs?: "h1" | "h2" | "h3";
   count?: number;
+  /** What the count counts, for screen readers ("12 unread"); without it the bare number is read. */
+  countLabel?: string;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
@@ -29,16 +33,35 @@ interface CollectionPageHeaderProps {
  * Header of a list screen: entity icon, title, optional count and supporting
  * copy on the left; page-level actions on the right.
  */
-export function CollectionPageHeader({ icon: Icon, tone, title, count, description, actions, className }: CollectionPageHeaderProps) {
+export function CollectionPageHeader({
+  icon: Icon,
+  tone,
+  title,
+  headingAs: Heading = "h1",
+  count,
+  countLabel,
+  description,
+  actions,
+  className,
+}: CollectionPageHeaderProps) {
   return (
     <PageHeader className={className}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className={PAGE_LEADING_ICON}>
           <Icon aria-hidden="true" className={cn("size-4", tone ? tintForegroundClass[tone] : "text-muted-foreground")} />
         </span>
-        <h1 className="truncate text-body font-medium">{title}</h1>
+        <Heading className="truncate text-body font-medium">{title}</Heading>
         {typeof count === "number" && count > 0 ? (
-          <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">{count}</span>
+          <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">
+            {countLabel ? (
+              <>
+                <span aria-hidden>{count}</span>
+                <span className="sr-only">{countLabel}</span>
+              </>
+            ) : (
+              count
+            )}
+          </span>
         ) : null}
         {description ? (
           <p className="ml-2 hidden min-w-0 truncate text-caption text-muted-foreground md:block">{description}</p>
@@ -68,14 +91,18 @@ interface CollectionPageHeaderActionProps extends Omit<ComponentProps<typeof But
   label: string;
 }
 
-/** Responsive header action: icon-only below md, labelled above md. */
+/**
+ * Responsive header action: icon-only below md, labelled above md. Drawn as
+ * a toolbar button, like the filter and sort controls under it; `outline`
+ * carries the input-weight edge and outweighed the whole header.
+ */
 export function CollectionPageHeaderAction({
   icon,
   label,
   className,
   type = "button",
   size = "sm",
-  variant = "outline",
+  variant = "toolbar",
   ...props
 }: CollectionPageHeaderActionProps) {
   return (
@@ -110,7 +137,7 @@ export function CollectionPageHeaderLinkAction({
   label,
   className,
   size = "sm",
-  variant = "outline",
+  variant = "toolbar",
   ...props
 }: CollectionPageHeaderLinkActionProps) {
   return (
@@ -134,6 +161,8 @@ interface CollectionPageStateProps {
   /** A module tint for an empty state, a signal tone for an error state. */
   tone?: IconTileTone;
   role?: "alert" | "status";
+  /** 3 inside a screen whose own title is already the h2 (a settings tab). */
+  headingLevel?: 2 | 3;
   className?: string;
 }
 
@@ -141,12 +170,12 @@ interface CollectionPageStateProps {
  * Centered empty / error / not-found state for a list screen. Truthful by
  * design: it says what is missing and offers the next step — never mock rows.
  */
-export function CollectionPageState({ icon: Icon, title, description, actions, tone = "muted", role, className }: CollectionPageStateProps) {
+export function CollectionPageState({ icon: Icon, title, description, actions, tone = "muted", role, headingLevel = 2, className }: CollectionPageStateProps) {
   return (
     <Empty role={role} className={cn("rounded-none border-0 px-6 py-16", className)}>
       <EmptyHeader>
         <IconTile icon={Icon} size="lg" tone={tone} />
-        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyTitle as={headingLevel === 3 ? "h3" : "h2"}>{title}</EmptyTitle>
         {description ? <EmptyDescription className="max-w-md">{description}</EmptyDescription> : null}
       </EmptyHeader>
       {actions ? <EmptyContent className="mt-1 flex-row justify-center">{actions}</EmptyContent> : null}

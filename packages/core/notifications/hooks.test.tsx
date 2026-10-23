@@ -1,18 +1,27 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import type { NotificationPage } from "../api/endpoints/notifications";
-import type { UnreadCount } from "../types/notification";
-import { notificationKeys, useArchive, useMarkAllRead, useMarkRead, useMarkUnread } from "./hooks";
+import type { Notification, UnreadCount } from "../types/notification";
+import {
+  notificationKeys,
+  useArchive,
+  useDocumentNoticePage,
+  useMarkAllRead,
+  useMarkRead,
+  useMarkUnread,
+  useNotificationDocuments,
+  useNotificationPages,
+} from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const row = (id: string, read?: string) => ({
+const row = (id: string, read?: string): Notification => ({
   id, kind: "task_assigned", workspace_id: "ws1", organization_id: "o1", resource_type: "task", resource_id: "t1",
-  resource_deleted: false, actor_kind: "human", actor_id: "u1", title_key: "notifications.kind.task_assigned",
+  resource_deleted: false, resource_access_lost: false, comment_deleted: false, actor_kind: "human", actor_id: "u1", title_key: "notifications.kind.task_assigned",
   params: {}, count: 1, created_at: "2026-09-06T08:00:00Z", ...(read ? { read_at: read } : {}),
 });
 
@@ -101,5 +110,185 @@ describe("notification mutations", () => {
     });
     await waitFor(() => expect(list().notifications).toHaveLength(0));
     expect(count()).toEqual({ total: 2, by_workspace: { ws1: 0, ws2: 2 } });
+  });
+
+  it("patches and prunes the inbox's paged entry the same way", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: "ok" })));
+    const { qc, wrapper, count } = setup();
+    const key = notificationKeys.pages("ws1", false);
+    qc.setQueryData<InfiniteData<NotificationPage, string>>(key, {
+      pages: [
+        { notifications: [row("n1")], next_before: "n1" },
+        { notifications: [row("n3")], next_before: "" },
+      ],
+      pageParams: ["", "n1"],
+    });
+    const pages = () => qc.getQueryData<InfiniteData<NotificationPage, string>>(key)!.pages;
+    const read = renderHook(() => useMarkRead(), { wrapper }).result;
+    act(() => {
+      read.current.mutate(["n3"]);
+    });
+    await waitFor(() => expect(pages()[1]!.notifications[0]!.read_at).toBeTruthy());
+    expect(count().by_workspace.ws1).toBe(0);
+    const archive = renderHook(() => useArchive(), { wrapper }).result;
+    act(() => {
+      archive.current.mutate(["n1"]);
+    });
+    await waitFor(() => expect(pages()[0]!.notifications).toHaveLength(0));
+    expect(pages()[1]!.notifications).toHaveLength(1);
+  });
+});
+
+describe("useNotificationPages", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("follows next_before until a page comes back without one", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(
+        String(input).includes("before=n1")
+          ? json({ notifications: [row("n2")], next_before: "" })
+          : json({ notifications: [row("n1")], next_before: "n1" }),
+      ),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useNotificationPages({ workspaceId: "ws1", pageSize: 1 }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("workspace_id=ws1&limit=1");
+    await act(() => result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(result.current.data?.pages.flatMap((p) => p.notifications.map((n) => n.id))).toEqual(["n1", "n2"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+  });
+});
+
+describe("useNotificationDocuments", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  const doc = (id: string) => ({ id, title: `T ${id}`, kind: "page", trashed: false, shelved: false, deleted: false });
+  const clientWith = () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    return { qc, wrapper };
+  };
+
+  it("stays cold until enabled, then follows next_cursor until a page comes back without one", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(
+        String(input).includes("cursor=ndc1.a")
+          ? json({ documents: [doc("d2")], next_cursor: null })
+          : json({ documents: [doc("d1")], next_cursor: "ndc1.a" }),
+      ),
+    );
+    const { qc, wrapper } = clientWith();
+    const { result, rerender } = renderHook(({ on }) => useNotificationDocuments("n1", { enabled: on }), {
+      wrapper,
+      initialProps: { on: false },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/me/notifications/n1/documents");
+    await act(() => result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toContain("cursor=ndc1.a");
+    expect(qc.getQueryState(notificationKeys.documents("n1"))).toBeDefined();
+  });
+
+  it("does not run for an empty id", () => {
+    const { wrapper } = clientWith();
+    renderHook(() => useNotificationDocuments(""), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("is left alone by a read, which patches rows only, and refetches after it", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(String(input).endsWith("/read") ? json({ status: "ok" }) : json({ documents: [doc("d1")], next_cursor: null })),
+    );
+    const { qc, wrapper } = clientWith();
+    qc.setQueryData<InfiniteData<NotificationPage, string>>(notificationKeys.pages("ws1", false), {
+      pages: [{ notifications: [row("n1")], next_before: "" }],
+      pageParams: [""],
+    });
+    const docs = renderHook(() => useNotificationDocuments("n1"), { wrapper });
+    await waitFor(() => expect(docs.result.current.isSuccess).toBe(true));
+    const mark = renderHook(() => useMarkRead(), { wrapper });
+    act(() => {
+      mark.result.current.mutate(["n1"]);
+    });
+    await waitFor(() => expect(mark.result.current.isSuccess).toBe(true));
+    const pages = qc.getQueryData<InfiniteData<NotificationPage, string>>(notificationKeys.pages("ws1", false))!;
+    expect(pages.pages[0]!.notifications[0]!.read_at).toBeTruthy();
+    expect(docs.result.current.data?.pages[0]?.documents.map((d) => d.id)).toEqual(["d1"]);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter((c) => String(c[0]).endsWith("/documents")).length).toBe(2));
+  });
+});
+
+describe("useDocumentNoticePage", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapperOf = (qc: QueryClient) =>
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    };
+
+  it("stays cold until enabled, then reads the first page fresh whatever the Inbox cached", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ notifications: [row("n9")], next_before: "" }));
+    const qc = client();
+    qc.setQueryData<NotificationPage>(notificationKeys.list("ws1", false), { notifications: [row("n1")], next_before: "" });
+    const wrapper = wrapperOf(qc);
+    const { result, rerender } = renderHook(({ enabled }) => useDocumentNoticePage({ workspaceId: "ws1", documentId: "d1", enabled }), {
+      wrapper,
+      initialProps: { enabled: false },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.notifications.map((n) => n.id)).toEqual(["n9"]));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("workspace_id=ws1&limit=50");
+  });
+
+  it("does not retry a failure: the page reads it as unknown", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ error: "boom" }, 500));
+    const { result } = renderHook(() => useDocumentNoticePage({ workspaceId: "ws1", documentId: "d1", enabled: true }), {
+      wrapper: wrapperOf(client()),
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -14,6 +14,21 @@ type CreateMeetingSDI struct {
 	AttendeeUserIDs  []string  `json:"attendee_user_ids"`
 }
 
+// ListMeetingsSDI documents GET /api/v1/workspaces/{workspaceID}/meetings query params.
+type ListMeetingsSDI struct {
+	Status      string `query:"status" enum:"SCHEDULED,MISSED,IN_PROGRESS,ENDED,CANCELED" description:"Lọc theo trạng thái người xem thấy: SCHEDULED = chưa bắt đầu và chưa qua giờ kết thúc (ends_at >= now); MISSED = SCHEDULED đã qua giờ kết thúc (ends_at < now); các giá trị khác khớp status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
+	MeetingType string `query:"meeting_type" description:"SCHEDULED hoặc INSTANT; bỏ trống = cả hai" example:"SCHEDULED"`
+	HostUserID  string `query:"host_user_id" description:"Lọc theo ULID người chủ trì" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ProjectID   string `query:"project_id" description:"Lọc theo ULID project" example:""`
+	Q           string `query:"q" description:"Tìm theo tiêu đề (không phân biệt hoa thường)" example:"standup"`
+	From        string `query:"from" description:"starts_at từ thời điểm này (RFC3339)" example:"2026-08-01T00:00:00Z"`
+	To          string `query:"to" description:"starts_at đến thời điểm này (RFC3339)" example:"2026-08-31T23:59:59Z"`
+	Sort        string `query:"sort" enum:"actual_start_at,starts_at" description:"Bỏ trống = mới tạo trước; actual_start_at = mới bắt đầu thật trước; starts_at = hôm nay và sắp tới trước (sớm nhất trước), rồi các ngày đã qua (ngày gần nhất trước), trong ngày theo giờ bắt đầu" example:"starts_at"`
+	TZ          string `query:"tz" description:"Múi giờ IANA của người xem, quyết định ngày hôm nay và ngày của từng cuộc họp khi sort=starts_at; bỏ trống = UTC" example:"Asia/Ho_Chi_Minh"`
+	Limit       int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"20"`
+	Offset      int32  `query:"offset" description:"Offset phân trang" example:"0"`
+}
+
 type CreateInstantMeetingSDI struct {
 	Title string `json:"title" example:"Họp nhanh"`
 }
@@ -27,6 +42,7 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 
 type CreateNoteSDI struct {
@@ -47,6 +63,11 @@ type HostTransferSDI struct {
 
 type CancelMeetingSDI struct {
 	Reason string `json:"reason" example:"trùng lịch"`
+}
+
+// RestoreMeetingSDI is POST /api/v1/meetings/{meetingID}/restore.
+type RestoreMeetingSDI struct {
+	Version *int32 `json:"version,omitempty" description:"Phiên bản người dùng đang xem; lệch thì 409 revision_conflict" example:"4"`
 }
 
 // ExtendMeetingSDI is POST /api/v1/meetings/{meetingID}/extend.
@@ -70,6 +91,7 @@ type JoinMeetingSDI struct {
 	InviteLinkID string `json:"invite_link_id"`
 	Secret       string `json:"secret"`
 	DisplayName  string `json:"display_name"`
+	RequestAgain bool   `json:"request_again" description:"Gửi lại yêu cầu vào phòng sau khi bị chủ trì từ chối; bỏ trống thì lần vào lại trả join_request_rejected"`
 }
 
 type CreateJoinRequestSDI struct {
@@ -94,31 +116,85 @@ type AppendAgentTranscriptSDI struct {
 	SpokenAt            time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now"`
 }
 
-// SetParticipantPublishSDI toggles server-enforced CanPublish on LiveKit.
+// SetParticipantPublishSDI locks or unlocks one media source of a participant
+// on LiveKit; the server enforces it on the publish permission.
 type SetParticipantPublishSDI struct {
-	Enabled bool `json:"enabled" description:"true = cho phép mic/camera; false = revoke publish" example:"false"`
+	Enabled bool   `json:"enabled" description:"true = mở khóa nguồn; false = khóa nguồn (dừng track đang phát và chặn phát lại)" example:"false"`
+	Source  string `json:"source,omitempty" enum:"microphone,screen_share" description:"Nguồn cần khóa/mở: microphone (mic, kèm âm thanh tab chia sẻ) | screen_share (chia sẻ màn hình và âm thanh của nó); bỏ trống = microphone. Khóa nguồn này giữ nguyên khóa của nguồn kia; không khóa được nguồn của chủ tọa (cannot_mute_host / cannot_lock_host_share)" example:"screen_share"`
 }
 
 // CreateSummarySDI is POST /api/v1/meetings/{meetingID}/summary.
 type CreateSummarySDI struct {
-	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en" example:"vi"`
+	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
 type SummaryTaskItemSDI struct {
 	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
 	Description string  `json:"description"`
 	AssigneeID  *string `json:"assignee_id"`
+	ProjectID   *string `json:"project_id" description:"Dự án workspace; tùy chọn"`
+	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent"`
 	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
-	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
-	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`
+	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; chỉ ghi vào mô tả"`
+	DueSpoken   string  `json:"due_spoken" description:"Hạn AI trích ra; chỉ ghi vào mô tả"`
+}
+
+// MeetingSummaryTaskItemSDI is one action item of a meeting summary the host
+// turns into a task, with the values the host confirmed. The server never
+// re-reads the AI owner or due phrase into assignee_id or due_date.
+type MeetingSummaryTaskItemSDI struct {
+	Index       *int    `json:"index" required:"true" minimum:"0" description:"Vị trí của việc trong action_items của bản tóm tắt (từ 0); bắt buộc, không trùng trong một lần gửi" example:"0"`
+	Title       string  `json:"title,omitempty" description:"Tiêu đề task; để trống = tiêu đề AI đã lưu" example:"Gửi báo cáo sprint"`
+	Description string  `json:"description,omitempty" description:"Mô tả thêm; người phụ trách và hạn AI ghi kèm khi task không có người gán hay hạn"`
+	AssigneeID  *string `json:"assignee_id" description:"Người được gán; null hoặc rỗng = không gán ai (server không tự đoán từ tên AI)" example:"01JABC1234567890ABCDEFGH"`
+	DueDate     *string `json:"due_date" description:"YYYY-MM-DD; null hoặc rỗng = không có hạn (server không tự đọc hạn AI)" example:"2026-09-05"`
+	ProjectID   *string `json:"project_id,omitempty" description:"Dự án workspace; bỏ qua = dự án của cuộc họp, rỗng = không thuộc dự án" example:"01JABC1234567890ABCDEFGH"`
+	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent" example:"medium"`
 }
 
 // SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.
 type SummaryTasksSDI struct {
-	Items []SummaryTaskItemSDI `json:"items"`
+	SummaryID string                      `json:"summary_id" minLength:"1" description:"Id bản tóm tắt mới nhất của cuộc họp; bản cũ hơn bị từ chối 409 summary_superseded" example:"01JABC1234567890ABCDEFGH"`
+	Items     []MeetingSummaryTaskItemSDI `json:"items" description:"1–50 việc"`
 }
 
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
 type AppendChatSDI struct {
 	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
+}
+
+// PatchParticipantSDI sets who votes and who clerks (host/admin only).
+type PatchParticipantSDI struct {
+	Standing    *string `json:"standing" enum:"MEMBER,OBSERVER" description:"MEMBER = thành viên chính thức, OBSERVER = dự thính" example:"OBSERVER"`
+	IsSecretary *bool   `json:"is_secretary" description:"Giao/bỏ vai thư ký (chỉ tài khoản)" example:"true"`
+}
+
+// MarkAttendanceSDI is PUT /api/v1/meetings/{meetingID}/attendance/{participantID}.
+type MarkAttendanceSDI struct {
+	Status string `json:"status" enum:"PRESENT,LATE,EXCUSED,ABSENT" example:"EXCUSED"`
+	Note   string `json:"note" maxLength:"200" description:"Lý do vắng; chỉ lưu khi EXCUSED" example:"Đi công tác"`
+}
+
+// CreateMotionSDI is POST /api/v1/meetings/{meetingID}/motions.
+type CreateMotionSDI struct {
+	Title       string `json:"title" minLength:"1" maxLength:"200" description:"Nội dung biểu quyết (đếm theo ký tự)" example:"Thông qua kế hoạch quý IV"`
+	Description string `json:"description" maxLength:"2000" description:"Mô tả thêm, không bắt buộc" example:""`
+	BallotMode  string `json:"ballot_mode" enum:"PUBLIC,SECRET" description:"PUBLIC = công khai, SECRET = bỏ phiếu kín" example:"SECRET"`
+	Threshold   string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" description:"Ngưỡng thông qua" example:"MAJORITY"`
+	Base        string `json:"base" enum:"PRESENT,ALL_MEMBERS" description:"Mẫu số: số thành viên có mặt hoặc tổng thành viên" example:"PRESENT"`
+}
+
+// PatchMotionSDI is PATCH /api/v1/meetings/{meetingID}/motions/{motionID}; draft only.
+type PatchMotionSDI struct {
+	Title       *string `json:"title" minLength:"1" maxLength:"200" example:"Thông qua kế hoạch quý IV"`
+	Description *string `json:"description" maxLength:"2000" example:""`
+	BallotMode  *string `json:"ballot_mode" enum:"PUBLIC,SECRET" example:"PUBLIC"`
+	Threshold   *string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" example:"TWO_THIRDS"`
+	Base        *string `json:"base" enum:"PRESENT,ALL_MEMBERS" example:"ALL_MEMBERS"`
+	Position    *int32  `json:"position" minimum:"1" description:"Đổi chỗ với nội dung đang ở vị trí này (cả hai phải còn nháp)" example:"1"`
+}
+
+// CastBallotSDI is POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot.
+type CastBallotSDI struct {
+	Choice string `json:"choice" enum:"YES,NO,ABSTAIN" description:"Không đổi được sau khi gửi" example:"YES"`
 }

@@ -1,0 +1,19 @@
+{
+  "name": "uniwork-landing-film",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Isolated local Remotion authoring dependencies; install in .go-tmp/landing-film-runtime only.",
+  "dependencies": {
+    "@react-three/fiber": "9.7.0",
+    "@remotion/cli": "4.0.526",
+    "@remotion/three": "4.0.526",
+    "@types/react": "19.2.7",
+    "@types/three": "0.186.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.526",
+    "sharp": "0.35.4",
+    "three": "0.186.0",
+    "typescript": "5.9.3"
+  }
+}

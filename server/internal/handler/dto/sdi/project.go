@@ -4,7 +4,7 @@ import "encoding/json"
 
 // CreateProjectSDI is POST .../projects.
 type CreateProjectSDI struct {
-	Title         string                          `json:"title" minLength:"1" example:"Q3 launch"`
+	Title         string                          `json:"title" minLength:"1" description:"Unique within the workspace after case-folding and whitespace normalization" example:"Q3 launch"`
 	Description   *string                         `json:"description"`
 	Icon          *string                         `json:"icon"`
 	Status        string                          `json:"status" description:"planned|in_progress|paused|completed|cancelled" example:"planned"`
@@ -29,7 +29,7 @@ type CreateProjectResourceEmbedSDI struct {
 // Clearable lead/date fields use RawMessage in the handler so null clears.
 type PutProjectSDI struct {
 	Revision    *int64  `json:"revision" description:"Revision hiện tại phía client; lệch → revision_conflict" example:"1"`
-	Title       *string `json:"title"`
+	Title       *string `json:"title" description:"Unique within the workspace after case-folding and whitespace normalization"`
 	Description *string `json:"description"`
 	Icon        *string `json:"icon"`
 	Status      *string `json:"status"`

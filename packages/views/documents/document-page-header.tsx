@@ -1,0 +1,115 @@
+"use client";
+
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
+import { useMembers } from "@uniwork/core/workspaces";
+import { useDocumentComments } from "@uniwork/core/documents/hooks-comments";
+import { isMyFolder, type Document } from "@uniwork/core/types/document";
+import { createShortcutChord, shortcutMatchesEvent } from "@uniwork/core/shortcuts";
+import { isImeComposing } from "@uniwork/core/utils";
+import { PAGE_SAVE_REQUEST_EVENT } from "../editor/extensions/page-events";
+import { DocumentShelvedBadge } from "./document-shelved-banner";
+import { DocumentPageIcon } from "./document-page-icon";
+import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
+
+const SAVE_CHORD = createShortcutChord("S", { primary: true });
+
+interface DocumentPageHeaderProps {
+  wsId: string;
+  doc: Document;
+  editable: boolean;
+  /** The document sits in "Lưu trữ": an Archived label stands beside the title. */
+  shelved?: boolean;
+  titleRef?: RefObject<HTMLTextAreaElement | null>;
+  metadataRef?: RefObject<DocumentPageMetadataHandle | null>;
+  onTitleChange: (title: string) => void;
+  onFocusBody: () => void;
+  canPersist?: boolean;
+  getRevision?: () => string;
+  onPendingChange?: (pending: boolean) => void;
+  onSaved?: (doc: Document) => void;
+  onStatusChange?: (status: DocumentPageMetadataStatus) => void;
+}
+
+export function DocumentPageHeader({ wsId, doc, editable, shelved = false, titleRef, onTitleChange, onFocusBody,
+  metadataRef, canPersist, getRevision, onPendingChange, onSaved, onStatusChange }: DocumentPageHeaderProps) {
+  const { t, i18n } = useTranslation();
+  const ownRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = titleRef ?? ownRef;
+  const myFolder = isMyFolder(doc);
+  const canEditHeader = editable && !myFolder;
+  const metadata = useDocumentPageMetadata(wsId, doc, canEditHeader, onTitleChange, { canPersist, getRevision, onPendingChange, onSaved, onStatusChange });
+  useImperativeHandle(metadataRef, () => ({ flush: metadata.flush, hasUnsavedWork: metadata.hasUnsavedWork }), [metadata.flush, metadata.hasUnsavedWork]);
+  const members = useMembers(wsId);
+  const comments = useDocumentComments(wsId, doc.id);
+  const author = members.data?.find((member) => member.user_id === doc.updated_by)?.display_name;
+  const date = doc.updated_at ? new Date(doc.updated_at) : null;
+  const time = date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit" }).format(date)
+    : null;
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const resize = () => {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    };
+    resize();
+    let width = input.clientWidth;
+    // Sidebar and viewport changes can wrap an unchanged logical title.
+    // Ignore height-only notifications caused by our own auto-sizing.
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width === width) return;
+      width = entry.contentRect.width;
+      resize();
+    });
+    observer.observe(input);
+    return () => observer.disconnect();
+  }, [inputRef, metadata.title, canEditHeader]);
+
+  useEffect(() => {
+    if (!canEditHeader || doc.title !== t("documents.page.new_page")) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    // Select the default title once on arrival, never on a metadata refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="group mb-8 min-w-0">
+      {canEditHeader ? <DocumentPageIcon icon={metadata.icon} onChange={metadata.changeIcon} />
+        : metadata.icon ? <div className="mb-4 text-display" aria-hidden>{metadata.icon}</div> : null}
+      {canEditHeader ? (
+        <textarea ref={inputRef} rows={1} value={metadata.title}
+          aria-label={t("documents.page_ui.title_label")} placeholder={t("documents.detail.untitled")}
+          aria-busy={metadata.pending || undefined}
+          className="block min-h-10 w-full resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 font-heading text-display-sm font-semibold tracking-tight text-foreground placeholder:text-muted-foreground sm:text-display"
+          onChange={(event) => metadata.changeTitle(event.target.value)} onBlur={() => void metadata.flush()}
+          onKeyDown={(event) => {
+            if (isImeComposing(event.nativeEvent)) return;
+            if (shortcutMatchesEvent(SAVE_CHORD, event.nativeEvent)) {
+              // Same request the page editor makes for Ctrl/Cmd+S; a held key is swallowed, not repeated.
+              event.preventDefault();
+              if (!event.repeat) event.currentTarget.dispatchEvent(new CustomEvent(PAGE_SAVE_REQUEST_EVENT, { bubbles: true }));
+              return;
+            }
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            void metadata.flush();
+            onFocusBody();
+          }}
+        />
+      ) : <h1 className="break-words text-display-sm font-semibold tracking-tight sm:text-display">{(myFolder ? t("documents.home.my_folder.label") : doc.title) || t("documents.detail.untitled")}</h1>}
+      {time || comments.data || shelved ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
+          {shelved ? <DocumentShelvedBadge /> : null}
+          {time ? <time dateTime={doc.updated_at} title={date?.toLocaleString(i18n.language)}>
+            {author ? t("documents.page_ui.updated_by", { time, name: author }) : t("documents.page_ui.updated_at", { time })}
+          </time> : null}
+          {comments.data ? <span>{t("documents.page_ui.comment_count", { count: comments.data.length })}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -1,0 +1,77 @@
+name: uniwork-app-dev
+
+services:
+  uniwork-office-engine:
+    image: registry-harbor.ubos.vn/uniwork/uniwork-office-engine:${UNIWORK_IMAGE_TAG:?}
+    env_file:
+      - path: env/uniwork-office-engine.env
+        required: true
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - KILL
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    ports:
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  uniwork-be:
+    image: registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG:?}
+    env_file:
+      - path: env/uniwork-be.env
+        required: true
+    environment:
+      OFFICE_ENGINE_URL: http://uniwork-office-engine:8090
+    ports:
+      - "8086:8080"
+    depends_on:
+      uniwork-office-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  uniwork-fe:
+    image: registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG:?}
+    env_file:
+      - path: env/uniwork-fe.env
+        required: true
+    ports:
+      - "3008:3000"
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.19.0/24

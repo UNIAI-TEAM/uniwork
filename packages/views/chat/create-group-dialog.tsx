@@ -3,25 +3,28 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH, CHAT_FIELD_CLASS } from "./chat-dialog-look";
+import { ChatGroupAvatarPicker } from "./chat-group-avatar-editor";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
-  ExternalMemberLookupRow,
+  WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
+
+const MIN_GROUP_MEMBERS = 2;
 
 export function CreateGroupDialog({
   open,
@@ -36,27 +39,29 @@ export function CreateGroupDialog({
   workspaceId: string;
   currentUserId: string;
   creating?: boolean;
-  onCreate: (members: ChatContact[], name: string) => void;
+  /** `avatar` is uploaded by the caller once the group exists. */
+  onCreate: (members: ChatContact[], name: string, avatar: File | null) => void;
 }) {
   const { t } = useTranslation();
   const [groupName, setGroupName] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const [avatar, setAvatar] = useState<File | null>(null);
 
-  const excludeUserIds = useMemo(
+  const pickerFocus = useMemberPickerFocus();
+  const pickedUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
 
-  const { filteredMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
+  const { filteredMembers, hasOtherMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
     useWorkspaceMemberPicker({
       workspaceId,
       currentUserId,
       open,
       query: memberQuery,
       searchSubmitted,
-      excludeUserIds,
     });
 
   const resetForm = () => {
@@ -64,6 +69,7 @@ export function CreateGroupDialog({
     setMemberQuery("");
     setSearchSubmitted(false);
     setPendingMembers([]);
+    setAvatar(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -76,12 +82,23 @@ export function CreateGroupDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
   };
+
 
   const removeMember = (userId: string) => {
     setPendingMembers((prev) => prev.filter((member) => member.user_id !== userId));
+  };
+
+  /* The list's rows are checkboxes: a picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
@@ -91,104 +108,97 @@ export function CreateGroupDialog({
     }
   };
 
-  const canCreate = pendingMembers.length >= 2 && !creating;
+  const picked = pendingMembers.length;
+  const missing = Math.max(MIN_GROUP_MEMBERS - picked, 0);
+  const canCreate = missing === 0 && !creating;
 
   const submit = () => {
     if (!canCreate) return;
-    onCreate(pendingMembers, groupName.trim());
+    onCreate(pendingMembers, groupName.trim(), avatar);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
-          <DialogTitle className="text-title">{t("chat.create_group_title")}</DialogTitle>
-          <DialogDescription>{t("chat.create_group_description")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="group-name" className="text-label font-medium">
-              {t("chat.group_name_label")}
-            </Label>
-            <Input
-              id="group-name"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder={t("chat.group_name_placeholder")}
-              className="rounded-xl"
-              autoFocus
-            />
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
+        <FormDialogHeader
+          title={t("chat.create_group_title")}
+          description={t("chat.create_group_description")}
+        />
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
+          <div className="flex items-center gap-5">
+            <ChatGroupAvatarPicker file={avatar} onFileChange={setAvatar} name={groupName} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Label htmlFor="group-name" className="text-label font-semibold">
+                {t("chat.group_name_optional_label")}
+              </Label>
+              <Input
+                id="group-name"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder={t("chat.group_name_placeholder")}
+                maxLength={80}
+                autoFocus
+                className={CHAT_FIELD_CLASS}
+              />
+            </div>
           </div>
 
           <SelectedMemberChips
             members={pendingMembers}
             onRemove={removeMember}
+            onRemovedLast={pickerFocus.focusInput}
             title={t("chat.group_selected_members")}
-            countBadge={t("chat.group_member_minimum", { count: pendingMembers.length })}
-            emptyLabel={t("chat.group_pick_members")}
+            // How many are still missing is said once, next to the submit button.
+            summary={t("chat.group_member_selected", { count: picked })}
           />
 
-          <div className="space-y-3">
-            <WorkspaceMemberSearchField
-              id="group-member-search"
-              label={t("chat.group_members_label")}
-              query={memberQuery}
-              onQueryChange={(value) => {
-                setMemberQuery(value);
-                setSearchSubmitted(false);
-              }}
-              onSubmit={submitMemberSearch}
-              placeholder={t("chat.search_member_or_email")}
-            />
-            <p className="text-caption text-muted-foreground">{t("chat.search_member_or_email_hint")}</p>
+          <WorkspaceMemberSearchField
+            id="group-member-search"
+            label={t("chat.group_members_label")}
+            query={memberQuery}
+            onQueryChange={(value) => {
+              setMemberQuery(value);
+              setSearchSubmitted(false);
+            }}
+            onSubmit={submitMemberSearch}
+            placeholder={t("chat.member_search_placeholder")}
+            hint={t("chat.search_member_or_email_hint")}
+            inputRef={pickerFocus.inputRef}
+            onArrowDown={pickerFocus.focusFirstRow}
+          />
 
-            <div className="space-y-2">
-              <p className="text-label font-medium text-foreground">{t("chat.workspace_members")}</p>
-              <WorkspaceMemberPickerList
-                members={filteredMembers}
-                loading={isLoading}
-                emptyLabel={t("chat.workspace_members_empty")}
-                onPick={addMember}
-              />
-            </div>
+          <WorkspaceMemberLookupResult
+            enabled={lookupEnabled}
+            lookup={lookup}
+            onPick={addMember}
+            actionLabel={t("chat.add_to_group")}
+          />
 
-            {lookupEnabled && lookup.isFetching ? (
-              <p className="text-caption text-muted-foreground">{t("chat.searching")}</p>
-            ) : null}
-
-            {lookupEnabled && !lookup.isFetching && lookup.isFetched && !lookup.data ? (
-              <p className="text-caption text-muted-foreground">{t("chat.user_not_found")}</p>
-            ) : null}
-
-            {lookupEnabled && lookup.data ? (
-              <ExternalMemberLookupRow
-                lookup={lookup.data}
-                onPick={(contact) => addMember(contact)}
-                actionLabel={t("chat.add_to_group")}
-                hint={t("chat.external_member_found")}
-              />
-            ) : null}
-          </div>
-
-          <p className="text-caption text-muted-foreground">{t("chat.create_group_one_room_hint")}</p>
-        </div>
-
-        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={creating}
-            onClick={() => handleOpenChange(false)}
-          >
-            {t("chat.cancel_group")}
-          </Button>
-          <Button type="button" className="rounded-full" disabled={!canCreate} onClick={submit}>
-            {creating ? t("chat.creating_group") : t("chat.start_group")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <WorkspaceMemberPickerList
+            members={filteredMembers}
+            loading={isLoading}
+            query={memberQuery}
+            hasOtherMembers={hasOtherMembers}
+            selectedUserIds={pickedUserIds}
+            onPick={toggleMember}
+            listRef={pickerFocus.listRef}
+          />
+        </FormDialogBody>
+        <FormDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
+          submitLabel={t("chat.start_group")}
+          submittingLabel={t("chat.creating_group")}
+          submitting={creating}
+          submitDisabled={missing > 0}
+          onSubmit={submit}
+          leading={
+            missing > 0
+              ? t("chat.group_member_missing", { count: missing })
+              : t("chat.group_member_summary", { count: picked })
+          }
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

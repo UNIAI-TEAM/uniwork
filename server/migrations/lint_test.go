@@ -147,6 +147,50 @@ func readMigration(t *testing.T, name string) string {
 	return string(b)
 }
 
+// The three-digit space ends at 998. sqlc reads this directory in string
+// order and cannot be told otherwise, so every later migration is named
+// 999<unix-milliseconds>_name: all such prefixes share the "999" head and one
+// width, so string order equals numeric order, and they all sort after 998_.
+// A bare 999_ would sort after them ('_' > '9'), so it is refused too.
+var (
+	threeDigitPrefixPattern = regexp.MustCompile(`^\d{3}$`)
+	timestampPrefixPattern  = regexp.MustCompile(`^999\d{13}$`)
+)
+
+const maxThreeDigitMigrationPrefix = 998
+
+func TestMigrationPrefixesSortTheSameAsStringsAndNumbers(t *testing.T) {
+	var stems []string
+	for prefix, byPrefix := range migrationStemsByPrefix(t) {
+		switch {
+		case timestampPrefixPattern.MatchString(prefix):
+		case threeDigitPrefixPattern.MatchString(prefix):
+			if n, _ := strconv.Atoi(prefix); n > maxThreeDigitMigrationPrefix {
+				t.Errorf("migration prefix %s: after %03d name it 999<unix-ms>_name (e.g. 999%d_add_x)", prefix, maxThreeDigitMigrationPrefix, 1790000000000)
+			}
+		default:
+			t.Errorf("migration prefix %s: use a three-digit prefix up to %03d or 999<13-digit unix-ms>", prefix, maxThreeDigitMigrationPrefix)
+		}
+		stems = append(stems, byPrefix...)
+	}
+	byString := append([]string(nil), stems...)
+	sort.Strings(byString)
+	byNumber := append([]string(nil), stems...)
+	sort.SliceStable(byNumber, func(i, j int) bool {
+		a, _ := strconv.ParseInt(migrationPrefixPattern.FindStringSubmatch(byNumber[i])[1], 10, 64)
+		b, _ := strconv.ParseInt(migrationPrefixPattern.FindStringSubmatch(byNumber[j])[1], 10, 64)
+		if a != b {
+			return a < b
+		}
+		return byNumber[i] < byNumber[j]
+	})
+	for i := range byString {
+		if byString[i] != byNumber[i] {
+			t.Fatalf("migration order differs at %d: string order has %s, numeric order has %s", i, byString[i], byNumber[i])
+		}
+	}
+}
+
 func migrationStemsByPrefix(t *testing.T) map[string][]string {
 	t.Helper()
 	byPrefix := map[string][]string{}
@@ -229,48 +273,60 @@ func countStatements(sql string) int {
 // The tenant boundary is the organization. A business table without
 // `organization_id NOT NULL` cannot be isolated at the service layer, and a
 // missing column is invisible in review until the first cross-tenant read.
-// Two checks: new tables must carry the column from their first migration, and
-// the tables that predate the ADR are listed by name so the debt can only
-// shrink — backfill one, remove it here; add one without the column, fail.
+// Two checks: new tables must declare the column in their first migration,
+// and every table any migration creates has the column by the end of the
+// directory (the ones that predate the ADR got it from a backfill migration).
+// That it is NOT NULL is checked against a migrated database, in
+// tenant_schema_test.go.
 
-// Tables created before this prefix are the backfill debt below; every
-// CREATE TABLE after it is held to the rule.
+// Tables created up to this prefix predate ADR 0008 and were backfilled; every
+// CREATE TABLE after it is held to the rule from its first migration.
 const maxPreTenantMigrationPrefix = 65
 
 // Identity and infrastructure tables that are not tenant data. Add a name
 // here only with the reason beside it.
 var tenantExemptTables = map[string]string{
-	"users":                    "identity, above every organization",
-	"refresh_tokens":           "session credential, keyed by user",
-	"email_verification_codes": "pre-registration, no organization yet",
-	"password_reset_tokens":    "credential recovery, keyed by user",
-	"organizations":            "the tenant itself",
-	"emails":                   "transactional mail outbox, provider-facing",
-	"webhook_inbox":            "raw provider callbacks, before they are attributed",
-	"plans":                    "the global plan catalogue, shared by every tenant (F-02)",
-	"features":                 "the entitlement vocabulary, shared by every tenant (F-02)",
-	"plan_features":            "catalogue rows, keyed by plan (F-02)",
-	"notification_preferences": "per-user setting, above every organization (F-07)",
-	"push_subscriptions":       "per-user browser credential, above every organization (F-07)",
-	"notification_deliveries":  "consumer idempotency ledger keyed by outbox event (F-07)",
-	"ai_model_rates":           "global model price list, shared by every tenant (F-09)",
-	"admin_actions":            "platform-admin ledger; a target may be any organization, user or flag (F-11)",
-	"feature_flag_overrides":   "flag overrides scoped to organization, user or global; the scope is a column (F-11)",
+	"demo_requests":             "public pre-account contact intake; the prospective team has no organization and only platform staff may read it",
+	"users":                     "identity, above every organization",
+	"refresh_tokens":            "session credential, keyed by user",
+	"desktop_auth_attempts":     "pending account authorization, before organization selection",
+	"device_sessions":           "account/session identity can span zero or many organizations; no single organization is correct",
+	"mcp_clients":               "OAuth client registry shared by every organization; a client is a program, not tenant data (UNI-1308)",
+	"mcp_auth_attempts":         "pending MCP authorization, before the person picks an organization; the approved attempt reaches its tenant through grant_id (UNI-1308)",
+	"email_verification_codes":  "pre-registration, no organization yet",
+	"password_reset_tokens":     "credential recovery, keyed by user",
+	"organizations":             "the tenant itself",
+	"emails":                    "transactional mail outbox, provider-facing",
+	"webhook_inbox":             "raw provider callbacks, before they are attributed",
+	"plans":                     "the global plan catalogue, shared by every tenant (F-02)",
+	"features":                  "the entitlement vocabulary, shared by every tenant (F-02)",
+	"plan_features":             "catalogue rows, keyed by plan (F-02)",
+	"notification_preferences":  "per-user setting, above every organization (F-07)",
+	"push_subscriptions":        "per-user browser credential, above every organization (F-07)",
+	"notification_deliveries":   "consumer idempotency ledger keyed by outbox event (F-07)",
+	"ai_model_rates":            "global model price list, shared by every tenant (F-09)",
+	"admin_actions":             "platform-admin ledger; a target may be any organization, user or flag (F-11)",
+	"feature_flag_overrides":    "flag overrides scoped to organization, user or global; the scope is a column (F-11)",
+	"file_backfill_runs":        "files-backfill run ledger: operator tooling state, not business data (T9b/UNI-747)",
+	"file_backfill_checkpoints": "files-backfill resume cursors: operator tooling state, not business data (T9b/UNI-747)",
+	"file_backfill_items":       "files-backfill per-row mapping ledger: the tenant a row resolved is data, not a scope the table enforces (T9b/UNI-747)",
+	"meeting_guests":            "anonymous guest identity minted by the signed guest cookie before any meeting is known (MeetingService.EnsureGuestCookie); one guest may join meetings of several organizations, so like users it sits above every organization — its tenant-scoped trace is the meeting_participants row",
+	"meeting_provider_events":   "provider-webhook idempotency ledger keyed by (provider_key, provider_event_id), like webhook_inbox and notification_deliveries; the event is attributed to a meeting downstream",
+	"graph_edge_types":          "the global Work Graph edge catalogue, shared by every tenant (C-11)",
+	"change_feed_epoch":         "one global marker row recording the xid from which audit_events.xact_id is filled, so a change-feed cursor older than the column is refused (G5-01b); it names no tenant",
 }
 
-// Business tables created before ADR 0008 that still lack organization_id.
-// ADR 0008 schedules the backfill with F-08 / ADR 0007; each backfill migration
-// removes its table from this list. Names only ever leave.
-var tenantBackfillDebt = []string{
-	"chat_messages", "chat_room_members",
-	"workspace_members",
-	"meetings", "meeting_attendees", "meeting_notes",
-	"meeting_participants", "meeting_invitations", "meeting_access_grants",
-	"meeting_invite_links", "meeting_join_requests", "meeting_conference_sessions",
-	"meeting_attendance_sessions", "meeting_audit_logs", "meeting_guests",
-	"meeting_provider_events", "meeting_chat_messages",
-	"meeting_transcript_segments", "meeting_summaries", "meeting_recordings",
+// Tables whose organization_id column must exist but may accept NULL on
+// exactly one documented branch - never "public" and never "unknown tenant".
+// Each entry states the branch; a schema test pins the binding. Adding a name
+// here requires an ADR justifying the NULL branch (today: ADR 0023).
+var nullableTenantTables = map[string]string{
+	"files":                "NULL only for the account-avatar identity scope; every other file is tenant-scoped (ADR 0023)",
+	"file_upload_sessions": "NULL only on the user_avatar branch, which the scope CHECK binds to a NULL workspace and a non-NULL user_id (ADR 0023)",
+	"file_jobs":            "denormalized tenant of its target file; NULL only for avatar files (ADR 0023)",
 }
+
+var nullableTenantColumnPattern = regexp.MustCompile(`\borganization_id\s+TEXT\b`)
 
 func TestNewTablesCarryOrganizationID(t *testing.T) {
 	for _, name := range newMigrationUpFiles(t) {
@@ -281,6 +337,12 @@ func TestNewTablesCarryOrganizationID(t *testing.T) {
 			if _, exempt := tenantExemptTables[table]; exempt {
 				continue
 			}
+			if reason, nullable := nullableTenantTables[table]; nullable {
+				if !nullableTenantColumnPattern.MatchString(body) || tenantColumnPattern.MatchString(body) {
+					t.Errorf("%s creates %s: organization_id must be declared `TEXT` (nullable) - %s", name, table, reason)
+				}
+				continue
+			}
 			if !tenantColumnPattern.MatchString(body) {
 				t.Errorf("%s creates %s without `organization_id TEXT NOT NULL` (ADR 0008); a business table is tenant-scoped from its first migration, or is listed in tenantExemptTables with a reason", name, table)
 			}
@@ -288,36 +350,96 @@ func TestNewTablesCarryOrganizationID(t *testing.T) {
 	}
 }
 
-func TestTablesWithoutOrganizationIDAreTheKnownDebt(t *testing.T) {
+func TestNullTenantIsOnlyTheAvatarBranch(t *testing.T) {
+	// ADR 0023: files.organization_id is nullable on exactly one branch - the
+	// account-avatar identity scope (purpose user_avatar carrying user_id).
+	// Pin both halves: the set of new tables that accept NULL is exactly
+	// nullableTenantTables, and the session scope CHECK binds the NULL tenant
+	// to user_avatar (so no other purpose can carry it).
+	type created struct {
+		file string
+		body string
+	}
+	tables := map[string]created{}
+	for _, name := range newMigrationUpFiles(t) {
+		if migrationPrefix(t, name) <= maxPreTenantMigrationPrefix {
+			continue
+		}
+		for table, body := range createdTables(stripSQLComments(readMigration(t, name))) {
+			tables[table] = created{file: name, body: body}
+		}
+	}
+	var got []string
+	for table, c := range tables {
+		if _, exempt := tenantExemptTables[table]; exempt {
+			continue
+		}
+		if nullableTenantColumnPattern.MatchString(c.body) && !tenantColumnPattern.MatchString(c.body) {
+			got = append(got, table)
+		}
+	}
+	sort.Strings(got)
+	var want []string
+	for table := range nullableTenantTables {
+		want = append(want, table)
+	}
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("tables accepting NULL organization_id = %v, want %v; a NULL tenant is only the user_avatar branch (ADR 0023)", got, want)
+	}
+
+	nonEmptyCheck := regexp.MustCompile(`organization_id\s+IS\s+NULL\s+OR`)
+	for table := range nullableTenantTables {
+		c, ok := tables[table]
+		if !ok {
+			t.Fatalf("%s is in nullableTenantTables but no migration creates it", table)
+		}
+		if !nonEmptyCheck.MatchString(c.body) {
+			t.Errorf("%s (%s): a NULL organization_id is allowed but the empty string must not be - add an `organization_id IS NULL OR organization_id <> ''` CHECK", table, c.file)
+		}
+	}
+
+	avatarBranch := regexp.MustCompile(`(?s)purpose\s*=\s*'user_avatar'[^;]*organization_id\s+IS\s+NULL[^;]*user_id\s+IS\s+NOT\s+NULL`)
+	sess := tables["file_upload_sessions"]
+	if !avatarBranch.MatchString(sess.body) {
+		t.Errorf("%s: file_upload_sessions must bind `organization_id IS NULL` to `purpose = 'user_avatar'` with `user_id IS NOT NULL` in the scope CHECK (ADR 0023)", sess.file)
+	}
+}
+
+// TestEveryBusinessTableCarriesOrganizationID holds the whole directory, old
+// tables included: the backfill debt ADR 0008 recorded is paid, so any table a
+// migration creates either has organization_id by the last migration or is
+// exempted by name with a reason.
+func TestEveryBusinessTableCarriesOrganizationID(t *testing.T) {
 	has := map[string]bool{}
-	created := map[string]bool{}
+	created := map[string]string{}
 	for _, name := range migrationFileNames(t) {
 		if !strings.HasSuffix(name, ".up.sql") {
 			continue
 		}
 		sql := stripSQLComments(readMigration(t, name))
 		for table, body := range createdTables(sql) {
-			created[table] = true
+			if _, seen := created[table]; !seen {
+				created[table] = name
+			}
 			if organizationIDPattern.MatchString(body) {
 				has[table] = true
 			}
 		}
 		for _, m := range alterAddOrganizationIDPattern.FindAllStringSubmatch(sql, -1) {
-			has[m[1]] = true
+			has[strings.ToLower(m[1])] = true
 		}
 	}
 	var missing []string
-	for table := range created {
+	for table, file := range created {
 		if _, exempt := tenantExemptTables[table]; exempt || has[table] {
 			continue
 		}
-		missing = append(missing, table)
+		missing = append(missing, table+" (created in "+file+")")
 	}
 	sort.Strings(missing)
-	want := append([]string(nil), tenantBackfillDebt...)
-	sort.Strings(want)
-	if strings.Join(missing, ",") != strings.Join(want, ",") {
-		t.Errorf("tables without organization_id (ADR 0008) differ from tenantBackfillDebt.\n  actual: %v\n  listed: %v\nBackfilled one? Remove it from the list. Added a new table? Give it the column, or exempt it with a reason.", missing, want)
+	for _, m := range missing {
+		t.Errorf("%s has no organization_id (ADR 0008): add `organization_id TEXT NOT NULL` (a new table declares it; an existing one gets a backfill migration from its parent), or list it in tenantExemptTables with the reason it has no tenant", m)
 	}
 }
 

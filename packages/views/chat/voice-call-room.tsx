@@ -1,61 +1,23 @@
 "use client";
 
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { Track, type LocalTrack, type RemoteTrack, type Room } from "livekit-client";
+import { deviceFailureFromError } from "./voice-call-media";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+  VoiceCallActionsContext,
+  VoiceCallMediaContext,
+  VoiceCallStatusContext,
+  type VoiceCallConnectionState,
+} from "./voice-call-room-context";
 import {
-  ConnectionState,
-  Room,
-  RoomEvent,
-  Track,
-  type LocalTrackPublication,
-  type RemoteTrack,
-  type RemoteTrackPublication,
-  type RemoteParticipant,
-} from "livekit-client";
+  participantScreenShareKey,
+  sameParticipantTiles,
+  type VoiceCallParticipantTile,
+} from "./voice-call-room-types";
+import { useVoiceCallRoomConnection } from "./use-voice-call-room-connection";
 
-const CONNECT_TIMEOUT_MS = 25_000;
-
-type VoiceCallRoomContextValue = {
-  room: Room | null;
-  connected: boolean;
-  remoteParticipantCount: number;
-  needsAudioUnlock: boolean;
-  muted: boolean;
-  cameraEnabled: boolean;
-  remoteCameraEnabled: boolean;
-  toggleMute: () => void;
-  toggleCamera: () => Promise<boolean>;
-  unlockAudio: () => Promise<boolean>;
-  bindLocalVideo: (el: HTMLVideoElement | null) => void;
-  bindRemoteVideo: (el: HTMLVideoElement | null) => void;
-};
-
-const VoiceCallRoomContext = createContext<VoiceCallRoomContextValue>({
-  room: null,
-  connected: false,
-  remoteParticipantCount: 0,
-  needsAudioUnlock: false,
-  muted: false,
-  cameraEnabled: false,
-  remoteCameraEnabled: false,
-  toggleMute: () => undefined,
-  toggleCamera: async () => false,
-  unlockAudio: async () => false,
-  bindLocalVideo: () => undefined,
-  bindRemoteVideo: () => undefined,
-});
-
-export function useVoiceCallRoom() {
-  return useContext(VoiceCallRoomContext);
-}
+export type { VoiceCallParticipantTile } from "./voice-call-room-types";
 
 /** LiveKit room for native chat voice/video calls (no data channels). */
 export function VoiceCallRoom({
@@ -64,35 +26,42 @@ export function VoiceCallRoom({
   initialCameraEnabled = false,
   onDisconnected,
   onConnectFailed,
-  onConnected,
   children,
 }: {
   url: string;
   token: string;
   initialCameraEnabled?: boolean;
-  onDisconnected: () => void;
+  onDisconnected: (info?: VoiceCallDisconnectInfo) => void;
   onConnectFailed?: () => void;
-  onConnected?: () => void;
   children: ReactNode;
 }) {
   const roomRef = useRef<Room | null>(null);
-  const audioElsRef = useRef<HTMLMediaElement[]>([]);
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const localScreenShareElRef = useRef<HTMLVideoElement | null>(null);
+  const remoteScreenShareElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoTrackRef = useRef<RemoteTrack | null>(null);
+  const remoteScreenShareTrackRef = useRef<RemoteTrack | null>(null);
+  const videoElByIdentityRef = useRef<Map<string, HTMLVideoElement | null>>(new Map());
+  const videoTrackByIdentityRef = useRef<Map<string, RemoteTrack | LocalTrack>>(new Map());
   const onDisconnectedRef = useRef(onDisconnected);
   const onConnectFailedRef = useRef(onConnectFailed);
-  const onConnectedRef = useRef(onConnected);
-  const [connected, setConnected] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const micWantedRef = useRef(true);
+  const cameraWantedRef = useRef(initialCameraEnabled);
+  const [connectionState, setConnectionState] = useState<VoiceCallConnectionState>("connecting");
   const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
   const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const [muted, setMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [remoteCameraEnabled, setRemoteCameraEnabled] = useState(false);
+  const [screenShareEnabled, setScreenShareEnabled] = useState(false);
+  const [remoteScreenShareEnabled, setRemoteScreenShareEnabled] = useState(false);
+  const [participantTiles, setParticipantTiles] = useState<VoiceCallParticipantTile[]>([]);
+  const [deviceError, setDeviceError] = useState<VoiceCallDeviceError | null>(null);
 
   onDisconnectedRef.current = onDisconnected;
   onConnectFailedRef.current = onConnectFailed;
-  onConnectedRef.current = onConnected;
 
   const syncAudioPlaybackState = useCallback((room: Room) => {
     setNeedsAudioUnlock(!room.canPlaybackAudio);
@@ -115,8 +84,14 @@ export function VoiceCallRoom({
     const room = roomRef.current;
     const el = localVideoElRef.current;
     if (!room || !el) return;
-    const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-    pub?.track?.attach(el);
+    room.localParticipant.getTrackPublication(Track.Source.Camera)?.track?.attach(el);
+  }, []);
+
+  const attachLocalScreenShare = useCallback(() => {
+    const room = roomRef.current;
+    const el = localScreenShareElRef.current;
+    if (!room || !el) return;
+    room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track?.attach(el);
   }, []);
 
   const bindLocalVideo = useCallback(
@@ -127,277 +102,274 @@ export function VoiceCallRoom({
     [attachLocalVideo],
   );
 
+  const bindLocalScreenShare = useCallback(
+    (el: HTMLVideoElement | null) => {
+      localScreenShareElRef.current = el;
+      if (el) attachLocalScreenShare();
+    },
+    [attachLocalScreenShare],
+  );
+
   const bindRemoteVideo = useCallback((el: HTMLVideoElement | null) => {
     remoteVideoElRef.current = el;
     const track = remoteVideoTrackRef.current;
-    if (el && track) {
-      track.attach(el);
-    }
+    if (el && track) track.attach(el);
   }, []);
 
-  useEffect(() => {
-    let disposed = false;
-    let connectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    const room = new Room({ adaptiveStream: true, dynacast: true });
-    roomRef.current = room;
-    const attachedAudioSids = new Set<string>();
+  const bindRemoteScreenShare = useCallback((el: HTMLVideoElement | null) => {
+    remoteScreenShareElRef.current = el;
+    const track = remoteScreenShareTrackRef.current;
+    if (el && track) track.attach(el);
+  }, []);
 
-    const clearConnectTimeout = () => {
-      if (connectTimeoutId != null) {
-        clearTimeout(connectTimeoutId);
-        connectTimeoutId = null;
-      }
-    };
-
-    const failConnect = () => {
-      if (disposed) return;
-      clearConnectTimeout();
-      void room.disconnect();
-      if (onConnectFailedRef.current) {
-        onConnectFailedRef.current();
-      } else {
-        onDisconnectedRef.current();
-      }
-    };
-
-    const attachAudio = (
-      track: RemoteTrack,
-      _publication: RemoteTrackPublication,
-      _participant: RemoteParticipant,
-    ) => {
-      if (track.kind !== Track.Kind.Audio) return;
-      const sid = track.sid;
-      if (!sid || attachedAudioSids.has(sid)) return;
-      attachedAudioSids.add(sid);
-      const el = track.attach();
-      el.style.display = "none";
-      document.body.appendChild(el);
-      audioElsRef.current.push(el);
-      void el.play().catch(() => undefined);
-    };
-
-    const attachExistingRemoteTracks = () => {
-      for (const participant of room.remoteParticipants.values()) {
-        for (const publication of participant.trackPublications.values()) {
-          const track = publication.track;
-          if (!track || track.kind !== Track.Kind.Audio) continue;
-          attachAudio(track, publication, participant);
-        }
-      }
-    };
-
-    const attachVideo = (
-      track: RemoteTrack,
-      _publication: RemoteTrackPublication,
-      _participant: RemoteParticipant,
-    ) => {
-      if (track.kind !== Track.Kind.Video) return;
-      remoteVideoTrackRef.current = track;
-      setRemoteCameraEnabled(true);
-      if (remoteVideoElRef.current) {
-        track.attach(remoteVideoElRef.current);
-      }
-    };
-
-    const detachVideo = (track: RemoteTrack) => {
-      if (track.kind !== Track.Kind.Video) return;
-      track.detach();
-      if (remoteVideoTrackRef.current === track) {
-        remoteVideoTrackRef.current = null;
-        setRemoteCameraEnabled(false);
-      }
-    };
-
-    const onLocalTrackPublished = (publication: LocalTrackPublication) => {
-      if (publication.source !== Track.Source.Camera) return;
-      setCameraEnabled(true);
-      attachLocalVideo();
-    };
-
-    const onLocalTrackUnpublished = (publication: LocalTrackPublication) => {
-      if (publication.source !== Track.Source.Camera) return;
-      publication.track?.detach();
-      setCameraEnabled(false);
-    };
-
-    const syncRemoteCount = () => {
-      if (disposed) return;
-      setRemoteParticipantCount(room.remoteParticipants.size);
-    };
-
-    const onConnectedEvent = () => {
-      if (disposed) return;
-      clearConnectTimeout();
-      setConnected(true);
-      syncRemoteCount();
-      attachExistingRemoteTracks();
-      void (async () => {
-        try {
-          await room.startAudio();
-        } catch {
-          if (!disposed) setNeedsAudioUnlock(true);
-        }
-        syncAudioPlaybackState(room);
-        try {
-          await room.localParticipant.setMicrophoneEnabled(true);
-          if (!disposed) setMuted(false);
-        } catch {
-          if (!disposed) setMuted(true);
-        }
-        if (initialCameraEnabled) {
-          try {
-            await room.localParticipant.setCameraEnabled(true);
-            if (!disposed) {
-              setCameraEnabled(true);
-              attachLocalVideo();
-            }
-          } catch {
-            if (!disposed) setCameraEnabled(false);
-          }
-        }
-        onConnectedRef.current?.();
-      })();
-    };
-
-    const onParticipantChange = () => {
-      syncRemoteCount();
-    };
-
-    const onDisconnectedEvent = () => {
-      if (disposed) return;
-      clearConnectTimeout();
-      onDisconnectedRef.current();
-    };
-
-    const onConnectionStateChanged = (state: ConnectionState) => {
-      if (disposed) return;
-      if (state === ConnectionState.Connected) {
-        clearConnectTimeout();
-        return;
-      }
-      if (state === ConnectionState.Disconnected) {
-        clearConnectTimeout();
-      }
-    };
-
-    const onAudioPlaybackStatusChanged = () => {
-      if (disposed) return;
-      syncAudioPlaybackState(room);
-    };
-
-    room.on(RoomEvent.TrackSubscribed, attachAudio);
-    room.on(RoomEvent.TrackSubscribed, attachVideo);
-    room.on(RoomEvent.TrackUnsubscribed, detachVideo);
-    room.on(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
-    room.on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
-    room.on(RoomEvent.ParticipantConnected, onParticipantChange);
-    room.on(RoomEvent.ParticipantDisconnected, onParticipantChange);
-    room.on(RoomEvent.Connected, onConnectedEvent);
-    room.on(RoomEvent.Disconnected, onDisconnectedEvent);
-    room.on(RoomEvent.ConnectionStateChanged, onConnectionStateChanged);
-    room.on(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged);
-    const onMediaDevicesError = () => {
-      if (!disposed) setMuted(true);
-    };
-    room.on(RoomEvent.MediaDevicesError, onMediaDevicesError);
-
-    connectTimeoutId = setTimeout(() => {
-      if (disposed || room.state === ConnectionState.Connected) return;
-      failConnect();
-    }, CONNECT_TIMEOUT_MS);
-
-    void room.connect(url, token, { autoSubscribe: true }).catch(() => {
-      failConnect();
-    });
-
-    return () => {
-      disposed = true;
-      clearConnectTimeout();
-      room.off(RoomEvent.TrackSubscribed, attachAudio);
-      room.off(RoomEvent.TrackSubscribed, attachVideo);
-      room.off(RoomEvent.TrackUnsubscribed, detachVideo);
-      room.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
-      room.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
-      room.off(RoomEvent.ParticipantConnected, onParticipantChange);
-      room.off(RoomEvent.ParticipantDisconnected, onParticipantChange);
-      room.off(RoomEvent.Connected, onConnectedEvent);
-      room.off(RoomEvent.Disconnected, onDisconnectedEvent);
-      room.off(RoomEvent.ConnectionStateChanged, onConnectionStateChanged);
-      room.off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged);
-      room.off(RoomEvent.MediaDevicesError, onMediaDevicesError);
-      for (const el of audioElsRef.current) {
-        el.remove();
-      }
-      audioElsRef.current = [];
-      attachedAudioSids.clear();
-      remoteVideoTrackRef.current = null;
-      localVideoElRef.current = null;
-      remoteVideoElRef.current = null;
-      void room.disconnect();
-      roomRef.current = null;
-      setConnected(false);
-      setRemoteParticipantCount(0);
-      setNeedsAudioUnlock(false);
-      setCameraEnabled(false);
-      setRemoteCameraEnabled(false);
-    };
-  }, [url, token, initialCameraEnabled, attachLocalVideo, syncAudioPlaybackState]);
-
-  const toggleMute = useCallback(() => {
+  const syncParticipantTiles = useCallback(() => {
     const room = roomRef.current;
-    if (!room) return;
-    const next = !muted;
-    void room.localParticipant.setMicrophoneEnabled(!next);
-    setMuted(next);
-  }, [muted]);
+    if (!room) {
+      setParticipantTiles((prev) => (prev.length === 0 ? prev : []));
+      setRemoteCameraEnabled(false);
+      setRemoteScreenShareEnabled(false);
+      return;
+    }
+    const tiles: VoiceCallParticipantTile[] = [];
+    const localPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+    const localScreenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+    tiles.push({
+      identity: room.localParticipant.identity,
+      name: room.localParticipant.name || room.localParticipant.identity,
+      isLocal: true,
+      hasVideo: Boolean(localPub?.track) && !localPub?.isMuted,
+      hasScreenShare: Boolean(localScreenPub?.track) && !localScreenPub?.isMuted,
+      isSpeaking: room.localParticipant.isSpeaking,
+      micMuted: !room.localParticipant.isMicrophoneEnabled,
+    });
+    let anyRemoteVideo = false;
+    let anyRemoteScreenShare = false;
+    for (const participant of room.remoteParticipants.values()) {
+      const pub = participant.getTrackPublication(Track.Source.Camera);
+      const screenPub = participant.getTrackPublication(Track.Source.ScreenShare);
+      const hasVideo = Boolean(pub?.track) && !pub?.isMuted;
+      const hasScreenShare = Boolean(screenPub?.track) && !screenPub?.isMuted;
+      if (hasVideo) anyRemoteVideo = true;
+      if (hasScreenShare) anyRemoteScreenShare = true;
+      tiles.push({
+        identity: participant.identity,
+        name: participant.name || participant.identity,
+        isLocal: false,
+        hasVideo,
+        hasScreenShare,
+        isSpeaking: participant.isSpeaking,
+        micMuted: !participant.isMicrophoneEnabled,
+      });
+    }
+    setParticipantTiles((prev) => (sameParticipantTiles(prev, tiles) ? prev : tiles));
+    setRemoteCameraEnabled(anyRemoteVideo);
+    setRemoteScreenShareEnabled(anyRemoteScreenShare);
+  }, []);
+
+  const clearParticipantTiles = useCallback(() => setParticipantTiles([]), []);
+
+  const bindParticipantVideo = useCallback((identity: string, el: HTMLVideoElement | null) => {
+    const prevEl = videoElByIdentityRef.current.get(identity) ?? null;
+    if (prevEl === el) return;
+    videoElByIdentityRef.current.set(identity, el);
+    const track = videoTrackByIdentityRef.current.get(identity);
+    if (prevEl && track) prevEl.srcObject = null;
+    if (el && track) track.attach(el);
+  }, []);
+
+  const bindParticipantScreenShare = useCallback((identity: string, el: HTMLVideoElement | null) => {
+    const key = participantScreenShareKey(identity);
+    const prevEl = videoElByIdentityRef.current.get(key) ?? null;
+    if (prevEl === el) return;
+    videoElByIdentityRef.current.set(key, el);
+    const track = videoTrackByIdentityRef.current.get(key);
+    if (prevEl && track) prevEl.srcObject = null;
+    if (el && track) track.attach(el);
+  }, []);
+
+  useVoiceCallRoomConnection(
+    url,
+    token,
+    initialCameraEnabled,
+    attempt,
+    {
+      roomRef,
+      remoteVideoElRef,
+      remoteScreenShareElRef,
+      remoteVideoTrackRef,
+      remoteScreenShareTrackRef,
+      videoElByIdentityRef,
+      videoTrackByIdentityRef,
+      onDisconnectedRef,
+      onConnectFailedRef,
+      micWantedRef,
+      cameraWantedRef,
+    },
+    {
+      setConnectionState,
+      setRemoteParticipantCount,
+      setNeedsAudioUnlock,
+      setMuted,
+      setCameraEnabled,
+      setRemoteCameraEnabled,
+      setScreenShareEnabled,
+      setRemoteScreenShareEnabled,
+      setDeviceError,
+      clearParticipantTiles,
+    },
+    attachLocalVideo,
+    attachLocalScreenShare,
+    syncAudioPlaybackState,
+    syncParticipantTiles,
+  );
+
+  // Every toggle awaits LiveKit and shows the state LiveKit reports back;
+  // on failure the control rolls back and the notice says which device and why.
+  const toggleMute = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return false;
+    const enable = !room.localParticipant.isMicrophoneEnabled;
+    try {
+      await room.localParticipant.setMicrophoneEnabled(enable);
+      if (enable) setDeviceError((prev) => (prev?.kind === "audioinput" ? null : prev));
+      return true;
+    } catch (err) {
+      setDeviceError({ kind: "audioinput", failure: deviceFailureFromError(err) });
+      return false;
+    } finally {
+      micWantedRef.current = room.localParticipant.isMicrophoneEnabled;
+      setMuted(!room.localParticipant.isMicrophoneEnabled);
+      syncParticipantTiles();
+    }
+  }, [syncParticipantTiles]);
 
   const toggleCamera = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return false;
-    const next = !cameraEnabled;
+    const enable = !room.localParticipant.isCameraEnabled;
+    const identity = room.localParticipant.identity;
     try {
-      await room.localParticipant.setCameraEnabled(next);
-      setCameraEnabled(next);
-      if (!next) {
-        room.localParticipant.getTrackPublication(Track.Source.Camera)?.track?.detach();
-      } else {
+      await room.localParticipant.setCameraEnabled(enable);
+      if (enable) {
+        setDeviceError((prev) => (prev?.kind === "videoinput" ? null : prev));
         attachLocalVideo();
+        const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+        if (track) {
+          videoTrackByIdentityRef.current.set(identity, track);
+          const el = videoElByIdentityRef.current.get(identity);
+          if (el) track.attach(el);
+        }
+      } else {
+        room.localParticipant.getTrackPublication(Track.Source.Camera)?.track?.detach();
+        videoTrackByIdentityRef.current.delete(identity);
+      }
+      return true;
+    } catch (err) {
+      setDeviceError({ kind: "videoinput", failure: deviceFailureFromError(err) });
+      return false;
+    } finally {
+      cameraWantedRef.current = room.localParticipant.isCameraEnabled;
+      setCameraEnabled(room.localParticipant.isCameraEnabled);
+      syncParticipantTiles();
+    }
+  }, [attachLocalVideo, syncParticipantTiles]);
+
+  const toggleScreenShare = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return false;
+    const enable = !room.localParticipant.isScreenShareEnabled;
+    const key = participantScreenShareKey(room.localParticipant.identity);
+    try {
+      await room.localParticipant.setScreenShareEnabled(enable);
+      if (enable) {
+        attachLocalScreenShare();
+        const track = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track;
+        if (track) {
+          videoTrackByIdentityRef.current.set(key, track);
+          const el = videoElByIdentityRef.current.get(key);
+          if (el) track.attach(el);
+        }
+      } else {
+        room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track?.detach();
+        videoTrackByIdentityRef.current.delete(key);
       }
       return true;
     } catch {
       return false;
+    } finally {
+      setScreenShareEnabled(room.localParticipant.isScreenShareEnabled);
+      syncParticipantTiles();
     }
-  }, [cameraEnabled, attachLocalVideo]);
+  }, [attachLocalScreenShare, syncParticipantTiles]);
 
-  const value = useMemo(
+  const retryConnection = useCallback(() => setAttempt((n) => n + 1), []);
+
+  const connected = connectionState === "connected" || connectionState === "reconnecting";
+
+  const status = useMemo(
     () => ({
-      room: roomRef.current,
+      connectionState,
       connected,
       remoteParticipantCount,
       needsAudioUnlock,
       muted,
       cameraEnabled,
-      remoteCameraEnabled,
-      toggleMute,
-      toggleCamera,
-      unlockAudio,
-      bindLocalVideo,
-      bindRemoteVideo,
+      screenShareEnabled,
+      deviceError,
     }),
     [
+      connectionState,
       connected,
       remoteParticipantCount,
       needsAudioUnlock,
       muted,
       cameraEnabled,
-      remoteCameraEnabled,
-      toggleMute,
-      toggleCamera,
-      unlockAudio,
-      bindLocalVideo,
-      bindRemoteVideo,
+      screenShareEnabled,
+      deviceError,
     ],
   );
 
-  return <VoiceCallRoomContext.Provider value={value}>{children}</VoiceCallRoomContext.Provider>;
+  const media = useMemo(
+    () => ({
+      participantTiles,
+      remoteCameraEnabled,
+      remoteScreenShareEnabled,
+      bindLocalVideo,
+      bindRemoteVideo,
+      bindLocalScreenShare,
+      bindRemoteScreenShare,
+      bindParticipantVideo,
+      bindParticipantScreenShare,
+    }),
+    [
+      participantTiles,
+      remoteCameraEnabled,
+      remoteScreenShareEnabled,
+      bindLocalVideo,
+      bindRemoteVideo,
+      bindLocalScreenShare,
+      bindRemoteScreenShare,
+      bindParticipantVideo,
+      bindParticipantScreenShare,
+    ],
+  );
+
+  const actions = useMemo(
+    () => ({
+      toggleMute,
+      toggleCamera,
+      toggleScreenShare,
+      unlockAudio,
+      retryConnection,
+    }),
+    [toggleMute, toggleCamera, toggleScreenShare, unlockAudio, retryConnection],
+  );
+
+  return (
+    <VoiceCallActionsContext.Provider value={actions}>
+      <VoiceCallStatusContext.Provider value={status}>
+        <VoiceCallMediaContext.Provider value={media}>{children}</VoiceCallMediaContext.Provider>
+      </VoiceCallStatusContext.Provider>
+    </VoiceCallActionsContext.Provider>
+  );
 }

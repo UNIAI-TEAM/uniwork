@@ -10,3 +10,12 @@
 pnpm-lock.yaml                       linguist-generated=true
 server/pkg/db/generated/**           linguist-generated=true
 packages/core/paths/reserved-slugs.ts linguist-generated=true
+
+# G0 evidence pins these files by byte-exact sha256 (docs/office/g0/evidence-register.json,
+# module-runtime-map.json, RT02-six-fault-evidence.json). They were produced with CRLF; keep
+# their bytes so a fresh checkout still verifies. Re-pin the evidence before normalizing them.
+docs/office/g0/engine-contract-adapter-checksum.md      -text
+e2e/office-g0/host-runtime.mjs                          -text
+e2e/office-g0/host-surface.mjs                          -text
+e2e/office-g0/lab-page-image-png.mjs                    -text
+scripts/office-g0/engine-contract-adapter-checksum.mjs  -text

@@ -1,17 +1,17 @@
 "use client";
 import {
   Briefcase,
-  Code2,
+  CodeXml,
   GraduationCap,
   Handshake,
-  KanbanSquare,
+  SquareKanban,
   ListChecks,
-  MoreHorizontal,
-  Settings2,
+  Ellipsis,
   User,
   UserRound,
   Users,
   Video,
+  Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { QuestionnaireAnswers, Role, UseCase } from "@uniwork/core/onboarding";
@@ -41,21 +41,21 @@ export function StepAboutYou({
   const u = (k: string) => t(`onboarding.questions.use_case.${k}`);
 
   const roleOptions: QuestionOption[] = [
-    { slug: "engineer", icon: <Code2 />, label: r("engineer") },
+    { slug: "engineer", icon: <CodeXml />, label: r("engineer") },
     { slug: "manager", icon: <Users />, label: r("manager") },
     { slug: "product", icon: <Briefcase />, label: r("product") },
-    { slug: "ops", icon: <Settings2 />, label: r("ops") },
+    { slug: "ops", icon: <Wrench />, label: r("ops") },
     { slug: "sales", icon: <Handshake />, label: r("sales") },
     { slug: "hr", icon: <UserRound />, label: r("hr") },
     { slug: "student", icon: <GraduationCap />, label: r("student") },
-    { slug: "other", icon: <MoreHorizontal />, label: r("other"), isOther: true },
+    { slug: "other", icon: <Ellipsis />, label: r("other"), isOther: true },
   ];
   const useCaseOptions: QuestionOption[] = [
     { slug: "team_tasks", icon: <ListChecks />, label: u("team_tasks") },
     { slug: "meetings", icon: <Video />, label: u("meetings") },
     { slug: "personal_tasks", icon: <User />, label: u("personal_tasks") },
-    { slug: "project_tracking", icon: <KanbanSquare />, label: u("project_tracking") },
-    { slug: "other", icon: <MoreHorizontal />, label: u("other"), isOther: true },
+    { slug: "project_tracking", icon: <SquareKanban />, label: u("project_tracking") },
+    { slug: "other", icon: <Ellipsis />, label: u("other"), isOther: true },
   ];
 
   const roleSelected: readonly string[] = answers.role ? [answers.role] : [];
@@ -64,6 +64,20 @@ export function StepAboutYou({
   const useCaseAnswered =
     useCaseSlugs.length > 0 && (useCaseSlugs.some((s) => s !== "other") || answers.use_case_other.trim().length > 0);
   const canContinue = roleAnswered || useCaseAnswered;
+  // A group whose ONLY answer is "Khác" with an empty text field is the one
+  // dead end of this flow: the chip is visibly checked, yet Continue stays
+  // blocked. The binary hint answered that with "Chọn một mục để tiếp tục" —
+  // pick one — contradicting what the user had just done and never naming the
+  // real blocker. Same sentence reaches the screen reader through the live
+  // region, so the third branch has to live here, not in the visual layer.
+  const roleNeedsOtherText = answers.role === "other" && answers.role_other.trim().length === 0;
+  const useCaseNeedsOtherText =
+    useCaseSlugs.length === 1 && useCaseSlugs[0] === "other" && answers.use_case_other.trim().length === 0;
+  const hint = canContinue
+    ? t("onboarding.step_question.hint_continue")
+    : roleNeedsOtherText || useCaseNeedsOtherText
+      ? t("onboarding.step_question.hint_other_needs_text")
+      : t("onboarding.step_question.hint_pick");
 
   const pickRole = (slug: string) => {
     if (slug === "other") {
@@ -127,7 +141,7 @@ export function StepAboutYou({
           multiSelect
         />
       </div>
-      <StepFooter hint={canContinue ? t("onboarding.step_question.hint_continue") : t("onboarding.step_question.hint_pick")}>
+      <StepFooter hint={hint}>
         {/* `aria-disabled` chứ không phải `disabled`: nút `disabled` rời khỏi thứ
             tự Tab, nên người dùng bàn phím không bao giờ tới được nó để nghe
             dòng hint giải thích còn thiếu gì. `confirmAdvance` vẫn tự chặn. */}

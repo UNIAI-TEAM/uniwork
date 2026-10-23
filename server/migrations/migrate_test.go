@@ -2,7 +2,9 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +26,116 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+func TestReclaimTestSchemaSkipsNonTestDatabase(t *testing.T) {
+	base := os.Getenv("TEST_DATABASE_URL")
+	if base == "" {
+		base = "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable"
+	}
+	// Same host/credentials, non-_test database — reclaim must not drop schema.
+	adminURL := strings.Replace(base, "uniwork_test", "postgres", 1)
+	pool, err := pgxpool.New(context.Background(), adminURL)
+	if err != nil {
+		t.Skip("no postgres for reclaim skip test:", err)
+	}
+	if err := pool.Ping(context.Background()); err != nil {
+		t.Skip("no postgres for reclaim skip test:", err)
+	}
+	t.Cleanup(pool.Close)
+	ctx := context.Background()
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = 'public'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("public schema should remain on postgres db, n=%d", n)
+	}
+}
+
+func TestReclaimTestSchemaNoOpWhenSlotsAreHealthy(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE TABLE column_slot_bloat (base_col int NOT NULL DEFAULT 0)`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < testSchemaDroppedSlotThreshold+1; i++ {
+		col := fmt.Sprintf("bloat_%d", i)
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE column_slot_bloat ADD COLUMN %s int`, col)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE column_slot_bloat DROP COLUMN %s`, col)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var tables int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema='public'`).Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if tables != 0 {
+		t.Fatalf("expected empty public schema after reclaim, got %d tables", tables)
+	}
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal("re-up after reclaim:", err)
+	}
 }
 
 func TestUpIsIdempotent(t *testing.T) {
@@ -49,6 +161,52 @@ func TestUpIsIdempotent(t *testing.T) {
 	}
 }
 
+// emptyPublicTables truncates every table but schema_migrations, so a long
+// rollback starts from the schema alone.
+func emptyPublicTables(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	var tables string
+	if err := pool.QueryRow(ctx, `SELECT string_agg(format('%I', tablename), ', ')
+		FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`).Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "TRUNCATE "+tables+" CASCADE"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// clearRowsDownGuardsRefuse deletes the leftover rows that a down migration
+// refuses on purpose, and nothing else. The isolation matrix leaves FileService
+// attachments (no object_key) on purpose, 969's down refuses them, the
+// recording file_id columns are guarded the same way by 972, and 0004's down
+// rebuilds the pre-system_kind folder-name unique index (a single-statement
+// CONCURRENTLY file) before 0001 drops system_kind, which refuses the root My
+// Folder rows (system_kind = 'my_folder', title = 'My Folder') that
+// EnsureMyFolder tests leave behind — so which package ran first decided
+// whether a long rollback passed. The chat_messages kind CHECK is restored
+// without the kinds a later migration added (file, post, document,
+// document_version), so the chat tests' rows of those kinds refuse the
+// rollback the same way. It must not truncate: the shared test DB
+// holds rows that later migrations seed (the billing plans), and a rollback
+// that stops above them never puts them back for the packages that run
+// afterwards.
+func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	for _, q := range []string{
+		`DELETE FROM attachments WHERE object_key IS NULL`,
+		`DELETE FROM meeting_recordings WHERE file_id IS NOT NULL`,
+		`DELETE FROM chat_voice_recordings WHERE file_id IS NOT NULL`,
+		`DELETE FROM documents WHERE system_kind IS NOT NULL`,
+		`DELETE FROM chat_messages WHERE kind IN ('file', 'post', 'document', 'document_version')`,
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // Grandfather: workspace + member tạo trước 004 phải có org cùng slug và
 // user đã có membership phải được coi là đã onboard.
 func TestOrganizationsGrandfather(t *testing.T) {
@@ -67,6 +225,10 @@ func TestOrganizationsGrandfather(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// Rows other tests left behind are not what this test checks, and some
+	// down migrations refuse them on purpose (969 refuses FileService
+	// attachments, 159 restores a kind CHECK without 'voice').
+	emptyPublicTables(t, pool)
 	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ. Down lùi một
 	// migration mỗi lần, nên lặp cho tới khi 004 đã bị gỡ.
 	for {
@@ -163,6 +325,52 @@ func TestRenamedChatMigrationVersions(t *testing.T) {
 	}
 }
 
+func TestRenamedEmailHubMigrationVersions(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+			[]string{"193_email_hub_accounts", "200_email_hub_accounts"})
+	})
+	if _, err := pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+		[]string{"193_email_hub_accounts", "200_email_hub_accounts"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING`,
+		"193_email_hub_accounts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconcileRenamedMigrations(ctx, lock); err != nil {
+		t.Fatal(err)
+	}
+	var renamed bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"200_email_hub_accounts").Scan(&renamed); err != nil || !renamed {
+		t.Fatalf("expected 200_email_hub_accounts after rename, got renamed=%v err=%v", renamed, err)
+	}
+	var legacy bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"193_email_hub_accounts").Scan(&legacy); err != nil || legacy {
+		t.Fatalf("legacy 193_email_hub_accounts should be gone, legacy=%v err=%v", legacy, err)
+	}
+}
+
 func TestRenamedChatMigrationVersionsDropsStaleOldRow(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -218,6 +426,7 @@ func TestTasksWorkManagementUpgradeFrom106(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	clearRowsDownGuardsRefuse(t, pool)
 	for {
 		var applied bool
 		if err := pool.QueryRow(ctx, `
@@ -241,6 +450,7 @@ func TestTasksWorkManagementUpgradeFrom106(t *testing.T) {
 		  audit_events, outbox_events CASCADE`); err != nil {
 		t.Fatal(err)
 	}
+	truncateTenantBackfillTables(t, pool)
 
 	const (
 		userID   = "01USER0000000000000000000A"
@@ -418,6 +628,7 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	}
 	// Roll back to just before 132 so the two owners can be inserted without
 	// the unique index refusing them.
+	clearRowsDownGuardsRefuse(t, pool)
 	for {
 		var applied bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE '132%')`).Scan(&applied); err != nil {
@@ -433,6 +644,7 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	if _, err := pool.Exec(ctx, `TRUNCATE users, organizations CASCADE`); err != nil {
 		t.Fatal(err)
 	}
+	truncateTenantBackfillTables(t, pool)
 	_, err = pool.Exec(ctx, `
 		INSERT INTO users (id, email, password_hash, display_name) VALUES
 		  ('01USER00000000000000000011','first@example.com','x','First'),
@@ -465,5 +677,51 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE organization_members SET role='owner' WHERE organization_id=$1 AND user_id=$2`,
 		"01ORGA00000000000000000011", "01USER00000000000000000012"); err == nil {
 		t.Fatal("expected the single-owner unique index to refuse a second owner")
+	}
+}
+
+// Rolling back the notice column hands the rows to a binary that replays every
+// assistant row as a turn, and a provider refuses an empty one: the down
+// migration gives a notice row the text that binary stored. It runs inside a
+// transaction that is rolled back, so the schema is left as it was.
+func TestAiMessagesNoticeDownFillsNoticeRows(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, notice) VALUES
+		('01NOTICEDOWN00000000000001', 'org', 'conv', 'assistant', '', 'no_sources'),
+		('01NOTICEDOWN00000000000002', 'org', 'conv', 'assistant', 'Câu trả lời', NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792125342925_ai_messages_notice.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"01NOTICEDOWN00000000000001": "Chưa đủ dữ liệu trong workspace để trả lời.",
+		"01NOTICEDOWN00000000000002": "Câu trả lời",
+	}
+	for id, content := range want {
+		var got string
+		if err := tx.QueryRow(ctx, `SELECT content FROM ai_messages WHERE id = $1`, id).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != content {
+			t.Errorf("%s content after down = %q, want %q", id, got, content)
+		}
 	}
 }

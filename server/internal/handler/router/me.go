@@ -131,11 +131,14 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		auth:        true,
 	})
 	r.With(credentialLimit).Post("/me/delete", h.DeleteAccount, apiOp{
-		summary:     "Delete account",
-		description: "Ẩn danh hóa tài khoản theo Nghị định 13: cần mật khẩu, hoặc mã MFA, hoặc gõ lại email. 409 owner_must_transfer khi còn là chủ sở hữu tổ chức.",
-		tags:        []string{"me"},
-		sdi:         sdi.DeleteAccountSDI{},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
+		summary: "Delete account",
+		description: "Ẩn danh hóa tài khoản theo Nghị định 13: cần mật khẩu, hoặc mã MFA, hoặc gõ lại email. " +
+			"Sai bằng chứng không bao giờ là 401 (client sẽ làm mới phiên rồi gửi lại): 403 password_incorrect khi sai mật khẩu, " +
+			"403 mfa_code_incorrect khi sai mã MFA, 400 email_confirmation_mismatch khi email gõ lại không khớp. " +
+			"409 owner_must_transfer khi còn là chủ sở hữu tổ chức.",
+		tags: []string{"me"},
+		sdi:  sdi.DeleteAccountSDI{},
+		sdo:  sdo.StatusSDO{},
+		auth: true,
 	})
 }

@@ -6,6 +6,10 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      PREVIEW_ORIGIN: ${PREVIEW_ORIGIN:-http://localhost:3001}
+      PREVIEW_CAPABILITY_SECRET: ${PREVIEW_CAPABILITY_SECRET:?set PREVIEW_CAPABILITY_SECRET in .env}
+      PREVIEW_ASSET_TTL: ${PREVIEW_ASSET_TTL:-10m}
+      PREVIEW_ASSET_MAX_BYTES: ${PREVIEW_ASSET_MAX_BYTES:-10485760}
       LIVEKIT_URL: ${LIVEKIT_URL:-}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
@@ -22,9 +26,15 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8080}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        # Optional override of the committed Office frame source
+        # (apps/web/platform/office-frame/source.json); empty uses the committed one.
+        OFFICE_FRAME_SOURCE: ${OFFICE_FRAME_SOURCE:-}
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8080}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      # UniChat mobile universal links (/.well-known/*); empty answers 404.
+      UNICHAT_IOS_TEAM_ID: ${UNICHAT_IOS_TEAM_ID:-}
+      UNICHAT_ANDROID_SHA256: ${UNICHAT_ANDROID_SHA256:-}
     ports: ["3000:3000"]
     depends_on: [server]

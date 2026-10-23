@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 type chatFixture struct {
@@ -20,6 +24,9 @@ type chatFixture struct {
 	dmRoomID        string
 	groupRoomID     string
 	firstMessageID  string
+	// chat is the service behind srv, for tests that read presence state the
+	// HTTP surface does not expose (nil when built through setupChatFixtureOn).
+	chat *service.ChatService
 }
 
 func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (string, string) {
@@ -37,7 +44,19 @@ func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (s
 
 func setupChatFixture(t *testing.T, tag string) *chatFixture {
 	t.Helper()
-	srv := newTestServer(t)
+	d, _ := newTestDeps(t, nil, discardOutbox{})
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	f := setupChatFixtureOn(t, srv, tag)
+	f.chat = d.Chat
+	return f
+}
+
+// setupChatFixtureOn builds the same fixture on a caller-provided server, so
+// the FileService-path tests can wire filesfake without changing the legacy
+// default (Advisor ruling: selectable path, Bước 0 net stays on legacy).
+func setupChatFixtureOn(t *testing.T, srv *httptest.Server, tag string) *chatFixture {
+	t.Helper()
 	f := &chatFixture{srv: srv, tokens: map[string]string{}, ids: map[string]string{}, emails: map[string]string{}}
 	users := []struct{ key, email, name string }{
 		{"a", "ca-" + tag + "@example.com", "Chat A"},
@@ -142,40 +161,27 @@ func TestChatWorkspaceRoom(t *testing.T) {
 		t.Fatalf("ensure room: %d %v", res.StatusCode, out)
 	}
 
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, nil)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list ws messages: %d %v", res.StatusCode, out)
-	}
-	if _, ok := out["messages"]; !ok {
-		t.Fatalf("missing messages: %v", out)
-	}
-
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages?limit=10", tok, nil)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list ws messages limit: %d %v", res.StatusCode, out)
-	}
-
-	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/messages?before=not-a-time", tok, nil)
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("bad before: %d %v", res.StatusCode, out)
-	}
-
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, map[string]string{"body": "xin chao workspace"})
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("send ws message: %d %v", res.StatusCode, out)
-	}
-	if out["message"].(map[string]any)["body"] != "xin chao workspace" {
-		t.Fatalf("message body = %v", out["message"])
-	}
-
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/chat/messages", tok, map[string]string{"body": "   "})
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("empty ws message: %d %v", res.StatusCode, out)
-	}
-
 	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/00000000000000000000000000/chat/room", tok, nil)
 	if res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusForbidden {
 		t.Fatalf("unknown ws room: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestWorkspaceChatMessagesRoutesAreGone(t *testing.T) {
+	f := setupChatFixture(t, "wsmsgsgone")
+	srv, tok := f.srv, f.tokens["a"]
+	base := "/api/v1/workspaces/" + f.wsID + "/chat/messages"
+
+	res, _ := doJSON(t, srv, "GET", base, tok, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET workspace chat messages: status %d want 404", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "POST", base, tok, map[string]any{
+		"body": "hello", "priority": "urgent",
+	})
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST workspace chat messages: status %d want 404", res.StatusCode)
 	}
 }
 
@@ -251,6 +257,17 @@ func TestChatRoomMessages(t *testing.T) {
 	if len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages len = %d", len(out["messages"].([]any)))
 	}
+	// That read moved the caller's pointer, which the room list now carries.
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms", tokA, nil)
+	readAt := ""
+	for _, raw := range out["rooms"].([]any) {
+		if room := raw.(map[string]any); room["id"] == f.groupRoomID {
+			readAt, _ = room["last_read_at"].(string)
+		}
+	}
+	if _, err := time.Parse(time.RFC3339, readAt); res.StatusCode != http.StatusOK || err != nil {
+		t.Fatalf("room last_read_at: %d %q %v", res.StatusCode, readAt, err)
+	}
 
 	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
 	if res.StatusCode != http.StatusOK {
@@ -263,6 +280,34 @@ func TestChatRoomMessages(t *testing.T) {
 	res, out = doJSON(t, srv, "GET", base+"?before=not-a-time", tokA, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad before: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
+	newest := out["messages"].([]any)[0].(map[string]any)
+	cursor, _ := newest["cursor"].(string)
+	if res.StatusCode != http.StatusOK || cursor == "" {
+		t.Fatalf("newest page cursor: %d %v", res.StatusCode, newest)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] == newest["id"] {
+		t.Fatalf("older page: %d %v", res.StatusCode, out)
+	}
+
+	older := out["messages"].([]any)[0].(map[string]any)
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&after="+url.QueryEscape(older["cursor"].(string)), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] != newest["id"] {
+		t.Fatalf("newer page: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?after="+url.QueryEscape(cursor)+"&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("after with cursor: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?cursor=not-a-cursor", tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad cursor: %d %v", res.StatusCode, out)
 	}
 
 	res, out = doJSON(t, srv, "GET", base+"/"+msgID, tokA, nil)
@@ -360,10 +405,14 @@ func TestChatMessageActions(t *testing.T) {
 	msgID := f.firstMessageID
 
 	res, out := doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("text reaction: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("react: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("unreact: %d %v", res.StatusCode, out)
 	}
@@ -418,6 +467,13 @@ func TestChatPollReminderNote(t *testing.T) {
 	}
 	pollMsg := out["message"].(map[string]any)
 	optionID := pollMsg["poll"].(map[string]any)["options"].([]any)[0].(map[string]any)["id"].(string)
+	// A false flag is sent, not dropped: the client reads a missing one as true.
+	settings := pollMsg["poll"].(map[string]any)["settings"].(map[string]any)
+	for _, k := range []string{"allow_multiple", "allow_add_options", "pin_to_top", "hide_results_until_vote", "hide_voters"} {
+		if v, ok := settings[k]; !ok || v != false {
+			t.Fatalf("poll settings %s=%v (present=%v), want an explicit false", k, v, ok)
+		}
+	}
 	pollID := pollMsg["id"].(string)
 
 	res, out = doJSON(t, srv, "POST", base+"/"+pollID+"/poll/vote", f.tokens["b"], map[string]string{"option_id": optionID})
@@ -456,6 +512,35 @@ func TestChatPollReminderNote(t *testing.T) {
 	if out["message"].(map[string]any)["poll"] == nil {
 		t.Fatalf("missing poll: %v", out["message"])
 	}
+}
+
+// "N người đã xem" compares read pointers with message times, so the member
+// list carries each pointer at full precision, not RFC 3339 seconds.
+func TestChatRoomMembersCarryTheReadPointerAtFullPrecision(t *testing.T) {
+	f := setupChatFixture(t, "seen")
+	res, out := doJSON(t, f.srv, "POST", roomMessagesPath(f, f.groupRoomID), f.tokens["a"], map[string]string{"body": "seen?"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send: %d %v", res.StatusCode, out)
+	}
+	// The cursor is the message time in microseconds; sending moved a's pointer to it.
+	micros, _, _ := strings.Cut(out["message"].(map[string]any)["cursor"].(string), ".")
+	res, out = doJSON(t, f.srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.groupRoomID+"/members", f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list members: %d %v", res.StatusCode, out)
+	}
+	for _, raw := range out["members"].([]any) {
+		m := raw.(map[string]any)
+		if m["user_id"] != f.ids["a"] {
+			continue
+		}
+		readAt, _ := m["last_read_at"].(string)
+		at, err := time.Parse(time.RFC3339Nano, readAt)
+		if err != nil || strconv.FormatInt(at.UnixMicro(), 10) != micros {
+			t.Fatalf("last_read_at = %q, want the message time %s µs", readAt, micros)
+		}
+		return
+	}
+	t.Fatalf("sender missing from members %v", out["members"])
 }
 
 func TestChatModeration(t *testing.T) {
@@ -644,6 +729,15 @@ func TestChatSignals(t *testing.T) {
 	res, out = doJSON(t, srv, "POST", "/api/v1/chat/voice/token", tokA, map[string]string{"room_id": f.groupRoomID, "call_id": callID})
 	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("voice token unconfigured: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestChatMessageLinksHaveOnlyTheRoomBatchRead(t *testing.T) {
+	f := setupChatFixture(t, "msg-links-read")
+	path := "/api/v1/workspaces/" + f.wsID + "/chat/messages/" + f.firstMessageID + "/links"
+	res, _ := doJSON(t, f.srv, "GET", path, f.tokens["a"], nil)
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET single-message links: %d, want 405", res.StatusCode)
 	}
 }
 

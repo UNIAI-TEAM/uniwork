@@ -2,14 +2,23 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useProjectPermissions } from "@uniwork/core/permissions";
 import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
+import { useAskUniPageContext } from "../ai/ask-uni-page-context";
+import { PinToggleButton } from "../common/pin-toggle-button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import {
+  AnimatedRightSidebarLayout,
+  RightSidebarToggle,
+  useAnimatedRightSidebar,
+} from "../layout/animated-right-sidebar";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
-import { ProjectDetailHeader } from "./project-detail-header";
-import { ProjectProperties } from "./project-properties";
+import { ProjectDescriptionSection, ProjectDetailHeader } from "./project-detail-header";
+import { ProjectProgressSection, ProjectProperties } from "./project-properties";
 import { ProjectResourcesSection } from "./project-resources-section";
 
 const PROJECT_SURFACE_MODES = [
@@ -21,8 +30,9 @@ const PROJECT_SURFACE_MODES = [
 ] as const;
 
 /**
- * Project detail chrome: editable title/description + properties, resources
- * section, and a project-scoped TaskSurface (server filters by project_id).
+ * Project detail chrome: a project-scoped TaskSurface (server filters by
+ * project_id) beside the sidebar — icon + title, properties, progress,
+ * description, resources.
  */
 export function ProjectDetailPage({
   workspaceId,
@@ -40,6 +50,9 @@ export function ProjectDetailPage({
 }) {
   const { t } = useTranslation();
   const { data: project, isLoading } = useProject(workspaceId, projectId);
+  useAskUniPageContext(project ? { kind: "project", id: projectId, label: project.title } : null);
+  const { decideEdit } = useProjectPermissions(workspaceId);
+  const sidebarController = useAnimatedRightSidebar(true);
 
   const backLeading = (
     <Button
@@ -83,51 +96,96 @@ export function ProjectDetailPage({
     );
   }
 
+  // Peers read each other's projects; only the creator, the lead and
+  // workspace admins edit them (UNI-898).
+  const readOnly = !decideEdit(project).allowed;
+
+  // The breadcrumb lives in the content column so the sidebar runs the full
+  // page height beside it.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <BreadcrumbHeader
-        leading={backLeading}
-        segments={
-          projectsHref
-            ? [
-                {
-                  href: projectsHref,
-                  label: t("projects.detail.breadcrumb_fallback"),
-                },
-              ]
-            : []
-        }
-        leaf={
-          <span className="truncate font-medium text-foreground">
-            {project.title}
-          </span>
-        }
-      />
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <TaskSurface
-            workspaceId={workspaceId}
-            scope={{ type: "project", projectId }}
-            modes={[...PROJECT_SURFACE_MODES]}
-            surfaceKey={`project:${projectId}`}
-            onOpenTask={onOpenTask}
-          />
-        </div>
-
-        <aside
-          className={`shrink-0 overflow-y-auto border-t border-border py-4 lg:w-80 lg:border-l lg:border-t-0 ${PAGE_GUTTER}`}
-        >
-          <div className="space-y-5">
-            <ProjectDetailHeader workspaceId={workspaceId} project={project} />
-            <ProjectProperties workspaceId={workspaceId} project={project} />
-            <ProjectResourcesSection
+      <AnimatedRightSidebarLayout
+        controller={sidebarController}
+        sidebarLabel={t("projects.detail.sidebar_toggle")}
+        sidebarDefaultSize={320}
+        sidebarMinSize={260}
+        sidebarMaxSize={420}
+        main={
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <BreadcrumbHeader
+              leading={backLeading}
+              segments={
+                projectsHref
+                  ? [
+                      {
+                        href: projectsHref,
+                        label: t("projects.detail.breadcrumb_fallback"),
+                      },
+                    ]
+                  : []
+              }
+              leaf={
+                <span className="truncate font-medium text-foreground">
+                  {project.title}
+                </span>
+              }
+              actions={
+                <>
+                  <AskUniFocusButton kind="project" id={projectId} title={project.title} workspaceId={workspaceId} />
+                  <PinToggleButton
+                    workspaceId={workspaceId}
+                    itemType="project"
+                    itemId={projectId}
+                    pinLabel={t("projects.detail.pin")}
+                    unpinLabel={t("projects.detail.unpin")}
+                  />
+                  <RightSidebarToggle
+                    controller={sidebarController}
+                    label={t("projects.detail.sidebar_toggle")}
+                  />
+                </>
+              }
+            />
+            <TaskSurface
               workspaceId={workspaceId}
-              projectId={projectId}
+              scope={{ type: "project", projectId }}
+              modes={[...PROJECT_SURFACE_MODES]}
+              surfaceKey={`project:${projectId}`}
+              onOpenTask={onOpenTask}
             />
           </div>
-        </aside>
-      </div>
+        }
+        sidebar={
+          <aside
+            aria-label={t("projects.detail.sidebar_label")}
+            className={`h-full overflow-y-auto py-4 ${PAGE_GUTTER}`}
+          >
+            <div className="space-y-5">
+              <ProjectDetailHeader
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
+              <ProjectProperties
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
+              <ProjectProgressSection project={project} />
+              <ProjectDescriptionSection
+                workspaceId={workspaceId}
+                project={project}
+                readOnly={readOnly}
+              />
+              <ProjectResourcesSection
+                workspaceId={workspaceId}
+                projectId={projectId}
+                readOnly={readOnly}
+              />
+            </div>
+          </aside>
+        }
+      />
     </div>
   );
 }

@@ -15,14 +15,18 @@ import { extendTailwindMerge } from "tailwind-merge";
  */
 const FONT_SIZES = [
   "micro", "caption", "label", "body", "body-lg",
-  "title-sm", "title", "title-lg",
+  "title-sm", "title", "title-lg", "title-xl",
   "display-sm", "display",
   "hero-sm", "hero", "hero-lg",
+  "avatar-stage",
 ] as const;
+
+/* Semantic radius roles declared beside the numeric ramp in tokens.css. */
+const RADII = ["control"] as const;
 
 /* Mirrors the `--color-*` aliases in packages/ui/styles/tokens.css. */
 const COLORS = [
-  "background", "foreground", "app-shell", "page-canvas",
+  "background", "foreground", "app-shell", "page-canvas", "office-band", "office-canvas",
   "surface", "surface-foreground", "surface-raised", "surface-hover",
   "surface-selected", "surface-selected-foreground", "surface-border",
   "card", "card-foreground", "popover", "popover-foreground",
@@ -35,9 +39,14 @@ const COLORS = [
   "chart-1", "chart-2", "chart-3", "chart-4", "chart-5",
   "chat-sender-1", "chat-sender-2", "chat-sender-3", "chat-sender-4",
   "chat-sender-5", "chat-sender-6", "chat-sender-7", "chat-sender-8",
+  "chat-wall", "chat-wall-dot", "chat-bubble-own", "chat-bubble-own-foreground",
+  "chat-bubble-own-meta", "chat-bubble-other", "chat-chip", "chat-chip-foreground",
+  "chat-rail", "chat-rail-border",
   "meeting-bar-bg", "meeting-bar-border", "meeting-bar-foreground",
   "meeting-bar-chip-bg", "meeting-bar-chip-hover",
   "meeting-tile-name-bg", "meeting-tile-name-foreground",
+  "call-plane", "call-plane-raised", "call-stage", "call-tile", "call-hairline",
+  "call-muted-foreground", "call-accent", "call-speaking", "call-ring",
 ] as const;
 
 const twMerge = extendTailwindMerge({
@@ -45,6 +54,7 @@ const twMerge = extendTailwindMerge({
     classGroups: {
       "font-size": [{ text: [...FONT_SIZES] }],
       "text-color": [{ text: [...COLORS] }],
+      rounded: [{ rounded: [...RADII] }],
     },
   },
 });

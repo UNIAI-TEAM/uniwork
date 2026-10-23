@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -116,6 +120,9 @@ func (s *TaskService) CreateProject(ctx context.Context, actor Actor, workspaceI
 	if err != nil {
 		return db.Project{}, err
 	}
+	if err := s.requireProjectLead(ctx, workspaceID, leadType, leadID); err != nil {
+		return db.Project{}, err
+	}
 	startDate, err := parseProjectDate(in.StartDate, "start_date")
 	if err != nil {
 		return db.Project{}, err
@@ -143,6 +150,9 @@ func (s *TaskService) CreateProject(ctx context.Context, actor Actor, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := s.guardDuplicateProjectTitle(ctx, q, ws, "", title, ""); err != nil {
+		return db.Project{}, err
+	}
 
 	project, err := q.CreateProject(ctx, db.CreateProjectParams{
 		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -272,14 +282,7 @@ func (s *TaskService) GetProject(ctx context.Context, actor Actor, workspaceID, 
 }
 
 func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceID, projectID string, in UpdateProjectInput) (db.Project, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return db.Project{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return db.Project{}, err
-	}
-	current, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	ws, current, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
 		return db.Project{}, err
 	}
@@ -317,6 +320,9 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 		if err != nil {
 			return db.Project{}, err
 		}
+		if err := s.requireProjectLead(ctx, workspaceID, leadTypeArg, leadIDArg); err != nil {
+			return db.Project{}, err
+		}
 	}
 	setStart := in.StartDate != nil
 	var startDate pgtype.Date
@@ -341,6 +347,15 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if title.Valid {
+		currentTitle := normalizeProjectTitle(current.Title)
+		nextTitle := normalizeProjectTitle(title.String)
+		if currentTitle != nextTitle {
+			if err := s.guardDuplicateProjectTitle(ctx, q, ws, projectID, title.String, currentTitle); err != nil {
+				return db.Project{}, err
+			}
+		}
+	}
 
 	updated, err := q.UpdateProject(ctx, db.UpdateProjectParams{
 		ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -381,15 +396,62 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 	return updated, nil
 }
 
-func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceID, projectID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return err
+func normalizeProjectTitle(title string) string {
+	folded := cases.Fold().String(norm.NFC.String(title))
+	return norm.NFC.String(strings.Join(strings.Fields(folded), " "))
+}
+
+// guardDuplicateProjectTitle serializes every write that enters or leaves a
+// normalized title. Locking both keys on rename prevents a concurrent rename
+// away from a title racing with another project taking that title.
+func (s *TaskService) guardDuplicateProjectTitle(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	excludeProjectID, title, previousNormalizedTitle string,
+) error {
+	normalizedTitle := normalizeProjectTitle(title)
+	lockTitles := []string{normalizedTitle}
+	if previousNormalizedTitle != "" && previousNormalizedTitle != normalizedTitle {
+		lockTitles = append(lockTitles, previousNormalizedTitle)
 	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	sort.Strings(lockTitles)
+	for _, lockTitle := range lockTitles {
+		lockKey := strings.Join([]string{
+			"project-title",
+			ws.OrganizationID,
+			ws.ID,
+			lockTitle,
+		}, "|")
+		if err := q.LockProjectDuplicateKey(ctx, lockKey); err != nil {
+			return err
+		}
+	}
+
+	candidates, err := q.ListProjectTitlesForDuplicateCheck(ctx, db.ListProjectTitlesForDuplicateCheckParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	})
 	if err != nil {
 		return err
 	}
-	if _, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID); err != nil {
+	for _, candidate := range candidates {
+		if candidate.ID == excludeProjectID || normalizeProjectTitle(candidate.Title) != normalizedTitle {
+			continue
+		}
+		return CodedError{
+			Code:   "duplicate_project_title",
+			Status: http.StatusConflict,
+			Msg:    "project title already exists",
+			Err:    ErrConflict,
+		}
+	}
+	return nil
+}
+
+func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceID, projectID string) error {
+	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
+	if err != nil {
 		return err
 	}
 
@@ -512,6 +574,77 @@ func (s *TaskService) loadProject(ctx context.Context, q *db.Queries, orgID, wor
 		return db.Project{}, ErrNotFound
 	}
 	return p, err
+}
+
+// authorizeProjectEdit is the write gate for a project and its resources
+// (UNI-898). Membership lets anyone in the workspace read a project; changing
+// or deleting it takes a workspace owner/admin, the project's creator or its
+// lead, so one member cannot rewrite a peer's project.
+func (s *TaskService) authorizeProjectEdit(ctx context.Context, actor Actor, workspaceID, projectID string) (db.Workspace, db.Project, error) {
+	adminLike := false
+	if actor.Kind == audit.KindHuman {
+		m, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
+		if err != nil {
+			return db.Workspace{}, db.Project{}, err
+		}
+		adminLike = adminLikeRole(m.Role)
+	} else if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	p, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	if err != nil {
+		return db.Workspace{}, db.Project{}, err
+	}
+	if !adminLike && !projectOwnedBy(p, actor) {
+		return db.Workspace{}, db.Project{}, errNotProjectEditor()
+	}
+	return ws, p, nil
+}
+
+// projectOwnedBy reports whether actor created p or is its lead. Both are
+// (kind, id) pairs: a lead_type "member" is a human, "agent" an agent.
+func projectOwnedBy(p db.Project, actor Actor) bool {
+	if p.CreatedBy == actor.ID && p.CreatedByKind == string(actor.Kind) {
+		return true
+	}
+	if !p.LeadID.Valid || p.LeadID.String != actor.ID {
+		return false
+	}
+	switch p.LeadType.String {
+	case "member":
+		return actor.Kind == audit.KindHuman
+	case "agent":
+		return actor.Kind == audit.KindAgent
+	}
+	return false
+}
+
+// requireProjectLead holds a project's lead to the rule a task's assignee
+// follows: a member or an agent of the project's own workspace. Without it
+// a lead id from another organization is stored, and every reader of the
+// project is shown a person who is not theirs (ADR 0008 isolation matrix).
+func (s *TaskService) requireProjectLead(ctx context.Context, workspaceID string, leadType, leadID pgtype.Text) error {
+	if !leadID.Valid {
+		return nil
+	}
+	switch leadType.String {
+	case "member":
+		if _, err := s.ws.RequireMember(ctx, workspaceID, leadID.String); err != nil {
+			if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
+				return err
+			}
+			return coded(http.StatusUnprocessableEntity, "lead_not_member", "người phụ trách không phải thành viên workspace")
+		}
+	case "agent":
+		if _, err := s.ws.RequireAgentMember(ctx, workspaceID, leadID.String); err != nil {
+			return coded(http.StatusUnprocessableEntity, "agent_not_member", "agent không phải thành viên workspace")
+		}
+	}
+	return nil
 }
 
 func normalizeProjectLead(leadType, leadID *string) (pgtype.Text, pgtype.Text, error) {

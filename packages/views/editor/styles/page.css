@@ -1,0 +1,76 @@
+/* Page notes use a quiet reading canvas; compact chat/issue prose stays scoped. */
+.document-page-prose {
+  min-width: 0;
+  line-height: 1.625;
+}
+
+.document-page-prose h1 {
+  font-size: var(--text-title-lg);
+  font-weight: 600;
+}
+
+.document-page-prose h2 {
+  font-size: var(--text-title);
+}
+
+.document-page-prose h3 {
+  font-size: var(--text-title-sm);
+  font-weight: 600;
+  margin-top: 1.5rem;
+}
+
+.document-page-prose p {
+  margin-block: 0.5rem;
+}
+
+.document-page-prose blockquote {
+  border-color: var(--border);
+  color: var(--muted-foreground);
+}
+
+.document-page-prose pre {
+  background: var(--muted);
+  font-family: var(--font-mono);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.document-page-prose img {
+  border-radius: var(--radius-md);
+}
+
+.document-page-prose th {
+  background: var(--muted);
+}
+
+.document-page-prose :is(th, td) {
+  border-color: var(--border);
+  min-width: 7rem;
+}
+
+/* Both page hosts override shell.css's inline NodeView at equal specificity. */
+.rich-text-editor .page-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.rich-text-editor .page-task-item [data-node-view-content-react] > p {
+  margin-block: 0;
+}
+
+.rich-text-editor .page-task-item[data-checked="true"] > [data-node-view-content] > [data-node-view-content-react] > p {
+  color: var(--muted-foreground);
+}
+
+.document-page-prose .is-empty[data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.document-page-prose > :first-child { margin-top: 0; }
+.document-page-prose > :last-child { margin-bottom: 0; }

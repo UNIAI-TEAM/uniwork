@@ -1,0 +1,41 @@
+{
+  "title": "UniWork workflow film",
+  "method": "Code-authored 3D, rendered locally with Remotion ThreeCanvas and Three.js; no generative video service used.",
+  "creativePrompt": "Create a bespoke seven-second silent looping cinematic 3D film for the UniWork landing page meeting and workflow section. Preserve a bright studio palette of cobalt #0b5bf5, icy paper #edf2ff, deep navy #101f42 and restrained pale blue detail. Author three thin precision-beveled objects with porcelain faces, anodized cobalt and navy metal, fine metallic backing seams and inset face layers. Give meeting objects miniature participant discs and a frame-driven embossed waveform. Choreograph three clear chapters: the meeting objects gather with slight stagger into a layered shared-context document stack, then unfold into linked task sheets with miniature checklist rows, fine dividers and grouped owner discs. Thin curved metal connections carry a small blue bead between the resolved sheets. Rest the composition above a low porcelain studio surface, with broad softbox environment reflections, softened contact shadows, controlled ACES tone mapping and a subtle continuous camera arc. Hold the shared-work arrangement, then retrace the transformation into the exact opening state for a seamless loop. Keep the film sculptural and precise with generous negative space. No text, letterforms, logos, invented brand symbols, fabricated customer claims or product UI screenshots. This is code-authored Three.js geometry and frame-driven motion rendered locally with Remotion, not generative-model video. Render 960 by 640 pixels, 30 fps, 210 frames, silent H.264 MP4, with a WebP poster at frame 132; keep the delivered video and poster together below 512 KiB and embed this exact creative prompt in the poster metadata.",
+  "width": 960,
+  "height": 640,
+  "fps": 30,
+  "durationSeconds": 7,
+  "frames": 210,
+  "codec": "H.264",
+  "pixelFormat": "yuv420p",
+  "audio": false,
+  "posterFrame": 132,
+  "video": {
+    "path": "/landing/motion/workflow-film.mp4",
+    "bytes": 340822,
+    "sha256": "e375bcda5b82e91b82b67bf7c96b9157c1a0f3b895e53b99eaaed130024ce5bb"
+  },
+  "poster": {
+    "path": "/landing/motion/workflow-film.webp",
+    "bytes": 20514,
+    "sha256": "d4cd42e0b9d1e4dd13883ea6b5d2f6b227dcf2e26df015c3d7e80b6f5c9b26fe"
+  },
+  "sourceDirectory": "scripts/landing-film",
+  "posterProvenance": "The exact creative prompt is embedded in the WebP EXIF ImageDescription; the adjacent JSON is a readable companion.",
+  "materials": "Thin porcelain and anodized metal sheets with bevels, inset faces, backing seams and abstract embossed work detail.",
+  "lighting": "Locally built PMREM softbox room environment, physical materials, VSM soft cast shadows and ACES filmic tone mapping.",
+  "renderer": "Remotion 4.0.526, @remotion/three 4.0.526, Three.js 0.186.0, React Three Fiber 9.7.0",
+  "inspectedFrames": [
+    0,
+    65,
+    132,
+    209
+  ],
+  "loop": "Opening and final states match; the transformation reverses over the closing 53 frames, with a periodic orbit and floating motion.",
+  "reproduce": [
+    "node scripts/landing-film/render.mjs --prepare",
+    "npm install --prefix .go-tmp/landing-film-runtime",
+    "node scripts/landing-film/render.mjs"
+  ]
+}

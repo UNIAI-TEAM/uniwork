@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -20,7 +21,25 @@ type Service struct {
 	q      *db.Queries
 	push   PushConfig
 	maxIDs int
+	docs   DocumentPageChecker
 }
+
+// DocumentPageChecker resolves one recipient against the page's documents
+// (G8-07 section 4.6): the read-side mirror of the consumer's
+// DocumentReadChecker. DocumentService implements it and it is injected
+// through SetDocumentReaders, so Service.List marks resource_access_lost /
+// resource_deleted without this package re-implementing the document gate.
+// The state type is the service's own because DocumentService returns it and
+// notification/service.go already imports internal/service.
+type DocumentPageChecker interface {
+	FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]service.DocumentReadState, error)
+}
+
+// SetDocumentReaders wires the page checker Service.List marks document rows
+// through. main.go calls it next to NewService. Unwired, a document row is
+// reported access_lost (fail closed) rather than showing a snippet the
+// recipient may no longer be allowed to read.
+func (s *Service) SetDocumentReaders(d DocumentPageChecker) { s.docs = d }
 
 // PushConfig is what GET /notifications/push/config returns.
 type PushConfig struct {
@@ -49,14 +68,71 @@ type ListInput struct {
 	Limit       int32
 }
 
-// Item is a notification plus whether its resource still exists.
+// Item is a notification plus whether its resource still exists and, for a
+// chat message, the room it sits in — a message has no page of its own, so
+// the client needs the room to open it.
 type Item struct {
 	db.Notification
-	ResourceDeleted bool
+	ResourceDeleted  bool
+	ResourceParentID string
+	// ResourceAccessLost is true when the recipient can no longer read a
+	// document the notification names (G8-07 section 1). The link stays; the
+	// snippet keys are removed from Params.
+	ResourceAccessLost bool
+	// CommentDeleted is true when the document notification's comment no
+	// longer exists (hard-deleted or tombstoned). The document link still
+	// opens when the document is readable.
+	CommentDeleted bool
+	// SampleDocuments names the documents of a document_changed row the
+	// reader can read now, resolved at read time (UNI-2056); nil for every
+	// other kind.
+	SampleDocuments []SampleDocument
+}
+
+// snippetKeys are the params keys that carry content the recipient may not
+// see once access is lost: the comment body snippet and the document title
+// snapshot. Dropped together on access_lost; ids, kind and actor stay.
+var snippetKeys = []string{"snippet", "document"}
+
+// paramValue reads one string value out of a notification's params JSON;
+// "" when the params are malformed or the key is absent.
+func paramValue(raw, key string) string {
+	if raw == "" {
+		return ""
+	}
+	var m map[string]string
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	return m[key]
+}
+
+// dropParamKeys removes the named keys from a params JSON object, keeping the
+// rest and their value types; a malformed value is returned unchanged so a
+// bad row never blanks. Values are held as raw JSON, so one that is not a
+// string (e.g. {"count":3}) cannot fail the decode and leave the snippet
+// keys in place on the access_lost path that must drop them.
+func dropParamKeys(raw string, keys ...string) string {
+	if raw == "" {
+		return raw
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return raw
+	}
+	for _, k := range keys {
+		delete(m, k)
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return string(b)
 }
 
 // List returns the caller's inbox page, newest first, with resource_deleted
-// resolved in two batched queries rather than one per row.
+// (and a chat message's room) resolved in one batched query per resource
+// type rather than one per row.
 func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item, error) {
 	limit := in.Limit
 	if limit <= 0 {
@@ -72,13 +148,15 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 	if err != nil {
 		return nil, err
 	}
-	var taskIDs, meetingIDs []string
+	var taskIDs, meetingIDs, messageIDs []string
 	for _, n := range rows {
 		switch n.ResourceType {
 		case "task":
 			taskIDs = append(taskIDs, n.ResourceID)
 		case "meeting":
 			meetingIDs = append(meetingIDs, n.ResourceID)
+		case "chat_message":
+			messageIDs = append(messageIDs, n.ResourceID)
 		}
 	}
 	alive := map[string]bool{}
@@ -100,10 +178,105 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			alive["meeting:"+id] = true
 		}
 	}
+	roomOf := map[string]string{}
+	if len(messageIDs) > 0 {
+		msgs, err := s.q.ListChatMessageRooms(ctx, messageIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range msgs {
+			alive["chat_message:"+m.ID] = true
+			roomOf[m.ID] = m.RoomID
+		}
+	}
+	// Document rows (G8-07 section 4.6): the page's documents go through the
+	// batch gate in one call, and the page's comments through one existence
+	// read, so neither costs a query per row.
+	var docIDs, commentIDs []string
+	commentOf := make(map[string]string, len(rows))
+	for _, n := range rows {
+		if n.ResourceType != "document" || n.Kind == KindDocumentChanged {
+			continue
+		}
+		docIDs = append(docIDs, n.ResourceID)
+		if cid := paramValue(n.Params, "comment_id"); cid != "" {
+			commentIDs = append(commentIDs, cid)
+			commentOf[n.ID] = cid
+		}
+	}
+	docState := map[string]service.DocumentReadState{}
+	if len(docIDs) > 0 && s.docs != nil {
+		states, err := s.docs.FilterReadableDocuments(ctx, userID, docIDs)
+		if err != nil {
+			return nil, err
+		}
+		docState = states
+	}
+	liveComment := map[string]bool{}
+	if len(commentIDs) > 0 {
+		ids, err := s.q.ListExistingDocumentCommentIDs(ctx, commentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			liveComment[id] = true
+		}
+	}
 	out := make([]Item, 0, len(rows))
 	for _, n := range rows {
-		deleted := (n.ResourceType == "task" || n.ResourceType == "meeting") && !alive[n.ResourceType+":"+n.ResourceID]
-		out = append(out, Item{Notification: n, ResourceDeleted: deleted})
+		tracked := n.ResourceType == "task" || n.ResourceType == "meeting" || n.ResourceType == "chat_message"
+		deleted := tracked && !alive[n.ResourceType+":"+n.ResourceID]
+		parent := ""
+		if n.ResourceType == "chat_message" {
+			parent = roomOf[n.ResourceID]
+		}
+		item := Item{Notification: n, ResourceDeleted: deleted, ResourceParentID: parent}
+		// document_changed is exempt from the single-document gate, like
+		// document_trashed_by_other is from its trashed arm: its resource_id
+		// is only the FIRST document of the notice, and under the verbs
+		// trashed and deleted that document is in the trash or gone by
+		// design, so judging the row by it would make every such notice look
+		// dead. The row's readability comes from its documents instead:
+		// attachSampleDocuments names only the samples the reader can read
+		// and rewrites sample_document_ids to match, and the row is kept
+		// even when none is left (the documents route shows the rest).
+		if n.ResourceType == "document" && n.Kind != KindDocumentChanged {
+			// Unwired or unknown state fails closed: the recipient might no
+			// longer read the document, so the snippet is hidden.
+			state := docState[n.ResourceID]
+			if state == "" {
+				state = service.DocumentAccessLost
+			}
+			switch state {
+			case service.DocumentTrashable:
+				// TRASH-NOTIFY-01: the document sits in the trash and the
+				// recipient administers it, so this notice is the link to
+				// restore it - it keeps the title like a live resource.
+				// Every other kind keeps the old answer: a trashed resource
+				// is gone.
+				if n.Kind != KindDocumentTrashedByOther {
+					item.ResourceDeleted = true
+					item.Params = dropParamKeys(n.Params, snippetKeys...)
+				}
+			case service.DocumentGone:
+				// Gone is decided before the organization/level gate, so a
+				// revoked recipient of a trashed document lands here; the
+				// content keys go with it, exactly as they do for
+				// access_lost (R1-5), so no snippet outlives the trash.
+				item.ResourceDeleted = true
+				item.Params = dropParamKeys(n.Params, snippetKeys...)
+			case service.DocumentAccessLost:
+				item.ResourceAccessLost = true
+				item.Params = dropParamKeys(n.Params, snippetKeys...)
+			}
+			if cid := commentOf[n.ID]; cid != "" && !liveComment[cid] {
+				item.CommentDeleted = true
+			}
+		}
+		out = append(out, item)
+	}
+	if err := s.attachSampleDocuments(ctx, userID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -157,8 +330,9 @@ func (s *Service) MarkRead(ctx context.Context, userID string, ids []string) err
 	return err
 }
 
-// MarkAllRead reads everything open, optionally only one workspace.
-func (s *Service) MarkAllRead(ctx context.Context, userID, workspaceID string) (int64, error) {
+// MarkAllRead reads everything open, optionally only one workspace, and
+// returns the ids it read so the client can offer to put them back.
+func (s *Service) MarkAllRead(ctx context.Context, userID, workspaceID string) ([]string, error) {
 	return s.q.MarkAllNotificationsRead(ctx, db.MarkAllNotificationsReadParams{UserID: userID, WorkspaceID: optText(workspaceID)})
 }
 
@@ -175,6 +349,15 @@ func (s *Service) Archive(ctx context.Context, userID string, ids []string) erro
 		return err
 	}
 	_, err := s.q.ArchiveNotifications(ctx, db.ArchiveNotificationsParams{UserID: userID, Ids: ids})
+	return err
+}
+
+// Unarchive puts archived rows back in the inbox: the undo of Archive.
+func (s *Service) Unarchive(ctx context.Context, userID string, ids []string) error {
+	if err := s.own(ctx, userID, ids); err != nil {
+		return err
+	}
+	_, err := s.q.UnarchiveNotifications(ctx, db.UnarchiveNotificationsParams{UserID: userID, Ids: ids})
 	return err
 }
 
@@ -205,8 +388,23 @@ func (s *Service) SetPreferences(ctx context.Context, userID string, prefs []Kin
 	return s.Preferences(ctx, userID)
 }
 
-// SubscribePush registers (or refreshes) a browser's push subscription.
-func (s *Service) SubscribePush(ctx context.Context, userID, endpoint, p256dh, auth, userAgent string) error {
+// SubscribePush registers (or refreshes) a browser's push subscription, or
+// the mobile app's Expo token, which needs neither VAPID nor keys. sessionID
+// is the caller's token `sid`, so revoking that device closes the push too.
+func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint, p256dh, auth, userAgent, platform string) error {
+	if strings.HasPrefix(endpoint, "Expo") {
+		if !isExpoPushToken(endpoint) {
+			return service.Invalid("token Expo không hợp lệ")
+		}
+		if platform != "ios" && platform != "android" {
+			return service.Invalid("platform không hợp lệ")
+		}
+		_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
+			ID: util.NewID(), UserID: userID, Endpoint: endpoint, P256dh: "", Auth: "",
+			UserAgent: optText("expo/" + platform), SessionID: optText(sessionID),
+		})
+		return err
+	}
 	if !s.push.Enabled {
 		return service.ErrNotFound
 	}
@@ -215,7 +413,7 @@ func (s *Service) SubscribePush(ctx context.Context, userID, endpoint, p256dh, a
 	}
 	_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
 		ID: util.NewID(), UserID: userID, Endpoint: endpoint, P256dh: p256dh, Auth: auth,
-		UserAgent: optText(userAgent),
+		UserAgent: optText(userAgent), SessionID: optText(sessionID),
 	})
 	return err
 }

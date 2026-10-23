@@ -173,3 +173,202 @@ func TestRecordRejectsIncompleteEntry(t *testing.T) {
 		t.Fatal("an entry without an actor kind must be rejected")
 	}
 }
+
+// A guest who joined a meeting by invite link has no user row. Guest keeps
+// the audit row honest about who acted instead of filing a guest session id
+// as a human, and the outbox row carries the same kind.
+func TestRecordStoresGuestActor(t *testing.T) {
+	g := Guest("g1")
+	if g.Kind != KindGuest || g.ID != "g1" {
+		t.Fatalf("Guest(g1) = %+v", g)
+	}
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	e := entry()
+	e.Actor = g
+	if err := NewRecorder().Record(ctx, db.New(pool), e,
+		Event{Topic: "task.updated", Payload: map[string]string{"task_id": "t1"}}); err != nil {
+		t.Fatal(err)
+	}
+	var kind, id string
+	if err := pool.QueryRow(ctx, `SELECT actor_kind, actor_id FROM audit_events`).Scan(&kind, &id); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "guest" || id != "g1" {
+		t.Fatalf("audit actor = %s/%s, want guest/g1", kind, id)
+	}
+	var outboxKind string
+	if err := pool.QueryRow(ctx, `SELECT actor_kind FROM outbox_events`).Scan(&outboxKind); err != nil {
+		t.Fatal(err)
+	}
+	if outboxKind != "guest" {
+		t.Fatalf("outbox actor_kind = %q, want guest", outboxKind)
+	}
+}
+
+// RecordMany is only a faster Record: the same audit row and the same outbox
+// rows, field for field, for every element - the empty request fields stay
+// NULL and the metadata and payload keep their JSON.
+func TestRecordManyWritesWhatRecordWould(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	ctx := WithRequest(context.Background(), RequestInfo{
+		CorrelationID: "corr-many-1234", RequestID: "req-many", IP: "10.0.0.7", UserAgent: "ua-many",
+	})
+	e1, e2 := entry(), entry()
+	e1.ResourceID, e1.Metadata = "d1", map[string]any{"archive_batch_id": "b1"}
+	e2.ResourceID, e2.WorkspaceID = "d2", ""
+	ev := func(id string) Event {
+		return Event{Topic: "task.updated", Payload: map[string]string{"task_id": id}}
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewRecorder().RecordMany(ctx, q.WithTx(tx), []Recorded{
+		{Entry: e1, Events: []Event{ev("d1")}},
+		{Entry: e2, Events: []Event{ev("d2")}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	type row struct {
+		resource, action, kind, actor, changes, metadata, corr, req, ip, ua string
+		workspace                                                           *string
+	}
+	rows, err := pool.Query(ctx, `SELECT resource_id, action, actor_kind, actor_id, changes, metadata,
+		correlation_id, request_id, ip_address, user_agent, workspace_id FROM audit_events ORDER BY resource_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.resource, &r.action, &r.kind, &r.actor, &r.changes, &r.metadata, &r.corr, &r.req, &r.ip, &r.ua, &r.workspace); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if len(got) != 2 {
+		t.Fatalf("audit rows = %d, want 2", len(got))
+	}
+	if got[0].resource != "d1" || got[0].action != ActionTaskUpdated || got[0].kind != "human" || got[0].actor != "u1" ||
+		got[0].corr != "corr-many-1234" || got[0].req != "req-many" || got[0].ip != "10.0.0.7" || got[0].ua != "ua-many" ||
+		got[0].workspace == nil || *got[0].workspace != "ws1" ||
+		got[0].metadata != `{"archive_batch_id":"b1"}` || got[0].changes != `{"status":{"from":"todo","to":"done"}}` {
+		t.Fatalf("first audit row = %+v", got[0])
+	}
+	if got[1].resource != "d2" || got[1].workspace != nil {
+		t.Fatalf("second audit row = %+v, want an empty workspace stored as NULL", got[1])
+	}
+
+	var events int
+	var corr, payload string
+	if err := pool.QueryRow(ctx, `SELECT count(*), min(correlation_id), min(payload) FROM outbox_events
+		WHERE topic = 'task.updated' AND actor_id = 'u1' AND event_version = 1 AND status = 'PENDING'`).Scan(&events, &corr, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if events != 2 || corr != "corr-many-1234" {
+		t.Fatalf("outbox rows = %d (correlation %q), want 2 with the request's correlation id", events, corr)
+	}
+	if payload != `{"task_id":"d1"}` {
+		t.Fatalf("payload = %q", payload)
+	}
+	if err := NewRecorder().RecordMany(ctx, q, nil); err != nil {
+		t.Fatalf("an empty batch must be a no-op: %v", err)
+	}
+}
+
+// A row recorded inside a request that came through an AI app names the app
+// and the grant (ADR 0033); the entry's own metadata survives and is not
+// mutated.
+func TestRecordWritesTheViaOfTheRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := WithVia(context.Background(), Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	e := entry()
+	e.Metadata = map[string]any{"kept": "yes"}
+	if err := NewRecorder().Record(ctx, db.New(pool), e); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.Metadata["via"]; ok {
+		t.Fatal("Record mutated the caller's metadata map")
+	}
+	var kind, grant, name, kept string
+	if err := pool.QueryRow(context.Background(), `SELECT metadata::jsonb->'via'->>'kind', metadata::jsonb->'via'->>'grant_id', metadata::jsonb->'via'->>'client_name', metadata::jsonb->>'kept' FROM audit_events`).Scan(&kind, &grant, &name, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "mcp" || grant != "g1" || name != "Claude" || kept != "yes" {
+		t.Fatalf("via = %q %q %q, kept = %q", kind, grant, name, kept)
+	}
+}
+
+func TestRecordWithoutViaLeavesMetadataAlone(t *testing.T) {
+	pool := testutil.DB(t)
+	if err := NewRecorder().Record(context.Background(), db.New(pool), entry()); err != nil {
+		t.Fatal(err)
+	}
+	var has bool
+	if err := pool.QueryRow(context.Background(), `SELECT metadata::jsonb ? 'via' FROM audit_events`).Scan(&has); err != nil {
+		t.Fatal(err)
+	}
+	if has {
+		t.Fatal("a request without a via wrote one")
+	}
+}
+
+// RecordMany copies the channel into every row of the batch, like Record.
+func TestRecordManyWritesTheViaOfTheRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := WithVia(context.Background(), Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"})
+	e1, e2 := entry(), entry()
+	e1.Metadata = map[string]any{"kept": "yes"}
+	if err := NewRecorder().RecordMany(ctx, db.New(pool), []Recorded{{Entry: e1}, {Entry: e2}}); err != nil {
+		t.Fatal(err)
+	}
+	var withVia, kept int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FILTER (WHERE metadata::jsonb->'via'->>'grant_id' = 'g1'), count(*) FILTER (WHERE metadata::jsonb->>'kept' = 'yes') FROM audit_events`).Scan(&withVia, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if withVia != 2 || kept != 1 {
+		t.Fatalf("rows with via = %d (want 2), with kept = %d (want 1)", withVia, kept)
+	}
+}
+
+// Two live writers keep a plain string under metadata.via ("join" on chat
+// room joins, "reset_token" on password reset). Inside an MCP request the
+// request's via wins; outside one the entry's own value is untouched.
+func TestRecordViaOfTheRequestReplacesAnEntrysOwnViaKey(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	own := func() Entry {
+		e := entry()
+		e.Metadata = map[string]any{"via": "join"}
+		return e
+	}
+	e := own()
+	e.ResourceID = "t-mcp"
+	if err := NewRecorder().Record(WithVia(ctx, Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"}), q, e); err != nil {
+		t.Fatal(err)
+	}
+	e = own()
+	e.ResourceID = "t-plain"
+	if err := NewRecorder().Record(ctx, q, e); err != nil {
+		t.Fatal(err)
+	}
+	var mcpKind, plain string
+	if err := pool.QueryRow(ctx, `SELECT metadata::jsonb->'via'->>'kind' FROM audit_events WHERE resource_id = 't-mcp'`).Scan(&mcpKind); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT metadata::jsonb->>'via' FROM audit_events WHERE resource_id = 't-plain'`).Scan(&plain); err != nil {
+		t.Fatal(err)
+	}
+	if mcpKind != "mcp" || plain != "join" {
+		t.Fatalf("under WithVia via.kind = %q (want mcp), without it via = %q (want join)", mcpKind, plain)
+	}
+}

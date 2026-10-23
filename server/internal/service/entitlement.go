@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -22,9 +25,13 @@ import (
 const (
 	FeatureMembersMax       = "members.max"
 	FeatureWorkspacesMax    = "workspaces.max"
+	FeatureTasksMax         = "tasks.max"
 	FeatureMeetingMinutes   = "meeting.participant_minutes"
 	FeatureMeetingRecording = "meeting.recording"
 	FeatureMeetingAISummary = "meeting.ai_summary"
+	// FeatureStorageBytes is the Documents storage meter (C-01 §14.2):
+	// snapshot mode, counted by CountStorageBytesInOrganization.
+	FeatureStorageBytes = "storage.bytes"
 )
 
 // wiredFeatures have a consumer in this codebase (a gate or a meter call).
@@ -32,8 +39,10 @@ const (
 // unlimited" row never claims a number nobody writes. Add a key here in the
 // same change that adds its first Consume/Can call.
 var wiredFeatures = map[string]bool{
-	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureMeetingMinutes: true,
-	FeatureMeetingRecording: true, FeatureMeetingAISummary: true, FeatureAITokens: true,
+	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureTasksMax: true,
+	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
+	FeatureAITokens: true, FeatureStorageBytes: true,
+	FeatureOfficeAIBYOK: true, FeatureOfficeAICloud: true,
 }
 
 // graceFeatures stay effective when the subscription is inactive, so an
@@ -214,6 +223,27 @@ func (s *EntitlementService) Can(ctx context.Context, orgID, feature string) err
 	return err
 }
 
+// vietnam is the calendar free-plan meters use. Asia/Ho_Chi_Minh is UTC+7
+// with no daylight saving; the fixed zone is the same offset when the zone
+// database is missing.
+var vietnam = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		return time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	}
+	return loc
+}()
+
+// meterPeriodStart keys accumulating counters: the paid term when the
+// subscription has one, else the calendar month in Vietnam time.
+func meterPeriodStart(sub db.Subscription, now time.Time) pgtype.Timestamptz {
+	if sub.CurrentPeriodEnd.Valid {
+		return sub.CurrentPeriodStart
+	}
+	n := now.In(vietnam)
+	return pgtype.Timestamptz{Time: time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, vietnam), Valid: true}
+}
+
 // snapshotCount is the current value of a meter that counts a source table.
 func snapshotCount(ctx context.Context, q *db.Queries, orgID, meter string) (int64, error) {
 	switch meter {
@@ -221,6 +251,10 @@ func snapshotCount(ctx context.Context, q *db.Queries, orgID, meter string) (int
 		return q.CountOrganizationMembers(ctx, orgID)
 	case FeatureWorkspacesMax:
 		return q.CountWorkspacesInOrganization(ctx, orgID)
+	case FeatureTasksMax:
+		return q.CountTasksInOrganization(ctx, orgID)
+	case FeatureStorageBytes:
+		return q.CountStorageBytesInOrganization(ctx, orgID)
 	}
 	return 0, nil
 }
@@ -229,7 +263,7 @@ func (s *EntitlementService) current(ctx context.Context, q *db.Queries, sub db.
 	if e.MeterMode == "snapshot" {
 		return snapshotCount(ctx, q, sub.OrganizationID, e.Key)
 	}
-	c, err := q.GetUsageCounter(ctx, db.GetUsageCounterParams{OrganizationID: sub.OrganizationID, MeterKey: e.Key, PeriodStart: sub.CurrentPeriodStart})
+	c, err := q.GetUsageCounter(ctx, db.GetUsageCounterParams{OrganizationID: sub.OrganizationID, MeterKey: e.Key, PeriodStart: meterPeriodStart(sub, time.Now())})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil
 	}
@@ -313,7 +347,7 @@ func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in Cons
 		}
 	}
 	row, err := q.AddUsageWithinLimit(ctx, db.AddUsageWithinLimitParams{
-		OrganizationID: in.OrganizationID, MeterKey: in.Meter, PeriodStart: sub.CurrentPeriodStart,
+		OrganizationID: in.OrganizationID, MeterKey: in.Meter, PeriodStart: meterPeriodStart(sub, time.Now()),
 		Total: in.Delta, LimitTotal: limit,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -327,6 +361,133 @@ func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in Cons
 		return err
 	}
 	return s.notifyThreshold(ctx, q, in, e, row)
+}
+
+// meetingMinutesActor attributes the usage events of meeting minutes.
+var meetingMinutesActor = audit.System("meeting.attendance")
+
+// RecordMeetingMinutes meters closed room sessions of one organization into
+// meeting.participant_minutes on the caller's transaction, in one statement
+// however many sessions there are: a usage event per session, idempotent on
+// attendance:<session id>, and one bump of the period's counter. Like
+// RecordUsage it never refuses (the minutes are spent) and skips an
+// organization whose plan does not meter them.
+func (s *EntitlementService) RecordMeetingMinutes(ctx context.Context, q *db.Queries, orgID string, sessionIDs []string) error {
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	sub, e, err := s.entitlement(ctx, q, orgID, FeatureMeetingMinutes, false)
+	if errors.Is(err, ErrEntitlementRequired) || errors.Is(err, ErrSubscriptionInactive) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if e.MeterMode == "snapshot" {
+		return nil
+	}
+	eventIDs := make([]string, len(sessionIDs))
+	for i := range eventIDs {
+		eventIDs[i] = util.NewID()
+	}
+	rows, err := q.MeterAttendanceMinutes(ctx, db.MeterAttendanceMinutesParams{
+		OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: meterPeriodStart(sub, time.Now()),
+		SessionIds: sessionIDs, EventIds: eventIDs, ActorID: strText(meetingMinutesActor.ID),
+	})
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	row := rows[0]
+	in := ConsumeInput{OrganizationID: orgID, Meter: FeatureMeetingMinutes, Actor: meetingMinutesActor}
+	// A batch can carry the total past both levels at once. The 100% notice
+	// supersedes the 80% one, so 80 is marked without a notice of its own —
+	// otherwise the next batch would announce 80% after 100%.
+	if e.Limit != nil && *e.Limit > 0 && row.Total >= *e.Limit && !row.Notified80At.Valid {
+		if err := q.MarkUsageThresholdNotified(ctx, db.MarkUsageThresholdNotifiedParams{
+			OrganizationID: orgID, MeterKey: FeatureMeetingMinutes, PeriodStart: row.PeriodStart, Level: 80,
+		}); err != nil {
+			return err
+		}
+		row.Notified80At = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+	return s.notifyThreshold(ctx, q, in, e, row)
+}
+
+// storageMeteredPurposes are the upload purposes storage.bytes counts. The
+// quota hook sees every organization upload; only these reserve bytes.
+var storageMeteredPurposes = map[files.UploadPurpose]bool{
+	files.DocumentFile:  true,
+	files.DocumentAsset: true,
+}
+
+// storageReservationRef marks a usage_events row as an upload reservation of
+// storage.bytes; CountStorageBytesInOrganization reads it back.
+const storageReservationRef = "file_reservation"
+
+// ReserveFileBytes is the FileService quota hook (FileQuotaHook) for
+// storage.bytes. FileService calls it once per new file, after measuring the
+// bytes and before storing them, outside any transaction. The reservation is
+// decided under the organization's subscription lock - the same lock every
+// storage Consume takes - so two parallel uploads are serialized here and the
+// second sees the first one's reservation: together they cannot pass the
+// limit. The reservation is a usage_events row keyed by the file id, so a
+// replay never reserves twice; it stops counting once the file is claimed,
+// canceled, expired or failed (see the query).
+func (s *EntitlementService) ReserveFileBytes(ctx context.Context, organizationID string, fileID files.FileID, sizeBytes int64) error {
+	up, err := s.q.GetStorageReservationUpload(ctx, db.GetStorageReservationUploadParams{
+		FileID: string(fileID), OrganizationID: pgtype.Text{String: organizationID, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// FileService records the session before it calls the hook, so this
+		// is a wiring bug, not a user error: meter nothing, but say so.
+		slog.Warn("storage quota: no upload session for reserved file", "organization", organizationID, "file", string(fileID))
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !storageMeteredPurposes[files.UploadPurpose(up.Purpose)] {
+		return nil
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	sub, e, err := s.entitlement(ctx, q, organizationID, FeatureStorageBytes, true)
+	if err != nil {
+		return err
+	}
+	// Record first, then check the total that now includes this file: a
+	// repeated call for the same file inserts nothing (the key is the file
+	// id) and must not count its own reservation twice.
+	n, err := q.InsertUsageEvent(ctx, usageEventParams(ConsumeInput{
+		OrganizationID: organizationID,
+		WorkspaceID:    up.WorkspaceID.String,
+		Meter:          FeatureStorageBytes,
+		Delta:          sizeBytes,
+		Actor:          Actor{Kind: audit.Kind(up.CreatedByKind), ID: up.CreatedBy},
+		RefType:        storageReservationRef,
+		RefID:          string(fileID),
+		IdempotencyKey: "storage.reserve:" + string(fileID),
+	}))
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return nil // already reserved for this file
+	}
+	if e.Limit != nil {
+		cur, err := s.current(ctx, q, sub, e)
+		if err != nil {
+			return err
+		}
+		if cur > *e.Limit {
+			return errQuotaExceeded(FeatureStorageBytes, *e.Limit, cur-sizeBytes, sizeBytes)
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func usageEventParams(in ConsumeInput) db.InsertUsageEventParams {
@@ -394,7 +555,7 @@ func (s *EntitlementService) Snapshot(ctx context.Context, orgID string) (Entitl
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	counters, err := s.q.ListUsageCounters(ctx, db.ListUsageCountersParams{OrganizationID: orgID, PeriodStart: sub.CurrentPeriodStart})
+	counters, err := s.q.ListUsageCounters(ctx, db.ListUsageCountersParams{OrganizationID: orgID, PeriodStart: meterPeriodStart(sub, time.Now())})
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
@@ -419,3 +580,5 @@ func (s *EntitlementService) Snapshot(ctx context.Context, orgID string) (Entitl
 	}
 	return EntitlementSnapshot{Subscription: sub, Plan: plan, Entitlements: ents}, nil
 }
+
+var _ FileQuotaHook = (*EntitlementService)(nil)

@@ -4,12 +4,14 @@ import { useParams } from "next/navigation";
 import { getGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import type { PreJoinChoice } from "@uniwork/views/meetings/meeting-prejoin";
+import { MeetingStagePageSkeleton } from "@uniwork/views/meetings/meeting-page-skeletons";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { useNavigation } from "@uniwork/views/navigation";
 import {
   inviteStorageKey,
+  leaveMeetingInvite,
   readCachedJoinDecision,
   readGuestSession,
   readInviteJoinBody,
@@ -81,24 +83,29 @@ export default function MeetingInviteRoomPage() {
     }
   }, [session.hydrated, authStatus, ready, nav, linkId]);
 
+  // Hydrating the session (or on the way back to the invite page): hold the
+  // stage in place rather than flashing an empty screen.
   if (!ready || !session.joinBody?.secret) {
-    return null;
+    return <MeetingStagePageSkeleton />;
   }
 
   const inviteSecret = session.joinBody.secret;
 
   return (
     <MeetingLobbyWSProvider meetingId={session.meetingId}>
-      <Suspense fallback={null}>
+      <Suspense fallback={<MeetingStagePageSkeleton />}>
         <MeetingRoomView
           meetingId={session.meetingId}
-          guestMode={isGuest}
+          // Members are sent to the workspace room, so everyone here is
+          // outside the workspace — signed in or not — and must not reach
+          // its APIs (UNI-901).
+          guestMode
           joinBody={session.joinBody}
           invite={isGuest ? { linkId, secret: inviteSecret } : undefined}
           meetingTitle={session.meetingTitle}
           initialJoinDecision={session.initialJoinDecision}
           initialChoice={session.initialChoice}
-          onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+          onLeave={() => leaveMeetingInvite(nav, linkId)}
         />
       </Suspense>
     </MeetingLobbyWSProvider>

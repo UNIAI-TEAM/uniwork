@@ -3,6 +3,7 @@ import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 
 /** One tint per priority: urgent red, high orange, medium blue, low gray. */
 export const PRIORITY_TONE: Record<TaskPriority, Tint> = {
+  none: "gray",
   urgent: "red",
   high: "orange",
   medium: "blue",

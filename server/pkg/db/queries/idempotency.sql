@@ -9,11 +9,13 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND scope = sqlc.arg('scope')
   AND key = sqlc.arg('key');
 
+-- payload_fingerprint is NULL for the legacy callers that bind no payload
+-- (DOC-005 §3.1; migration 9991790519637301).
 -- name: InsertIdempotencyKey :one
 INSERT INTO idempotency_keys (
-  id, organization_id, workspace_id, scope, key, actor_id
+  id, organization_id, workspace_id, scope, key, actor_id, payload_fingerprint
 ) VALUES (
-  $1, $2, $3, $4, $5, $6
+  $1, $2, $3, $4, $5, $6, $7
 )
 ON CONFLICT (organization_id, workspace_id, scope, key) DO NOTHING
 RETURNING *;
@@ -34,3 +36,17 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND scope = sqlc.arg('scope')
   AND key = sqlc.arg('key');
+
+-- SweepIdempotencyKeys deletes up to max_rows idempotency ledger rows older
+-- than cutoff, regardless of response_status (a row still in flight after the
+-- 7-day retention window is dead). SKIP LOCKED lets replicas split the work.
+-- name: SweepIdempotencyKeys :execrows
+-- tenant: system — retention sweep across all tenants; reads and returns no tenant data
+DELETE FROM idempotency_keys
+WHERE id IN (
+  SELECT k.id FROM idempotency_keys k
+  WHERE k.created_at < sqlc.arg('cutoff')::timestamptz
+  ORDER BY k.created_at
+  LIMIT sqlc.arg('max_rows')::int
+  FOR UPDATE SKIP LOCKED
+);

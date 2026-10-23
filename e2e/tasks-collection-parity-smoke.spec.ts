@@ -28,7 +28,7 @@ async function onboardToTasks(page: Page) {
   await page.getByRole("button", { name: `Tạo Đội Parity ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/tasks`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 }
 
 test("tasks collection: suite mode controls always on", async ({ page }) => {
@@ -47,9 +47,25 @@ test("tasks collection: suite mode controls always on", async ({ page }) => {
   await expect(page.getByTestId("task-mode-board")).toBeVisible();
   await expect(page.getByTestId("task-mode-swimlane")).toBeVisible();
   await expect(page.getByTestId("task-mode-table")).toHaveCount(0);
+  // The mode menu is modal: close it before reaching for the toolbar again.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("task-mode-list")).toBeHidden();
 
   const filterAdd = page.getByTestId("task-filter-add");
   await expect(filterAdd).toBeVisible();
-  await expect(filterAdd).toBeDisabled();
-  await expect(filterAdd).toHaveAttribute("data-reason-code", "filters_not_wired");
+  await expect(filterAdd).toBeEnabled();
+
+  await filterAdd.click();
+  await expect(page.getByTestId("task-filter-section-status")).toBeVisible();
+  await page.getByTestId("task-filter-section-status").click();
+  await page.getByTestId("task-filter-status-todo").click();
+
+  await expect(page.getByTestId("tasks-filter-chips")).toBeVisible({ timeout: 10_000 });
+  // The filter menu stays open for more picks: Escape closes the status submenu,
+  // then the menu itself, before clearing.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("task-filter-section-status")).toBeHidden();
+  await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
+  await expect(page.getByRole("button", { name: "Xóa bộ lọc" })).toHaveCount(0);
 });

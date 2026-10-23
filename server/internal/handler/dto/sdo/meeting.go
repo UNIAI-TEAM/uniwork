@@ -5,8 +5,15 @@ type MeetingSDO struct {
 }
 
 type MeetingListSDO struct {
-	Meetings []MeetingDTO `json:"meetings"`
-	Total    int64        `json:"total" example:"12"`
+	Meetings []MeetingListItemDTO `json:"meetings"`
+	Total    int64                `json:"total" example:"12"`
+}
+
+// MeetingListItemDTO is a list row: the meeting plus what the row needs to
+// draw without a request of its own.
+type MeetingListItemDTO struct {
+	MeetingDTO
+	HasPlayableRecording bool `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
 }
 
 type MeetingDTO struct {
@@ -28,6 +35,7 @@ type MeetingDTO struct {
 	ActualStartAt    string `json:"actual_start_at,omitempty"`
 	ActualEndAt      string `json:"actual_end_at,omitempty"`
 	Version          int32  `json:"version"`
+	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
 }
 
 type NoteDTO struct {
@@ -75,6 +83,8 @@ type ParticipantDTO struct {
 	DisplayNameSnapshot string `json:"display_name_snapshot"`
 	Role                string `json:"role"`
 	Status              string `json:"status"`
+	Standing            string `json:"standing" description:"MEMBER | OBSERVER" example:"MEMBER"`
+	IsSecretary         bool   `json:"is_secretary"`
 }
 
 type ParticipantListSDO struct {
@@ -119,8 +129,10 @@ type PublicInviteLinkSDO struct {
 	Title        string `json:"title"`
 	StartsAt     string `json:"starts_at"`
 	AccessMode   string `json:"access_mode"`
-	Expired      bool   `json:"expired"`
+	Expired      bool   `json:"expired" description:"Liên kết đã bị thu hồi hoặc hết hạn; giữ cho client cũ, client mới đọc link_state"`
 	GuestSession string `json:"guest_session,omitempty"`
+	LinkState    string `json:"link_state" description:"Trạng thái liên kết: active, expired, revoked hoặc exhausted (hết lượt, chỉ với AUTO_ADMIT)" example:"active"`
+	MeetingState string `json:"meeting_state" description:"Cuộc họp còn vào được không: open, ended, canceled hoặc past_scheduled_end" example:"open"`
 }
 
 type JoinRequestDTO struct {
@@ -137,7 +149,8 @@ type JoinRequestListSDO struct {
 
 type MeetingStatisticsSDO struct {
 	Total              int64   `json:"total"`
-	Scheduled          int64   `json:"scheduled"`
+	Scheduled          int64   `json:"scheduled" description:"Cuộc họp SCHEDULED chưa qua giờ kết thúc dự kiến (ends_at >= now)"`
+	Missed             int64   `json:"missed" description:"Cuộc họp SCHEDULED đã qua giờ kết thúc dự kiến mà chưa bắt đầu (ends_at < now)"`
 	InProgress         int64   `json:"in_progress"`
 	Ended              int64   `json:"ended"`
 	Canceled           int64   `json:"canceled"`
@@ -157,12 +170,13 @@ type MeetingStatisticsSDO struct {
 }
 
 type ActivityItemDTO struct {
-	ID         string `json:"id"`
-	EventType  string `json:"event_type"`
-	ActorID    string `json:"actor_id"`
-	FromState  string `json:"from_state,omitempty"`
-	ToState    string `json:"to_state,omitempty"`
-	OccurredAt string `json:"occurred_at"`
+	ID         string            `json:"id"`
+	EventType  string            `json:"event_type"`
+	ActorID    string            `json:"actor_id"`
+	FromState  string            `json:"from_state,omitempty"`
+	ToState    string            `json:"to_state,omitempty"`
+	OccurredAt string            `json:"occurred_at"`
+	Payload    map[string]string `json:"payload,omitempty" description:"Chỉ có ở MOTION_OPENED {title} và MOTION_CLOSED {title, outcome}"`
 }
 
 type ActivityListSDO struct {
@@ -182,10 +196,6 @@ type TranscriptSegmentSDO struct {
 	Segment TranscriptSegmentDTO `json:"segment"`
 }
 
-type TranscriptListSDO struct {
-	Segments []TranscriptSegmentDTO `json:"segments"`
-}
-
 type MeetingChatMessageDTO struct {
 	ID             string `json:"id"`
 	MeetingID      string `json:"meeting_id"`
@@ -200,29 +210,49 @@ type MeetingChatMessageSDO struct {
 	Message MeetingChatMessageDTO `json:"message"`
 }
 
-type MeetingChatListSDO struct {
-	Messages []MeetingChatMessageDTO `json:"messages"`
-}
-
 type SummaryActionItemDTO struct {
 	Title string `json:"title"`
 	Owner string `json:"owner"`
 	Due   string `json:"due"`
 }
 
+// MeetingSummaryActionItemDTO is one action item of a meeting summary with
+// what the server suggests for it and the task it already became.
+type MeetingSummaryActionItemDTO struct {
+	Index               int     `json:"index" description:"Vị trí trong action_items; gửi lại ở POST .../summary/tasks" example:"0"`
+	Title               string  `json:"title" example:"Gửi báo cáo sprint"`
+	Owner               string  `json:"owner" description:"Tên người phụ trách AI ghi" example:"Minh"`
+	Due                 string  `json:"due" description:"Hạn AI ghi, nguyên văn" example:"thứ Sáu"`
+	SuggestedAssigneeID *string `json:"suggested_assignee_id,omitempty" description:"Thành viên workspace duy nhất khớp tên AI ghi; vắng khi không ai hoặc nhiều người khớp" example:"01JABC1234567890ABCDEFGH"`
+	DueDate             *string `json:"due_date,omitempty" description:"Hạn AI ghi đọc theo ngày họp (YYYY-MM-DD); vắng khi không đọc được" example:"2026-09-04"`
+	TaskID              *string `json:"task_id,omitempty" description:"Task đã tạo từ việc này của bản tóm tắt này, khi task còn tồn tại" example:"01JABC1234567890ABCDEFGH"`
+}
+
 type MeetingSummaryDTO struct {
-	ID          string                 `json:"id"`
-	MeetingID   string                 `json:"meeting_id"`
-	Summary     string                 `json:"summary"`
-	Decisions   []string               `json:"decisions"`
-	ActionItems []SummaryActionItemDTO `json:"action_items"`
-	Model       string                 `json:"model"`
-	CreatedBy   string                 `json:"created_by"`
-	CreatedAt   string                 `json:"created_at"`
+	ID          string                        `json:"id"`
+	MeetingID   string                        `json:"meeting_id"`
+	Summary     string                        `json:"summary"`
+	Decisions   []string                      `json:"decisions"`
+	ActionItems []MeetingSummaryActionItemDTO `json:"action_items"`
+	Model       string                        `json:"model"`
+	CreatedBy   string                        `json:"created_by"`
+	CreatedAt   string                        `json:"created_at"`
 }
 
 type MeetingSummarySDO struct {
 	Summary *MeetingSummaryDTO `json:"summary"`
+}
+
+// SummaryTaskLinkDTO pairs a converted action item with its new task.
+type SummaryTaskLinkDTO struct {
+	Index  int    `json:"index" example:"0"`
+	TaskID string `json:"task_id" example:"01JABC1234567890ABCDEFGH"`
+}
+
+// MeetingSummaryTasksSDO answers POST /api/v1/meetings/{meetingID}/summary/tasks.
+type MeetingSummaryTasksSDO struct {
+	TaskIDs []string             `json:"task_ids" description:"Task đã tạo, theo thứ tự gửi lên"`
+	Items   []SummaryTaskLinkDTO `json:"items" description:"Việc nào thành task nào, theo thứ tự gửi lên"`
 }
 
 type TaskIDListSDO struct {
@@ -247,9 +277,55 @@ type RecordingListSDO struct {
 	Recordings []RecordingDTO `json:"recordings"`
 }
 
+// MeetingRecordingPlaybackSDO is a short-lived direct playback URL (S3 presigned).
+type MeetingRecordingPlaybackSDO struct {
+	PlaybackURL string `json:"playback_url" description:"Presigned URL for inline MP4 playback" example:"https://s3.example/meetings/rec.mp4?X-Amz-Signature=…"`
+	ExpiresAt   string `json:"expires_at" description:"RFC3339 expiry of playback_url" example:"2026-09-15T11:00:00Z"`
+}
+
 // MeetingCapabilitiesSDO tells the client which optional features to show.
 type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
 	ServerSTT bool `json:"server_stt"`
+}
+
+type ParticipantSDO struct {
+	Participant ParticipantDTO `json:"participant"`
+}
+
+type AttendanceRowDTO struct {
+	ParticipantID       string `json:"participant_id"`
+	PrincipalType       string `json:"principal_type" example:"USER"`
+	UserID              string `json:"user_id,omitempty"`
+	DisplayName         string `json:"display_name"`
+	Standing            string `json:"standing" example:"MEMBER"`
+	IsSecretary         bool   `json:"is_secretary"`
+	Status              string `json:"status" description:"PRESENT | LATE | EXCUSED | ABSENT" example:"PRESENT"`
+	Source              string `json:"source" description:"AUTO | MANUAL | SUGGESTED" example:"SUGGESTED"`
+	Note                string `json:"note"`
+	FirstJoinedAt       string `json:"first_joined_at,omitempty"`
+	LastLeftAt          string `json:"last_left_at,omitempty"`
+	InRoom              bool   `json:"in_room"`
+	PresentSeconds      int64  `json:"present_seconds"`
+	SessionCount        int32  `json:"session_count"`
+	Removed             bool   `json:"removed" description:"true khi điểm danh đã chốt và người này đã bị gỡ khỏi cuộc họp sau khi được ghi nhận; vẫn được tính trong bản chốt"`
+	JoinedAfterFinalize bool   `json:"joined_after_finalize" description:"true khi điểm danh đã chốt và người này được thêm sau đó (source SUGGESTED); không tính vào tổng số, tỉ lệ có mặt hay danh sách biểu quyết"`
+}
+
+type AttendanceSummaryDTO struct {
+	Members   int   `json:"members"`
+	Present   int   `json:"present"`
+	Late      int   `json:"late"`
+	Excused   int   `json:"excused"`
+	Absent    int   `json:"absent"`
+	QuorumMet *bool `json:"quorum_met" description:"null khi không đặt tỉ lệ hoặc chưa có thành viên"`
+}
+
+type AttendanceSDO struct {
+	FinalizedAt   string               `json:"finalized_at,omitempty"`
+	FinalizedBy   string               `json:"finalized_by,omitempty"`
+	QuorumPercent *int16               `json:"quorum_percent"`
+	Summary       AttendanceSummaryDTO `json:"summary"`
+	Rows          []AttendanceRowDTO   `json:"rows"`
 }

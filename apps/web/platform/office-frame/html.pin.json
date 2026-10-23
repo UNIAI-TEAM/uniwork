@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "version": "0.1.0-51e1da4",
+  "gitSha": "51e1da4",
+  "entry": "index.html",
+  "manifestSha256": "ab489c390c78fc45cd67b314d7639ac29389305d6151dcade5bd7b0fde078320",
+  "headers": {
+    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+  },
+  "documents": [
+    {
+      "path": "/preview.html",
+      "value": "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri https:; form-action 'none'; sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'"
+    }
+  ],
+  "protocolSha256": {
+    "protocol": "914cc47118663fd7e503d90a9fe57671d7364ab6bbd217d9b927f3d192841664",
+    "endpoint": "30bb245f43d29156e21f4ebf4ba55891b5b56a98c789fe5a571efb4541d3c9fc",
+    "host": "36a20bb1a1992533a5600966cbdcdda70f0a504bea8195c076d480c7569529c2"
+  }
+}

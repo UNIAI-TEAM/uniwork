@@ -1,185 +1,184 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { CollectionPageState } from "../layout/collection-page";
-import { moduleTone } from "../layout/module-tones";
-import { ChatComposer, type ComposerAttachAction } from "./chat-composer";
+import type { ChatComposerHandle, ComposerAttachAction } from "./chat-composer";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
-import type { ChatSidebarTarget } from "./chat-sidebar";
-import { ChatSidebar } from "./chat-sidebar";
-import { NativeChatMessagePanel } from "./native-chat-message-panel";
-import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
-import { ChatMessageSearchBar } from "./chat-message-search-bar";
+import { ChatSidebar, type ChatSidebarTarget } from "./chat-sidebar";
+import { ChatPageConversation } from "./chat-page-conversation";
+import { ChatThreadSidePanel } from "./chat-thread-side-panel";
+import { ChatPageInfoPanel } from "./chat-page-content-info";
 import { ChatRealtimeStatusBanner } from "./chat-realtime-status-banner";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { buildChatMentionCandidates } from "./chat-mention-utils";
-import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
-import {
-  ChatPageConversationToolbar,
-  chatPageEmptyLabel,
-} from "./chat-page-conversation-toolbar";
-import { chatComposerPlaceholder } from "./chat-composer-placeholder";
+import { ChatPageContentSheets } from "./chat-page-content-sheets";
+import { ChatFrameListToggle, ChatPageEmptyConversation } from "./chat-page-empty-conversation";
+import { ChatConversationSkeleton } from "./chat-conversation-skeleton";
+import { ChatConversationNotices } from "./chat-notice";
+import { ChatPersonMessageProvider } from "./chat-person-card";
+import { useChatVoiceCall } from "./chat-voice-call-host";
+import { useChatPersonActions } from "./use-chat-person-actions";
+import { chatComposerBlockProps } from "./chat-composer-placeholder";
+import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
+import { useChatFollowedThreadsUi } from "./use-chat-followed-threads-ui";
+import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
+import { useChatPagePanels } from "./use-chat-page-panels";
+import { useChatFindShortcut } from "./use-chat-find-shortcut";
 
-export function ChatPageContent({
-  target,
-  setTarget,
-  currentUserId,
-  headerTitle,
-  contacts,
-  groups,
-  channels,
-  workHubEnabled,
-  activeContact,
-  activeGroup,
-  activeChannel,
-  workspaceId,
-  messageRefreshKey,
-  activeRoomId,
-  showLoading,
-  connectError,
-  pendingOutboxCount = 0,
-  isWorkspaceError,
-  onRefetchWorkspace,
-  workspaceRoomId,
-  unreadByRoomId,
-  mentionUnreadByRoomId,
-  roomPreviewsByRoomId,
-  unreadBadgesReady,
-  nicknamesByUserId,
-  nameContext,
-  replyTo,
-  onReplyToChange,
-  onActiveThreadRootIdChange,
-  draft,
-  onDraftChange,
-  composerPriority,
-  onComposerPriorityChange,
-  onSend,
-  onSendMedia,
-  onSendVoice,
-  onSendFile,
-  groupSettingsOpen,
-  onGroupSettingsOpenChange,
-  dmSettingsOpen,
-  onDmSettingsOpenChange,
-  dmBlocked,
-  dmBlockedByMe,
-  dmBlockedMe,
-  onBlockContact,
-  onUnblockContact,
-  blockingContact,
-  unblockingContact,
-  addMembersOpen,
-  onAddMembersOpenChange,
-  createGroupOpen,
-  onCreateGroupOpenChange,
-  channelSettingsOpen,
-  onChannelSettingsOpenChange,
-  creatingGroup,
-  onCreateGroup,
-  invitingMembers,
-  onAddGroupMembers,
-  leavingConversation,
-  onLeaveGroup,
-  onLeaveDm,
-  onLeaveChannel,
-  groupMemberProfiles,
-  typingLabel,
-  onVoiceCall,
-  voiceCallDisabled,
-  onVideoCall,
-  videoCallDisabled,
-  workspaceMembers,
-  workspaceSettingsOpen,
-  onWorkspaceSettingsOpenChange,
-  messageSearchOpen,
-  onMessageSearchOpenChange,
-  jumpToMessageId,
-  onJumpToMessageIdChange,
-  chatSendRestricted,
-  chatSendMutedByModerator,
-  canPinMessages,
-  canCreatePolls,
-  canCreateNotes,
-  peerLastReadAt = null,
-  t,
-}: ChatPageContentProps) {
+export function ChatPageContent(props: ChatPageContentProps) {
+  const {
+    target,
+    setTarget,
+    currentUserId,
+    headerTitle,
+    contacts,
+    groups,
+    channels,
+    workspaceId,
+    activeRoomId,
+    showLoading,
+    connectError,
+    pendingOutboxCount = 0,
+    isWorkspaceError,
+    onRefetchWorkspace,
+    workspaceRoomId,
+    unreadByRoomId,
+    mentionUnreadByRoomId,
+    roomPreviewsByRoomId,
+    unreadBadgesReady,
+    workspaceRoomTitle,
+    nicknamesByUserId,
+    nameContext,
+    activeThreadRootId = null,
+    composerDraftKey,
+    composerPriority,
+    onComposerPriorityChange,
+    onSendThreadReply,
+    onSendThreadMedia,
+    onGroupSettingsOpenChange,
+    dmBlocked,
+    onCreateGroupOpenChange,
+    createGroupOpen,
+    onChannelSettingsOpenChange,
+    creatingGroup,
+    onCreateGroup,
+    mentionCandidates,
+    memberAvatarByUserId,
+    onWorkspaceSettingsOpenChange,
+    onMessageSearchOpenChange,
+    onJumpToMessageIdChange,
+    chatSendRestricted,
+    chatSendMutedByModerator,
+    canPinMessages,
+    canModerate,
+    canCreatePolls,
+    canCreateNotes,
+    t,
+  } = props;
   const [createPollOpen, setCreatePollOpen] = useState(false);
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
-  const [mobileListMode, setMobileListMode] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
+  const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const { startCall } = useChatVoiceCall();
+  const { messagePerson, callPerson } = useChatPersonActions({
+    workspaceId, currentUserId, nameContext, contacts, setTarget, startCall,
+    closeSheets: () => {
+      [onWorkspaceSettingsOpenChange, onGroupSettingsOpenChange, onChannelSettingsOpenChange].forEach((close) => close(false));
+    },
+  });
+  const followUpUi = useChatFollowUpUi(workspaceId);
+  const {
+    sidebarCollapsed,
+    sidebarRef,
+    conversationRef,
+    showMobileList,
+    showMobileChat,
+    handleTargetChange,
+    handleBackToConversationList,
+    handleToggleSidebar,
+    threadBeside,
+    sideThread,
+    setSideThread,
+    infoOpen,
+    infoDocked,
+    setInfoOpen,
+  } = useChatPagePanels({
+    setTarget,
+    activeRoomId,
+    workspaceRoomId,
+    contacts,
+    groups,
+    channels,
+    roomsReady: unreadBadgesReady,
+    showLoading,
+  });
+  const followedThreadsUi = useChatFollowedThreadsUi({
+    workspaceId,
+    workspaceRoomId: workspaceRoomId ?? null,
+    workspaceTitle: workspaceRoomTitle ?? t("chat.workspace_room"),
+    channels: channels ?? [],
+    groups,
+    contacts,
+    nicknamesByUserId: nicknamesByUserId ?? {},
+    onTargetChange: handleTargetChange,
+    onJumpToMessage: onJumpToMessageIdChange,
+  });
+  // A thread open beside the timeline is the open thread for the brief and its read mark.
+  const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId ?? sideThread?.id ?? null);
 
-  const showMobileList = mobileListMode || !activeRoomId;
-  const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
-  const backToListLabel = t("common.back");
-
-  const handleTargetChange = (next: ChatSidebarTarget) => {
-    setTarget(next);
-    setMobileListMode(false);
+  // The sidebar is memoised; hand it references that only move when their
+  // meaning does.
+  // The message list hands focus back to the composer after reply, thread,
+  // cancel and delete.
+  const composerRef = useRef<ChatComposerHandle>(null);
+  const focusComposer = useCallback(() => composerRef.current?.focus(), []);
+  const openFollowUpsRef = useRef(followUpUi.openList);
+  openFollowUpsRef.current = followUpUi.openList;
+  const openFollowUps = useCallback(() => openFollowUpsRef.current(), []);
+  const openFollowedThreadsRef = useRef(followedThreadsUi.openList);
+  openFollowedThreadsRef.current = followedThreadsUi.openList;
+  const openFollowedThreads = useCallback(() => openFollowedThreadsRef.current(), []);
+  // "Bắt kịp nhanh": open the busiest room, then its brief once it has opened.
+  const quickCatchUpRef = useRef<(next: ChatSidebarTarget, roomId: string) => void>(() => undefined);
+  quickCatchUpRef.current = (next, roomId) => {
+    handleTargetChange(next);
+    catchUpUi.requestCatchUp(roomId);
   };
+  const quickCatchUp = useCallback((next: ChatSidebarTarget, roomId: string) => quickCatchUpRef.current(next, roomId), []);
+  const closeSideThread = useCallback(() => {
+    setSideThread(null);
+    focusComposer();
+  }, [focusComposer, setSideThread]);
+  // The info panel and a side thread share the right column: the toggle brings the panel back over a thread.
+  const panelShown = infoOpen && !sideThread;
+  const togglePanel = useCallback(() => {
+    if (sideThread) setSideThread(null);
+    setInfoOpen(!panelShown);
+  }, [panelShown, setInfoOpen, setSideThread, sideThread]);
+  const closePanel = useCallback(() => setInfoOpen(false), [setInfoOpen]);
+  const workspaceMemberIds = useMemo(() => props.workspaceMembers.map((member) => member.user_id), [props.workspaceMembers]);
+  const channelMemberIds = useMemo(() => Object.keys(props.groupMemberProfiles), [props.groupMemberProfiles]);
 
-  const handleBackToConversationList = () => {
-    setMobileListMode(true);
-  };
+  const openMessageSearch = useCallback(() => onMessageSearchOpenChange(true), [onMessageSearchOpenChange]);
+  useChatFindShortcut(conversationRef, Boolean(activeRoomId), openMessageSearch);
 
-  const handleToggleSidebar = () => {
-    setSidebarCollapsed((collapsed) => !collapsed);
-  };
-
-  const prevActiveRoomIdRef = useRef<string | null>(activeRoomId);
-
-  useEffect(() => {
-    const prev = prevActiveRoomIdRef.current;
-    prevActiveRoomIdRef.current = activeRoomId;
-    if (!prev && activeRoomId) {
-      setMobileListMode(false);
-    }
-  }, [activeRoomId]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(min-width: 1024px)");
-    const keepChatWhenNarrow = () => {
-      if (!media.matches && activeRoomId) {
-        setMobileListMode(false);
-      }
-    };
-    keepChatWhenNarrow();
-    media.addEventListener("change", keepChatWhenNarrow);
-    return () => media.removeEventListener("change", keepChatWhenNarrow);
-  }, [activeRoomId]);
-
-  useEffect(() => {
-    if (!activeRoomId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        onMessageSearchOpenChange(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeRoomId, onMessageSearchOpenChange]);
-
-  const mentionCandidates = useMemo(
-    (): ChatMentionCandidate[] =>
-      buildChatMentionCandidates(
-        target.kind,
-        currentUserId,
-        workspaceMembers,
-        groupMemberProfiles,
-        memberDisplayLabel,
-      ),
-    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+  const showListToggleInFrame = sidebarCollapsed && (showLoading || !activeRoomId);
+  // With a room open the strips sit under its header (canvas); without one, at the top of the pane.
+  const roomOpen = Boolean(activeRoomId) && !showLoading;
+  const notices = (
+    <>
+      <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
+      <ChatConversationNotices
+        workspaceLoadFailed={isWorkspaceError && target.kind === "workspace"}
+        onRetryWorkspace={onRefetchWorkspace}
+        connectError={target.kind === "workspace" ? null : connectError}
+      />
+    </>
   );
+  const blockProps = chatComposerBlockProps(t, { dmBlocked, chatSendMutedByModerator, chatSendRestricted });
 
   const handleAttachAction = (action: ComposerAttachAction) => {
     if (action === "create_poll") {
@@ -219,6 +218,11 @@ export function ChatPageContent({
       setCreatePostOpen(true);
       return;
     }
+    if (action === "attach_document") {
+      if (!activeRoomId) return;
+      setDocumentPickerOpen(true);
+      return;
+    }
     if (action === "mark_important") {
       onComposerPriorityChange(toggleComposerPriority(composerPriority, "important"));
       return;
@@ -231,47 +235,14 @@ export function ChatPageContent({
   };
 
   return (
-    <>
+    <ChatPersonMessageProvider
+      onMessage={messagePerson}
+      onCall={callPerson}
+      roomId={activeRoomId}
+      workspaceId={workspaceId}
+    >
       <ChatPageContentDialogs
-        target={target}
-        setTarget={setTarget}
-        workspaceId={workspaceId}
-        headerTitle={headerTitle}
-        contacts={contacts}
-        activeContact={activeContact}
-        activeGroup={activeGroup}
-        activeChannel={activeChannel}
-        currentUserId={currentUserId}
-        workspaceRoomId={workspaceRoomId}
-        nicknamesByUserId={nicknamesByUserId}
-        groupMemberProfiles={groupMemberProfiles}
-        groupSettingsOpen={groupSettingsOpen}
-        onGroupSettingsOpenChange={onGroupSettingsOpenChange}
-        dmSettingsOpen={dmSettingsOpen}
-        onDmSettingsOpenChange={onDmSettingsOpenChange}
-        channelSettingsOpen={channelSettingsOpen}
-        onChannelSettingsOpenChange={onChannelSettingsOpenChange}
-        workHubEnabled={workHubEnabled}
-        dmBlockedByMe={dmBlockedByMe}
-        dmBlockedMe={dmBlockedMe}
-        onBlockContact={onBlockContact}
-        onUnblockContact={onUnblockContact}
-        blockingContact={blockingContact}
-        unblockingContact={unblockingContact}
-        addMembersOpen={addMembersOpen}
-        onAddMembersOpenChange={onAddMembersOpenChange}
-        invitingMembers={invitingMembers}
-        onAddGroupMembers={onAddGroupMembers}
-        leavingConversation={leavingConversation}
-        onLeaveGroup={onLeaveGroup}
-        onLeaveDm={onLeaveDm}
-        onLeaveChannel={onLeaveChannel}
-        workspaceMembers={workspaceMembers}
-        workspaceSettingsOpen={workspaceSettingsOpen}
-        onWorkspaceSettingsOpenChange={onWorkspaceSettingsOpenChange}
-        activeRoomId={activeRoomId}
-        canPinMessages={canPinMessages}
-        t={t}
+        {...props}
         createPollOpen={createPollOpen}
         onCreatePollOpenChange={setCreatePollOpen}
         createReminderOpen={createReminderOpen}
@@ -280,27 +251,37 @@ export function ChatPageContent({
         onCreateNoteOpenChange={setCreateNoteOpen}
         createPostOpen={createPostOpen}
         onCreatePostOpenChange={setCreatePostOpen}
+        documentPickerOpen={documentPickerOpen}
+        onDocumentPickerOpenChange={setDocumentPickerOpen}
       />
 
       {/* Chat fills the content inset: the message list is the screen here, so
           no centred card and no gutter — the panels reach the shell edges. */}
       <div className="flex h-full min-h-0 w-full flex-1">
+        {/* Exactly one h1 in every state: the list's title and the room name
+            are sections under it, and either may be off screen. */}
+        <h1 className="sr-only">{t("chat.title")}</h1>
         <div
           className={cn(
-            "flex min-h-0 w-full flex-1 overflow-hidden bg-surface",
+            // From md the list stays beside the conversation; under lg (UniChat's
+            // narrowest windows) it folds to a column of faces, as Telegram's does.
+            "flex min-h-0 w-full flex-1 overflow-hidden bg-surface md:grid md:grid-cols-[4.75rem_minmax(0,1fr)]",
             sidebarCollapsed
-              ? "lg:grid lg:grid-cols-[minmax(0,1fr)]"
-              : "lg:grid lg:grid-cols-[300px_minmax(0,1fr)]",
+              ? "lg:grid-cols-[minmax(0,1fr)]"
+              : "lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[23.75rem_minmax(0,1fr)]",
           )}
         >
           <div
+            ref={sidebarRef}
             className={cn(
               "min-h-0 min-w-0 flex-col overflow-hidden",
               showMobileList ? "flex w-full flex-1" : "hidden",
-              sidebarCollapsed ? "lg:hidden" : "lg:flex lg:w-auto lg:flex-none",
+              "md:flex md:w-auto md:flex-none",
+              sidebarCollapsed && "lg:hidden",
             )}
           >
             <ChatSidebar
+              scope={props.scope}
               currentUserId={currentUserId}
               workspaceId={workspaceId}
               target={target}
@@ -308,7 +289,9 @@ export function ChatPageContent({
               contacts={contacts}
               groups={groups}
               channels={channels}
-              workHubEnabled={workHubEnabled}
+              onOpenFollowUps={openFollowUps}
+              onOpenFollowedThreads={openFollowedThreads}
+              onQuickCatchUp={catchUpUi.enabled ? quickCatchUp : undefined}
               onCreateGroup={onCreateGroup}
               creatingGroup={creatingGroup}
               createGroupOpen={createGroupOpen}
@@ -319,165 +302,116 @@ export function ChatPageContent({
               roomPreviewsByRoomId={roomPreviewsByRoomId}
               unreadBadgesReady={unreadBadgesReady}
               nicknamesByUserId={nicknamesByUserId}
+              loading={!unreadBadgesReady && !isWorkspaceError}
+              loadError={isWorkspaceError}
+              onRetry={onRefetchWorkspace}
+              workspaceRoomTitle={workspaceRoomTitle}
+              memberAvatarByUserId={memberAvatarByUserId}
+              knownPeople={nameContext}
+              onCollapse={handleToggleSidebar}
               embedded
             />
           </div>
 
           <div
+            ref={conversationRef}
             className={cn(
-              "flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15",
+              "relative min-h-0 min-w-0 overflow-hidden bg-background",
               showMobileChat ? "flex flex-1" : "hidden",
-              "lg:flex lg:flex-1",
+              "md:flex md:flex-1",
             )}
           >
-            <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
-            {isWorkspaceError && target.kind === "workspace" ? (
-              <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
-                <p className="text-caption text-muted-foreground">{t("chat.room_load_failed")}</p>
-                <Button type="button" variant="outline" size="sm" onClick={onRefetchWorkspace}>
-                  {t("chat.retry")}
-                </Button>
-              </div>
-            ) : null}
-            {connectError && (target.kind === "dm" || target.kind === "group" || target.kind === "channel") ? (
-              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
-                {connectError}
-              </p>
-            ) : null}
-            {target.kind === "dm" && dmBlocked ? (
-              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
-                {dmBlockedByMe ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}
-              </p>
-            ) : null}
-
-            {showLoading ? (
-              <div className="flex flex-1 items-center justify-center p-6">
-                <CollectionPageState
-                  icon={MessageSquare} tone={moduleTone("chat")} title={t("chat.loading")}
-                  description={
-                    target.kind === "workspace"
-                      ? t("chat.group_description")
-                      : target.kind === "group"
-                        ? t("chat.group_loading")
-                        : target.kind === "channel"
-                          ? t("chat.channel.loading")
-                          : t("chat.dm_hint")
-                  }
-                />
-              </div>
-            ) : activeRoomId ? (
-              <>
-                {messageSearchOpen ? (
-                  <ChatMessageSearchBar
-                    workspaceId={workspaceId}
-                    roomId={activeRoomId}
-                    currentUserId={currentUserId}
-                    nameContext={nameContext}
-                    youLabel={t("chat.you")}
-                    onClose={() => onMessageSearchOpenChange(false)}
-                    onJumpToMessage={onJumpToMessageIdChange}
-                  />
-                ) : null}
-                {!messageSearchOpen ? (
-                  <ChatPageConversationToolbar
-                    target={target}
-                    headerTitle={headerTitle}
-                    contacts={contacts}
-                    activeContact={activeContact}
-                    activeGroup={activeGroup}
-                    activeChannel={activeChannel}
-                    workspaceMembersCount={workspaceMembers.length}
-                    nicknamesByUserId={nicknamesByUserId}
-                    backToListLabel={backToListLabel}
-                    sidebarCollapsed={sidebarCollapsed}
-                    onBack={handleBackToConversationList}
-                    onToggleSidebar={handleToggleSidebar}
-                    onOpenWorkspaceSettings={() => onWorkspaceSettingsOpenChange(true)}
-                    onOpenGroupSettings={() => onGroupSettingsOpenChange(true)}
-                    onOpenChannelSettings={() => onChannelSettingsOpenChange(true)}
-                    onOpenDmSettings={() => onDmSettingsOpenChange(true)}
-                    onOpenSearch={() => onMessageSearchOpenChange(true)}
-                    onVoiceCall={onVoiceCall}
-                    voiceCallDisabled={voiceCallDisabled}
-                    onVideoCall={onVideoCall}
-                    videoCallDisabled={videoCallDisabled}
-                  />
-                ) : null}
-
-                {!messageSearchOpen ? (
-                  <ChatPinnedMessagesBar
-                    workspaceId={workspaceId}
-                    roomId={activeRoomId}
-                    canPinMessages={canPinMessages}
-                    onJumpToMessage={onJumpToMessageIdChange}
-                  />
-                ) : null}
-
-                <NativeChatMessagePanel
-                  workspaceId={workspaceId}
-                  roomId={activeRoomId}
-                  currentUserId={currentUserId}
-                  nameContext={nameContext}
-                  youLabel={t("chat.you")}
-                  emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
-                  replyTo={replyTo}
-                  onReplyToChange={onReplyToChange}
-                  workHubEnabled={workHubEnabled}
-                  onActiveThreadRootIdChange={onActiveThreadRootIdChange}
-                  refreshKey={messageRefreshKey}
-                  showSenderName={
-                    target.kind === "workspace" ||
-                    target.kind === "group" ||
-                    target.kind === "channel"
-                  }
-                  embedded
-                  anchorMessageId={jumpToMessageId}
-                  onClearAnchor={() => onJumpToMessageIdChange(null)}
-                  canPinMessages={canPinMessages}
-                  peerLastReadAt={peerLastReadAt}
-                />
-
-                <ChatComposer
-                  workspaceId={workspaceId}
-                  draft={draft}
-                  onDraftChange={onDraftChange}
-                  composerPriority={composerPriority}
-                  onComposerPriorityChange={onComposerPriorityChange}
-                  onSend={onSend}
-                  onSendMedia={onSendMedia}
-                  onSendVoice={onSendVoice}
-                  onSendFile={onSendFile}
-                  disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
-                  mentionCandidates={
-                    target.kind === "workspace" ||
-                    target.kind === "group" ||
-                    target.kind === "channel"
-                      ? mentionCandidates
-                      : undefined
-                  }
-                  placeholder={chatComposerPlaceholder(t, {
-                    dmBlocked,
-                    chatSendMutedByModerator,
-                    chatSendRestricted,
-                  })}
-                  sendLabel={t("chat.send")}
-                  typingLabel={typingLabel}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {showListToggleInFrame ? <ChatFrameListToggle t={t} onShowList={handleToggleSidebar} /> : null}
+              {/* A loading room draws its header first; its strips go under it, as on an open room. */}
+              {roomOpen || showLoading ? null : notices}
+              {showLoading ? (
+                <ChatConversationSkeleton notices={notices} roomId={activeRoomId} />
+              ) : activeRoomId ? (
+                <ChatPageConversation
+                  props={props}
+                  activeRoomId={activeRoomId}
+                  catchUp={catchUpUi}
+                  onFollowUp={followUpUi.onFollowUp}
+                  sidebarCollapsed={sidebarCollapsed}
+                  onBack={handleBackToConversationList}
+                  onToggleSidebar={handleToggleSidebar}
                   onAttachAction={handleAttachAction}
-                  showCreatePoll={canCreatePolls && target.kind !== "dm"}
+                  composerRef={composerRef}
+                  focusComposer={focusComposer}
+                  onOpenSideThread={threadBeside ? setSideThread : undefined}
+                  sideThreadRootId={sideThread?.id ?? null}
+                  panelOpen={panelShown}
+                  onTogglePanel={togglePanel}
+                  workspaceMemberIds={workspaceMemberIds}
+                  channelMemberIds={channelMemberIds}
+                  notices={notices}
                 />
-              </>
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-                <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <MessageSquare className="size-8" aria-hidden />
-                </span>
-                <p className="text-body font-medium text-foreground">{t("chat.contacts_title")}</p>
-                <p className="max-w-sm text-caption text-muted-foreground">{t("chat.contacts_hint")}</p>
-              </div>
-            )}
+              ) : (
+                <ChatPageEmptyConversation
+                  t={t}
+                  listHidden={sidebarCollapsed}
+                  onShowList={handleToggleSidebar}
+                  onBackToList={handleBackToConversationList}
+                />
+              )}
+            </div>
+            {sideThread && activeRoomId && !showLoading ? (
+              <ChatThreadSidePanel
+                key={sideThread.id}
+                workspaceId={workspaceId}
+                roomId={activeRoomId}
+                root={sideThread}
+                roomTitle={headerTitle}
+                currentUserId={currentUserId}
+                nameContext={nameContext}
+                canPinMessages={canPinMessages}
+                canModerate={canModerate}
+                canSendMessages={!dmBlocked && !chatSendRestricted}
+                onFollowUp={followUpUi.onFollowUp}
+                onClose={closeSideThread}
+                draftKey={`${composerDraftKey}:thread:${sideThread.id}`}
+                onSendReply={onSendThreadReply}
+                onSendMedia={onSendThreadMedia}
+                composerDisabled={dmBlocked || chatSendRestricted}
+                readOnlyReason={blockProps.readOnlyReason}
+                readOnlyPlaceholder={blockProps.placeholder}
+                mentionCandidates={mentionCandidates}
+                memberAvatarByUserId={memberAvatarByUserId}
+              />
+            ) : panelShown && activeRoomId && !showLoading ? (
+              <ChatPageInfoPanel
+                props={props}
+                roomId={activeRoomId}
+                docked={infoDocked}
+                onClose={closePanel}
+                workspaceMemberIds={workspaceMemberIds}
+                channelMemberIds={channelMemberIds}
+                onCatchUp={catchUpUi.onCatchUp}
+                catchUpDisabled={catchUpUi.loading}
+                onOpenRecordings={target.kind === "workspace" ? undefined : () => setRecordingsOpen(true)}
+              />
+            ) : null}
           </div>
         </div>
       </div>
-    </>
+      <ChatPageContentSheets
+        followUpSheet={followUpUi.sheet}
+        followedThreadsSheet={followedThreadsUi.sheet}
+        catchUpOpen={catchUpUi.open}
+        onCatchUpOpenChange={catchUpUi.setOpen}
+        catchUpLoading={catchUpUi.loading}
+        catchUpError={catchUpUi.error}
+        catchUpResult={catchUpUi.result}
+        onCatchUpRetry={catchUpUi.onRetry}
+        onJumpToMessage={onJumpToMessageIdChange}
+        workspaceId={workspaceId}
+        recordingsOpen={recordingsOpen}
+        onRecordingsOpenChange={setRecordingsOpen}
+        activeRoomId={activeRoomId}
+        currentUserId={currentUserId}
+        nameContext={nameContext}
+      />
+    </ChatPersonMessageProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
-import { EyeOff, MoreHorizontal, Plus } from "lucide-react";
+import { EyeOff, Ellipsis, Plus } from "lucide-react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Virtuoso } from "react-virtuoso";
@@ -17,12 +17,15 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { BoardColumnPaging } from "../surface/use-board-columns-data";
 import {
   DraggableBoardCard,
   type BoardCardMeta,
 } from "./board-card";
-import { statusColumnBg, STATUS_CONFIG } from "./status-config";
-import { StatusPill } from "./status-pill";
+import { LoadMoreFooter } from "./load-more-footer";
+import { statusColumnBg } from "./status-config";
+import { StatusHeading } from "./status-pill";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 export const BOARD_COL_WIDTH = 280;
 export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8;
@@ -30,7 +33,21 @@ export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8;
 const BOARD_SEED_COUNT = 10;
 const BOARD_CARD_ESTIMATED_HEIGHT = 110;
 const BOARD_VIRTUALIZE_THRESHOLD = 30;
-const EMPTY_VIRTUOSO_COMPONENTS = {};
+
+interface BoardVirtuosoContext {
+  footer: ReactNode;
+}
+
+/**
+ * Virtuoso's footer slot: one component for every render, the footer passed
+ * through `context`. A component created per render would remount the footer,
+ * and its load-more sentinel would observe again and ask for another page.
+ */
+function BoardVirtuosoFooter({ context }: { context: BoardVirtuosoContext }) {
+  return <>{context.footer}</>;
+}
+
+const BOARD_VIRTUOSO_COMPONENTS = { Footer: BoardVirtuosoFooter };
 
 interface BoardColumnGroupBase {
   id: string;
@@ -67,7 +84,8 @@ export const BoardColumn = memo(function BoardColumn({
   taskMap,
   cardMeta,
   totalCount,
-  footer,
+  countIsPartial = false,
+  paging,
   onCreateTask,
   onOpenTask,
   sortLabel,
@@ -77,8 +95,12 @@ export const BoardColumn = memo(function BoardColumn({
   taskIds: string[];
   taskMap: Map<string, Task>;
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
+  /** Tasks in the column on the server; the loaded cards when absent. */
   totalCount?: number;
-  footer?: ReactNode;
+  /** The count covers only the tasks loaded so far, so the heading says "N loaded", not a total. */
+  countIsPartial?: boolean;
+  /** Server paging of this column, which then ends with the shared load-more footer. */
+  paging?: BoardColumnPaging;
   onCreateTask?: (defaults: {
     status?: string;
     assignee_id?: string | null;
@@ -89,10 +111,10 @@ export const BoardColumn = memo(function BoardColumn({
   disableDragging?: boolean;
 }) {
   const status = group.kind === "status" ? group.status : undefined;
-  const cfg = status ? STATUS_CONFIG[status as TaskStatus] : null;
   const { setNodeRef, isOver } = useDroppable({ id: group.id });
   const viewStoreApi = useViewStoreApi();
   const { t } = useTranslation();
+  const statusLabel = useStatusLabel();
 
   const resolvedTasks = useMemo(
     () =>
@@ -112,10 +134,19 @@ export const BoardColumn = memo(function BoardColumn({
     [setNodeRef],
   );
 
-  const footerComponents = useMemo(
-    () => (footer ? { Footer: () => <>{footer}</> } : EMPTY_VIRTUOSO_COMPONENTS),
-    [footer],
-  );
+  // The column end is where its next page is asked for, in both branches below.
+  // Virtuoso's endReached is left unwired on purpose: it fires again whenever
+  // the data array is rebuilt, which every page landing and every realtime
+  // refetch does, so a column end on screen would load every page by itself.
+  const footer = paging ? (
+    <LoadMoreFooter
+      hasMore={paging.hasMore}
+      isLoading={paging.isLoadingMore}
+      isError={paging.isError}
+      total={paging.count}
+      onLoadMore={paging.loadMore}
+    />
+  ) : null;
 
   const computeItemKey = (_index: number, task: Task) => task.id;
   const itemContent = (index: number, task: Task) => (
@@ -131,37 +162,37 @@ export const BoardColumn = memo(function BoardColumn({
   );
 
   const count = totalCount ?? taskIds.length;
-  const labelKey = status ? `tasks.status_${status}` : "";
-  const translated = status ? t(labelKey) : group.title;
-  const title =
-    status && translated !== labelKey ? translated : group.title || status || "";
+  const title = status ? statusLabel(status) : group.title;
 
   return (
     <div
       style={{ width: BOARD_COL_WIDTH }}
       data-testid={status ? `board-column-${status}` : `board-column-${group.id}`}
-      className={cn(
-        "flex shrink-0 flex-col rounded-xl p-2",
-        cfg?.columnBg ?? statusColumnBg(status ?? "") ?? "bg-muted/40",
-      )}
+      className={cn("flex shrink-0 flex-col rounded-xl p-2", statusColumnBg(status ?? ""))}
     >
       <div className="mb-2 flex items-center justify-between px-1.5">
         <div
           className="flex min-w-0 items-center gap-2"
           role="heading"
           aria-level={3}
-          aria-label={`${title}, ${count}`}
+          aria-label={
+            countIsPartial
+              ? `${title}, ${t("tasks.surface.loaded_count", { count })}`
+              : `${title}, ${count}`
+          }
         >
           {status ? (
-            <StatusPill status={status} label={title} className="max-w-full" />
+            <StatusHeading status={status} label={title} count={count} />
           ) : (
             <span className="truncate text-body font-medium" title={title}>
               {title}
             </span>
           )}
-          <span className="shrink-0 text-caption font-medium tabular-nums text-muted-foreground">
-            {count}
-          </span>
+          {status ? null : (
+            <span className="shrink-0 text-caption font-medium tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -177,7 +208,7 @@ export const BoardColumn = memo(function BoardColumn({
                   />
                 }
               >
-                <MoreHorizontal className="size-3.5" />
+                <Ellipsis className="size-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
@@ -241,6 +272,7 @@ export const BoardColumn = memo(function BoardColumn({
                 <Virtuoso
                   customScrollParent={scrollEl}
                   data={resolvedTasks}
+                  context={{ footer }}
                   computeItemKey={computeItemKey}
                   initialItemCount={Math.min(
                     resolvedTasks.length,
@@ -248,7 +280,7 @@ export const BoardColumn = memo(function BoardColumn({
                   )}
                   defaultItemHeight={BOARD_CARD_ESTIMATED_HEIGHT}
                   increaseViewportBy={{ top: 300, bottom: 300 }}
-                  components={footerComponents}
+                  components={BOARD_VIRTUOSO_COMPONENTS}
                   itemContent={itemContent}
                 />
               ) : (
@@ -261,7 +293,8 @@ export const BoardColumn = memo(function BoardColumn({
             </SortableContext>
           ) : (
             <>
-              {taskIds.length === 0 ? (
+              {/* A column still paging (or retrying a failed page) is not empty. */}
+              {taskIds.length === 0 && !paging?.hasMore ? (
                 <p className="py-8 text-center text-caption text-muted-foreground">
                   {t("tasks.surface.empty_column")}
                 </p>

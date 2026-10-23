@@ -1,44 +1,32 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { CalendarDays, Flag, FolderKanban, UserRound } from "lucide-react";
+import { CalendarDays, FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-  type TaskLabel,
-  type TaskPriority,
-  type TaskStatus,
-} from "@uniwork/core/types";
-import {
-  useAttachTaskLabel,
-  useDetachTaskLabel,
-  useLabelsOnTask,
-} from "@uniwork/core/tasks";
+import { type TaskLabel, type TaskPriority } from "@uniwork/core/types";
+import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@uniwork/ui/components/ui/avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../common/date-field";
 import { AgentBadge } from "../../agents/agent-badge";
-import { STATUS_CONFIG } from "./status-config";
+import {
+  AssigneePicker,
+  LabelPicker,
+  PriorityPicker,
+  StatusPicker,
+  labelChipClass,
+  useTaskLabelToggle,
+  type AssigneeOption,
+  type AssigneeRef,
+  type MemberOption,
+} from "../pickers";
+import { EnumFieldPicker } from "../pickers/enum-field-picker";
 
-export type TableMember = {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-};
+export type TableMember = MemberOption;
 
 function stopRowNavigation(event: SyntheticEvent) {
   event.stopPropagation();
@@ -54,62 +42,28 @@ function initials(name: string) {
 }
 
 export function TableStatusCell({
+  workspaceId,
   value,
   onChange,
 }: {
-  value: TaskStatus;
-  onChange: (value: TaskStatus) => void;
+  workspaceId: string;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
-  const color = STATUS_CONFIG[value]?.iconColor ?? "text-muted-foreground";
-
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.status")}
-            />
-          }
-        >
-          <span className={cn("size-2 shrink-0 rounded-full bg-current", color)} />
-          <span className="truncate">{t(`tasks.status_${value}`)}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup
-            value={value}
-            onValueChange={(next) => onChange(next as TaskStatus)}
-          >
-            {TASK_STATUSES.map((status) => (
-              <DropdownMenuRadioItem key={status} value={status}>
-                <span
-                  className={cn(
-                    "size-2 rounded-full bg-current",
-                    STATUS_CONFIG[status].iconColor,
-                  )}
-                />
-                {t(`tasks.status_${status}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <StatusPicker
+      workspaceId={workspaceId}
+      value={value}
+      onChange={onChange}
+      ariaLabel={t("tasks.status")}
+      searchPlaceholder={t("tasks.create.status_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    />
   );
 }
-
-const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  urgent: "text-destructive",
-  high: "text-warning",
-  medium: "text-info",
-  low: "text-muted-foreground",
-};
 
 export function TablePriorityCell({
   value,
@@ -120,130 +74,96 @@ export function TablePriorityCell({
 }) {
   const { t } = useTranslation();
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.priority")}
-            />
-          }
-        >
-          <Flag
-            className={cn("size-3.5 shrink-0", PRIORITY_COLOR[value])}
-            aria-hidden
-          />
-          <span className="truncate">{t(`tasks.priority_${value}`)}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup
-            value={value}
-            onValueChange={(next) => onChange(next as TaskPriority)}
-          >
-            {TASK_PRIORITIES.map((priority) => (
-              <DropdownMenuRadioItem key={priority} value={priority}>
-                <Flag
-                  className={cn("size-3.5", PRIORITY_COLOR[priority])}
-                  aria-hidden
-                />
-                {t(`tasks.priority_${priority}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <PriorityPicker
+      value={value}
+      onChange={onChange}
+      ariaLabel={t("tasks.priority")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    />
   );
 }
 
-function MemberIdentity({ member }: { member: TableMember }) {
+function AssigneeIdentity({
+  name,
+  avatarUrl,
+}: {
+  name: string;
+  avatarUrl?: string;
+}) {
   return (
     <>
       <Avatar size="sm" className="size-5">
-        {member.avatarUrl ? (
-          <AvatarImage src={member.avatarUrl} alt="" />
-        ) : null}
-        <AvatarFallback>{initials(member.name)}</AvatarFallback>
+        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
+        <AvatarFallback>{initials(name)}</AvatarFallback>
       </Avatar>
-      <span className="truncate">{member.name}</span>
+      <span className="truncate">{name}</span>
     </>
   );
 }
 
+/**
+ * Assignee cell over the workspace's members and agents, as the properties
+ * sidebar offers them: the picked option's id and kind travel together
+ * (ADR 0007).
+ */
 export function TableAssigneeCell({
   assigneeId,
   assigneeName,
   assigneeKind,
-  members,
+  options,
   onChange,
 }: {
   assigneeId?: string;
   assigneeName?: string;
   assigneeKind?: string;
-  members: TableMember[];
-  onChange: (id: string | null) => void;
+  options: AssigneeOption[];
+  onChange: (next: AssigneeRef | null) => void;
 }) {
   const { t } = useTranslation();
-  const selected = members.find((member) => member.id === assigneeId);
+  const value: AssigneeRef | null = assigneeId
+    ? { id: assigneeId, kind: assigneeKind === "agent" ? "agent" : "human" }
+    : null;
+  const selected = value
+    ? options.find((option) => option.id === value.id && option.kind === value.kind)
+    : undefined;
+  const shownName = selected?.name ?? assigneeName ?? t("tasks.unassigned");
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.assignee")}
-            />
-          }
-        >
-          {selected ? (
-            <MemberIdentity member={selected} />
-          ) : (
-            <>
-              <Avatar size="sm" className="size-5">
-                <AvatarFallback>
-                  <UserRound className="size-3" aria-hidden />
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">
-                {assigneeName ?? t("tasks.unassigned")}
-              </span>
-            </>
-          )}
-          {assigneeKind === "agent" ? <AgentBadge /> : null}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-          <DropdownMenuRadioGroup
-            value={assigneeId ?? "__none__"}
-            onValueChange={(next) =>
-              onChange(next === "__none__" ? null : next)
-            }
-          >
-            <DropdownMenuRadioItem value="__none__">
-              {t("tasks.unassigned")}
-            </DropdownMenuRadioItem>
-            {members.map((member) => (
-              <DropdownMenuRadioItem key={member.id} value={member.id}>
-                <MemberIdentity member={member} />
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <AssigneePicker
+      value={value}
+      options={options}
+      onChange={onChange}
+      ariaLabel={t("tasks.assignee")}
+      valueLabel={
+        assigneeKind === "agent" ? `${shownName} ${t("agents.badge")}` : shownName
+      }
+      unassignedLabel={t("tasks.unassigned")}
+      searchPlaceholder={t("tasks.assignee_search_placeholder")}
+      noResultsLabel={t("tasks.assignee_no_results")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    >
+      {selected ? (
+        <AssigneeIdentity name={selected.name} avatarUrl={selected.avatarUrl} />
+      ) : (
+        <>
+          <Avatar size="sm" className="size-5">
+            <AvatarFallback>
+              <UserRound className="size-3" aria-hidden />
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate">
+            {assigneeName ?? t("tasks.unassigned")}
+          </span>
+        </>
+      )}
+      {assigneeKind === "agent" ? <AgentBadge /> : null}
+    </AssigneePicker>
   );
 }
 
-export function TableDueDateCell({
+/** A calendar-day cell (start date, due date); an empty pick clears with null. */
+export function TableDateCell({
   value,
   onChange,
 }: {
@@ -262,18 +182,48 @@ export function TableDueDateCell({
   );
 }
 
-export function TableProjectCell({ title }: { title?: string }) {
+const NO_PROJECT = "__none__";
+
+export function TableProjectCell({
+  projectId,
+  projects,
+  onChange,
+}: {
+  projectId?: string;
+  projects: ReadonlyArray<{ id: string; title: string }>;
+  onChange: (projectId: string | null) => void;
+}) {
   const { t } = useTranslation();
+  const none = t("tasks.detail.prop_project_none");
+  // A project this list does not have (not loaded, or not visible) is still a
+  // project: say nothing rather than claim there is none.
+  const title = projectId
+    ? (projects.find((project) => project.id === projectId)?.title ?? "—")
+    : none;
   return (
-    <span className="flex min-w-0 items-center gap-1.5 text-caption">
+    <EnumFieldPicker
+      value={projectId || NO_PROJECT}
+      options={[
+        { value: NO_PROJECT, label: none },
+        ...projects.map((project) => ({ value: project.id, label: project.title })),
+      ]}
+      onChange={(next) => {
+        const nextId = next === NO_PROJECT ? null : next;
+        if (nextId !== (projectId || null)) onChange(nextId);
+      }}
+      ariaLabel={t("tasks.detail.prop_project")}
+      valueLabel={title}
+      searchPlaceholder={t("tasks.create.project_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    >
       <FolderKanban
         className="size-3.5 shrink-0 text-muted-foreground"
         aria-hidden
       />
-      <span className="truncate">
-        {title ?? t("tasks.detail.prop_project_none")}
-      </span>
-    </span>
+      <span className="truncate">{title}</span>
+    </EnumFieldPicker>
   );
 }
 
@@ -281,81 +231,66 @@ export function TableLabelsCell({
   workspaceId,
   taskId,
   labels,
+  attached,
 }: {
   workspaceId: string;
   taskId: string;
+  /** The workspace label catalog — the picker's choices. */
   labels: TaskLabel[];
+  /** The task's attached labels, as the table row already carries them: no per-row query. */
+  attached: TableRowLabel[];
 }) {
   const { t } = useTranslation();
-  const attached = useLabelsOnTask(taskId);
-  const attach = useAttachTaskLabel(workspaceId, taskId);
-  const detach = useDetachTaskLabel(workspaceId, taskId);
-  const selected = attached.data?.labels ?? [];
-  const selectedIds = new Set(selected.map((label) => label.id));
-  const pending = attach.isPending || detach.isPending;
+  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId, labels);
+  const selectedIds = new Set(attached.map((label) => label.id));
+  // Mirrors the chips below: two names, then "+N", or the empty placeholder.
+  const shownLabels =
+    attached.length === 0
+      ? t("tasks.table.empty_value")
+      : [
+          ...attached.slice(0, 2).map((label) => label.name),
+          ...(attached.length > 2 ? [`+${attached.length - 2}`] : []),
+        ].join(", ");
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
-              aria-label={t("tasks.detail.prop_labels")}
-            />
-          }
-        >
-          {selected.length === 0 ? (
-            <span className="text-muted-foreground">
-              {t("tasks.table.empty_value")}
-            </span>
-          ) : (
-            <>
-              {selected.slice(0, 2).map((label) => (
-                <span
-                  key={label.id}
-                  className="max-w-24 truncate rounded bg-secondary px-1.5 py-0.5 text-caption"
-                >
-                  {label.name}
-                </span>
-              ))}
-              {selected.length > 2 ? (
-                <span className="tabular-nums text-muted-foreground">
-                  +{selected.length - 2}
-                </span>
-              ) : null}
-            </>
-          )}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-72 w-56 overflow-y-auto"
-        >
-          {labels.map((label) => (
-            <DropdownMenuCheckboxItem
+    <LabelPicker
+      labels={labels}
+      selectedIds={selectedIds}
+      pendingIds={pendingIds}
+      onToggle={toggle}
+      ariaLabel={t("tasks.detail.prop_labels")}
+      valueLabel={shownLabels}
+      emptyLabel={t("tasks.table.labels_empty")}
+      searchPlaceholder={t("tasks.create.label_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
+    >
+      {attached.length === 0 ? (
+        <span className="text-muted-foreground">
+          {t("tasks.table.empty_value")}
+        </span>
+      ) : (
+        <>
+          {attached.slice(0, 2).map((label) => (
+            <span
               key={label.id}
-              checked={selectedIds.has(label.id)}
-              disabled={pending}
-              onCheckedChange={(checked) => {
-                if (checked) attach.mutate(label.id);
-                else detach.mutate(label.id);
-              }}
+              className={cn(
+                "max-w-24 truncate rounded px-1.5 py-0.5 text-caption",
+                labelChipClass(label.color),
+              )}
             >
-              <span className="truncate">{label.name}</span>
-            </DropdownMenuCheckboxItem>
+              {label.name}
+            </span>
           ))}
-          {labels.length === 0 ? (
-            <p className="px-2 py-4 text-center text-caption text-muted-foreground">
-              {t("tasks.table.labels_empty")}
-            </p>
+          {attached.length > 2 ? (
+            <span className="tabular-nums text-muted-foreground">
+              +{attached.length - 2}
+            </span>
           ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </>
+      )}
+    </LabelPicker>
   );
 }
 

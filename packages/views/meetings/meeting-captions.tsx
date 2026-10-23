@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useLocalParticipant } from "@livekit/components-react";
 import { useTranslation } from "react-i18next";
 import { useAppendTranscript } from "@uniwork/core/meetings";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -41,36 +42,63 @@ export function captionLang(locale: string): string {
   return locale.startsWith("en") ? "en-US" : "vi-VN";
 }
 
+/** Recognition errors that are part of normal operation, not a failure. */
+const ROUTINE_ERRORS = new Set(["no-speech", "aborted"]);
+
 /**
  * Turns the local microphone into transcript lines. Interim text shows in
  * the overlay; each final sentence is posted to the server so everyone's
  * transcript (and the AI summary) has it. Runs only while `enabled`.
+ *
+ * `onError` fires once for a failure the viewer must hear about (a blocked
+ * microphone, an unsupported browser); the caller turns captions off, so the
+ * overlay never sits on "listening" while nothing listens.
+ *
+ * `micOn` is the room microphone: while it is off, recognition stops and no
+ * sentence is posted — muting must mean nobody gets your words, captions included.
  */
-export function useLiveCaptions(meetingId: string, enabled: boolean) {
+export function useLiveCaptions(
+  meetingId: string,
+  enabled: boolean,
+  onError?: (code: string) => void,
+  micOn = true,
+) {
   const { i18n } = useTranslation();
   const append = useAppendTranscript(meetingId);
   const [interim, setInterim] = useState("");
   const [lastFinal, setLastFinal] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const appendRef = useRef(append.mutate);
   appendRef.current = append.mutate;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const micOnRef = useRef(micOn);
+  micOnRef.current = micOn;
+  const listening = enabled && micOn;
 
   useEffect(() => {
-    if (!enabled) {
+    if (!listening) {
       setInterim("");
       return;
     }
     const Ctor = recognitionCtor();
     if (!Ctor) {
-      setError("unsupported");
+      onErrorRef.current?.("unsupported");
       return;
     }
     let stopped = false;
     const rec = new Ctor();
+    const fail = (code: string) => {
+      if (stopped) return;
+      stopped = true;
+      rec.onend = null;
+      onErrorRef.current?.(code);
+    };
     rec.lang = captionLang(i18n.language);
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {
+      // A result can land between the mute and the effect cleanup.
+      if (stopped || !micOnRef.current) return;
       let partial = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
@@ -87,9 +115,7 @@ export function useLiveCaptions(meetingId: string, enabled: boolean) {
       setInterim(partial);
     };
     rec.onerror = (e) => {
-      // "no-speech" and "aborted" are routine; anything else surfaces once.
-      if (e.error && e.error !== "no-speech" && e.error !== "aborted")
-        setError(e.error);
+      if (e.error && !ROUTINE_ERRORS.has(e.error)) fail(e.error);
     };
     // Chromium stops continuous recognition after a silence; restart until told otherwise.
     rec.onend = () => {
@@ -103,54 +129,85 @@ export function useLiveCaptions(meetingId: string, enabled: boolean) {
     };
     try {
       rec.start();
-      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "start_failed");
+      fail(err instanceof Error ? err.message : "start_failed");
     }
     return () => {
       stopped = true;
       rec.onend = null;
       rec.stop();
     };
-  }, [enabled, meetingId, i18n.language]);
+  }, [listening, meetingId, i18n.language]);
 
-  return { interim, lastFinal, error };
+  return { interim, lastFinal };
 }
 
+/** Recognition errors that mean the browser or the viewer blocked the microphone. */
+export function captionsErrorKey(code: string): string {
+  return code === "not-allowed" || code === "service-not-allowed" || code === "audio-capture"
+    ? "meetings.captionsMicBlocked"
+    : code === "unsupported"
+      ? "meetings.captionsUnsupported"
+      : "meetings.captionsFailed";
+}
+
+/**
+ * Captions from the viewer's own microphone (Web Speech), labelled as such:
+ * they are automatic, and they are not the room's captions.
+ */
 export function MeetingCaptionsOverlay({
   interim,
   lastFinal,
+  paused = false,
   className,
-  embedded = false,
 }: {
   interim: string;
   lastFinal: string;
+  /** The microphone is off, so nothing is being captioned. */
+  paused?: boolean;
   className?: string;
-  /** When true, sits in the stage footer stack instead of absolute positioning. */
-  embedded?: boolean;
 }) {
   const { t } = useTranslation();
-  const text = interim || lastFinal;
+  const text = paused ? t("meetings.captionsPausedMicOff") : interim || lastFinal;
   return (
-    <>
+    <div className={cn("pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
-      <p className="sr-only" aria-live="polite">
-        {lastFinal}
+      <p role="status" aria-live="polite" className="sr-only">
+        {paused ? t("meetings.captionsPausedMicOff") : lastFinal}
       </p>
-      <div
-        aria-hidden
-        className={cn(
-          embedded
-            ? "pointer-events-none w-full max-w-3xl"
-            : "pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4",
-          className,
-        )}
-        data-testid="meeting-captions"
-      >
-        <p className="rounded-xl bg-background/90 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur-md">
+      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 text-center ring-1 ring-meeting-bar-border">
+        <p className="text-caption text-meeting-bar-muted-foreground">{t("meetings.captionsAutoLabel")}</p>
+        <p aria-hidden className="text-body text-meeting-bar-foreground">
           {text || t("meetings.captionsListening")}
         </p>
       </div>
-    </>
+    </div>
+  );
+}
+
+/**
+ * Owns the recognition state, so interim words (several updates a second)
+ * repaint this overlay alone rather than the whole stage.
+ */
+export function MeetingLiveCaptions({
+  meetingId,
+  enabled,
+  onError,
+  className,
+}: {
+  meetingId: string;
+  enabled: boolean;
+  onError?: (code: string) => void;
+  className?: string;
+}) {
+  const { isMicrophoneEnabled } = useLocalParticipant();
+  const { interim, lastFinal } = useLiveCaptions(meetingId, enabled, onError, isMicrophoneEnabled);
+  return (
+    <MeetingCaptionsOverlay
+      interim={interim}
+      lastFinal={lastFinal}
+      paused={!isMicrophoneEnabled}
+      className={className}
+    />
   );
 }

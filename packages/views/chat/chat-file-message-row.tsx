@@ -1,337 +1,206 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Download, FileText, LoaderCircle } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { memo } from "react";
 import { cn } from "@uniwork/ui/lib/utils";
-import {
-  isChatImageContentType,
-  isChatPdfContentType,
-} from "./chat-file-accept";
 import type { ChatMessage } from "./chat-messages";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
+import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
+import { ChatShareAsDocumentAction } from "./chat-share-as-document-action";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
+import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_WASH, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
+import type { ChatNameContextEntry } from "./chat-page-utils";
+import { ChatSenderAvatar } from "./chat-sender-avatar";
+import { senderNameClass } from "./sender-colors";
 
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export function ChatFileMessageRow({
+function ChatFileMessageRowImpl({
   workspaceId,
   roomId,
   message,
   senderLabel,
+  senderAvatarUrl,
   isOwn,
   showSenderName,
   compactTop,
   showAvatar,
+  nameContext = [],
   replyToMessage,
+  replyToSenderLabel,
   onReply,
   onReact,
+  onToggleReaction,
+  onJumpToMessage,
   onThread,
   onPin,
   onCopy,
   onDelete,
   onCreateTask,
   onLinkTask,
-  workHubEnabled = false,
+  onFollowUp,
+  highlighted = false,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   senderLabel: string;
+  senderAvatarUrl?: string;
   isOwn: boolean;
   showSenderName: boolean;
   compactTop: boolean;
   showAvatar: boolean;
+  nameContext?: ChatNameContextEntry[];
   replyToMessage?: ChatMessage;
+  /** Who wrote the quoted message, named inside the quote. */
+  replyToSenderLabel?: string;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onThread?: (message: ChatMessage) => void;
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
-  workHubEnabled?: boolean;
+  onFollowUp?: (message: ChatMessage) => void;
+  /** A deep link jumped here: ring the row like the text row does. */
+  highlighted?: boolean;
 }) {
-  const { t } = useTranslation();
-  const file = message.file;
-  const isImage = isChatImageContentType(file?.content_type);
-  const isPdf = isChatPdfContentType(file?.content_type);
-  const loadsInlinePreview = isImage || isPdf;
-  const reactionEntries = Object.entries(message.reactions);
-  const [busy, setBusy] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewStatus, setPreviewStatus] = useState<"idle" | "loading" | "ready" | "error">(
-    loadsInlinePreview ? "loading" : "idle",
-  );
-  const previewUrlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!loadsInlinePreview || !file) {
-      setPreviewStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setPreviewStatus("loading");
-    void loadChatFileBlob(workspaceId, roomId, message.id)
-      .then((blob) => {
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = url;
-        setPreviewUrl(url);
-        setPreviewStatus("ready");
-      })
-      .catch(() => {
-        if (!cancelled) setPreviewStatus("error");
-      });
-    return () => {
-      cancelled = true;
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
-    };
-  }, [file, loadsInlinePreview, message.id, roomId, workspaceId]);
-
-  const download = async () => {
-    if (busy || !file) return;
-    setBusy(true);
-    try {
-      const blob =
-        previewUrl && loadsInlinePreview
-          ? await fetch(previewUrl).then((res) => res.blob())
-          : await loadChatFileBlob(workspaceId, roomId, message.id);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = file.filename || "file";
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error(t("chat.file_download_failed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const openPreview = () => {
-    if (!previewUrl) return;
-    window.open(previewUrl, "_blank", "noopener,noreferrer");
-  };
+  const edgeToEdge = chatFileIsEdgeToEdge(message.file);
+  // A GIF is the message itself, like a sticker: no bubble, its time on a chip
+  // under it. A photo keeps a 3px rim and its time on its corner (canvas).
+  const contentType = message.file ? resolveChatFileContentType(message.file) : undefined;
+  const gif = contentType === "image/gif" && !replyToMessage;
+  const pdf = isChatPdfContentType(contentType);
+  const photo = edgeToEdge && !gif && !pdf;
+  const photoBare = photo && !replyToMessage;
+  // A file or PDF card carries its time on its own line (canvas); a photo on its corner, a GIF under it.
+  const cardMeta = !edgeToEdge || pdf ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="end" /> : undefined;
 
   return (
     <article
       id={`chat-msg-${message.id}`}
+      aria-labelledby={chatMessageLabelId(message.id)}
+      tabIndex={-1}
       className={cn(
-        "flex w-full max-w-full",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
+        CHAT_ROW_WASH,
         isOwn ? "justify-end" : "justify-start",
-        compactTop ? "pt-0.5" : "pt-3",
+        compactTop ? "mt-0.5" : "mt-3",
+        // A deep link jumped here: the row's brand wash, as the text row's (canvas).
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
-      <div className={cn("flex max-w-[min(100%,24rem)] gap-2", isOwn && "flex-row-reverse")}>
-        {showAvatar && !isOwn ? (
-          <ActorAvatar
-            name={senderLabel}
-            initials={senderLabel.trim().slice(0, 1).toUpperCase() || "?"}
-            className="mt-0.5 size-8 shrink-0"
-          />
+      <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
+      <div className={cn("flex max-w-[min(85%,27rem)] gap-2", isOwn && "flex-row-reverse")}>
+        {isOwn || !showSenderName ? null : showAvatar ? (
+          // A file is a run of its own: its avatar sits at the foot, as a run's last bubble's does.
+          <span className="shrink-0 self-end">
+            <ChatSenderAvatar
+              userId={message.sender}
+              name={senderLabel}
+              avatarUrl={senderAvatarUrl}
+              nameContext={nameContext}
+            />
+          </span>
         ) : (
-          <span className="size-8 shrink-0" aria-hidden />
+          <span className="w-8.5 shrink-0" aria-hidden />
         )}
-        <div
+        <ChatMessageActionsFrame
+          message={message}
+          isOwn={isOwn}
+          canEdit={false}
+          onReply={onReply}
+          onReact={onReact}
+          onToggleReaction={onToggleReaction}
+          onThread={onThread}
+          onPin={onPin}
+          onCopy={onCopy}
+          onDelete={onDelete}
+          onCreateTask={onCreateTask}
+          onLinkTask={onLinkTask}
+          onFollowUp={onFollowUp}
           className={cn(
-            "group relative min-w-0",
+            "flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
             isOwn ? "items-end" : "items-start",
           )}
         >
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onThread={onThread}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={workHubEnabled ? onCreateTask : undefined}
-            onLinkTask={workHubEnabled ? onLinkTask : undefined}
-            canEdit={false}
-          />
-          {showSenderName && !isOwn ? (
-            <p className="mb-1 px-1 text-caption font-medium text-brand">{senderLabel}</p>
-          ) : null}
-          <div
-            className={cn(
-              "overflow-hidden rounded-2xl border shadow-sm",
-              isOwn ? "border-brand/30 bg-brand/10" : "border-border bg-surface",
-              !isImage && !isPdf && "px-3 py-2",
-            )}
-          >
-            {replyToMessage ? (
-              <div className={cn(isImage || isPdf ? "px-2 pt-2" : undefined)}>
-                <ChatReplyQuote
-                  message={replyToMessage}
-                  workspaceId={workspaceId}
-                  roomId={roomId}
-                  isOwn={isOwn}
-                />
-              </div>
-            ) : null}
-            {isImage ? (
-              previewStatus === "ready" && previewUrl ? (
-                <button
-                  type="button"
-                  className="block max-w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={t("chat.file_open")}
-                  onClick={openPreview}
-                >
-                  {/* Authenticated blob URL — not a public CDN asset. */}
-                  <img
-                    src={previewUrl}
-                    alt={file?.filename || t("chat.file_untitled")}
-                    className="max-h-80 max-w-full object-contain"
-                  />
-                </button>
-              ) : (
-                <div className="flex min-h-40 min-w-48 items-center justify-center px-4 py-8">
-                  {previewStatus === "error" ? (
-                    <p className="text-center text-caption text-muted-foreground">
-                      {t("chat.file_download_failed")}
-                    </p>
-                  ) : (
-                    <LoaderCircle
-                      className="size-5 animate-spin text-muted-foreground"
-                      aria-hidden
-                    />
-                  )}
-                </div>
-              )
-            ) : isPdf ? (
-              <div className="space-y-2 p-2">
-                <div className="flex items-center gap-3 px-1">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <FileText className="size-4" aria-hidden />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-body font-medium text-foreground">
-                      {file?.filename || t("chat.file_untitled")}
-                    </p>
-                    <p className="text-caption text-muted-foreground">
-                      {formatBytes(file?.size_bytes ?? 0)}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-9 shrink-0"
-                    disabled={busy}
-                    aria-label={t("chat.file_download")}
-                    onClick={() => void download()}
-                  >
-                    {busy ? (
-                      <LoaderCircle className="size-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Download className="size-4" aria-hidden />
-                    )}
-                  </Button>
-                </div>
-                {previewStatus === "ready" && previewUrl ? (
-                  <iframe
-                    title={t("chat.file_pdf_preview")}
-                    src={previewUrl}
-                    className="h-72 w-full rounded-lg border border-border bg-background"
-                  />
-                ) : previewStatus === "error" ? (
-                  <p className="px-1 pb-1 text-caption text-muted-foreground">
-                    {t("chat.file_download_failed")}
-                  </p>
-                ) : (
-                  <div className="flex h-40 items-center justify-center">
-                    <LoaderCircle
-                      className="size-5 animate-spin text-muted-foreground"
-                      aria-hidden
-                    />
-                  </div>
+          <div className={chatMessageActionsRailClass(isOwn)}>
+            <div className="flex min-w-0 flex-col gap-1">
+              {/* The file sits in the sender's bubble like text: name on top,
+                  time under it, both inside. A photo or PDF keeps a thin rim. */}
+              <div
+                className={cn(
+                  "max-w-full overflow-hidden",
+                  !gif && !photoBare && chatBubbleShape(isOwn, !compactTop),
+                  !gif && !photoBare && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
+                  gif || photoBare ? "flex flex-col gap-1" : photo ? "p-0.75" : "p-2",
                 )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <FileText className="size-4" aria-hidden />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-body font-medium text-foreground">
-                    {file?.filename || t("chat.file_untitled")}
+              >
+                {showSenderName && !isOwn && showAvatar ? (
+                  <p
+                    className={cn(
+                      "text-label font-semibold",
+                      senderNameClass(message.sender, isOwn),
+                      gif ? "px-1" : photo ? "px-2.25 pt-1 pb-1.25" : "mb-1 px-1",
+                    )}
+                    aria-hidden
+                  >
+                    {senderLabel}
                   </p>
-                  <p className="text-caption text-muted-foreground">
-                    {formatBytes(file?.size_bytes ?? 0)}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-9 shrink-0"
-                  disabled={busy}
-                  aria-label={t("chat.file_download")}
-                  onClick={() => void download()}
-                >
-                  {busy ? (
-                    <LoaderCircle className="size-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Download className="size-4" aria-hidden />
+                ) : null}
+                <ChatForwardedLabel message={message} isOwn={isOwn} className={photo ? "px-2.25 pt-1" : "px-1"} />
+                {replyToMessage ? (
+                  <div className={cn(photo ? "px-1 pt-1" : undefined)}>
+                    <ChatReplyQuote
+                      message={replyToMessage}
+                      isOwn={isOwn}
+                      senderLabel={replyToSenderLabel}
+                      onJump={onJumpToMessage}
+                    />
+                  </div>
+                ) : null}
+                <div
+                  className={cn(
+                    "relative overflow-hidden [&>button]:rounded-none",
+                    photoBare && chatBubbleShape(isOwn, !compactTop),
+                    photo &&
+                      !photoBare &&
+                      cn(
+                        "rounded-[15px]",
+                        showSenderName && !isOwn && showAvatar && "rounded-t-[4px]",
+                        isOwn ? "rounded-br-[4px]" : "rounded-bl-[4px]",
+                      ),
                   )}
-                </Button>
-              </div>
-            )}
-          </div>
-          {reactionEntries.length > 0 ? (
-            <div className={cn("mt-1 flex flex-wrap gap-1 px-0.5", isOwn && "justify-end")}>
-              {reactionEntries.map(([emoji, count]) => (
-                <span
-                  key={emoji}
-                  className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface px-1.5 py-0.5 text-caption shadow-sm"
                 >
-                  <span aria-hidden>{emoji}</span>
-                  {count > 1 ? <span className="text-muted-foreground">{count}</span> : null}
-                </span>
-              ))}
+                  <ChatFileAttachment
+                    workspaceId={workspaceId}
+                    roomId={roomId}
+                    message={message}
+                    isOwn={isOwn}
+                    sender={{ userId: message.sender, name: senderLabel, avatarUrl: senderAvatarUrl, ts: message.ts }}
+                    meta={cardMeta}
+                  />
+                  {photo ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="media" /> : null}
+                </div>
+                {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
+                {message.canShareAsDocument ? (
+                  <ChatShareAsDocumentAction workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
+                ) : null}
+              </div>
+              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
+              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
+              <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
-          ) : null}
-          {(message.replyCount ?? 0) > 0 && onThread && !message.threadRootId ? (
-            <button
-              type="button"
-              className={cn(
-                "mt-1 px-1 text-left text-caption font-medium text-brand hover:underline",
-                isOwn && "self-end",
-              )}
-              onClick={() => onThread(message)}
-            >
-              {message.threadUnread
-                ? t("chat.thread_replies_unread", { count: message.replyCount })
-                : t("chat.thread_replies", { count: message.replyCount })}
-            </button>
-          ) : null}
-          {workHubEnabled ? (
-            <MessageTaskCard
-              workspaceId={workspaceId}
-              messageId={message.id}
-              className={cn("mt-1", isOwn && "items-end self-end")}
-            />
-          ) : null}
-        </div>
+          </div>
+        </ChatMessageActionsFrame>
       </div>
     </article>
   );
 }
+
+/** One file message. Memoised like the text row. */
+export const ChatFileMessageRow = memo(ChatFileMessageRowImpl);

@@ -8,10 +8,25 @@ export interface NavigationAdapter {
   push(path: string): void;
   replace(path: string): void;
   back(): void;
+  /**
+   * Optional: step forward in the host's history. Web wires this to
+   * router.forward; a host without a forward stack leaves it undefined and
+   * callers invoke it as `forward?.()`.
+   */
+  forward?: () => void;
   pathname: string;
   searchParams: URLSearchParams;
   /** A shareable absolute URL for a path. Web: origin + path. */
   getShareableUrl(path: string): string;
+  /**
+   * Same-window hard navigation to an absolute URL outside the app (a payment
+   * provider's checkout, say). It leaves the SPA, so there are no leave-guards
+   * and the query cache and socket are dropped; use push() for in-app paths.
+   * Optional like the other host capabilities: web wires it to
+   * location.assign, a host without it leaves it undefined and callers invoke
+   * it as `openExternal?.(url)`.
+   */
+  openExternal?: (url: string) => void;
   /**
    * Optional: warm up route assets for a path. Web wires this to
    * router.prefetch; a host without the concept leaves it undefined and

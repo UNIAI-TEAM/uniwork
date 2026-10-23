@@ -18,7 +18,7 @@ func (s *ChatService) SearchChatStickers(ctx context.Context, ownerID, workspace
 	if len([]rune(query)) > maxGifSearchLen {
 		return nil, Invalid("từ khóa quá dài")
 	}
-	if strings.TrimSpace(s.TenorAPIKey) == "" {
+	if !s.chatMediaRemoteEnabled() {
 		return s.offlineChatStickers(query), nil
 	}
 	return s.fetchTenor(ctx, tenorRequest{
@@ -35,7 +35,7 @@ func (s *ChatService) TrendingChatStickers(ctx context.Context, ownerID, workspa
 	if _, err := s.workspaceForChat(ctx, ownerID, workspaceID); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(s.TenorAPIKey) == "" {
+	if !s.chatMediaRemoteEnabled() {
 		return s.offlineChatStickers(""), nil
 	}
 	return s.fetchTenor(ctx, tenorRequest{

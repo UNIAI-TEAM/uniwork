@@ -49,6 +49,10 @@ func newOrgInviteFixture(t *testing.T) *orgInviteFixture {
 		t.Fatal(err)
 	}
 	f.org = o
+	// Invitation tests batch several addresses; lift the seat cap so quota logic is not the subject.
+	if _, err := pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"members.max": null}'::jsonb WHERE organization_id = $1`, o.ID); err != nil {
+		t.Fatal(err)
+	}
 	for _, m := range []struct{ id, role string }{{f.admin.ID, OrgRoleAdmin}, {f.member.ID, OrgRoleMember}} {
 		if err := q.AddOrganizationMember(f.ctx, db.AddOrganizationMemberParams{
 			OrganizationID: o.ID, UserID: m.id, Role: m.role,
@@ -62,7 +66,7 @@ func newOrgInviteFixture(t *testing.T) *orgInviteFixture {
 func TestInviteToOrganizationSkipsMembersAndReusesPendingTokens(t *testing.T) {
 	f := newOrgInviteFixture(t)
 	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID,
-		[]string{"inv-new@example.com", "inv-member@example.com", "not-an-email", "INV-NEW@example.com"}, OrgRoleMember)
+		[]string{"inv-new@example.com", "inv-member@example.com", "not-an-email", "INV-NEW@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,28 +79,28 @@ func TestInviteToOrganizationSkipsMembersAndReusesPendingTokens(t *testing.T) {
 	first := invs[0].Token
 	// Inviting the same address again must not mint a second token: the link
 	// already in their inbox would stop working.
-	again, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	again, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(again) != 1 || again[0].Token != first {
 		t.Fatalf("second invite minted a new token: %+v", again)
 	}
-	if _, _, err := f.svc.InviteToOrg(f.ctx, f.member.ID, f.org.ID, []string{"someone@example.com"}, OrgRoleMember); !errors.Is(err, ErrForbidden) {
+	if _, _, err := f.svc.InviteToOrg(f.ctx, f.member.ID, f.org.ID, []string{"someone@example.com"}, OrgRoleMember, nil); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member inviting: got %v", err)
 	}
-	if _, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"x@example.com"}, "owner"); err == nil {
+	if _, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"x@example.com"}, "owner", nil); err == nil {
 		t.Fatal("an invitation to the owner role was accepted")
 	}
 }
 
 func TestAcceptOrganizationInviteAddsMemberWithoutAWorkspace(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleAdmin)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleAdmin, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token)
+	result, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,8 +119,16 @@ func TestAcceptOrganizationInviteAddsMemberWithoutAWorkspace(t *testing.T) {
 	if err != nil || !u.OnboardedAt.Valid {
 		t.Fatalf("onboarded: %v", err)
 	}
-	// The token is single use.
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token); !errors.Is(err, ErrNotFound) {
+	// The token is single use: a second call by the member it admitted is the
+	// retry of a lost response and answers the same (EC-12); somebody else
+	// holding the link gets nothing (the mailbox check, then 410).
+	if again, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); err != nil || again.Organization.ID != f.org.ID {
+		t.Fatalf("retried token: %v %+v", err, again)
+	}
+	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); !codedIs(err, "invitation_accepted") {
 		t.Fatalf("reused token: %v", err)
 	}
 }
@@ -129,7 +141,7 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	// Inviting somebody who was switched off is a mistake: the row is still
 	// there, and the fix is to reactivate them. So the address is skipped
 	// rather than sent a link that would fail on accept.
-	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-member@example.com"}, OrgRoleMember)
+	invs, skipped, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-member@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,20 +150,20 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 	}
 	// And an invitation issued before the deactivation cannot be used as a way
 	// back in either.
-	other, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	other, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("the invitee is not a member yet: %v", err)
 	}
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, other[0].Token); err != nil {
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, other[0].Token, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.invitee.ID); err != nil {
 		t.Fatal(err)
 	}
-	second, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	second, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,14 +174,14 @@ func TestADeactivatedMemberIsNotReAdmittedByAnInvitation(t *testing.T) {
 
 func TestRevokeInvitationStopsTheToken(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"inv-new@example.com"}, OrgRoleMember, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := f.svc.RevokeInvitation(f.ctx, f.admin.ID, f.org.ID, invs[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token); !errors.Is(err, ErrNotFound) {
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, invs[0].Token, nil); !codedIs(err, "invitation_revoked") {
 		t.Fatalf("revoked token still works: %v", err)
 	}
 	pending, err := f.svc.PendingInvitations(f.ctx, f.owner.ID, f.org.ID)
@@ -186,7 +198,7 @@ func TestRevokeInvitationStopsTheToken(t *testing.T) {
 
 func TestTransferOwnershipIsAtomicAndNeedsThePassword(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "wrong-password"); !errors.Is(err, ErrInvalidCredentials) {
+	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "wrong-password"); !errors.Is(err, ErrPasswordIncorrect) || !codedIs(err, "password_incorrect") {
 		t.Fatalf("wrong password: got %v", err)
 	}
 	if _, err := f.svc.TransferOwnership(f.ctx, f.admin.ID, f.org.ID, f.member.ID, "password123"); !errors.Is(err, ErrForbidden) {
@@ -231,5 +243,68 @@ func TestTransferOwnershipRefusesADeactivatedTarget(t *testing.T) {
 	}
 	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.member.ID, "password123"); !errors.Is(err, ErrMemberDeactivated) {
 		t.Fatalf("deactivated target: got %v", err)
+	}
+}
+
+// An invitation names a mailbox. The link gets forwarded and pasted, so the
+// token alone must not let another account in - that account would join the
+// organization as whoever was invited. The invitee, signed in under another
+// letter case, still redeems it.
+func TestInvitationIsRedeemedOnlyByTheInvitedAddress(t *testing.T) {
+	f := newOrgInviteFixture(t)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"INV-NEW@example.com"}, OrgRoleAdmin, nil)
+	if err != nil || len(invs) != 1 {
+		t.Fatalf("invite: %v %v", invs, err)
+	}
+	token := invs[0].Token
+
+	_, err = f.ws.AcceptInvite(f.ctx, f.member.ID, token, nil)
+	if !codedIs(err, "invitation_email_mismatch") || codedStatus(err) != 403 {
+		t.Fatalf("accept by another account = %v, want 403 invitation_email_mismatch", err)
+	}
+	if m, err := f.q.GetOrganizationMember(f.ctx, db.GetOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.member.ID}); err != nil || m.Role != OrgRoleMember {
+		t.Fatalf("the other account's role moved to %q (%v); the refused accept must change nothing", m.Role, err)
+	}
+
+	if _, err := f.ws.AcceptInvite(f.ctx, f.invitee.ID, token, nil); err != nil {
+		t.Fatalf("accept by the invitee: %v", err)
+	}
+	if m, err := f.q.GetOrganizationMember(f.ctx, db.GetOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.invitee.ID}); err != nil || m.Role != OrgRoleAdmin {
+		t.Fatalf("invitee membership = %+v, %v", m, err)
+	}
+}
+
+// Two ways round the address check: an address that only folds to the
+// invitee's ("ſ", the long s, folds to "s" but is a different address), and
+// registering the invitee's address before they do. Neither account has proven
+// the invited mailbox, so neither sees the token or redeems it.
+func TestInvitationNeedsTheProvenAddress(t *testing.T) {
+	f := newOrgInviteFixture(t)
+	as := NewAuthService(f.orgs.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	invs, _, err := f.svc.InviteToOrg(f.ctx, f.owner.ID, f.org.ID, []string{"sam@example.com"}, OrgRoleMember, nil)
+	if err != nil || len(invs) != 1 {
+		t.Fatalf("invite: %v %v", invs, err)
+	}
+	token := invs[0].Token
+
+	lookalike := registerVerified(t, f.q, as, "ſam@example.com", "Giả")
+	if _, err := f.ws.AcceptInvite(f.ctx, lookalike.ID, token, nil); !codedIs(err, "invitation_email_mismatch") {
+		t.Fatalf("accept by a look-alike address = %v, want invitation_email_mismatch", err)
+	}
+
+	squatter, err := as.Register(f.ctx, "sam@example.com", "password123", "Chiếm chỗ", "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.PendingInvitations(f.ctx, squatter.User.ID); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("pending invitations of an unproven address = %v, want ErrEmailUnverified", err)
+	}
+	if _, err := f.ws.AcceptInvite(f.ctx, squatter.User.ID, token, nil); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("accept by an unproven address = %v, want ErrEmailUnverified", err)
+	}
+	for _, id := range []string{lookalike.ID, squatter.User.ID} {
+		if _, err := f.q.GetOrganizationMember(f.ctx, db.GetOrganizationMemberParams{OrganizationID: f.org.ID, UserID: id}); err == nil {
+			t.Fatalf("user %s joined the organization", id)
+		}
 	}
 }

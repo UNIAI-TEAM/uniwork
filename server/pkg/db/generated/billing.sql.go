@@ -11,6 +11,71 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const applyPaidSubscriptionFromProvider = `-- name: ApplyPaidSubscriptionFromProvider :one
+UPDATE subscriptions SET
+  plan_id = $3,
+  status = 'active',
+  provider = $4,
+  current_period_start = $5,
+  current_period_end = $6,
+  cancel_at = NULL,
+  canceled_at = NULL,
+  row_version = row_version + 1,
+  updated_by = $7,
+  updated_by_kind = $8,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status <> 'canceled'
+RETURNING id, organization_id, plan_id, status, provider, provider_customer_id, provider_subscription_id, current_period_start, current_period_end, cancel_at, canceled_at, trial_ends_at, overrides, row_version, created_by, created_by_kind, updated_by, updated_by_kind, created_at, updated_at
+`
+
+type ApplyPaidSubscriptionFromProviderParams struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	PlanID             string             `json:"plan_id"`
+	Provider           string             `json:"provider"`
+	CurrentPeriodStart pgtype.Timestamptz `json:"current_period_start"`
+	CurrentPeriodEnd   pgtype.Timestamptz `json:"current_period_end"`
+	UpdatedBy          string             `json:"updated_by"`
+	UpdatedByKind      string             `json:"updated_by_kind"`
+}
+
+func (q *Queries) ApplyPaidSubscriptionFromProvider(ctx context.Context, arg ApplyPaidSubscriptionFromProviderParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, applyPaidSubscriptionFromProvider,
+		arg.ID,
+		arg.OrganizationID,
+		arg.PlanID,
+		arg.Provider,
+		arg.CurrentPeriodStart,
+		arg.CurrentPeriodEnd,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PlanID,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderCustomerID,
+		&i.ProviderSubscriptionID,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAt,
+		&i.CanceledAt,
+		&i.TrialEndsAt,
+		&i.Overrides,
+		&i.RowVersion,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const changeSubscriptionPlan = `-- name: ChangeSubscriptionPlan :one
 UPDATE subscriptions SET
   plan_id = $3,
@@ -36,6 +101,7 @@ type ChangeSubscriptionPlanParams struct {
 	UpdatedByKind string `json:"updated_by_kind"`
 }
 
+// tenant: by-id
 func (q *Queries) ChangeSubscriptionPlan(ctx context.Context, arg ChangeSubscriptionPlanParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, changeSubscriptionPlan,
 		arg.ID,
@@ -66,6 +132,179 @@ func (q *Queries) ChangeSubscriptionPlan(ctx context.Context, arg ChangeSubscrip
 		&i.UpdatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const claimPendingBillingWebhookInbox = `-- name: ClaimPendingBillingWebhookInbox :many
+UPDATE webhook_inbox SET
+  status = 'PROCESSING',
+  next_attempt_at = now() + make_interval(secs => $1::double precision)
+WHERE id IN (
+  SELECT id FROM webhook_inbox
+  WHERE status = 'PENDING' AND next_attempt_at <= now()
+    AND provider IN ('vnpay', 'stripe', 'payos')
+  ORDER BY received_at
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, provider, provider_event_id, event_type, payload, status, attempt_count, next_attempt_at, received_at, processed_at, last_error
+`
+
+type ClaimPendingBillingWebhookInboxParams struct {
+	LeaseSeconds float64 `json:"lease_seconds"`
+	LimitN       int32   `json:"limit_n"`
+}
+
+func (q *Queries) ClaimPendingBillingWebhookInbox(ctx context.Context, arg ClaimPendingBillingWebhookInboxParams) ([]WebhookInbox, error) {
+	rows, err := q.db.Query(ctx, claimPendingBillingWebhookInbox, arg.LeaseSeconds, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WebhookInbox{}
+	for rows.Next() {
+		var i WebhookInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.ProviderEventID,
+			&i.EventType,
+			&i.Payload,
+			&i.Status,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.ReceivedAt,
+			&i.ProcessedAt,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimStaleBillingPaymentIntentsForReconcile = `-- name: ClaimStaleBillingPaymentIntentsForReconcile :many
+UPDATE billing_payment_intents SET reconcile_attempted_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status IN ('pending', 'expired')
+    AND created_at < now() - interval '15 minutes'
+    AND created_at > now() - interval '7 days'
+    AND (reconcile_attempted_at IS NULL OR reconcile_attempted_at < now() - interval '10 minutes')
+  ORDER BY created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
+`
+
+// tenant: system
+func (q *Queries) ClaimStaleBillingPaymentIntentsForReconcile(ctx context.Context, limit int32) ([]BillingPaymentIntent, error) {
+	rows, err := q.db.Query(ctx, claimStaleBillingPaymentIntentsForReconcile, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BillingPaymentIntent{}
+	for rows.Next() {
+		var i BillingPaymentIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.PlanID,
+			&i.Provider,
+			&i.ProviderTxnRef,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.ExpiresAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.ProviderBankCode,
+			&i.ProviderTransactionNo,
+			&i.ProviderOrderInfo,
+			&i.ProviderPayDate,
+			&i.ReconcileAttemptedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const confirmInvoiceRefundFromProvider = `-- name: ConfirmInvoiceRefundFromProvider :one
+UPDATE invoices SET
+  amount_refunded = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+    THEN amount_refunded + partial_refund_amount
+    ELSE amount_paid
+  END,
+  partial_refund_amount = NULL,
+  status = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
+    ELSE 'refunded'
+  END,
+  refunded_at = CASE
+    WHEN status = 'refund_pending' THEN now()
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
+    ELSE refunded_at
+  END,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type ConfirmInvoiceRefundFromProviderParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) ConfirmInvoiceRefundFromProvider(ctx context.Context, arg ConfirmInvoiceRefundFromProviderParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, confirmInvoiceRefundFromProvider, arg.ID, arg.OrganizationID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
 	)
 	return i, err
 }
@@ -122,6 +361,170 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 	return i, err
 }
 
+const expirePendingBillingPaymentIntents = `-- name: ExpirePendingBillingPaymentIntents :exec
+UPDATE billing_payment_intents SET status = 'expired', updated_at = now()
+WHERE organization_id = $1 AND status = 'pending'
+`
+
+func (q *Queries) ExpirePendingBillingPaymentIntents(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, expirePendingBillingPaymentIntents, organizationID)
+	return err
+}
+
+const getBillingPaymentIntentByID = `-- name: GetBillingPaymentIntentByID :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
+`
+
+type GetBillingPaymentIntentByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetBillingPaymentIntentByID(ctx context.Context, arg GetBillingPaymentIntentByIDParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getBillingPaymentIntentByID, arg.ID, arg.OrganizationID)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
+const getBillingPaymentIntentByTxnRef = `-- name: GetBillingPaymentIntentByTxnRef :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE provider_txn_ref = $1
+`
+
+// tenant: token
+func (q *Queries) GetBillingPaymentIntentByTxnRef(ctx context.Context, providerTxnRef string) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getBillingPaymentIntentByTxnRef, providerTxnRef)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
+const getBillingPaymentIntentForInvoice = `-- name: GetBillingPaymentIntentForInvoice :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents WHERE id = $1 AND organization_id = $2
+`
+
+type GetBillingPaymentIntentForInvoiceParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetBillingPaymentIntentForInvoice(ctx context.Context, arg GetBillingPaymentIntentForInvoiceParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getBillingPaymentIntentForInvoice, arg.ID, arg.OrganizationID)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
+const getCompletedPaymentIntentForInvoice = `-- name: GetCompletedPaymentIntentForInvoice :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents
+WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
+ORDER BY COALESCE(completed_at, created_at) DESC
+LIMIT 1
+`
+
+type GetCompletedPaymentIntentForInvoiceParams struct {
+	OrganizationID string `json:"organization_id"`
+	SubscriptionID string `json:"subscription_id"`
+	Provider       string `json:"provider"`
+	Amount         int64  `json:"amount"`
+}
+
+func (q *Queries) GetCompletedPaymentIntentForInvoice(ctx context.Context, arg GetCompletedPaymentIntentForInvoiceParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getCompletedPaymentIntentForInvoice,
+		arg.OrganizationID,
+		arg.SubscriptionID,
+		arg.Provider,
+		arg.Amount,
+	)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
 const getDefaultPlan = `-- name: GetDefaultPlan :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE is_default LIMIT 1
 `
@@ -142,6 +545,25 @@ func (q *Queries) GetDefaultPlan(ctx context.Context) (Plan, error) {
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getFeatureByKey = `-- name: GetFeatureByKey :one
+SELECT key, name, kind, unit, category, meter_mode, sort_order FROM features WHERE key = $1
+`
+
+func (q *Queries) GetFeatureByKey(ctx context.Context, key string) (Feature, error) {
+	row := q.db.QueryRow(ctx, getFeatureByKey, key)
+	var i Feature
+	err := row.Scan(
+		&i.Key,
+		&i.Name,
+		&i.Kind,
+		&i.Unit,
+		&i.Category,
+		&i.MeterMode,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -178,6 +600,46 @@ func (q *Queries) GetLiveSubscription(ctx context.Context, organizationID string
 	return i, err
 }
 
+const getPendingBillingPaymentIntentForPlan = `-- name: GetPendingBillingPaymentIntentForPlan :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents
+WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetPendingBillingPaymentIntentForPlanParams struct {
+	OrganizationID string `json:"organization_id"`
+	PlanID         string `json:"plan_id"`
+}
+
+func (q *Queries) GetPendingBillingPaymentIntentForPlan(ctx context.Context, arg GetPendingBillingPaymentIntentForPlanParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getPendingBillingPaymentIntentForPlan, arg.OrganizationID, arg.PlanID)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
 const getPlanByCode = `-- name: GetPlanByCode :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE code = $1
 `
@@ -208,6 +670,194 @@ SELECT id, code, name, description, billing_period, price_amount, price_currency
 
 func (q *Queries) GetPlanByID(ctx context.Context, id string) (Plan, error) {
 	row := q.db.QueryRow(ctx, getPlanByID, id)
+	var i Plan
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Description,
+		&i.BillingPeriod,
+		&i.PriceAmount,
+		&i.PriceCurrency,
+		&i.IsDefault,
+		&i.IsActive,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertBillingPaymentIntent = `-- name: InsertBillingPaymentIntent :one
+INSERT INTO billing_payment_intents (
+  id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+  amount, currency, status, expires_at, created_by, created_by_kind, provider_order_info
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11, $12)
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
+`
+
+type InsertBillingPaymentIntentParams struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	PlanID            string             `json:"plan_id"`
+	Provider          string             `json:"provider"`
+	ProviderTxnRef    string             `json:"provider_txn_ref"`
+	Amount            int64              `json:"amount"`
+	Currency          string             `json:"currency"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	CreatedBy         pgtype.Text        `json:"created_by"`
+	CreatedByKind     pgtype.Text        `json:"created_by_kind"`
+	ProviderOrderInfo pgtype.Text        `json:"provider_order_info"`
+}
+
+func (q *Queries) InsertBillingPaymentIntent(ctx context.Context, arg InsertBillingPaymentIntentParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, insertBillingPaymentIntent,
+		arg.ID,
+		arg.OrganizationID,
+		arg.SubscriptionID,
+		arg.PlanID,
+		arg.Provider,
+		arg.ProviderTxnRef,
+		arg.Amount,
+		arg.Currency,
+		arg.ExpiresAt,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+		arg.ProviderOrderInfo,
+	)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
+const insertInvoice = `-- name: InsertInvoice :one
+INSERT INTO invoices (
+  id, organization_id, subscription_id, provider, provider_invoice_id, number,
+  status, amount_due, amount_paid, currency, period_start, period_end, paid_at,
+  initiated_by, initiated_by_kind, payment_intent_id
+) VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, $10, $11, now(), $12, $13, $14)
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type InsertInvoiceParams struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	Provider          string             `json:"provider"`
+	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
+	Number            string             `json:"number"`
+	AmountDue         int64              `json:"amount_due"`
+	AmountPaid        int64              `json:"amount_paid"`
+	Currency          string             `json:"currency"`
+	PeriodStart       pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
+	InitiatedBy       pgtype.Text        `json:"initiated_by"`
+	InitiatedByKind   pgtype.Text        `json:"initiated_by_kind"`
+	PaymentIntentID   pgtype.Text        `json:"payment_intent_id"`
+}
+
+func (q *Queries) InsertInvoice(ctx context.Context, arg InsertInvoiceParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, insertInvoice,
+		arg.ID,
+		arg.OrganizationID,
+		arg.SubscriptionID,
+		arg.Provider,
+		arg.ProviderInvoiceID,
+		arg.Number,
+		arg.AmountDue,
+		arg.AmountPaid,
+		arg.Currency,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.InitiatedBy,
+		arg.InitiatedByKind,
+		arg.PaymentIntentID,
+	)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
+const insertPlanCatalog = `-- name: InsertPlanCatalog :one
+INSERT INTO plans (id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order)
+VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
+RETURNING id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at
+`
+
+type InsertPlanCatalogParams struct {
+	ID            string      `json:"id"`
+	Code          string      `json:"code"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	BillingPeriod string      `json:"billing_period"`
+	PriceAmount   pgtype.Int8 `json:"price_amount"`
+	PriceCurrency string      `json:"price_currency"`
+	IsActive      bool        `json:"is_active"`
+	SortOrder     int32       `json:"sort_order"`
+}
+
+func (q *Queries) InsertPlanCatalog(ctx context.Context, arg InsertPlanCatalogParams) (Plan, error) {
+	row := q.db.QueryRow(ctx, insertPlanCatalog,
+		arg.ID,
+		arg.Code,
+		arg.Name,
+		arg.Description,
+		arg.BillingPeriod,
+		arg.PriceAmount,
+		arg.PriceCurrency,
+		arg.IsActive,
+		arg.SortOrder,
+	)
 	var i Plan
 	err := row.Scan(
 		&i.ID,
@@ -264,8 +914,8 @@ const listActivePlans = `-- name: ListActivePlans :many
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE is_active ORDER BY sort_order, code
 `
 
-// Plans, features and subscriptions (F-02). Only service/entitlement.go and
-// service/billing.go call these (arch_test.go).
+// Plans, features and subscriptions (F-02). Only service/entitlement.go,
+// service/billing.go and service/billing_catalog.go call these (arch_test.go).
 func (q *Queries) ListActivePlans(ctx context.Context) ([]Plan, error) {
 	rows, err := q.db.Query(ctx, listActivePlans)
 	if err != nil {
@@ -299,6 +949,149 @@ func (q *Queries) ListActivePlans(ctx context.Context) ([]Plan, error) {
 	return items, nil
 }
 
+const listAllPlanFeatures = `-- name: ListAllPlanFeatures :many
+SELECT pf.plan_id, pf.feature_key, pf.enabled, pf.quota_limit,
+       f.name, f.kind, f.unit, f.category, f.meter_mode, f.sort_order
+FROM plan_features pf
+JOIN features f ON f.key = pf.feature_key
+ORDER BY pf.plan_id, f.sort_order, f.key
+`
+
+type ListAllPlanFeaturesRow struct {
+	PlanID     string      `json:"plan_id"`
+	FeatureKey string      `json:"feature_key"`
+	Enabled    bool        `json:"enabled"`
+	QuotaLimit pgtype.Int8 `json:"quota_limit"`
+	Name       string      `json:"name"`
+	Kind       string      `json:"kind"`
+	Unit       pgtype.Text `json:"unit"`
+	Category   string      `json:"category"`
+	MeterMode  string      `json:"meter_mode"`
+	SortOrder  int32       `json:"sort_order"`
+}
+
+func (q *Queries) ListAllPlanFeatures(ctx context.Context) ([]ListAllPlanFeaturesRow, error) {
+	rows, err := q.db.Query(ctx, listAllPlanFeatures)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllPlanFeaturesRow{}
+	for rows.Next() {
+		var i ListAllPlanFeaturesRow
+		if err := rows.Scan(
+			&i.PlanID,
+			&i.FeatureKey,
+			&i.Enabled,
+			&i.QuotaLimit,
+			&i.Name,
+			&i.Kind,
+			&i.Unit,
+			&i.Category,
+			&i.MeterMode,
+			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllPlans = `-- name: ListAllPlans :many
+SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans ORDER BY sort_order, code
+`
+
+func (q *Queries) ListAllPlans(ctx context.Context) ([]Plan, error) {
+	rows, err := q.db.Query(ctx, listAllPlans)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Plan{}
+	for rows.Next() {
+		var i Plan
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Description,
+			&i.BillingPeriod,
+			&i.PriceAmount,
+			&i.PriceCurrency,
+			&i.IsDefault,
+			&i.IsActive,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCompletedBillingIntentsMissingProviderMeta = `-- name: ListCompletedBillingIntentsMissingProviderMeta :many
+SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
+FROM billing_payment_intents
+WHERE provider = 'vnpay' AND status = 'completed'
+  AND (
+    provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
+    OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+    OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
+  )
+ORDER BY COALESCE(completed_at, created_at) DESC
+LIMIT $1
+`
+
+type ListCompletedBillingIntentsMissingProviderMetaRow struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	PlanID            string             `json:"plan_id"`
+	ProviderTxnRef    string             `json:"provider_txn_ref"`
+	ProviderOrderInfo pgtype.Text        `json:"provider_order_info"`
+	ProviderPayDate   pgtype.Text        `json:"provider_pay_date"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+}
+
+// tenant: system
+func (q *Queries) ListCompletedBillingIntentsMissingProviderMeta(ctx context.Context, limit int32) ([]ListCompletedBillingIntentsMissingProviderMetaRow, error) {
+	rows, err := q.db.Query(ctx, listCompletedBillingIntentsMissingProviderMeta, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompletedBillingIntentsMissingProviderMetaRow{}
+	for rows.Next() {
+		var i ListCompletedBillingIntentsMissingProviderMetaRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PlanID,
+			&i.ProviderTxnRef,
+			&i.ProviderOrderInfo,
+			&i.ProviderPayDate,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeatures = `-- name: ListFeatures :many
 SELECT key, name, kind, unit, category, meter_mode, sort_order FROM features ORDER BY sort_order, key
 `
@@ -320,6 +1113,117 @@ func (q *Queries) ListFeatures(ctx context.Context) ([]Feature, error) {
 			&i.Category,
 			&i.MeterMode,
 			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvoicesByOrganization = `-- name: ListInvoicesByOrganization :many
+SELECT id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id FROM invoices
+WHERE organization_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListInvoicesByOrganizationParams struct {
+	OrganizationID string `json:"organization_id"`
+	Limit          int32  `json:"limit"`
+	Offset         int32  `json:"offset"`
+}
+
+func (q *Queries) ListInvoicesByOrganization(ctx context.Context, arg ListInvoicesByOrganizationParams) ([]Invoice, error) {
+	rows, err := q.db.Query(ctx, listInvoicesByOrganization, arg.OrganizationID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Invoice{}
+	for rows.Next() {
+		var i Invoice
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.Provider,
+			&i.ProviderInvoiceID,
+			&i.Number,
+			&i.Status,
+			&i.AmountDue,
+			&i.AmountPaid,
+			&i.Currency,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.HostedUrl,
+			&i.IssuedAt,
+			&i.PaidAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.InitiatedBy,
+			&i.InitiatedByKind,
+			&i.RefundedAt,
+			&i.RefundProviderRef,
+			&i.RefundRequestedAt,
+			&i.AmountRefunded,
+			&i.PartialRefundAmount,
+			&i.RefundReason,
+			&i.RefundConfirmReason,
+			&i.PaymentIntentID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvoicesRefundPendingForReconcile = `-- name: ListInvoicesRefundPendingForReconcile :many
+SELECT id, organization_id, subscription_id, provider, number, status, amount_paid, payment_intent_id
+FROM invoices
+WHERE status IN ('refund_pending', 'partial_refund_pending')
+  AND provider = 'vnpay'
+ORDER BY refund_requested_at NULLS LAST, updated_at
+LIMIT $1
+`
+
+type ListInvoicesRefundPendingForReconcileRow struct {
+	ID              string      `json:"id"`
+	OrganizationID  string      `json:"organization_id"`
+	SubscriptionID  string      `json:"subscription_id"`
+	Provider        string      `json:"provider"`
+	Number          string      `json:"number"`
+	Status          string      `json:"status"`
+	AmountPaid      int64       `json:"amount_paid"`
+	PaymentIntentID pgtype.Text `json:"payment_intent_id"`
+}
+
+// tenant: system
+func (q *Queries) ListInvoicesRefundPendingForReconcile(ctx context.Context, limit int32) ([]ListInvoicesRefundPendingForReconcileRow, error) {
+	rows, err := q.db.Query(ctx, listInvoicesRefundPendingForReconcile, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvoicesRefundPendingForReconcileRow{}
+	for rows.Next() {
+		var i ListInvoicesRefundPendingForReconcileRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.Provider,
+			&i.Number,
+			&i.Status,
+			&i.AmountPaid,
+			&i.PaymentIntentID,
 		); err != nil {
 			return nil, err
 		}
@@ -410,12 +1314,413 @@ func (q *Queries) ListPlanFeatures(ctx context.Context, planID string) ([]ListPl
 	return items, nil
 }
 
+const listSubscriptionsDueForCancelLapse = `-- name: ListSubscriptionsDueForCancelLapse :many
+SELECT s.id, s.organization_id, s.plan_id, s.status, s.provider, s.provider_customer_id, s.provider_subscription_id, s.current_period_start, s.current_period_end, s.cancel_at, s.canceled_at, s.trial_ends_at, s.overrides, s.row_version, s.created_by, s.created_by_kind, s.updated_by, s.updated_by_kind, s.created_at, s.updated_at FROM subscriptions s
+JOIN plans p ON p.id = s.plan_id
+WHERE s.status <> 'canceled'
+  AND NOT p.is_default
+  AND s.cancel_at IS NOT NULL AND s.cancel_at <= now()
+ORDER BY s.cancel_at
+LIMIT $1
+`
+
+// tenant: system
+func (q *Queries) ListSubscriptionsDueForCancelLapse(ctx context.Context, limit int32) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listSubscriptionsDueForCancelLapse, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PlanID,
+			&i.Status,
+			&i.Provider,
+			&i.ProviderCustomerID,
+			&i.ProviderSubscriptionID,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CancelAt,
+			&i.CanceledAt,
+			&i.TrialEndsAt,
+			&i.Overrides,
+			&i.RowVersion,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.UpdatedBy,
+			&i.UpdatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubscriptionsDueForPastDue = `-- name: ListSubscriptionsDueForPastDue :many
+SELECT s.id, s.organization_id, s.plan_id, s.status, s.provider, s.provider_customer_id, s.provider_subscription_id, s.current_period_start, s.current_period_end, s.cancel_at, s.canceled_at, s.trial_ends_at, s.overrides, s.row_version, s.created_by, s.created_by_kind, s.updated_by, s.updated_by_kind, s.created_at, s.updated_at FROM subscriptions s
+JOIN plans p ON p.id = s.plan_id
+WHERE s.status = 'active'
+  AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
+  AND s.cancel_at IS NULL
+  AND p.price_amount IS NOT NULL AND p.price_amount > 0
+ORDER BY s.current_period_end
+LIMIT $1
+`
+
+// tenant: system
+func (q *Queries) ListSubscriptionsDueForPastDue(ctx context.Context, limit int32) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listSubscriptionsDueForPastDue, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PlanID,
+			&i.Status,
+			&i.Provider,
+			&i.ProviderCustomerID,
+			&i.ProviderSubscriptionID,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CancelAt,
+			&i.CanceledAt,
+			&i.TrialEndsAt,
+			&i.Overrides,
+			&i.RowVersion,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.UpdatedBy,
+			&i.UpdatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockLiveSubscription = `-- name: LockLiveSubscription :one
 SELECT id, organization_id, plan_id, status, provider, provider_customer_id, provider_subscription_id, current_period_start, current_period_end, cancel_at, canceled_at, trial_ends_at, overrides, row_version, created_by, created_by_kind, updated_by, updated_by_kind, created_at, updated_at FROM subscriptions WHERE organization_id = $1 AND status <> 'canceled' FOR UPDATE
 `
 
 func (q *Queries) LockLiveSubscription(ctx context.Context, organizationID string) (Subscription, error) {
 	row := q.db.QueryRow(ctx, lockLiveSubscription, organizationID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PlanID,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderCustomerID,
+		&i.ProviderSubscriptionID,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAt,
+		&i.CanceledAt,
+		&i.TrialEndsAt,
+		&i.Overrides,
+		&i.RowVersion,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markBillingPaymentIntentCompleted = `-- name: MarkBillingPaymentIntentCompleted :one
+UPDATE billing_payment_intents SET
+  status = 'completed',
+  completed_at = now(),
+  updated_at = now(),
+  provider_bank_code = COALESCE($3, provider_bank_code),
+  provider_transaction_no = COALESCE($4, provider_transaction_no),
+  provider_order_info = COALESCE($5, provider_order_info),
+  provider_pay_date = COALESCE($6, provider_pay_date)
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed', 'expired')
+RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at
+`
+
+type MarkBillingPaymentIntentCompletedParams struct {
+	ID                    string      `json:"id"`
+	OrganizationID        string      `json:"organization_id"`
+	ProviderBankCode      pgtype.Text `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text `json:"provider_transaction_no"`
+	ProviderOrderInfo     pgtype.Text `json:"provider_order_info"`
+	ProviderPayDate       pgtype.Text `json:"provider_pay_date"`
+}
+
+func (q *Queries) MarkBillingPaymentIntentCompleted(ctx context.Context, arg MarkBillingPaymentIntentCompletedParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, markBillingPaymentIntentCompleted,
+		arg.ID,
+		arg.OrganizationID,
+		arg.ProviderBankCode,
+		arg.ProviderTransactionNo,
+		arg.ProviderOrderInfo,
+		arg.ProviderPayDate,
+	)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderOrderInfo,
+		&i.ProviderPayDate,
+		&i.ReconcileAttemptedAt,
+	)
+	return i, err
+}
+
+const markBillingPaymentIntentFailed = `-- name: MarkBillingPaymentIntentFailed :exec
+UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired')
+`
+
+type MarkBillingPaymentIntentFailedParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) MarkBillingPaymentIntentFailed(ctx context.Context, arg MarkBillingPaymentIntentFailedParams) error {
+	_, err := q.db.Exec(ctx, markBillingPaymentIntentFailed, arg.ID, arg.OrganizationID)
+	return err
+}
+
+const markSubscriptionPastDue = `-- name: MarkSubscriptionPastDue :one
+UPDATE subscriptions s SET
+  status = 'past_due',
+  row_version = s.row_version + 1,
+  updated_by = $3,
+  updated_by_kind = $4,
+  updated_at = now()
+FROM plans p
+WHERE s.id = $1 AND s.organization_id = $2 AND s.plan_id = p.id
+  AND p.price_amount IS NOT NULL AND p.price_amount > 0
+  AND s.status = 'active'
+  AND s.cancel_at IS NULL
+  AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
+RETURNING s.id, s.organization_id, s.plan_id, s.status, s.provider, s.provider_customer_id, s.provider_subscription_id, s.current_period_start, s.current_period_end, s.cancel_at, s.canceled_at, s.trial_ends_at, s.overrides, s.row_version, s.created_by, s.created_by_kind, s.updated_by, s.updated_by_kind, s.created_at, s.updated_at
+`
+
+type MarkSubscriptionPastDueParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
+}
+
+func (q *Queries) MarkSubscriptionPastDue(ctx context.Context, arg MarkSubscriptionPastDueParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, markSubscriptionPastDue,
+		arg.ID,
+		arg.OrganizationID,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PlanID,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderCustomerID,
+		&i.ProviderSubscriptionID,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAt,
+		&i.CanceledAt,
+		&i.TrialEndsAt,
+		&i.Overrides,
+		&i.RowVersion,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const patchBillingPaymentIntentProviderMeta = `-- name: PatchBillingPaymentIntentProviderMeta :exec
+UPDATE billing_payment_intents SET
+  provider_bank_code = CASE
+    WHEN $3::text IS NOT NULL AND btrim($3::text) <> ''
+    THEN btrim($3::text)
+    ELSE provider_bank_code
+  END,
+  provider_transaction_no = CASE
+    WHEN $4::text IS NOT NULL AND btrim($4::text) <> ''
+    THEN btrim($4::text)
+    ELSE provider_transaction_no
+  END,
+  provider_order_info = CASE
+    WHEN $5::text IS NOT NULL AND btrim($5::text) <> ''
+    THEN btrim($5::text)
+    ELSE provider_order_info
+  END,
+  provider_pay_date = CASE
+    WHEN $6::text IS NOT NULL AND btrim($6::text) <> ''
+    THEN btrim($6::text)
+    ELSE provider_pay_date
+  END,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status = 'completed'
+`
+
+type PatchBillingPaymentIntentProviderMetaParams struct {
+	ID                    string      `json:"id"`
+	OrganizationID        string      `json:"organization_id"`
+	ProviderBankCode      pgtype.Text `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text `json:"provider_transaction_no"`
+	ProviderOrderInfo     pgtype.Text `json:"provider_order_info"`
+	ProviderPayDate       pgtype.Text `json:"provider_pay_date"`
+}
+
+func (q *Queries) PatchBillingPaymentIntentProviderMeta(ctx context.Context, arg PatchBillingPaymentIntentProviderMetaParams) error {
+	_, err := q.db.Exec(ctx, patchBillingPaymentIntentProviderMeta,
+		arg.ID,
+		arg.OrganizationID,
+		arg.ProviderBankCode,
+		arg.ProviderTransactionNo,
+		arg.ProviderOrderInfo,
+		arg.ProviderPayDate,
+	)
+	return err
+}
+
+const revertSubscriptionToDefaultAfterInvoiceRefund = `-- name: RevertSubscriptionToDefaultAfterInvoiceRefund :one
+UPDATE subscriptions SET
+  plan_id = $3,
+  status = 'active',
+  provider = 'manual',
+  current_period_start = now(),
+  current_period_end = NULL,
+  cancel_at = NULL,
+  canceled_at = NULL,
+  row_version = row_version + 1,
+  updated_by = $4,
+  updated_by_kind = $5,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND status <> 'canceled'
+  AND plan_id <> $3
+RETURNING id, organization_id, plan_id, status, provider, provider_customer_id, provider_subscription_id, current_period_start, current_period_end, cancel_at, canceled_at, trial_ends_at, overrides, row_version, created_by, created_by_kind, updated_by, updated_by_kind, created_at, updated_at
+`
+
+type RevertSubscriptionToDefaultAfterInvoiceRefundParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	PlanID         string `json:"plan_id"`
+	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
+}
+
+func (q *Queries) RevertSubscriptionToDefaultAfterInvoiceRefund(ctx context.Context, arg RevertSubscriptionToDefaultAfterInvoiceRefundParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, revertSubscriptionToDefaultAfterInvoiceRefund,
+		arg.ID,
+		arg.OrganizationID,
+		arg.PlanID,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PlanID,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderCustomerID,
+		&i.ProviderSubscriptionID,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAt,
+		&i.CanceledAt,
+		&i.TrialEndsAt,
+		&i.Overrides,
+		&i.RowVersion,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const revertSubscriptionToDefaultAtCancel = `-- name: RevertSubscriptionToDefaultAtCancel :one
+UPDATE subscriptions SET
+  plan_id = $3,
+  status = 'active',
+  provider = 'manual',
+  current_period_start = now(),
+  current_period_end = NULL,
+  cancel_at = NULL,
+  canceled_at = NULL,
+  row_version = row_version + 1,
+  updated_by = $4,
+  updated_by_kind = $5,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND cancel_at IS NOT NULL AND cancel_at <= now()
+RETURNING id, organization_id, plan_id, status, provider, provider_customer_id, provider_subscription_id, current_period_start, current_period_end, cancel_at, canceled_at, trial_ends_at, overrides, row_version, created_by, created_by_kind, updated_by, updated_by_kind, created_at, updated_at
+`
+
+type RevertSubscriptionToDefaultAtCancelParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	PlanID         string `json:"plan_id"`
+	UpdatedBy      string `json:"updated_by"`
+	UpdatedByKind  string `json:"updated_by_kind"`
+}
+
+func (q *Queries) RevertSubscriptionToDefaultAtCancel(ctx context.Context, arg RevertSubscriptionToDefaultAtCancelParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, revertSubscriptionToDefaultAtCancel,
+		arg.ID,
+		arg.OrganizationID,
+		arg.PlanID,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+	)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
@@ -460,6 +1765,7 @@ type SetSubscriptionCancelAtParams struct {
 	UpdatedByKind string             `json:"updated_by_kind"`
 }
 
+// tenant: by-id
 func (q *Queries) SetSubscriptionCancelAt(ctx context.Context, arg SetSubscriptionCancelAtParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, setSubscriptionCancelAt,
 		arg.ID,
@@ -491,4 +1797,86 @@ func (q *Queries) SetSubscriptionCancelAt(ctx context.Context, arg SetSubscripti
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updatePlanCatalog = `-- name: UpdatePlanCatalog :one
+UPDATE plans SET
+  name = $2,
+  description = $3,
+  billing_period = $4,
+  price_amount = $5,
+  price_currency = $6,
+  is_active = $7,
+  sort_order = $8,
+  updated_at = now()
+WHERE code = $1
+RETURNING id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at
+`
+
+type UpdatePlanCatalogParams struct {
+	Code          string      `json:"code"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	BillingPeriod string      `json:"billing_period"`
+	PriceAmount   pgtype.Int8 `json:"price_amount"`
+	PriceCurrency string      `json:"price_currency"`
+	IsActive      bool        `json:"is_active"`
+	SortOrder     int32       `json:"sort_order"`
+}
+
+func (q *Queries) UpdatePlanCatalog(ctx context.Context, arg UpdatePlanCatalogParams) (Plan, error) {
+	row := q.db.QueryRow(ctx, updatePlanCatalog,
+		arg.Code,
+		arg.Name,
+		arg.Description,
+		arg.BillingPeriod,
+		arg.PriceAmount,
+		arg.PriceCurrency,
+		arg.IsActive,
+		arg.SortOrder,
+	)
+	var i Plan
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Description,
+		&i.BillingPeriod,
+		&i.PriceAmount,
+		&i.PriceCurrency,
+		&i.IsDefault,
+		&i.IsActive,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertPlanFeatureRow = `-- name: UpsertPlanFeatureRow :execrows
+INSERT INTO plan_features (plan_id, feature_key, enabled, quota_limit)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (plan_id, feature_key) DO UPDATE SET
+  enabled = EXCLUDED.enabled,
+  quota_limit = EXCLUDED.quota_limit
+`
+
+type UpsertPlanFeatureRowParams struct {
+	PlanID     string      `json:"plan_id"`
+	FeatureKey string      `json:"feature_key"`
+	Enabled    bool        `json:"enabled"`
+	QuotaLimit pgtype.Int8 `json:"quota_limit"`
+}
+
+func (q *Queries) UpsertPlanFeatureRow(ctx context.Context, arg UpsertPlanFeatureRowParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertPlanFeatureRow,
+		arg.PlanID,
+		arg.FeatureKey,
+		arg.Enabled,
+		arg.QuotaLimit,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

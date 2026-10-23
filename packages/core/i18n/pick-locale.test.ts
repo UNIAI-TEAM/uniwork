@@ -15,7 +15,7 @@ function makeAdapter(
 
 describe("matchLocale", () => {
   it("returns DEFAULT_LOCALE when given an empty list", () => {
-    expect(matchLocale([])).toBe("vi");
+    expect(matchLocale([])).toBe("en");
   });
 
   it("matches a clean supported tag", () => {
@@ -29,7 +29,7 @@ describe("matchLocale", () => {
   });
 
   it("falls back to DEFAULT_LOCALE when no candidate matches", () => {
-    expect(matchLocale(["fr", "de"])).toBe("vi");
+    expect(matchLocale(["fr", "de"])).toBe("en");
   });
 
   it("uses the first supported candidate when multiple appear", () => {
@@ -38,8 +38,8 @@ describe("matchLocale", () => {
   });
 
   it("returns DEFAULT_LOCALE for malformed BCP-47 tags rather than throwing", () => {
-    expect(matchLocale(["----"])).toBe("vi");
-    expect(matchLocale(["x-private-only"])).toBe("vi");
+    expect(matchLocale(["----"])).toBe("en");
+    expect(matchLocale(["x-private-only"])).toBe("en");
   });
 });
 
@@ -64,7 +64,7 @@ describe("pickLocale", () => {
       getUserChoice: () => null,
       getSystemPreferences: () => ["fr", "de"],
     });
-    expect(pickLocale(adapter)).toBe("vi");
+    expect(pickLocale(adapter)).toBe("en");
   });
 
   it("ignores empty-string user choice and falls through to system", () => {
@@ -89,6 +89,6 @@ describe("parseAcceptLanguage", () => {
   it("feeds matchLocale the same way navigator.languages does", () => {
     expect(matchLocale(parseAcceptLanguage("en-US,en;q=0.9,vi;q=0.8"))).toBe("en");
     expect(matchLocale(parseAcceptLanguage("vi-VN,vi;q=0.9,en;q=0.8"))).toBe("vi");
-    expect(matchLocale(parseAcceptLanguage("fr-FR"))).toBe("vi");
+    expect(matchLocale(parseAcceptLanguage("fr-FR"))).toBe("en");
   });
 });

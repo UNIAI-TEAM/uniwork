@@ -31,7 +31,7 @@ func (h *handlers) createChatChannel(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) listChatChannels(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	rooms, err := h.Chat.ListChannels(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.ListChannelsInput{
-		Scope: q.Get("scope"), ProjectID: q.Get("project_id"), Query: q.Get("q"),
+		Scope: q.Get("scope"), ProjectID: q.Get("project_id"),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

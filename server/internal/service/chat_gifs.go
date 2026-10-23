@@ -48,7 +48,7 @@ func (s *ChatService) SearchChatGifs(ctx context.Context, ownerID, workspaceID, 
 	if len([]rune(query)) > maxGifSearchLen {
 		return nil, Invalid("từ khóa quá dài")
 	}
-	if strings.TrimSpace(s.TenorAPIKey) == "" {
+	if !s.chatMediaRemoteEnabled() {
 		return s.offlineChatGifs(query), nil
 	}
 	return s.fetchTenor(ctx, tenorRequest{
@@ -64,7 +64,7 @@ func (s *ChatService) TrendingChatGifs(ctx context.Context, ownerID, workspaceID
 	if _, err := s.workspaceForChat(ctx, ownerID, workspaceID); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(s.TenorAPIKey) == "" {
+	if !s.chatMediaRemoteEnabled() {
 		return s.offlineChatGifs(""), nil
 	}
 	return s.fetchTenor(ctx, tenorRequest{

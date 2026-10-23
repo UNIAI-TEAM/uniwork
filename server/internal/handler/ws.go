@@ -30,9 +30,8 @@ func (a meetingLobbyAuth) AllowLobbyListen(ctx context.Context, meetingID, userI
 
 // IsMember answers from the Redis cache when it can. Only positive answers
 // are cached (a denial must re-check so a freshly accepted invite works
-// immediately), and the TTL bounds how long a removed member keeps a live
-// socket — there is no explicit invalidation path yet because there is no
-// remove-member operation yet.
+// immediately); removal, deactivation and leaving drop the entry
+// (realtime.AccessRevoker), and the TTL is the backstop.
 func (m workspaceMembership) IsMember(ctx context.Context, userID, workspaceID string) bool {
 	if m.cache != nil && m.cache.Get(ctx, userID, workspaceID) {
 		return true
@@ -60,7 +59,22 @@ func (h *handlers) ws(w http.ResponseWriter, r *http.Request) {
 		}
 		return h.Workspaces.ResolveSlugs(ctx, org, ws)
 	}
-	realtime.HandleWebSocket(h.Hub, workspaceMembership{ws: h.Workspaces, cache: h.MembershipCache}, h.Minter.Parse, resolve, w, r)
+	realtime.HandleWebSocket(h.Hub, workspaceMembership{ws: h.Workspaces, cache: h.MembershipCache}, h.wsIdentity, resolve, w, r)
+}
+
+// wsIdentity checks a socket's token the way RequireAuthWithDevice checks a
+// request's: a revoked desktop device is refused here too, not only on HTTP.
+func (h *handlers) wsIdentity(ctx context.Context, token string) (realtime.Identity, error) {
+	at, err := h.Minter.ParseAccessToken(token)
+	if err != nil {
+		return realtime.Identity{}, err
+	}
+	if !at.Web && h.DesktopAuth != nil {
+		if err := h.DesktopAuth.CheckDeviceSession(ctx, at.UserID, at.SessionID); err != nil {
+			return realtime.Identity{}, err
+		}
+	}
+	return realtime.Identity{UserID: at.UserID, SessionID: at.SessionID, ExpiresAt: at.ExpiresAt}, nil
 }
 
 // GET /api/v1/meetings/{meetingID}/lobby-ws

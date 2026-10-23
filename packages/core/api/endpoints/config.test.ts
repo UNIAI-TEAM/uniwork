@@ -5,6 +5,12 @@ import { getPublicConfig, postWebVital } from "./config";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+// Nothing published: what every catalogue degrades to.
+const NO_DOWNLOADS = {
+  office_installers: { dev: [], beta: [], stable: [] },
+  unichat_installers: { dev: [], beta: [], stable: [] },
+  unichat_stores: { ios: "", android: "", testflight: "", play_internal: "" },
+};
 
 describe("config endpoints", () => {
   beforeEach(() => {
@@ -23,15 +29,125 @@ describe("config endpoints", () => {
       flags: { rum_sampling: true },
       rum_sample_rate: 0.2,
       work_management_capabilities: {},
+      ...NO_DOWNLOADS,
+      documents: {
+        limits: {
+          upload_max_bytes: 209715200,
+          save_warn_ratio: 0.9,
+          web_open: {
+            docx: { warn_bytes: 31457280 },
+            pptx: { warn_bytes: 26214400 },
+            pdf: { warn_bytes: 52428800 },
+            xlsx: { warn_bytes: 5242880 },
+          },
+        },
+      },
     });
+    expect(cfg.office_deployment_id).toBeUndefined();
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/api/v1/config?organization_id=org1");
   });
 
   it("getPublicConfig degrades a malformed response to no flags and no sampling", async () => {
+    const empty = {
+      flags: {},
+      rum_sample_rate: 0,
+      work_management_capabilities: {},
+      ...NO_DOWNLOADS,
+      documents: {
+        limits: {
+          upload_max_bytes: 209715200,
+          save_warn_ratio: 0.9,
+          web_open: {
+            docx: { warn_bytes: 31457280 },
+            pptx: { warn_bytes: 26214400 },
+            pdf: { warn_bytes: 52428800 },
+            xlsx: { warn_bytes: 5242880 },
+          },
+        },
+      },
+    };
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: "nope", rum_sample_rate: 7 }));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {} });
+    expect(await getPublicConfig()).toEqual(empty);
     vi.mocked(fetch).mockResolvedValueOnce(json([1, 2]));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {} });
+    expect(await getPublicConfig()).toEqual(empty);
+  });
+
+  it("getPublicConfig carries the default-config deployment id through unchanged", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_deployment_id: "default" }));
+    expect((await getPublicConfig()).office_deployment_id).toBe("default");
+  });
+
+  it("getPublicConfig carries the desktop API origin and drops a drifted one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_api_origin: "https://api.test" }));
+    expect((await getPublicConfig()).office_api_origin).toBe("https://api.test");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: { a: true }, rum_sample_rate: 0, office_api_origin: 42 }));
+    const drifted = await getPublicConfig();
+    expect(drifted.office_api_origin).toBeUndefined();
+    expect(drifted.flags).toEqual({ a: true });
+  });
+
+  it("getPublicConfig leaves the deployment id undefined when the server never advertises one (fail closed)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0 }));
+    expect((await getPublicConfig()).office_deployment_id).toBeUndefined();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_deployment_id: "   " }));
+    expect((await getPublicConfig()).office_deployment_id).toBeUndefined();
+  });
+
+  it("accepts deployment installer URLs per channel and rejects arbitrary protocols", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      flags: {}, rum_sample_rate: 0,
+      office_installer_urls: { dev: "https://downloads.test/dev.exe", beta: "https://downloads.test/beta.exe", stable: "javascript:alert(1)" },
+    }));
+    const cfg = await getPublicConfig();
+    expect(cfg.office_installers).toEqual({
+      dev: [{ platform: "win32-x64", kind: ".exe", channel: "dev", url: "https://downloads.test/dev.exe" }],
+      beta: [{ platform: "win32-x64", kind: ".exe", channel: "beta", url: "https://downloads.test/beta.exe" }], stable: [],
+    });
+  });
+  it("uses platform catalogues per channel and ignores unknown, unsafe or malformed rows", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_installers: {
+      dev: [{ platform: "linux-x64-deb", url: "http://localhost:18584/office.deb", kind: ".deb" }, { platform: "unknown", url: "javascript:alert(1)", kind: ".future" }],
+      beta: [{ platform: "darwin-arm64", url: "https://downloads.test/office.dmg", kind: ".dmg" }],
+      stable: [{ platform: "win32-x64", url: "javascript:alert(1)", kind: ".exe" }],
+    }}));
+    expect((await getPublicConfig()).office_installers).toEqual({
+      dev: [{ platform: "linux-x64-deb", url: "http://localhost:18584/office.deb", kind: ".deb", channel: "dev" }],
+      beta: [{ platform: "darwin-arm64", url: "https://downloads.test/office.dmg", kind: ".dmg", channel: "beta" }], stable: [],
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_installers: { dev: [{ platform: "win32-x64", kind: 42 }], stable: [] } }));
+    expect((await getPublicConfig()).office_installers).toEqual({ dev: [], beta: [], stable: [] });
+  });
+
+  it("reads the UniChat catalogue with Office's platform rules and keeps only HTTPS store links", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0,
+      unichat_installers: {
+        dev: [
+          { platform: "darwin-arm64", url: "https://downloads.test/UniChat_0.1.0-dev.1_unsigned_darwin_arm64.dmg", kind: ".dmg", version: "0.1.0-dev.1", unsigned: true },
+          { platform: "unknown", url: "javascript:alert(1)", kind: ".future" },
+        ],
+        beta: "nope",
+        stable: [{ platform: "win32-x64", url: "javascript:alert(1)", kind: ".exe" }],
+      },
+      unichat_stores: { ios: "https://apps.apple.com/app/id1234567890", android: "http://play.google.com/store/apps/details?id=x", testflight: 42, play_internal: " https://play.google.com/apps/internaltest/1 " },
+    }));
+    const cfg = await getPublicConfig();
+    expect(cfg.unichat_installers).toEqual({
+      dev: [{ platform: "darwin-arm64", url: "https://downloads.test/UniChat_0.1.0-dev.1_unsigned_darwin_arm64.dmg", kind: ".dmg", version: "0.1.0-dev.1", unsigned: true, channel: "dev" }],
+      beta: [], stable: [],
+    });
+    expect(cfg.unichat_stores).toEqual({ ios: "https://apps.apple.com/app/id1234567890", android: "", testflight: "", play_internal: "https://play.google.com/apps/internaltest/1" });
+    expect(cfg.office_installers).toEqual({ dev: [], beta: [], stable: [] });
+  });
+
+  it("degrades a drifted UniChat block to nothing published without dropping the rest", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: { a: true }, rum_sample_rate: 0.5, unichat_installers: [1, 2], unichat_stores: "https://apps.apple.com/app/id1" }));
+    const cfg = await getPublicConfig();
+    expect(cfg.flags).toEqual({ a: true });
+    expect(cfg.rum_sample_rate).toBe(0.5);
+    expect(cfg.unichat_installers).toEqual({ dev: [], beta: [], stable: [] });
+    expect(cfg.unichat_stores).toEqual({ ios: "", android: "", testflight: "", play_internal: "" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, unichat_stores: { ios: "https://user:pw@apps.apple.com/app/id1", android: "itms-apps://x" } }));
+    expect((await getPublicConfig()).unichat_stores).toEqual({ ios: "", android: "", testflight: "", play_internal: "" });
   });
 
   it("degrades malformed capability entries to the unavailable fallback", async () => {
@@ -61,5 +177,202 @@ describe("config endpoints", () => {
       value: 1830,
       route: "/[orgSlug]/[workspaceSlug]/tasks",
     });
+  });
+
+  it("parses documents.limits with and without chunked_upload_threshold_bytes", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: 209715200,
+            save_warn_ratio: 0.9,
+            web_open: {
+              docx: { warn_bytes: 31457280 },
+              pptx: { warn_bytes: 26214400 },
+              pdf: { warn_bytes: 52428800 },
+              xlsx: { warn_bytes: 5242880 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      upload_max_bytes: 209715200,
+      save_warn_ratio: 0.9,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: 104857600,
+            save_warn_ratio: 0.85,
+            chunked_upload_threshold_bytes: 20971520,
+            web_open: {
+              docx: { warn_bytes: 31457280 },
+              pptx: { warn_bytes: 26214400 },
+              pdf: { warn_bytes: 52428800 },
+              xlsx: { warn_bytes: 5242880 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      upload_max_bytes: 104857600,
+      save_warn_ratio: 0.85,
+      chunked_upload_threshold_bytes: 20971520,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    });
+  });
+
+  it("degrades missing or malformed documents.limits fields to the contract fallbacks", async () => {
+    const fallbackLimits = {
+      upload_max_bytes: 209715200,
+      save_warn_ratio: 0.9,
+      web_open: {
+        docx: { warn_bytes: 31457280 },
+        pptx: { warn_bytes: 26214400 },
+        pdf: { warn_bytes: 52428800 },
+        xlsx: { warn_bytes: 5242880 },
+      },
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, documents: "bad" }));
+    expect((await getPublicConfig()).documents?.limits).toEqual(fallbackLimits);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            upload_max_bytes: -10,
+            save_warn_ratio: "nope",
+            chunked_upload_threshold_bytes: "bad",
+            web_open: {
+              docx: { warn_bytes: "bad" },
+              pptx: "bad",
+              pdf: { warn_bytes: 0 },
+              xlsx: { warn_bytes: 6291456 },
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits).toEqual({
+      ...fallbackLimits,
+      web_open: {
+        ...fallbackLimits.web_open,
+        xlsx: { warn_bytes: 6291456 },
+      },
+    });
+  });
+
+  it("reads documents.limits.folder_upload and leaves it undefined when the server lacks it", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, documents: { limits: {} } }));
+    const absent = (await getPublicConfig()).documents?.limits;
+    expect(absent?.folder_upload).toBeUndefined();
+    expect(absent && "folder_upload" in absent).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            folder_upload: {
+              max_files: 300,
+              max_folders: 200,
+              max_total_bytes: 1073741824,
+              max_depth: 10,
+              parallel: 3,
+              complete_batch: 25,
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual({
+      max_files: 300,
+      max_folders: 200,
+      max_total_bytes: 1073741824,
+      max_depth: 10,
+      parallel: 3,
+      complete_batch: 25,
+    });
+  });
+
+  it("degrades malformed folder_upload fields to the contract defaults, and a non-object block to absent", async () => {
+    const defaults = {
+      max_files: 500,
+      max_folders: 500,
+      max_total_bytes: 2147483648,
+      max_depth: 20,
+      parallel: 6,
+      complete_batch: 50,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { folder_upload: {} } } }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual(defaults);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        flags: {},
+        rum_sample_rate: 0,
+        documents: {
+          limits: {
+            folder_upload: {
+              max_files: "many",
+              max_folders: [],
+              max_total_bytes: -1,
+              max_depth: 2.5,
+              parallel: null,
+              complete_batch: 0,
+            },
+          },
+        },
+      }),
+    );
+    expect((await getPublicConfig()).documents?.limits.folder_upload).toEqual(defaults);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_max_bytes: 1000, folder_upload: "yes" } } }),
+    );
+    const limits = (await getPublicConfig()).documents?.limits;
+    expect(limits?.upload_max_bytes).toBe(1000);
+    expect(limits?.folder_upload).toBeUndefined();
+  });
+
+  it("reads documents.limits.upload_extensions lower-cased without dots, and absent when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_extensions: ["pdf", ".DOCX", 7, "", "xlsx"] } } }),
+    );
+    expect((await getPublicConfig()).documents?.limits.upload_extensions).toEqual(["pdf", "docx", "xlsx"]);
+
+    for (const drifted of ["pdf", {}, null, []]) {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({ flags: {}, rum_sample_rate: 0, documents: { limits: { upload_extensions: drifted } } }),
+      );
+      const limits = (await getPublicConfig()).documents?.limits;
+      expect(limits?.upload_extensions).toBeUndefined();
+      expect(limits && "upload_extensions" in limits).toBe(false);
+    }
   });
 });

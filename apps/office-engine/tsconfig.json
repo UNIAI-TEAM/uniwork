@@ -1,0 +1,7 @@
+{
+  "extends": "@uniwork/tsconfig/base.json",
+  // Worker files import siblings with explicit .ts extensions so Node 22 can
+  // run them with type stripping (the worker is its own process).
+  "compilerOptions": { "allowImportingTsExtensions": true, "noEmit": true },
+  "include": ["."]
+}

@@ -1,0 +1,600 @@
+{
+  "schemaVersion": 1,
+  "version": "1.1.0",
+  "date": "2026-10-13",
+  "ready": true,
+  "sourceRef": "4449109cd71c872845a082d5e449db65c8608428",
+  "previousSourceRef": "4b7bd3fc082e033c317b9794b4d9b6a949cb92f0",
+  "title": {
+    "vi": "Dữ liệu tổ chức, Office và cập nhật Email Hub",
+    "en": "Organization data controls, Office and Email Hub updates"
+  },
+  "summary": {
+    "vi": "Xuất và đặt lịch xóa dữ liệu tổ chức, khám phá UniWork Office, theo dõi phiên bản ứng dụng và sử dụng Email Hub, thanh toán VNPay ổn định hơn.",
+    "en": "Export and schedule deletion of organization data, explore UniWork Office, follow application releases, and benefit from more reliable Email Hub and VNPay payments."
+  },
+  "note": {
+    "vi": "Xuất và xóa dữ liệu tổ chức dành cho chủ sở hữu tổ chức. Trang Tài liệu phụ thuộc vào việc tổ chức có bật tính năng này. Nút tải bộ cài chỉ hiện với bản đã phát hành. Kết nối email và các tính năng AI vẫn cần cấu hình tương ứng của tổ chức.",
+    "en": "Organization data export and deletion are for organization owners. The Documents home depends on the organization enabling that feature. Installer buttons appear only for published builds. Email connections and AI features still need the organization's corresponding configuration."
+  },
+  "changes": [
+    {
+      "commit": "a1d8c53d5022a921403f4dc38949d308db212f2e",
+      "subject": "feat(privacy): export organization data and erase it after five days",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chủ sở hữu có thể xuất dữ liệu nghiệp vụ của tổ chức thành tệp ZIP, đặt lịch xóa sau 5 ngày và hủy trước khi tác vụ chạy. Trong thời gian chờ xóa, thành viên không truy cập được; nhật ký hoạt động và hóa đơn được giữ lại.",
+        "en": "Organization owners can export business data as a ZIP, schedule deletion after five days and cancel before it runs. Members cannot access the organization while deletion is pending; activity logs and invoices are retained."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/236"
+      }
+    },
+    {
+      "commit": "a28ef9df5302caf8859fd0306d2f8a5752395aa2",
+      "subject": "chore(secrets): ignore the office pivot test vendor keys",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Repository hygiene: ignores test vendor keys. No application change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "768dd470f837054d1b75f8415b6ec859ffc14bea",
+      "subject": "fix(privacy): inject the graph wipe so service does not import projector",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Pre-release correction to the organization data export/deletion feature introduced in this same unreleased window (a1d8c53d); internal wiring only, no behaviour visible to users beyond the feature entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "2fb17962d80cbebe79248cd7ae097cdb5383f76c",
+      "subject": "fix(privacy): drop the unused export link lifetime constant",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Removes an unused constant in the same unreleased export feature; the 24-hour download window is unchanged and already described by the feature entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "9481d30247b43548260eb8069975e0b705330d1b",
+      "subject": "fix(privacy): leave sealed AI provider keys out of the export",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Adjusts what the unreleased export contains (vendor AI provider keys stay out); shipped behaviour is covered by the export feature entry, and naming the key table publicly adds no user value.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "768fddab7062f11312bfa9bfd8d50c7967dac816",
+      "subject": "fix(billing): answer VNPay IPN with the merchant JSON codes",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "VNPay payments are answered with the correct confirmation codes, so a completed payment is no longer treated as unconfirmed and retried.",
+        "vi": "Thanh toán VNPay được phản hồi bằng đúng mã xác nhận, nên giao dịch đã trả không còn bị coi là chưa xác nhận và gọi lại nhiều lần."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/244"
+      }
+    },
+    {
+      "commit": "adea71f7d7b076297076d43eddb74258e3fbc453",
+      "subject": "feat(changelog): add public releases and UniAI content review",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A public changelog at /changelog lists releases by month with new features, improvements and fixes, linked from the main menu and the footer.",
+        "vi": "Trang Nhật ký cập nhật công khai tại /changelog liệt kê các phiên bản theo tháng với tính năng mới, cải tiến và sửa lỗi, có liên kết trên menu chính và chân trang."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/246"
+      }
+    },
+    {
+      "commit": "568278d78fe988cb444665922b5d161f58f487eb",
+      "subject": "UNI-1305: Documents home, Office page and plain installer download (#243)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A public UniWork Office page at /office with the six editors, real screenshots and per-OS installer buttons; only published installers are shown. The new Documents home — folders, blank docx, pptx and pdf files, and files from chat, tasks, meetings and Email Hub — is available where the organization enables the Documents feature.",
+        "vi": "Trang giới thiệu UniWork Office tại /office với sáu trình soạn, ảnh màn hình thật và nút tải bộ cài theo hệ điều hành; chỉ bản cài đã phát hành mới hiện. Trang Tài liệu mới — thư mục, tạo tệp docx, pptx, pdf trống và tệp từ chat, việc, cuộc họp, Email Hub — dùng được khi tổ chức bật tính năng Tài liệu."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/243"
+      }
+    },
+    {
+      "commit": "765afb05838431b559dca639883b04e0abaa6f79",
+      "subject": "test(changelog): keep Office menu contract compatible with release navigation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only change keeping the Office menu contract compatible with the release navigation.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "205309447d622bc37cd787b5c6b0707bf9306b64",
+      "subject": "ci: give the Go suite an hour under the race detector",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "CI configuration only: raises the Go suite timeout under the race detector.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "cb2733aec4322d35334e953e23ad6058a0149565",
+      "subject": "fix(billing): accept a paid VNPay IPN for an expired intent",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Thanh toán VNPay đã hoàn tất vẫn được ghi nhận khi liên kết thanh toán đã hết hạn hoặc được thay thế, cập nhật gói và tạo hóa đơn tương ứng.",
+        "en": "Completed VNPay payments are still applied when the checkout link has expired or been replaced, updating the plan and creating the corresponding invoice."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/253"
+      }
+    },
+    {
+      "commit": "5e727e48bbd9c29c40c04b707315db20e6c086f1",
+      "subject": "fix(billing): reconcile VNPay checkouts whose IPN never applied",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "When VNPay's callback never arrives, an automatic reconciliation pass rechecks the transaction and applies a paid one, or marks it failed when unpaid.",
+        "vi": "Khi phản hồi thanh toán từ VNPay không về, một lượt đối soát tự động kiểm tra lại giao dịch và áp dụng khoản đã trả, hoặc đánh dấu thất bại nếu chưa trả."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/254"
+      }
+    },
+    {
+      "commit": "ec225b32055926015c6afb2eb36a1919642261a4",
+      "subject": "fix(billing): keep a failed VNPay IPN in the inbox for retry",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Keeps a failed payment callback queued for the retry worker and its dead-letter alert; operational reliability behind the VNPay reconciliation fix (5e727e48) already listed, no separate user-visible change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "71ffdf93b83f81b3b7b7bb3f6530b58373687b6e",
+      "subject": "feat(landing): show real app screenshots in the hero core",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "The landing page shows real captures of the tasks, chat, meetings and document editor screens, in the current language and matching the active light or dark theme.",
+        "vi": "Trang giới thiệu hiển thị ảnh chụp thật của màn hình việc, trò chuyện, cuộc họp và trình soạn tài liệu, theo ngôn ngữ đang dùng và khớp giao diện sáng hoặc tối."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/animation/scene-models.ts",
+          "apps/web/features/landing/animation/interactive-scene.tsx",
+          "apps/web/public/landing/screens/manifest.json"
+        ]
+      }
+    },
+    {
+      "commit": "19779a2b9fd76be467a884c5666dc14129f20c27",
+      "subject": "fix(billing): keep invoice numbers unique inside one reconcile batch",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Correction to the VNPay reconciliation pass (5e727e48) added in this same unreleased window; folded into that fix entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "9dc82503bd070e61e17dc4bd3eff51e8de1366cd",
+      "subject": "fix(landing): match hero screenshots to the active theme",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Completes the unreleased landing screenshot work (71ffdf93) with dark-theme captures and theme resolution; folded into that improvement entry.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "bea7437a334f574eb0916083fe1108575338371d",
+      "subject": "fix(storage): block private Email Hub bodies from uploads (#242)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Quyền truy cập nội dung thư trong Email Hub được áp dụng nhất quán.",
+        "en": "Access to Email Hub message bodies consistently follows the user's permissions."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/242"
+      }
+    },
+    {
+      "commit": "d8d9d6735f802da39818b11f34d4484f1768faf0",
+      "subject": "fix(email-hub): encode non-ASCII email subjects (#245)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Outgoing email subjects with Vietnamese accents are encoded to the standard and no longer appear as broken characters for recipients.",
+        "vi": "Tiêu đề thư gửi đi có dấu tiếng Việt được mã hóa đúng chuẩn nên không còn hiện sai ký tự ở phía người nhận."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/245"
+      }
+    },
+    {
+      "commit": "8ca4dcdc17f4c9a17b264412f20895eeaf2e2f40",
+      "subject": "fix(email-hub): bound IMAP dial and login time (#250)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "IMAP now has a time limit when opening the connection and signing in, so an unresponsive mail server reports an error instead of hanging.",
+        "vi": "Kết nối IMAP có thời hạn chờ khi mở kết nối và đăng nhập, nên máy chủ thư không phản hồi sẽ báo lỗi thay vì treo."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/250"
+      }
+    },
+    {
+      "commit": "70e7e68ffc6f459dec9a14f590f82c1146f5d7b3",
+      "subject": "fix(email-hub): reply to sent message recipients (#233)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Replying to a message in Sent addresses the original recipients instead of yourself.",
+        "vi": "Trả lời một thư trong mục Đã gửi điền đúng người nhận ban đầu thay vì điền chính bạn."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/233"
+      }
+    },
+    {
+      "commit": "3f80e9ff985023a8bc7040b5304a5bca0e92df4f",
+      "subject": "test(email-hub): protect scheduled sent-not-cached handling (#240)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only regression coverage for scheduled sent-not-cached handling.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "0109dcd7ecfa62901b357636b12b2171e13e903a",
+      "subject": "fix(email-hub): align snoozed pagination order (#232)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Paging through the Snoozed folder no longer skips or repeats messages.",
+        "vi": "Phân trang thư mục Tạm ẩn không còn bỏ sót hoặc lặp lại thư."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/232"
+      }
+    },
+    {
+      "commit": "13f52758b8fb65f7c7c56d625ad29821034cf795",
+      "subject": "fix(email-hub): reuse cached IMAP capabilities (#237)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Removes one redundant IMAP CAPABILITY round trip per sync; internal optimization with no behaviour users can observe.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "4ac1f76ba20df9ffe1062b6ce768a2734c0043c2",
+      "subject": "fix(notification): gate email alerts by membership (#239)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "New-mail notifications stop for people who left the organization, were deactivated, or whose organization is suspended.",
+        "vi": "Thông báo thư mới dừng gửi cho người đã rời tổ chức, bị vô hiệu hóa hoặc thuộc tổ chức đang bị đình chỉ."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/239"
+      }
+    },
+    {
+      "commit": "56a8b72a1d4332176ae1361423a64694da765366",
+      "subject": "fix(email-hub): keep unread count in sync (#226)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "The unread count stays correct after reading or marking messages on list pages that are already loaded.",
+        "vi": "Số thư chưa đọc cập nhật đúng sau khi đọc hoặc đánh dấu thư ở những trang danh sách đã tải."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/226"
+      }
+    },
+    {
+      "commit": "63db9e50bf5f1ab1273abb619174f7ca2ad5bbdd",
+      "subject": "fix(email-hub): create summary tasks atomically (#241)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Creating several tasks from an email summary runs as one unit: a failure part-way leaves no stray tasks and the retry still works.",
+        "vi": "Tạo nhiều việc từ tóm tắt email chạy trọn gói: lỗi giữa chừng không để lại việc thừa và vẫn thử lại được."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/241"
+      }
+    },
+    {
+      "commit": "d7bf6a7bd4323ce0c5ace8d31f2ac35d75916f6d",
+      "subject": "fix(email-hub): encode outbound bodies as quoted-printable (#227)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Outgoing mail keeps its Vietnamese accents and line breaks, even when the HTML body is very long.",
+        "vi": "Thư gửi đi giữ đúng dấu tiếng Việt và cách xuống dòng, kể cả khi phần nội dung HTML rất dài."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/227"
+      }
+    },
+    {
+      "commit": "7edda0f13968681d35798817688ff6abc3312a61",
+      "subject": "fix(email-hub): isolate AI summaries by thread (#228)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Switching to another message while an AI summary is running no longer shows the previous message's summary and action items on the new one.",
+        "vi": "Đổi sang thư khác khi AI đang tóm tắt không còn làm bản tóm tắt và việc cần làm của thư cũ hiện trên thư mới."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/228"
+      }
+    },
+    {
+      "commit": "872812edb8f905bd6add41ed8330ced0b92a52d4",
+      "subject": "fix(email-hub): clear lazy sync state on cleanup (#230)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "A folder's syncing state no longer stays stuck when the filter is changed part-way through.",
+        "vi": "Trạng thái đang đồng bộ của thư mục không còn kẹt khi đổi bộ lọc giữa chừng."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/230"
+      }
+    },
+    {
+      "commit": "4fac8a1efe846462a1971035d1dafcc74fc491a6",
+      "subject": "docs(email-hub): document storage environment settings (#247)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Documents Email Hub storage environment variables in .env.example and extends the env-example contract test; no application behaviour change.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "39042c585c161e0307083cc2b6d959e4cc34b522",
+      "subject": "fix(email-hub): reselect account after disconnect (#235)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "en": "Disconnecting the open mailbox now moves to the most recent remaining mailbox instead of reselecting the one just removed.",
+        "vi": "Ngắt kết nối hộp thư đang mở sẽ chuyển sang hộp thư còn lại mới nhất thay vì chọn lại chính hộp thư vừa gỡ."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/235"
+      }
+    },
+    {
+      "commit": "a6da6469de32bda1b3537aac34cbd5150906a1b4",
+      "subject": "fix(email-hub): cache email date formatters (#234)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR234 preserves timestamp output and only caches formatters; internal performance optimization.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "6fff5ce0bbba7e62b56fe5689a048017911e4d82",
+      "subject": "UNI-1205: Email Hub: Retention theo tài khoản chạy lệnh UPDATE hết hạn body toàn tài khoản 5 lần mỗi lượt sync (#238)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR238 removes repeated retention queries without changing retention behaviour; internal optimization.",
+      "text": {
+        "en": "",
+        "vi": ""
+      }
+    },
+    {
+      "commit": "4449109cd71c872845a082d5e449db65c8608428",
+      "subject": "fix(office): download the installer in the same tab (#248)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tải bộ cài UniWork Office ngay trên trang hiện tại, không mở rồi đóng một tab GitHub.",
+        "en": "Download the UniWork Office installer from the current page without opening and closing a GitHub tab."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/248"
+      }
+    },
+    {
+      "commit": "ebd6f5acb86f81fe3d9bbb0b1a2716f57fec8e34",
+      "subject": "fix(email-hub): refresh sidebar counts after mailbox mutations (#231)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Số thư ở sidebar Email Hub được cập nhật sau khi chuyển, tạm hoãn, đánh dấu đã đọc hoặc đồng bộ hộp thư.",
+        "en": "Email Hub sidebar counts refresh after moving, snoozing, marking mail as read or syncing a mailbox."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/231"
+      }
+    },
+    {
+      "commit": "b79dc17d1dbcc8783e58379bbf1ff2edb430d04a",
+      "subject": "fix(email-hub): UNI-1182 reuse fresh thread prefetch (#252)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub tái sử dụng nội dung thư vừa tải trước trong 30 giây, giảm lượt tải lặp khi bạn di chuột qua danh sách.",
+        "en": "Email Hub reuses thread details prefetched within the last 30 seconds, reducing repeated requests as you hover through the list."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/252"
+      }
+    },
+    {
+      "commit": "ae658d148ad565b4b19d830dd1737ea72d723e57",
+      "subject": "test(email-hub): keep the prefetch defer assertion inside its window",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only prefetch governor assertion timing; no application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/258"
+      }
+    },
+    {
+      "commit": "a16fcf1267115b417d241ad39cbec77e49a4bf72",
+      "subject": "test(email-hub): cover oldest body cache eviction (#229)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test-only body-cache eviction coverage; production ordering fix already exists on the baseline.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/229"
+      }
+    },
+    {
+      "commit": "0b6f78a7b876b8a4c19fcb6d28edaf3c752019d4",
+      "subject": "fix(email-hub): avoid duplicate realtime refetches (#251)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub tránh tải lại hộp thư nhiều lần cho cùng một sự kiện; yêu cầu tải danh sách không còn cần thiết được hủy.",
+        "en": "Email Hub avoids repeated mailbox refreshes for the same event and cancels list requests that are no longer needed."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/251"
+      }
+    },
+    {
+      "commit": "fc9fab018432964c96177b0205d4d17b0a976ae9",
+      "subject": "fix(emailhub): keep MIME attachments out of inline body (#225)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tệp đính kèm dạng văn bản hoặc HTML không còn ghi đè nội dung chính của thư. Thư chỉ có nội dung trong tệp đính kèm vẫn đọc được.",
+        "en": "Text or HTML attachments no longer replace the message body. Messages whose only content is an attachment remain readable."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/225"
+      }
+    },
+    {
+      "commit": "521ae4fe644c08b0712bbf63587e2f6887b70554",
+      "subject": "chore: ignore UNI-1367 test fixtures in the secrets scan",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Secrets-scan test fixture exclusions only; no application change.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/258"
+      }
+    },
+    {
+      "commit": "baebb1de6eb919b01291da742a8707bd9adc46a3",
+      "subject": "fix(billing): stop treating every cancelled VNPay IPN as one event",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Giao dịch VNPay bị hủy hoặc lỗi được ghi nhận riêng, tránh để lần thanh toán sau ở trạng thái chờ vì bị nhầm là trùng lặp.",
+        "en": "Cancelled or failed VNPay transactions are tracked separately, preventing later payments from remaining pending as mistaken duplicates."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/258"
+      }
+    }
+  ]
+}

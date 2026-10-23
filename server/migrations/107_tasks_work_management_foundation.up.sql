@@ -5,25 +5,27 @@ ALTER TABLE workspaces
 ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
 ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check;
 
-ALTER TABLE tasks
-  ADD COLUMN IF NOT EXISTS organization_id TEXT,
-  ADD COLUMN IF NOT EXISTS number BIGINT,
-  ADD COLUMN IF NOT EXISTS project_id TEXT,
-  ADD COLUMN IF NOT EXISTS parent_task_id TEXT,
-  ADD COLUMN IF NOT EXISTS assignee_type TEXT,
-  ADD COLUMN IF NOT EXISTS creator_type TEXT,
-  ADD COLUMN IF NOT EXISTS creator_id TEXT,
-  ADD COLUMN IF NOT EXISTS acceptance_criteria JSONB NOT NULL DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS context_refs JSONB NOT NULL DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  ADD COLUMN IF NOT EXISTS properties JSONB NOT NULL DEFAULT '{}'::jsonb,
-  ADD COLUMN IF NOT EXISTS start_date DATE,
-  ADD COLUMN IF NOT EXISTS stage INTEGER,
-  ADD COLUMN IF NOT EXISTS origin_type TEXT,
-  ADD COLUMN IF NOT EXISTS origin_id TEXT,
-  ADD COLUMN IF NOT EXISTS first_executed_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS revision BIGINT DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+-- One ADD COLUMN per statement: a multi-column ALTER checks the 1600 slot
+-- limit against every new column at once; after many test rollbacks, slots
+-- from dropped columns can block the batch even when few columns are live.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS number BIGINT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_task_id TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee_type TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS creator_type TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS creator_id TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS acceptance_criteria JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS context_refs JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS properties JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stage INTEGER;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS origin_type TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS origin_id TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS first_executed_at TIMESTAMPTZ;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS revision BIGINT DEFAULT 1;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
 
 UPDATE tasks t
 SET organization_id = w.organization_id,

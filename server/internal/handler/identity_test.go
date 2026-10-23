@@ -147,9 +147,16 @@ func TestDeleteAccountOverHTTP(t *testing.T) {
 		t.Fatal("register member")
 	}
 	token := member["access_token"].(string)
-	res, _ = doJSON(t, srv, "POST", "/api/v1/me/delete", token, map[string]string{"password": "nope"})
-	if res.StatusCode != 401 {
-		t.Fatalf("wrong password: %d", res.StatusCode)
+	// A wrong password from someone signed in is 403 password_incorrect, not
+	// 401: the client would read 401 as an expired session, refresh and
+	// replay the deletion, sending the password twice.
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/delete", token, map[string]string{"password": "nope"})
+	if res.StatusCode != 403 || errorCode(out) != "password_incorrect" {
+		t.Fatalf("wrong password: %d %v", res.StatusCode, out)
+	}
+	// The session is untouched by the refusal: the same bearer still works.
+	if res, _ := doJSON(t, srv, "GET", "/api/v1/me", token, nil); res.StatusCode != 200 {
+		t.Fatalf("me after a refused deletion: %d", res.StatusCode)
 	}
 	res, _ = doJSON(t, srv, "POST", "/api/v1/me/delete", token, map[string]string{"password": "password123"})
 	if res.StatusCode != 200 {

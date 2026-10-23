@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,11 @@ type spyPublisher struct {
 	workspace []string
 	user      []string
 	scope     []string
+	batches   []string
+}
+
+func (p *spyPublisher) PublishUsers(_ context.Context, userIDs []string, topic string, _ map[string]string) {
+	p.batches = append(p.batches, strings.Join(userIDs, ",")+"/"+topic)
 }
 
 func (p *spyPublisher) PublishWorkspace(_ context.Context, wsID, topic string, _ map[string]string) {
@@ -53,6 +59,37 @@ func TestRealtimeConsumerRoutesByCatalogueScope(t *testing.T) {
 	}
 }
 
+// UNI-1645: the lock change goes to the workspace; the three person-addressed
+// edit-lock topics resolve the user scope from payload.user_id (previous
+// holder, holder, requester) and never carry a lock or requester id beyond it.
+func TestRealtimeConsumerRoutesEditLockTopics(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub)
+	ctx := context.Background()
+	for _, r := range []Row{
+		row("document.lock_changed", `{"document_id":"d1","workspace_id":"ws1"}`, "ws1"),
+		row("document.lock_taken_over", `{"document_id":"d1","workspace_id":"ws1","user_id":"u1"}`, "ws1"),
+		row("document.edit_requested", `{"document_id":"d1","workspace_id":"ws1","request_id":"r1","user_id":"u2"}`, "ws1"),
+		row("document.edit_request_answered", `{"document_id":"d1","workspace_id":"ws1","request_id":"r1","user_id":"u3"}`, "ws1"),
+	} {
+		if err := c.Handle(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(pub.workspace) != 1 || pub.workspace[0] != "ws1/document.lock_changed" {
+		t.Fatalf("workspace publishes = %v", pub.workspace)
+	}
+	want := []string{"u1/document.lock_taken_over", "u2/document.edit_requested", "u3/document.edit_request_answered"}
+	if len(pub.user) != len(want) {
+		t.Fatalf("user publishes = %v, want %v", pub.user, want)
+	}
+	for i := range want {
+		if pub.user[i] != want[i] {
+			t.Fatalf("user publishes = %v, want %v", pub.user, want)
+		}
+	}
+}
+
 // A row missing the id its scope needs can never be delivered, and retrying it
 // ten times only delays every other event on the topic. Drop it.
 func TestRealtimeConsumerDropsUnroutableRows(t *testing.T) {
@@ -84,6 +121,81 @@ func TestRealtimeTopicsAreOutboxDeliveredOnly(t *testing.T) {
 		}
 		if def.Delivery != DeliveryOutbox || def.Scope == ScopeNone {
 			t.Fatalf("%s should not be a realtime topic: delivery=%s scope=%s", topic, def.Delivery, def.Scope)
+		}
+	}
+}
+
+// In-room events go to the sockets holding that meeting open, not to the
+// whole workspace (G8); a row without the meeting id has nowhere to go.
+func TestRealtimeConsumerRoutesMeetingTopicsToTheMeetingScope(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub)
+	ctx := context.Background()
+
+	if err := c.Handle(ctx, row("motion.ballot_cast", `{"meeting_id":"m1","version":"3","motion_id":"mo1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Handle(ctx, row("participant.updated", `{"version":"3"}`, "ws1")); err != nil {
+		t.Fatalf("unroutable row must not fail the batch: %v", err)
+	}
+
+	if len(pub.workspace) != 0 {
+		t.Fatalf("meeting topic reached the workspace: %v", pub.workspace)
+	}
+	if len(pub.scope) != 1 || pub.scope[0] != "meeting:m1/motion.ballot_cast" {
+		t.Fatalf("scope publishes = %v", pub.scope)
+	}
+}
+
+type fixedMembers []string
+
+func (m fixedMembers) RoomMemberIDs(context.Context, string) ([]string, error) { return m, nil }
+
+// A room row reaches every member in one batched publish, not one per member.
+func TestRealtimeConsumerSendsARoomRowAsOneBatch(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub).WithMembers(fixedMembers{"u1", "u2", "u3"})
+	if err := c.Handle(context.Background(), row("chat.room.created", `{"room_id":"r1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.user) != 0 || len(pub.batches) != 1 || pub.batches[0] != "u1,u2,u3/chat.room.created" {
+		t.Fatalf("user publishes = %v, batches = %v", pub.user, pub.batches)
+	}
+}
+
+// A removed member has left the room by delivery time, yet the row is about
+// them: every tab and device of theirs must hear it to drop the room. A row
+// naming someone who is still a member does not reach them twice.
+func TestRealtimeConsumerTellsTheRemovedMemberToo(t *testing.T) {
+	pub := &spyPublisher{}
+	c := NewRealtimeConsumer(pub).WithMembers(fixedMembers{"u2", "u3"})
+	ctx := context.Background()
+	if err := c.Handle(ctx, row("chat.room.member_removed", `{"room_id":"r1","user_id":"u1"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Handle(ctx, row("chat.room.member_added", `{"room_id":"r1","user_id":"u3"}`, "ws1")); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"u2,u3,u1/chat.room.member_removed", "u2,u3/chat.room.member_added"}
+	if len(pub.user) != 0 || len(pub.batches) != 2 || pub.batches[0] != want[0] || pub.batches[1] != want[1] {
+		t.Fatalf("user publishes = %v, batches = %v, want %v", pub.user, pub.batches, want)
+	}
+}
+
+// The meeting list, the calendar and the home summary listen outside any
+// meeting, so the lifecycle and roster rows they follow stay on the workspace.
+func TestMeetingLifecycleTopicsStayOnTheWorkspace(t *testing.T) {
+	for _, topic := range []string{
+		"meeting.created", "meeting.updated", "meeting.deleted", "meeting.started",
+		"meeting.ended", "meeting.canceled", "host.transferred",
+		"participant.invited", "participant.removed", "invitation.responded",
+	} {
+		def, ok := Lookup(topic)
+		if !ok {
+			t.Fatalf("%s is not in the catalogue", topic)
+		}
+		if def.Scope != ScopeWorkspace {
+			t.Errorf("%s scope = %q, want workspace", topic, def.Scope)
 		}
 	}
 }

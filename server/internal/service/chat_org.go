@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-
 	"errors"
+	"slices"
+
 	"github.com/jackc/pgx/v5"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -23,15 +24,24 @@ func (s *ChatService) workspaceForChat(ctx context.Context, userID, workspaceID 
 	return w, nil
 }
 
+// requireOrgPeer checks someone other than the caller, through the caller's
+// own gate. Its coded refusals (member_deactivated, organization_*) tell the
+// client that the caller is locked out, so for a peer every refusal reads as
+// "not here" (UNI-1659); only infrastructure errors pass through.
 func (s *ChatService) requireOrgPeer(ctx context.Context, orgID, targetUserID string) error {
-	_, err := s.ws.orgs.RequireMember(ctx, orgID, targetUserID)
-	if err != nil {
-		if err == ErrForbidden {
-			return ErrNotFound
-		}
-		return err
+	return s.requireOrgPeers(ctx, orgID, []string{targetUserID})
+}
+
+func (s *ChatService) requireOrgPeers(ctx context.Context, orgID string, targetUserIDs []string) error {
+	if len(targetUserIDs) == 0 {
+		return nil
 	}
-	return nil
+	err := s.ws.orgs.RequireMembers(ctx, orgID, targetUserIDs)
+	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrMemberDeactivated) ||
+		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (s *ChatService) publishChatRoomEvent(ctx context.Context, roomID string, ev Event) {
@@ -43,17 +53,9 @@ func (s *ChatService) publishChatRoomMembersEvent(ctx context.Context, roomID st
 	if err != nil {
 		return
 	}
-	seen := make(map[string]struct{}, len(ids))
-	for _, userID := range ids {
-		if userID == "" {
-			continue
-		}
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		s.pub.SendToUser(ctx, userID, ev)
-	}
+	slices.Sort(ids)
+	ids = slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == "" })
+	s.pub.SendToUsers(ctx, ids, ev)
 }
 
 func (s *ChatService) publishChatRoomActivity(ctx context.Context, roomID string) {
@@ -63,9 +65,12 @@ func (s *ChatService) publishChatRoomActivity(ctx context.Context, roomID string
 	})
 }
 
-// AuthorizeChatScope gates WebSocket subscriptions to chat:{roomId}.
+// AuthorizeChatScope gates WebSocket subscriptions to chat:{roomId}. Whoever
+// may read the room may subscribe, so a workspace member viewing a public
+// channel without joining hears its edits, now that they no longer go to the
+// whole workspace.
 func (s *ChatService) AuthorizeChatScope(ctx context.Context, userID, workspaceID, roomID string) (bool, error) {
-	_, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	_, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
@@ -78,13 +83,6 @@ func (s *ChatService) AuthorizeChatScope(ctx context.Context, userID, workspaceI
 func roomAnchorWorkspaceID(room db.ChatRoom) string {
 	if room.WorkspaceID.Valid {
 		return room.WorkspaceID.String
-	}
-	return ""
-}
-
-func roomOrganizationID(room db.ChatRoom) string {
-	if room.OrganizationID.Valid {
-		return room.OrganizationID.String
 	}
 	return ""
 }

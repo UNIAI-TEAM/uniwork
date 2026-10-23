@@ -1,0 +1,105 @@
+{
+  "prompt": "Source: actual UniWork html editor, installed pinned product frame /office-frame/html/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a. Captured 2026-10-14T03:19:59.401Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample summit.html supplied as raw bytes, SHA-256 d806ed4d29ae28de24df907fb3346aad9e7bd493bda4b7c93b6fced92f0e637e; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+  "createdAt": "2026-10-14T03:21:50.646Z",
+  "id": "html-en-dark",
+  "bucket": "produce",
+  "source_crop": null,
+  "source_reference": ".impeccable/mocks/decision/office-20261014/a-split.png",
+  "output_path": "apps/web/public/landing/office/html.en.dark.webp",
+  "strategy": "real-product-frame-source-fixture-capture",
+  "prompt_used": null,
+  "origin": "Source: actual UniWork html editor, installed pinned product frame /office-frame/html/0.1.0-0d03b18/index.html, fork 0d03b18, manifest SHA-256 f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a. Captured 2026-10-14T03:19:59.401Z from http://localhost:3000, language en, native dark theme through the standard uniwork.office.docs v1 init protocol. Real sample summit.html supplied as raw bytes, SHA-256 d806ed4d29ae28de24df907fb3346aad9e7bd493bda4b7c93b6fced92f0e637e; sample content from scripts/office-landing/samples.mjs (with deck.mjs/report.mjs where applicable) is illustrative and names a fictional company. Playwright with system Chrome, 1200x750 CSS viewport at 2x, 2400x1500 WebP encoded at quality 0.86 without recoloring or filters. The invisible fixture host grants standard editor capabilities to expose the real empty AI panel; no server data, customer results, AI output, save, or authentication behavior is claimed.",
+  "dimensions": {
+    "width": 2400,
+    "height": 1500
+  },
+  "format": "webp",
+  "transparency": false,
+  "bytes": 87938,
+  "sha256": "eb9e2ed8d30ee010647505adaeaaac9465959d029698f97eb5128703b03575c4",
+  "illustrative_data": true,
+  "source_files": [
+    {
+      "path": "scripts/office-landing/capture.mjs",
+      "sha256": "33d38541878e28c9c9e31d8ac394cc546a22d5b562077c8b9f24464f827c8f92"
+    },
+    {
+      "path": "scripts/office-landing/samples.mjs",
+      "sha256": "6201437a166a92c9b0524501ea6a76fb41c7f4c44f5bb49df0511b370d6957f6"
+    },
+    {
+      "path": "scripts/office-landing/deck.mjs",
+      "sha256": "c587ffae85d0aa76529e5c9716d58bfac3479c288023c93a71be828acfb08781"
+    },
+    {
+      "path": "scripts/office-landing/report.mjs",
+      "sha256": "910c8f086de6f51f986e8fd13562ce8c1828f3bf6784e7481a31d971684ef3ff"
+    }
+  ],
+  "source_archive": {
+    "schema": 1,
+    "url": "https://github.com/UNIAI-TEAM/uniwork-office/releases/download/web-0.1.0-0d03b18/dist-web-0.1.0-0d03b18.tar.gz",
+    "sha256": "e2fbe689d98b98f3ccbd67b8e2ecc3dc6f865569dd9ed71ecc47797a55fae6c6"
+  },
+  "capture": {
+    "editor": "html",
+    "lang": "en",
+    "theme": "dark",
+    "filename": "html.en.dark.webp",
+    "aiPanel": true,
+    "frame": "1200x750",
+    "width": 2400,
+    "height": 1500,
+    "bytes": 87938,
+    "capturedAt": "2026-10-14T03:19:59.401Z",
+    "captureMode": "installed-product-frame-source-fixture",
+    "entry": "/office-frame/html/0.1.0-0d03b18/index.html",
+    "pin": {
+      "schema": 1,
+      "version": "0.1.0-0d03b18",
+      "gitSha": "0d03b18",
+      "entry": "index.html",
+      "manifestSha256": "f8947247e654ebef2850f2bd3144c13b9a17557908d8e1fb4004796add98dc8a",
+      "headers": {
+        "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+      },
+      "documents": [
+        {
+          "path": "/preview.html",
+          "value": "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri https:; form-action 'none'; sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'"
+        }
+      ]
+    },
+    "sample": {
+      "name": "summit.html",
+      "mimeType": "text/html",
+      "sha256": "d806ed4d29ae28de24df907fb3346aad9e7bd493bda4b7c93b6fced92f0e637e",
+      "illustrative": true
+    },
+    "effectiveCapabilities": {
+      "save": true,
+      "saveAs": false,
+      "recents": false,
+      "filePick": false,
+      "print": false,
+      "exportPdf": false,
+      "exportHtml": false,
+      "attachments": false,
+      "images": false,
+      "ai": true,
+      "webSearch": false,
+      "imageSearch": false,
+      "imageGeneration": false,
+      "desktopOpen": false
+    },
+    "state": {
+      "theme": "dark",
+      "locale": "en-US",
+      "background": "rgb(30, 30, 30)"
+    },
+    "errors": [],
+    "protocolErrors": []
+  },
+  "deviations": [],
+  "qa_status": "accepted"
+}

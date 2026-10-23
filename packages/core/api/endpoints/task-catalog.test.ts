@@ -3,9 +3,11 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   createTaskLabel,
+  listTaskLabelLinks,
   listTaskLabels,
   listTaskProperties,
   listTaskStatuses,
+  reorderTaskStatuses,
 } from "./task-catalog";
 
 const json = (body: unknown, status = 200) =>
@@ -57,6 +59,30 @@ describe("task-catalog endpoints", () => {
     expect((await listTaskStatuses("ws1")).statuses[0]?.key).toBe("todo");
     vi.mocked(fetch).mockResolvedValueOnce(json({ statuses: [{ id: 1 }] }));
     await expect(listTaskStatuses("ws1")).resolves.toEqual({
+      statuses: [],
+      categories: [],
+      total: 0,
+    });
+  });
+
+  it("listTaskLabelLinks reads the workspace's links and degrades on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ links: [{ task_id: "t1", label_id: "l1" }] }));
+    expect(await listTaskLabelLinks("ws1")).toEqual({ links: [{ task_id: "t1", label_id: "l1" }] });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/api/v1/workspaces/ws1/task-label-links");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ links: [{ task_id: 1 }] }));
+    await expect(listTaskLabelLinks("ws1")).resolves.toEqual({ links: [] });
+  });
+
+  it("reorderTaskStatuses sends the whole group and degrades on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ statuses: [{ ...status, icon: "done" }], categories: ["todo"], total: 1 }),
+    );
+    expect((await reorderTaskStatuses("ws1", { group: "not_started", ids: ["s1"] })).statuses[0]?.icon).toBe("done");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body))).toEqual({ group: "not_started", ids: ["s1"] });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ statuses: "x" }));
+    await expect(reorderTaskStatuses("ws1", { group: "not_started", ids: ["s1"] })).resolves.toEqual({
       statuses: [],
       categories: [],
       total: 0,

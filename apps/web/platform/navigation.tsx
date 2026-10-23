@@ -1,8 +1,12 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navigation";
+import { sanitizeNextUrl } from "@uniwork/core/paths";
+import { getDesktopBridge, registerSystemNotificationClickHandler } from "@uniwork/core/platform";
+import { NavigationProvider } from "@uniwork/views/navigation";
+import { chatOnlyPolicy } from "./chat-only-navigation";
+import { createWebNavigationAdapter } from "./web-navigation-adapter";
 
 /**
  * The web half of the navigation adapter: the only place shared screens'
@@ -14,20 +18,27 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const adapter = useMemo<NavigationAdapter>(
-    () => ({
-      push: (path) => router.push(path),
-      replace: (path) => router.replace(path),
-      back: () => router.back(),
+  // Inside the UniChat shell every push/replace goes through the chat-only
+  // policy, so <AppLink> and views' push() need no host awareness of their own.
+  const adapter = useMemo(() => {
+    const bridge = getDesktopBridge();
+    return createWebNavigationAdapter(
+      router,
       pathname,
-      searchParams: new URLSearchParams(searchParams.toString()),
-      getShareableUrl: (path) => (typeof window === "undefined" ? path : window.location.origin + path),
-      // router.prefetch is a no-op in dev by Next's design; in production it
-      // warms the RSC payload so the next push commits with no round-trip.
-      prefetch: (path) => router.prefetch(path),
-    }),
-    [router, pathname, searchParams],
-  );
+      new URLSearchParams(searchParams.toString()),
+      bridge ? chatOnlyPolicy(bridge) : undefined,
+    );
+  }, [router, pathname, searchParams]);
+
+  // A clicked browser banner opens what it was about, through the same
+  // guarded push as any in-app move; anything but a same-origin path is ignored.
+  useEffect(() => {
+    registerSystemNotificationClickHandler((payload) => {
+      const to = sanitizeNextUrl(payload.href);
+      if (to) adapter.push(to);
+    });
+    return () => registerSystemNotificationClickHandler(null);
+  }, [adapter]);
 
   return <NavigationProvider value={adapter}>{children}</NavigationProvider>;
 }

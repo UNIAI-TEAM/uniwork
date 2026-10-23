@@ -1,12 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { getTaskSurfaceViewStore, clearTaskSurfaceViewState } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { User } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities, withAskUniDock } from "../ai/ask-uni-fixtures";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ProjectDetailPage } from "./project-detail-page";
 
+const LONG = { timeout: 10_000 };
 const me: User = {
   id: "u1",
   email: "me@x.com",
@@ -34,9 +37,14 @@ const project = {
   task_count: 1,
   done_count: 0,
   resource_count: 0,
+  created_by: "u1",
+  created_by_kind: "human",
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-01T00:00:00Z",
 };
+
+// The project the mock serves; a test swaps it for a peer's.
+let servedProject: Record<string, unknown> = project;
 
 const taskInProject = {
   id: "t-in",
@@ -59,12 +67,19 @@ beforeAll(() => {
 beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
+  clearTaskSurfaceViewState("project:p1");
   getTaskSurfaceViewStore("project:p1").getState().setViewMode("list");
+  servedProject = project;
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown, init?: { body?: unknown }) => {
     const p = String(path);
     if (p.match(/\/projects\/p1$/) && !p.includes("/resources")) {
-      return Promise.resolve({ project });
+      return Promise.resolve({ project: servedProject });
+    }
+    if (p.endsWith("/workspaces/w1/me")) {
+      return Promise.resolve({
+        membership: { user_id: "u1", role: "member", source: "membership" },
+      });
     }
     if (p.includes("/projects/p1/resources")) {
       return Promise.resolve({ resources: [], total: 0 });
@@ -83,6 +98,38 @@ beforeEach(() => {
         total: tasks.length,
         limit: 50,
         offset: 0,
+      });
+    }
+    if (p.includes("/tasks/table/groups")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-groups",
+        total: 1,
+        groups: [
+          {
+            key: "status:todo",
+            value: { kind: "status", status: "todo" },
+            count: 1,
+          },
+        ],
+        next_cursor: null,
+      });
+    }
+    if (p.includes("/tasks/table/rows")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-rows",
+        group_key: "status:todo",
+        parent_id: null,
+        total: 1,
+        rows: [{ task: taskInProject, direct_child_count: 0 }],
+        branch_total: 1,
+        next_cursor: null,
+      });
+    }
+    if (p.includes("/tasks/table/facets")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-facets",
+        total: 1,
+        facets: [{ kind: "status", values: [{ key: "todo", count: 1 }] }],
       });
     }
     if (p.includes("/members")) {
@@ -124,7 +171,7 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByDisplayValue("Q3 launch")).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
 
     await waitFor(() => {
       const queryCall = requestMock.mock.calls.find(
@@ -133,9 +180,9 @@ describe("ProjectDetailPage", () => {
       expect(queryCall).toBeDefined();
       const init = queryCall?.[1] as { body?: { project_id?: string } } | undefined;
       expect(init?.body?.project_id).toBe("p1");
-    });
+    }, LONG);
 
-    expect(await screen.findByText("In-project task")).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
   });
 
   it("does not render tasks from other projects when the mock returns a filtered list", async () => {
@@ -150,7 +197,195 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByText("In-project task")).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
     expect(screen.queryByText("Other-project task")).not.toBeInTheDocument();
+  });
+
+  it("lays the sidebar out like the reference: icon, title, sections in order", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const inSidebar = within(sidebar);
+
+    expect(inSidebar.getByRole("button", { name: "Chọn biểu tượng" })).toHaveTextContent("📁");
+    const title = await inSidebar.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+
+    const sectionOrder = inSidebar
+      .getAllByRole("button", { expanded: true })
+      .map((button) => button.textContent);
+    expect(sectionOrder).toEqual(["Thuộc tính", "Tiến độ", "Mô tả", "Tài nguyên"]);
+
+    const progress = inSidebar.getByRole("progressbar", { name: "Tiến độ" });
+    expect(progress).toHaveAttribute("aria-valuenow", "0");
+    expect(inSidebar.getByText("0/1")).toBeInTheDocument();
+
+    const status = inSidebar.getByRole("button", { name: "Trạng thái: Đang làm" });
+    expect(status.querySelector("[data-slot='project-status-dot']")).not.toBeNull();
+
+    const startDate = inSidebar.getByRole("button", { name: "Ngày bắt đầu: Chọn ngày" });
+    expect(startDate).toHaveTextContent("Ngày bắt đầu");
+    expect(startDate.className).not.toContain("border-input");
+  });
+
+  it("runs the sidebar full height beside the breadcrumb header", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const layout = sidebar.closest("[data-right-sidebar-layout='true']");
+    expect(layout).not.toBeNull();
+    expect(layout).toContainElement(screen.getByRole("button", { name: "Quay lại" }));
+  });
+
+  it("saves a renamed title on blur", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const title = await screen.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+    fireEvent.input(title, { target: { innerHTML: "<p>Q4 launch</p>" } });
+    await act(async () => {});
+    fireEvent.blur(title);
+
+    await waitFor(() => {
+      const put = requestMock.mock.calls.find(
+        ([path, init]) =>
+          String(path).endsWith("/projects/p1") &&
+          (init as { method?: string } | undefined)?.method === "PUT",
+      );
+      expect(put?.[1]).toMatchObject({ body: { title: "Q4 launch", revision: 1 } });
+    }, LONG);
+  });
+
+  it("edits the description as rich text and saves it as markdown", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", { name: "Thêm mô tả…" }, LONG);
+    await waitFor(() => expect(editor).toHaveTextContent("Ship projects suite"));
+    fireEvent.input(editor, {
+      target: { innerHTML: "<p>Ship <strong>projects</strong> suite</p>" },
+    });
+
+    await waitFor(() => {
+      const put = requestMock.mock.calls.find(
+        ([path, init]) =>
+          String(path).endsWith("/projects/p1") &&
+          (init as { method?: string } | undefined)?.method === "PUT",
+      );
+      expect(put?.[1]).toMatchObject({
+        body: { description: "Ship **projects** suite", revision: 1 },
+      });
+    }, LONG);
+  });
+
+  it("shows a peer's project read-only and offers nothing that saves (UNI-898)", async () => {
+    servedProject = { ...project, created_by: "u2" };
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const inSidebar = within(sidebar);
+    expect(
+      await inSidebar.findByText(
+        "Chỉ người tạo, người phụ trách hoặc quản trị viên workspace mới sửa được dự án này.",
+        undefined,
+        LONG,
+      ),
+    ).toBeInTheDocument();
+    expect(inSidebar.getByRole("heading", { name: "Q3 launch" })).toBeInTheDocument();
+    expect(inSidebar.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(inSidebar.queryByRole("button", { name: "Chọn biểu tượng" })).not.toBeInTheDocument();
+    expect(inSidebar.queryByRole("button", { name: "Trạng thái: Đang làm" })).not.toBeInTheDocument();
+    expect(inSidebar.getByText("Đang làm")).toBeInTheDocument();
+    expect(inSidebar.getByRole("button", { name: "Ngày bắt đầu: Chọn ngày" })).toBeDisabled();
+    expect(inSidebar.getByText("Ship projects suite")).toBeInTheDocument();
+  });
+
+  it("lets the member the project is assigned to edit it", async () => {
+    servedProject = { ...project, created_by: "u2", lead_type: "member", lead_id: "u1" };
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    const title = await screen.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+    expect(screen.getByRole("button", { name: "Trạng thái: Đang làm" })).toBeInTheDocument();
+  });
+
+  it("pins the project from the header and shows it pinned before the server answers", async () => {
+    const fallback = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path).endsWith("/pins") && init?.method === "POST"
+        ? new Promise(() => undefined)
+        : fallback(path, init),
+    );
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ghim dự án" }, LONG));
+    expect(await screen.findByRole("button", { name: "Bỏ ghim dự án" })).toBeInTheDocument();
+    const post = requestMock.mock.calls.find(
+      ([path, init]) => String(path) === "/api/v1/workspaces/w1/pins" && (init as { method?: string })?.method === "POST",
+    );
+    expect(post?.[1]).toMatchObject({ body: { item_type: "project", item_id: "p1" } });
+  });
+
+  it("opens Ask UNI focused on this project", async () => {
+    const fallback = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/capabilities") ? Promise.resolve(capabilities()) : fallback(path, init),
+    );
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    render(
+      wrapWithNav(
+        withAskUniDock(<ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />),
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về dự án này" }, LONG));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "project", id: "p1", label: "Q3 launch" });
+    expect(useAiPanelStore.getState().page).toEqual({ kind: "project", id: "p1", label: "Q3 launch" });
   });
 });

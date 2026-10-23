@@ -2,6 +2,8 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatSidebarTarget =
   | { kind: "workspace" }
@@ -10,6 +12,8 @@ export type ChatSidebarTarget =
   | { kind: "channel"; channel: ChatRoomRecord };
 
 export interface ChatSidebarProps {
+  /** The organization's DMs and groups, or this workspace's room and channels (chat-scope.ts). */
+  scope: ChatScope;
   currentUserId: string;
   workspaceId: string;
   target: ChatSidebarTarget;
@@ -17,12 +21,14 @@ export interface ChatSidebarProps {
   contacts: ChatContact[];
   groups: GroupChat[];
   channels?: ChatRoomRecord[];
-  workHubEnabled?: boolean;
-  onCreateGroup?: (members: ChatContact[], name: string) => void;
+  onOpenFollowUps?: () => void;
+  onOpenFollowedThreads?: () => void;
+  /** "Bắt kịp nhanh" at the top of the list: opens the busiest room and its catch-up brief. Absent when UNI cannot summarise. */
+  onQuickCatchUp?: (target: ChatSidebarTarget, roomId: string) => void;
+  onCreateGroup?: (members: ChatContact[], name: string, avatar: File | null) => void;
   creatingGroup?: boolean;
   createGroupOpen?: boolean;
   onCreateGroupOpenChange?: (open: boolean) => void;
-  onJoinedWorkspace?: () => void;
   workspaceRoomId?: string | null;
   unreadByRoomId?: Record<string, number>;
   mentionUnreadByRoomId?: Record<string, number>;
@@ -30,4 +36,17 @@ export interface ChatSidebarProps {
   unreadBadgesReady?: boolean;
   nicknamesByUserId?: Record<string, string>;
   embedded?: boolean;
+  /** Rooms have not arrived yet: the list shows its loading shape, not "empty". */
+  loading?: boolean;
+  /** Rooms failed to load: the list says so and offers `onRetry` instead of loading forever. */
+  loadError?: boolean;
+  onRetry?: () => void;
+  /** The workspace room's display name; defaults to the generic "Chung". */
+  workspaceRoomTitle?: string;
+  /** Hides the list on desktop; the conversation header offers the way back. */
+  onCollapse?: () => void;
+  /** Workspace member avatars keyed by normalized user id. */
+  memberAvatarByUserId?: MemberAvatarUrlMap;
+  /** People the page can already name, so a typing row does not print an id. */
+  knownPeople?: ReadonlyArray<{ user_id: string; display_name: string }>;
 }

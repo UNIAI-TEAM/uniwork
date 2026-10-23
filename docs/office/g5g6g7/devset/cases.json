@@ -1,0 +1,761 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g6-08-devset-cases",
+  "description": "Synthetic bilingual (vi + en) dev set for G6-08 instruction pack v2 and token ceiling tuning. Completely disjoint from holdout.",
+  "cases": [
+    {
+      "id": "DV-XLSX-001",
+      "pairId": "PAIR-XLSX-01",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "whole_range",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range",
+        "find_cells",
+        "ask_clarification"
+      ],
+      "requiredTools": ["read_range", "read_cells", "aggregate_range", "get_workbook_context"],
+      "prompt": "Trên trang tính 'Bán hàng T1', hãy tính tổng doanh thu ròng theo công thức X * (1 - Z) * Y cho các phiếu từ BH-101 đến BH-106 (chuẩn hóa cột Z gồm 5%, số 10 nghĩa là 10%, 10% và ô trống), nêu rõ cả tổng các dòng đang hiển thị và tổng tính cả dòng ẩn BH-105.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totals",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "visible_net_total", "value": 51300, "tolerance": 0 },
+          { "label": "all_rows_net_total", "value": 61020, "tolerance": 0 },
+          { "label": "hidden_row_bh105_net", "value": 9720, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-105"]
+      }
+    },
+    {
+      "id": "DV-XLSX-002",
+      "pairId": "PAIR-XLSX-01",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "whole_range",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range",
+        "find_cells",
+        "ask_clarification"
+      ],
+      "requiredTools": ["read_range", "read_cells", "aggregate_range", "get_workbook_context"],
+      "prompt": "On sheet 'Bán hàng T1', compute the total net revenue using X * (1 - Z) * Y across orders BH-101 through BH-106 (normalizing column Z stored as 5%, plain number 10 meaning 10%, 10%, and blank), and report both the visible-only total and the total including hidden row BH-105.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totals",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "visible_net_total", "value": 51300, "tolerance": 0 },
+          { "label": "all_rows_net_total", "value": 61020, "tolerance": 0 },
+          { "label": "hidden_row_bh105_net", "value": 9720, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-105"]
+      }
+    },
+    {
+      "id": "DV-XLSX-003",
+      "pairId": "PAIR-XLSX-02",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "sheet_range_types_filters",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells", "read_formats", "read_sheet_features"],
+      "prompt": "Kiểm tra cấu trúc trang tính 'Bán hàng T1': cho biết cách lưu trữ cột Chiết khấu (Z) tại các ô F2:F6 (đặc biệt là ô F3 của BH-102), dòng nào đang bị ẩn, và giải thích sự khác nhau giữa hai dòng tổng ở G8 (SUM) và G9 (SUBTOTAL).",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.zStorage",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "f3_stored_plain", "value": 10, "tolerance": 0 },
+          { "label": "g8_sum_all", "value": 61020, "tolerance": 0 },
+          { "label": "g9_subtotal_visible", "value": 51300, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-102", "BH-105", "SUBTOTAL"]
+      }
+    },
+    {
+      "id": "DV-XLSX-004",
+      "pairId": "PAIR-XLSX-02",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "sheet_range_types_filters",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells", "read_formats", "read_sheet_features"],
+      "prompt": "Inspect the structure of sheet 'Bán hàng T1': explain how the discount column (Z) is stored across F2:F6 (especially F3 on BH-102), identify which row is hidden, and explain the difference between the two total rows at G8 (SUM) and G9 (SUBTOTAL).",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.zStorage",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "f3_stored_plain", "value": 10, "tolerance": 0 },
+          { "label": "g8_sum_all", "value": 61020, "tolerance": 0 },
+          { "label": "g9_subtotal_visible", "value": 51300, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-102", "BH-105", "SUBTOTAL"]
+      }
+    },
+    {
+      "id": "DV-XLSX-005",
+      "pairId": "PAIR-XLSX-03",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "error_cell",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I7" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Trên trang tính 'Bán hàng T1', hãy kiểm tra dòng BH-106 (dòng 7) để nêu chính xác mã lỗi ở ô H7 và I7 (tuyệt đối không thay thế ô lỗi bằng số 0), sau đó tính trung bình cộng 'Đơn giá sau CK' của 5 dòng hợp lệ H2:H6.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.errorCells",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "valid_unit_after_sum", "value": 5070, "tolerance": 0 },
+          { "label": "valid_unit_after_avg", "value": 1014, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"],
+        "mustNotContainTokens": [
+          "845",
+          "h7 = 0",
+          "i7 = 0",
+          "h7: 0",
+          "i7: 0",
+          "trung bình là 0",
+          "trung bình cộng là 0",
+          "kết quả: 0",
+          "kết quả là 0"
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-006",
+      "pairId": "PAIR-XLSX-03",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "error_cell",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I7" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "On sheet 'Bán hàng T1', inspect row BH-106 (row 7) and report the exact error codes in cells H7 and I7 (do not substitute 0 for error cells), then compute the average of 'Đơn giá sau CK' across the 5 valid cells H2:H6.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.errorCells",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "valid_unit_after_sum", "value": 5070, "tolerance": 0 },
+          { "label": "valid_unit_after_avg", "value": 1014, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["BH-106", "#DIV/0!", "#N/A"],
+        "mustNotContainTokens": [
+          "845",
+          "h7 = 0",
+          "i7 = 0",
+          "h7: 0",
+          "i7: 0",
+          "average is 0",
+          "average = 0",
+          "result: 0",
+          "result is 0"
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-007",
+      "pairId": "PAIR-XLSX-04",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "stale_cache",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "trace_precedents",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Trên trang tính 'Kiểm toán', hãy kiểm tra hai ô công thức D2 (=LEGACYCACHE(B2,C2)) và D3 (=B3*C3). Cho biết vì sao không được dùng giá trị cache cũ 99999 hoặc 88888 làm kết quả chính thức và nêu giá trị tích thực tế B*C.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.staleCacheCells",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "stale_cached_d2", "value": 99999, "tolerance": 0 },
+          { "label": "true_product_bc", "value": 10000, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["LEGACYCACHE"],
+        "mustContainAny": [
+          ["cache", "bộ nhớ đệm", "chưa được tính lại", "not recalculated", "#name?"]
+        ],
+        "mustNotContainTokens": [
+          "99999",
+          "99.999",
+          "99,999",
+          "88888",
+          "88.888",
+          "88,888",
+          "d2 = 99999",
+          "d3 = 88888"
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-008",
+      "pairId": "PAIR-XLSX-04",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "stale_cache",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "trace_precedents",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "On sheet 'Kiểm toán', inspect formula cells D2 (=LEGACYCACHE(B2,C2)) and D3 (=B3*C3). Explain why the stale cached values 99999 and 88888 must not be used as verified results, and state the true product B*C.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.staleCacheCells",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "stale_cached_d2", "value": 99999, "tolerance": 0 },
+          { "label": "true_product_bc", "value": 10000, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["LEGACYCACHE"],
+        "mustContainAny": [
+          ["cached", "stale", "not recalculated", "#name?", "unverified"]
+        ],
+        "mustNotContainTokens": [
+          "99999",
+          "99,999",
+          "99.999",
+          "88888",
+          "88,888",
+          "88.888",
+          "d2 = 99999",
+          "d3 = 88888"
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-009",
+      "pairId": "PAIR-XLSX-05",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "unsupported_formula",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Trên trang tính 'Kiểm toán', hãy đọc ô D4 (Tỷ giá XML ngoại vi) và cho biết công thức trong ô D4 là gì, trạng thái lỗi ra sao và vì sao bộ máy công thức hiện tại không thể tự tính giá trị từ công thức đó.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.unsupportedFormulaCells",
+        "expectedKind": "not_supported",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainTokens": ["FILTERXML", "#NAME?"],
+        "mustContainAny": [
+          ["không được hỗ trợ", "không hỗ trợ", "unsupported", "not supported"]
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-010",
+      "pairId": "PAIR-XLSX-05",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "unsupported_formula",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "On sheet 'Kiểm toán', inspect cell D4 (Tỷ giá XML ngoại vi) and state its exact formula, error status, and why the formula engine cannot evaluate that formula.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.unsupportedFormulaCells",
+        "expectedKind": "not_supported",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainTokens": ["FILTERXML", "#NAME?"],
+        "mustContainAny": [
+          ["unsupported", "not supported", "cannot calculate", "does not support"]
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-011",
+      "pairId": "PAIR-XLSX-06",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "locale_rounding",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Trên trang tính 'Kiểm toán', hãy kiểm tra hai dòng 5 và 6: (1) giải thích vì sao ô B5 ('1.250,5') là chuỗi văn bản locale chứ không phải số khi tính tổng số học B5:B6 (chỉ có B6 = 800 là số), và (2) áp dụng quy tắc làm tròn đến hàng đơn vị ở cột E cho D5 (3200.756) và D6 (1450.244) cùng tổng của chúng.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.localeAndRounding",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "b6_numeric_only", "value": 800, "tolerance": 0 },
+          { "label": "d5_rounded_int", "value": 3201, "tolerance": 0 },
+          { "label": "d6_rounded_int", "value": 1450, "tolerance": 0 },
+          { "label": "sum_d5_d6_rounded", "value": 4651, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["1.250,5"]
+      }
+    },
+    {
+      "id": "DV-XLSX-012",
+      "pairId": "PAIR-XLSX-06",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "locale_rounding",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Kiểm toán", "range": "A1:E6" },
+      "context": { "activeSheet": "Kiểm toán" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "On sheet 'Kiểm toán', inspect rows 5 and 6: (1) explain why cell B5 ('1.250,5') is a locale text string skipped by numeric aggregation over B5:B6 (leaving only numeric B6 = 800), and (2) round D5 (3200.756) and D6 (1450.244) to integers per column E's rule and state their sum.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Kiểm toán.localeAndRounding",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "b6_numeric_only", "value": 800, "tolerance": 0 },
+          { "label": "d5_rounded_int", "value": 3201, "tolerance": 0 },
+          { "label": "d6_rounded_int", "value": 1450, "tolerance": 0 },
+          { "label": "sum_d5_d6_rounded", "value": 4651, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["1.250,5"]
+      }
+    },
+    {
+      "id": "DV-XLSX-013",
+      "pairId": "PAIR-XLSX-07",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "ambiguity",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "ask_clarification",
+        "propose_operations"
+      ],
+      "requiredTools": ["ask_clarification"],
+      "prompt": "Hãy cập nhật lại mức chiết khấu cho các phiếu đang bị lệch trên trang tính 'Bán hàng T1' và xóa bớt dòng tổng kết thừa ở cuối bảng giúp tôi.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totalsRows",
+        "expectedKind": "clarification",
+        "writes": 0,
+        "requireAnyTool": false,
+        "mustContainAny": [
+          ["chiết khấu", "phiếu nào", "dòng tổng", "g8", "g9", "subtotal", "làm rõ", "xác nhận"]
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-014",
+      "pairId": "PAIR-XLSX-07",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "ambiguity",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_formats",
+        "ask_clarification",
+        "propose_operations"
+      ],
+      "requiredTools": ["ask_clarification"],
+      "prompt": "Please update the discount rate for the mismatched orders on sheet 'Bán hàng T1' and delete the redundant total row at the bottom of the table.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totalsRows",
+        "expectedKind": "clarification",
+        "writes": 0,
+        "requireAnyTool": false,
+        "mustContainAny": [
+          ["discount", "which", "total row", "g8", "g9", "subtotal", "clarif", "specify"]
+        ]
+      }
+    },
+    {
+      "id": "DV-XLSX-015",
+      "pairId": "PAIR-XLSX-08",
+      "lang": "vi",
+      "format": "xlsx",
+      "category": "whole_range",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Tính tổng doanh thu ròng theo từng chi nhánh (Miền Bắc, Miền Trung, Miền Nam) trên trang tính 'Bán hàng T1', trong đó tách rõ tổng của Miền Trung khi chỉ tính dòng hiển thị và khi tính cả dòng ẩn BH-105.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totals.byBranchWithHidden",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "mien_bac_total", "value": 23400, "tolerance": 0 },
+          { "label": "mien_trung_visible", "value": 14400, "tolerance": 0 },
+          { "label": "mien_trung_with_hidden", "value": 24120, "tolerance": 0 },
+          { "label": "mien_nam_total", "value": 13500, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["Miền Bắc", "Miền Trung", "Miền Nam"]
+      }
+    },
+    {
+      "id": "DV-XLSX-016",
+      "pairId": "PAIR-XLSX-08",
+      "lang": "en",
+      "format": "xlsx",
+      "category": "whole_range",
+      "fixtureId": "dev-xlsx-orders-xyz",
+      "selection": { "sheet": "Bán hàng T1", "range": "A1:I9" },
+      "context": { "activeSheet": "Bán hàng T1" },
+      "allowedTools": [
+        "get_workbook_context",
+        "read_range",
+        "read_cells",
+        "read_sheet_features",
+        "aggregate_range",
+        "summarize_range"
+      ],
+      "requiredTools": ["read_range", "read_cells"],
+      "prompt": "Calculate the net revenue breakdown by branch (Miền Bắc, Miền Trung, Miền Nam) on sheet 'Bán hàng T1', showing Miền Trung both for visible rows only and when including hidden row BH-105.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-xlsx-orders-xyz.oracle.json#sheets.Bán hàng T1.totals.byBranchWithHidden",
+        "expectedKind": "answer",
+        "writes": 0,
+        "requireAnyTool": true,
+        "mustContainNumbers": [
+          { "label": "mien_bac_total", "value": 23400, "tolerance": 0 },
+          { "label": "mien_trung_visible", "value": 14400, "tolerance": 0 },
+          { "label": "mien_trung_with_hidden", "value": 24120, "tolerance": 0 },
+          { "label": "mien_nam_total", "value": 13500, "tolerance": 0 }
+        ],
+        "mustContainTokens": ["Miền Bắc", "Miền Trung", "Miền Nam"]
+      }
+    },
+    {
+      "id": "DV-DOCX-001",
+      "pairId": "PAIR-DOCX-01",
+      "lang": "vi",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "fixtureId": "dev-docx-proposal-vi",
+      "selection": {
+        "blockIndex": 4,
+        "text": "Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc."
+      },
+      "context": {
+        "title": "Đề xuất triển khai hệ thống kho vận 2026",
+        "selectedBlockIndex": 4
+      },
+      "allowedTools": [
+        "get_document_context",
+        "read_blocks",
+        "replace_selection",
+        "replace_blocks",
+        "apply_ops",
+        "ask_clarification"
+      ],
+      "requiredTools": ["replace_selection", "replace_blocks", "apply_ops"],
+      "prompt": "Đoạn văn đang chọn là đoạn số 4 ('Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc.'). Hãy sửa riêng đoạn đang chọn để nâng số lượng lên 250 nhân viên vận hành và thời gian lên 8 tuần; giữ nguyên tất cả các đoạn còn lại.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.oracle.json#blocks[4]",
+        "expectedKind": "edited",
+        "writes": 1,
+        "requireAnyTool": true,
+        "mustContainTokens": ["250", "8 tuần"],
+        "paragraphEdit": {
+          "targetBlockIndex": 4,
+          "mustContainAfter": ["250 nhân viên", "8 tuần", "Đà Nẵng"],
+          "mustNotContainAfter": ["150 nhân viên", "6 tuần"],
+          "unchangedBlocks": [
+            { "index": 0, "text": "Đề xuất triển khai hệ thống kho vận 2026" },
+            { "index": 1, "text": "1. Mục tiêu dự án" },
+            { "index": 2, "text": "Dự án hướng tới giảm thời gian xử lý đơn hàng tại ba kho miền Bắc, miền Trung và miền Nam xuống dưới 4 giờ cho mỗi đơn." },
+            { "index": 3, "text": "2. Phạm vi áp dụng" },
+            { "index": 5, "text": "3. Kế hoạch bàn giao" },
+            { "index": 6, "text": "Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến." }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DV-DOCX-002",
+      "pairId": "PAIR-DOCX-01",
+      "lang": "en",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "fixtureId": "dev-docx-proposal-vi",
+      "selection": {
+        "blockIndex": 4,
+        "text": "Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc."
+      },
+      "context": {
+        "title": "Đề xuất triển khai hệ thống kho vận 2026",
+        "selectedBlockIndex": 4
+      },
+      "allowedTools": [
+        "get_document_context",
+        "read_blocks",
+        "replace_selection",
+        "replace_blocks",
+        "apply_ops",
+        "ask_clarification"
+      ],
+      "requiredTools": ["replace_selection", "replace_blocks", "apply_ops"],
+      "prompt": "The currently selected paragraph is block 4 ('Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc.'). Edit only this selected paragraph in Vietnamese to change '150 nhân viên vận hành' to '250 nhân viên vận hành' and '6 tuần' to '8 tuần', keeping all other paragraphs unchanged.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.oracle.json#blocks[4]",
+        "expectedKind": "edited",
+        "writes": 1,
+        "requireAnyTool": true,
+        "mustContainTokens": ["250", "8 tuần"],
+        "paragraphEdit": {
+          "targetBlockIndex": 4,
+          "mustContainAfter": ["250 nhân viên", "8 tuần", "Đà Nẵng"],
+          "mustNotContainAfter": ["150 nhân viên", "6 tuần"],
+          "unchangedBlocks": [
+            { "index": 0, "text": "Đề xuất triển khai hệ thống kho vận 2026" },
+            { "index": 1, "text": "1. Mục tiêu dự án" },
+            { "index": 2, "text": "Dự án hướng tới giảm thời gian xử lý đơn hàng tại ba kho miền Bắc, miền Trung và miền Nam xuống dưới 4 giờ cho mỗi đơn." },
+            { "index": 3, "text": "2. Phạm vi áp dụng" },
+            { "index": 5, "text": "3. Kế hoạch bàn giao" },
+            { "index": 6, "text": "Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến." }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DV-DOCX-003",
+      "pairId": "PAIR-DOCX-02",
+      "lang": "vi",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "fixtureId": "dev-docx-proposal-vi",
+      "selection": {
+        "blockIndex": 6,
+        "text": "Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến."
+      },
+      "context": {
+        "title": "Đề xuất triển khai hệ thống kho vận 2026",
+        "selectedBlockIndex": 6
+      },
+      "allowedTools": [
+        "get_document_context",
+        "read_blocks",
+        "replace_selection",
+        "replace_blocks",
+        "apply_ops",
+        "ask_clarification"
+      ],
+      "requiredTools": ["replace_selection", "replace_blocks", "apply_ops"],
+      "prompt": "Đoạn văn đang chọn là đoạn số 6 ('Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến.'). Hãy chỉnh sửa riêng đoạn số 6 để đổi hạn bàn giao từ 'ngày 20 tháng 11' thành 'ngày 25 tháng 11' và đổi 'hai buổi tập huấn' thành 'ba buổi tập huấn'; không thay đổi các đoạn khác.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.oracle.json#blocks[6]",
+        "expectedKind": "edited",
+        "writes": 1,
+        "requireAnyTool": true,
+        "mustContainTokens": ["25 tháng 11", "ba buổi tập huấn"],
+        "paragraphEdit": {
+          "targetBlockIndex": 6,
+          "mustContainAfter": ["ngày 25 tháng 11", "ba buổi tập huấn"],
+          "mustNotContainAfter": ["ngày 20 tháng 11", "hai buổi tập huấn"],
+          "unchangedBlocks": [
+            { "index": 0, "text": "Đề xuất triển khai hệ thống kho vận 2026" },
+            { "index": 1, "text": "1. Mục tiêu dự án" },
+            { "index": 2, "text": "Dự án hướng tới giảm thời gian xử lý đơn hàng tại ba kho miền Bắc, miền Trung và miền Nam xuống dưới 4 giờ cho mỗi đơn." },
+            { "index": 3, "text": "2. Phạm vi áp dụng" },
+            { "index": 4, "text": "Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc." },
+            { "index": 5, "text": "3. Kế hoạch bàn giao" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DV-DOCX-004",
+      "pairId": "PAIR-DOCX-02",
+      "lang": "en",
+      "format": "docx",
+      "category": "docx_selected_paragraph_edit",
+      "fixtureId": "dev-docx-proposal-vi",
+      "selection": {
+        "blockIndex": 6,
+        "text": "Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến."
+      },
+      "context": {
+        "title": "Đề xuất triển khai hệ thống kho vận 2026",
+        "selectedBlockIndex": 6
+      },
+      "allowedTools": [
+        "get_document_context",
+        "read_blocks",
+        "replace_selection",
+        "replace_blocks",
+        "apply_ops",
+        "ask_clarification"
+      ],
+      "requiredTools": ["replace_selection", "replace_blocks", "apply_ops"],
+      "prompt": "The currently selected paragraph is block 6 ('Đội dự án bàn giao tài liệu hướng dẫn vận hành trước ngày 20 tháng 11 và tổ chức hai buổi tập huấn trực tuyến.'). Edit only block 6 in Vietnamese to change 'ngày 20 tháng 11' to 'ngày 25 tháng 11' and 'hai buổi tập huấn' to 'ba buổi tập huấn', leaving all other blocks untouched.",
+      "oracle": {
+        "type": "deterministic",
+        "source": "docs/office/g5g6g7/devset/fixtures/dev-docx-proposal-vi.oracle.json#blocks[6]",
+        "expectedKind": "edited",
+        "writes": 1,
+        "requireAnyTool": true,
+        "mustContainTokens": ["25 tháng 11", "ba buổi tập huấn"],
+        "paragraphEdit": {
+          "targetBlockIndex": 6,
+          "mustContainAfter": ["ngày 25 tháng 11", "ba buổi tập huấn"],
+          "mustNotContainAfter": ["ngày 20 tháng 11", "hai buổi tập huấn"],
+          "unchangedBlocks": [
+            { "index": 0, "text": "Đề xuất triển khai hệ thống kho vận 2026" },
+            { "index": 1, "text": "1. Mục tiêu dự án" },
+            { "index": 2, "text": "Dự án hướng tới giảm thời gian xử lý đơn hàng tại ba kho miền Bắc, miền Trung và miền Nam xuống dưới 4 giờ cho mỗi đơn." },
+            { "index": 3, "text": "2. Phạm vi áp dụng" },
+            { "index": 4, "text": "Giai đoạn đầu áp dụng thử nghiệm cho 150 nhân viên vận hành tại kho Đà Nẵng trong vòng 6 tuần trước khi mở rộng toàn quốc." },
+            { "index": 5, "text": "3. Kế hoạch bàn giao" }
+          ]
+        }
+      }
+    }
+  ]
+}

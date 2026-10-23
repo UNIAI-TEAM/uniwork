@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 const maxChatMessageBodyLen = 4000
 
@@ -14,7 +17,7 @@ func validateChatMessageBody(body string) error {
 	if body == "" {
 		return Invalid("nội dung tin nhắn không được để trống")
 	}
-	if len(body) > maxChatMessageBodyLen {
+	if utf8.RuneCountInString(body) > maxChatMessageBodyLen {
 		return Invalid("tin nhắn quá dài")
 	}
 	return nil

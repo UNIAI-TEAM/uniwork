@@ -48,6 +48,18 @@ interface StepItemContextValue {
   isLoading: boolean
 }
 
+// Roles that accept aria-orientation (WAI-ARIA 1.2).
+const ORIENTED_ROLES = new Set([
+  "tablist",
+  "toolbar",
+  "listbox",
+  "menu",
+  "menubar",
+  "radiogroup",
+  "tree",
+  "treegrid",
+])
+
 // Stable default so a Stepper rendered without `indicators` does not hand
 // its context a fresh object on every render.
 const NO_INDICATORS: StepIndicators = {}
@@ -85,6 +97,7 @@ function Stepper({
   className,
   children,
   indicators = NO_INDICATORS,
+  role = "tablist",
   ...props
 }: StepperProps) {
   const [activeStep, setActiveStep] = useState(defaultValue)
@@ -177,9 +190,12 @@ function Stepper({
 
   return (
     <StepperContext.Provider value={contextValue}>
+      {/* A Stepper used as progress overrides the role (usually to "group").
+          aria-orientation is only allowed on the composite roles below, so it
+          follows the role instead of being stamped on every root. */}
       <div
-        role="tablist"
-        aria-orientation={orientation}
+        role={role}
+        aria-orientation={ORIENTED_ROLES.has(role) ? orientation : undefined}
         data-slot="stepper"
         className={cn("w-full", className)}
         data-orientation={orientation}
@@ -423,11 +439,20 @@ function StepperDescription({
   )
 }
 
-function StepperNav({ children, className }: React.ComponentProps<"nav">) {
+/**
+ * `as="div"` when the steps are progress rather than navigation (nothing in
+ * them moves the user), so the row adds no "navigation" landmark a screen
+ * reader would list and jump to. Defaults to <nav>, the registry behaviour.
+ */
+function StepperNav({
+  children,
+  className,
+  as: Element = "nav",
+}: React.ComponentProps<"nav"> & { as?: "nav" | "div" }) {
   const { activeStep, orientation } = useStepper()
 
   return (
-    <nav
+    <Element
       data-slot="stepper-nav"
       data-state={activeStep}
       data-orientation={orientation}
@@ -437,7 +462,7 @@ function StepperNav({ children, className }: React.ComponentProps<"nav">) {
       )}
     >
       {children}
-    </nav>
+    </Element>
   )
 }
 

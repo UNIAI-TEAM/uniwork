@@ -1,0 +1,115 @@
+package realtime
+
+import (
+	"context"
+	"sync"
+	"time"
+)
+
+// scopeGrantCacheMax bounds a grant cache. Past it, decisions are simply not
+// remembered until expired entries make room.
+const scopeGrantCacheMax = 10_000
+
+type scopeGrantKey struct{ userID, workspaceID, scopeID string }
+
+// grantCache remembers positive scope decisions for ttl. A refusal or a
+// failed lookup is never stored, so it is asked again next time.
+type grantCache struct {
+	ttl time.Duration
+	now func() time.Time
+	max int
+
+	mu      sync.Mutex
+	gen     uint64                      // bumped on RevokeScope; stale authorize answers are not stored
+	allowed map[scopeGrantKey]time.Time // expiry
+}
+
+func newGrantCache(ttl time.Duration) *grantCache {
+	return &grantCache{
+		ttl:     ttl,
+		now:     time.Now,
+		max:     scopeGrantCacheMax,
+		allowed: map[scopeGrantKey]time.Time{},
+	}
+}
+
+// authorize answers from the cache, or asks and remembers a yes.
+func (g *grantCache) authorize(
+	ctx context.Context, key scopeGrantKey, ask func(context.Context) (bool, error),
+) (bool, error) {
+	if g.cached(key) {
+		return true, nil
+	}
+	start := g.generation()
+	ok, err := ask(ctx)
+	if err != nil || !ok {
+		return false, err
+	}
+	g.rememberIf(key, start)
+	return true, nil
+}
+
+func (g *grantCache) generation() uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.gen
+}
+
+func (g *grantCache) forget(key scopeGrantKey) {
+	g.mu.Lock()
+	delete(g.allowed, key)
+	g.mu.Unlock()
+}
+
+// RevokeScope forgets userID's decisions on scopeID in every workspace, or
+// all of userID's when scopeID is "", or every user's on scopeID when userID
+// is "". Each authorizer has a cache of its
+// own, so the scope type needs no check here.
+func (g *grantCache) RevokeScope(userID, _, scopeID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.gen++
+	for k := range g.allowed {
+		if (userID == "" || k.userID == userID) && (scopeID == "" || k.scopeID == scopeID) {
+			delete(g.allowed, k)
+		}
+	}
+}
+
+func (g *grantCache) cached(key scopeGrantKey) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	exp, ok := g.allowed[key]
+	if !ok {
+		return false
+	}
+	if !g.now().Before(exp) {
+		delete(g.allowed, key)
+		return false
+	}
+	return true
+}
+
+func (g *grantCache) remember(key scopeGrantKey) {
+	g.rememberIf(key, g.generation())
+}
+
+func (g *grantCache) rememberIf(key scopeGrantKey, startGen uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.gen != startGen {
+		return
+	}
+	now := g.now()
+	if len(g.allowed) >= g.max {
+		for k, exp := range g.allowed {
+			if !now.Before(exp) {
+				delete(g.allowed, k)
+			}
+		}
+		if len(g.allowed) >= g.max {
+			return
+		}
+	}
+	g.allowed[key] = now.Add(g.ttl)
+}

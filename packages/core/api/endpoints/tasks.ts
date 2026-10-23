@@ -6,7 +6,6 @@ import {
   type Task,
   type TaskComment,
   type TaskPriority,
-  type TaskStatus,
 } from "../../types/task";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -19,22 +18,40 @@ const CommentResponse = z.object({ comment: TaskCommentSchema });
 export interface TaskPatch {
   title?: string;
   description?: string;
-  status?: TaskStatus;
+  /** Status catalogue key: a built-in or one of the workspace's own. */
+  status?: string;
   priority?: TaskPriority;
   position?: number;
   assignee_id?: string | null;
   /** Read with assignee_id; omitted means human. */
   assignee_kind?: ActorKind;
+  start_date?: string | null;
   due_date?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
   project_id?: string | null;
 }
 
 export interface CreateTaskBody {
   title: string;
   description?: string;
+  /** Status catalogue key; create surfaces may receive server-defined keys. */
+  status?: string;
   priority?: TaskPriority;
-  assignee_id?: string;
+  assignee_id?: string | null;
   assignee_kind?: ActorKind;
+  due_date?: string | null;
+  start_date?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
+  project_id?: string | null;
+  parent_task_id?: string | null;
+  stage?: number | null;
+  label_ids?: string[];
+  attachment_ids?: string[];
+  properties?: Record<string, unknown>;
+  /** Skip the active-title duplicate guard when the caller confirms. */
+  allow_duplicate?: boolean;
 }
 
 const enc = encodeURIComponent;

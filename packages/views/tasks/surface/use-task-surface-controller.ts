@@ -6,26 +6,25 @@ import type {
   TableFacetsResult,
   TableFilter,
 } from "@uniwork/core/api/endpoints/tasks-table";
-import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   taskKeys,
   useBatchDeleteTasks,
   useBatchUpdateTasks,
-  useGroupedTasks,
   useTableFacets,
   useTaskStatuses,
   useUpdateTask,
 } from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
-import { planSurfaceQuery } from "@uniwork/core/tasks/surface/query-plan";
+import {
+  buildSurfaceTableFilter,
+  planSurfaceQuery,
+} from "@uniwork/core/tasks/surface/query-plan";
 import { taskScopeKey, type TaskScope } from "@uniwork/core/tasks/surface/scope";
 import {
-  TASK_PRIORITIES,
   TASK_STATUSES,
   type Task,
-  type TaskPriority,
   type TaskStatus,
 } from "@uniwork/core/types";
 import type { ActorKind } from "@uniwork/core/types/audit";
@@ -39,10 +38,13 @@ import {
 } from "./actions-context";
 import {
   useCreateTaskSurfaceSelection,
-  type TaskSurfaceSelection,
+  type TaskSurfaceSelectionHandle,
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
 import { projectSurfaceTasks } from "./task-surface-projection";
+import { taskPatchFromSurfaceUpdates } from "./task-surface-patch";
+import { useBoardColumnsData } from "./use-board-columns-data";
+import { useSurfaceFilterInputs } from "./use-surface-filter-inputs";
 import { useTaskSurfaceData } from "./use-task-surface-data";
 import { useTaskGroupBranches } from "./use-task-group-branches";
 import { ganttCanvasRows } from "../modes/gantt-canvas";
@@ -55,51 +57,18 @@ const EMPTY_CONFIG = {
 
 const EMPTY_TASKS: Task[] = [];
 
-function taskPatchFromSurfaceUpdates(
-  updates: Record<string, unknown>,
-): TaskPatch {
-  const patch: TaskPatch = {};
-  if (typeof updates.title === "string") patch.title = updates.title;
-  if (typeof updates.description === "string") {
-    patch.description = updates.description;
-  }
-  if (
-    typeof updates.status === "string" &&
-    TASK_STATUSES.includes(updates.status as TaskStatus)
-  ) {
-    patch.status = updates.status as TaskStatus;
-  }
-  if (
-    typeof updates.priority === "string" &&
-    TASK_PRIORITIES.includes(updates.priority as TaskPriority)
-  ) {
-    patch.priority = updates.priority as TaskPriority;
-  }
-  if (typeof updates.position === "number") patch.position = updates.position;
-  if (
-    updates.assignee_id === null ||
-    typeof updates.assignee_id === "string"
-  ) {
-    patch.assignee_id = updates.assignee_id;
-    if (
-      updates.assignee_kind === "human" ||
-      updates.assignee_kind === "agent" ||
-      updates.assignee_kind === "system"
-    ) {
-      patch.assignee_kind = updates.assignee_kind;
-    }
-  }
-  if (updates.due_date === null || typeof updates.due_date === "string") {
-    patch.due_date = updates.due_date;
-  }
-  return patch;
-}
-
 export interface TaskSurfaceController {
   scopeKey: string;
   viewMode: TaskSurfaceMode;
   setViewMode: (mode: TaskSurfaceMode) => void;
   surfaceTasks: Task[];
+  /**
+   * Paging of what the mode reads: the flat list / my-tasks query (list, gantt,
+   * swimlane, My Tasks board), or the table-fed board as a whole; idle when off.
+   */
+  pagination: ReturnType<typeof useTaskSurfaceData>["pagination"];
+  /** Server paging per status column of the table-fed board; undefined on every other surface. */
+  boardColumns: ReturnType<typeof useBoardColumnsData>["columns"] | undefined;
   /** Gantt canvas projection (dated ± showCompleted). Empty ≠ surface empty. */
   ganttTasks: Task[];
   /** Ordered status-category keys for board columns (catalog / seven built-ins). */
@@ -117,12 +86,15 @@ export interface TaskSurfaceController {
   tableFacetCounts: TableFacetsResult | undefined;
   isLoading: boolean;
   isEmpty: boolean;
+  isError: boolean;
   isRefreshing: boolean;
   actions: TaskSurfaceActions;
-  selection: TaskSurfaceSelection;
+  selection: TaskSurfaceSelectionHandle;
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
+  createDefaults: TaskCreateDefaults | undefined;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
+  retry: () => void;
 }
 
 function orderBoardCategories(raw: string[]): string[] {
@@ -146,12 +118,7 @@ export function useTaskSurfaceController({
   const setViewModeStore = useViewStore((s) => s.setViewMode);
   const queryClient = useQueryClient();
 
-  // My-scope must never mount workspace table groups/rows (no relation filter).
-  const allowedModes = useMemo(() => {
-    const next = new Set<TaskSurfaceMode>(modes);
-    if (scope.type === "my") next.delete("table");
-    return next;
-  }, [modes, scope.type]);
+  const allowedModes = useMemo(() => new Set<TaskSurfaceMode>(modes), [modes]);
   const fallbackMode =
     (modes.find((mode) => allowedModes.has(mode)) as TaskSurfaceMode | undefined) ??
     "list";
@@ -165,24 +132,44 @@ export function useTaskSurfaceController({
     }
   }, [allowedModes, fallbackMode, setViewModeStore, viewMode]);
 
-  const queryPlan = useMemo(
-    () => planSurfaceQuery({ scope, viewMode: effectiveViewMode }),
-    [effectiveViewMode, scope],
+  const { snapshot, dateFilter, clientFilterState } = useSurfaceFilterInputs();
+  // No running-ids projection yet — agentRunning stays a stub (header disables).
+  const runningTaskIds: ReadonlySet<string> | undefined = undefined;
+
+  const mappedTableFilter = useMemo(
+    () =>
+      buildSurfaceTableFilter({
+        scope,
+        snapshot,
+        dateFilter,
+      }),
+    [dateFilter, scope, snapshot],
   );
-  const tableFilter = queryPlan.tableBody?.filter;
+
+  const queryPlan = useMemo(
+    () =>
+      planSurfaceQuery({
+        scope,
+        viewMode: effectiveViewMode,
+        filter: mappedTableFilter,
+      }),
+    [effectiveViewMode, mappedTableFilter, scope],
+  );
 
   const boardEnabled = effectiveViewMode === "board";
-  const tableEnabled = effectiveViewMode === "table" && scope.type !== "my";
+  const tableEnabled = effectiveViewMode === "table";
   const ganttEnabled = effectiveViewMode === "gantt";
   const swimlaneEnabled = effectiveViewMode === "swimlane";
-  // My-scope board has no relation-aware grouped endpoint yet — feed the
-  // board from listMyTasks so columns never show other people's work.
-  const myBoardUsesList = boardEnabled && scope.type === "my";
+  // Every board pages each status column through the table API; the my scope
+  // sends its relation in the filter so columns hold only the viewer's work.
+  const tableFilter: TableFilter | undefined =
+    tableEnabled || boardEnabled
+      ? (queryPlan.tableBody?.filter ?? mappedTableFilter)
+      : undefined;
   const listQueryEnabled =
     (effectiveViewMode === "list" ||
       swimlaneEnabled ||
-      ganttEnabled ||
-      myBoardUsesList) &&
+      ganttEnabled) &&
     queryPlan.kind !== "table";
 
   const data = useTaskSurfaceData({
@@ -206,13 +193,6 @@ export function useTaskSurfaceController({
       ? workspaceId
       : "",
   );
-  const groupedQuery = useGroupedTasks(
-    boardEnabled && scope.type !== "my" ? workspaceId : "",
-    {
-      group_by: "status",
-      ...(scope.type === "project" ? { project_id: scope.projectId } : {}),
-    },
-  );
   const updateTaskMutation = useUpdateTask(workspaceId);
   const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
   const batchDeleteTasks = useBatchDeleteTasks(workspaceId);
@@ -235,9 +215,8 @@ export function useTaskSurfaceController({
   const facetsBody = useMemo(() => {
     if (!tableEnabled || !activeTableFacet) return null;
     return {
-      filter: tableFilter,
+      query: { filter: tableFilter },
       facets: [activeTableFacet.kind],
-      columns: undefined,
     };
   }, [activeTableFacet, tableEnabled, tableFilter]);
 
@@ -254,12 +233,12 @@ export function useTaskSurfaceController({
     );
   }, [statusesQuery.data]);
 
-  const boardTasks = useMemo(() => {
-    if (!boardEnabled) return data.surfaceTasks;
-    if (scope.type === "my") return data.surfaceTasks;
-    const groups = groupedQuery.data ?? [];
-    return groups.flatMap((group) => group.tasks);
-  }, [boardEnabled, data.surfaceTasks, groupedQuery.data, scope.type]);
+  const board = useBoardColumnsData({
+    workspaceId,
+    filter: boardEnabled ? tableFilter : undefined,
+    categories: boardCategories,
+    enabled: boardEnabled,
+  });
 
   const projectsCapability = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -278,10 +257,26 @@ export function useTaskSurfaceController({
     `${workspaceId}:${scopeKey}:${effectiveViewMode}`,
   );
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpenState] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<
+    TaskCreateDefaults | undefined
+  >(undefined);
 
-  const openCreateTask = useCallback((_defaults?: TaskCreateDefaults) => {
-    setCreateOpen(true);
+  const openCreateTask = useCallback(
+    (defaults?: TaskCreateDefaults) => {
+      const scopedDefaults =
+        scope.type === "project"
+          ? { project_id: scope.projectId, ...defaults }
+          : defaults;
+      setCreateDefaults(scopedDefaults);
+      setCreateOpenState(true);
+    },
+    [scope],
+  );
+
+  const setCreateOpen = useCallback((open: boolean) => {
+    setCreateOpenState(open);
+    if (!open) setCreateDefaults(undefined);
   }, []);
 
   const moveTask = useCallback(
@@ -361,17 +356,23 @@ export function useTaskSurfaceController({
             if (task) options?.onSuccess?.(task);
           },
           onError: (err) => options?.onError?.(err),
-          onSettled: () => {
-            void queryClient.invalidateQueries({
-              queryKey: taskKeys.groupedRoot(workspaceId),
-            });
-            options?.onSettled?.();
-          },
+          onSettled: () => options?.onSettled?.(),
         },
       );
     },
-    [queryClient, updateTaskMutation, workspaceId],
+    [updateTaskMutation],
   );
+
+  const retry = useCallback(() => {
+    // Invalidate every root isError can draw on (list/my-tasks queries, the
+    // table API groups behind the board, statuses catalog). A root with no
+    // active query is a harmless no-op, so invalidating all four
+    // unconditionally is simpler and safer than branching on scope/mode.
+    void queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.statuses(workspaceId) });
+  }, [queryClient, workspaceId]);
 
   const actions = useMemo<TaskSurfaceActions>(
     () => ({
@@ -385,12 +386,7 @@ export function useTaskSurfaceController({
       batchUpdate: async (taskIds, updates) => {
         await batchUpdateTasks.mutateAsync({
           task_ids: taskIds,
-          updates: updates as {
-            status?: string;
-            priority?: string;
-            assignee_id?: string | null;
-            assignee_kind?: string;
-          },
+          updates,
         });
       },
       batchDelete: async (taskIds) => {
@@ -415,33 +411,44 @@ export function useTaskSurfaceController({
   );
 
   const isLoading = boardEnabled
-    ? scope.type === "my"
-      ? data.isLoading || statusesQuery.isLoading
-      : statusesQuery.isLoading || groupedQuery.isLoading
+    ? statusesQuery.isLoading || board.isLoading
     : tableEnabled
       ? false
       : data.isLoading;
+  const isError = boardEnabled
+    ? statusesQuery.isError || board.isError
+    : tableEnabled
+      ? false
+      : data.isError;
   const isRefreshing = boardEnabled
-    ? scope.type === "my"
-      ? data.isRefreshing ||
-        (statusesQuery.isFetching && !statusesQuery.isLoading)
-      : (statusesQuery.isFetching && !statusesQuery.isLoading) ||
-        (groupedQuery.isFetching && !groupedQuery.isLoading)
+    ? (statusesQuery.isFetching && !statusesQuery.isLoading) ||
+      board.isRefreshing
     : tableEnabled
       ? false
       : data.isRefreshing;
-  const rawSurfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
-  const surfaceTasks = useMemo(
-    () =>
-      tableEnabled
-        ? rawSurfaceTasks
-        : projectSurfaceTasks(rawSurfaceTasks, {
-            showSubTasks,
-            sortBy,
-            sortDirection,
-          }),
-    [rawSurfaceTasks, showSubTasks, sortBy, sortDirection, tableEnabled],
-  );
+  const rawSurfaceTasks = boardEnabled ? board.tasks : data.surfaceTasks;
+  const pagination = boardEnabled ? board.pagination : data.pagination;
+  const surfaceTasks = useMemo(() => {
+    if (tableEnabled) return rawSurfaceTasks;
+    return projectSurfaceTasks(rawSurfaceTasks, {
+      showSubTasks,
+      sortBy,
+      sortDirection,
+      taskFilters: clientFilterState,
+      filterContext: { runningTaskIds },
+      // Table-backed board already filtered on the server — only agentRunning.
+      clientOnlyFilterDimensions: boardEnabled,
+    });
+  }, [
+    clientFilterState,
+    rawSurfaceTasks,
+    runningTaskIds,
+    showSubTasks,
+    sortBy,
+    sortDirection,
+    boardEnabled,
+    tableEnabled,
+  ]);
   const ganttTasks = useMemo(
     () =>
       ganttEnabled
@@ -454,17 +461,22 @@ export function useTaskSurfaceController({
   // not mark the surface empty; GanttView owns that empty copy. Zero tasks in
   // the window still surface-empty even in gantt mode.
   // Table owns its own empty state. Swimlane/list/board use the full window.
+  // Unloaded pages are not empty, even when every loaded row is hidden.
   const isEmpty =
     !tableEnabled &&
     (boardEnabled || listQueryEnabled) &&
     !isLoading &&
-    surfaceTasks.length === 0;
+    !isError &&
+    surfaceTasks.length === 0 &&
+    !pagination.hasMore;
 
   return {
     scopeKey,
     viewMode: effectiveViewMode,
     setViewMode,
     surfaceTasks,
+    pagination,
+    boardColumns: boardEnabled ? board.columns : undefined,
     ganttTasks,
     boardCategories,
     tableFilter,
@@ -481,11 +493,14 @@ export function useTaskSurfaceController({
         : undefined,
     isLoading,
     isEmpty,
+    isError,
     isRefreshing,
     actions,
     selection,
     openCreateTask,
+    createDefaults,
     createOpen,
     setCreateOpen,
+    retry,
   };
 }

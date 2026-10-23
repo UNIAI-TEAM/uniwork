@@ -1,20 +1,13 @@
 "use client";
 
+import { Globe, Hash, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useCreateChatChannel } from "@uniwork/core/chat";
 import { useProjects } from "@uniwork/core/tasks";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
@@ -26,14 +19,41 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { cn } from "@uniwork/ui/lib/utils";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
+import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
+
+type Visibility = "public" | "private";
+const NO_PROJECT = "__none__";
+const NAME_MAX = 80;
+const TOPIC_MAX = 280;
+
+/* A field label with the canvas' character count at its right. */
+function CountedLabel({ htmlFor, label, length, max }: { htmlFor: string; label: string; length: number; max: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <Label htmlFor={htmlFor} className="text-label font-semibold">
+        {label}
+      </Label>
+      <span aria-hidden className="text-caption text-muted-foreground tabular-nums">
+        {length}/{max}
+      </span>
+    </div>
+  );
+}
 
 export function CreateChannelDialog({
   open,
@@ -55,24 +75,25 @@ export function CreateChannelDialog({
 
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [visibility, setVisibility] = useState<Visibility>("public");
   const [projectId, setProjectId] = useState<string>("");
   const [memberQuery, setMemberQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const excludeUserIds = useMemo(
+  const pickerFocus = useMemberPickerFocus();
+  const pickedUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
 
-  const { filteredMembers, isLoading, workspaceEmailMatch } = useWorkspaceMemberPicker({
+  const { filteredMembers, hasOtherMembers, isLoading, workspaceEmailMatch } = useWorkspaceMemberPicker({
     workspaceId,
     currentUserId,
     open,
     query: memberQuery,
     searchSubmitted,
-    excludeUserIds,
   });
 
   const resetForm = () => {
@@ -83,6 +104,7 @@ export function CreateChannelDialog({
     setMemberQuery("");
     setSearchSubmitted(false);
     setPendingMembers([]);
+    setError(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -95,12 +117,22 @@ export function CreateChannelDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
   };
 
   const removeMember = (userId: string) => {
     setPendingMembers((prev) => prev.filter((member) => member.user_id !== userId));
+  };
+
+  /* The list's rows are checkboxes: a picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
@@ -111,11 +143,12 @@ export function CreateChannelDialog({
   };
 
   const trimmedName = name.trim();
-  const canCreate = trimmedName.length >= 1 && trimmedName.length <= 80 && !createChannel.isPending;
+  const nameValid = trimmedName.length >= 1 && trimmedName.length <= NAME_MAX;
 
   const submit = () => {
-    if (!canCreate) return;
-    void createChannel
+    if (!nameValid || createChannel.isPending) return;
+    setError(null);
+    createChannel
       .mutateAsync({
         name: trimmedName,
         visibility,
@@ -124,99 +157,143 @@ export function CreateChannelDialog({
         member_user_ids: pendingMembers.map((m) => m.user_id),
       })
       .then((room) => {
-        if (!room?.id) return;
+        if (!room?.id) {
+          setError(t("chat.channel.create_failed"));
+          return;
+        }
         handleOpenChange(false);
         onCreated?.(room);
+      })
+      .catch((err: unknown) => {
+        setError(chatErrorMessage(err, t, t("chat.channel.create_failed")));
       });
   };
 
+  const visibilityOptions: { value: Visibility; icon: typeof Globe; title: string; hint: string }[] = [
+    {
+      value: "public",
+      icon: Globe,
+      title: t("chat.channel.visibility_public_title"),
+      hint: t("chat.channel.visibility_public_hint"),
+    },
+    {
+      value: "private",
+      icon: Lock,
+      title: t("chat.channel.visibility_private_title"),
+      hint: t("chat.channel.visibility_private_hint"),
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
-          <DialogTitle className="text-title">{t("chat.channel.create_title")}</DialogTitle>
-          <DialogDescription>{t("chat.channel.create_description")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-160`}>
+        <FormDialogHeader
+          title={t("chat.channel.create_title")}
+          description={t("chat.channel.create_description")}
+        />
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="space-y-2">
-            <Label htmlFor="channel-name" className="text-label font-medium">
-              {t("chat.channel.name_label")}
-            </Label>
-            <Input
-              id="channel-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("chat.channel.name_placeholder")}
-              className="rounded-xl"
-              autoFocus
-              maxLength={80}
-            />
+            <CountedLabel htmlFor="channel-name" label={t("chat.channel.name_label")} length={name.length} max={NAME_MAX} />
+            <div className="relative">
+              <Hash
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="channel-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  e.preventDefault();
+                  submit();
+                }}
+                placeholder={t("chat.channel.name_placeholder")}
+                autoFocus
+                maxLength={NAME_MAX}
+                className={`${CHAT_FIELD_CLASS} pl-10`}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-topic" className="text-label font-medium">
-              {t("chat.channel.topic_label")}
-            </Label>
+            <CountedLabel htmlFor="channel-topic" label={t("chat.channel.topic_label")} length={topic.length} max={TOPIC_MAX} />
             <Textarea
               id="channel-topic"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={t("chat.channel.topic_placeholder")}
-              className="min-h-16 resize-none rounded-xl"
-              maxLength={280}
+              className={`${CHAT_FIELD_CLASS} h-auto min-h-16 resize-none py-3`}
+              maxLength={TOPIC_MAX}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-label font-medium">{t("chat.channel.visibility_label")}</Label>
+            <p id="channel-visibility-label" className="text-label font-semibold text-foreground">
+              {t("chat.channel.visibility_label")}
+            </p>
             <RadioGroup
+              aria-labelledby="channel-visibility-label"
               value={visibility}
               onValueChange={(value) => {
                 if (value === "public" || value === "private") setVisibility(value);
               }}
-              className="gap-2"
+              className="gap-3 sm:grid-cols-2"
             >
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                  visibility === "public"
-                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
-                    : "border-border/70 hover:bg-muted/30",
-                )}
-              >
-                <RadioGroupItem value="public" id="channel-vis-public" />
-                <span className="text-body text-foreground">{t("chat.channel.visibility_public")}</span>
-              </label>
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                  visibility === "private"
-                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
-                    : "border-border/70 hover:bg-muted/30",
-                )}
-              >
-                <RadioGroupItem value="private" id="channel-vis-private" />
-                <span className="text-body text-foreground">{t("chat.channel.visibility_private")}</span>
-              </label>
+              {visibilityOptions.map((option) => (
+                <Label
+                  key={option.value}
+                  htmlFor={`channel-vis-${option.value}`}
+                  className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-border p-3.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
+                >
+                  <RadioGroupItem
+                    value={option.value}
+                    id={`channel-vis-${option.value}`}
+                    aria-describedby={`channel-vis-${option.value}-hint`}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 space-y-1">
+                    <span className="flex items-center gap-1.5 text-body-lg font-semibold text-foreground">
+                      <option.icon aria-hidden className="size-4 shrink-0" />
+                      {option.title}
+                    </span>
+                    <span
+                      id={`channel-vis-${option.value}-hint`}
+                      className="block text-caption text-pretty text-muted-foreground"
+                    >
+                      {option.hint}
+                    </span>
+                  </span>
+                </Label>
+              ))}
             </RadioGroup>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-label font-medium">{t("chat.channel.project_label")}</Label>
+            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-semibold">
+              {t("chat.channel.project_label")}
+            </Label>
             <Select
-              value={projectId || "__none__"}
-              onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
+              value={projectId || NO_PROJECT}
+              onValueChange={(value) => setProjectId(!value || value === NO_PROJECT ? "" : value)}
               items={[
-                { value: "__none__", label: t("chat.channel.project_none") },
+                { value: NO_PROJECT, label: t("chat.channel.project_none") },
                 ...projects.map((project) => ({ value: project.id, label: project.title })),
               ]}
             >
-              <SelectTrigger className="w-full rounded-xl" aria-label={t("chat.channel.project_label")}>
+              <SelectTrigger
+                id="channel-project"
+                aria-labelledby="channel-project-label channel-project"
+                className="min-h-11 w-full rounded-lg border-border bg-muted px-3.5 md:text-body-lg dark:bg-muted"
+              >
                 <SelectValue placeholder={t("chat.channel.project_none")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">{t("chat.channel.project_none")}</SelectItem>
+                <SelectItem value={NO_PROJECT}>{t("chat.channel.project_none")}</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.title}
@@ -225,10 +302,6 @@ export function CreateChannelDialog({
               </SelectContent>
             </Select>
           </div>
-
-          {pendingMembers.length > 0 ? (
-            <SelectedMemberChips members={pendingMembers} onRemove={removeMember} />
-          ) : null}
 
           <div className="space-y-3">
             <WorkspaceMemberSearchField
@@ -240,32 +313,60 @@ export function CreateChannelDialog({
                 setSearchSubmitted(false);
               }}
               onSubmit={submitMemberSearch}
-              placeholder={t("chat.search_member_or_email")}
+              placeholder={t("chat.member_search_placeholder")}
+              // A channel invites only workspace members (no lookup by email
+              // outside it), so Enter on an unknown email does nothing — say so.
+              hint={t("chat.channel.members_hint")}
+              inputRef={pickerFocus.inputRef}
+              onArrowDown={pickerFocus.focusFirstRow}
             />
+            {pendingMembers.length > 0 ? (
+              <SelectedMemberChips
+                members={pendingMembers}
+                onRemove={removeMember}
+                onRemovedLast={pickerFocus.focusInput}
+              />
+            ) : null}
             <WorkspaceMemberPickerList
               members={filteredMembers}
               loading={isLoading}
-              emptyLabel={t("chat.workspace_members_empty")}
-              onPick={addMember}
+              query={memberQuery}
+              hasOtherMembers={hasOtherMembers}
+              selectedUserIds={pickedUserIds}
+              onPick={toggleMember}
+              listRef={pickerFocus.listRef}
             />
           </div>
-        </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={createChannel.isPending}
-            onClick={() => handleOpenChange(false)}
-          >
-            {t("chat.channel.cancel")}
-          </Button>
-          <Button type="button" className="rounded-full" disabled={!canCreate} onClick={submit}>
-            {createChannel.isPending ? t("chat.channel.creating") : t("chat.channel.create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          {error ? (
+            <p role="alert" className="text-caption text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </FormDialogBody>
+        <FormDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
+          submitLabel={t("chat.channel.create")}
+          submittingLabel={t("chat.channel.creating")}
+          submitting={createChannel.isPending}
+          submitDisabled={!nameValid}
+          onSubmit={submit}
+          leading={
+            !nameValid
+              ? t("chat.channel.name_required")
+              : [
+                  `#${trimmedName}`,
+                  visibility === "public"
+                    ? t("chat.channel.visibility_public_title")
+                    : t("chat.channel.visibility_private_title"),
+                  pendingMembers.length > 0 ? t("chat.channel.invite_count", { count: pendingMembers.length }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+          }
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

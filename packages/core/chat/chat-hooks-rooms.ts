@@ -1,21 +1,18 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import { listChatRoomMessages } from "../api/endpoints/chat";
+import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat";
 import { workspaceKeys } from "../workspaces/hooks";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
-
-export function useWorkspaceChatRoom(workspaceId: string) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.room(workspaceId),
-    queryFn: () => chat.getWorkspaceChatRoom(workspaceId),
-    enabled: !!workspaceId && authReady,
-    retry: 2,
-    retryDelay: 400,
-  });
-}
+import {
+  CHAT_HISTORY_PAGE_SIZE,
+  flattenRoomTimeline,
+  olderRoomPageParam,
+  type RoomMessagesPageParam,
+} from "./room-timeline";
+import { chatUnreadBadge } from "./chat-room-helpers";
 
 export function useEnsureWorkspaceChatRoom(workspaceId: string) {
   const qc = useQueryClient();
@@ -27,28 +24,7 @@ export function useEnsureWorkspaceChatRoom(workspaceId: string) {
     },
     onSuccess: (room) => {
       qc.setQueryData(chatKeys.room(workspaceId), room);
-    },
-  });
-}
-
-export function useWorkspaceChatMessages(workspaceId: string, enabled: boolean) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.messages(workspaceId),
-    queryFn: () => chat.listWorkspaceChatMessages(workspaceId),
-    enabled: !!workspaceId && authReady && enabled,
-    refetchInterval: false,
-  });
-}
-
-export function useSendWorkspaceChatMessage(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { body: string; reply_to_message_id?: string }) =>
-      chat.sendWorkspaceChatMessage(workspaceId, input),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.room(workspaceId) });
+      // Membership sync may land after the first listRooms; refresh the sidebar.
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
@@ -58,8 +34,76 @@ export function useChatRooms(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
   return useQuery({
     queryKey: chatKeys.rooms(workspaceId),
-    queryFn: () => chat.listChatRooms(workspaceId),
+    queryFn: ({ signal }) => chat.listChatRooms(workspaceId, signal),
     enabled: !!workspaceId && authReady,
+    // After BE restart the reconnect path invalidates this key; keep the
+    // sidebar honest even if a prior empty response was briefly cached.
+    refetchOnReconnect: "always",
+  });
+}
+
+/**
+ * The room DETAIL read (UNI-1966 L5): viewer-scoped state like
+ * `can_send_document`, which the room list never carries.
+ */
+export function useChatRoom(workspaceId: string, roomId: string, enabled = true) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.roomDetail(workspaceId, roomId),
+    queryFn: () => chat.getChatRoom(workspaceId, roomId),
+    enabled: enabled && authReady && Boolean(workspaceId && roomId),
+  });
+}
+
+/** The Chat nav badge and tab-title count for one workspace (see chatUnreadBadge). */
+export function useChatUnreadBadge(workspaceId: string): number {
+  const rooms = useChatRooms(workspaceId).data;
+  return useMemo(() => chatUnreadBadge(rooms ?? []), [rooms]);
+}
+
+/**
+ * Chat unread per workspace for the workspace switcher. One account-level
+ * entry; realtime invalidates it (chat.room.activity, chat.mention.created,
+ * own chat.room.read, notification.created).
+ */
+export function useChatUnreadSummary() {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.unreadSummary(),
+    queryFn: ({ signal }) => chat.getChatUnreadSummary(signal),
+    enabled: authReady,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Mutes or unmutes one room for the caller. Optimistic: the flag only moves
+ * this person's own row of the rooms list, and a failure restores it.
+ */
+export function useSetChatRoomMuted(workspaceId: string) {
+  const qc = useQueryClient();
+  const key = chatKeys.rooms(workspaceId);
+  return useMutation({
+    mutationFn: async (input: { roomId: string; muted: boolean }) => {
+      if (!(await chat.setChatRoomMuted(workspaceId, input.roomId, input.muted))) {
+        throw new Error("chat_room_mute_failed");
+      }
+    },
+    onMutate: async ({ roomId, muted }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ChatRoomRecord[]>(key);
+      qc.setQueryData<ChatRoomRecord[]>(key, (old) =>
+        old?.map((room) => (room.id === roomId ? { ...room, notifications_muted: muted } : room)),
+      );
+      return { previous };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) qc.setQueryData(key, context.previous);
+    },
+    // The switcher's per-workspace pill leaves muted rooms out of its count.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() });
+    },
   });
 }
 
@@ -89,8 +133,10 @@ export function useInviteChatGroupMembers(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; memberUserIds: string[] }) =>
       chat.inviteChatGroupMembers(workspaceId, input.roomId, input.memberUserIds),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // A channel's roster lives only here, not in the sidebar row.
+      void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, input.roomId) });
     },
   });
 }
@@ -103,12 +149,9 @@ export function useLeaveChatRoom(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "channels", workspaceId] });
       void qc.removeQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
+      void qc.removeQueries({ queryKey: chatKeys.roomDetail(workspaceId, roomId) });
     },
   });
-}
-
-export function useRemoveWorkspaceChatRoomMember(workspaceId: string) {
-  return useRemoveChatRoomMember(workspaceId);
 }
 
 export function useRemoveChatRoomMember(workspaceId: string) {
@@ -121,6 +164,7 @@ export function useRemoveChatRoomMember(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, variables.roomId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }
@@ -149,6 +193,33 @@ export function useUpdateChatRoomMember(workspaceId: string) {
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, variables.roomId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // send_restricted changes whether the member can send at all.
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
+    },
+  });
+}
+
+export function useUpdateChatRoomWallpaper(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { roomId: string; preset: string }) => {
+      await chat.patchChatRoom(workspaceId, input.roomId, { wallpaper: { preset: input.preset } });
+    },
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
+    },
+  });
+}
+
+export function useUploadChatRoomWallpaper(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; file: File }) =>
+      chat.uploadChatRoomWallpaper(workspaceId, input.roomId, input.file),
+    onSuccess: (_room, variables) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }
@@ -159,26 +230,93 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
     mutationFn: (input: {
       roomId: string;
       name?: string;
+      /** The room's description; "" clears it. */
+      topic?: string;
       member_permissions?: Partial<chat.ChatRoomMemberPermissions>;
     }) =>
       chat.patchChatRoom(workspaceId, input.roomId, {
         name: input.name,
+        topic: input.topic,
         member_permissions: input.member_permissions,
       }),
+    // Settings change no message (the server writes none): the timeline stays.
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, variables.roomId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }
 
-export function useChatRoomMessages(workspaceId: string, roomId: string | null, limit = 50) {
+/** Sets (file) or removes (null) a group's avatar. */
+export function useSetChatRoomAvatar(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; file: File | null }) =>
+      input.file
+        ? chat.uploadChatRoomAvatar(workspaceId, input.roomId, input.file)
+        : chat.removeChatRoomAvatar(workspaceId, input.roomId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+export function useChatRoomMessages(
+  workspaceId: string,
+  roomId: string | null,
+  limit = 50,
+  options?: { markRead?: boolean },
+) {
   const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
+  // Default false: listing must not clear unread before CatchUp. Callers that
+  // intentionally advance the cursor pass markRead: true (or use MarkRoomRead).
+  const markRead = options?.markRead === true;
+  // One infinite query per room (H4): older pages chain from the newest by
+  // cursor, and a refetch re-chains them, so the timeline never has a hole.
+  return useInfiniteQuery({
     queryKey: chatKeys.roomMessages(workspaceId, roomId ?? ""),
-    queryFn: () => listChatRoomMessages(workspaceId, roomId!, { limit }),
+    queryFn: ({ pageParam }: { pageParam: RoomMessagesPageParam }) =>
+      listChatRoomMessages(
+        workspaceId,
+        roomId!,
+        pageParam === null
+          ? { limit, mark_read: markRead }
+          : { ...pageParam, limit: CHAT_HISTORY_PAGE_SIZE, mark_read: false },
+      ),
+    initialPageParam: null as RoomMessagesPageParam,
+    getNextPageParam: (lastPage, allPages, lastPageParam) =>
+      olderRoomPageParam(lastPage, allPages, lastPageParam, limit),
+    select: flattenRoomTimeline,
     enabled: !!workspaceId && !!roomId && authReady,
     staleTime: 5_000,
+    refetchOnReconnect: "always",
+  });
+}
+
+export function useMarkChatRoomRead(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roomId: string) => chat.markChatRoomRead(workspaceId, roomId),
+    onSuccess: (_ok, roomId) => {
+      qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) => {
+        if (!old) return old;
+        return old.map((room) =>
+          room.id === roomId ? { ...room, unread_count: 0, mention_unread_count: 0 } : room,
+        );
+      });
+    },
+  });
+}
+
+/** The sidebar's search: text messages across my rooms in one scope, from two characters. */
+export function useSearchChatMessages(workspaceId: string, scope: chat.ChatSearchScope, query: string) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  const normalized = query.trim();
+  return useQuery({
+    queryKey: chatKeys.messageSearch(workspaceId, scope, normalized),
+    queryFn: () => chat.searchChatMessages(workspaceId, { q: normalized, scope, limit: 20 }),
+    enabled: !!workspaceId && authReady && normalized.length >= 2,
+    staleTime: 30_000,
   });
 }
 

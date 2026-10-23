@@ -241,6 +241,38 @@
           "legendFormat": "{{version}} {{commit}}"
         }
       ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "429 theo route",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (route) (rate(uniwork_http_requests_total{status=\"429\"}[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ]
     }
   ]
 }

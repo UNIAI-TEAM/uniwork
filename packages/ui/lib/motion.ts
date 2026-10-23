@@ -1,7 +1,26 @@
 export const UI_EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
+/** A heavier, damped settle for objects that travel (the sidebar's active row). */
+export const UI_EASE_SETTLE = [0.32, 0.72, 0, 1] as const;
+
 export const UI_MOTION_DURATION = {
   micro: 0.1,
   fast: 0.15,
   standard: 0.2,
+  settle: 0.45,
 } as const;
+
+export const UI_MOTION_DISTANCE = {
+  subtle: 6,
+  panel: 12,
+} as const;
+
+/** Base UI keeps mounted popups through these transition states. */
+export const UI_OVERLAY_TRANSITION_CLASS =
+  "transition-opacity duration-(--duration-fast) ease-out-quart data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:transition-opacity";
+
+export const UI_MODAL_TRANSITION_CLASS =
+  "origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity";
+
+export const UI_FLOATING_TRANSITION_CLASS =
+  "origin-(--transform-origin) transition-[opacity,scale,translate] duration-(--duration-fast) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-[side=bottom]:data-starting-style:-translate-y-1 data-[side=bottom]:data-ending-style:-translate-y-1 data-[side=inline-end]:data-starting-style:-translate-x-1 data-[side=inline-end]:data-ending-style:-translate-x-1 data-[side=inline-start]:data-starting-style:translate-x-1 data-[side=inline-start]:data-ending-style:translate-x-1 data-[side=left]:data-starting-style:translate-x-1 data-[side=left]:data-ending-style:translate-x-1 data-[side=right]:data-starting-style:-translate-x-1 data-[side=right]:data-ending-style:-translate-x-1 data-[side=top]:data-starting-style:translate-y-1 data-[side=top]:data-ending-style:translate-y-1 motion-reduce:data-starting-style:!translate-none motion-reduce:data-ending-style:!translate-none motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity";

@@ -5,24 +5,22 @@ import { mergeOptimisticChatMessages } from "@uniwork/core/chat/merge-optimistic
 import type { ChatMessage } from "./chat-messages";
 import { toChatMessage } from "./native-chat-message-mapping";
 
-/** Main room timeline: optimistic sends minus first-class thread replies. */
+/** Main room timeline (every loaded page): optimistic sends minus first-class thread replies. */
 export function buildMainTimelineMessages(input: {
   anchorMessages: ChatMessage[] | null;
   latestRows: ChatMessageRecord[];
-  olderMessages: ChatMessage[];
   pendingEntries: PendingChatMessage[];
   outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
-  workHubEnabled: boolean;
+  threadsEnabled: boolean;
 }): ChatMessage[] {
   const {
     anchorMessages,
     latestRows,
-    olderMessages,
     pendingEntries,
     outboxEntries,
     currentUserId,
-    workHubEnabled,
+    threadsEnabled,
   } = input;
   if (anchorMessages) return anchorMessages;
   const latest = latestRows.map(toChatMessage);
@@ -33,33 +31,29 @@ export function buildMainTimelineMessages(input: {
     outboxEntries,
     currentUserId,
   ) as ChatMessage[];
-  const withoutThreadReplies = workHubEnabled
-    ? mergedLatest.filter((message) => !message.threadRootId)
-    : mergedLatest;
-  if (olderMessages.length === 0) return withoutThreadReplies;
-  const seen = new Set<string>();
-  const merged: ChatMessage[] = [];
-  for (const message of [...olderMessages, ...withoutThreadReplies]) {
-    if (seen.has(message.id)) continue;
-    if (workHubEnabled && message.threadRootId) continue;
-    seen.add(message.id);
-    merged.push(message);
-  }
-  return merged.sort((a, b) => a.ts - b.ts);
+  return threadsEnabled ? mergedLatest.filter((message) => !message.threadRootId) : mergedLatest;
 }
 
-/** Active thread panel: server thread rows + matching pending, root first. */
+/** Active thread panel: server thread rows + matching pending and queued sends, root first. */
 export function buildThreadViewMessages(input: {
   allMessages: ChatMessage[];
   threadRoot: ChatMessage;
   threadRows: ChatMessageRecord[] | undefined;
   pendingEntries: PendingChatMessage[];
+  outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
-  workHubEnabled: boolean;
+  threadsEnabled: boolean;
 }): ChatMessage[] {
-  const { allMessages, threadRoot, threadRows, pendingEntries, currentUserId, workHubEnabled } =
-    input;
-  if (workHubEnabled) {
+  const {
+    allMessages,
+    threadRoot,
+    threadRows,
+    pendingEntries,
+    outboxEntries,
+    currentUserId,
+    threadsEnabled,
+  } = input;
+  if (threadsEnabled) {
     const serverThread = (threadRows ?? []).map(toChatMessage);
     const threadPending = pendingEntries.filter(
       (entry) => entry.thread_root_id === threadRoot.id,
@@ -67,7 +61,7 @@ export function buildThreadViewMessages(input: {
     const mergedThread = mergeOptimisticChatMessages(
       serverThread,
       threadPending,
-      [],
+      outboxEntries.filter((entry) => entry.thread_root_id === threadRoot.id),
       currentUserId,
     ) as ChatMessage[];
     const rootRow = allMessages.find((message) => message.id === threadRoot.id) ?? threadRoot;
@@ -78,4 +72,11 @@ export function buildThreadViewMessages(input: {
     (message) =>
       message.id === threadRoot.id || message.replyToEventId === threadRoot.id,
   );
+}
+
+/** Messages from others after `sinceId`: what arrived while the reader was scrolled away. */
+export function countNewSince(messages: ChatMessage[], sinceId: string | null, currentUserId: string): number {
+  const since = sinceId ? messages.findIndex((message) => message.id === sinceId) : -1;
+  if (since < 0) return 0;
+  return messages.slice(since + 1).filter((message) => message.sender !== currentUserId).length;
 }

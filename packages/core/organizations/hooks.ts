@@ -4,18 +4,24 @@ import * as organizations from "../api/endpoints/organizations";
 import * as orgMembers from "../api/endpoints/organization-members";
 import { peopleKeys } from "../people/hooks";
 import type { Workspace } from "../types/workspace";
-import { workspaceKeys } from "../workspaces/hooks";
+import { workspaceKeys } from "../workspaces/keys";
 
 export const organizationKeys = {
   list: () => ["organizations"] as const,
   workspaces: (orgId: string) => ["org-workspaces", orgId] as const,
 };
 
-export function useOrganizations() {
+export function useOrganizations(enabled = true) {
   return useQuery({
     queryKey: organizationKeys.list(),
     queryFn: () => organizations.list(),
+    enabled,
   });
+}
+
+/** The organization list outside React, for the post-sign-in redirect. */
+export function fetchOrganizations() {
+  return organizations.list();
 }
 
 export function useCreateOrganization() {
@@ -69,13 +75,14 @@ export const orgMemberKeys = {
   me: (orgSlug: string) => ["org-members", orgSlug, "me"] as const,
 };
 
-export function useOrgMembers(orgSlug: string, status = "active") {
+/** `enabled: false` mounts the hook without reading (a screen that may need the list later). */
+export function useOrgMembers(orgSlug: string, status = "active", enabled = true) {
   return useInfiniteQuery({
     queryKey: orgMemberKeys.list(orgSlug, status),
     queryFn: ({ pageParam }) => orgMembers.listOrgMembers(orgSlug, status, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    enabled: !!orgSlug,
+    enabled: enabled && !!orgSlug,
   });
 }
 
@@ -130,6 +137,19 @@ export function useLeaveOrganization(orgSlug: string) {
   });
 }
 
+/**
+ * Closing archives the organization and deactivates the caller in it (ADR
+ * 0032), so like leaving it drops the whole cache. The variable is the slug
+ * the owner typed back to confirm.
+ */
+export function useCloseOrganization(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (confirmSlug: string) => orgMembers.closeOrganization(orgSlug, confirmSlug),
+    onSuccess: () => qc.clear(),
+  });
+}
+
 export function useOrgInvitations(orgSlug: string, enabled = true) {
   return useQuery({
     queryKey: [...orgMemberKeys.all(orgSlug), "invitations"] as const,
@@ -141,8 +161,8 @@ export function useOrgInvitations(orgSlug: string, enabled = true) {
 export function useInviteToOrganization(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ emails, orgRole }: { emails: string[]; orgRole: string }) =>
-      orgMembers.inviteToOrganization(orgSlug, emails, orgRole),
+    mutationFn: ({ emails, orgRole, workspaceIds }: { emails: string[]; orgRole: string; workspaceIds?: string[] }) =>
+      orgMembers.inviteToOrganization(orgSlug, emails, orgRole, workspaceIds),
     onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all(orgSlug) }),
   });
 }
@@ -154,14 +174,29 @@ export function useRevokeOrgInvitation(orgSlug: string) {
 }
 
 /**
- * Handing the organization over changes what the caller may do everywhere, so
- * the whole cache is refreshed rather than the membership list alone.
+ * Handing the organization over changes the caller's role (owner → admin)
+ * and the new owner's, so everything that role decides is refreshed: the
+ * organization list (which carries the caller's role and feeds the billing,
+ * audit and owner-only gates), this organization's member and people reads,
+ * and the workspace memberships an organization role makes implicit. The
+ * rest of the cache — tasks, meetings, documents — does not depend on it and
+ * is left alone.
  */
 export function useTransferOwnership(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ toUserId, password }: { toUserId: string; password: string }) =>
       orgMembers.transferOwnership(orgSlug, toUserId, password),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () =>
+      Promise.all(
+        [
+          organizationKeys.list(),
+          orgMemberKeys.all(orgSlug),
+          peopleKeys.all(orgSlug),
+          workspaceKeys.list(),
+          workspaceKeys.allMe(),
+          workspaceKeys.allMembers(),
+        ].map((queryKey) => qc.invalidateQueries({ queryKey })),
+      ),
   });
 }

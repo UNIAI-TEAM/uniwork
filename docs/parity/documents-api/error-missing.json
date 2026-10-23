@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "not_found",
+    "message": "Không tìm thấy tài liệu.",
+    "error_class": "missing"
+  }
+}

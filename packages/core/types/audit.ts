@@ -45,5 +45,9 @@ export const AuditExportSchema = z.object({
 });
 export type AuditExport = z.infer<typeof AuditExportSchema>;
 
-/** Actor kinds the UI knows how to label; anything else renders as unknown. */
-export type ActorKind = "human" | "agent" | "system";
+/**
+ * Actor kinds the UI knows how to label; anything else renders as unknown.
+ * `guest` is an anonymous meeting guest casting a ballot: it only ever appears
+ * as an audit actor, never in a `_kind` column or as a task assignee.
+ */
+export type ActorKind = "human" | "agent" | "system" | "guest";

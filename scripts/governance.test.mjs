@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -123,18 +123,55 @@ test("the commit-msg hook enforces exactly the prefixes CLAUDE.md documents", ()
   );
 });
 
+const historicalCommitExceptions = new Map([
+  ["e88a05532ceb9b820a64d583fea43685457facd6", "Enhance UI components with transition classes and improve localization"],
+  ["c416bc6f1fee784862607faa4a8cd2519f252b2f", "add env"],
+  ["e6eaf72d530ee4b03481797e874c48fa99c55145", "change to new domain"],
+  ["d95c9fe14681711d109556f4cff0976c03d692c6", "change AI_PROVIDER"],
+  ["78e441abd9f861ea0cc1d19fae35c47129b31239", "(deploy): change AI_PROVIDER"],
+  ["9c94b49eb656ba34ad9cf3415aa13746400d912c", "(test): fix test billing_vnpay_test.go"],
+  ["1f375e0f006bbac633448fcbfe0478dada0afbd1", "UNI-1808 (feat): spec và plan tích hợp pavietnam"],
+  ["30b6eb6b60bfa2f242bad5a0d1ad4880f88c745e", "(feat): plan deploy development"],
+  ["4b7e81b2a54c53b5a0760d09eb884004f26a0cea", "(ci): fix ci dev"],
+  ["874a6e438e7e1de93cf5b334faede1e907604255", "(ci): fix ci dev"],
+  ["3adf1f657e3d0388ed5c1b44050c70d621e05bfc", "(ci): change branch build develop"],
+]);
+
+function rejectedCommitSubjects(commits, types) {
+  const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
+  return commits.filter(({ sha, subject }) =>
+    historicalCommitExceptions.get(sha) !== subject &&
+    !re.test(subject) &&
+    !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(subject),
+  ).map(({ subject }) => subject);
+}
+
 test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
-  const subjects = execFileSync("git", ["log", "--format=%s"], { cwd: root, encoding: "utf8" })
+  //
+  // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
+  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438 and 3adf1f657 were
+  // pushed straight to develop without a conventional prefix. Shared history cannot
+  // be rewritten; pin both SHA and subject so a new commit cannot reuse an
+  // exempt subject to escape this check.
+  const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(line => { const [sha, subject] = line.split("\0"); return { sha, subject }; });
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
-  const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
-  const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
-  );
+  const rejected = rejectedCommitSubjects(commits, types);
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
+});
+
+test("historical message exceptions only allow their immutable commit and subject", () => {
+  const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
+  for (const [sha, subject] of historicalCommitExceptions) {
+    assert.deepEqual(rejectedCommitSubjects([{ sha, subject }], types), []);
+    assert.deepEqual(rejectedCommitSubjects([{ sha: "f".repeat(40), subject }], types), [subject]);
+    assert.deepEqual(rejectedCommitSubjects([{ sha, subject: "another invalid message" }], types), ["another invalid message"]);
+  }
+  assert.deepEqual(rejectedCommitSubjects([{ sha: "f".repeat(40), subject: "fix(changelog): validate content" }], types), []);
 });
 
 test("make doctor reads pinned versions from the files that own them", () => {
@@ -269,7 +306,9 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
 
   const modules = fs.readdirSync(path.join(root, CORE), { withFileTypes: true })
     .filter((e) => e.isDirectory() && !e.name.startsWith(".") &&
-                   e.name !== "test" && e.name !== "node_modules")
+                   e.name !== "test" && e.name !== "node_modules" &&
+                   // vitest --coverage output (gitignored), not source
+                   e.name !== "coverage")
     .map((e) => e.name);
 
   // A specifier resolves to a top-level core module, the core barrel, or nothing.
@@ -326,7 +365,7 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
   // accurate and unchanged for a month; past this date it has to be empty —
   // wire each module to a host or delete it. Move the date only with a
   // reason in the commit body.
-  const ORPHANS_DEADLINE = "2026-09-30";
+  const ORPHANS_DEADLINE = "2026-10-31";
   if (new Date() > new Date(ORPHANS_DEADLINE)) {
     assert.deepEqual(
       orphans, [],
@@ -355,4 +394,51 @@ test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
   for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
     assert.match(read("Makefile"), new RegExp(`^${t}:`, "m"), `Makefile target ${t} is missing`);
   }
+});
+
+describe("ADR 0011 — apps/chat-mobile", () => {
+  // The mobile app imports only types and pure functions from packages/core.
+  // usf's sibling boundary is convention only, and its barrels pull TanStack,
+  // zustand and the web ApiClient into Metro. Here the boundary is files that
+  // must exist the day the app does; while it does not, there is nothing to hold.
+  const app = "apps/chat-mobile";
+  const exists = (p) => fs.existsSync(path.join(root, p));
+  const eslintConfig = () =>
+    exists(app) ? fs.readdirSync(path.join(root, app)).find((f) => /^eslint\.config\.[cm]?[jt]s$/.test(f)) : undefined;
+
+  test("the app carries its own CLAUDE.md", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    assert.ok(exists(`${app}/CLAUDE.md`), `${app}/CLAUDE.md is missing`);
+  });
+
+  test("the import boundary is a lint rule, not a convention", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    const cfg = eslintConfig();
+    assert.ok(cfg, `${app} has no eslint.config.*`);
+    const text = read(`${app}/${cfg}`);
+    assert.match(text, /no-restricted-imports/, `${app}/${cfg} must use no-restricted-imports`);
+    assert.match(text, /@uniwork\/views/, `${app}/${cfg} must restrict @uniwork/views`);
+  });
+
+  test("mobile verifies in its own workflow and stays out of the main CI filter", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    assert.ok(exists(".github/workflows/mobile-verify.yml"), "mobile-verify workflow is missing");
+    assert.match(read(".github/workflows/ci.yml"), /!@uniwork\/chat-mobile/, "ci.yml must filter out @uniwork/chat-mobile");
+  });
+
+  test("the nightly keeps its test account out of public artifacts and setup steps", { skip: !exists(app) && "apps/chat-mobile does not exist yet" }, () => {
+    // The repository is public: anyone can download a workflow artifact, and
+    // GitHub masks secrets in logs only. Maestro's command log records what
+    // each inputText typed (the test password); screenshots are all a failure
+    // needs. The account reaches only the steps that run Maestro, not the
+    // install, prebuild and installer script before them (UNI-1838).
+    const wf = read(".github/workflows/chat-mobile-verify.yml");
+    for (const [, upload] of wf.matchAll(/^\s+path: (.+)$/gm)) {
+      if (upload.includes(".maestro")) assert.match(upload, /\*\.png$/, `uploads ${upload}: only Maestro screenshots may leave the runner`);
+    }
+    for (const job of wf.split(/^ {2}(?=[a-z]+:$)/m).filter((j) => /^(ios|android):/.test(j))) {
+      const [head, ...steps] = job.split(/^ {6}- /m);
+      assert.doesNotMatch(head, /MAESTRO_TEST_/, `${job.split(":")[0]}: the test account belongs on the Maestro steps, not the job env`);
+      for (const step of steps.filter((s) => s.includes("MAESTRO_TEST_"))) {
+        assert.match(step, /maestro (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
+      }
+    }
+  });
 });

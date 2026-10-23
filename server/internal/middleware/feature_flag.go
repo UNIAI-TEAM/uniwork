@@ -1,11 +1,34 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
+
+// FlagOrganization adds the organization a request acts in to the flag
+// EvalContext, so a later RequireFeatureFlag honours organization overrides
+// (user > organization > global). It runs after RequireAuth; of names the
+// organization and must only name one the caller is a member of. A nil of, or
+// "", leaves the evaluation per user.
+func FlagOrganization(of func(*http.Request) string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if of == nil {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if org := of(r); org != "" {
+				ec := featureflag.EvalContextFrom(r.Context())
+				ec.OrganizationID = org
+				r = r.WithContext(featureflag.WithEvalContext(r.Context(), ec))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 // RequireFeatureFlag returns 404 JSON {"error":{"code":"feature_disabled"}} when
 // the named catalogue flag evaluates off for the request. When the key is not
@@ -20,7 +43,7 @@ func RequireFeatureFlag(flags *featureflag.Service, name string) func(http.Handl
 			if !flags.IsEnabled(r.Context(), name, def) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error":{"code":"feature_disabled","message":"feature is disabled"}}`))
+				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("feature_disabled", "feature is disabled"))
 				return
 			}
 			next.ServeHTTP(w, r)

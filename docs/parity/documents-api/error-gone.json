@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "document_deleted",
+    "message": "Tài liệu đã bị xoá.",
+    "error_class": "gone"
+  }
+}

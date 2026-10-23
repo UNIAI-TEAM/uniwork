@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from "react";
 
-const DEFAULT_ESTIMATE_PX = 72;
+const DEFAULT_ESTIMATE_PX = 88;
 
 interface VirtualChatMessageListProps {
   messages: { id: string }[];
@@ -18,12 +18,18 @@ interface VirtualChatMessageListProps {
   /** When true, onScroll must not clear stick-to-bottom (panel reads this). */
   programmaticScrollRef: RefObject<boolean>;
   highlightMessageId?: string | null;
+  /** Called once the highlighted row has been scrolled into view (focus it there). */
+  onHighlightShown?: (messageId: string) => void;
   header?: ReactNode;
   empty?: ReactNode;
   renderMessage: (index: number) => ReactNode;
 }
 
-/** Keep the scrollport on the newest message while measures settle. */
+/**
+ * Keep the scrollport on the newest message while measures settle. The
+ * follow-up frames only pin while still pinned: a jump to a message
+ * (search, pin bar, quote, deep link) unpins, and must not be undone.
+ */
 export function pinChatScrollToBottom(
   scrollEl: HTMLDivElement,
   stickToBottomRef: RefObject<boolean>,
@@ -34,13 +40,21 @@ export function pinChatScrollToBottom(
   stickToBottomRef.current = true;
   programmaticScrollRef.current = true;
   const apply = () => {
-    scrollEl.scrollTop = scrollEl.scrollHeight;
+    if (stickToBottomRef.current) scrollEl.scrollTop = scrollEl.scrollHeight;
   };
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
   requestAnimationFrame(() => {
+    if (!stickToBottomRef.current) {
+      programmaticScrollRef.current = false;
+      return;
+    }
     apply();
     requestAnimationFrame(() => {
+      if (!stickToBottomRef.current) {
+        programmaticScrollRef.current = false;
+        return;
+      }
       apply();
       programmaticScrollRef.current = false;
     });
@@ -74,6 +88,24 @@ export function updateStickToBottomFromScroll(
   return stickToBottomRef.current;
 }
 
+/** When the reader last scrolled by hand in the scroller: wheel, touch, pointer, key or focus. */
+export function useReaderScrollAt(scrollRef: RefObject<HTMLDivElement | null>): RefObject<number> {
+  const at = useRef(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const mark = () => {
+      at.current = Date.now();
+    };
+    const events = ["wheel", "touchmove", "pointerdown", "keydown", "focusin"] as const;
+    for (const name of events) el.addEventListener(name, mark, { passive: true });
+    return () => {
+      for (const name of events) el.removeEventListener(name, mark);
+    };
+  }, [scrollRef]);
+  return at;
+}
+
 /** Renders only visible chat rows to keep long histories smooth. */
 export function VirtualChatMessageList({
   messages,
@@ -81,6 +113,7 @@ export function VirtualChatMessageList({
   stickToBottomRef,
   programmaticScrollRef,
   highlightMessageId,
+  onHighlightShown,
   header,
   empty,
   renderMessage,
@@ -105,15 +138,10 @@ export function VirtualChatMessageList({
       hadMessagesRef.current = false;
       return;
     }
-    const firstPaint = !hadMessagesRef.current;
     hadMessagesRef.current = true;
-    // First page for this mount / after empty → always land on newest.
-    if (firstPaint || stickToBottomRef.current) {
-      pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef, {
-        force: firstPaint,
-      });
-    }
-  }, [messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
+    if (highlightMessageId || !stickToBottomRef.current) return;
+    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
+  }, [highlightMessageId, messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
 
   // Row measures + header ("load older") change height after layout.
   useEffect(() => {
@@ -128,17 +156,44 @@ export function VirtualChatMessageList({
     return () => observer.disconnect();
   }, [scrollRef, stickToBottomRef, programmaticScrollRef, messages.length]);
 
+  // Scroll to a highlighted message once per highlight: when it is set, or
+  // when the page holding it arrives. New messages landing during the flash
+  // must not pull the reader back to it.
+  const scrolledHighlightRef = useRef<string | null>(null);
+  const onHighlightShownRef = useRef(onHighlightShown);
+  onHighlightShownRef.current = onHighlightShown;
   useEffect(() => {
-    if (!highlightMessageId) return;
+    if (!highlightMessageId) {
+      scrolledHighlightRef.current = null;
+      return;
+    }
+    if (scrolledHighlightRef.current === highlightMessageId) return;
     const index = messages.findIndex((message) => message.id === highlightMessageId);
     if (index < 0) return;
-    programmaticScrollRef.current = true;
+    scrolledHighlightRef.current = highlightMessageId;
     stickToBottomRef.current = false;
-    virtualizer.scrollToIndex(index, { align: "center" });
-    requestAnimationFrame(() => {
-      programmaticScrollRef.current = false;
-    });
-  }, [highlightMessageId, messages, programmaticScrollRef, stickToBottomRef, virtualizer]);
+    const align = () => {
+      programmaticScrollRef.current = true;
+      virtualizer.scrollToIndex(index, { align: "center" });
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+      });
+    };
+    align();
+    // The row is mounted once the virtualizer has scrolled to it.
+    requestAnimationFrame(() => requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId)));
+    // Photos above it measure in after the jump and push it down: centre it
+    // again while they load, unless the reader takes the scroll first.
+    const timers = [400, 1200].map((ms) => window.setTimeout(align, ms));
+    const el = scrollRef.current;
+    const stop = () => timers.forEach((timer) => window.clearTimeout(timer));
+    const events = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
+    for (const name of events) el?.addEventListener(name, stop, { passive: true, once: true });
+    return () => {
+      stop();
+      for (const name of events) el?.removeEventListener(name, stop);
+    };
+  }, [highlightMessageId, messages, programmaticScrollRef, scrollRef, stickToBottomRef, virtualizer]);
 
   if (messages.length === 0) {
     return empty ?? null;

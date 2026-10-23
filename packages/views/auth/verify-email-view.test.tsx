@@ -46,7 +46,9 @@ describe("VerifyEmailView", () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
     fireEvent.change(otpInput(), { target: { value: "123456" } });
-    await screen.findByRole("button", { name: "Đang xác thực…" });
+    expect(await screen.findByRole("status")).toHaveTextContent("Đang xác thực…");
+    // The resend button reports resending, never the code check.
+    expect(screen.queryByRole("button", { name: "Đang xác thực…" })).toBeNull();
     expect(otpInput()).not.toBeDisabled();
     expect(otpInput()).toHaveAttribute("readonly");
     expect(otpInput()).toHaveAttribute("aria-busy", "true");

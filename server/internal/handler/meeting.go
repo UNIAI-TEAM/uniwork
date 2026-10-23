@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,7 +24,7 @@ func rfc3339(t pgtype.Timestamptz) string {
 }
 
 func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
-	return sdo.MeetingDTO{
+	d := sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
@@ -31,6 +32,11 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version,
 	}
+	if m.QuorumPercent.Valid {
+		v := m.QuorumPercent.Int16
+		d.QuorumPercent = &v
+	}
+	return d
 }
 
 func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +46,21 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 	f := service.MeetingListFilter{
 		Status: q.Get("status"), MeetingType: q.Get("meeting_type"), HostUserID: q.Get("host_user_id"),
 		ProjectID: q.Get("project_id"), Q: q.Get("q"), Sort: q.Get("sort"), Limit: int32(limit), Offset: int32(offset),
+	}
+	switch f.Sort {
+	case "", "actual_start_at", "starts_at":
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "sort phải là actual_start_at hoặc starts_at")
+		return
+	}
+	if tz := q.Get("tz"); tz != "" {
+		// "Local" would mean the server's zone, and Postgres would not know it by that name.
+		loc, err := time.LoadLocation(tz)
+		if err != nil || tz == "Local" {
+			respondError(w, http.StatusBadRequest, "invalid_request", "tz phải là múi giờ IANA, ví dụ Asia/Ho_Chi_Minh")
+			return
+		}
+		f.Location = loc
 	}
 	if s := q.Get("from"); s != "" {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
@@ -56,11 +77,11 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.MeetingDTO, 0, len(ms))
-	for _, m := range ms {
-		out = append(out, toMeetingDTO(m))
+	out := make([]sdo.MeetingListItemDTO, 0, len(ms))
+	for _, row := range ms {
+		out = append(out, sdo.MeetingListItemDTO{MeetingDTO: toMeetingDTO(row.Meeting), HasPlayableRecording: row.HasPlayableRecording})
 	}
-	respondJSON(w, 200, map[string]any{"meetings": out, "total": total})
+	respondJSON(w, 200, sdo.MeetingListSDO{Meetings: out, Total: total})
 }
 
 func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +133,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		service.UpdateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
+			QuorumPercent: in.QuorumPercent,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -171,6 +193,21 @@ func (h *handlers) cancelMeeting(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+func (h *handlers) restoreMeeting(w http.ResponseWriter, r *http.Request) {
+	var in sdi.RestoreMeetingSDI
+	// The version is optional but must be read when sent: a chunked request has
+	// no Content-Length (-1), which a length test would take for no body.
+	if !decodeOptionalBody(w, r, &in) {
+		return
+	}
+	m, err := h.Meetings.Restore(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Version)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+}
+
 func (h *handlers) transferHost(w http.ResponseWriter, r *http.Request) {
 	var in sdi.HostTransferSDI
 	if !decode(w, r, &in, maxJSONBody) {
@@ -213,13 +250,34 @@ func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingStatisticsSDO{
-		Total: st.Total, Scheduled: st.Scheduled, InProgress: st.InProgress, Ended: st.Ended,
+		Total: st.Total, Scheduled: st.Scheduled, Missed: st.Missed, InProgress: st.InProgress, Ended: st.Ended,
 		Canceled: st.Canceled, Instant: st.Instant,
 		InvPending: st.InvPending, InvAccepted: st.InvAccepted, InvDeclined: st.InvDeclined, InvTentative: st.InvTentative,
 		JoinTotal: st.JoinTotal, JoinApproved: st.JoinApproved, JoinRejected: st.JoinRejected,
 		AvgApprovalSeconds: st.AvgApprovalSeconds,
 		LinksCreated:       st.LinksCreated, LinksUsed: st.LinksUsed, LinksRevoked: st.LinksRevoked, LinksExpired: st.LinksExpired,
 	})
+}
+
+// activityPayloadEvents lists the timeline rows whose stored payload reaches
+// the client. Every other row keeps its payload server-side (MEETING_CREATED
+// stores meeting_type, for one); a new event opts in here deliberately.
+var activityPayloadEvents = map[string]struct{}{
+	"MOTION_OPENED": {},
+	"MOTION_CLOSED": {},
+}
+
+// activityPayload decodes an allowlisted row's payload; nil for any other
+// row, and for a payload that is not a flat string map.
+func activityPayload(a db.MeetingAuditLog) map[string]string {
+	if _, ok := activityPayloadEvents[a.EventType]; !ok {
+		return nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(a.Payload), &out); err != nil || len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +291,7 @@ func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sdo.ActivityItemDTO{
 			ID: a.ID, EventType: a.EventType, ActorID: a.ActorID,
 			FromState: a.FromState.String, ToState: a.ToState.String, OccurredAt: rfc3339(a.OccurredAt),
+			Payload: activityPayload(a),
 		})
 	}
 	respondJSON(w, 200, map[string]any{"activity": out})

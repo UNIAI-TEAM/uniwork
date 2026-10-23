@@ -10,28 +10,51 @@ INSERT INTO chat_message_links (
 )
 RETURNING *;
 
--- name: GetChatMessageLink :one
-SELECT * FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2;
-
 -- name: GetChatMessageLinkByPair :one
+-- tenant: parent message_id
 SELECT * FROM chat_message_links
 WHERE message_id = $1 AND target_type = $2 AND target_id = $3;
 
--- name: ListChatMessageLinksByMessage :many
+-- name: ListChatMessageLinksByRoomMessages :many
+-- tenant: parent room_id
+-- One room's timeline asks for the links of every message it shows at once,
+-- instead of one request per message. The room is the only scope: DM and
+-- group rooms are org-level and their links carry the creator's workspace, so
+-- a viewer arriving from another workspace must still see them.
 SELECT * FROM chat_message_links
-WHERE message_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC;
-
--- name: ListChatMessageLinksByMessages :many
-SELECT * FROM chat_message_links
-WHERE workspace_id = $1
+WHERE room_id = $1
   AND message_id = ANY(sqlc.arg(message_ids)::text[])
 ORDER BY created_at ASC;
 
--- name: DeleteChatMessageLink :execrows
+-- name: ListChatRoomLinkedTasks :many
+-- The info panel's "tasks from this conversation": each task linked from one
+-- room's messages once, most recently linked first, with the full count.
+-- Only tasks of the workspace the service admitted the caller to.
+SELECT
+  t.id, t.workspace_id, t.number, t.title, t.status, t.priority,
+  t.assignee_id, t.assignee_kind,
+  COALESCE(NULLIF(u.display_name, ''), u.email, a.name, '')::text AS assignee_name,
+  t.due_date,
+  l.linked_at,
+  (COUNT(*) OVER ())::int AS total
+FROM (
+  SELECT target_id, MAX(created_at)::timestamptz AS linked_at
+  FROM chat_message_links
+  WHERE room_id = sqlc.arg(room_id) AND target_type = 'task'
+  GROUP BY target_id
+) l
+JOIN tasks t ON t.id = l.target_id AND t.workspace_id = sqlc.arg(workspace_id)
+LEFT JOIN users u ON t.assignee_kind = 'human' AND u.id = t.assignee_id
+LEFT JOIN agents a ON t.assignee_kind = 'agent' AND a.id = t.assignee_id
+ORDER BY l.linked_at DESC, t.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: DeleteChatMessageLink :one
+-- tenant: by-id
+-- Scoped by room, not workspace, for the same reason as the room batch above.
 DELETE FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2 AND message_id = $3;
+WHERE id = $1 AND room_id = $2 AND message_id = $3
+RETURNING target_id;
 
 -- name: CreateChatThreadTaskLink :one
 INSERT INTO chat_thread_task_links (
@@ -44,29 +67,48 @@ INSERT INTO chat_thread_task_links (
 RETURNING *;
 
 -- name: GetChatThreadTaskLinkByThread :one
+-- tenant: parent thread_root_id
 SELECT * FROM chat_thread_task_links
 WHERE thread_root_id = $1;
 
 -- name: GetChatThreadTaskLinkByTask :one
+-- tenant: system
 SELECT * FROM chat_thread_task_links
 WHERE task_id = $1
 ORDER BY created_at ASC
 LIMIT 1;
 
--- name: DeleteChatThreadTaskLinkByThread :execrows
+-- name: DeleteChatThreadTaskLinksByTask :many
+-- Deleting a task frees the threads it synced with, in the same transaction.
 DELETE FROM chat_thread_task_links
-WHERE thread_root_id = $1 AND workspace_id = $2;
+WHERE organization_id = $1 AND task_id = $2
+RETURNING room_id, thread_root_id;
+
+-- name: DeleteChatMessageLinksByTask :many
+-- Deleting a task takes its card off every message it was linked from.
+DELETE FROM chat_message_links
+WHERE organization_id = $1 AND target_type = 'task' AND target_id = $2
+RETURNING room_id, message_id;
 
 -- name: CreateMirroredChatThreadReply :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body,
-  reply_to_message_id, thread_root_id, mirrored_from_comment_id
+  reply_to_message_id, thread_root_id, mirrored_from_comment_id, organization_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6,
-  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id)
+  sqlc.arg(reply_to_message_id), sqlc.arg(thread_root_id), sqlc.arg(mirrored_from_comment_id),
+  sqlc.arg(organization_id)
 )
 RETURNING *;
 
 -- name: GetChatMessageByMirroredComment :one
+-- tenant: system
 SELECT * FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL;
+
+-- name: UnlinkChatThreadTask :one
+-- C-11: the unsync command returns the link it removed, for its audit row
+-- and its chat.thread.unlinked event.
+DELETE FROM chat_thread_task_links
+WHERE thread_root_id = sqlc.arg(thread_root_id) AND workspace_id = sqlc.arg(workspace_id)
+RETURNING *;

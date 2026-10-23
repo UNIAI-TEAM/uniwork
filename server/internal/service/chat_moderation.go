@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -17,6 +20,16 @@ type ChatRoomMemberView struct {
 	SendRestricted bool
 	Email          string
 	DisplayName    string
+	// IsCreator marks the room's creator, whom canModerateChatRoom and
+	// canDemoteChatAdmin treat apart from the role column.
+	IsCreator bool
+	// LastReadAt is the member's main-timeline read pointer, nil if never
+	// read; the client counts who has seen a message from it.
+	LastReadAt *time.Time
+	// LastDeliveredAt is how far the member's devices acknowledged holding
+	// the room (never behind LastReadAt for a read since UNI-1908); nil if
+	// never acknowledged. ✓✓ grey once every other member reached a message.
+	LastDeliveredAt *time.Time
 }
 
 type UpdateChatRoomMemberInput struct {
@@ -28,7 +41,8 @@ type UpdateChatRoomMemberInput struct {
 func (s *ChatService) ListChatRoomMembers(
 	ctx context.Context, userID, workspaceID, roomID string,
 ) ([]ChatRoomMemberView, error) {
-	if _, err := s.authorizeRoom(ctx, userID, workspaceID, roomID); err != nil {
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	if err != nil {
 		return nil, err
 	}
 	rows, err := s.q.ListChatRoomMembers(ctx, roomID)
@@ -39,7 +53,8 @@ func (s *ChatService) ListChatRoomMembers(
 	for _, row := range rows {
 		out = append(out, ChatRoomMemberView{
 			UserID: row.UserID, Role: row.Role, SendRestricted: row.SendRestricted,
-			Email: row.Email, DisplayName: row.DisplayName,
+			Email: row.Email, DisplayName: row.DisplayName, IsCreator: row.UserID == room.CreatedBy,
+			LastReadAt: timePtr(row.LastReadAt), LastDeliveredAt: timePtr(row.LastDeliveredAt),
 		})
 	}
 	return out, nil
@@ -85,6 +100,9 @@ func (s *ChatService) UpdateChatRoomMember(
 			return ErrNotFound
 		}
 	}
+
+	var newRole string
+	roleChange := false
 	if in.Role != nil {
 		role := strings.TrimSpace(*in.Role)
 		if role != "admin" && role != "member" {
@@ -95,30 +113,69 @@ func (s *ChatService) UpdateChatRoomMember(
 				if target.Role != "member" {
 					return Invalid("chỉ có thể thăng member lên admin")
 				}
-				if err := s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-					RoomID: roomID, UserID: targetUserID, Role: "admin",
-				}); err != nil {
-					return err
-				}
 			} else if !canDemoteChatAdmin(actorID, actorMember, room, wsMember, target, targetWS) {
 				return ErrForbidden
-			} else if err := s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-				RoomID: roomID, UserID: targetUserID, Role: "member",
-			}); err != nil {
-				return err
 			}
+			newRole = role
+			roleChange = true
 		}
 	}
+
+	var newRestricted bool
+	restrictChange := false
 	if in.SendRestricted != nil {
 		restricted := *in.SendRestricted
-		if restricted && !canRestrictChatTarget(room, target, targetWS) {
-			return ErrForbidden
+		if restricted != target.SendRestricted {
+			if restricted && !canRestrictChatTarget(room, target, targetWS) {
+				return ErrForbidden
+			}
+			newRestricted = restricted
+			restrictChange = true
 		}
-		if err := s.q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
-			RoomID: roomID, UserID: targetUserID, SendRestricted: restricted,
+	}
+	if !roleChange && !restrictChange {
+		return nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+
+	changes := map[string]audit.Change{}
+	if roleChange {
+		if err := q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+			RoomID: roomID, UserID: targetUserID, Role: newRole,
 		}); err != nil {
 			return err
 		}
+		changes["role"] = audit.Change{From: target.Role, To: newRole}
+	}
+	if restrictChange {
+		if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+			RoomID: roomID, UserID: targetUserID, SendRestricted: newRestricted,
+		}); err != nil {
+			return err
+		}
+		changes["send_restricted"] = audit.Change{From: target.SendRestricted, To: newRestricted}
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    anchorWS,
+		Actor:          audit.User(actorID),
+		Action:         audit.ActionChatRoomMemberUpdated,
+		ResourceType:   "chat_room",
+		ResourceID:     roomID,
+		Changes:        changes,
+		Metadata:       map[string]any{"member_id": targetUserID},
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
 		Type: "chat.room.updated", Payload: map[string]string{"room_id": roomID},
@@ -180,9 +237,35 @@ func (s *ChatService) removeGroupRoomMember(
 	if target.Role == "admin" && targetUserID != actorID {
 		return ErrForbidden
 	}
-	if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
+	if targetUserID == actorID {
+		if err := s.refuseLastAdminLeaving(ctx, room.ID, actorID); err != nil {
+			return err
+		}
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if err := q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
 		RoomID: room.ID, UserID: targetUserID,
 	}); err != nil {
+		return err
+	}
+	// The event also takes the room's realtime scope back from the member.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		Actor:        audit.User(actorID),
+		Action:       audit.ActionChatRoomMemberRemoved,
+		ResourceType: "chat_room", ResourceID: room.ID,
+		Metadata: map[string]any{"member_id": targetUserID, "self_service": actorID == targetUserID},
+	}, audit.Event{Topic: "chat.room.member_removed", Payload: map[string]string{
+		"room_id": room.ID, "user_id": targetUserID,
+	}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, room.ID, Event{
@@ -191,8 +274,43 @@ func (s *ChatService) removeGroupRoomMember(
 	return nil
 }
 
+// refuseLastAdminLeaving keeps a group or channel from losing its last admin
+// while others still use it: nobody would be left to invite, kick or promote.
+// shortcut: read outside the leave transaction, so two admins leaving at the
+// same instant can both pass; lock the member rows if that ever matters.
+func (s *ChatService) refuseLastAdminLeaving(ctx context.Context, roomID, userID string) error {
+	members, err := s.q.ListChatRoomMembers(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	leaverIsAdmin, otherAdmins := false, 0
+	for _, m := range members {
+		if m.Role != "admin" {
+			continue
+		}
+		if m.UserID == userID {
+			leaverIsAdmin = true
+		} else {
+			otherAdmins++
+		}
+	}
+	if leaverIsAdmin && otherAdmins == 0 && len(members) > 1 {
+		return coded(http.StatusConflict, "chat_last_admin", "Hãy chỉ định quản trị viên khác trước khi rời phòng")
+	}
+	return nil
+}
+
 func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID string, room db.ChatRoom) error {
-	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	return s.requireCanSendInRoomQ(ctx, s.q, userID, roomID, room)
+}
+
+// requireCanSendInRoomQ is requireCanSendInRoom read through q. A send that
+// re-checks the gate inside its commit transaction passes the transaction's
+// queries: a pool read there would hold the transaction's connection while it
+// waits for a second one, so as many concurrent sends as the pool has
+// connections would wait on each other until their deadlines.
+func (s *ChatService) requireCanSendInRoomQ(ctx context.Context, q *db.Queries, userID, roomID string, room db.ChatRoom) error {
+	member, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if err != nil {
@@ -201,9 +319,27 @@ func (s *ChatService) requireCanSendInRoom(ctx context.Context, userID, roomID s
 	if member.SendRestricted {
 		return Invalid("bạn bị cấm gửi tin trong phòng này")
 	}
-	return s.memberCanPerformRoomAction(ctx, userID, roomID, room, func(p ChatRoomMemberPermissions) bool {
+	if err := memberMayPerform(member, userID, room, func(p ChatRoomMemberPermissions) bool {
 		return p.AllowSendMessages
-	})
+	}); err != nil {
+		return err
+	}
+	// A block between the two DM members closes every write into the DM, not only text.
+	if room.Kind != chatRoomKindDM {
+		return nil
+	}
+	peerID, err := dmPeerUserID(room, userID)
+	if err != nil {
+		return err
+	}
+	blocked, err := dmMessagingBlockedQ(ctx, q, room.OrganizationID, userID, peerID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return errChatUserBlocked()
+	}
+	return nil
 }
 
 func canModerateChatRoom(

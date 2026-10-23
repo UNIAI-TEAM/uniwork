@@ -6,6 +6,8 @@ import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context
 import type { Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
 import { BoardCardContent } from "./board-card";
+import { BoardView } from "./board-view";
+import { STATUS_CONFIG } from "./status-config";
 
 initI18n();
 
@@ -21,7 +23,7 @@ const task: Task = {
   identifier: "SAT-12",
   revision: 1,
   title: "Hoàn thiện trang thanh toán",
-  description: "Kiểm tra luồng thanh toán và thông báo lỗi.",
+  description: "**Kiểm tra** [luồng thanh toán](https://example.com)\n\nvà thông báo lỗi.",
   status: "in_progress",
   priority: "high",
   assignee_id: "u1",
@@ -43,7 +45,7 @@ const task: Task = {
 };
 
 describe("BoardCardContent", () => {
-  it("renders available task properties with clear visual hierarchy", () => {
+  it("renders card hierarchy without raw markdown or an always-on footer", () => {
     const store = getTaskSurfaceViewStore("board-card-rich-properties");
 
     render(
@@ -61,12 +63,24 @@ describe("BoardCardContent", () => {
     );
 
     expect(screen.getByText("SAT-12")).toBeInTheDocument();
-    expect(screen.getByText("Cao")).toBeInTheDocument();
-    expect(screen.getByText(task.description)).toBeInTheDocument();
-    expect(screen.getByText("Website bán hàng")).toBeInTheDocument();
-    expect(screen.getByText("Nguyễn An")).toBeInTheDocument();
-    expect(screen.getByText("2026-09-09 – 2026-09-12")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cao" })).toBeInTheDocument();
+    expect(screen.queryByText("Cao")).toBeNull();
+    expect(screen.getByText("Kiểm tra luồng thanh toán và thông báo lỗi.")).toBeInTheDocument();
+    expect(screen.queryByText(task.description)).toBeNull();
+    expect(screen.getByText("Website bán hàng").parentElement).toHaveClass("rounded-full");
+    expect(screen.queryByText("Nguyễn An")).toBeNull();
+    expect(document.querySelector('[data-slot="avatar"]')).not.toBeNull();
+    expect(screen.queryByText("2026-09-09 – 2026-09-12")).toBeNull();
+    expect(screen.queryByText("2026-09-10")).toBeNull();
+    const startDate = document.querySelector('[data-slot="task-start-date"]');
+    const dueDate = document.querySelector('[data-slot="task-due-date"]');
+    expect(startDate?.textContent).not.toMatch(/2026-09-09/);
+    expect(dueDate?.textContent).not.toMatch(/2026-09-12/);
+    expect(dueDate).toHaveClass("text-destructive");
     expect(screen.getByText("2/3")).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="task-progress-ring"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="task-card-meta"]')).not.toHaveClass("border-t");
+    expect(document.querySelector('[data-slot="task-card"]')).toHaveClass("border-[0.5px]");
     expect(screen.queryByText("VCS")).toBeNull();
   });
 
@@ -84,8 +98,89 @@ describe("BoardCardContent", () => {
       ),
     );
 
-    expect(screen.queryByText(task.description)).toBeNull();
+    expect(screen.queryByText("Kiểm tra luồng thanh toán và thông báo lỗi.")).toBeNull();
     expect(screen.queryByText("Nguyễn An")).toBeNull();
     expect(screen.queryByText(/2026-09-12/)).toBeNull();
+  });
+
+  it("shows the task's labels as chips, two and a count, until the setting hides them", () => {
+    const store = getTaskSurfaceViewStore("board-card-labels");
+    const labels = [
+      { id: "l1", name: "Bug", color: "#ef4444" },
+      { id: "l2", name: "Khẩn", color: "#f97316" },
+      { id: "l3", name: "UI", color: "#3b82f6" },
+    ];
+    const card = () =>
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardCardContent task={task} meta={{ labels }} />
+        </ViewStoreProvider>,
+      );
+    const { rerender } = render(card());
+    const chips = screen.getByRole("list", { name: "Nhãn" });
+    expect(chips).toHaveTextContent("Bug");
+    expect(chips).toHaveTextContent("Khẩn");
+    expect(chips).toHaveTextContent("+1");
+    expect(chips).not.toHaveTextContent("UI");
+
+    store.getState().toggleCardProperty("labels");
+    rerender(card());
+    expect(screen.queryByRole("list", { name: "Nhãn" })).toBeNull();
+  });
+});
+
+describe("Kanban three-dot button and the priority label", () => {
+  // The button sits absolute in the card's top-right corner and is always
+  // visible on coarse pointers, where it would cover PriorityFlag withLabel.
+  const RESERVE = "pointer-coarse:pr-10";
+
+  it("reserves header space on coarse pointers on the draggable card, which has the button", () => {
+    const store = getTaskSurfaceViewStore("board-card-reserve-draggable");
+    const { container } = render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView categories={["in_progress"]} tasks={[task]} onOpenTask={vi.fn()} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: "Thêm thao tác" })).toBeInTheDocument();
+    const header = container.querySelector("[data-board-card] [data-card-header]");
+    expect(header).not.toBeNull();
+    expect(header!.className).toContain(RESERVE);
+  });
+
+  it("does not reserve space on the drag overlay content, which has no button", () => {
+    const store = getTaskSurfaceViewStore("board-card-reserve-overlay");
+    const { container } = render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardCardContent task={task} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    const header = container.querySelector("[data-card-header]");
+    expect(header).not.toBeNull();
+    expect(header!.className).not.toContain(RESERVE);
+  });
+});
+
+describe("Kanban column chrome", () => {
+  it("uses a quiet heading and the category's column wash", () => {
+    const store = getTaskSurfaceViewStore("board-column-quiet-chrome");
+    const { container } = render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView categories={["in_progress"]} tasks={[task]} onOpenTask={vi.fn()} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(container.querySelector('[data-slot="status-pill"]')).toBeNull();
+    expect(container.querySelector('[data-slot="status-heading"]')).not.toBeNull();
+    expect(screen.getByTestId("board-column-in_progress")).toHaveClass(
+      STATUS_CONFIG.in_progress.columnBg,
+    );
   });
 });

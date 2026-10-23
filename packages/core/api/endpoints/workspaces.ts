@@ -1,11 +1,14 @@
 import { z } from "zod";
 import {
+  InvitationPreviewSchema,
   MemberSchema,
   PendingInvitationSchema,
   WorkspaceMembershipSchema,
   WorkspaceSchema,
+  type InvitationPreview,
   type Member,
   type PendingInvitation,
+  type SwitchResolution,
   type Workspace,
   type WorkspaceMembership,
 } from "../../types/workspace";
@@ -119,8 +122,16 @@ const AcceptInviteResponse = z.object({
   workspace: WorkspaceSchema.nullish(),
 });
 
-export async function acceptInvite(token: string): Promise<AcceptInviteResult> {
-  const raw = await request(`/api/v1/invitations/${enc(token)}/accept`, { method: "POST" });
+/**
+ * `resolve` says how to give up each organization the caller already belongs
+ * to (ADR 0032); it must match the preview's conflicts exactly. Without one,
+ * no body is sent: the plain accept of somebody with nothing to give up.
+ */
+export async function acceptInvite(token: string, resolve?: SwitchResolution[]): Promise<AcceptInviteResult> {
+  const raw = await request(`/api/v1/invitations/${enc(token)}/accept`, {
+    method: "POST",
+    ...(resolve?.length ? { body: { resolve } } : {}),
+  });
   const parsed = parseWithFallback<{ organization?: Organization | null; workspace?: Workspace | null } | null>(
     raw,
     AcceptInviteResponse,
@@ -130,9 +141,46 @@ export async function acceptInvite(token: string): Promise<AcceptInviteResult> {
   return { organization: parsed?.organization ?? null, workspace: parsed?.workspace ?? null };
 }
 
-export async function patchWorkspace(workspaceId: string, body: { name: string }): Promise<Workspace | null> {
+/**
+ * The invitation behind a link, in any state, and what stands between the
+ * caller and it. A drifted response is null, which the invitation page shows
+ * as "could not process this invitation" rather than guessing a state.
+ */
+export async function getInvitationPreview(token: string): Promise<InvitationPreview | null> {
+  const raw = await request(`/api/v1/invitations/${enc(token)}`);
+  return parseWithFallback<InvitationPreview | null>(raw, InvitationPreviewSchema, null, {
+    endpoint: "GET /api/v1/invitations/{token}",
+  });
+}
+
+/** PATCH /workspaces/{id}: a field left out keeps its value. */
+export interface WorkspacePatch {
+  name?: string;
+  description?: string;
+  icon_emoji?: string;
+  slug?: string;
+  task_prefix?: string;
+}
+
+export async function patchWorkspace(workspaceId: string, body: WorkspacePatch): Promise<Workspace | null> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}`, { method: "PATCH", body });
   return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
     endpoint: "PATCH /api/v1/workspaces/{ws}",
+  })?.workspace ?? null;
+}
+
+export async function uploadWorkspaceIcon(workspaceId: string, file: File): Promise<Workspace | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/icon`, { method: "POST", body: form });
+  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/icon",
+  })?.workspace ?? null;
+}
+
+export async function removeWorkspaceIcon(workspaceId: string): Promise<Workspace | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/icon`, { method: "DELETE" });
+  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
+    endpoint: "DELETE /api/v1/workspaces/{ws}/icon",
   })?.workspace ?? null;
 }

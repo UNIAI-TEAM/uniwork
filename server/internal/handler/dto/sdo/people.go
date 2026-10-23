@@ -76,7 +76,8 @@ type PersonSDO struct {
 type PeopleListSDO struct {
 	People      []PersonDTO `json:"people"`
 	NextCursor  string      `json:"next_cursor,omitempty" description:"Con trỏ trang kế tiếp, rỗng khi đã hết" example:"TmfDtG4AMDFK"`
-	TotalActive int64       `json:"total_active" description:"Số thành viên đang hoạt động của tổ chức" example:"128"`
+	Total       int64       `json:"total" description:"Số người khớp bộ lọc hiện tại, trên mọi trang; chỉ có ở trang đầu (không cursor), các trang sau là 0" example:"42"`
+	TotalActive int64       `json:"total_active" description:"Số thành viên đang hoạt động của tổ chức; chỉ có ở trang đầu (không cursor), các trang sau là 0" example:"128"`
 }
 
 // DepartmentDTO is one node of the (at most two level) department tree. The
@@ -110,6 +111,9 @@ type OrgInvitationDTO struct {
 	InvitedByName string `json:"invited_by_name,omitempty" example:"Đỗ Thị Hà"`
 	ExpiresAt     string `json:"expires_at" example:"2026-09-14T09:00:00Z"`
 	CreatedAt     string `json:"created_at" example:"2026-09-07T09:00:00Z"`
+	// Workspaces is what accepting grants (UNI-1582): the workspaces chosen
+	// for an organization invitation, or the one an invitation was sent from.
+	Workspaces []InvitationWorkspaceDTO `json:"workspaces" description:"Workspace người được mời sẽ vào khi chấp nhận; rỗng khi chưa cấp"`
 }
 
 // OrgInvitationListSDO is GET and POST /api/v1/orgs/{org}/invitations.

@@ -9,6 +9,7 @@ function room(id: string, unread = 0): ChatRoomRecord {
     name: id,
     workspace_id: "ws1",
     member_user_ids: [],
+    member_count: 0,
     unread_count: unread,
     mention_unread_count: 0,
   };
@@ -43,6 +44,17 @@ describe("selectLazyChatScopeRoomIds", () => {
         rooms,
         activeRoomId: "r0",
         maxSubscriptions: 25,
+      }),
+    ).toHaveLength(25);
+  });
+
+  it("never exceeds the server WS scope ceiling", () => {
+    const rooms = Array.from({ length: 50 }, (_, i) => room(`r${i}`));
+    expect(
+      selectLazyChatScopeRoomIds({
+        rooms,
+        activeRoomId: "r0",
+        maxSubscriptions: 100,
       }),
     ).toHaveLength(25);
   });

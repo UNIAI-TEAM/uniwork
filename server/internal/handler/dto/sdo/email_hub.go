@@ -1,0 +1,158 @@
+package sdo
+
+// EmailHubAccountSDO is one connected IMAP mailbox.
+type EmailHubAccountSDO struct {
+	ID               string `json:"id" example:"01JABC1234567890ABCDEFGH"`
+	EmailAddress     string `json:"email_address" example:"you@gmail.com"`
+	Provider         string `json:"provider" example:"gmail"`
+	ConnectedAt      string `json:"connected_at" format:"date-time"`
+	LastSyncAt       string `json:"last_sync_at,omitempty" format:"date-time"`
+	AuthKind         string `json:"auth_kind" description:"How the mailbox signs in" example:"password"`
+	NeedsReconnect   bool   `json:"needs_reconnect" description:"The provider refused the stored credential; reconnect to resume sync and send" example:"false"`
+	AuthFailedReason string `json:"auth_failed_reason" description:"Why the credential was refused; empty while connected" example:"imap_auth_failed"`
+	ImapHost         string `json:"imap_host" description:"Máy chủ IMAP đã lưu" example:"imap.gmail.com"`
+	ImapPort         int    `json:"imap_port" description:"Cổng IMAP" example:"993"`
+	ImapSecurity     string `json:"imap_security" description:"tls hoặc starttls" example:"tls"`
+	SmtpHost         string `json:"smtp_host" description:"Máy chủ SMTP đã lưu" example:"smtp.gmail.com"`
+	SmtpPort         int    `json:"smtp_port" description:"Cổng SMTP" example:"587"`
+	SmtpSecurity     string `json:"smtp_security" description:"tls hoặc starttls" example:"starttls"`
+	Username         string `json:"username" description:"Tên đăng nhập; rỗng nghĩa là dùng địa chỉ email" example:"you"`
+}
+
+// EmailHubProvidersSDO is GET .../email-hub/providers: the sign-in buttons the
+// connect dialog shows.
+type EmailHubProvidersSDO struct {
+	Google    bool `json:"google" description:"Có thể kết nối bằng đăng nhập Google" example:"true"`
+	Microsoft bool `json:"microsoft" description:"Có thể kết nối bằng đăng nhập Microsoft" example:"false"`
+}
+
+// EmailHubWatchSDO is POST .../email-hub/watch.
+type EmailHubWatchSDO struct {
+	Changed bool   `json:"changed" example:"true"`
+	Synced  bool   `json:"synced" example:"true"`
+	At      string `json:"at,omitempty" format:"date-time"`
+}
+
+// EmailHubInboxWatchSDO is POST/DELETE .../email-hub/inbox-watch.
+type EmailHubInboxWatchSDO struct {
+	Subscribed bool `json:"subscribed" example:"true"`
+}
+
+// EmailHubSyncSDO is POST .../email-hub/sync.
+type EmailHubSyncSDO struct {
+	Synced bool `json:"synced" example:"true"`
+}
+
+// EmailHubUnreadSDO is GET .../email-hub/unread-count.
+type EmailHubUnreadSDO struct {
+	Unread int64 `json:"unread" example:"3"`
+}
+
+// EmailHubSidebarCountsSDO is GET .../email-hub/sidebar-counts.
+type EmailHubSidebarCountsSDO struct {
+	InboxUnread  int64 `json:"inbox_unread" example:"3"`
+	SnoozedTotal int64 `json:"snoozed_total" example:"2"`
+}
+
+// EmailHubScheduledSendItemSDO is one open scheduled outbound message: pending
+// (waiting to go out) or failed (delivery gave up; retry or dismiss). The
+// failure reason is not exposed.
+type EmailHubScheduledSendItemSDO struct {
+	ID      string   `json:"id"`
+	SendAt  string   `json:"send_at" format:"date-time"`
+	Subject string   `json:"subject"`
+	To      []string `json:"to"`
+	Status  string   `json:"status" enum:"pending,failed" example:"pending"`
+}
+
+// EmailHubScheduledSendListSDO lists the caller's open scheduled sends,
+// failed ones first, then by send_at ascending.
+type EmailHubScheduledSendListSDO struct {
+	Scheduled []EmailHubScheduledSendItemSDO `json:"scheduled"`
+}
+
+// EmailHubScheduledSendSDO is POST .../email-hub/send when send_at is in the future.
+type EmailHubScheduledSendSDO struct {
+	Scheduled bool     `json:"scheduled" example:"true"`
+	ID        string   `json:"id" example:"01JABC1234567890ABCDEFGH"`
+	SendAt    string   `json:"send_at" format:"date-time"`
+	Subject   string   `json:"subject" example:"Hello from UniWork"`
+	To        []string `json:"to" example:"[\"client@example.com\"]"`
+	AccountID string   `json:"account_id" example:"01JABC1234567890ABCDEFGH"`
+}
+
+// EmailHubAccountListSDO lists connected mailboxes for the caller.
+type EmailHubAccountListSDO struct {
+	Accounts []EmailHubAccountSDO `json:"accounts"`
+}
+
+// EmailHubAttachmentSDO is cached attachment metadata for one thread row.
+type EmailHubAttachmentSDO struct {
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mime_type"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// EmailHubThreadSDO is a cached inbox row.
+type EmailHubThreadSDO struct {
+	ID                       string                  `json:"id"`
+	AccountID                string                  `json:"account_id"`
+	Folder                   string                  `json:"folder"`
+	Subject                  string                  `json:"subject"`
+	Snippet                  string                  `json:"snippet"`
+	FromAddr                 string                  `json:"from_addr"`
+	FromName                 string                  `json:"from_name,omitempty"`
+	ToAddrs                  []string                `json:"to_addrs"`
+	SentAt                   string                  `json:"sent_at" format:"date-time"`
+	IsRead                   bool                    `json:"is_read"`
+	IsStarred                bool                    `json:"is_starred"`
+	HasAttachments           bool                    `json:"has_attachments"`
+	Attachments              []EmailHubAttachmentSDO `json:"attachments,omitempty"`
+	BodyText                 string                  `json:"body_text,omitempty"`
+	BodyHTML                 string                  `json:"body_html,omitempty"`
+	BodyCached               bool                    `json:"body_cached"`
+	ImapLabels               []string                `json:"imap_labels,omitempty"`
+	SnoozedUntil             string                  `json:"snoozed_until,omitempty" format:"date-time"`
+	ConversationMessageCount int                     `json:"conversation_message_count,omitempty"`
+}
+
+// EmailHubImapLabelListSDO lists distinct user-visible IMAP labels on cached threads.
+type EmailHubImapLabelListSDO struct {
+	Labels []string `json:"labels"`
+}
+
+// EmailHubThreadListSDO is a folder listing with counts.
+type EmailHubThreadListSDO struct {
+	Threads    []EmailHubThreadSDO `json:"threads"`
+	Counts     EmailHubCountsSDO   `json:"counts"`
+	NextCursor string              `json:"next_cursor,omitempty"`
+}
+
+// EmailHubConversationSDO lists every message in one conversation (oldest first).
+type EmailHubConversationSDO struct {
+	Messages []EmailHubThreadSDO `json:"messages"`
+}
+
+// EmailHubCountsSDO holds folder totals.
+type EmailHubCountsSDO struct {
+	Total  int64 `json:"total"`
+	Unread int64 `json:"unread"`
+}
+
+// EmailHubThreadSummarySDO is POST .../email-hub/threads/{threadID}/ai/summarize.
+type EmailHubThreadSummarySDO struct {
+	Summary      string                 `json:"summary"`
+	KeyPoints    []string               `json:"key_points"`
+	ActionItems  []SummaryActionItemDTO `json:"action_items"`
+	NeedsReply   bool                   `json:"needs_reply"`
+	ReplyHint    string                 `json:"reply_hint,omitempty"`
+	Model        string                 `json:"model,omitempty"`
+	Cached       bool                   `json:"cached"`
+	SummarizedAt string                 `json:"summarized_at,omitempty" format:"date-time"`
+}
+
+// EmailHubOAuthStartSDO is POST .../email-hub/oauth/{provider}/start.
+type EmailHubOAuthStartSDO struct {
+	AuthorizationURL string `json:"authorization_url" description:"URL đăng nhập của nhà cung cấp, mở trong cửa sổ bật lên" example:"https://accounts.google.com/o/oauth2/v2/auth?client_id=..."`
+}

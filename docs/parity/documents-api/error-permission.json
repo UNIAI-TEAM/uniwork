@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "forbidden",
+    "message": "Bạn không có quyền chỉnh sửa tài liệu này.",
+    "error_class": "permission"
+  }
+}

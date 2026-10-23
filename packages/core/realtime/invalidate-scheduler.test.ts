@@ -30,4 +30,18 @@ describe("createInvalidateScheduler", () => {
     expect(invalidate).toHaveBeenCalledTimes(2);
     scheduler.dispose();
   });
+
+  it("uses a longer debounce when one is passed", () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const scheduler = createInvalidateScheduler(qc, 1500);
+    scheduler.schedule(["meeting-transcript", "m1"]);
+    scheduler.schedule(["meeting-transcript", "m1"]);
+    vi.advanceTimersByTime(250);
+    expect(invalidate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1500);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    scheduler.dispose();
+  });
 });

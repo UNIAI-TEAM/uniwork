@@ -25,6 +25,17 @@ beforeEach(() => {
 });
 
 describe("WorkspacePickerView", () => {
+  it("shows a description under the workspace name, and no empty line without one", async () => {
+    requestMock.mockResolvedValueOnce({
+      workspaces: [
+        { id: "w1", slug: "a", name: "Alpha", organization_id: "o1", organization_slug: "unicom", organization_name: "Unicom", description: "Nhóm làm sản phẩm" },
+        { id: "w2", slug: "b", name: "Beta", organization_id: "o1", organization_slug: "unicom", organization_name: "Unicom", description: "" },
+      ],
+    });
+    render(wrap(<WorkspacePickerView onPick={vi.fn()} onCreate={() => {}} onEmpty={() => {}} />));
+    expect(await screen.findByRole("button", { name: /Alpha/ })).toHaveTextContent("Nhóm làm sản phẩm");
+    expect(screen.getByRole("button", { name: /Beta/ }).querySelectorAll("span.block")).toHaveLength(2);
+  });
   it("groups workspaces by organization", async () => {
     requestMock.mockResolvedValueOnce({
       workspaces: [
@@ -33,16 +44,39 @@ describe("WorkspacePickerView", () => {
       ],
     });
     const onPick = vi.fn();
-    render(wrap(<WorkspacePickerView onPick={onPick} onCreate={() => {}} />));
+    render(wrap(<WorkspacePickerView onPick={onPick} onCreate={() => {}} onEmpty={() => {}} />));
     expect(await screen.findByRole("heading", { name: /Unicom/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Acme/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Beta/ }));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "w2" }));
   });
-  it("empty → onCreate", async () => {
+  /**
+   * jsdom không dựng layout nên không đo được tràn ngang; cái chốt được ở đây là
+   * nguyên nhân. Nút là grid item, mặc định `min-width: auto`, nên nó neo ở bề
+   * rộng nội dung và `truncate` bên trong vô hiệu — trang tràn 41px ở 375px.
+   * Bỏ `min-w-0` đi là lỗi quay lại.
+   */
+  it("lets the workspace row shrink so its long URL can truncate", async () => {
+    requestMock.mockResolvedValueOnce({
+      workspaces: [
+        { id: "w1", slug: "doi-san-pham", name: "Đội sản phẩm", organization_id: "o1", organization_slug: "audit-ux-eight", organization_name: "Audit UX Eight" },
+      ],
+    });
+    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={() => {}} onEmpty={() => {}} />));
+    const row = await screen.findByRole("button", { name: /Đội sản phẩm/ });
+    expect(row.className).toMatch(/\bmin-w-0\b/);
+    expect(row.querySelector(".font-mono")?.className).toMatch(/\btruncate\b/);
+  });
+  /**
+   * Nothing to pick is not a request to create: the host decides where the
+   * person goes (UNI-1472 — a member is never sent to the create flow).
+   */
+  it("empty → onEmpty, never onCreate", async () => {
     requestMock.mockResolvedValueOnce({ workspaces: [] });
     const onCreate = vi.fn();
-    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={onCreate} />));
-    await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
+    const onEmpty = vi.fn();
+    render(wrap(<WorkspacePickerView onPick={() => {}} onCreate={onCreate} onEmpty={onEmpty} />));
+    await vi.waitFor(() => expect(onEmpty).toHaveBeenCalled());
+    expect(onCreate).not.toHaveBeenCalled();
   });
 });

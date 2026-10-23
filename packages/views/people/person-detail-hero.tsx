@@ -1,45 +1,123 @@
 "use client";
 
+import { Camera, Mail, MessageSquare, Pencil, Phone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Person } from "@uniwork/core/types/people";
-import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
-import { Badge } from "@uniwork/ui/components/ui/badge";
-import { initials } from "./actor-chip";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
+import { Button, ButtonLink, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AppLink } from "../navigation";
+import { PersonAvatar } from "./person-avatar";
+import { DeactivatedBadge, RoleBadge, SelfTag } from "./person-badges";
+import { useDepartmentTint } from "./use-department-tint";
 
 /**
  * Who this is, before any of the facts about them: the name as the page's only
- * `h1`, the standing that changes how you read the rest, and the one line most
- * colleagues actually came for — what they do and which team they do it in.
+ * `h1`, the standing that changes how you read the rest, the one line most
+ * colleagues came for — what they do and which team they do it in — and,
+ * right under it, the ways to reach them. A directory exists to start a
+ * conversation, so those are the page's primary actions, not a side panel.
+ *
+ * On the reader's own profile the actions turn to their own: edit it, change
+ * the photo (which lives with the account, in Settings).
  */
-export function PersonDetailHero({ person }: { person: Person }) {
+export function PersonDetailHero({
+  person,
+  onChat,
+  onEdit,
+  settingsHref,
+}: {
+  person: Person;
+  onChat: () => void;
+  /** Present when the reader may edit this profile. */
+  onEdit?: () => void;
+  settingsHref: string;
+}) {
   const { t } = useTranslation();
-  const role = t(`people.role_${person.org_role}`, { defaultValue: person.org_role });
-  // Job title and department read as one line because neither means much
-  // alone: "Trưởng nhóm" of what, "Kỹ thuật" doing what.
-  const standing = [person.title, person.department?.name].filter(Boolean).join(" · ");
+  const deactivated = person.status === "deactivated";
+  const department = person.department;
+  const tintFor = useDepartmentTint();
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-      <Avatar className="size-16 shrink-0 sm:size-20">
-        {person.avatar_url ? <AvatarImage src={person.avatar_url} alt="" /> : null}
-        <AvatarFallback className="text-title">{initials(person.display_name)}</AvatarFallback>
-      </Avatar>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+      <PersonAvatar
+        id={person.user_id}
+        name={person.display_name}
+        avatarUrl={person.avatar_url}
+        size="lg"
+        deactivated={deactivated}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h1 className="min-w-0 text-pretty text-title-lg font-semibold text-foreground">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <h1 className="min-w-0 text-pretty text-display-sm font-semibold text-foreground">
             {person.display_name}
           </h1>
-          <Badge variant="outline">{role}</Badge>
-          {person.status === "deactivated" ? (
-            <Badge variant="secondary">{t("people.status_deactivated")}</Badge>
-          ) : null}
+          {person.is_self ? <SelfTag className="h-5 px-1.5 text-caption" /> : null}
+          <RoleBadge role={person.org_role} />
+          {deactivated ? <DeactivatedBadge /> : null}
         </div>
-        {standing === "" ? null : (
-          <p className="text-pretty text-body-lg text-muted-foreground">{standing}</p>
-        )}
+        {person.title || department ? (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-lg text-muted-foreground">
+            {person.title ? <span>{person.title}</span> : null}
+            {person.title && department ? <span aria-hidden="true">·</span> : null}
+            {department ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className={cn("size-2 rounded-full bg-current", tintForegroundClass[tintFor(department.id)])}
+                />
+                {department.name}
+              </span>
+            ) : null}
+          </p>
+        ) : null}
         {person.bio ? (
           <p className="max-w-prose text-pretty text-body text-foreground">{person.bio}</p>
         ) : null}
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {person.is_self ? (
+            <>
+              {onEdit ? (
+                <Button onClick={onEdit}>
+                  <Pencil aria-hidden="true" />
+                  {t("people.edit_my_profile")}
+                </Button>
+              ) : null}
+              <AppLink href={settingsHref} className={cn(buttonVariants({ variant: "outline" }))}>
+                <Camera aria-hidden="true" />
+                {t("people.change_photo")}
+              </AppLink>
+            </>
+          ) : (
+            <>
+              {deactivated ? null : (
+                <Button onClick={onChat}>
+                  <MessageSquare aria-hidden="true" />
+                  {t("people.chat")}
+                </Button>
+              )}
+              <ButtonLink
+                variant={deactivated ? "default" : "outline"}
+                href={`mailto:${person.email}`}
+                aria-label={t("people.email_person", { name: person.display_name })}
+              >
+                <Mail aria-hidden="true" />
+                {t("people.send_email")}
+              </ButtonLink>
+              {person.phone ? (
+                <ButtonLink
+                  variant="outline"
+                  href={`tel:${person.phone.replace(/\s+/g, "")}`}
+                  aria-label={t("people.call_person", { name: person.display_name })}
+                >
+                  <Phone aria-hidden="true" />
+                  {t("people.call")}
+                </ButtonLink>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ func (s *MeetingService) inviteUserTx(ctx context.Context, q *db.Queries, m db.M
 		return db.MeetingParticipant{}, err
 	}
 	p, err := q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, PrincipalType: PrincipalUser,
 		UserID: strText(userID), DisplayNameSnapshot: u.DisplayName,
 		EmailSnapshot: strText(u.Email), Role: RoleAttendee, SourceType: GrantDirectInvite, AddedBy: actorID,
 	})
@@ -42,19 +42,19 @@ func (s *MeetingService) inviteUserTx(ctx context.Context, q *db.Queries, m db.M
 		return db.MeetingParticipant{}, err
 	}
 	_, err = q.CreateMeetingInvitation(ctx, db.CreateMeetingInvitationParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID, InvitedBy: actorID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID, InvitedBy: actorID,
 	})
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
-		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
+		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ParticipantID: p.ID,
 		SourceType: GrantDirectInvite, GrantedBy: actorID,
 	})
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
-	_ = s.writeAudit(ctx, q, m.ID, "PARTICIPANT_INVITED", actorID, "", p.ID, "{}")
+	_ = s.writeAudit(ctx, q, m, "PARTICIPANT_INVITED", actorID, "", p.ID, "{}")
 	return p, nil
 }
 
@@ -128,7 +128,7 @@ func (s *MeetingService) RespondInvitation(ctx context.Context, userID, meetingI
 	if err != nil {
 		return db.MeetingInvitation{}, err
 	}
-	_ = s.writeAudit(ctx, s.q, m.ID, "INVITATION_RESPONDED", userID, inv.ResponseStatus, response, "{}")
+	_ = s.writeAudit(ctx, s.q, m, "INVITATION_RESPONDED", userID, inv.ResponseStatus, response, "{}")
 	s.record(ctx, s.q, m, audit.User(userID), "invitation.responded",
 		meetingRelatedPayload(m, map[string]string{"invitation_id": invitationID}),
 		audit.Diff(map[string]any{"response": inv.ResponseStatus}, map[string]any{"response": response}))
@@ -170,7 +170,7 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 	_ = q.RevokeGrantsForParticipant(ctx, db.RevokeGrantsForParticipantParams{
 		ParticipantID: participantID, RevokedBy: strText(actorID), RevokeReason: strText("participant_removed"),
 	})
-	_ = s.writeAudit(ctx, q, m.ID, "PARTICIPANT_REMOVED", actorID, ParticipantActive, ParticipantRemoved, "{}")
+	_ = s.writeAudit(ctx, q, m, "PARTICIPANT_REMOVED", actorID, ParticipantActive, ParticipantRemoved, "{}")
 	room := meetings.RoomNameForMeeting(m.ID)
 	if sess, err := q.GetOpenConferenceSession(ctx, m.ID); err == nil {
 		room = sess.ProviderRoomName

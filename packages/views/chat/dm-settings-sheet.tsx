@@ -1,14 +1,16 @@
 "use client";
 
-import { Bell, BellOff, Pin, Tag } from "lucide-react";
+import { Bell, BellOff, Image, Phone, Pin, Search, StickyNote, Tag, Video } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@uniwork/core/auth";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -16,25 +18,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { ChatConversationToolbar } from "./group-settings-sheet";
 import { BlockConversationSection } from "./block-conversation-section";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import {
-  ChatSettingsBulletinEntry,
+  chatSettingsIconButtonClass,
+  ChatMemberRow,
   ChatSettingsCollapsibleSection,
+  ChatSettingsHeader,
+  ChatSettingsHero,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
-  ChatSettingsQuickActionsDm,
-  ChatSettingsTitleRow,
+  ChatSettingsQuickActions,
+  ChatSettingsSection,
 } from "./chat-settings-ui";
+import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
+import { ChatWallpaperSheet } from "./chat-wallpaper-sheet";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
+import { chatPersonFaceClass } from "./chat-person-card";
+import { initialsOf } from "./chat-initials";
 
 export function DmSettingsSheet({
   open,
@@ -54,6 +60,12 @@ export function DmSettingsSheet({
   onUnblock,
   blocking,
   unblocking,
+  onOpenSearch,
+  memberAvatarByUserId = {},
+  onVoiceCall,
+  voiceCallDisabled,
+  onVideoCall,
+  videoCallDisabled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +74,7 @@ export function DmSettingsSheet({
   roomId?: string | null;
   currentUserId: string;
   nicknamesByUserId?: Record<string, string>;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   youLabel: string;
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
@@ -72,18 +85,26 @@ export function DmSettingsSheet({
   onUnblock: () => void | Promise<void>;
   blocking?: boolean;
   unblocking?: boolean;
+  onOpenSearch?: () => void;
+  /** Calls from the sheet's quick actions (canvas: mute, pin, call, video, search). */
+  onVoiceCall?: () => void;
+  voiceCallDisabled?: boolean;
+  onVideoCall?: () => void;
+  videoCallDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   const contactOnline = Boolean(onlineUserIds[normalizeTypingUserId(contact.user_id)]);
-  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
+  const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const [bulletinOpen, setBulletinOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [selfNicknameOpen, setSelfNicknameOpen] = useState(false);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
   const contactLabel = displayLabelForChatContact(contact, nicknamesByUserId);
   const legalName = displayLabelForChatContact(contact);
   const selfNickname = resolveChatNicknameForUser(nicknamesByUserId, currentUserId);
   const selfLabel = selfNickname || youLabel;
+  const selfName = useAuthStore((state) => (state.status === "authed" ? (state.user?.display_name ?? "") : ""));
 
   const participants = [
     { key: "self", userId: currentUserId, label: selfLabel, legalLabel: youLabel, email: undefined as string | undefined },
@@ -98,16 +119,51 @@ export function DmSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{contactLabel}</SheetTitle>
           <SheetDescription>{t("chat.dm_settings_description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <ChatSettingsTitleRow title={contactLabel} />
+        <ChatSettingsHeader title={t("chat.dm_settings")} />
 
-          <ChatSettingsQuickActionsDm>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <ChatSettingsHero
+            mark={
+              <span className="relative inline-flex">
+                <ActorAvatar
+                  name={contactLabel}
+                  initials={initialsOf(contactLabel)}
+                  avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
+                  size="fluid"
+                  className={cn("size-17 text-display-sm", chatPersonFaceClass(contact.user_id))}
+                />
+                {/* The status line under the name says it in words; the dot only repeats it. */}
+                {contactOnline ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-px bottom-px size-4.5 rounded-full bg-success-solid ring-3 ring-surface-raised"
+                  />
+                ) : null}
+              </span>
+            }
+            name={contactLabel}
+            subtitle={
+              contactOnline || contact.email ? (
+                <>
+                  {contactOnline ? (
+                    <span className="flex items-center gap-1.5 text-label font-medium text-success">
+                      <span aria-hidden className="size-2 rounded-full bg-success-solid" />
+                      {t("chat.presence_online")}
+                    </span>
+                  ) : null}
+                  {contact.email ? <span className="text-label">{contact.email}</span> : null}
+                </>
+              ) : undefined
+            }
+          />
+
+          <ChatSettingsQuickActions>
             <ChatSettingsQuickAction
               icon={notificationsMuted ? BellOff : Bell}
               label={t("chat.settings_mute_notifications")}
@@ -120,79 +176,120 @@ export function DmSettingsSheet({
               onClick={onTogglePin}
               active={pinned}
             />
-          </ChatSettingsQuickActionsDm>
+            {onVoiceCall ? (
+              <ChatSettingsQuickAction
+                icon={Phone}
+                label={t("chat.info_panel.tile_call")}
+                onClick={onVoiceCall}
+                disabled={voiceCallDisabled}
+              />
+            ) : null}
+            {onVideoCall ? (
+              <ChatSettingsQuickAction
+                icon={Video}
+                label={t("chat.info_panel.tile_video")}
+                onClick={onVideoCall}
+                disabled={videoCallDisabled}
+              />
+            ) : null}
+            {onOpenSearch ? (
+              <ChatSettingsQuickAction
+                icon={Search}
+                label={t("chat.search_action")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            ) : null}
+          </ChatSettingsQuickActions>
 
-          <ChatSettingsBulletinEntry
-            label={t("chat.settings_notes_pins_polls")}
-            onClick={() => setBulletinOpen(true)}
-          />
+          <ChatSettingsCollapsibleSection
+            title={t("chat.dm_participants_title")}
+            summary={t("chat.group_member_count", { count: participants.length })}
+            defaultOpen
+            flush
+          >
+            <ul>
+              {participants.map((participant) => (
+                <ChatMemberRow
+                  key={participant.key}
+                  avatar={
+                    participant.key === "self" ? (
+                      <ActorAvatar
+                        name={participant.label}
+                        initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, currentUserId)}
+                        size="fluid"
+                        className={cn("size-10 text-label", chatPersonFaceClass(currentUserId))}
+                      />
+                    ) : (
+                      <ChatPresenceAvatar
+                        name={participant.label}
+                        initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
+                        size="fluid"
+                        avatarClassName={cn("size-10 text-label", chatPersonFaceClass(contact.user_id))}
+                        online={contactOnline}
+                      />
+                    )
+                  }
+                  name={participant.label}
+                  detail={
+                    participant.label !== participant.legalLabel
+                      ? t("chat.nickname_legal_name", { name: participant.legalLabel })
+                      : participant.key !== "self" && contactOnline
+                        ? t("chat.presence_online")
+                        : participant.email || undefined
+                  }
+                  actions={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={chatSettingsIconButtonClass}
+                      aria-label={t("chat.nickname_action_for", { name: participant.label })}
+                      title={t("chat.nickname_action")}
+                      onClick={() =>
+                        participant.key === "self" ? setSelfNicknameOpen(true) : setNicknameOpen(true)
+                      }
+                    >
+                      <Tag className="size-4.5" aria-hidden />
+                    </Button>
+                  }
+                />
+              ))}
+            </ul>
+          </ChatSettingsCollapsibleSection>
 
-          <section className="border-b border-border">
+          <ChatSettingsSection className="py-1">
+            <ChatSettingsMenuRow
+              icon={StickyNote}
+              label={t("chat.settings_notes_pins_polls")}
+              onClick={() => setBulletinOpen(true)}
+              disabled={!roomId}
+              disabledReason={t("chat.settings_bulletin_needs_room")}
+              hint={t("chat.settings_dm_bulletin")}
+            />
+            {/* Search is the "Tìm" quick action above; the canvas lists no second row for it. */}
             <ChatSettingsMenuRow
               icon={Tag}
               label={t("chat.nickname_action")}
               onClick={() => setNicknameOpen(true)}
             />
-          </section>
+            <ChatSettingsMenuRow
+              icon={Image}
+              label={t("chat.settings_wallpaper")}
+              hint={t("chat.settings_wallpaper_hint")}
+              onClick={() => setWallpaperOpen(true)}
+              disabled={!roomId}
+              disabledReason={t("chat.settings_bulletin_needs_room")}
+            />
+          </ChatSettingsSection>
 
-          <ChatSettingsCollapsibleSection
-            title={t("chat.dm_participants_title")}
-            summary={t("chat.group_member_count", { count: participants.length })}
-          >
-            <ul className="space-y-2">
-              {participants.map((participant) => (
-                <li
-                  key={participant.key}
-                  className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
-                >
-                  {participant.key === "self" ? (
-                    <ActorAvatar
-                      name={participant.label}
-                      initials={initialOf(participant.label)}
-                      size="sm"
-                    />
-                  ) : (
-                    <ChatPresenceAvatar
-                      name={participant.label}
-                      initials={initialOf(participant.label)}
-                      size="sm"
-                      online={contactOnline}
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-body font-medium text-foreground">{participant.label}</p>
-                    {participant.label !== participant.legalLabel ? (
-                      <p className="truncate text-caption text-muted-foreground">
-                        {t("chat.nickname_legal_name", { name: participant.legalLabel })}
-                      </p>
-                    ) : participant.key !== "self" && contactOnline ? (
-                      <p className="truncate text-caption text-muted-foreground">
-                        {t("chat.presence_online")}
-                      </p>
-                    ) : participant.email ? (
-                      <p className="truncate text-caption text-muted-foreground">{participant.email}</p>
-                    ) : null}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8 shrink-0 text-muted-foreground"
-                    aria-label={t("chat.nickname_action")}
-                    onClick={() =>
-                      participant.key === "self"
-                        ? setSelfNicknameOpen(true)
-                        : setNicknameOpen(true)
-                    }
-                  >
-                    <Tag className="size-4" aria-hidden />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </ChatSettingsCollapsibleSection>
+          {roomId ? <ChatRoomSharedTotals workspaceId={workspaceId} roomId={roomId} open={open} /> : null}
 
-          <div className="space-y-4 px-4 pb-4">
+          <ChatSettingsSection className="mt-auto px-5 pt-3.5 pb-4.5">
             <BlockConversationSection
               blockedByMe={blockedByMe}
               blockedMe={blockedMe}
@@ -203,15 +300,26 @@ export function DmSettingsSheet({
               onUnblock={onUnblock}
             />
 
-            <LeaveConversationSection
-              variant="dm"
-              disabled={leaveDisabled}
-              leaving={leaving}
-              onLeave={onLeave}
-            />
-          </div>
+            <div className="mt-3.5 border-t border-border pt-3.5">
+              <LeaveConversationSection
+                variant="dm"
+                disabled={leaveDisabled}
+                leaving={leaving}
+                onLeave={onLeave}
+              />
+            </div>
+          </ChatSettingsSection>
         </div>
 
+        {roomId ? (
+          <ChatWallpaperSheet
+            open={wallpaperOpen}
+            onOpenChange={setWallpaperOpen}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            canEdit
+          />
+        ) : null}
         {roomId && bulletinOpen ? (
           <ChatRoomBulletinSheet
             open={bulletinOpen}
@@ -240,71 +348,5 @@ export function DmSettingsSheet({
         />
       </SheetContent>
     </Sheet>
-  );
-}
-
-export function DmChatToolbar({
-  contact,
-  nicknamesByUserId = {},
-  backAriaLabel,
-  onBack,
-  sidebarCollapsed,
-  onToggleSidebar,
-  onOpenSettings,
-  onOpenSearch,
-  onVoiceCall,
-  voiceCallDisabled,
-  onVideoCall,
-  videoCallDisabled,
-}: {
-  contact: ChatContact;
-  nicknamesByUserId?: Record<string, string>;
-  backAriaLabel?: string;
-  onBack?: () => void;
-  sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
-  onOpenSettings: () => void;
-  onOpenSearch?: () => void;
-  onVoiceCall?: () => void;
-  voiceCallDisabled?: boolean;
-  onVideoCall?: () => void;
-  videoCallDisabled?: boolean;
-}) {
-  const { t } = useTranslation();
-  const contactLabel = displayLabelForChatContact(contact, nicknamesByUserId);
-  const online = usePresenceStore((state) =>
-    Boolean(state.onlineUserIds[normalizeTypingUserId(contact.user_id)]),
-  );
-
-  return (
-    <ChatConversationToolbar
-      avatar={
-        <ChatPresenceAvatar
-          name={contactLabel}
-          initials={initialOf(contactLabel)}
-          size="xl"
-          online={online}
-        />
-      }
-      title={contactLabel}
-      subtitle={
-        online
-          ? t("chat.presence_online")
-          : contact.email || t("chat.dm_direct_message")
-      }
-      backAriaLabel={backAriaLabel}
-      onBack={onBack}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={onToggleSidebar}
-      settingsAriaLabel={t("chat.dm_settings")}
-      onOpenSettings={onOpenSettings}
-      onOpenSearch={onOpenSearch}
-      voiceCallAriaLabel={t("chat.voice_call_start")}
-      onVoiceCall={onVoiceCall}
-      voiceCallDisabled={voiceCallDisabled}
-      videoCallAriaLabel={t("chat.video_call_start")}
-      onVideoCall={onVideoCall}
-      videoCallDisabled={videoCallDisabled}
-    />
   );
 }

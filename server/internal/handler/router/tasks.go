@@ -135,6 +135,13 @@ func registerTasksSuite(r api, h Routes) {
 			sdo:         sdo.TaskQueryPageSDO{},
 			auth:        true,
 		})
+		suite.Get("/workspaces/{workspaceID}/assignee-frequency", h.GetAssigneeFrequency, apiOp{
+			summary:     "Assignee frequency",
+			description: "Người phụ trách mà người gọi hay chọn trong workspace (90 ngày gần nhất), nhiều nhất trước; dùng để sắp picker.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.AssigneeFrequencySDO{},
+			auth:        true,
+		})
 		suite.Get("/tasks/{taskID}/children", h.ListTaskChildren, apiOp{
 			summary:     "List child tasks",
 			description: "Task con trực tiếp của một task.",
@@ -181,7 +188,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/groups", h.TableGroups, apiOp{
 			summary:     "Table groups",
-			description: "Nhóm công việc theo group_by (status|priority|assignee) với filter/columns.",
+			description: "Nhóm công việc theo group_by (none|status|priority|assignee|project|property:<id>) với filter/search/sort chung; query_fingerprint đổi khi query đổi.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableGroupsSDI{},
 			sdo:         sdo.TableGroupsSDO{},
@@ -189,7 +196,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/rows", h.TableRows, apiOp{
 			summary:     "Table rows",
-			description: "Hàng bảng trong một group_key; filter/group_by/columns.",
+			description: "Hàng bảng phân trang bằng cursor trong một group_key/parent_id; filter/search/sort/group_by chung, hierarchy bật cây việc con. Cursor tái sử dụng trên query khác → 409 cursor_query_mismatch.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableRowsSDI{},
 			sdo:         sdo.TableRowsSDO{},
@@ -197,7 +204,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/facets", h.TableFacets, apiOp{
 			summary:     "Table facets",
-			description: "Đếm facet (status|priority|assignee) theo filter.",
+			description: "Đếm facet (status|priority|assignee|project) theo filter/search chung.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableFacetsSDI{},
 			sdo:         sdo.TableFacetsSDO{},
@@ -218,7 +225,7 @@ func registerTasksSuite(r api, h Routes) {
 			tags: []string{"tasks"}, sdi: sdi.ReorderTaskStatusesSDI{}, sdo: sdo.TaskStatusListSDO{}, auth: true,
 		})
 		suite.Patch("/workspaces/{workspaceID}/task-statuses/{id}", h.PatchTaskStatus, apiOp{
-			summary: "Update task status", description: "Sửa trạng thái tùy chỉnh; built-in → 422 system_status_immutable.",
+			summary: "Update task status", description: "Sửa trạng thái; built-in đổi được tên, mô tả, màu, biểu tượng, đổi category → 422 system_status_immutable.",
 			tags: []string{"tasks"}, sdi: sdi.PatchTaskStatusSDI{}, sdo: sdo.TaskStatusSDO{}, auth: true,
 		})
 		suite.Delete("/workspaces/{workspaceID}/task-statuses/{id}", h.DeleteTaskStatus, apiOp{
@@ -229,6 +236,10 @@ func registerTasksSuite(r api, h Routes) {
 		suite.Get("/workspaces/{workspaceID}/task-labels", h.ListTaskLabels, apiOp{
 			summary: "List task labels", description: "Danh sách nhãn workspace.",
 			tags: []string{"tasks"}, sdo: sdo.TaskLabelListSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/task-label-links", h.ListTaskLabelLinks, apiOp{
+			summary: "List task label links", description: "Mọi cặp (task, nhãn đang dùng) trong workspace, để vẽ nhãn trên thẻ.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelLinkListSDO{}, auth: true,
 		})
 		suite.Post("/workspaces/{workspaceID}/task-labels", h.CreateTaskLabel, apiOp{
 			summary: "Create task label", description: "Tạo nhãn.",
@@ -431,8 +442,12 @@ func registerTasksSuite(r api, h Routes) {
 			tags: []string{"tasks"}, sdo: sdo.AttachmentListSDO{}, auth: true,
 		})
 		suite.Post("/tasks/{taskID}/attachments", h.UploadTaskAttachment, apiOp{
-			summary: "Upload task attachment", description: "Tải lên đính kèm (multipart field file, tối đa 25 MiB).",
+			summary: "Upload task attachment", description: "Tải lên đính kèm, gồm video MP4 (multipart field file, tối đa 25 MiB).",
 			tags: []string{"tasks"}, sdi: sdi.UploadTaskAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/attachments", h.UploadWorkspaceAttachment, apiOp{
+			summary: "Upload attachment before task create", description: "Tải tệp tạm theo workspace, gồm video MP4; gửi id trong attachment_ids khi tạo task; tối đa 25 MiB.",
+			tags: []string{"tasks"}, sdi: sdi.UploadWorkspaceAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
 		})
 		suite.Get("/attachments/{attachmentID}", h.GetAttachment, apiOp{
 			summary: "Get attachment", description: "Metadata đính kèm (không gồm object_key).",
@@ -449,10 +464,6 @@ func registerTasksSuite(r api, h Routes) {
 		suite.Delete("/attachments/{attachmentID}", h.DeleteAttachment, apiOp{
 			summary: "Delete attachment", description: "Xóa đính kèm.",
 			tags: []string{"tasks"}, auth: true, status: 204,
-		})
-		suite.Get("/tasks/{taskID}/timeline", h.GetTaskTimeline, apiOp{
-			summary: "Task timeline", description: "Timeline hoạt động (stub).",
-			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
 		})
 		suite.Post("/tasks/{taskID}/comments/trigger-preview", h.PreviewCommentTriggers, apiOp{
 			summary: "Comment trigger preview", description: "Preview agent mention (stub).",

@@ -1,7 +1,7 @@
 /**
  * Endpoint configuration injected by the platform layer at boot.
  *
- * packages/core must not read `process.env`: it runs under Node in tests, and
+ * packages/core must not read environment variables: it runs under Node in tests, and
  * on any platform where no bundler inlines those values there is nothing to
  * read. The app that owns the environment sets them once at startup and every
  * core module reads them from here.
@@ -19,6 +19,8 @@ export interface RuntimeConfig {
   appUrl: string;
   /** Max concurrent chat:{roomId} WS subscriptions per client. */
   chatScopeSubscriptionLimit: number;
+  /** `client_platform` the WebSocket handshake reports: "web", or "desktop" inside the UniChat shell. */
+  clientPlatform: string;
 }
 
 const DEFAULTS: RuntimeConfig = {
@@ -26,6 +28,7 @@ const DEFAULTS: RuntimeConfig = {
   wsUrl: "ws://localhost:8080",
   appUrl: "http://localhost:3000",
   chatScopeSubscriptionLimit: 25,
+  clientPlatform: "web",
 };
 
 let current: RuntimeConfig = { ...DEFAULTS };

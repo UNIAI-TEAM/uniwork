@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Modal tải ứng dụng</title>
+<style>
+:root{--bg:#f6f6f8;--card:#fff;--ink:#16161d;--mut:#6b6b7a;--line:#e6e6ec;--acc:#6c47ff;--accbg:#f0ecff;--btn:#16161d;--btnink:#fff;--ok:#12805c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c0c10;--card:#17171d;--ink:#f2f2f5;--mut:#9a9aa8;--line:#2a2a33;--acc:#9d85ff;--accbg:#231c44;--btn:#f2f2f5;--btnink:#16161d;--ok:#3ecf9b}}
+:root[data-theme="dark"]{--bg:#0c0c10;--card:#17171d;--ink:#f2f2f5;--mut:#9a9aa8;--line:#2a2a33;--acc:#9d85ff;--accbg:#231c44;--btn:#f2f2f5;--btnink:#16161d;--ok:#3ecf9b}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}
+button{font:inherit;color:inherit;cursor:pointer}
+.open{background:var(--btn);color:var(--btnink);border:0;border-radius:10px;padding:11px 20px;font-weight:600}
+.ov{position:fixed;inset:0;background:rgba(10,10,16,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:16px;z-index:9}
+.ov.on{display:flex;animation:f .15s ease-out}
+@keyframes f{from{opacity:0}}
+@keyframes u{from{transform:translateY(10px);opacity:0}}
+.modal{width:100%;max-width:560px;max-height:100%;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.25);animation:u .2s ease-out}
+header{display:flex;gap:12px;align-items:flex-start;padding:22px 24px 6px}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--ink);color:var(--card);display:grid;place-items:center;font-weight:700;flex:none}
+h2{margin:0;font-size:18px;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:var(--mut);font-size:13.5px}
+.x{margin-left:auto;border:0;background:none;width:32px;height:32px;border-radius:8px;color:var(--mut);font-size:20px;line-height:1}
+.x:hover{background:var(--bg)}
+.body{padding:16px 24px 8px}
+.os{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.o{position:relative;border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:16px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;font-weight:600;font-size:14px;transition:border-color .12s,background .12s}
+.o:hover{border-color:var(--mut)}
+.o[aria-checked=true]{border-color:var(--acc);background:var(--accbg)}
+.o svg{width:30px;height:30px;fill:currentColor}
+.tag{position:absolute;top:-9px;background:var(--acc);color:#fff;font-size:11px;font-weight:600;padding:1px 8px;border-radius:99px}
+.lbl{display:block;margin:20px 0 8px;font-size:13px;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:9px;padding:8px 12px;font-size:13.5px;text-align:left}
+.chip small{display:block;color:var(--mut);font-size:12px}
+.chip[aria-checked=true]{border-color:var(--acc);background:var(--accbg)}
+select{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:9px;padding:9px 12px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.info{margin:18px 0 0;padding:12px 14px;border-radius:10px;background:var(--bg);display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--mut)}
+.info b{color:var(--ink);font-weight:600}
+footer{display:flex;gap:10px;justify-content:flex-end;align-items:center;padding:16px 24px 22px}
+.ghost{border:1.5px solid var(--line);background:none;border-radius:10px;padding:10px 16px;font-weight:500}
+.dl{display:flex;align-items:center;gap:8px;border:0;background:var(--btn);color:var(--btnink);border-radius:10px;padding:11px 20px;font-weight:600}
+.dl svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+.ok{color:var(--ok);font-size:13px;margin-right:auto;display:none}
+.ok.on{display:block}
+@media(max-width:480px){.os{gap:8px}.modal{border-radius:14px}header,.body,footer{padding-left:16px;padding-right:16px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<button class="open" id="open">Tải ứng dụng</button>
+
+<div class="ov on" id="ov" role="dialog" aria-modal="true" aria-labelledby="t">
+ <div class="modal">
+  <header>
+   <div class="logo">U</div>
+   <div><h2 id="t">Tải UniWork cho máy tính</h2><p>Chọn hệ điều hành và phiên bản phù hợp với thiết bị của bạn.</p></div>
+   <button class="x" id="close" aria-label="Đóng">×</button>
+  </header>
+
+  <div class="body">
+   <div class="os" id="os" role="radiogroup" aria-label="Hệ điều hành"></div>
+
+   <span class="lbl">Kiến trúc &amp; định dạng</span>
+   <div class="row" id="fmt" role="radiogroup" aria-label="Định dạng"></div>
+
+   <span class="lbl">Phiên bản</span>
+   <select id="ver" aria-label="Phiên bản">
+    <option value="2.4.1">2.4.1 — Ổn định (khuyến nghị)</option>
+    <option value="2.5.0-beta">2.5.0 — Beta</option>
+    <option value="2.3.8">2.3.8 — Bản cũ</option>
+   </select>
+
+   <div class="info"><span id="req"></span><span id="size"></span></div>
+  </div>
+
+  <footer>
+   <span class="ok" id="ok">Đang tải xuống…</span>
+   <button class="ghost" id="cancel">Để sau</button>
+   <button class="dl" id="dl"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg><span id="dltxt">Tải xuống</span></button>
+  </footer>
+ </div>
+</div>
+
+<script>
+var ICON={
+ win:'<svg viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.5v7H3zm8.5-1.1L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.4z"/></svg>',
+ mac:'<svg viewBox="0 0 24 24"><path d="M16.4 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-3 .9-3.800 2.300-1.600 2.800-.4 7 1.200 9.300.8 1.100 1.700 2.400 2.900 2.300 1.200 0 1.600-.7 3-.7s1.800.7 3 .7 2-1.100 2.800-2.200c.9-1.300 1.200-2.500 1.300-2.600-.1 0-2.500-1-2.500-3.900zM14.200 5.900c.6-.8 1.100-1.900.9-3-1 0-2.100.6-2.800 1.400-.6.700-1.100 1.800-1 2.900 1.100.1 2.200-.5 2.900-1.300z"/></svg>',
+ lin:'<svg viewBox="0 0 24 24"><path d="M12 2c-2 0-3 1.800-3 4 0 1.500-.4 2.500-1.200 3.800C6.800 11.400 6 13 6 15c0 1.200.4 2 1 2.600-.3.600-1 1-1.800 1.400-.6.300-.4 1 .2 1.200 1.200.4 2.600.5 3.600-.2.600.3 1.200.5 3 .5s2.400-.2 3-.5c1 .7 2.400.6 3.600.2.600-.2.800-.9.200-1.200-.8-.4-1.500-.8-1.800-1.400.6-.6 1-1.400 1-2.600 0-2-.8-3.600-1.800-5.200C15.400 8.500 15 7.500 15 6c0-2.200-1-4-3-4zm-1.300 4.500a.8.8 0 1 1 0 1.600.8.8 0 0 1 0-1.600zm2.600 0a.8.8 0 1 1 0 1.600.8.8 0 0 1 0-1.600z"/></svg>'
+};
+var DATA={
+ win:{n:'Windows',i:ICON.win,req:'Windows 10 (1903) trở lên',f:[['x64 · .exe','Intel / AMD','98 MB'],['ARM64 · .exe','Snapdragon','94 MB'],['.msi','Triển khai doanh nghiệp','101 MB']]},
+ mac:{n:'macOS',i:ICON.mac,req:'macOS 12 Monterey trở lên',f:[['Apple Silicon · .dmg','M1, M2, M3, M4','112 MB'],['Intel · .dmg','Mac đời cũ','118 MB']]},
+ lin:{n:'Linux',i:ICON.lin,req:'Ubuntu 20.04+ / Fedora 36+ / Debian 11+',f:[['.deb','Ubuntu, Debian','96 MB'],['.rpm','Fedora, RHEL','97 MB'],['.AppImage','Chạy mọi bản phân phối','104 MB']]}
+};
+var cur=null,fi=0;
+function detect(){var u=(navigator.userAgent+' '+(navigator.platform||'')).toLowerCase();
+ if(u.indexOf('mac')>-1&&u.indexOf('mobile')<0)return'mac';
+ if(u.indexOf('linux')>-1&&u.indexOf('android')<0)return'lin';
+ return'win'}
+var det=detect();
+function $(id){return document.getElementById(id)}
+function renderOS(){
+ $('os').innerHTML=Object.keys(DATA).map(function(k){
+  return '<button class="o" role="radio" aria-checked="'+(k===cur)+'" data-k="'+k+'">'+(k===det?'<span class="tag">Phù hợp</span>':'')+DATA[k].i+DATA[k].n+'</button>'}).join('');
+ [].forEach.call($('os').children,function(b){b.onclick=function(){cur=b.dataset.k;fi=0;render()}})}
+function renderFmt(){
+ var d=DATA[cur];
+ $('fmt').innerHTML=d.f.map(function(f,i){return '<button class="chip" role="radio" aria-checked="'+(i===fi)+'" data-i="'+i+'">'+f[0]+'<small>'+f[1]+'</small></button>'}).join('');
+ [].forEach.call($('fmt').children,function(b){b.onclick=function(){fi=+b.dataset.i;render()}});
+ $('req').innerHTML='Yêu cầu: <b>'+d.req+'</b>';
+ $('size').innerHTML='Dung lượng: <b>'+d.f[fi][2]+'</b>';
+ $('dltxt').textContent='Tải cho '+d.n}
+function render(){renderOS();renderFmt();$('ok').classList.remove('on')}
+cur=det;render();
+
+function show(v){$('ov').classList.toggle('on',v);if(v)$('dl').focus()}
+$('open').onclick=function(){show(true)};
+$('close').onclick=$('cancel').onclick=function(){show(false)};
+$('ov').onclick=function(e){if(e.target===$('ov'))show(false)};
+document.addEventListener('keydown',function(e){if(e.key==='Escape')show(false)});
+$('dl').onclick=function(){
+ var d=DATA[cur];
+ $('ok').textContent='Đang tải '+d.f[fi][0]+' · v'+$('ver').value+'…';
+ $('ok').classList.add('on');
+ /* TODO: thay bằng link thật, ví dụ: window.location = `/downloads/${cur}/${fi}?v=${ver}` */
+};
+</script>
+</body>
+</html>

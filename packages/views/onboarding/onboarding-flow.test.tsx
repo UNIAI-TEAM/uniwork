@@ -40,4 +40,22 @@ describe("OnboardingFlow", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Quay lại" })[0]!);
     expect(onCancel).toHaveBeenCalled();
   });
+
+  // UNI-1586: an account belongs to one organization (ADR 0032), so creating
+  // a workspace does not ask which one; Back leaves the flow.
+  it("new_workspace mode goes straight to the workspace step for the one organization held", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      if (path === "/api/v1/orgs") {
+        return Promise.resolve({ organizations: [{ id: "o1", slug: "acme", name: "Acme", role: "owner", status: "active" }] });
+      }
+      return Promise.resolve({});
+    });
+    const onCancel = vi.fn();
+    render(wrap(<OnboardingFlow onComplete={() => {}} mode="new_workspace" onCancel={onCancel} />));
+    expect(await screen.findByRole("heading", { level: 1, name: "Đặt tên workspace." })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Acme/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Quay lại" })[0]!);
+    expect(onCancel).toHaveBeenCalled();
+  });
 });

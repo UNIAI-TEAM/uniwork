@@ -1,22 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StickyNote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { canSubmitNote, NOTE_BODY_MAX_LENGTH } from "@uniwork/core/chat/note-utils";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import {
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_DIALOG_WIDTH,
+  CHAT_FIELD_TEXTAREA_CLASS,
+  CHAT_LABEL_CLASS,
+} from "./chat-dialog-look";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatCharCounter, ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
+import { PinToTopRow } from "./chat-pin-to-top-row";
+
+const FORM_ID = "chat-create-note-form";
 
 export function ChatCreateNoteDialog({
   open,
@@ -38,30 +43,27 @@ export function ChatCreateNoteDialog({
 
   const [body, setBody] = useState("");
   const [pinToTop, setPinToTop] = useState(false);
-
-  const resetForm = () => {
-    setBody("");
-    setPinToTop(false);
-  };
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) resetForm();
+    if (open) return;
+    setBody("");
+    setPinToTop(false);
+    setSubmitError(null);
   }, [open]);
 
   const canCreate = canSubmitNote(body);
 
   const handleCreate = () => {
     if (!canCreate || sendMessage.isPending) return;
-    if (pinToTop && !canPinToTop) {
-      toast.error(t("chat.note_pin_forbidden"));
-      return;
-    }
+    setSubmitError(null);
     void sendMessage
       .mutateAsync({
         roomId,
+        client_msg_id: newChatClientMsgId(),
         note: {
           body: body.trim(),
-          pin_to_top: pinToTop,
+          pin_to_top: pinToTop && canPinToTop,
         },
       })
       .then(() => {
@@ -69,54 +71,75 @@ export function ChatCreateNoteDialog({
         onCreated?.();
         onOpenChange(false);
       })
-      .catch(() => {
-        toast.error(t("chat.note_create_failed"));
+      .catch((err: unknown) => {
+        setSubmitError(chatErrorMessage(err, t, t("chat.note_create_failed")));
       });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>{t("chat.note_create_title")}</DialogTitle>
-        </DialogHeader>
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.narrow}`}>
+        <FormDialogHeader title={t("chat.note_create_title")} description={t("chat.note_create_description")} />
 
-        <div className="space-y-5 overflow-y-auto px-5 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="note-body">{t("chat.note_body_label")}</Label>
-            <Textarea
-              id="note-body"
-              value={body}
-              maxLength={NOTE_BODY_MAX_LENGTH}
-              rows={6}
-              placeholder={t("chat.note_body_placeholder")}
-              onChange={(event) => setBody(event.target.value)}
-            />
-          </div>
+        <form
+          id={FORM_ID}
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleCreate();
+          }}
+        >
+          <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="note-body" className={CHAT_LABEL_CLASS}>
+                  {t("chat.note_body_label")}
+                  <RequiredMark />
+                </Label>
+                <ChatCharCounter id="note-body-count" length={body.length} max={NOTE_BODY_MAX_LENGTH} always />
+              </div>
+              <Textarea
+                id="note-body"
+                className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-42.5 max-h-80`}
+                value={body}
+                maxLength={NOTE_BODY_MAX_LENGTH}
+                rows={6}
+                aria-required
+                aria-describedby="note-body-count"
+                placeholder={t("chat.note_body_placeholder")}
+                onChange={(event) => {
+                  setBody(event.target.value);
+                  if (submitError) setSubmitError(null);
+                }}
+              />
+            </div>
 
-          <div className="flex items-start gap-2">
-            <Checkbox
+            <PinToTopRow
               id="note-pin-top"
+              label={t("chat.note_pin_to_top")}
               checked={pinToTop}
-              disabled={!canPinToTop}
-              onCheckedChange={(checked) => setPinToTop(checked === true)}
+              onCheckedChange={setPinToTop}
+              disabledReason={canPinToTop ? undefined : t("chat.note_pin_forbidden")}
             />
-            <Label htmlFor="note-pin-top" id="note-pin-top-label" className="cursor-pointer font-normal leading-snug">
-              {t("chat.note_pin_to_top")}
-            </Label>
-          </div>
-        </div>
+          </FormDialogBody>
 
-        <DialogFooter className="gap-2 border-t border-border px-5 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" disabled={!canCreate || sendMessage.isPending} onClick={handleCreate}>
-            <StickyNote className="size-4" aria-hidden />
-            {t("chat.note_create_submit")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <FormDialogFooter
+            onCancel={() => onOpenChange(false)}
+            cancelVariant="secondary"
+            submitLabel={t("chat.note_create_submit")}
+            submittingLabel={t("chat.note_create_submitting")}
+            submitting={sendMessage.isPending}
+            submitDisabled={!canCreate}
+            submitType="submit"
+            form={FORM_ID}
+            leading={
+              submitError || !canCreate ? (
+                <ChatFormFooterNote error={submitError} hint={canCreate ? null : t("chat.note_submit_hint")} />
+              ) : undefined
+            }
+          />
+        </form>
+      </FormDialogContent>
     </Dialog>
   );
 }

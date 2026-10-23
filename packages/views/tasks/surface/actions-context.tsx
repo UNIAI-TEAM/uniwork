@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+import type { BatchUpdateBody } from "@uniwork/core/api/endpoints/tasks-suite";
+import type { CreateTaskBody } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
-import type { ActorKind } from "@uniwork/core/types/audit";
 
 export type TaskSurfaceMutationOptions = {
   errorMessage?: string;
@@ -11,13 +12,7 @@ export type TaskSurfaceMutationOptions = {
   onSettled?: () => void;
 };
 
-export type TaskCreateDefaults = {
-  title?: string;
-  status?: string;
-  priority?: string;
-  assignee_id?: string | null;
-  assignee_kind?: ActorKind;
-};
+export type TaskCreateDefaults = Partial<CreateTaskBody>;
 
 export interface TaskSurfaceActions {
   isPending: boolean;
@@ -34,7 +29,7 @@ export interface TaskSurfaceActions {
   ) => void;
   batchUpdate: (
     taskIds: string[],
-    updates: Record<string, unknown>,
+    updates: BatchUpdateBody["updates"],
   ) => Promise<void>;
   batchDelete: (taskIds: string[]) => Promise<void>;
 }

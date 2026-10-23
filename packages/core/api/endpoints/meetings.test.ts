@@ -7,23 +7,20 @@ import {
   appendTranscript,
   createJoinRequest,
   createMeeting,
-  createMeetingSummary,
-  createTasksFromSummary,
   deleteMeeting,
   fetchMeetingCalendar,
   getMeeting,
   getMeetingCapabilities,
   getMeetingStatistics,
-  getMeetingSummary,
   joinMeeting,
   listInviteLinks,
   listMeetingActivity,
-  listMeetingChat,
   listMeetings,
   listNotes,
   listRecordings,
-  listTranscript,
   meetingToken,
+  resolveInviteLink,
+  restoreMeeting,
   setParticipantPublish,
   startRecording,
   stopRecording,
@@ -52,18 +49,36 @@ describe("meetings endpoints", () => {
     setAccessToken(null);
   });
 
-  it("listMeetings returns meetings and [] on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [meeting], total: 1 }));
-    expect((await listMeetings("ws1")).meetings).toHaveLength(1);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [{ id: "m1" }] }));
-    await expect(listMeetings("ws1")).resolves.toEqual({ meetings: [], total: 0 });
+  it("listMeetings returns meetings with the row's recording flag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [{ ...meeting, has_playable_recording: true }], total: 1 }));
+    const page = await listMeetings("ws1");
+    expect(page.meetings).toHaveLength(1);
+    expect(page.meetings[0]?.has_playable_recording).toBe(true);
   });
 
-  it("listMeetings sends filters on the query string", async () => {
+  it("listMeetings throws on drift instead of reading as an empty workspace", async () => {
+    // An empty page would render "No meetings yet"; the list must show its error state instead.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [{ id: "m1" }] }));
+    await expect(listMeetings("ws1")).rejects.toThrow("meetings_list_invalid");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }));
+    await expect(listMeetings("ws1")).rejects.toThrow("meetings_list_invalid");
+  });
+
+  it("listMeetings sends filters, sort and zone on the query string", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [], total: 0 }));
-    await listMeetings("ws1", { status: "SCHEDULED", q: "sync", limit: 20, offset: 0 });
-    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("status=SCHEDULED");
-    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("q=sync");
+    await listMeetings("ws1", {
+      status: "SCHEDULED",
+      q: "sync",
+      limit: 20,
+      offset: 0,
+      sort: "starts_at",
+      tz: "Asia/Ho_Chi_Minh",
+    });
+    const url = String(vi.mocked(fetch).mock.calls[0]![0]);
+    expect(url).toContain("status=SCHEDULED");
+    expect(url).toContain("q=sync");
+    expect(url).toContain("sort=starts_at");
+    expect(url).toContain("tz=Asia%2FHo_Chi_Minh");
   });
 
   it("getMeeting / createMeeting return the meeting or null", async () => {
@@ -109,11 +124,26 @@ describe("meetings endpoints", () => {
     await expect(joinMeeting("m1")).resolves.toBeNull();
   });
 
+  it("resolveInviteLink reads link and meeting state, tolerates an older server, and nulls on drift", async () => {
+    const base = {
+      link_id: "l1", meeting_id: "m1", title: "Sync", starts_at: "2026-08-25T09:00:00Z",
+      access_mode: "AUTO_ADMIT", expired: true,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...base, link_state: "revoked", meeting_state: "open" }));
+    const res = await resolveInviteLink("l1", "sec");
+    expect(res?.link_state).toBe("revoked");
+    expect(res?.meeting_state).toBe("open");
+    vi.mocked(fetch).mockResolvedValueOnce(json(base));
+    expect((await resolveInviteLink("l1", "sec"))?.link_state).toBeUndefined();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ link_id: "l1" }));
+    await expect(resolveInviteLink("l1", "sec")).resolves.toBeNull();
+  });
+
   it("updateMeeting / statistics / activity / invite-links / join-request degrade on drift", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ meeting }))
       .mockResolvedValueOnce(json({ meeting: 1 }))
-      .mockResolvedValueOnce(json({ total: 3, scheduled: 1, in_progress: 1, ended: 1, canceled: 0 }))
+      .mockResolvedValueOnce(json({ total: 3, scheduled: 1, missed: 1, in_progress: 1, ended: 0, canceled: 0 }))
       .mockResolvedValueOnce(json({ total: "nope" }))
       .mockResolvedValueOnce(json({ activity: [{ id: "a1", event_type: "MEETING_CREATED", actor_id: "u1", occurred_at: meeting.starts_at }] }))
       .mockResolvedValueOnce(json({ activity: null }))
@@ -123,7 +153,7 @@ describe("meetings endpoints", () => {
       .mockResolvedValueOnce(json({ join_request: 1 }));
     expect((await updateMeeting("m1", { title: "Sync" }))?.id).toBe("m1");
     await expect(updateMeeting("m1", { title: "x" })).resolves.toBeNull();
-    expect((await getMeetingStatistics("ws1"))?.total).toBe(3);
+    expect(await getMeetingStatistics("ws1")).toMatchObject({ total: 3, scheduled: 1, missed: 1 });
     await expect(getMeetingStatistics("ws1")).resolves.toBeNull();
     expect(await listMeetingActivity("m1")).toHaveLength(1);
     await expect(listMeetingActivity("m1")).resolves.toEqual([]);
@@ -131,6 +161,28 @@ describe("meetings endpoints", () => {
     await expect(listInviteLinks("m1")).resolves.toEqual([]);
     expect((await createJoinRequest("m1"))?.id).toBe("r1");
     await expect(createJoinRequest("m1")).resolves.toBeNull();
+  });
+
+  it("listMeetingActivity keeps a motion row's title and outcome", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        activity: [
+          {
+            id: "a2",
+            event_type: "MOTION_CLOSED",
+            actor_id: "u1",
+            from_state: "OPEN",
+            to_state: "PASSED",
+            occurred_at: meeting.starts_at,
+            payload: { title: "Thông qua kế hoạch quý IV", outcome: "PASSED" },
+          },
+          { id: "a1", event_type: "MEETING_STARTED", actor_id: "u1", occurred_at: meeting.starts_at },
+        ],
+      }),
+    );
+    const [closedRow, startedRow] = await listMeetingActivity("m1");
+    expect(closedRow?.payload).toEqual({ title: "Thông qua kế hoạch quý IV", outcome: "PASSED" });
+    expect(startedRow?.payload).toBeUndefined();
   });
 
   it("extendMeeting returns the meeting or null on drift", async () => {
@@ -141,6 +193,17 @@ describe("meetings endpoints", () => {
     expect(JSON.parse(String(init.body))).toEqual({ minutes: 15 });
     vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
     await expect(extendMeeting("m1")).resolves.toBeNull();
+  });
+
+  it("restoreMeeting names the version it read and returns null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting }));
+    expect((await restoreMeeting("m1", 4))?.id).toBe("m1");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/restore");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ version: 4 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
+    await expect(restoreMeeting("m1")).resolves.toBeNull();
   });
 });
 
@@ -171,20 +234,30 @@ describe("meetings D08b endpoints", () => {
     expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
   });
 
-  it("transcript list/append", async () => {
-    const seg = { id: "s1", meeting_id: "m1", text: "hi", spoken_at: "2026-08-29T02:00:00Z" };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ segments: [seg] }));
-    expect(await listTranscript("m1")).toHaveLength(1);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ segments: [{ id: 1 }] }));
-    expect(await listTranscript("m1")).toEqual([]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ segment: seg }));
-    await appendTranscript("m1", "hi", "2026-08-29T02:00:00Z");
-    const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
-    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe("http://api.test/api/v1/meetings/m1/transcript");
-    expect(JSON.parse(String(init.body))).toEqual({ text: "hi", spoken_at: "2026-08-29T02:00:00Z" });
+  it("setParticipantPublish names the screen-share source, and only that one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", false, "screen_share");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ enabled: false, source: "screen_share" });
+    // The mic stays the server's default, so an older server still reads the body.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", true, "microphone");
+    const second = vi.mocked(fetch).mock.calls[1]![1] as RequestInit;
+    expect(JSON.parse(String(second.body))).toEqual({ enabled: true });
   });
 
-  it("chat list/append", async () => {
+  it("transcript append", async () => {
+    const seg = { id: "s1", meeting_id: "m1", text: "hi", spoken_at: "2026-08-29T02:00:00Z" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ segment: seg }));
+    expect(await appendTranscript("m1", "hi", "2026-08-29T02:00:00Z")).toEqual(seg);
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/transcript");
+    expect(JSON.parse(String(init.body))).toEqual({ text: "hi", spoken_at: "2026-08-29T02:00:00Z" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ segment: { id: 1 } }));
+    expect(await appendTranscript("m1", "hi")).toBeNull();
+  });
+
+  it("chat append", async () => {
     const msg = {
       id: "c1",
       meeting_id: "m1",
@@ -193,33 +266,11 @@ describe("meetings D08b endpoints", () => {
       message: "hi",
       sent_at: "2026-08-29T02:00:00Z",
     };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [msg] }));
-    expect(await listMeetingChat("m1")).toHaveLength(1);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ id: 1 }] }));
-    expect(await listMeetingChat("m1")).toEqual([]);
     vi.mocked(fetch).mockResolvedValueOnce(json({ message: msg }));
     expect((await appendMeetingChat("m1", "hi\nthere"))?.message).toBe("hi");
-    const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
-    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe("http://api.test/api/v1/meetings/m1/chat");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/chat");
     expect(JSON.parse(String(init.body))).toEqual({ message: "hi\nthere" });
-  });
-
-  it("summary get/create return null on drift; tasks return ids", async () => {
-    const summary = { id: "x", meeting_id: "m1", summary: "S", decisions: ["D"], action_items: [{ title: "T" }] };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
-    expect((await getMeetingSummary("m1"))?.decisions).toEqual(["D"]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null }));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { id: "x" } }));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
-    expect((await createMeetingSummary("m1", "vi"))?.summary).toBe("S");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ task_ids: ["t1", "t2"] }));
-    expect(await createTasksFromSummary("m1", [{ title: "a" }, { title: "b" }])).toEqual(["t1", "t2"]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ task_ids: "nope" }));
-    expect(await createTasksFromSummary("m1", [{ title: "a" }])).toEqual([]);
   });
 
   it("recordings start/stop/list", async () => {
@@ -232,6 +283,22 @@ describe("meetings D08b endpoints", () => {
     expect(await listRecordings("m1")).toHaveLength(1);
     vi.mocked(fetch).mockResolvedValueOnce(json({ recordings: null }));
     expect(await listRecordings("m1")).toEqual([]);
+  });
+
+  it("getMeetingRecordingPlaybackUrl returns presigned url or null on drift", async () => {
+    const { getMeetingRecordingPlaybackUrl } = await import("./meetings");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        playback_url: "https://s3.test/rec.mp4?sig=1",
+        expires_at: "2026-09-15T11:00:00Z",
+      }),
+    );
+    await expect(getMeetingRecordingPlaybackUrl("m1", "rec1")).resolves.toEqual({
+      playback_url: "https://s3.test/rec.mp4?sig=1",
+      expires_at: "2026-09-15T11:00:00Z",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ playback_url: "" }));
+    await expect(getMeetingRecordingPlaybackUrl("m1", "rec1")).resolves.toBeNull();
   });
 
   it("calendar returns the raw text with the bearer token", async () => {

@@ -10,8 +10,8 @@ export function MembersTab() {
   const { workspace } = useWorkspace();
 
   return (
-    <SettingsTab title={t("page.tabs.members")}>
-      <MembersView workspaceId={workspace.id} embedded />
+    <SettingsTab title={t("page.tabs.members")} description={t("members.description")}>
+      <MembersView workspaceId={workspace.id} />
     </SettingsTab>
   );
 }

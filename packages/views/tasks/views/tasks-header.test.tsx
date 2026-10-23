@@ -85,7 +85,7 @@ describe("TasksHeader mode switcher", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows compact display controls and keeps integrations in their menu", async () => {
+  it("shows compact display controls without unavailable integration actions", async () => {
     const store = getTaskSurfaceViewStore("test-header-action-groups");
 
     render(
@@ -115,19 +115,17 @@ describe("TasksHeader mode switcher", () => {
     expect(
       screen.getByRole("switch", { name: "Độ ưu tiên" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Nhãn" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    const labels = screen.getByRole("switch", { name: "Nhãn" });
+    expect(labels).not.toHaveAttribute("aria-disabled", "true");
+    expect(labels).toBeChecked();
     expect(screen.queryByRole("checkbox")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
     expect(
-      await screen.findByRole("menuitem", { name: "VCS" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("menuitem", { name: "Đính kèm" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Thêm thao tác" }),
+    ).toBeNull();
+    expect(screen.queryByText("VCS")).toBeNull();
+    expect(screen.queryByText("Đính kèm")).toBeNull();
+    expect(document.querySelector("span.w-4:empty")).toBeNull();
   });
 
   it("shows save view beside active filter chips", () => {

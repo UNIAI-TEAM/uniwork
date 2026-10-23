@@ -38,6 +38,19 @@ func testTokenParser(token string) (string, error) {
 	return testUserID, nil
 }
 
+// testSessionParser accepts testBearerToken, or a JSON Identity as the token
+// so a test can pick the user, session and expiry of each socket.
+func testSessionParser(_ context.Context, token string) (Identity, error) {
+	if uid, err := testTokenParser(token); err == nil {
+		return Identity{UserID: uid}, nil
+	}
+	var id Identity
+	if err := json.Unmarshal([]byte(token), &id); err != nil || id.UserID == "" {
+		return Identity{}, errors.New("invalid token")
+	}
+	return id, nil
+}
+
 func makeTestToken(t *testing.T) string {
 	t.Helper()
 	return testBearerToken
@@ -51,7 +64,7 @@ func newTestHub(t *testing.T) (*Hub, *httptest.Server) {
 	mc := &mockMembershipChecker{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		HandleWebSocket(hub, mc, testTokenParser, nil, w, r)
+		HandleWebSocket(hub, mc, testSessionParser, nil, w, r)
 	})
 	server := httptest.NewServer(mux)
 	return hub, server
@@ -589,7 +602,7 @@ func TestHandleWebSocketResolvesWorkspaceSlug(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		HandleWebSocket(hub, &mockMembershipChecker{}, testTokenParser, resolve, w, r)
+		HandleWebSocket(hub, &mockMembershipChecker{}, testSessionParser, resolve, w, r)
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()

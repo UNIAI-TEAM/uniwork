@@ -1,0 +1,656 @@
+import { z } from "zod";
+import { ActorSchema } from "./actor";
+
+// Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
+// The versioned samples in docs/parity/documents-api are the source of truth
+// until the routes exist; every schema below parses those samples.
+//
+// Revision is a decimal string on the wire — a BIGINT revision would lose
+// precision past 2^53 as a JSON number. Version ordinals are numbers: they
+// are display ordinals, not identity. Ids are opaque ULID strings.
+//
+// Enums parse as z.string() and narrow back to the exported unions on the
+// type: a server that ships a new enum value degrades through a `default`
+// branch, never a failed parse.
+
+export const DOCUMENT_KINDS = ["page", "file", "folder"] as const;
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+export const DOCUMENT_VISIBILITIES = ["workspace", "restricted"] as const;
+export type DocumentVisibility = (typeof DOCUMENT_VISIBILITIES)[number];
+
+export const DOCUMENT_ACCESS_LEVELS = ["view", "comment", "edit", "manage"] as const;
+export type DocumentAccessLevel = (typeof DOCUMENT_ACCESS_LEVELS)[number];
+
+export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context", "break_glass"] as const;
+export type DocumentAccessVia = (typeof DOCUMENT_ACCESS_VIA)[number];
+
+export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent"] as const;
+export type DocumentVersionReason = (typeof DOCUMENT_VERSION_REASONS)[number];
+
+export const DOCUMENT_OWNER_KINDS = ["work_product"] as const;
+export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
+
+export const DOCUMENT_SYSTEM_KINDS = ["my_folder"] as const;
+export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
+
+/**
+ * The file formats the library filters by (UNI-1868): the server's
+ * `?format=` list, which is also the value it reports per file row. The
+ * server answers with the MIME the current version was verified as, else the
+ * title's extension, so a row's `format` here is the server's own reading.
+ * `txt` joined with UNI-2045 SV-7 (MIME text/plain, else the extension).
+ */
+export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
+export type DocumentFileFormat = (typeof DOCUMENT_FILE_FORMATS)[number];
+
+/**
+ * The access filter beside the type chips (UNI-1868): `manage` exactly the
+ * rows the caller manages, `edit` the rows they manage or edit, and
+ * `restricted` the rows whose visibility is restricted.
+ */
+export const DOCUMENT_ACCESS_FILTERS = ["manage", "edit", "restricted"] as const;
+export type DocumentAccessFilter = (typeof DOCUMENT_ACCESS_FILTERS)[number];
+
+export const DOCUMENT_DISPOSITIONS = ["attachment", "inline"] as const;
+export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
+
+/**
+ * The error_class vocabulary of C-01 §14.5 the client branches on — the same
+ * list as API_ERROR_CLASSES in api/http.ts (kept here so types/ stays free of
+ * api/ imports; the two tables must not drift). Server codes stay open — new
+ * codes map onto these classes — so the union is what save-state and the UI
+ * reason about, and an unknown class degrades to `unknown` via
+ * classifyDocumentError, never a throw.
+ *
+ * `locked` is the one client-only class (UNI-1645): the server stamps no class
+ * on 423 document_locked, so it is absent from API_ERROR_CLASSES and only the
+ * code maps onto it. It is not a conflict: a locked writer never reaches the
+ * overwrite path.
+ */
+export const DOCUMENT_ERROR_CLASSES = [
+  "conflict",
+  "gone",
+  "quota",
+  "permission",
+  "missing",
+  "incompatible",
+  "session",
+  "locked",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved, class read_only (addendum §0, §3).
+  "read_only",
+] as const;
+export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
+
+/** Page JSON is validated by packages/core/documents/schema.ts on the edit
+ *  path; on the wire it stays opaque so a forward-compatible node never
+ *  breaks a metadata read. */
+export const DocumentContentSchema = z.unknown();
+export type DocumentContent = z.infer<typeof DocumentContentSchema>;
+
+export const DocumentBreadcrumbSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  icon: z.string().nullable().optional(),
+});
+export type DocumentBreadcrumb = z.infer<typeof DocumentBreadcrumbSchema>;
+
+export const DocumentFileSchema = z.object({
+  file_id: z.string(),
+  version_id: z.string(),
+  version: z.number(),
+  filename: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number(),
+  checksum_sha256: z.string(),
+});
+export type DocumentFile = z.infer<typeof DocumentFileSchema>;
+
+export const DocumentSchema = z.object({
+  id: z.string(),
+  organization_id: z.string().optional().default(""),
+  workspace_id: z.string(),
+  parent_id: z.string().nullable().optional(),
+  kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
+  title: z.string(),
+  icon: z.string().nullable().optional(),
+  visibility: z.string().optional().default("workspace"),
+  content: DocumentContentSchema.optional(),
+  content_text: z.string().optional().default(""),
+  revision: z.string(),
+  current_version: z.number().optional().default(0),
+  position: z.number().optional().default(0),
+  my_level: z.string().optional(),
+  via: z.string().optional(),
+  // True for a workspace admin on a restricted document they do not own (DOC-05);
+  // a drifted value reads as absent.
+  admin_scope: z.boolean().optional().catch(undefined),
+  break_glass_expires_at: z.string().nullable().optional(),
+  file: DocumentFileSchema.nullable().optional(),
+  breadcrumbs: z.array(DocumentBreadcrumbSchema).optional().default([]),
+  owner_kind: z.string().nullable().optional(),
+  owner_id: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01 (UNI-1845): the "Lưu trữ" state, separate from trash (§0). A
+  // shelved row can also be trashed, so the two pairs coexist; drifted values
+  // read as absent like archived_at/archived_by.
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
+  created_by: z.string().optional().default(""),
+  created_by_kind: z.string().optional().default("human"),
+  updated_by: z.string().optional().default(""),
+  updated_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+});
+export type Document = Omit<
+  z.infer<typeof DocumentSchema>,
+  "kind" | "system_kind" | "visibility" | "my_level" | "via" | "owner_kind"
+> & {
+  kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
+  visibility: DocumentVisibility;
+  my_level?: DocumentAccessLevel;
+  via?: DocumentAccessVia;
+  owner_kind?: DocumentOwnerKind | null;
+};
+
+/** True when a document, list item or tree node is the caller's system My Folder. */
+export function isMyFolder(
+  doc: { system_kind?: string | null } | null | undefined,
+): boolean {
+  switch (doc?.system_kind) {
+    case "my_folder":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * True for a workspace folder (UNI-2055 W1): a folder outside the My Folder
+ * subtree, which carries `visibility: "workspace"` and no `system_kind`. My
+ * Folder and everything under it stay `restricted`.
+ */
+export function isWorkspaceFolder(
+  doc: { kind?: string | null; visibility?: string | null; system_kind?: string | null } | null | undefined,
+): boolean {
+  return doc?.kind === "folder" && doc.visibility === "workspace" && !doc.system_kind;
+}
+
+/** True when the caller manages a trashed row (RESTORE-01): views use this to
+ *  enable Restore / Delete forever and disable them for view/edit/unknown.
+ *  A workspace admin on a restricted row arrives with no my_level and
+ *  admin_scope: true instead - they administer it, so the controls stay on. */
+export function canManageTrashed(
+  item: { my_level?: string | null; admin_scope?: boolean | null } | null | undefined,
+): boolean {
+  if (item?.admin_scope === true) {
+    return true;
+  }
+  switch (item?.my_level) {
+    case "manage":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** True when a document or list row sits in "Lưu trữ" (ARCHIVE-01): shelved
+ *  at any time, including while it also sits in the trash - trashing a shelved
+ *  item keeps its shelved pair. `shelved_at` is the marker the server always
+ *  sends on a shelved row; a row missing it is simply not shelved. */
+export function isShelved(
+  doc: { shelved_at?: string | null } | null | undefined,
+): boolean {
+  return !!doc?.shelved_at;
+}
+
+export const DocumentVersionSchema = z.object({
+  id: z.string(),
+  document_id: z.string(),
+  version: z.number(),
+  kind: z.string().optional().default("page"),
+  reason: z.string().optional().default("manual"),
+  label: z.string().nullable().optional(),
+  content: DocumentContentSchema.optional(),
+  file_id: z.string().nullable().optional(),
+  mime_type: z.string().nullable().optional(),
+  size_bytes: z.number().optional().default(0),
+  checksum_sha256: z.string().nullable().optional(),
+  restored_from: z.number().nullable().optional(),
+  engine_name: z.string().nullable().optional(),
+  engine_version: z.string().nullable().optional(),
+  contract_version: z.string().nullable().optional(),
+  protocol_version: z.string().nullable().optional(),
+  download_url: z.string().nullable().optional(),
+  created_by: z.string().optional().default(""),
+  created_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+});
+export type DocumentVersion = Omit<z.infer<typeof DocumentVersionSchema>, "kind" | "reason"> & {
+  kind: DocumentKind;
+  reason: DocumentVersionReason;
+};
+
+export const DocumentUploadSchema = z.object({
+  upload_id: z.string(),
+  checksum_sha256: z.string(),
+  size_bytes: z.number(),
+  claim_expires_at: z.string(),
+});
+export type DocumentUpload = z.infer<typeof DocumentUploadSchema>;
+
+export const DocumentAssetSchema = z.object({
+  id: z.string(),
+  document_id: z.string(),
+  url: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  created_at: z.string().optional().default(""),
+});
+export type DocumentAsset = z.infer<typeof DocumentAssetSchema>;
+
+export const DocumentDownloadSchema = z.object({
+  document_id: z.string(),
+  file: DocumentFileSchema,
+  disposition: z.string().optional().default("attachment"),
+});
+export type DocumentDownload = Omit<z.infer<typeof DocumentDownloadSchema>, "disposition"> & {
+  disposition: DocumentDisposition;
+};
+
+// ---- Response envelopes --------------------------------------------------
+// Every documents endpoint wraps its payload the same way; the envelope
+// schemas are what endpoints/documents*.ts feed parseWithFallback.
+
+export const DocumentEnvelopeSchema = z.object({ document: DocumentSchema });
+export const DocumentVersionEnvelopeSchema = z.object({ version: DocumentVersionSchema });
+export const DocumentVersionListEnvelopeSchema = z.object({
+  versions: z.array(DocumentVersionSchema),
+  next_cursor: z.string().nullable().optional(),
+});
+export const DocumentVersionResultEnvelopeSchema = z.object({
+  document: DocumentSchema,
+  version: DocumentVersionSchema,
+});
+export type DocumentVersionResult = {
+  document: Document;
+  version: DocumentVersion;
+};
+
+/** The C-01 §14.5 error envelope: `error.error_class` is what the client
+ *  branches on; `fields` carries machine-readable detail (current_revision,
+ *  quota meters, required_contract_version). */
+export const DocumentErrorEnvelopeSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    error_class: z.string().optional(),
+    fields: z.record(z.string(), z.unknown()).optional(),
+  }),
+});
+export type DocumentErrorBody = z.infer<typeof DocumentErrorEnvelopeSchema>["error"];
+
+/**
+ * A mutation response that cannot prove the write landed. Endpoint functions
+ * return null on a failed parse; hooks and the save machine turn that null
+ * into this error so the caller never reads "saved" off a fallback: the draft
+ * stays dirty and the idempotency key stays live for the retry.
+ */
+export class DocumentNotVerifiableError extends Error {
+  constructor(message: string = "result not verifiable") {
+    super(message);
+    this.name = "DocumentNotVerifiableError";
+  }
+}
+
+export function isDocumentNotVerifiable(err: unknown): err is DocumentNotVerifiableError {
+  return err instanceof DocumentNotVerifiableError;
+}
+
+// ---- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
+// Collections, tree, sharing, public links, access log and the organization
+// settings. Same leniency rules as above: server enums parse as z.string(),
+// the exported types narrow, and every list that cannot degrade safely has
+// its caller throw instead of rendering an empty page.
+
+const DocumentPathItemSchema = z.object({ id: z.string(), title: z.string() });
+
+// UNI-1645 (addendum §3.2): who holds a row's edit lock, never its lock id.
+// A newer field: a drifted value reads as no holder rather than failing the page.
+const DocumentRowEditLockSchema = z.object({
+  holder_id: z.string(),
+  holder_name: z.string().catch(""),
+  holder_avatar_url: z.string().nullable().optional().catch(undefined),
+  since: z.string().catch(""),
+  offline_hold_until: z.string().nullable().optional().catch(undefined),
+  held_by_me: z.boolean().catch(false),
+});
+
+/**
+ * Compact share-scope counts attached to list and summary rows (SH-S3 §2.1,
+ * addendum §6.4 / §7): lets every row show who can see the document without a
+ * per-row shares fetch. A malformed or partial block degrades to `undefined`
+ * so the row still renders and falls back to `visibility`.
+ */
+export const DocumentShareScopeSchema = z.object({
+  home_workspace: z.boolean(),
+  users: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  organization: z.boolean(),
+  public_link: z.boolean(),
+});
+export type DocumentShareScope = z.infer<typeof DocumentShareScopeSchema>;
+
+/** The caller's last activity on a Recent row (SV-1); `kind` is a server enum (opened, edited, commented). */
+const DocumentLastActivitySchema = z.object({ kind: z.string(), at: z.string() });
+
+/** Who shared a Shared-with-me row and when (SV-3); `by_name` is null when the sharer is outside the caller's organization. */
+const DocumentSharedBySchema = z.object({
+  by: z.string(),
+  by_kind: z.string().optional().catch(undefined),
+  by_name: z.string().nullable().optional().catch(null),
+  at: z.string(),
+});
+
+/** The live grants of a Shared-by-me row (SV-4); `latest_at` is null when only the workspace visibility shares it. */
+const DocumentShareSummarySchema = z.object({
+  people: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  links: z.number().int().nonnegative(),
+  latest_at: z.string().nullable().optional(),
+});
+
+/** The last editor as a person of the caller's organization (SV-6); no `avatar_url` draws the initial. */
+const DocumentEditorSchema = z.object({
+  name: z.string(),
+  avatar_url: z.string().nullable().optional().catch(undefined),
+});
+
+export const DocumentSummarySchema = z.object({
+  id: z.string(),
+  organization_id: z.string().optional().default(""),
+  workspace_id: z.string(),
+  parent_id: z.string().nullable().optional(),
+  kind: z.string(),
+  system_kind: z.string().nullable().optional().catch(undefined),
+  title: z.string(),
+  icon: z.string().nullable().optional(),
+  visibility: z.string().optional().default("workspace"),
+  revision: z.string(),
+  current_version: z.number().optional().default(0),
+  position: z.number().optional().default(0),
+  // Size of the current file version (0 for pages and folders) and where the
+  // document came from. Newer fields: a drifted value reads as absent rather
+  // than failing the whole page.
+  size_bytes: z.number().nullable().optional().catch(undefined),
+  // The library format of a file row (UNI-1868): the format the server
+  // derived from the current version's MIME, else the title's extension.
+  // Absent for a page, a folder and a file neither names; a drifted value
+  // reads as absent, and the view then reads the title's extension itself.
+  format: z.string().nullable().optional().catch(undefined),
+  origin: z.string().nullable().optional().catch(undefined),
+  snippet: z.string().nullable().optional(),
+  edit_lock: DocumentRowEditLockSchema.nullable().optional().catch(undefined),
+  // The viewer's level on this row (every list route carries it); a drifted
+  // value reads as absent, which the views treat as view-only.
+  my_level: z.string().nullable().optional().catch(undefined),
+  via: z.string().nullable().optional(),
+  admin_scope: z.boolean().optional().catch(undefined),
+  share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+  // UNI-2055 W6: a folder with nothing the caller can see in it, computed for
+  // this viewer; absent or drifted reads as unknown (never as a count).
+  is_empty: z.boolean().optional().catch(undefined),
+  owner_kind: z.string().nullable().optional(),
+  owner_id: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional().catch(undefined),
+  archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01: the shelved pair rides every list row (trash rows too, so a
+  // restored row can keep its shelved badge - addendum §4, Q-UI3).
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
+  purge_after: z.string().nullable().optional().catch(undefined),
+  // UNI-2045 (SV-1..SV-6): what each list screen's own column says. All newer
+  // fields: a drifted block reads as absent and the column writes "—".
+  last_activity: DocumentLastActivitySchema.nullable().optional().catch(undefined),
+  favorited_at: z.string().nullable().optional().catch(undefined),
+  shared: DocumentSharedBySchema.nullable().optional().catch(undefined),
+  share_summary: DocumentShareSummarySchema.nullable().optional().catch(undefined),
+  is_owner: z.boolean().optional().catch(undefined),
+  // null: the editor is outside the caller's organization or not a person.
+  updated_by_user: DocumentEditorSchema.nullable().optional().catch(undefined),
+  created_by: z.string().optional().default(""),
+  created_by_kind: z.string().optional().default("human"),
+  updated_by: z.string().optional().default(""),
+  updated_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+  // Folders contract v1.0 (FD-05/FD-06): the ancestors a search row sits
+  // under, root first, cut at the first one the caller cannot read. Optional
+  // on the wire; missing or not an array reads as [] (a row at the root), and
+  // a malformed ancestor cuts the path there, as the server does.
+  path: z
+    .unknown()
+    .optional()
+    .transform((raw) => {
+      if (!Array.isArray(raw)) return [];
+      const prefix: z.infer<typeof DocumentPathItemSchema>[] = [];
+      for (const item of raw) {
+        const parsed = DocumentPathItemSchema.safeParse(item);
+        if (!parsed.success) break;
+        prefix.push(parsed.data);
+      }
+      return prefix;
+    }),
+});
+/** Uploaded bytes, or something UniWork made (page, folder, blank file, converted copy). */
+export type DocumentOrigin = "upload" | "created";
+
+// The parser always fills `path` ([] when absent); the type keeps it optional
+// so a row a view builds by hand (a favorite, a fixture) need not carry one.
+type DocumentSummaryWire = Omit<z.infer<typeof DocumentSummarySchema>, "path" | "system_kind"> & {
+  path?: z.infer<typeof DocumentPathItemSchema>[];
+  system_kind?: DocumentSystemKind | null;
+};
+
+export type DocumentSummary = Omit<
+  DocumentSummaryWire,
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind" | "origin" | "system_kind" | "format"
+> & {
+  kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
+  origin?: DocumentOrigin | null;
+  visibility: DocumentVisibility;
+  my_level?: DocumentAccessLevel | null;
+  via?: DocumentAccessVia | null;
+  owner_kind?: DocumentOwnerKind | null;
+  format?: DocumentFileFormat | null;
+};
+
+export const DocumentListSchema = z.object({
+  documents: z.array(DocumentSummarySchema),
+  next_cursor: z.string().nullable().optional(),
+});
+export type DocumentList = Omit<z.infer<typeof DocumentListSchema>, "documents"> & {
+  documents: DocumentSummaryWire[];
+};
+
+/** Archive/restore answer: the moved document, its batch id and the ids that
+ *  actually changed. Restore only recovers nodes of its own batch. */
+export const DocumentArchiveSchema = z.object({
+  document: DocumentSchema,
+  batch_id: z.string().nullable().optional(),
+  affected: z.array(z.string()).optional().default([]),
+});
+export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "document"> & {
+  document: Document;
+};
+
+/**
+ * What archiving a subtree would move (folders contract v1.0, addendum §3.4).
+ * Under the cap: `folders`/`documents` exclude the root, `total` includes it.
+ * Past the cap the server does not count: only `too_large` and `max_nodes`.
+ * A count that is missing, negative or fractional fails the parse, so a
+ * drifted answer can never read as "0 items" in the delete dialog.
+ * `relocated_count` (UNI-2055 W5) is the documents of the folder the actor
+ * cannot manage: the trash moves them to their owner's workspace root. It only
+ * words one sentence and is never shown as a number, so an unreadable value
+ * reads as 0 instead of failing the impact.
+ */
+export type DocumentArchiveImpact =
+  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number; relocated_count: number }
+  | { too_large: true; max_nodes: number };
+
+const count = z.number().int().nonnegative();
+
+export const DocumentArchiveImpactSchema = z
+  .object({
+    folders: count.optional(),
+    documents: count.optional(),
+    total: count.optional(),
+    max_nodes: count,
+    too_large: z.boolean().optional().default(false),
+    relocated_count: count.optional().catch(0),
+  })
+  .transform((raw, ctx): DocumentArchiveImpact => {
+    if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
+    if (raw.folders === undefined || raw.documents === undefined || raw.total === undefined) {
+      ctx.addIssue({ code: "custom", message: "archive impact without counts" });
+      return z.NEVER;
+    }
+    return {
+      too_large: false,
+      folders: raw.folders,
+      documents: raw.documents,
+      total: raw.total,
+      max_nodes: raw.max_nodes,
+      relocated_count: raw.relocated_count ?? 0,
+    };
+  });
+
+/** One sidebar node; `children` recurse to TREE_MAX_LEVEL levels
+ *  (packages/core/documents/folder-limits.ts). */
+export interface DocumentTreeNode {
+  id: string;
+  parent_id?: string | null;
+  title: string;
+  icon?: string | null;
+  kind: DocumentKind;
+  system_kind?: DocumentSystemKind | null;
+  visibility?: DocumentVisibility;
+  share_scope?: DocumentShareScope | null;
+  /** UNI-2055 W6: no document in the folder is visible to this viewer; absent = unknown. */
+  is_empty?: boolean;
+  position: number;
+  children: DocumentTreeNode[];
+}
+
+export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    parent_id: z.string().nullable().optional(),
+    title: z.string(),
+    icon: z.string().nullable().optional(),
+    kind: z.string(),
+    system_kind: z.string().nullable().optional().catch(undefined),
+    visibility: z.string().optional().catch(undefined),
+    share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+    is_empty: z.boolean().optional().catch(undefined),
+    position: z.number().optional().default(0),
+    children: z.array(DocumentTreeNodeSchema).optional().default([]),
+  }),
+) as unknown as z.ZodType<DocumentTreeNode>;
+
+export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
+export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
+
+export {
+  DocumentAccessSchema,
+  DocumentAccessSourceSchema,
+  DocumentHomeWorkspaceAccessSchema,
+  DocumentLinkEnvelopeSchema,
+  DocumentLinkSchema,
+  DocumentPersonAccessSchema,
+  DocumentShareBatchSchema,
+  DocumentShareEnvelopeSchema,
+  DocumentShareSchema,
+  type DocumentAccess,
+  type DocumentAccessSource,
+  type DocumentHomeWorkspaceAccess,
+  type DocumentLink,
+  type DocumentLinkEnvelope,
+  type DocumentPersonAccess,
+  type DocumentShare,
+  type DocumentShareBatch,
+  type DocumentShareEnvelope,
+  type DocumentShareWarningCode,
+} from "./document-access";
+
+export const DocumentAccessLogSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  via: z.string().optional().default(""),
+  version: z.number().nullable().optional(),
+  actor_kind: z.string(),
+  actor_id: z.string().nullable().optional(),
+  actor: ActorSchema.nullable().optional(),
+  share_link_id: z.string().nullable().optional(),
+  occurred_at: z.string().optional().default(""),
+});
+export type DocumentAccessLog = Omit<z.infer<typeof DocumentAccessLogSchema>, "action" | "via"> & {
+  action: string;
+  via: DocumentAccessVia;
+};
+
+export const DocumentAccessLogListSchema = z.object({
+  logs: z.array(DocumentAccessLogSchema),
+  next_cursor: z.string().nullable().optional(),
+});
+export type DocumentAccessLogList = z.infer<typeof DocumentAccessLogListSchema>;
+
+export const DocumentSettingsSchema = z.object({
+  organization_id: z.string(),
+  public_links_enabled: z.boolean(),
+  updated_by: z.string().nullable().optional(),
+  updated_by_kind: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+});
+export type DocumentSettings = z.infer<typeof DocumentSettingsSchema>;
+
+/** The anonymous view: title + kind, sanitized page content or a download path. */
+export const PublicDocumentSchema = z.object({
+  title: z.string(),
+  kind: z.string(),
+  content: DocumentContentSchema.optional(),
+  download_url: z.string().nullable().optional(),
+});
+export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> & { kind: DocumentKind };
+
+export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
+export type PublicDocumentEnvelope = { document: PublicDocument };
+
+// Comments and DOC-05/G8-18 access schemas live in their own modules; this file stays their public path.
+export {
+  DOCUMENT_COMMENT_KINDS,
+  DocumentCommentMentionSchema,
+  DocumentCommentRevisionListEnvelopeSchema,
+  DocumentCommentRevisionSchema,
+  type DocumentCommentKind,
+  type DocumentCommentMention,
+  type DocumentCommentRevision,
+} from "./document-comments";
+export {
+  DocumentCommentEnvelopeSchema,
+  DocumentCommentListEnvelopeSchema,
+  DocumentCommentSchema,
+  type DocumentComment,
+  type DocumentCommentListEnvelope,
+  type DocumentCommentMentionWithoutAccess,
+} from "./document-access";

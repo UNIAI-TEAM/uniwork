@@ -71,6 +71,7 @@ import {
 } from "@uniwork/views/navigation";
 import { createTaskIdentifierResolver } from "./content-editor-task-resolver";
 import { useAppOrigin } from "./use-app-origin";
+import { useEditorLinkContext } from "./editor-link-context";
 import { openLink, isMentionHref } from "./utils/link-handler";
 import { EditorBubbleMenu } from "./bubble-menu";
 import { posFromAnchor, type TextAnchor } from "./text-anchor";
@@ -97,7 +98,9 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       defaultValue,
       value,
       onUpdate,
+      onDocumentChange,
       placeholder: placeholderText = "",
+      ariaLabel,
       className,
       debounceMs = 300,
       onSubmit,
@@ -128,6 +131,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const pendingFlushRef = useRef<string | null>(null);
     const pendingBaseRef = useRef<string | null>(null);
     const onUpdateRef = useRef(onUpdate);
+    const onDocumentChangeRef = useRef(onDocumentChange);
     const onSubmitRef = useRef(onSubmit);
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
@@ -235,6 +239,12 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const appOriginRef = useRef(appOrigin);
     appOriginRef.current = appOrigin;
 
+    // Same again for the host's link context (task description / comment): it
+    // is what tags an internal document link with `?from=task:<id>`.
+    const linkContext = useEditorLinkContext();
+    const linkContextRef = useRef(linkContext);
+    linkContextRef.current = linkContext;
+
     const navigation = useOptionalNavigation();
     const navigateRef = useRef<(path: string, disposition?: LinkClickIntent) => void>(
       () => undefined,
@@ -245,6 +255,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
 
     // Keep refs in sync without recreating editor
     onUpdateRef.current = onUpdate;
+    onDocumentChangeRef.current = onDocumentChange;
     onSubmitRef.current = onSubmit;
     onBlurRef.current = onBlur;
     onReadyRef.current = onReady;
@@ -350,10 +361,17 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         resolveTaskIdentifierRef,
       }),
       onUpdate: ({ editor: ed }) => {
+        const liveMarkdown =
+          onDocumentChangeRef.current || flushPendingOnUnmountRef.current
+            ? normalizeEditorMarkdown(ed)
+            : null;
+        if (liveMarkdown !== null) {
+          onDocumentChangeRef.current?.(liveMarkdown);
+        }
         if (!onUpdateRef.current) return;
         pendingBaseRef.current = documentBaseRef.current;
         if (flushPendingOnUnmountRef.current) {
-          pendingFlushRef.current = normalizeEditorMarkdown(ed);
+          pendingFlushRef.current = liveMarkdown ?? normalizeEditorMarkdown(ed);
         }
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
@@ -388,6 +406,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               appOriginRef.current,
               resolveClickIntent(event),
               (path, disposition) => navigateRef.current(path, disposition),
+              linkContextRef.current,
             );
             return true;
           },
@@ -407,12 +426,16 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               appOriginRef.current,
               "background-tab",
               (path, disposition) => navigateRef.current(path, disposition),
+              linkContextRef.current,
             );
             return true;
           },
         },
         attributes: {
           class: cn("flex-1 rich-text-editor text-body outline-none", className),
+          role: "textbox",
+          "aria-multiline": "true",
+          ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
         },
       },
     });

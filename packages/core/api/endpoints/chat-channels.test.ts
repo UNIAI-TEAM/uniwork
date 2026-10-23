@@ -62,16 +62,15 @@ describe("chat channel endpoints", () => {
     expect(await listChatChannels("ws1", { scope: "mine" })).toEqual([]);
   });
 
-  it("listChatChannels passes scope, project_id, and q", async () => {
+  it("listChatChannels passes scope and project_id", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ rooms: [sampleChannel] }));
     const rooms = await listChatChannels("ws1", {
       scope: "discoverable",
       project_id: "01PROJ",
-      q: "mark",
     });
     expect(rooms).toHaveLength(1);
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
-      "http://api.test/api/v1/workspaces/ws1/chat/channels?scope=discoverable&project_id=01PROJ&q=mark",
+      "http://api.test/api/v1/workspaces/ws1/chat/channels?scope=discoverable&project_id=01PROJ",
     );
   });
 

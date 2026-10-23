@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,7 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
 // rateLimitScript atomically increments the counter and sets the TTL on
@@ -48,6 +53,29 @@ func ParseTrustedProxies(raw string) []*net.IPNet {
 	return nets
 }
 
+// rateLimitRedisTimeout bounds one limiter round trip. The limiter sits in
+// front of every request, so a Redis that stalls must cost each request this
+// much at most, not go-redis' read timeout times its retries; past it the
+// request proceeds unlimited (fail-open), as on any other Redis error.
+const rateLimitRedisTimeout = 100 * time.Millisecond
+
+// rateLimitMaxInFlight caps the Redis calls one limiter has outstanding. On a
+// client built without ContextTimeoutEnabled (the server's has it), a call
+// the limiter gave up on keeps its pool connection until go-redis' own read
+// timeout; under a hung Redis the limiter in front of every request would
+// hold one connection per request, up to the whole pool. Past the cap the
+// limiter skips Redis and fails open at once, so it never holds more
+// connections than this.
+const rateLimitMaxInFlight = 64
+
+var errRateLimitSaturated = errors.New("ratelimit: too many redis calls in flight")
+
+// IdentityFunc names the caller a limiter budgets for, or "" when it cannot
+// name one. It must return only identities it has verified (a parsed bearer
+// token, an HMAC-checked guest session): whatever it returns is a fresh
+// budget, so a forgeable value would let any client mint its own.
+type IdentityFunc func(*http.Request) string
+
 // RateLimit returns a per-IP fixed-window rate limiter backed by Redis.
 // If rdb is nil the middleware is a no-op (fail-open).
 //
@@ -58,10 +86,75 @@ func ParseTrustedProxies(raw string) []*net.IPNet {
 // RemoteAddr is used. This matches the project's conservative trust
 // model (see health_realtime.go).
 func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet) func(http.Handler) http.Handler {
+	return RateLimitByIdentity(rdb, limit, window, trustedProxies, nil)
+}
+
+// RateLimitByIdentity is RateLimit keyed by the caller identity returns
+// instead of the client IP whenever it returns one, so people sharing one
+// address (an office NAT) each get the whole budget. A request it cannot
+// name falls back to the IP key. A nil identity is RateLimit.
+func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string { return r.URL.Path }, "", false)
+}
+
+// RateLimitByIdentityBucket is RateLimitByIdentity with one budget shared by
+// every route the limiter wraps: the counter is keyed by bucket instead of
+// the request path, so a group whose paths carry ids (a document, an
+// organization, a provider) is limited per person per group, not per person
+// per URL. An empty bucket keys by path, which is RateLimitByIdentity.
+//
+// code overrides the refusal's error code (G6-03b Q6): the ai-uniwork bucket
+// answers ai_rate_limited, every other bucket keeps the default rate_limited.
+// Empty is the default.
+func RateLimitByIdentityBucket(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, code ...string) func(http.Handler) http.Handler {
+	if bucket == "" {
+		return RateLimitByIdentity(rdb, limit, window, trustedProxies, identity)
+	}
+	// "~" never starts a request path or a method-prefixed route pattern, so
+	// a bucket cannot share a path's or the route's counter.
+	scope := "~" + bucket
+	refusal := ""
+	if len(code) > 0 {
+		refusal = code[0]
+	}
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(*http.Request) string { return scope }, refusal, false)
+}
+
+// RateLimitByIdentityBucketRetryAfter is RateLimitByIdentityBucket refused
+// with code and fields.retry_after_s (the window, as in Retry-After), for a
+// route whose contract names the wait in the error body: the document edit
+// requests (UNI-1645 R8) answer edit_request_rate_limited from this limiter
+// and from their database cap alike.
+func RateLimitByIdentityBucketRetryAfter(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, code string) func(http.Handler) http.Handler {
+	scope := "~" + bucket
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(*http.Request) string { return scope }, code, true)
+}
+
+// RateLimitPerRoute is RateLimitByIdentity keyed by the matched route pattern
+// instead of the concrete path, so every id under one route shares the
+// caller's budget: keyed by path, each message or room id was a fresh one. It
+// belongs on a route (r.With), where chi has matched the pattern; before
+// routing there is none and it keys by the path.
+func RateLimitPerRoute(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string {
+		if rc := chi.RouteContext(r.Context()); rc != nil {
+			if pattern := rc.RoutePattern(); pattern != "" {
+				return r.Method + pattern
+			}
+		}
+		return r.URL.Path
+	}, "", false)
+}
+
+func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, route func(*http.Request) string, code string, retryAfterField bool) func(http.Handler) http.Handler {
+	if code == "" {
+		code = "rate_limited"
+	}
 	return func(next http.Handler) http.Handler {
 		if rdb == nil {
 			return next
 		}
+		inFlight := make(chan struct{}, rateLimitMaxInFlight)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// A CORS preflight is not a request the client made; counting it
 			// halves every budget for browsers and none for curl.
@@ -70,10 +163,15 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 				return
 			}
 			ip := extractIP(r, trustedProxies)
-			key := rateLimitKey(limit, r.URL.Path, ip)
-			ctx := r.Context()
+			subject := ip
+			if identity != nil {
+				if id := identity(r); id != "" {
+					subject = identitySubject(id)
+				}
+			}
+			key := rateLimitKey(limit, route(r), subject)
 
-			count, err := rateLimitScript.Run(ctx, rdb, []string{key}, int(window.Seconds())).Int64()
+			count, err := countRequest(r.Context(), rdb, inFlight, key, window)
 			if err != nil {
 				slog.Warn("ratelimit: redis error; allowing request", "error", err, "ip", ip)
 				next.ServeHTTP(w, r)
@@ -84,13 +182,64 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				// Same envelope as handler.respondError; the client maps the code.
-				json.NewEncoder(w).Encode(map[string]map[string]string{
-					"error": {"code": "rate_limited", "message": "too many requests"},
-				})
+				body := sdo.NewErrorSDO(code, "too many requests")
+				if retryAfterField {
+					body.Error.Fields = map[string]any{"retry_after_s": int(window.Seconds())}
+				}
+				_ = json.NewEncoder(w).Encode(body)
 				return
 			}
 
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// countRequest runs the counter script and waits for it at most
+// rateLimitRedisTimeout. The call runs on its own goroutine because the
+// deadline alone does not reach go-redis' socket reads unless the client was
+// built with ContextTimeoutEnabled; the cancel still ends it early when it was.
+func countRequest(parent context.Context, rdb *redis.Client, inFlight chan struct{}, key string, window time.Duration) (int64, error) {
+	select {
+	case inFlight <- struct{}{}:
+	default:
+		return 0, errRateLimitSaturated
+	}
+	ctx, cancel := context.WithTimeout(parent, rateLimitRedisTimeout)
+	defer cancel()
+	type result struct {
+		count int64
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		defer func() { <-inFlight }()
+		n, err := rateLimitScript.Run(ctx, rdb, []string{key}, int(window.Seconds())).Int64()
+		done <- result{n, err}
+	}()
+	select {
+	case res := <-done:
+		return res.count, res.err
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+// ExceptPaths applies m to every request except those whose path is exactly
+// one of paths, which go straight to the next handler.
+func ExceptPaths(m func(http.Handler) http.Handler, paths ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		skip[p] = true
+	}
+	return func(next http.Handler) http.Handler {
+		wrapped := m(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if skip[r.URL.Path] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			wrapped.ServeHTTP(w, r)
 		})
 	}
 }
@@ -145,8 +294,14 @@ func isTrustedProxy(ip net.IP, cidrs []*net.IPNet) bool {
 // The limit is part of the key: the router stacks a global limiter over a
 // per-route one on the same path, and two limiters on one counter charge
 // every request twice.
-func rateLimitKey(limit int, path, ip string) string {
+func rateLimitKey(limit int, path, subject string) string {
 	sanitized := strings.TrimPrefix(path, "/")
 	sanitized = strings.ReplaceAll(sanitized, "/", ":")
-	return fmt.Sprintf("uw:ratelimit:%d:%s:%s", limit, sanitized, ip)
+	return fmt.Sprintf("uw:ratelimit:%d:%s:%s", limit, sanitized, subject)
+}
+
+// identitySubject marks an identity so it can never land in an address's
+// bucket: no IPv4 or IPv6 literal starts with "id:".
+func identitySubject(id string) string {
+	return "id:" + id
 }

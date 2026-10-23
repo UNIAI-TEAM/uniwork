@@ -23,24 +23,10 @@ export function useChatChannels(
   const authReady = useAuthStore((s) => s.status === "authed");
   const scope = opts.scope ?? "mine";
   const projectId = opts.project_id ?? "";
-  const q = opts.q ?? "";
   return useQuery({
-    queryKey: chatKeys.channels(workspaceId, scope, projectId, q),
+    queryKey: chatKeys.channels(workspaceId, scope, projectId),
     queryFn: () => chat.listChatChannels(workspaceId, { ...opts, scope }),
     enabled: !!workspaceId && authReady && enabled,
-  });
-}
-
-export function useProjectChatChannels(
-  workspaceId: string,
-  projectId: string,
-  enabled = true,
-) {
-  const authReady = useAuthStore((s) => s.status === "authed");
-  return useQuery({
-    queryKey: chatKeys.projectChannels(workspaceId, projectId),
-    queryFn: () => chat.listProjectChatChannels(workspaceId, projectId),
-    enabled: !!workspaceId && !!projectId && authReady && enabled,
   });
 }
 

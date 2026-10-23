@@ -39,7 +39,7 @@ export function AdminQuotaView() {
         <>
           <div className={PAGE_TOOLBAR}>
             <Select items={items} value={orgId} onValueChange={(next) => setOrgId(next ?? "")}>
-              <SelectTrigger size="sm" className="w-full sm:max-w-sm" aria-label={t("pick_org")}>
+              <SelectTrigger variant="subtle" size="sm" className="w-full sm:max-w-sm" aria-label={t("pick_org")}>
                 <SelectValue placeholder={t("pick_org")}>{items.find((i) => i.value === orgId)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>

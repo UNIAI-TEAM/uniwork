@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_billing_payment_intents_stale_reconcile;

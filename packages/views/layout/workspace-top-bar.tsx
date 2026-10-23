@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, type ComponentProps, type ReactNode } from "react";
-import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
+import { useCallback, useState, type ReactNode } from "react";
+import { Ellipsis, Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@uniwork/ui/components/ui/sidebar";
@@ -21,13 +24,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
+import {
+  UI_EASE_OUT,
+  UI_MOTION_DISTANCE,
+  UI_MOTION_DURATION,
+} from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniButton } from "../ai/ask-uni-button";
-import { AskUniPanel } from "../ai/ask-uni-panel";
+import { AskUniDock } from "../ai/ask-uni-dock";
+import { AskUniLegacyPanel } from "../ai/ask-uni-legacy-panel";
 import { NotificationBell } from "../notifications/notification-bell";
-import { SearchCommand } from "../search";
+import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
+import { CreateTaskDraftTray } from "../tasks/create-task-draft-tray";
+import { useNavigation } from "../navigation";
+import { GlobalShortcuts } from "./global-shortcuts";
 import { PAGE_GUTTER } from "./page-header";
+import { PreferenceToastProvider, usePreferenceSavedToast } from "./preference-toast";
 import { useWorkspace } from "./workspace-context";
 
 type ThemeValue = "light" | "dark" | "system";
@@ -38,34 +51,69 @@ const THEME_ICONS = {
   system: Monitor,
 } as const;
 
-export function WorkspaceChrome({ children }: { children: ReactNode }) {
+/** `bare` is the UniChat shell: no top bar (the rail holds its menus), the shortcuts and dialogs stay. */
+export function WorkspaceChrome({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
   const [createOpen, setCreateOpen] = useState(false);
+  // Stable, so the shortcut listener is not re-registered on every render.
+  const openCreate = useCallback(() => setCreateOpen(true), []);
+  const { pathname } = useNavigation();
+  const { workspace } = useWorkspace();
+  const reduceMotion = useReducedMotion() ?? false;
+  // The UniChat shell keeps the overlay panel; the docked one is for the workspace layout.
+  const docked = useFlag("ask_uni_stream", false) && !bare;
+  // The page the shell opened on appears as is; a route moved to fades in.
+  const [firstPathname] = useState(pathname);
+  // Enter only, no AnimatePresence exit: children is the host's route
+  // slot, which already renders the NEW route, so an exiting copy would
+  // mount the next page once inside it and again when the exit ends —
+  // and a deep link (?message=, ?comment=) consumed by the first mount
+  // was lost with it (UNI-1814).
+  const page = (
+    <motion.div
+      key={pathname}
+      initial={pathname === firstPathname ? false : { opacity: 0, y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduceMotion ? UI_MOTION_DURATION.micro : UI_MOTION_DURATION.fast,
+        ease: UI_EASE_OUT,
+      }}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      {children}
+    </motion.div>
+  );
   return (
-    <>
-      <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
-      <SearchCommand onCreateTask={() => setCreateOpen(true)} />
-      <AskUniPanel />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
-    </>
+    <PreferenceToastProvider>
+      {bare ? (
+        <NewTaskDialog workspaceId={workspace.id} open={createOpen} onOpenChange={setCreateOpen} showTrigger={false} />
+      ) : (
+        <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
+      )}
+      <GlobalShortcuts onCreateTask={openCreate} />
+      <SearchCommand onCreateTask={openCreate} />
+      {docked ? null : <AskUniLegacyPanel />}
+      <AskUniDock enabled={docked}>{page}</AskUniDock>
+      <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
+    </PreferenceToastProvider>
   );
 }
 
-function IconTooltipButton({
-  label,
-  children,
-  ...props
-}: ComponentProps<typeof Button> & { label: string }) {
+/** An icon button that opens a menu, named by its tooltip and its label. */
+function TopBarMenuTrigger({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="h-8 w-8"
-            aria-label={label}
-            {...props}
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn("text-muted-foreground", className)}
+                aria-label={label}
+              />
+            }
           />
         }
       >
@@ -76,15 +124,13 @@ function IconTooltipButton({
   );
 }
 
-export function WorkspaceTopBar({
-  createOpen,
-  onCreateOpenChange,
-}: {
-  createOpen: boolean;
-  onCreateOpenChange: (open: boolean) => void;
-}) {
+/**
+ * Theme and language as menu radio groups, saved with the preference toast:
+ * the top bar's menus and the UniChat rail's settings menu share them.
+ */
+function usePreferenceMenuItems() {
   const { t, i18n } = useTranslation();
-  const { workspace } = useWorkspace();
+  const notifySaved = usePreferenceSavedToast();
   const { theme, setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
 
@@ -106,108 +152,132 @@ export function WorkspaceTopBar({
     { value: "en", label: t("settings.preferences.languageEn") },
   ];
 
+  const chooseTheme = (next: unknown) => {
+    if (!next || next === themeValue) return;
+    setTheme(next as ThemeValue);
+    notifySaved("theme");
+  };
+
+  const chooseLocale = (next: unknown) => {
+    if (!next || next === currentLocale) return;
+    const locale = next as SupportedLocale;
+    localeAdapter.persist(locale);
+    document.documentElement.lang = locale;
+    // The toast text resolves after the language switched, in the new language.
+    void setLocale(locale).then(() => {
+      notifySaved("language", locale);
+    });
+  };
+
   const ThemeIcon = THEME_ICONS[themeValue];
+
+  // The folded menu names each group; a menu of one group needs no heading.
+  const themeItems = (label?: string) => (
+    <DropdownMenuRadioGroup value={themeValue} onValueChange={chooseTheme}>
+      {label ? <DropdownMenuLabel>{label}</DropdownMenuLabel> : null}
+      {themeOptions.map((option) => {
+        const Icon = THEME_ICONS[option.value];
+        return (
+          <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <Icon aria-hidden className="size-4 text-muted-foreground" />
+            {option.label}
+          </DropdownMenuRadioItem>
+        );
+      })}
+    </DropdownMenuRadioGroup>
+  );
+  const languageItems = (label?: string) => (
+    <DropdownMenuRadioGroup value={currentLocale} onValueChange={chooseLocale}>
+      {label ? <DropdownMenuLabel>{label}</DropdownMenuLabel> : null}
+      {languageOptions.map((option) => (
+        <DropdownMenuRadioItem key={option.value} value={option.value}>
+          {option.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+  return { ThemeIcon, themeItems, languageItems };
+}
+
+export function WorkspaceTopBar({
+  createOpen,
+  onCreateOpenChange,
+}: {
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const { workspace } = useWorkspace();
+  const { ThemeIcon, themeItems, languageItems } = usePreferenceMenuItems();
   const createLabel = t("topbar.createTask");
   const themeLabel = t("topbar.theme");
   const languageLabel = t("topbar.language");
 
   return (
+    // A query container in rem, so the bar answers to its own width and to
+    // the reader's text size alike: at 200% text a phone is half as wide.
+    // Search, AI, notifications and + New stay on the bar at every width
+    // (PRODUCT.md principle 8). Below 21rem, the width the full row needs at
+    // 44px touch targets, theme and language fold into one menu and the
+    // actions join the bar's own row, so they wrap one at a time, right
+    // aligned, instead of running off the edge. One row is 48px tall.
     <header
       className={cn(
-        "flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background",
+        "@container/topbar flex min-h-12 shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 border-b border-border bg-background py-0.5",
         PAGE_GUTTER,
       )}
     >
-      <SidebarTrigger size="icon" />
-      <div className="flex-1" />
-      <AskUniButton />
-      <NotificationBell />
-      <IconTooltipButton label={createLabel} onClick={() => onCreateOpenChange(true)}>
-        <Plus aria-hidden className="size-4" />
-      </IconTooltipButton>
-      <DropdownMenu>
+      <SidebarTrigger size="icon" className="text-muted-foreground" />
+      <SearchTrigger className="mr-auto" />
+      {/* One cluster, tight: 32px targets 2px apart, so the glyphs read as
+          a toolbar rather than five loose buttons. Touch keeps 44px. */}
+      <div className="flex items-center gap-0.5 @max-[21rem]/topbar:contents">
+        <AskUniButton />
+        <NotificationBell />
         <Tooltip>
           <TooltipTrigger
             render={
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-8 w-8"
-                    aria-label={themeLabel}
-                  />
-                }
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground"
+                aria-label={createLabel}
+                onClick={() => onCreateOpenChange(true)}
               />
             }
           >
-            <ThemeIcon aria-hidden className="size-4 text-muted-foreground" />
+            <Plus aria-hidden />
           </TooltipTrigger>
-          <TooltipContent side="bottom">{themeLabel}</TooltipContent>
+          <TooltipContent side="bottom">{createLabel}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuRadioGroup
-            value={themeValue}
-            onValueChange={(next) => {
-              if (!next || next === themeValue) return;
-              setTheme(next as ThemeValue);
-              toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
-            }}
-          >
-            {themeOptions.map((option) => {
-              const Icon = THEME_ICONS[option.value];
-              return (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  <Icon aria-hidden className="size-4 text-muted-foreground" />
-                  {option.label}
-                </DropdownMenuRadioItem>
-              );
-            })}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-8 w-8"
-                    aria-label={languageLabel}
-                  />
-                }
-              />
-            }
-          >
-            <Languages aria-hidden className="size-4 text-muted-foreground" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{languageLabel}</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuRadioGroup
-            value={currentLocale}
-            onValueChange={(next) => {
-              if (!next || next === currentLocale) return;
-              const locale = next as SupportedLocale;
-              localeAdapter.persist(locale);
-              void setLocale(locale);
-              document.documentElement.lang = locale;
-              toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
-            }}
-          >
-            {languageOptions.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value}>
-                {option.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        <DropdownMenu>
+          <TopBarMenuTrigger label={themeLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+            <ThemeIcon aria-hidden />
+          </TopBarMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            {themeItems()}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <TopBarMenuTrigger label={languageLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+            <Languages aria-hidden />
+          </TopBarMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            {languageItems()}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <TopBarMenuTrigger label={t("topbar.preferences")} className="@min-[21rem]/topbar:hidden">
+            <Ellipsis aria-hidden />
+          </TopBarMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            {themeItems(themeLabel)}
+            <DropdownMenuSeparator />
+            {languageItems(languageLabel)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <NewTaskDialog
         workspaceId={workspace.id}
         open={createOpen}

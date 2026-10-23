@@ -1,0 +1,113 @@
+/* Approved B: centered introduction and one broad native product stage. */
+.landing-site.office-site .site-header { background: var(--surface-raised); border-radius: 18px; }
+.marketing-site.office-site main { padding-top: 96px; }
+.office-world { overflow-x: clip; }
+.office-world section[id] { scroll-margin-top: 112px; }
+.office-hero { display: grid; grid-template-columns: minmax(0,1fr); position: relative; isolation: isolate; gap: 16px; padding-block: 72px 32px; }
+.office-hero::before { content: ""; position: absolute; inset-block: -120px -24px; inset-inline: calc((100% - 100vw)/2); z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 8% 70%, color-mix(in srgb, var(--landing-cyan) 48%, transparent), transparent 60%), radial-gradient(ellipse at 92% 80%, color-mix(in srgb, var(--landing-cyan) 48%, transparent), transparent 60%); }
+.office-hero-copy { min-width: 0; text-align: center; }
+.marketing-site .office-hero h1 { margin: 0; font-size: clamp(var(--text-hero),3.8vw,var(--text-hero-lg)); font-weight: 800; line-height: 1.1; letter-spacing: -.035em; text-wrap: balance; }
+.office-sub { max-width: 90ch; margin: 12px auto 0; font-size: var(--text-body-lg); }
+.office-hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 16px; }
+.office-hero-actions > a { min-height: 48px; border-radius: 9px; padding-inline: 20px; gap: 10px; }
+.office-hero-actions .office-explore-action { border: 1px solid var(--border); background: var(--background); color: var(--brand); }
+.dark .office-hero-actions .office-explore-action { border-color: var(--faint-foreground); color: var(--foreground); }
+.office-hero-actions .office-explore-action:hover { background: var(--brand-subtle); }
+.office-hero-preview { min-width: 0; width: min(100%,1120px); margin-inline: auto; scroll-margin-top: 112px; }
+.office-hero-preview .office-tabs { gap: 8px; }
+.office-hero-preview .office-tab-list { width: max-content; max-width: 100%; margin-inline: auto; padding: 4px; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; border-radius: 12px; background: var(--surface); }
+.office-hero-preview .office-tab { flex: none; padding-inline: 14px; border-radius: 10px; font-size: var(--text-caption); }
+.office-hero-preview .office-shot-frame { aspect-ratio: auto; }
+.office-hero-preview .office-tab-panel { display: block; }
+.office-shot { min-width: 0; margin: 0; }
+.office-shot-frame { padding: 8px; border-radius: 14px; background: var(--landing-stage-soft); box-shadow: 0 20px 44px -28px color-mix(in srgb, var(--foreground) 32%, transparent); overflow: hidden; }
+.office-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.office-shot .office-shot-dark { display: none; }
+.dark .office-shot .office-shot-light { display: none; }
+.dark .office-shot .office-shot-dark { display: block; }
+.office-shot figcaption { margin-top: 10px; font-size: var(--text-caption); line-height: 1.5; color: var(--muted-foreground); }
+.office-preview-error { min-height: 240px; padding: 24px; }
+
+.office-section { padding-block: 56px 72px; }
+.office-heading { display: grid; justify-items: start; text-align: left; gap: 14px; margin-bottom: 36px; }
+.office-heading h2 { max-width: 24ch; text-wrap: balance; }
+.office-heading p { max-width: 60ch; font-size: var(--text-body-lg); }
+
+.office-tabs { display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; }
+.office-tab-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; height: auto; background: transparent; }
+.office-tab { flex: 0 1 auto; gap: 8px; min-height: 44px; padding-inline: 16px; font-size: var(--text-body); }
+.office-tab svg { width: 18px; height: 18px; }
+.office-tab[data-active] { background: var(--brand-subtle); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 35%, transparent); box-shadow: none; }
+.office-tab-panel { display: block; }
+.office-editor-summary { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 48px; padding-block: 24px 32px; }
+.marketing-site .office-editor-summary h2 { font-size: var(--text-title-lg); line-height: 1.3; font-weight: 650; letter-spacing: -.02em; text-wrap: balance; }
+.office-editor-summary p { margin-top: 16px; max-width: 60ch; line-height: 1.7; }
+.office-editor-example { margin-top: 20px; }
+.marketing-site .office-editor-example h3 { font-size: var(--text-body); font-weight: 650; line-height: 1.6; letter-spacing: 0; }
+.office-editor-example p { margin-top: 6px; font-size: var(--text-body); }
+.office-editor-points { display: grid; gap: 12px; align-content: center; }
+.office-editor-points li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted-foreground); line-height: 1.7; }
+.office-editor-points li svg { flex: none; width: 18px; height: 18px; margin-top: 4px; color: var(--brand); }
+
+.office-works { display: grid; gap: 24px; }
+.office-works { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.office-works article { display: grid; align-content: start; gap: 14px; padding-block: 24px; border-top: 1px solid var(--border); }
+.office-works svg { width: 26px; height: 26px; color: var(--brand); }
+.office-works h3 { font-size: var(--text-title-sm); font-weight: 650; }
+
+.office-connection-grid { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 64px; align-items: center; }
+.office-connection .office-heading { margin-bottom: 28px; gap: 12px; }
+.office-connection .office-heading p { font-size: var(--text-body); }
+.office-connection-points { display: grid; gap: 24px; }
+.office-connection-points li { display: flex; gap: 14px; align-items: flex-start; }
+.office-connection-points svg { width: 22px; height: 22px; flex: none; margin-top: 2px; color: var(--brand); }
+.office-connection-points h3 { font-size: var(--text-body); font-weight: 650; }
+.office-connection-points p { margin-top: 4px; font-size: var(--text-body); }
+.office-file-flow { margin: 0; padding: 28px; border-radius: 16px; background: var(--landing-stage-soft); }
+.office-file-flow figcaption { font-size: var(--text-title-sm); font-weight: 650; }
+.office-file-flow-nodes { display: grid; grid-template-columns: minmax(0,1fr) 88px minmax(0,1fr); gap: 12px; align-items: center; margin-top: 24px; }
+.office-file-node { padding: 24px 16px; min-width: 0; text-align: center; background: var(--background); border-radius: 12px; }
+.office-file-node > svg { width: 32px; height: 32px; margin: 0 auto 16px; color: var(--brand); }
+.office-file-node h3 { font-size: var(--text-body); font-weight: 650; }
+.office-file-node p { margin-top: 8px; font-size: var(--text-caption); }
+.office-file-bridge { display: grid; justify-items: center; gap: 8px; text-align: center; }
+.office-file-bridge svg { width: 32px; height: 32px; color: var(--brand); }
+.office-file-bridge span, .office-file-flow-note { font-size: var(--text-caption); line-height: 1.6; color: var(--muted-foreground); }
+.office-file-flow-note { margin-top: 20px; }
+.office-connection-details { margin-top: 32px; border-top: 1px solid var(--border); }
+.office-connection-details [data-slot=accordion-trigger] { min-height: 52px; padding-block: 16px; font-size: var(--text-body); }
+.office-connection-details-copy { max-width: 75ch; padding-block: 0 20px; line-height: 1.7; }
+.office-connection-details-copy p { font-size: var(--text-body); }
+
+/* The Faq section brings its own py-20/28 by default; the AI section above already ends with 72px, so the FAQ keeps a short top and a normal bottom. */
+.office-faq { padding-block: 0; }
+.office-faq-section { padding-block: 8px 56px; }
+
+@media (max-width: 1023px) {
+  .office-works { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .office-connection-grid { grid-template-columns: minmax(0,1fr); gap: 32px; }
+}
+@media (max-width: 1099px) {
+  .office-hero-copy { max-width: 760px; margin-inline: auto; }
+  .marketing-site .office-hero h1 { font-size: var(--text-hero); }
+}
+@media (max-width: 639px) {
+  .marketing-site.office-site main { padding-top: 94px; }
+  .office-editor-summary { grid-template-columns: minmax(0,1fr); gap: 24px; padding-block: 16px 24px; }
+  .office-hero { padding-block: 40px 24px; gap: 24px; }
+  .office-hero::before { inset-block-start: -96px; }
+  .marketing-site .office-hero h1 { font-size: var(--text-hero-sm); }
+  .office-sub { margin-top: 16px; font-size: var(--text-body); }
+  .office-hero-actions { gap: 10px; margin-top: 22px; }
+  .office-hero-actions a { padding-inline: 14px; font-size: var(--text-caption); min-height: 44px; }
+  .office-works { grid-template-columns: minmax(0,1fr); }
+  .office-file-flow { padding: 24px; }
+  .office-file-flow-nodes { grid-template-columns: minmax(0,1fr); gap: 16px; }
+  .office-file-node { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 4px 14px; text-align: left; padding: 20px; }
+  .office-file-node > svg { grid-row: span 2; margin: 0; }
+  .office-file-node p { margin: 0; }
+  .office-file-bridge svg { rotate: 90deg; }
+  .office-section { padding-block: 40px 48px; }
+  .office-tab-list { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .office-tab { flex: none; }
+}

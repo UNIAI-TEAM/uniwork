@@ -1,25 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FolderKanban, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
-import {
-  PROJECT_PRIORITY_ORDER,
-  PROJECT_STATUS_ORDER,
-} from "@uniwork/core/projects/config";
+import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
+import { useProjectPermissions } from "@uniwork/core/permissions";
 import {
   useProjectViewStore,
   type ProjectColumnKey,
 } from "@uniwork/core/projects/stores/view-store";
 import {
   useCreatePin,
-  useCreateProject,
   useDeleteProject,
   usePins,
   useProjects,
 } from "@uniwork/core/tasks";
-import type { Project, ProjectPriority, ProjectStatus } from "@uniwork/core/types/project";
+import type { Project } from "@uniwork/core/types/project";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -30,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -38,43 +34,24 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
+import { navigateInternal, useOptionalNavigation } from "../navigation";
+import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
+import { CreateProjectDialog } from "./create-project-dialog";
+import type { OpenProject } from "./project-row-metrics";
 import { ProjectsListGrid } from "./projects-list-grid";
+import {
+  PROJECTS_PAGE_SIZE,
+  ProjectsListPagination,
+} from "./projects-list-pagination";
 import { ProjectsListTable } from "./projects-list-table";
 import { ProjectsListToolbar } from "./projects-list-toolbar";
 import {
-  leadFilterValue,
-  projectProgressRatio,
-  resolveProjectLeadName,
-} from "./project-row-metrics";
-
-const PRIORITY_ORDER: Record<ProjectPriority, number> = {
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-  none: 0,
-};
-const STATUS_ORDER: Record<ProjectStatus, number> = {
-  planned: 0,
-  in_progress: 1,
-  paused: 2,
-  completed: 3,
-  cancelled: 4,
-};
-
-function asPriority(value: string): ProjectPriority {
-  return (PROJECT_PRIORITY_ORDER as string[]).includes(value)
-    ? (value as ProjectPriority)
-    : "none";
-}
-
-function asStatus(value: string): ProjectStatus {
-  return (PROJECT_STATUS_ORDER as string[]).includes(value)
-    ? (value as ProjectStatus)
-    : "planned";
-}
+  countProjectLeads,
+  filterAndSortProjects,
+} from "./projects-list-visible";
 
 function ProjectBatchToolbar({
   workspaceId,
@@ -99,8 +76,11 @@ function ProjectBatchToolbar({
 
   return (
     <>
-      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 shadow-lg">
-        <div className="mr-1 flex items-center gap-1.5 border-r pl-1 pr-2">
+      <div
+        data-slot="project-batch-toolbar"
+        className="z-10 mx-auto mb-2 flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg"
+      >
+        <div className="mr-1 flex items-center gap-1.5 border-r border-border pl-1 pr-2">
           <span className="text-body font-medium">
             {t("projects.page.selected", { count: rows.length })}
           </span>
@@ -108,7 +88,7 @@ function ProjectBatchToolbar({
             type="button"
             aria-label={t("projects.page.clear_selection")}
             onClick={onClear}
-            className="rounded p-0.5 transition-colors hover:bg-accent"
+            className="rounded p-0.5 transition-colors hover:bg-accent pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           >
             <X className="size-3.5 text-muted-foreground" />
           </button>
@@ -204,19 +184,23 @@ function LoadingState({ isCompact }: { isCompact: boolean }) {
 
 export function ProjectsListPage({
   workspaceId,
-  onOpenProject,
+  workspaceName,
+  projectPath,
 }: {
   workspaceId: string;
-  onOpenProject: (projectId: string) => void;
+  workspaceName?: string;
+  /** In-app path of a project's detail page; tab intents open it in a new tab. */
+  projectPath: (projectId: string) => string;
 }) {
   const { t, i18n } = useTranslation();
+  const navigation = useOptionalNavigation();
   const currentUser = useAuthStore((s) => s.user);
   const { data: listData, isLoading } = useProjects(workspaceId);
   const projects = useMemo(() => listData?.projects ?? [], [listData?.projects]);
   const { data: members = [] } = useMembers(workspaceId);
+  const { options: leadOptions } = useWorkspaceAssigneeOptions(workspaceId);
   const { data: pinsData } = usePins(workspaceId);
   const pins = useMemo(() => pinsData?.pins ?? [], [pinsData?.pins]);
-  const createProject = useCreateProject(workspaceId);
 
   const viewMode = useProjectViewStore((s) => s.viewMode);
   const setViewMode = useProjectViewStore((s) => s.setViewMode);
@@ -236,7 +220,13 @@ export function ProjectsListPage({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
+  const [page, setPage] = useState(1);
+
+  const openProject: OpenProject = (projectId, intent = "push") =>
+    navigateInternal(navigation, projectPath(projectId), intent);
+
+  const { decideEdit } = useProjectPermissions(workspaceId);
+  const canEditProject = (project: Project) => decideEdit(project).allowed;
 
   const isWorkspaceAdmin = useMemo(() => {
     if (!currentUser) return false;
@@ -252,69 +242,43 @@ export function ProjectsListPage({
     return s;
   }, [pins]);
 
-  const memberNamesByUserId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of members) {
-      map.set(m.user_id, m.display_name);
-    }
-    return map;
-  }, [members]);
+  const leadCounts = useMemo(
+    () => countProjectLeads(projects),
+    [projects],
+  );
 
-  const resolveLeadName = (project: Project) =>
-    resolveProjectLeadName(project, memberNamesByUserId);
+  const visible = useMemo(
+    () => filterAndSortProjects(projects, { search, filters, sortField, sortDirection }),
+    [projects, search, filters, sortField, sortDirection],
+  );
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = projects.filter((p) => {
-      if (q && !p.title.toLowerCase().includes(q)) return false;
-      if (filters.statuses.length && !filters.statuses.includes(p.status)) {
-        return false;
-      }
-      if (
-        filters.priorities.length &&
-        !filters.priorities.includes(p.priority)
-      ) {
-        return false;
-      }
-      if (filters.leads.length) {
-        const v = leadFilterValue(p);
-        if (!v || !filters.leads.includes(v)) return false;
-      }
-      return true;
-    });
-    const dir = sortDirection === "asc" ? 1 : -1;
-    const sorted = [...filtered];
-    sorted.sort((a, b) => {
-      if (sortField === "name") return a.title.localeCompare(b.title) * dir;
-      if (sortField === "priority") {
-        return (
-          (PRIORITY_ORDER[asPriority(a.priority)] -
-            PRIORITY_ORDER[asPriority(b.priority)]) *
-            dir || a.title.localeCompare(b.title)
-        );
-      }
-      if (sortField === "status") {
-        return (
-          (STATUS_ORDER[asStatus(a.status)] - STATUS_ORDER[asStatus(b.status)]) *
-            dir || a.title.localeCompare(b.title)
-        );
-      }
-      if (sortField === "progress") {
-        return (
-          (projectProgressRatio(a) - projectProgressRatio(b)) * dir ||
-          a.title.localeCompare(b.title)
-        );
-      }
-      return (Date.parse(a.created_at) - Date.parse(b.created_at)) * dir;
-    });
-    return sorted;
-  }, [projects, search, filters, sortField, sortDirection]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / PROJECTS_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageProjects = useMemo(
+    () =>
+      visible.slice(
+        (currentPage - 1) * PROJECTS_PAGE_SIZE,
+        currentPage * PROJECTS_PAGE_SIZE,
+      ),
+    [currentPage, visible],
+  );
+
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [currentPage, page]);
 
   const selectedProjects = visible.filter((p) => selectedIds.has(p.id));
   const allSelected =
-    visible.length > 0 && selectedProjects.length === visible.length;
+    pageProjects.length > 0 && pageProjects.every((p) => selectedIds.has(p.id));
   const handleToggleAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(visible.map((p) => p.id)));
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      for (const project of pageProjects) {
+        if (allSelected) next.delete(project.id);
+        else next.add(project.id);
+      }
+      return next;
+    });
   const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -324,27 +288,12 @@ export function ProjectsListPage({
     });
 
   const showEmpty = !isLoading && projects.length === 0;
-  const locale = i18n.language || "vi";
-
-  const submitCreate = () => {
-    const title = createTitle.trim();
-    if (!title) return;
-    createProject.mutate(
-      { title },
-      {
-        onSuccess: (created) => {
-          setCreateOpen(false);
-          setCreateTitle("");
-          if (created?.id) onOpenProject(created.id);
-        },
-      },
-    );
-  };
+  const locale = i18n.language || DEFAULT_LOCALE;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
-        icon={FolderKanban}
+        icon={MODULE_ICONS.projects}
         tone={moduleTone("projects")}
         title={t("projects.page.title")}
         count={projects.length}
@@ -359,7 +308,7 @@ export function ProjectsListPage({
 
       {showEmpty ? (
         <CollectionPageState
-          icon={FolderKanban}
+          icon={MODULE_ICONS.projects}
           tone={moduleTone("projects")}
           title={t("projects.page.empty")}
           actions={
@@ -372,16 +321,32 @@ export function ProjectsListPage({
         <>
           <ProjectsListToolbar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
             visibleCount={visible.length}
             totalCount={projects.length}
             filters={filters}
-            toggleFilter={toggleFilter}
-            clearFilters={clearFilters}
+            leadCounts={leadCounts}
+            toggleFilter={(key, value) => {
+              toggleFilter(key, value);
+              setPage(1);
+            }}
+            clearFilters={() => {
+              clearFilters();
+              setPage(1);
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
-            setSortField={setSortField}
-            setSortDirection={setSortDirection}
+            setSortField={(field) => {
+              setSortField(field);
+              setPage(1);
+            }}
+            setSortDirection={(direction) => {
+              setSortDirection(direction);
+              setPage(1);
+            }}
             viewMode={viewMode}
             setViewMode={setViewMode}
             hiddenColumns={hiddenColumns}
@@ -399,29 +364,36 @@ export function ProjectsListPage({
           ) : isCompact ? (
             <ProjectsListTable
               workspaceId={workspaceId}
-              projects={visible}
+              projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
+              canEdit={canEditProject}
               sortField={sortField}
               sortDirection={sortDirection}
               isColVisible={isColVisible}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelected}
               onToggleAll={handleToggleAll}
-              onSort={toggleSort}
-              onOpenProject={onOpenProject}
+              onSort={(field) => {
+                toggleSort(field);
+                setPage(1);
+              }}
+              onOpenProject={openProject}
               locale={locale}
-              resolveLeadName={resolveLeadName}
+              leadOptions={leadOptions}
+              scrollResetKey={currentPage}
             />
           ) : (
             <ProjectsListGrid
               workspaceId={workspaceId}
-              projects={visible}
+              projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
-              onOpenProject={onOpenProject}
+              canEdit={canEditProject}
+              onOpenProject={openProject}
               locale={locale}
-              resolveLeadName={resolveLeadName}
+              leadOptions={leadOptions}
+              scrollResetKey={currentPage}
             />
           )}
 
@@ -432,46 +404,22 @@ export function ProjectsListPage({
             canDelete={isWorkspaceAdmin}
             onClear={() => setSelectedIds(new Set())}
           />
+
+          <ProjectsListPagination
+            page={currentPage}
+            pageCount={pageCount}
+            onPageChange={setPage}
+          />
         </>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("projects.create_dialog.title")}</DialogTitle>
-            <DialogDescription>
-              {t("projects.create_dialog.description")}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={createTitle}
-            onChange={(e) => setCreateTitle(e.target.value)}
-            placeholder={t("projects.create_dialog.title_placeholder")}
-            aria-label={t("projects.create_dialog.title_placeholder")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitCreate();
-            }}
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setCreateOpen(false)}
-            >
-              {t("projects.create_dialog.cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!createTitle.trim() || createProject.isPending}
-              onClick={submitCreate}
-            >
-              {t("projects.create_dialog.confirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateProjectDialog
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(projectId) => openProject(projectId)}
+      />
     </div>
   );
 }

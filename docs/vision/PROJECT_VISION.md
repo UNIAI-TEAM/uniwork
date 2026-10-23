@@ -1,6 +1,8 @@
 # UNIWORK — PROJECT VISION DOCUMENT
 
-**Phiên bản:** 1.0 · **Ngày:** 2026-09-04 · **Chủ sở hữu:** quangpd (UNICOM) · **Trạng thái:** Draft để phê duyệt
+**Phiên bản:** 1.1 · **Ngày:** 2026-09-16 · **Chủ sở hữu:** quangpd (UNICOM) · **Trạng thái:** Draft để phê duyệt
+
+> **Sửa đổi 1.1 (2026-09-16):** sau đợt đối chiếu bản nháp `unidigiwork` tại commit `9f07c85a` — thêm bounded context Work Product (§5.2 mục 19), làm rõ ranh giới Document / Work Product / `work_units` (§5.3), ghi kiến trúc engine Office (§7.2). Bảng đối chiếu: `docs/DRAFT_MAPPING.md`; thứ tự làm: `docs/DEVELOPMENT_PLAN.md`; quyết định kiến trúc: ADR 0016–0019.
 
 > Bản này là bản chính thức cho repo `uniwork`. Bản khảo sát gốc nằm ở `../unidigiwork/docs/vision/PROJECT_VISION_DOCUMENT.md`. Tính năng cụ thể xem `docs/roadmap/FEATURE_ROADMAP.md`.
 
@@ -186,6 +188,7 @@ Mô hình hiện tại (bảng `plans`, `entitlements`, `quota`) là đúng hư�
 | 16 | Platform Admin (console, tenant ops, backup, feature flag) | F (tối thiểu) | Không xây admin trace 4.387 dòng lần nữa |
 | 17 | Work Graph (quan hệ giữa Task, Meeting, Document, Decision, People, Chat với bộ từ vựng quan hệ có kiểm soát và nguồn gốc quan hệ) | C | Xuyên suốt: là nguồn cấp context cho AI Context Engine và là nền của Organizational Memory. Bảng quan hệ dùng chung, không nằm trong module nào |
 | 18 | Email integration (Gmail, Microsoft Graph: đọc, gửi, thread gắn vào Work Graph) | A | Thay cho Email Hub nội bộ; không lưu hộp thư riêng |
+| 19 | Work Product (deliverable nghiệp vụ: loại nghiệp vụ tách khỏi định dạng, phiên bản có nguồn gốc, xem xét và duyệt) | C | Thêm 2026-09-16 từ bản nháp. **Không sở hữu byte** — tệp và phiên bản nhị phân nằm ở Document (mục 7). Khác hẳn `work_units` là hợp đồng thương mại của một *loại* việc. Ranh giới ba bên ở ADR 0016 |
 
 F = Foundation, C = Collaboration, A = Agent (xem lộ trình mục 8). Đối chiếu với 11 key point của sản phẩm: `docs/vision/KEY_POINTS.md`.
 
@@ -195,6 +198,16 @@ F = Foundation, C = Collaboration, A = Agent (xem lộ trình mục 8). Đối c
 - AI Market / chợ tuyển dụng agent theo hình thức marketplace mở. Giữ khái niệm "catalog agent" nội bộ.
 - Decision Hub như một module riêng. Quyết định vẫn là thực thể Decision record hạng nhất trong Knowledge & Memory (mục 13), không phải hub.
 - Blog/CMS công khai, ứng dụng desktop native. Các adapter cho host thứ hai được giữ trong kiến trúc.
+- Kho tệp thứ hai bên cạnh Document. Work Product (mục 19 trong §5.2) là lớp nghiệp vụ,
+  không có bảng artifact riêng — bản nháp kết thúc với hai đường ghi tệp song song và
+  đó là thứ không mang sang (ADR 0016).
+- Bảng lưu "kết quả cuối cùng" riêng. Kết quả suy ra từ trạng thái Work Product cộng lần
+  xem xét gần nhất (ADR 0017).
+- PWA như chiến lược mobile. Bản nháp đi đường PWA vì nó chạy trên Lovable; đó là ràng
+  buộc nền tảng, không phải kết luận sản phẩm. Mobile là app Expo (ADR 0011) — tái xác
+  nhận 2026-09-16.
+- Chấm công. Số giờ của người không được dựng bằng ước tính; xem A-11 trong
+  `docs/DEVELOPMENT_PLAN.md`.
 - Bất kỳ microservice nào trước khi có nhu cầu vận hành đo được (kế thừa Blueprint §25.16).
 
 ---
@@ -335,6 +348,7 @@ OpenTelemetry → Prometheus / Grafana / Loki (hoặc dịch vụ quản lý tư
 | V8 | **Một codebase, ba tier triển khai**; cấu hình bằng biến môi trường và adapter, không nhánh mã | Điều kiện của phân khúc 2 và 3 |
 | V9 | **OpenAPI là hợp đồng**; SDK và test contract sinh từ đó | API-first, chống drift |
 | V10 | **Feature flag** phía server theo tenant | Trunk-based, phát hành dần, pilot có kiểm soát |
+| V11 | **Engine Office chạy ngoài Go**, ở một sidecar Node dùng chung engine với ứng dụng UniWork Office; Go gọi qua HTTP nội bộ có khóa máy chủ–máy chủ (ADR 0018) | Engine OOXML dùng được là TypeScript, ~22.700 dòng xử lý hợp biên. Viết lại bằng Go sẽ lệch dần so với engine của ứng dụng máy tính, và chính chỗ lệch đó phá lời hứa "giữ nguyên định dạng gốc". Sidecar là thành phần bắt buộc của bộ cài on-premise |
 
 ### 7.3 Dữ liệu từ bản cũ
 

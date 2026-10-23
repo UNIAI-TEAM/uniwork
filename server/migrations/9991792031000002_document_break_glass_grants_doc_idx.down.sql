@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_document_break_glass_grants_doc;

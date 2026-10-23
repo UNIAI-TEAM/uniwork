@@ -32,6 +32,7 @@
 - Bản ghi đích không còn (đã xóa) → để nguyên dead letter, ghi chú vào incident; không phát lại.
 - Lỗi lặp lại do bug consumer → hotfix, deploy, rồi phát lại theo lô `WHERE topic = '<topic>' AND dead_at > '<thời điểm>'`.
 - Sau khi xử lý, gauge `uniwork_outbox_dead_letter_total` phải về 0; nếu không, còn dòng chưa xem.
+- Job retention xóa dead letter sau 30 ngày (`server/internal/service/event_retention.go`), nên gauge về 0 sau mốc đó không chứng minh có người đã xử lý. Dòng cần giữ lâu hơn thì chép ra trước.
 
 ## Leo thang
 

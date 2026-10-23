@@ -22,15 +22,21 @@ const (
 	// client must already be subscribed to the room to receive it.
 	ScopeChat Scope = "chat"
 	// ScopeRoom fans out to each member's own user scope, resolved at delivery
-	// time. Room membership events need this: a member who has just been added
-	// to a room is not subscribed to it yet, so ScopeChat would deliver the
-	// event to everyone except the person it is about.
+	// time, plus the user the row names in user_id. Room membership events need
+	// this: a member who has just been added to a room is not subscribed to it
+	// yet, so ScopeChat would deliver the event to everyone except the person
+	// it is about, and a removed member is no longer in the list at delivery.
 	ScopeRoom Scope = "room"
 	// ScopeOrganization fans out to everyone connected from anywhere in one
 	// organization. Directory and department changes belong to the company,
 	// not to a workspace, so a per-workspace fan-out would both miss people
 	// and repeat itself (F-03 §6.4).
 	ScopeOrganization Scope = "organization"
+	// ScopeMeeting goes to the sockets holding one meeting open: a member's
+	// room and detail page subscribe meeting:{id} through an authorizer, and
+	// a guest's lobby socket hears the topics it needs. In-room traffic used
+	// to reach every socket in the workspace (G8).
+	ScopeMeeting Scope = "meeting"
 	// ScopeNone is infrastructure work with no client to notify.
 	ScopeNone Scope = ""
 )
@@ -51,9 +57,17 @@ const (
 
 // EventDef is one row of the catalogue.
 type EventDef struct {
-	Topic    string
-	Version  int
-	Payload  []string
+	Topic   string
+	Version int
+	// Payload lists the keys a frame of this topic may carry: ids, never
+	// content (an infrastructure row may name a provider's own handle, such as
+	// room_name), plus the revision_before/revision pair on a row with Patch.
+	Payload []string
+	// Patch names the only content fields an event may carry: a client writes
+	// them into a record it already holds, and only while that record's
+	// revision equals the frame's revision_before (ADR 0015). Empty on every
+	// row but task.updated; scripts/events-catalogue.test.mjs holds both.
+	Patch    []string
 	Scope    Scope
 	Delivery Delivery
 }
@@ -61,7 +75,11 @@ type EventDef struct {
 var catalogue = []EventDef{
 	// Tasks
 	{Topic: "task.created", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// task.updated is the one row that may carry content (ADR 0015): the Patch
+	// fields ride along only when every field present in the update's input is
+	// one of them, and the revision pair that guards them only beside them; a frame without a patch field
+	// carries ids only. Every other task.updated emitter sends ids only.
+	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -75,6 +93,7 @@ var catalogue = []EventDef{
 	{Topic: "task.subscribed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.unsubscribed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "attachment.uploaded", Version: 1, Payload: []string{"attachment_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "attachment.staged", Version: 1, Payload: []string{"attachment_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "attachment.deleted", Version: 1, Payload: []string{"attachment_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.created", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.deleted", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -100,6 +119,10 @@ var catalogue = []EventDef{
 
 	// Agents (ADR 0007): the picker in a workspace refreshes when one joins.
 	{Topic: "workspace_agent.added", Version: 1, Payload: []string{"workspace_id", "agent_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Agents (C-11): identity changes; the Work Graph projects ACTOR nodes from them.
+	{Topic: "agent.archived", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "agent.created", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "agent.updated", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 
 	// Organization and workspace membership
 	{Topic: "organization.created", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
@@ -119,6 +142,10 @@ var catalogue = []EventDef{
 	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "organization.ownership_transferred", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "organization.closed", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	// A signed-out session (session_id, or every one of the user's when it is
+	// empty) loses its sockets; the realtime access revoker is the consumer.
+	{Topic: "session.revoked", Version: 1, Payload: []string{"user_id", "session_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Directory and departments (F-03): everyone in the organization sees the
 	// same list, so they refresh on the organization scope.
@@ -126,6 +153,8 @@ var catalogue = []EventDef{
 	{Topic: "department.created", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "department.updated", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "department.archived", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "email_hub.inbox_changed", Version: 1, Payload: []string{"account_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "email_hub.new_mail", Version: 1, Payload: []string{"account_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	// Exporting the directory is an audited act with nothing to redraw.
 	{Topic: "people.exported", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "workspace.created", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -138,26 +167,65 @@ var catalogue = []EventDef{
 	{Topic: "chat.channel.archived", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.replied", Version: 1, Payload: []string{"room_id", "thread_root_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.thread.linked", Version: 1, Payload: []string{"room_id", "thread_root_id", "task_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.unlinked", Version: 1, Payload: []string{"room_id", "thread_root_id", "task_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.message.linked", Version: 1, Payload: []string{"room_id", "message_id", "target_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.created", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.updated", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.completed", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.deleted", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Notification feed (H1): consumed by internal/notification only; the open
+	// chat page still hears chat.mention.created and chat.message.created.
+	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	// One row per invite, however many people it adds (C10).
+	{Topic: "chat.room.members_added", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
-	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
-	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
+	// else renders it, and every client that hears one reloads its sidebar.
+	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	// A member of a group or non-default channel moved their read pointer:
+	// sockets holding the room open refetch its member list to count who has
+	// seen a message. Losing one costs nobody anything; the next read or
+	// refetch corrects the count.
+	{Topic: "chat.room.member_read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A member's device acknowledged holding a DM, group or non-default
+	// channel further (✓✓ grey): the sockets holding it open refetch its
+	// member list, as for a read. Losing one costs nobody anything; the next
+	// ack or refetch corrects the tick.
+	{Topic: "chat.room.member_delivered", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	// Message and typing rows of the workspace's default channel go to the
+	// workspace, whose members are that channel's; every other room's go to
+	// chat:{room} only.
+	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A message's link card is stored (ADR 0035): open timelines refetch the
+	// room's cards. Losing one costs nothing but a card shown on the next load.
+	{Topic: "chat.message.preview_ready", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	// A mention is addressed to the person mentioned, not to the room, so it
 	// goes out on that user's own scope alongside the room's message event.
-	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.typing", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "call_id", "caller_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "call_id", "user_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "call_id", "user_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.recording.started", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.recording.stopped", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.call.completed", Version: 1, Payload: []string{"room_id", "workspace_id", "organization_id", "call_id", "call_log_message_id", "caller_id", "started_at", "ended_at", "duration_seconds", "duration_label", "participants"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
-	// Meetings
+	// Meetings. The lifecycle and roster rows stay on the workspace: the
+	// meeting list, the calendar and the home summary follow them from outside
+	// any meeting. What only a screen holding the meeting open shows (chat,
+	// transcript, the roll, motions, recordings, the lobby queue) is
+	// meeting-scoped; the room and the detail page subscribe to it.
 	{Topic: "meeting.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "meeting.updated", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "meeting.deleted", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -167,19 +235,132 @@ var catalogue = []EventDef{
 	{Topic: "host.transferred", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.invited", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.removed", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "participant.updated", Version: 1, Payload: []string{"meeting_id", "version", "participant_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.marked", Version: 1, Payload: []string{"meeting_id", "version", "participant_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.finalized", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "attendance.reopened", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A webhook opened or closed a room session; panels refetch the roll.
+	{Topic: "attendance.updated", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "motion.created", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.updated", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.deleted", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.opened", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.closed", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.rejected", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "join_request.canceled", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.rejected", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "join_request.canceled", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invite_link.revoked", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	// The AI summary is written with its audit row in one transaction and
+	// announced from the outbox (UNI-1853): a host who missed the frame would
+	// otherwise keep a stale summary. summary.tasks_linked follows a batch of
+	// tasks created from the summary's action items, so every open copy of
+	// the summary shows which items already became tasks.
+	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "summary.tasks_linked", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+
+	// Documents (UNI-675): ids only; consumers refetch the page/file.
+	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Folder upload (UNI-2052): one event per PLAN (the folder tree appeared)
+	// and per COMPLETE that created at least one document, instead of one
+	// document.created each; the client invalidates the workspace's document
+	// keys once.
+	{Topic: "document.batch_uploaded", Version: 1, Payload: []string{"batch_id", "workspace_id", "root_folder_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// G1-03 (UNI-677): a file version was committed or restored; the client
+	// refetches the document and its versions.
+	{Topic: "document.version_created", Version: 1, Payload: []string{"document_id", "version_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Access changes (UNI-676). Workspace scope, ids only: a recipient
+	// outside the workspace learns of a share through "shared with me";
+	// delivery-time filtering goes through DocumentReaderResolver.
+	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id", "notify_user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level. Workspace scope, ids only; the client invalidates the document
+	// keys exactly as a document.updated visibility change does.
+	{Topic: "document.workspace_access_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Pages (UNI-678): title, icon or visibility changed; ids only, no
+	// revision (ADR 0015). An autosave of the content emits nothing.
+	{Topic: "document.updated", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// A page body that newly names a person (UNI-1968, BODY-MENTION-NOTIFY):
+	// one row per newly named reader, written on the save's own
+	// document.updated audit row. Notification feed only, like
+	// chat.message.mentioned - no client subscribes, so the scope is none and
+	// the payload is ids only.
+	{Topic: "document.body_mentioned", Version: 1, Payload: []string{"document_id", "workspace_id", "user_id", "author_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// Tree and lifecycle (UNI-678, G1-04b): a move, an archive batch and its
+	// restore, and the retention purge. ids only - the archive batch id is
+	// an id like the others, not content.
+	{Topic: "document.moved", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.archived", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.restored", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// ARCHIVE-01 (UNI-1845): the shelved state is the real archive, kept
+	// forever; ids plus the shelve batch, same shape as the trash rows.
+	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// DOC-CHANGE-NOTIFY (UNI-2056): the change people hear of, written by
+	// the same Record call as the frame topic of a rename, restore, shelve,
+	// unshelve, workspace access change, link create/revoke and uploaded
+	// version, and only when the command is in scope. Those eight frame topics
+	// keep no notify-lane consumer, so they stay on the realtime lane (a topic
+	// runs on its slowest consumer's lane; chat_document_card_refresh.go).
+	// Server only: no client subscribes, so the scope is none and the payload
+	// may carry the verb (renamed, restored, shelved, unshelved,
+	// access_changed, version_created) beside the ids.
+	{Topic: "document.change_noticed", Version: 1, Payload: []string{"document_id", "workspace_id", "verb"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+
+	// Document comments (UNI-681): ids only, workspace scope like the task
+	// rows. A reader reached only through a share is caught by the
+	// notification side, which re-checks read access at delivery time.
+	{Topic: "document.comment_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_updated", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_deleted", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_resolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_unresolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_reaction_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_reaction_removed", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_anchors_updated", Version: 1, Payload: []string{"document_id", "workspace_id", "version_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Favorites are one user's own list; the event reaches that user's
+	// connections (payload.user_id resolves the user scope) and nobody else.
+	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Edit lock (UNI-1645, addendum §4): ids only, no lock_id or requester id
+	// (clients reread the lock state). lock_changed is every visible state
+	// change except a heartbeat and reaches the workspace; the other three are
+	// addressed to one person - user_id is the previous holder, the holder and
+	// the requester respectively - and resolve the user scope from it.
+	{Topic: "document.lock_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.lock_taken_over", Version: 1, Payload: []string{"document_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_request_answered", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Access requests (DOC-07, UNI-1631): a person who cannot read the
+	// document asked its managers for access, and (w2) the answer that reaches
+	// the requester wherever they are. requested reaches the workspace like
+	// document.shared, ids only; decided is addressed to the requester through
+	// user_id and resolves the user scope from it.
+	{Topic: "document.access_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.access_request_decided", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
+	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
+	// holder's own connections. revoked makes an online device lock its copy
+	// now instead of at the next renewal; granted/renewed/released keep the
+	// holder's other devices' offline library in step.
+	{Topic: "office_lease.granted", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.renewed", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.released", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "office_lease.revoked", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.
@@ -197,9 +378,18 @@ var catalogue = []EventDef{
 	// Feature flags (F-11): every node drops its override cache.
 	{Topic: "flag.updated", Version: 1, Payload: []string{"flag_key"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
+	// FileService derivatives (H15): the slow lane makes a photo's thumbnail.
+	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A text message names a link: the slow lane reads its card (ADR 0035).
+	{Topic: "chat.link_preview.requested", Version: 1, Payload: []string{"room_id", "message_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A multi-document zip download is asked for: the slow lane builds it (UNI-2045). Ids only, no client frame; the web polls the job.
+	{Topic: "document.download_job_requested", Version: 1, Payload: []string{"job_id", "organization_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "audit.exported", Version: 1, Payload: []string{"export_id", "organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "privacy.export_requested", Version: 1, Payload: []string{"request_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "privacy.deletion_requested", Version: 1, Payload: []string{"request_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Infrastructure. provider.* asks the conference provider to change a
 	// room; webhook.deliver is reserved so an outbound-webhook consumer can be

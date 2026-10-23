@@ -10,7 +10,7 @@ test("no usf branding survives the port", () => {
     `grep -ril "multica" packages apps server ` +
       `--include='*.ts' --include='*.tsx' --include='*.go' ` +
       `--include='*.json' --include='*.css' --include='*.mjs' ` +
-      `| grep -v node_modules | grep -v '\\.next/' | grep -v tsbuildinfo || true`,
+      `| grep -v node_modules | grep -v '\\.next/' | grep -v tsbuildinfo | grep -v "/dist/" || true`,
     { encoding: "utf8" },
   ).trim();
   assert.equal(hits, "", `files still referencing usf branding:\n${hits}`);

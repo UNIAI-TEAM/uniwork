@@ -1,0 +1,20 @@
+/* Category color belongs inside the sample UI, rather than a thick outer mat. */
+.dark .marketing-site :is(
+  .chapter-scene-media,
+  .feature-page-art > .feature-art,
+  .feature-world .feature-page-details .feature-art,
+  .feature-directory-visual a > .feature-art,
+  .feature-related-preview,
+  .chapter-route-media,
+  .why-proof-figure .feature-art
+) {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.dark .marketing-site .feature-page-art > .feature-art { min-height: 0; }
+.dark .marketing-site .feature-page-art .feature-art-window {
+  transform: none;
+  box-shadow: var(--shadow-surface);
+}
+.dark .marketing-site .feature-directory-visual a > .feature-art .feature-art-window { height: 100%; }

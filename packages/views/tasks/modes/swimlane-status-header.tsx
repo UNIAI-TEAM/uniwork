@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, EyeOff } from "lucide-react";
+import { Ellipsis, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskStatus } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { STATUS_CONFIG } from "./status-config";
+import { STATUS_CONFIG, statusColumnBg } from "./status-config";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 export function SwimlaneStatusHeader({
   statuses,
@@ -25,6 +26,7 @@ export function SwimlaneStatusHeader({
   onHideStatus: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
+  const statusLabel = useStatusLabel();
 
   return (
     <div className="sticky top-0 z-10 mb-2 bg-background/95 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/75">
@@ -37,7 +39,7 @@ export function SwimlaneStatusHeader({
               data-testid={`swimlane-status-${status}`}
               className={cn(
                 "flex items-center justify-between rounded-xl px-3 py-2",
-                config?.columnBg ?? "bg-muted/40",
+                statusColumnBg(status),
               )}
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -49,7 +51,7 @@ export function SwimlaneStatusHeader({
                   aria-hidden
                 />
                 <span className="truncate text-caption font-semibold">
-                  {t(`tasks.status_${status}`)}
+                  {statusLabel(status)}
                 </span>
                 <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
                   {totals[status] ?? 0}
@@ -67,7 +69,7 @@ export function SwimlaneStatusHeader({
                     />
                   }
                 >
-                  <MoreHorizontal className="size-3.5" aria-hidden />
+                  <Ellipsis className="size-3.5" aria-hidden />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => onHideStatus(status)}>

@@ -1,0 +1,734 @@
+common-01	REL	fork:apps/shell/src/main/index.ts:5895	accelerator: 'CmdOrCtrl+N',
+common-01	REL	fork:apps/docs/src/main/docs-main.ts:6107	{ label: tm('menuNewDoc'), accelerator: 'CmdOrCtrl+N', click: () => sendCommand('new') },
+common-02	REL	fork:apps/docs/src/main/docs-main.ts:6110	accelerator: 'Shift+CmdOrCtrl+N',
+common-03	REL	fork:apps/docs/src/renderer/App.tsx:5517	if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+common-03	NOREL	fork:web/modules/sheets/bridge.ts:524	'keydown',
+common-03	REL	fork:apps/shell/src/main/index.ts:5944	accelerator: 'CmdOrCtrl+O',
+common-04	REL	fork:apps/docs/src/renderer/App.tsx:5513	if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+common-04	REL	fork:apps/pdf/src/renderer/App.tsx:6349	if (k === 's') {
+common-04	NOREL	D:packages/views/office/frame/office-module-frame.tsx:243	const saveSession = session.save;
+common-05	REL	fork:apps/shell/src/main/index.ts:5964	accelerator: 'CmdOrCtrl+Shift+S',
+common-05	REL	fork:apps/docs/src/main/docs-main.ts:6132	accelerator: 'Shift+CmdOrCtrl+S',
+common-05	REL	fork:apps/pdf/src/renderer/App.tsx:6349	if (k === 's') {
+common-06	REL	fork:web/docs/bridge/print-accelerator.ts:16	if (event.repeat || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+common-06	REL	D:packages/views/office/frame/office-module-frame.tsx:272	const onKey = (event: KeyboardEvent) => {
+common-06	REL	fork:apps/shell/src/main/index.ts:5986	accelerator: 'CmdOrCtrl+P',
+common-07	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+common-07	REL	fork:apps/shell/src/main/index.ts:5995	accelerator: 'CmdOrCtrl+W',
+common-07	REL	fork:apps/docs/src/main/docs-main.ts:6125	accelerator: 'CmdOrCtrl+W',
+common-08	REL	electron:lib/browser/api/menu-item-roles.ts:151	accelerator: isWindows ? undefined : 'CommandOrControl+Q',
+common-08	REL	D:packages/core/shortcuts/definitions.ts:268	"W", "R", "Q",
+common-09	NOREL	D:packages/core/shortcuts/definitions.ts:299	if (key === "F5") return true;
+common-10	REL	fork:packages/ui/src/ribbon-collapse.tsx:79	export function isRibbonToggleShortcut(e: KeyboardEvent): boolean {
+common-10	REL	fork:packages/ui/src/ribbon-collapse.tsx:81	if (e.key === 'F1' && e.ctrlKey && !e.metaKey && !e.altKey) return true
+common-11	REL	fork:packages/ui/src/ribbon-collapse.tsx:87	export function isRibbonCompactShortcut(e: KeyboardEvent): boolean {
+common-12	REL	fork:apps/shell/src/main/index.ts:3629	autoHideMenuBar: true,
+common-13	NOREL	D:packages/core/shortcuts/definitions.ts:299	if (key === "F5") return true;
+common-14	NOREL	fork:apps/docs/src/main/docs-main.ts:6380	accelerator: 'CmdOrCtrl+/',
+common-15	REL	D:packages/core/shortcuts/definitions.ts:70	{ id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true },
+common-16	REL	fork:apps/pdf/src/renderer/App.tsx:6362	} else if (e.key === '=' || e.key === '+') {
+common-16	NOREL	fork:apps/docs/src/main/docs-main.ts:6183	accelerator: 'CmdOrCtrl+=',
+common-16	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:41	accelerator: 'CmdOrCtrl+Alt+=',
+common-17	REL	fork:apps/pdf/src/renderer/App.tsx:6365	} else if (e.key === '-') {
+common-17	NOREL	fork:apps/docs/src/main/docs-main.ts:6188	accelerator: 'CmdOrCtrl+-',
+common-17	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:46	accelerator: 'CmdOrCtrl+Alt+-',
+common-18	REL	fork:apps/pdf/src/renderer/App.tsx:6368	} else if (e.key === '0') {
+common-18	REL	fork:apps/docs/src/main/docs-main.ts:6193	accelerator: 'CmdOrCtrl+0',
+common-18	REL	fork:apps/shell/src/main/ui-scale-menu.ts:52	accelerator: 'CmdOrCtrl+Alt+0',
+common-19	REL	fork:apps/docs/src/renderer/App.tsx:1875	const zoomWheel = createZoomWheelClassifier()
+common-19	REL	fork:apps/pdf/src/renderer/App.tsx:6506	if (!e.ctrlKey && !e.metaKey) return
+common-19	REL	fork:apps/slides/src/renderer/App.tsx:1305	if (ev.ctrlKey || ev.metaKey) {
+common-20	NOREL	fork:apps/docs/src/main/docs-main.ts:6223	{ role: 'togglefullscreen', label: tm('menuFullscreen') },
+common-20	NOREL	fork:web/modules/slides/fullscreen-hint.ts:34	if (e instanceof KeyboardEvent && e.key === 'Escape') return
+common-20	NOREL	D:packages/views/office/frame/office-module-frame.tsx:451	allow="clipboard-read; clipboard-write"
+common-21	NOREL	fork:apps/docs/src/main/docs-main.ts:6224	...(isDev ? [toggleDevToolsItem(appMenuLabels(getUiLang()))] : []),
+common-21	NOREL	fork:apps/slides/src/main/slides-main.ts:2110	toggleDevToolsItem(labels),
+common-21	REL	fork:packages/electron-utils/src/app-menu.ts:532	accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+common-22	REL	D:packages/core/shortcuts/definitions.ts:299	if (key === "F5") return true;
+common-22	NOREL	fork:packages/electron-utils/src/app-menu.ts:572	{ role: 'reload', label: labels.reload },
+common-22	NOREL	fork:apps/sheets/src/main/sheets-main.ts:4761	viewMenuTemplate(labels, { devItems: !app.isPackaged, pageZoom: false }),
+common-dialog-keys	REL	fork:web/modules/shared/frame-dialog.ts:311	if (e.key === 'Escape') {
+common-dialog-keys	REL	fork:web/docs/bridge/escape-forwarder.ts:41	event.key !== 'Escape' ||
+common-dialog-keys	REL	fork:apps/pdf/src/renderer/App.tsx:9734	if (e.key === 'Enter') confirmExtract()
+docs-001	REL	fork:apps/docs/src/main/docs-main.ts:6107	{ label: tm('menuNewDoc'), accelerator: 'CmdOrCtrl+N', click: () => sendCommand('new') },
+docs-002	REL	fork:apps/docs/src/main/docs-main.ts:6110	accelerator: 'Shift+CmdOrCtrl+N',
+docs-002	REL	fork:apps/docs/src/renderer/App.tsx:5611	// Paragraph styles ⌥⌘0 Normal / ⌥⌘1..3 headings (Ctrl+Shift+N is taken by New Window)
+docs-003	REL	fork:apps/docs/src/renderer/App.tsx:5517	if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+docs-003	REL	fork:apps/docs/src/main/docs-main.ts:6116	{ label: tm('menuOpen'), accelerator: 'CmdOrCtrl+O', click: () => sendCommand('open') },
+docs-004	REL	fork:apps/docs/src/renderer/App.tsx:5513	if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+docs-004	REL	fork:apps/docs/src/main/docs-main.ts:6129	{ label: tm('menuSave'), accelerator: 'CmdOrCtrl+S', click: () => sendCommand('save') },
+docs-005	REL	fork:apps/docs/src/main/docs-main.ts:6132	accelerator: 'Shift+CmdOrCtrl+S',
+docs-005	REL	fork:apps/docs/src/renderer/App.tsx:5513	if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+docs-006	REL	fork:web/docs/bridge/print-accelerator.ts:16	if (event.repeat || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+docs-006	REL	fork:apps/docs/src/main/docs-main.ts:6142	accelerator: 'CmdOrCtrl+P',
+docs-006	REL	D:packages/views/office/frame/office-module-frame.tsx:272	const onKey = (event: KeyboardEvent) => {
+docs-007	REL	fork:apps/docs/src/main/docs-main.ts:6142	accelerator: 'CmdOrCtrl+P',
+docs-008	REL	fork:apps/docs/src/main/docs-main.ts:6125	accelerator: 'CmdOrCtrl+W',
+docs-008	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+docs-009	REL	fork:apps/docs/src/renderer/read-mode-escape.ts:16	if (e.key !== 'Escape') return
+docs-009	REL	fork:apps/docs/src/renderer/components/modal-keys.ts:24	if (e.key !== 'Escape' || !focusOutsideModal(ref.current)) return
+docs-009	REL	fork:web/docs/bridge/escape-forwarder.ts:41	event.key !== 'Escape' ||
+docs-010	NOREL	fork:apps/docs/src/renderer/editor/extensions.ts:6709	UndoRedo,
+docs-010	REL	fork:apps/docs/src/main/docs-main.ts:6152	{ label: tm('menuUndo'), accelerator: 'CmdOrCtrl+Z', click: () => sendCommand('undo') },
+docs-010	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:77	'Mod-z': () => this.editor.commands.undo(),
+docs-011	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:78	'Shift-Mod-z': () => this.editor.commands.redo(),
+docs-011	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:79	'Mod-y': () => this.editor.commands.redo(),
+docs-011	REL	fork:apps/docs/src/main/docs-main.ts:6155	accelerator: 'Shift+CmdOrCtrl+Z',
+docs-012	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-013	NOREL	fork:apps/docs/src/main/docs-main.ts:6159	{ role: 'cut', label: tm('menuCut') },
+docs-014	NOREL	fork:apps/docs/src/main/docs-main.ts:6160	{ role: 'copy', label: tm('menuCopy') },
+docs-015	NOREL	fork:apps/docs/src/main/docs-main.ts:6161	{ role: 'paste', label: tm('menuPaste') },
+docs-016	NOREL	fork:apps/docs/src/main/docs-main.ts:6162	{ role: 'pasteAndMatchStyle', label: tm('menuPasteMatch') },
+docs-016	NOREL	lib:prosemirror-view@1.42.6:dist/index.js:3762	let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+docs-017	NOREL	fork:apps/docs/src/main/docs-main.ts:6175	{ role: 'selectAll', label: tm('menuSelectAll') },
+docs-017	REL	lib:tiptap@v3.31.0:packages/core/src/extensions/keymap.ts:77	'Mod-a': () => this.editor.commands.selectAll(),
+docs-018	REL	fork:apps/docs/src/renderer/App.tsx:5527	if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+docs-018	REL	fork:apps/docs/src/main/docs-main.ts:6166	accelerator: 'CmdOrCtrl+F',
+docs-019	REL	fork:apps/docs/src/renderer/components/FindPanel.tsx:531	if (e.key === 'Enter') step(e.shiftKey ? -1 : 1)
+docs-020	REL	fork:apps/docs/src/renderer/App.tsx:5537	if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === 'h') {
+docs-021	REL	fork:apps/docs/src/renderer/App.tsx:5545	if (
+docs-021	REL	fork:apps/docs/src/main/docs-main.ts:6171	accelerator: isMac ? 'Alt+Cmd+G' : 'Ctrl+G',
+docs-022	REL	fork:apps/docs/src/renderer/editor/marks.ts:57	return { 'Mod-b': () => this.editor.commands.toggleMark('bold') }
+docs-022	REL	fork:apps/docs/src/main/docs-main.ts:6249	{ label: tm('menuBold'), accelerator: 'CmdOrCtrl+B', click: () => sendCommand('bold') },
+docs-023	REL	fork:apps/docs/src/renderer/editor/marks.ts:70	return { 'Mod-i': () => this.editor.commands.toggleMark('italic') }
+docs-023	REL	fork:apps/docs/src/main/docs-main.ts:6250	{ label: tm('menuItalic'), accelerator: 'CmdOrCtrl+I', click: () => sendCommand('italic') },
+docs-024	REL	fork:apps/docs/src/renderer/editor/marks.ts:89	return { 'Mod-u': () => this.editor.commands.toggleMark('underline') }
+docs-024	REL	fork:apps/docs/src/main/docs-main.ts:6253	accelerator: 'CmdOrCtrl+U',
+docs-025	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-026	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-027	REL	fork:apps/docs/src/renderer/App.tsx:5664	: e.code === 'Comma'
+docs-028	REL	fork:apps/docs/src/renderer/App.tsx:5658	const vertAlign = e.shiftKey
+docs-029	NOREL	fork:apps/docs/src/renderer/App.tsx:5632	if (
+docs-030	NOREL	fork:apps/docs/src/renderer/App.tsx:5632	if (
+docs-031	NOREL	fork:apps/docs/src/renderer/App.tsx:5644	if (
+docs-032	NOREL	fork:apps/docs/src/renderer/App.tsx:5644	if (
+docs-033	REL	fork:apps/docs/src/renderer/App.tsx:5557	if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === 'd' && doc && canEdit) {
+docs-033	REL	fork:apps/docs/src/main/docs-main.ts:6269	accelerator: 'CmdOrCtrl+D',
+docs-034	REL	fork:apps/docs/src/renderer/App.tsx:5678	if (e.shiftKey && e.key === 'F3' && editor && canEdit) {
+docs-035	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-036	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-037	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-038	REL	fork:apps/docs/src/renderer/shortcuts.ts:74	// ---- Text formatting ----
+docs-039	REL	fork:apps/docs/src/renderer/App.tsx:5684	if (e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.code === 'Space' && canEdit) {
+docs-040	NOREL	fork:apps/docs/src/renderer/components/Ribbon.tsx:1850	// Word's copy / paste formatting chords (⇧⌘C / ⇧⌘V; off the Mac the paste
+docs-041	REL	fork:apps/docs/src/renderer/components/Ribbon.tsx:1850	// Word's copy / paste formatting chords (⇧⌘C / ⇧⌘V; off the Mac the paste
+docs-042	REL	fork:apps/docs/src/renderer/App.tsx:5705	if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'Digit8' && doc) {
+docs-043	NOREL	fork:apps/docs/src/renderer/App.tsx:5577	const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {
+docs-044	NOREL	fork:apps/docs/src/renderer/App.tsx:5577	const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {
+docs-045	NOREL	fork:apps/docs/src/renderer/App.tsx:5577	const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {
+docs-046	NOREL	fork:apps/docs/src/renderer/App.tsx:5577	const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {
+docs-047	REL	fork:apps/docs/src/renderer/App.tsx:5598	const SPACING_KEYS: Record<string, number> = { Digit1: 1, Digit2: 2, Digit5: 1.5 }
+docs-048	REL	fork:apps/docs/src/renderer/App.tsx:5598	const SPACING_KEYS: Record<string, number> = { Digit1: 1, Digit2: 2, Digit5: 1.5 }
+docs-049	REL	fork:apps/docs/src/renderer/App.tsx:5598	const SPACING_KEYS: Record<string, number> = { Digit1: 1, Digit2: 2, Digit5: 1.5 }
+docs-050	REL	fork:apps/docs/src/renderer/App.tsx:5691	if (e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyM' && editor && canEdit) {
+docs-051	REL	fork:apps/docs/src/renderer/App.tsx:5691	if (e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyM' && editor && canEdit) {
+docs-052	REL	fork:apps/docs/src/renderer/App.tsx:5695	if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyT' && editor && canEdit) {
+docs-053	REL	fork:apps/docs/src/renderer/App.tsx:5695	if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyT' && editor && canEdit) {
+docs-054	REL	fork:apps/docs/src/renderer/App.tsx:5700	if (e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.code === 'KeyQ' && canEdit) {
+docs-055	REL	fork:apps/docs/src/renderer/App.tsx:5612	const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {
+docs-056	REL	fork:apps/docs/src/renderer/App.tsx:5612	const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {
+docs-057	REL	fork:apps/docs/src/renderer/App.tsx:5612	const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {
+docs-058	NOREL	fork:apps/docs/src/renderer/App.tsx:5612	const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {
+docs-059	REL	fork:apps/docs/src/main/docs-main.ts:6132	accelerator: 'Shift+CmdOrCtrl+S',
+docs-060	REL	fork:apps/docs/src/renderer/shortcuts.ts:97	// ---- Paragraph formatting ----
+docs-061	REL	fork:apps/docs/src/renderer/shortcuts.ts:97	// ---- Paragraph formatting ----
+docs-062	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1940	Tab: changeLevel(1),
+docs-063	REL	fork:apps/docs/src/renderer/App.tsx:5561	if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyM' && doc && canEdit) {
+docs-063	REL	fork:apps/docs/src/main/docs-main.ts:6274	accelerator: 'Alt+CmdOrCtrl+M',
+docs-064	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1673	'Alt-Shift-ArrowUp': () => moveBlocks(this.editor, -1),
+docs-065	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1447	'Shift-Enter': () => this.editor.commands.insertContent({ type: 'hardBreak' }),
+docs-066	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1668	'Mod-Enter': () => insertPageBreak(this.editor),
+docs-066	REL	fork:apps/docs/src/main/docs-main.ts:6232	// no CmdOrCtrl+Enter accelerator: a menu accelerator would intercept
+docs-067	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1669	'Mod-Shift-Enter': () => insertColumnBreak(this.editor),
+docs-068	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1671	'Mod-Shift-Space': () => this.editor.commands.insertContent('\u00a0'),
+docs-069	NOREL	fork:apps/docs/src/renderer/editor/extensions.ts:1672	'Mod-Shift--': () => this.editor.commands.insertContent('\u2011'),
+docs-070	REL	fork:apps/docs/src/renderer/shortcuts.ts:153	// ---- Insert ----
+docs-071	REL	fork:apps/docs/src/renderer/App.tsx:5565	if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === 'k' && doc && canEdit) {
+docs-071	REL	fork:apps/docs/src/main/docs-main.ts:6238	accelerator: 'CmdOrCtrl+K',
+docs-072	REL	fork:apps/docs/src/renderer/App.tsx:5721	if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyA' && doc && canEdit) {
+docs-073	REL	fork:apps/docs/src/renderer/App.tsx:5728	if ((e.metaKey || e.ctrlKey) && e.altKey && doc && canEdit) {
+docs-074	REL	fork:apps/docs/src/renderer/App.tsx:5728	if ((e.metaKey || e.ctrlKey) && e.altKey && doc && canEdit) {
+docs-075	REL	fork:apps/docs/src/renderer/App.tsx:5737	if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && doc && canEdit) {
+docs-076	REL	fork:apps/docs/src/renderer/App.tsx:5737	if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && doc && canEdit) {
+docs-077	REL	fork:apps/docs/src/renderer/App.tsx:5572	} else if (e.key === 'F9' && doc && editor?.isEditable) {
+docs-078	REL	fork:apps/docs/src/renderer/App.tsx:5569	if (e.key === 'F9' && e.altKey && doc && editor) {
+docs-079	REL	fork:apps/docs/src/renderer/App.tsx:5710	if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.code === 'KeyE' && doc) {
+docs-080	REL	fork:apps/docs/src/renderer/App.tsx:5745	if (e.key === 'F7' && !e.shiftKey && doc) {
+docs-081	REL	fork:apps/docs/src/renderer/App.tsx:5715	if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.code === 'KeyG' && doc) {
+docs-082	NOREL	fork:apps/docs/src/main/docs-main.ts:6183	accelerator: 'CmdOrCtrl+=',
+docs-082	NOREL	fork:apps/docs/src/renderer/App.tsx:5810	case 'zoom-in':
+docs-083	NOREL	fork:apps/docs/src/main/docs-main.ts:6188	accelerator: 'CmdOrCtrl+-',
+docs-083	NOREL	fork:apps/docs/src/renderer/App.tsx:5813	case 'zoom-out':
+docs-084	REL	fork:apps/docs/src/main/docs-main.ts:6193	accelerator: 'CmdOrCtrl+0',
+docs-084	NOREL	fork:apps/docs/src/renderer/App.tsx:5816	case 'zoom-100':
+docs-085	REL	fork:apps/docs/src/renderer/App.tsx:1875	const zoomWheel = createZoomWheelClassifier()
+docs-086	REL	fork:packages/ui/src/ribbon-collapse.tsx:79	export function isRibbonToggleShortcut(e: KeyboardEvent): boolean {
+docs-087	REL	fork:packages/ui/src/ribbon-collapse.tsx:87	export function isRibbonCompactShortcut(e: KeyboardEvent): boolean {
+docs-088	NOREL	fork:apps/docs/src/main/docs-main.ts:6223	{ role: 'togglefullscreen', label: tm('menuFullscreen') },
+docs-089	NOREL	fork:apps/docs/src/renderer/components/ContextMenu.tsx:262	if (e.key === 'Escape') {
+docs-089	REL	fork:apps/docs/src/renderer/App.tsx:6064	const fromKeyboard = e.clientX === 0 && e.clientY === 0
+docs-090	REL	fork:apps/shell/src/main/index.ts:3629	autoHideMenuBar: true,
+docs-091	REL	fork:apps/docs/src/renderer/shortcuts.ts:167	// ---- Review & tools ----
+docs-092	REL	fork:apps/docs/src/renderer/shortcuts.ts:167	// ---- Review & tools ----
+docs-093	REL	fork:apps/docs/src/renderer/shortcuts.ts:167	// ---- Review & tools ----
+docs-094	NOREL	fork:apps/docs/src/main/docs-main.ts:6380	accelerator: 'CmdOrCtrl+/',
+docs-095	REL	fork:apps/shell/src/main/index.ts:6519	accelerator: 'Shift+CmdOrCtrl+H',
+docs-096	NOREL	fork:apps/docs/src/main/docs-main.ts:6224	...(isDev ? [toggleDevToolsItem(appMenuLabels(getUiLang()))] : []),
+docs-097	REL	lib:prosemirror-view@1.42.6:dist/index.js:2813	return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
+docs-098	REL	lib:tiptap@v3.31.0:packages/core/src/extensions/keymap.ts:73	'Mod-Backspace': handleBackspace,
+docs-098	REL	lib:tiptap@v3.31.0:packages/core/src/extensions/keymap.ts:76	'Mod-Delete': handleDelete,
+docs-099	REL	fork:apps/docs/src/renderer/editor/extensions.ts:3881	Tab: () => {
+docs-100	REL	fork:apps/docs/src/renderer/editor/extensions.ts:1496	Enter: () => {
+docs-100	REL	fork:apps/docs/src/renderer/editor/extensions.ts:6738	handleKeyDown(view, event) {
+docs-100	NOREL	fork:apps/docs/src/renderer/editor/page-gap-nav.ts:252	handleKeyDown(view, event) {
+docs-101	REL	fork:apps/docs/src/renderer/App.tsx:6038	const mod = e.metaKey || e.ctrlKey
+docs-102	REL	fork:apps/docs/src/renderer/components/modal-keys.ts:24	if (e.key !== 'Escape' || !focusOutsideModal(ref.current)) return
+docs-102	REL	fork:apps/docs/src/renderer/components/CommentsPanel.tsx:417	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit()
+docs-102	REL	fork:apps/docs/src/renderer/components/PromptModal.tsx:64	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit()
+docs-103	NOREL	fork:apps/docs/src/main/docs-main.ts:6162	{ role: 'pasteAndMatchStyle', label: tm('menuPasteMatch') },
+sheets-01	NOREL	fork:apps/sheets/src/main/sheets-main.ts:4682	const labels = appMenuLabels(getUiLang())
+sheets-02	NOREL	fork:web/modules/sheets/bridge.ts:526	if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+sheets-02	REL	fork:apps/sheets/src/main/sheets-main.ts:4691	accelerator: 'CmdOrCtrl+O',
+sheets-03	REL	fork:web/modules/sheets/bridge.ts:526	if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+sheets-03	REL	fork:apps/sheets/src/main/sheets-main.ts:4700	accelerator: 'CmdOrCtrl+S',
+sheets-04	REL	fork:web/modules/sheets/bridge.ts:526	if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+sheets-04	REL	fork:apps/sheets/src/main/sheets-main.ts:4705	accelerator: 'Shift+CmdOrCtrl+S',
+sheets-05	NOREL	fork:web/modules/sheets/bridge.ts:526	if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+sheets-05	REL	fork:apps/sheets/src/main/sheets-main.ts:4711	accelerator: 'CmdOrCtrl+P',
+sheets-05	REL	D:packages/views/office/frame/office-module-frame.tsx:265	// Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
+sheets-06	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+sheets-06	REL	fork:apps/sheets/src/main/sheets-main.ts:4728	accelerator: 'CmdOrCtrl+W',
+sheets-07	NOREL	univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:85	binding: KeyCode.Z | MetaKeys.CTRL_COMMAND,
+sheets-07	REL	fork:apps/sheets/src/main/sheets-main.ts:4743	accelerator: 'CmdOrCtrl+Z',
+sheets-08	NOREL	univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:94	binding: KeyCode.Y | MetaKeys.CTRL_COMMAND,
+sheets-08	REL	fork:apps/sheets/src/main/sheets-main.ts:4748	accelerator: 'Shift+CmdOrCtrl+Z',
+sheets-09	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:92	binding: KeyCode.F4,
+sheets-10	NOREL	univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:45	binding: KeyCode.C | MetaKeys.CTRL_COMMAND,
+sheets-10	NOREL	univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:54	binding: KeyCode.X | MetaKeys.CTRL_COMMAND,
+sheets-10	NOREL	fork:apps/sheets/src/main/sheets-main.ts:4752	{ role: 'cut', label: labels.cut },
+sheets-11	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:108	{ code: 'KeyV', chord: { mod: true, alt: true }, gate: 'sheet', action: PASTE_SPECIAL },
+sheets-11	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:109	{ code: 'KeyV', chord: { cmdCtrlMac: true }, gate: 'sheet', action: PASTE_SPECIAL },
+sheets-12	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:103	code: 'KeyV',
+sheets-12	REL	electron@v43.7.6:lib/browser/api/menu-item-roles.ts:136	accelerator: isMac ? 'Cmd+Option+Shift+V' : 'Shift+CommandOrControl+V',
+sheets-13	REL	fork:apps/sheets/src/renderer/PasteSpecialDialog.tsx:94	if (event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) {
+sheets-14	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:78	binding: KeyCode.F2,
+sheets-15	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:156	binding: KeyCode.ENTER | MetaKeys.ALT,
+sheets-15	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:493	mac: KeyCode.ENTER | MetaKeys.ALT | MetaKeys.MAC_CTRL,
+sheets-16	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:140	binding: KeyCode.ENTER | MetaKeys.CTRL_COMMAND,
+sheets-16	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:482	mac: KeyCode.ENTER | MetaKeys.CTRL_COMMAND,
+sheets-17	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/copy-fill.shortcut.ts:25	binding: KeyCode.D | MetaKeys.CTRL_COMMAND,
+sheets-18	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/copy-fill.shortcut.ts:31	binding: KeyCode.R | MetaKeys.CTRL_COMMAND,
+sheets-18	NOREL	fork:packages/electron-utils/src/app-menu.ts:572	{ role: 'reload', label: labels.reload },
+sheets-19	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:456	binding: KeyCode.EQUAL | MetaKeys.CTRL_COMMAND | MetaKeys.SHIFT,
+sheets-19	NOREL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:462	binding: KEY_NUMPAD_ADD | MetaKeys.CTRL_COMMAND,
+sheets-20	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:468	binding: KeyCode.MINUS | MetaKeys.CTRL_COMMAND,
+sheets-20	NOREL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:474	binding: KEY_NUMPAD_SUBTRACT | MetaKeys.CTRL_COMMAND,
+sheets-21	NOREL	fork:apps/sheets/src/renderer/ExcelShell.tsx:830	const onKeyDownCapture = (event: KeyboardEvent): void => {
+sheets-21	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/value.shortcut.ts:28	binding: KeyCode.DELETE,
+sheets-22	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:430	binding: KeyCode.Digit9 | MetaKeys.CTRL_COMMAND,
+sheets-22	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:436	binding: KeyCode.Digit9 | MetaKeys.CTRL_COMMAND | MetaKeys.SHIFT,
+sheets-23	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:442	binding: KeyCode.Digit0 | MetaKeys.CTRL_COMMAND,
+sheets-23	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:448	binding: KeyCode.Digit0 | MetaKeys.CTRL_COMMAND | MetaKeys.SHIFT,
+sheets-24	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:414	binding: KeyCode.SPACE | MetaKeys.CTRL_COMMAND,
+sheets-25	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:420	binding: KeyCode.SPACE | MetaKeys.SHIFT,
+sheets-26	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:316	binding: KeyCode.A | MetaKeys.CTRL_COMMAND,
+sheets-26	NOREL	fork:apps/sheets/src/main/sheets-main.ts:4756	{ role: 'selectAll', label: labels.selectAll },
+sheets-27	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:316	binding: KeyCode.A | MetaKeys.CTRL_COMMAND,
+sheets-28	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:92	binding: KeyCode.TAB,
+sheets-28	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:120	binding: KeyCode.ENTER,
+sheets-28	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:134	binding: KeyCode.ENTER | MetaKeys.SHIFT,
+sheets-29	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:126	binding: KeyCode.ESC,
+sheets-30	REL	fork:apps/sheets/src/renderer/excel-jump-nav.ts:509	binding: keyCode | MetaKeys.CTRL_COMMAND,
+sheets-31	REL	fork:apps/sheets/src/renderer/excel-jump-nav.ts:516	binding: keyCode | MetaKeys.CTRL_COMMAND | MetaKeys.SHIFT,
+sheets-32	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:214	binding: KeyCode.ARROW_DOWN | MetaKeys.SHIFT,
+sheets-33	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:398	binding: KEY_HOME | MetaKeys.CTRL_COMMAND,
+sheets-34	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:398	binding: KEY_HOME | MetaKeys.CTRL_COMMAND,
+sheets-35	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:403	binding: KEY_END | MetaKeys.CTRL_COMMAND,
+sheets-36	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:408	binding: KEY_HOME,
+sheets-37	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:159	{ code: 'PageDown', chord: {}, gate: 'grid', action: command('page-row:1') },
+sheets-37	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:160	{ code: 'PageUp', chord: {}, gate: 'grid', action: command('page-row:-1') },
+sheets-38	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:161	{ code: 'PageDown', chord: { alt: true }, gate: 'grid', action: command('page-col:1') },
+sheets-38	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:162	{ code: 'PageUp', chord: { alt: true }, gate: 'grid', action: command('page-col:-1') },
+sheets-39	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:370	binding: KEY_PAGE_DOWN | MetaKeys.CTRL_COMMAND,
+sheets-39	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:385	mac: KeyCode.ARROW_RIGHT | MetaKeys.ALT,
+sheets-40	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:376	binding: KEY_PAGE_UP | MetaKeys.CTRL_COMMAND,
+sheets-40	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:392	mac: KeyCode.ARROW_LEFT | MetaKeys.ALT,
+sheets-41	REL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:370	binding: KEY_PAGE_DOWN | MetaKeys.CTRL_COMMAND,
+sheets-42	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:70	{ code: 'KeyG', chord: { mod: true }, gate: 'grid', action: GO_TO },
+sheets-42	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:71	{ code: 'F5', chord: {}, gate: 'grid', action: GO_TO },
+sheets-43	NOREL	univer@v0.25.1:packages/find-replace/src/controllers/find-replace.shortcut.ts:57	binding: KeyCode.F | MetaKeys.CTRL_COMMAND,
+sheets-43	REL	fork:apps/sheets/src/renderer/App.tsx:2274	// Ctrl+F / Ctrl+H open the app's Excel-style Find & Replace panel; the
+sheets-44	NOREL	univer@v0.25.1:packages/find-replace/src/controllers/find-replace.shortcut.ts:78	binding: KeyCode.H | MetaKeys.CTRL_COMMAND,
+sheets-44	REL	fork:apps/sheets/src/renderer/App.tsx:2274	// Ctrl+F / Ctrl+H open the app's Excel-style Find & Replace panel; the
+sheets-45	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:100	{ code: 'F11', chord: { shift: true }, gate: 'sheet', action: command('insert-sheet') },
+sheets-46	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:100	{ code: 'F11', chord: { shift: true }, gate: 'sheet', action: command('insert-sheet') },
+sheets-47	REL	univer@v0.25.1:packages/sheets-formula-ui/src/controllers/shortcuts/prompt.shortcut.ts:24	binding: KeyCode.F4,
+sheets-47	NOREL	fork:apps/sheets/src/renderer/excel-shortcuts.ts:505	mac: KeyCode.T | MetaKeys.CTRL_COMMAND,
+sheets-48	REL	univer@v0.25.1:packages/sheets-formula-ui/src/controllers/shortcuts/quick-sum.shortcut.ts:24	binding: MetaKeys.ALT | KeyCode.EQUAL,
+sheets-48	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:92	{ code: 'Equal', chord: { alt: true }, gate: 'sheet', action: command('autofn:SUM') },
+sheets-48	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:151	code: 'KeyT',
+sheets-49	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:83	{ code: 'F3', chord: { shift: true }, gate: 'grid', action: command('insert-function-open') },
+sheets-50	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:84	{ code: 'F3', chord: { mod: true }, gate: 'grid', action: command('name-manager-open') },
+sheets-51	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:86	code: 'KeyU',
+sheets-52	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:101	{ code: 'KeyE', chord: { mod: true }, gate: 'sheet', action: command('flash-fill') },
+sheets-53	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:157	{ code: 'F9', chord: {}, gate: 'idle', action: command('calculate-now') },
+sheets-54	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:158	{ code: 'F9', chord: { shift: true }, gate: 'idle', action: command('calculate-sheet') },
+sheets-55	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:73	code: 'Backquote',
+sheets-56	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:110	{ code: 'BracketLeft', chord: { mod: true }, gate: 'sheet', action: command('trace-precedents') },
+sheets-56	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:112	code: 'BracketRight',
+sheets-57	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/editor.shortcut.ts:78	binding: KeyCode.F2,
+sheets-58	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:157	{ code: 'F9', chord: {}, gate: 'idle', action: command('calculate-now') },
+sheets-59	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:157	{ code: 'F9', chord: {}, gate: 'idle', action: command('calculate-now') },
+sheets-60	REL	fork:apps/sheets/src/renderer/ExcelShell.tsx:794	event.key === 'Escape' &&
+sheets-61	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:69	{ code: 'Digit1', chord: { mod: true }, gate: 'grid', action: FORMAT_CELLS },
+sheets-62	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:142	code: 'KeyF',
+sheets-63	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:34	binding: KeyCode.B | MetaKeys.CTRL_COMMAND,
+sheets-64	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:43	binding: KeyCode.I | MetaKeys.CTRL_COMMAND,
+sheets-65	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:52	binding: KeyCode.U | MetaKeys.CTRL_COMMAND,
+sheets-66	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:91	{ code: 'Digit5', chord: { mod: true }, gate: 'sheet', action: command('strike') },
+sheets-66	NOREL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:61	binding: KeyCode.X | MetaKeys.SHIFT | MetaKeys.CTRL_COMMAND,
+sheets-67	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:130	code: 'Period',
+sheets-67	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:136	code: 'Comma',
+sheets-68	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:21	Backquote: 'General',
+sheets-69	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:22	Digit1: '#,##0.00',
+sheets-70	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:23	Digit2: 'h:mm AM/PM',
+sheets-71	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:24	Digit3: 'd-mmm-yy',
+sheets-72	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:25	Digit4: currencyStyle(RIBBON_CURRENCY_SYMBOL),
+sheets-73	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:26	Digit5: PERCENT_STYLE,
+sheets-74	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:27	Digit6: '0.00E+00',
+sheets-75	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:31	Digit7: 'outer',
+sheets-75	REL	fork:apps/sheets/src/renderer/excel-format-shortcuts.ts:37	Digit0: 'outer',
+sheets-76	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:93	{ code: 'Semicolon', chord: { mod: true }, gate: 'sheet', action: command('insert-now:date') },
+sheets-77	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:95	code: 'Semicolon',
+sheets-78	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:78	{ code: 'KeyK', chord: { mod: true }, gate: 'grid', action: command('link-open') },
+sheets-79	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:79	{ code: 'F2', chord: { shift: true }, gate: 'grid', action: command('note-open') },
+sheets-80	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:81	{ code: 'F2', chord: { mod: true, shift: true }, gate: 'grid', action: command('comment-new') },
+sheets-80	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:82	{ code: 'KeyM', chord: { mod: true, shift: true }, gate: 'grid', action: command('comment-new') },
+sheets-81	NOREL	univer@v0.25.1:packages/sheets-filter-ui/src/controllers/sheets-filter.shortcut.ts:24	binding: KeyCode.L | MetaKeys.CTRL_COMMAND | MetaKeys.SHIFT,
+sheets-81	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:142	code: 'KeyF',
+sheets-82	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:156	{ code: 'KeyT', chord: { mod: true }, gate: 'sheet', action: command('table-create-open') },
+sheets-83	REL	fork:packages/ui/src/ribbon-collapse.tsx:81	if (e.key === 'F1' && e.ctrlKey && !e.metaKey && !e.altKey) return true
+sheets-84	REL	fork:packages/ui/src/ribbon-collapse.tsx:81	if (e.key === 'F1' && e.ctrlKey && !e.metaKey && !e.altKey) return true
+sheets-85	REL	fork:apps/sheets/src/renderer/ExcelShell.tsx:794	event.key === 'Escape' &&
+sheets-86	REL	fork:apps/sheets/src/renderer/ExcelShell.tsx:794	event.key === 'Escape' &&
+sheets-87	REL	univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/view.shortcut.ts:26	binding: KeyCode.EQUAL | MetaKeys.CTRL_COMMAND,
+sheets-87	NOREL	fork:apps/sheets/src/main/sheets-main.ts:4761	viewMenuTemplate(labels, { devItems: !app.isPackaged, pageZoom: false }),
+sheets-88	NOREL	fork:packages/electron-utils/src/app-menu.ts:584	groups.push([{ role: 'togglefullscreen', label: labels.fullscreen }])
+sheets-88	REL	electron@v43.7.6:lib/browser/api/menu-item-roles.ts:217	accelerator: isMac ? 'Control+Command+F' : 'F11',
+sheets-89	REL	fork:apps/sheets/src/renderer/format-painter.ts:92	binding: KeyCode.ESC,
+sheets-90	NOREL	univer@v0.25.1:packages/sheets-formula-ui/src/views/formula-editor/hooks/use-left-and-right-arrow.ts:121	{ keyCode: KeyCode.ARROW_DOWN },
+sheets-90	REL	univer@v0.25.1:packages/sheets-formula-ui/src/views/formula-editor/search-function/SearchFunction.tsx:125	[KeyCode.ARROW_UP, KeyCode.ARROW_DOWN, KeyCode.ENTER, KeyCode.ESC, KeyCode.TAB].map((keyCode) => {
+sheets-91	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:118	code: 'ArrowRight',
+sheets-91	REL	fork:apps/sheets/src/renderer/global-shortcuts.ts:124	code: 'ArrowLeft',
+sheets-92	NOREL	univer@v0.25.1:packages/docs-ui/src/shortcuts/toolbar.shortcut.ts:26	binding: KeyCode.B | MetaKeys.CTRL_COMMAND,
+sheets-93	REL	univer@v0.25.1:packages/sheets-drawing-ui/src/controllers/shortcuts/drawing.shortcut.ts:40	binding: KeyCode.ARROW_DOWN,
+sheets-93	REL	fork:apps/sheets/src/renderer/WorkbookVisuals.tsx:1186	if (event.key === 'Delete' || event.key === 'Backspace') {
+sheets-94	NOREL	univer@v0.25.1:packages/sheets-ui/src/views/sheet-bar/sheet-bar-tabs/SheetBarTabs.tsx:390	const onTabListKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+sheets-95	REL	fork:apps/sheets/src/renderer/ctrl-drag-fill.ts:50	modifier = event.ctrlKey || event.metaKey
+sheets-95	REL	fork:apps/sheets/src/renderer/SheetTabContextMenu.tsx:116	const modifier = IS_MAC ? event.metaKey : event.ctrlKey
+sheets-95	REL	fork:apps/sheets/src/renderer/wheel-zoom.ts:33	if (!event.ctrlKey && !event.metaKey) return
+sheets-96	REL	fork:apps/sheets/src/renderer/ExcelShell.tsx:4273	if (event.key === 'Escape') {
+sheets-96	REL	fork:apps/sheets/src/renderer/modal-dialog.ts:50	if (event.key === 'Escape') {
+sheets-97	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+sheets-dialog-keys	REL	fork:apps/sheets/src/renderer/modal-dialog.ts:50	if (event.key === 'Escape') {
+sheets-dialog-keys	REL	fork:apps/sheets/src/renderer/FindReplacePanel.tsx:345	if (event.key === 'Enter') findStep(event.shiftKey ? 'previous' : 'next')
+sheets-dialog-keys	REL	fork:apps/sheets/src/renderer/GoToDialog.tsx:53	if (event.key === 'Enter' && reference.trim() !== '') go(reference)
+slides-01	NOREL	fork:apps/slides/src/main/slides-main.ts:2049	{ label: tm('menuOpen'), accelerator: 'CmdOrCtrl+O', click: () => send('open') },
+slides-02	REL	fork:web/modules/slides/web-slides-api.ts:858	if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+slides-02	REL	fork:apps/slides/src/main/slides-main.ts:2049	{ label: tm('menuOpen'), accelerator: 'CmdOrCtrl+O', click: () => send('open') },
+slides-03	REL	fork:web/modules/slides/web-slides-api.ts:858	if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+slides-03	REL	fork:apps/slides/src/main/slides-main.ts:2064	{ label: tm('menuSave'), accelerator: 'CmdOrCtrl+S', click: () => send('save') },
+slides-04	REL	fork:web/modules/slides/web-slides-api.ts:858	if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+slides-04	REL	fork:apps/slides/src/main/slides-main.ts:2065	{ label: tm('menuSaveAs'), accelerator: 'CmdOrCtrl+Shift+S', click: () => send('save-as') },
+slides-05	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:164	if (mod && !e.altKey && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+slides-05	REL	fork:apps/slides/src/main/slides-main.ts:2071	{ label: tm('menuPrint'), accelerator: 'CmdOrCtrl+P', click: () => send('print') },
+slides-05	REL	D:packages/views/office/frame/office-module-frame.tsx:265	// Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
+slides-06	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+slides-06	REL	fork:apps/slides/src/main/slides-main.ts:2077	accelerator: 'CmdOrCtrl+W',
+slides-07	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:137	if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
+slides-07	REL	fork:apps/slides/src/main/slides-main.ts:2089	{ label: tm('menuUndo'), accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
+slides-08	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:143	if (mod && !e.altKey && (e.key === 'y' || e.key === 'Y')) {
+slides-08	REL	fork:apps/slides/src/main/slides-main.ts:2090	{ label: tm('menuRedo'), accelerator: 'Shift+CmdOrCtrl+Z', click: () => send('redo') },
+slides-09	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:263	if (mod && !e.altKey && (e.key === 'v' || e.key === 'V')) {
+slides-09	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:410	if (mod && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+slides-09	REL	fork:apps/slides/src/main/slides-main.ts:2093	{ label: tm('menuCut'), accelerator: 'CmdOrCtrl+X', click: () => send('cut') },
+slides-10	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:263	if (mod && !e.altKey && (e.key === 'v' || e.key === 'V')) {
+slides-11	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:411	if (e.shiftKey) {
+slides-12	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:264	if (e.shiftKey) {
+slides-13	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:325	if (mod && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+slides-13	NOREL	fork:apps/slides/src/main/slides-main.ts:2096	{ role: 'selectAll', label: labels.selectAll },
+slides-14	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:122	if (
+slides-15	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:427	if (mod && !e.altKey && (e.key === 'd' || e.key === 'D')) {
+slides-16	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:427	if (mod && !e.altKey && (e.key === 'd' || e.key === 'D')) {
+slides-17	REL	fork:apps/slides/src/renderer/platform-modifiers.ts:20	export function isDuplicateDragModifier(e: ModifierKeys, mac = isMac): boolean {
+slides-18	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:439	if (e.key === 'Delete' || e.key === 'Backspace') {
+slides-18	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:386	if (
+slides-19	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:342	if (selectedIds.length === 0) {
+slides-20	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:364	if (
+slides-21	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:342	if (selectedIds.length === 0) {
+slides-22	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:97	if (e.key === 'F5' && !mod) {
+slides-23	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:97	if (e.key === 'F5' && !mod) {
+slides-23	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:105	if (
+slides-24	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:97	if (e.key === 'F5' && !mod) {
+slides-25	REL	fork:apps/slides/src/renderer/show-keys.ts:29	const NAV_KEYS: Record<string, 'next' | 'prev' | 'first' | 'last'> = {
+slides-26	REL	fork:apps/slides/src/renderer/show-keys.ts:35	ArrowLeft: 'prev',
+slides-27	REL	fork:apps/slides/src/renderer/show-keys.ts:38	Home: 'first',
+slides-27	REL	fork:apps/slides/src/renderer/show-keys.ts:39	End: 'last',
+slides-28	NOREL	fork:apps/slides/src/renderer/show-keys.ts:62	if (/^[0-9]$/.test(key)) {
+slides-29	REL	fork:apps/slides/src/renderer/show-keys.ts:56	if (key === 'Escape') {
+slides-30	REL	fork:apps/slides/src/renderer/show-keys.ts:43	b: 'black',
+slides-30	REL	fork:apps/slides/src/renderer/show-keys.ts:46	w: 'white',
+slides-31	REL	fork:apps/slides/src/renderer/show-keys.ts:29	const NAV_KEYS: Record<string, 'next' | 'prev' | 'first' | 'last'> = {
+slides-32	REL	fork:apps/slides/src/renderer/show-keys.ts:29	const NAV_KEYS: Record<string, 'next' | 'prev' | 'first' | 'last'> = {
+slides-33	REL	fork:apps/slides/src/renderer/show-keys.ts:29	const NAV_KEYS: Record<string, 'next' | 'prev' | 'first' | 'last'> = {
+slides-34	REL	fork:apps/slides/src/renderer/components/SlideShowView.tsx:405	if (e.key === 'Escape') {
+slides-35	REL	fork:apps/slides/src/renderer/show-keys.ts:29	const NAV_KEYS: Record<string, 'next' | 'prev' | 'first' | 'last'> = {
+slides-36	NOREL	fork:apps/slides/src/renderer/components/PresenterView.tsx:306	const r = reduceShowKey(showKeysRef.current, e.key)
+slides-36	REL	fork:apps/slides/src/renderer/components/AudienceView.tsx:192	useEffect(() => {
+slides-37	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:433	if (mod && !e.altKey && (e.key === 'g' || e.key === 'G')) {
+slides-38	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:433	if (mod && !e.altKey && (e.key === 'g' || e.key === 'G')) {
+slides-39	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:433	if (mod && !e.altKey && (e.key === 'g' || e.key === 'G')) {
+slides-40	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:447	if (e.key === 'ArrowLeft') ux = -1
+slides-40	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:455	const step = mod ? 1 / (ctx.zoom || 1) : NUDGE_STEP_PX
+slides-41	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:462	if (e.shiftKey && !mod) {
+slides-42	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:304	if (e.key === 'Tab' && !mod && !e.altKey && document.activeElement === document.body) {
+slides-43	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:447	if (e.key === 'ArrowLeft') ux = -1
+slides-44	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:433	if (mod && !e.altKey && (e.key === 'g' || e.key === 'G')) {
+slides-45	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:325	if (mod && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+slides-46	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:325	if (mod && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+slides-47	REL	fork:apps/slides/src/renderer/components/CommentsPane.tsx:147	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+slides-48	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:197	const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-49	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:197	const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-50	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:197	const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-51	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:197	const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-52	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:206	if (mod && !inField && (e.key === '=' || e.key === '+')) {
+slides-53	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:174	if (
+slides-54	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:55	if (e.key === '>' || e.key === '.') return { dir: 1, mode: 'ladder' }
+slides-55	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:49	function fontSizeStepFor(e: KeyboardEvent): FontSizeStep | null {
+slides-56	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:174	if (
+slides-57	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:174	if (
+slides-58	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:933	} else if (e.key === 'Tab') {
+slides-59	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:157	if (mod && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+slides-60	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:150	if (mod && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+slides-61	NOREL	fork:apps/slides/src/renderer/keyboard-actions.ts:150	if (mod && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+slides-62	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:920	} else if (e.key === 'Enter' && e.ctrlKey && onNextPlaceholder) {
+slides-63	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:73	if (e.key !== 'Enter' && e.key !== 'F2') return null
+slides-63	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:915	if (e.key === 'Escape' || e.key === 'F2') {
+slides-64	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:927	} else if (e.key === 'Tab' && onTabNav) {
+slides-65	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:3	* box takes over input (caret/selection/IME for free). Bold/italic/underline are triggered by the
+slides-66	REL	fork:apps/slides/src/renderer/TextEditOverlay.tsx:954	} else if (e.key === 'Enter' && e.shiftKey) {
+slides-67	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:206	if (mod && !inField && (e.key === '=' || e.key === '+')) {
+slides-67	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:211	if (mod && !inField && e.key === '-') {
+slides-67	NOREL	fork:apps/slides/src/main/slides-main.ts:2102	{ label: tm('menuZoomIn'), accelerator: 'CmdOrCtrl+=', click: () => send('zoom-in') },
+slides-68	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:216	if (mod && !inField && e.key === '0') {
+slides-69	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:342	if (selectedIds.length === 0) {
+slides-70	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:304	if (e.key === 'Tab' && !mod && !e.altKey && document.activeElement === document.body) {
+slides-71	REL	fork:packages/ui/src/ribbon-collapse.tsx:81	if (e.key === 'F1' && e.ctrlKey && !e.metaKey && !e.altKey) return true
+slides-72	REL	fork:packages/ui/src/ribbon-collapse.tsx:81	if (e.key === 'F1' && e.ctrlKey && !e.metaKey && !e.altKey) return true
+slides-73	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:97	if (e.key === 'F5' && !mod) {
+slides-74	REL	fork:apps/slides/src/renderer/keyboard-actions.ts:229	if (
+slides-74	REL	fork:web/docs/bridge/escape-forwarder.ts:44	event.keyCode === 229 ||
+slides-75	REL	fork:apps/slides/src/renderer/App.tsx:2283	e.key === 'ArrowRight' ||
+slides-76	REL	fork:apps/slides/src/renderer/platform-modifiers.ts:16	export function isToggleModifier(e: ModifierKeys, mac = isMac): boolean {
+slides-76	REL	fork:apps/slides/src/renderer/SlideCanvas.tsx:1042	const down = (e: KeyboardEvent) => e.key === 'Shift' && setSnaps(true)
+slides-76	REL	fork:apps/slides/src/renderer/App.tsx:1305	if (ev.ctrlKey || ev.metaKey) {
+slides-78	NOREL	fork:apps/slides/src/main/slides-main.ts:2110	toggleDevToolsItem(labels),
+slides-78	REL	fork:packages/electron-utils/src/app-menu.ts:532	accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+slides-dialog-keys	REL	fork:apps/slides/src/renderer/components/FindReplaceDialog.tsx:144	if (e.key === 'Escape') {
+slides-dialog-keys	REL	fork:apps/slides/src/renderer/components/PrintDialog.tsx:97	if (e.key === 'Escape') {
+slides-dialog-keys	REL	fork:apps/slides/src/renderer/components/CommentsPane.tsx:147	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+pdf-01	REL	fork:apps/pdf/src/renderer/App.tsx:6349	if (k === 's') {
+pdf-01	REL	fork:apps/shell/src/main/index.ts:5956	accelerator: 'CmdOrCtrl+S',
+pdf-02	REL	fork:apps/pdf/src/renderer/App.tsx:6349	if (k === 's') {
+pdf-02	REL	fork:apps/shell/src/main/index.ts:5964	accelerator: 'CmdOrCtrl+Shift+S',
+pdf-03	REL	fork:apps/pdf/src/renderer/App.tsx:6352	} else if (k === 'z') {
+pdf-03	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+pdf-04	REL	fork:apps/pdf/src/renderer/App.tsx:6354	if (e.shiftKey) redo()
+pdf-04	REL	electron:lib/browser/api/menu-item-roles.ts:156	accelerator: isWindows ? 'Control+Y' : 'Shift+CommandOrControl+Z',
+pdf-05	REL	fork:apps/pdf/src/renderer/App.tsx:6356	} else if (k === 'f') {
+pdf-06	REL	fork:apps/pdf/src/renderer/App.tsx:9224	if (e.key === 'Enter') searchStep(e.shiftKey ? -1 : 1)
+pdf-07	REL	fork:apps/pdf/src/renderer/App.tsx:6359	} else if (k === 'p' && !e.shiftKey) {
+pdf-07	REL	fork:apps/shell/src/main/index.ts:5986	accelerator: 'CmdOrCtrl+P',
+pdf-08	REL	fork:apps/pdf/src/renderer/App.tsx:6362	} else if (e.key === '=' || e.key === '+') {
+pdf-08	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:27	return kind === 'home' || kind === 'sheets'
+pdf-09	REL	fork:apps/pdf/src/renderer/App.tsx:6365	} else if (e.key === '-') {
+pdf-10	REL	fork:apps/pdf/src/renderer/App.tsx:6368	} else if (e.key === '0') {
+pdf-11	REL	fork:apps/pdf/src/renderer/App.tsx:6368	} else if (e.key === '0') {
+pdf-12	REL	D:packages/core/shortcuts/definitions.ts:85	{ id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
+pdf-13	REL	fork:apps/pdf/src/renderer/App.tsx:6672	onKeyDown={(e) => e.key === 'Enter' && commitPageInput()}
+pdf-14	REL	fork:apps/pdf/src/renderer/keyNav.ts:91	case 'PageDown':
+pdf-14	REL	fork:apps/pdf/src/renderer/keyNav.ts:94	case 'PageUp':
+pdf-15	REL	fork:apps/pdf/src/renderer/keyNav.ts:96	case 'Home':
+pdf-15	NOREL	fork:apps/pdf/src/renderer/keyNav.ts:104	case 'ArrowRight':
+pdf-16	REL	fork:apps/pdf/src/renderer/keyNav.ts:104	case 'ArrowRight':
+pdf-16	REL	fork:apps/pdf/src/renderer/keyNav.ts:106	case 'ArrowLeft':
+pdf-17	REL	fork:apps/pdf/src/renderer/App.tsx:6356	} else if (k === 'f') {
+pdf-18	REL	fork:apps/pdf/src/renderer/App.tsx:6368	} else if (e.key === '0') {
+pdf-19	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:27	return kind === 'home' || kind === 'sheets'
+pdf-20	REL	fork:apps/pdf/src/renderer/App.tsx:6356	} else if (k === 'f') {
+pdf-21	REL	fork:apps/pdf/src/renderer/NoteMargin.tsx:212	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+pdf-21	REL	fork:apps/pdf/src/renderer/NoteMargin.tsx:214	} else if (e.key === 'Escape') {
+pdf-22	REL	fork:apps/pdf/src/renderer/App.tsx:6430	if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+pdf-23	REL	fork:apps/pdf/src/renderer/App.tsx:6375	if (e.key === 'Escape') {
+pdf-23	REL	fork:apps/pdf/src/renderer/App.tsx:9225	else if (e.key === 'Escape') {
+pdf-24	REL	fork:apps/pdf/src/renderer/App.tsx:8834	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+pdf-24	REL	fork:apps/pdf/src/renderer/App.tsx:8842	(e.key === 'Backspace' || e.key === 'Delete') &&
+pdf-25	REL	fork:apps/pdf/src/renderer/AiAskPopover.tsx:136	if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+pdf-25	REL	fork:apps/pdf/src/renderer/AiAskPopover.tsx:99	if (e.key === 'Escape') {
+pdf-dialog-keys	REL	fork:apps/pdf/src/renderer/App.tsx:9734	if (e.key === 'Enter') confirmExtract()
+pdf-dialog-keys	REL	fork:apps/pdf/src/renderer/modal-dialog.ts:20	if (event.key === 'Escape') {
+pdf-dialog-keys	REL	fork:apps/shell/src/renderer/src/pdf-password.ts:72	password.addEventListener('keydown', (e) => {
+pdf-open	REL	fork:apps/shell/src/main/index.ts:5944	accelerator: 'CmdOrCtrl+O',
+pdf-open	REL	fork:apps/shell/src/main/index.ts:5950	accelerator: 'Shift+CmdOrCtrl+H',
+pdf-open	REL	fork:apps/shell/src/main/index.ts:5995	accelerator: 'CmdOrCtrl+W',
+html-001	REL	fork:apps/shell/src/main/index.ts:6126	accelerator: 'CmdOrCtrl+O',
+html-002	REL	fork:apps/html/src/renderer/App.tsx:1498	if (key === 's') {
+html-002	REL	fork:apps/shell/src/main/index.ts:6138	accelerator: 'CmdOrCtrl+S',
+html-003	REL	fork:apps/html/src/renderer/App.tsx:1498	if (key === 's') {
+html-003	REL	fork:apps/shell/src/main/index.ts:6146	accelerator: 'CmdOrCtrl+Shift+S',
+html-004	REL	fork:web/docs/bridge/print-accelerator.ts:16	if (event.repeat || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+html-004	REL	fork:apps/html/src/renderer/preview/inspector.js:970	if (
+html-004	REL	fork:apps/shell/src/main/index.ts:6177	accelerator: 'CmdOrCtrl+P',
+html-005	REL	fork:apps/shell/src/main/index.ts:6186	accelerator: 'CmdOrCtrl+W',
+html-006	REL	fork:apps/html/src/renderer/App.tsx:1525	} else if (key === 'z' || (key === 'y' && !event.shiftKey)) {
+html-006	REL	fork:apps/html/src/renderer/preview/inspector.js:1020	lower === 'z'
+html-007	REL	fork:apps/html/src/renderer/App.tsx:1525	} else if (key === 'z' || (key === 'y' && !event.shiftKey)) {
+html-007	NOREL	fork:apps/html/src/renderer/source/cm-setup.ts:87	keydown(event, view) {
+html-008	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+html-009	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+html-010	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+html-011	REL	lib:codemirror/commands@6.11.0:dist/index.js:1763	{ key: "Mod-a", run: selectAll },
+html-011	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+html-012	REL	fork:apps/html/src/renderer/App.tsx:1504	} else if (key === 'f' && !event.shiftKey) {
+html-013	REL	fork:packages/ui/src/find-panel.tsx:199	if (e.key === 'Enter') step(e.shiftKey ? -1 : 1)
+html-014	REL	fork:apps/html/src/renderer/App.tsx:1507	} else if (key === 'h' && !event.shiftKey) {
+html-015	REL	fork:apps/html/src/renderer/App.tsx:1521	} else if (key === 'b' || key === 'i') {
+html-015	REL	fork:apps/html/src/renderer/preview/inspector.js:994	} else if (mod && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'i')) {
+html-016	REL	fork:apps/html/src/renderer/App.tsx:1521	} else if (key === 'b' || key === 'i') {
+html-016	REL	fork:apps/html/src/renderer/preview/inspector.js:994	} else if (mod && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'i')) {
+html-017	REL	lib:codemirror/commands@6.11.0:dist/index.js:573	{ key: "Mod-u", run: undoSelection, preventDefault: true },
+html-018	NOREL	fork:apps/html/src/renderer/preview/inspector.js:1051	const modKey = mod ? { k: 'askAi', b: 'bold', i: 'italic' }[e.key.toLowerCase()] : undefined
+html-019	REL	fork:apps/html/src/renderer/App.tsx:1512	} else if (key === '=' || key === '+') {
+html-019	REL	fork:apps/html/src/renderer/preview/inspector.js:1026	: { '=': 'zoomIn', '+': 'zoomIn', '-': 'zoomOut', _: 'zoomOut', 0: 'zoomReset' }[
+html-020	REL	fork:apps/html/src/renderer/App.tsx:1515	} else if (key === '-' || key === '_') {
+html-021	REL	fork:apps/html/src/renderer/App.tsx:1518	} else if (key === '0') {
+html-022	REL	fork:apps/html/src/renderer/preview/inspector.js:1067	if (mode !== 'inspect' || (!e.ctrlKey && !e.metaKey)) return
+html-023	REL	fork:packages/ui/src/ribbon-collapse.tsx:79	export function isRibbonToggleShortcut(e: KeyboardEvent): boolean {
+html-024	REL	fork:apps/html/src/renderer/App.tsx:1201	if (e.key === 'Escape') {
+html-024	REL	fork:apps/html/src/renderer/preview/inspector.js:1038	if (mode !== 'inspect') {
+html-025	NOREL	fork:apps/html/src/renderer/App.tsx:1501	} else if (key === '\\') {
+html-026	REL	fork:apps/html/src/renderer/preview/inspector.js:1043	Delete: 'delete',
+html-026	REL	fork:apps/html/src/renderer/preview/inspector.js:1052	const altKey =
+html-026	REL	fork:apps/html/src/renderer/preview/inspector.js:991	} else if (e.key === 'Enter' && mod) {
+html-027	NOREL	fork:apps/html/src/renderer/source/cm-setup.ts:119	keymap.of([
+html-027	REL	lib:codemirror/commands@6.11.0:dist/index.js:1814	{ key: "Mod-/", run: toggleComment },
+html-027	NOREL	lib:codemirror/language@6.12.4:dist/index.js:1509	{ key: "Ctrl-Shift-[", mac: "Cmd-Alt-[", run: foldCode },
+html-028	REL	fork:apps/html/src/renderer/components/AiAskPopover.tsx:169	if (e.key === 'Escape') {
+html-028	REL	fork:apps/html/src/renderer/components/Ribbon.tsx:171	if (e.key === 'Escape') {
+markdown-001	REL	fork:apps/shell/src/main/index.ts:6027	accelerator: 'CmdOrCtrl+O',
+markdown-002	REL	fork:apps/markdown/src/renderer/App.tsx:1076	if (key === 's') {
+markdown-002	REL	fork:apps/shell/src/main/index.ts:6039	accelerator: 'CmdOrCtrl+S',
+markdown-003	REL	fork:apps/markdown/src/renderer/App.tsx:1076	if (key === 's') {
+markdown-003	REL	fork:apps/shell/src/main/index.ts:6047	accelerator: 'CmdOrCtrl+Shift+S',
+markdown-004	REL	fork:apps/markdown/src/renderer/App.tsx:1079	} else if (key === 'p' && !event.shiftKey) {
+markdown-004	REL	fork:apps/shell/src/main/index.ts:6085	accelerator: 'CmdOrCtrl+P',
+markdown-005	REL	fork:apps/shell/src/main/index.ts:6094	accelerator: 'CmdOrCtrl+W',
+markdown-006	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:77	'Mod-z': () => this.editor.commands.undo(),
+markdown-006	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+markdown-007	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:79	'Mod-y': () => this.editor.commands.redo(),
+markdown-007	REL	lib:codemirror/commands@6.11.0:dist/index.js:571	{ key: "Mod-y", mac: "Mod-Shift-z", run: redo, preventDefault: true },
+markdown-008	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+markdown-009	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+markdown-010	NOREL	fork:packages/electron-utils/src/app-menu.ts:509	label: labels.edit,
+markdown-011	NOREL	lib:prosemirror-view@1.42.6:dist/index.js:3762	let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+markdown-012	REL	lib:tiptap@v3.31.0:packages/core/src/extensions/keymap.ts:77	'Mod-a': () => this.editor.commands.selectAll(),
+markdown-013	REL	fork:apps/markdown/src/renderer/App.tsx:1082	} else if (key === 'f' && !event.shiftKey) {
+markdown-014	REL	fork:packages/ui/src/find-panel.tsx:199	if (e.key === 'Enter') step(e.shiftKey ? -1 : 1)
+markdown-015	REL	fork:apps/markdown/src/renderer/App.tsx:1085	} else if (key === 'h' && !event.shiftKey) {
+markdown-016	REL	lib:tiptap@v3.31.0:packages/extension-bold/src/bold.tsx:133	'Mod-b': () => this.editor.commands.toggleBold(),
+markdown-017	REL	lib:tiptap@v3.31.0:packages/extension-italic/src/italic.ts:130	'Mod-i': () => this.editor.commands.toggleItalic(),
+markdown-018	REL	fork:apps/markdown/src/renderer/editor/extensions.ts:58	StarterKit.configure({
+markdown-019	REL	lib:tiptap@v3.31.0:packages/extension-strike/src/strike.ts:113	'Mod-Shift-s': () => this.editor.commands.toggleStrike(),
+markdown-019	REL	fork:apps/markdown/src/renderer/App.tsx:1076	if (key === 's') {
+markdown-020	REL	lib:tiptap@v3.31.0:packages/extension-code/src/code.ts:161	'Mod-e': () => this.editor.commands.toggleCode(),
+markdown-020	REL	fork:apps/markdown/src/renderer/App.tsx:1090	} else if (key === 'e' && !event.shiftKey) {
+markdown-021	REL	fork:apps/markdown/src/renderer/App.tsx:1090	} else if (key === 'e' && !event.shiftKey) {
+markdown-022	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+markdown-023	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+markdown-024	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+markdown-025	REL	lib:tiptap@v3.31.0:packages/extension-paragraph/src/paragraph.ts:136	'Mod-Alt-0': () => this.editor.commands.setParagraph(),
+markdown-026	REL	lib:tiptap@v3.31.0:packages/extension-list/src/bullet-list/bullet-list.ts:127	'Mod-Shift-8': () => this.editor.commands.toggleBulletList(),
+markdown-027	REL	lib:tiptap@v3.31.0:packages/extension-list/src/ordered-list/ordered-list.ts:293	'Mod-Shift-7': () => this.editor.commands.toggleOrderedList(),
+markdown-028	REL	lib:tiptap@v3.31.0:packages/extension-list/src/task-list/task-list.ts:191	'Mod-Shift-9': () => this.editor.commands.toggleTaskList(),
+markdown-028	REL	lib:tiptap@v3.31.0:packages/extension-blockquote/src/blockquote.tsx:130	'Mod-Shift-b': () => this.editor.commands.toggleBlockquote(),
+markdown-028	REL	lib:tiptap@v3.31.0:packages/extension-code-block/src/code-block.ts:212	'Mod-Alt-c': () => this.editor.commands.toggleCodeBlock(),
+markdown-029	REL	fork:apps/markdown/src/renderer/editor/blockKeymap.ts:18	'Mod-k': () => {
+markdown-030	REL	lib:tiptap@v3.31.0:packages/extension-hard-break/src/hard-break.ts:118	'Shift-Enter': () => this.editor.commands.setHardBreak(),
+markdown-031	REL	fork:apps/markdown/src/renderer/editor/blockKeymap.ts:13	'Mod-d': () => uiOp(this.editor, { op: 'duplicateBlocks', target: 'selection' }),
+markdown-032	REL	fork:apps/markdown/src/renderer/editor/blockKeymap.ts:15	'Mod-Shift-Backspace': () => uiOp(this.editor, { op: 'deleteBlocks', target: 'selection' }),
+markdown-032	REL	fork:apps/markdown/src/renderer/editor/blockKeymap.ts:16	'Mod-Shift-ArrowUp': () => moveSelectedBlocks(this.editor, -1),
+markdown-032	REL	fork:apps/markdown/src/renderer/editor/blockKeymap.ts:17	'Mod-Shift-ArrowDown': () => moveSelectedBlocks(this.editor, 1),
+markdown-033	REL	fork:apps/markdown/src/renderer/App.tsx:1094	} else if (key === '=' || key === '+') {
+markdown-034	REL	fork:apps/markdown/src/renderer/App.tsx:1097	} else if (key === '-' || key === '_') {
+markdown-035	REL	fork:apps/markdown/src/renderer/App.tsx:1100	} else if (key === '0') {
+markdown-036	REL	fork:apps/markdown/src/renderer/App.tsx:1119	if (!event.ctrlKey && !event.metaKey) return
+markdown-037	REL	fork:packages/ui/src/ribbon-collapse.tsx:79	export function isRibbonToggleShortcut(e: KeyboardEvent): boolean {
+markdown-038	REL	fork:apps/markdown/src/renderer/components/SlashMenu.tsx:45	if (event.key === 'Escape') {
+markdown-039	REL	fork:apps/markdown/src/renderer/components/SlashMenu.tsx:40	if (event.key === 'Enter') {
+markdown-039	REL	fork:apps/markdown/src/renderer/editor/mathEdit.ts:118	if (event.key === 'Escape') {
+markdown-040	REL	fork:apps/markdown/src/renderer/source/PlainTextEditor.tsx:113	keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+markdown-040	REL	lib:codemirror/commands@6.11.0:dist/index.js:1814	{ key: "Mod-/", run: toggleComment },
+uninote-001	REL	lib:tiptap@v3.31.0:packages/extension-bold/src/bold.tsx:133	'Mod-b': () => this.editor.commands.toggleBold(),
+uninote-001	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:34	["Mod-b", (e: Editor) => e.isActive("bold")],
+uninote-002	REL	lib:tiptap@v3.31.0:packages/extension-italic/src/italic.ts:130	'Mod-i': () => this.editor.commands.toggleItalic(),
+uninote-002	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:35	["Mod-i", (e: Editor) => e.isActive("italic")],
+uninote-003	REL	lib:tiptap@v3.31.0:packages/extension-underline/src/underline.ts:119	'Mod-u': () => this.editor.commands.toggleUnderline(),
+uninote-003	NOREL	D:packages/views/editor/extensions/index.ts:386	underline: {},
+uninote-004	REL	lib:tiptap@v3.31.0:packages/extension-strike/src/strike.ts:113	'Mod-Shift-s': () => this.editor.commands.toggleStrike(),
+uninote-004	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:36	["Mod-Shift-s", (e: Editor) => e.isActive("strike")],
+uninote-005	REL	lib:tiptap@v3.31.0:packages/extension-code/src/code.ts:161	'Mod-e': () => this.editor.commands.toggleCode(),
+uninote-005	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:37	["Mod-e", (e: Editor) => e.isActive("code")],
+uninote-006	REL	lib:tiptap@v3.31.0:packages/extension-list/src/bullet-list/bullet-list.ts:127	'Mod-Shift-8': () => this.editor.commands.toggleBulletList(),
+uninote-006	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:38	["Mod-Shift-8", (e: Editor) => e.isActive("bulletList")],
+uninote-007	REL	lib:tiptap@v3.31.0:packages/extension-list/src/ordered-list/ordered-list.ts:293	'Mod-Shift-7': () => this.editor.commands.toggleOrderedList(),
+uninote-007	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:39	["Mod-Shift-7", (e: Editor) => e.isActive("orderedList")],
+uninote-008	REL	lib:tiptap@v3.31.0:packages/extension-list/src/task-list/task-list.ts:191	'Mod-Shift-9': () => this.editor.commands.toggleTaskList(),
+uninote-008	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:40	["Mod-Shift-9", (e: Editor) => e.isActive("taskList")],
+uninote-009	REL	lib:tiptap@v3.31.0:packages/extension-blockquote/src/blockquote.tsx:130	'Mod-Shift-b': () => this.editor.commands.toggleBlockquote(),
+uninote-009	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:41	["Mod-Shift-b", (e: Editor) => e.isActive("blockquote")],
+uninote-010	NOREL	D:packages/views/editor/extensions/index.ts:392	CodeBlockExtension,
+uninote-010	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:42	["Mod-Alt-c", (e: Editor) => e.isActive("codeBlock")],
+uninote-011	REL	lib:tiptap@v3.31.0:packages/extension-paragraph/src/paragraph.ts:136	'Mod-Alt-0': () => this.editor.commands.setParagraph(),
+uninote-011	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:52	it("Mod-Alt-0 returns a heading to text", () => {
+uninote-012	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+uninote-012	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:43	["Mod-Alt-1", (e: Editor) => e.isActive("heading", { level: 1 })],
+uninote-013	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+uninote-013	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:44	["Mod-Alt-2", (e: Editor) => e.isActive("heading", { level: 2 })],
+uninote-014	NOREL	lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135	[`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+uninote-014	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:45	["Mod-Alt-3", (e: Editor) => e.isActive("heading", { level: 3 })],
+uninote-015	REL	D:packages/core/shortcuts/definitions.ts:70	{ id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true },
+uninote-015	REL	D:packages/views/documents/page-toolbar/page-toolbar-model.ts:60	// No chord: Ctrl/Cmd+K is the app-wide search, and the page editor binds no link shortcut.
+uninote-015	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:67	it("has no link chord: Mod-k stays the app search", () => {
+uninote-016	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:77	'Mod-z': () => this.editor.commands.undo(),
+uninote-016	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:61	instance.commands.keyboardShortcut("Mod-z");
+uninote-017	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:78	'Shift-Mod-z': () => this.editor.commands.redo(),
+uninote-017	REL	lib:tiptap@v3.31.0:packages/extensions/src/undo-redo/undo-redo.ts:79	'Mod-y': () => this.editor.commands.redo(),
+uninote-017	REL	D:packages/views/documents/page-toolbar/page-toolbar-model.ts:55	redo: { id: "redo", icon: Redo2, shortcut: primary("Z", { shift: true }), isDisabled: (e) => !e.can().redo(), run: (e) => { e.chain().focus().redo().run(); } },
+uninote-018	NOREL	lib:prosemirror-view@1.42.6:dist/index.js:2813	return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
+uninote-019	REL	lib:prosemirror-view@1.42.6:dist/index.js:2813	return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
+uninote-020	NOREL	lib:prosemirror-view@1.42.6:dist/index.js:2813	return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);
+uninote-021	NOREL	lib:prosemirror-view@1.42.6:dist/index.js:3762	let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+uninote-022	REL	lib:tiptap@v3.31.0:packages/core/src/extensions/keymap.ts:77	'Mod-a': () => this.editor.commands.selectAll(),
+uninote-023	REL	D:packages/core/shortcuts/definitions.ts:72	{ id: "findInTask", category: "general", defaultShortcut: primary("F"), allowInEditable: true },
+uninote-023	NOREL	D:packages/views/tasks/detail/hooks/use-task-detail-shortcuts.ts:47	if (shouldIgnoreGlobalShortcutEvent(event)) return;
+uninote-024	NOREL	D:packages/core/shortcuts/definitions.ts:265	const PRIMARY_RESERVED_KEYS = new Set([
+uninote-025	NOREL	D:packages/core/shortcuts/definitions.ts:265	const PRIMARY_RESERVED_KEYS = new Set([
+uninote-026	NOREL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:31	/** Every chord the help popover and the toolbar tooltips print, proven against the real page editor. */
+uninote-027	REL	D:packages/views/office/frame/office-module-frame.tsx:272	const onKey = (event: KeyboardEvent) => {
+uninote-028	NOREL	D:packages/views/editor/extensions/index.ts:382	StarterKit.configure({
+uninote-029	REL	lib:tiptap@v3.31.0:packages/extension-code/src/code.ts:161	'Mod-e': () => this.editor.commands.toggleCode(),
+uninote-030	REL	D:packages/core/shortcuts/definitions.ts:265	const PRIMARY_RESERVED_KEYS = new Set([
+uninote-031	REL	D:packages/core/shortcuts/definitions.ts:69	{ id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
+uninote-031	NOREL	D:packages/views/layout/global-shortcuts.tsx:75	if (!action.allowInEditable) {
+uninote-032	REL	D:packages/views/editor/extensions/list-item.ts:100	Tab: () => {
+uninote-033	REL	lib:tiptap@v3.31.0:packages/extension-hard-break/src/hard-break.ts:118	'Shift-Enter': () => this.editor.commands.setHardBreak(),
+uninote-034	REL	lib:tiptap@v3.31.0:packages/extension-hard-break/src/hard-break.ts:117	'Mod-Enter': () => this.editor.commands.setHardBreak(),
+uninote-035	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:31	/** Every chord the help popover and the toolbar tooltips print, proven against the real page editor. */
+uninote-036	NOREL	D:packages/core/shortcuts/definitions.ts:265	const PRIMARY_RESERVED_KEYS = new Set([
+uninote-037	REL	D:packages/views/documents/document-comment-composer.tsx:226	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+uninote-038	REL	D:packages/views/editor/extensions/index.ts:382	StarterKit.configure({
+uninote-039	REL	D:packages/views/editor/extensions/index.ts:382	StarterKit.configure({
+uninote-040	NOREL	D:packages/views/editor/title-editor.tsx:98	addKeyboardShortcuts() {
+uninote-041	REL	D:packages/core/shortcuts/definitions.ts:84	{ id: "send", category: "general", defaultShortcut: createShortcutChord("Enter", { primary: true }), allowInEditable: true },
+uninote-041	REL	D:packages/core/shortcuts/definitions.ts:85	{ id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
+uninote-042	REL	D:packages/views/editor/picker-keys.ts:71	if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+uninote-043	REL	D:packages/views/editor/extensions/list-item.ts:100	Tab: () => {
+uninote-043	REL	lib:tiptap@v3.31.0:packages/extension-table/src/table/table.ts:577	Tab: () => {
+uninote-043	REL	lib:tiptap@v3.31.0:packages/extension-code-block/src/code-block.ts:340	Enter: ({ editor }) => {
+uninote-044	REL	D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:74	describe("UniNote typed patterns shown in the help", () => {
+uninote-044	REL	D:packages/views/editor/extensions/page-slash-extension.ts:18	char: "/",
+uninote-045	NOREL	D:packages/views/documents/document-tree.tsx:180	if ((event.ctrlKey || event.metaKey) && event.key.startsWith("Arrow")) {
+uninote-045	REL	D:packages/views/documents/document-editor.tsx:214	handleKeyDown: (view, event) => {
+uninote-045	NOREL	D:packages/views/documents/page-toolbar/page-toolbar.tsx:71	const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+shell-01	REL	fork:apps/shell/src/main/index.ts:5950	accelerator: 'Shift+CmdOrCtrl+H',
+shell-01	REL	fork:apps/shell/src/main/index.ts:6519	accelerator: 'Shift+CmdOrCtrl+H',
+shell-02	NOREL	fork:apps/shell/src/main/tab-manager.ts:316	wc.on('before-input-event', (event, input) => {
+shell-02	REL	fork:apps/shell/src/main/close-tab-chord.ts:22	export function isCloseTabChord(input: CloseTabChordInput): boolean {
+shell-03	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:41	accelerator: 'CmdOrCtrl+Alt+=',
+shell-03	NOREL	fork:apps/shell/src/main/ui-scale-menu.ts:46	accelerator: 'CmdOrCtrl+Alt+-',
+shell-03	REL	fork:apps/shell/src/main/ui-scale-menu.ts:52	accelerator: 'CmdOrCtrl+Alt+0',
+shell-04	REL	fork:apps/docs/src/main/docs-main.ts:6152	{ label: tm('menuUndo'), accelerator: 'CmdOrCtrl+Z', click: () => sendCommand('undo') },
+shell-04	REL	fork:apps/sheets/src/main/sheets-main.ts:4743	accelerator: 'CmdOrCtrl+Z',
+shell-04	REL	fork:apps/slides/src/main/slides-main.ts:2089	{ label: tm('menuUndo'), accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
+shell-05	REL	fork:apps/docs/src/main/docs-main.ts:6155	accelerator: 'Shift+CmdOrCtrl+Z',
+shell-05	REL	fork:apps/sheets/src/main/sheets-main.ts:4748	accelerator: 'Shift+CmdOrCtrl+Z',
+shell-05	REL	fork:apps/slides/src/main/slides-main.ts:2090	{ label: tm('menuRedo'), accelerator: 'Shift+CmdOrCtrl+Z', click: () => send('redo') },
+shell-06	NOREL	fork:apps/docs/src/main/docs-main.ts:6159	{ role: 'cut', label: tm('menuCut') },
+shell-06	REL	fork:apps/slides/src/main/slides-main.ts:2093	{ label: tm('menuCut'), accelerator: 'CmdOrCtrl+X', click: () => send('cut') },
+shell-06	REL	electron:lib/browser/api/menu-item-roles.ts:177	accelerator: 'CommandOrControl+A',
+shell-07	NOREL	fork:apps/docs/src/main/docs-main.ts:6162	{ role: 'pasteAndMatchStyle', label: tm('menuPasteMatch') },
+shell-07	REL	electron:lib/browser/api/menu-item-roles.ts:136	accelerator: isMac ? 'Cmd+Option+Shift+V' : 'Shift+CommandOrControl+V',
+shell-08	REL	fork:apps/docs/src/main/docs-main.ts:6166	accelerator: 'CmdOrCtrl+F',
+shell-08	REL	fork:apps/docs/src/main/docs-main.ts:6171	accelerator: isMac ? 'Alt+Cmd+G' : 'Ctrl+G',
+shell-09	REL	fork:apps/docs/src/main/docs-main.ts:6238	accelerator: 'CmdOrCtrl+K',
+shell-10	REL	fork:apps/docs/src/main/docs-main.ts:6249	{ label: tm('menuBold'), accelerator: 'CmdOrCtrl+B', click: () => sendCommand('bold') },
+shell-10	REL	fork:apps/docs/src/main/docs-main.ts:6250	{ label: tm('menuItalic'), accelerator: 'CmdOrCtrl+I', click: () => sendCommand('italic') },
+shell-10	REL	fork:apps/docs/src/main/docs-main.ts:6253	accelerator: 'CmdOrCtrl+U',
+shell-11	REL	fork:apps/docs/src/main/docs-main.ts:6269	accelerator: 'CmdOrCtrl+D',
+shell-12	REL	fork:apps/docs/src/main/docs-main.ts:6274	accelerator: 'Alt+CmdOrCtrl+M',
+shell-13	REL	fork:packages/electron-utils/src/app-menu.ts:486	export function windowMenuTemplate(
+shell-13	REL	electron:lib/browser/api/menu-item-roles.ts:123	accelerator: 'CommandOrControl+M',
+shell-14	REL	electron:lib/browser/api/menu-item-roles.ts:115	accelerator: 'Command+H'
+shell-15	REL	fork:apps/shell/src/main/index.ts:3629	autoHideMenuBar: true,
+shell-16	REL	fork:apps/shell/src/renderer/src/Home.tsx:1826	const onKeyDown = (event: KeyboardEvent) => {
+shell-17	REL	fork:apps/shell/src/renderer/src/NotesPane.tsx:189	onKeyDown={(e) => {
+shell-18	REL	fork:apps/uniai-pwa/app.js:1664	el.input.addEventListener('keydown', (e) => {
+shell-18	REL	fork:apps/uniai-pwa/app.js:1770	document.addEventListener('keydown', (e) => {
+shell-19	REL	D:apps/chat-desktop/src/main/index.ts:97	autoHideMenuBar: true,
+shell-20	REL	fork:apps/shell/src/main/index.ts:3560	/** The Home menu's View menu: the interface-scale items (Home follows the scale). */
+shell-20	NOREL	fork:apps/docs/src/main/docs-main.ts:6224	...(isDev ? [toggleDevToolsItem(appMenuLabels(getUiLang()))] : []),
+shell-20	NOREL	fork:apps/slides/src/main/slides-main.ts:2110	toggleDevToolsItem(labels),
+shell-dialog-keys	REL	fork:apps/shell/src/renderer/src/Home.tsx:449	const onKeyDown = (e: KeyboardEvent) => {
+shell-dialog-keys	REL	fork:apps/shell/src/renderer/src/SettingsModal.tsx:1936	useEffect(() => {
+shell-dialog-keys	REL	fork:apps/shell/src/renderer/src/Onboarding.tsx:117	const onKeyDown = (event: KeyboardEvent) => {
+global-01	REL	D:packages/core/shortcuts/definitions.ts:69	{ id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
+global-01	NOREL	D:packages/views/layout/global-shortcuts.tsx:66	const onKeyDown = (event: KeyboardEvent) => {
+global-01	NOREL	D:packages/core/utils.ts:57	export function isImeComposing(event: {
+global-02	REL	D:packages/core/shortcuts/definitions.ts:70	{ id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true },
+global-02	NOREL	D:packages/views/chat/chat-sidebar-header.tsx:286	document.addEventListener("keydown", onKeyDown, true);
+global-02	NOREL	D:packages/views/layout/global-shortcuts.tsx:109	document.addEventListener("keydown", onKeyDown);
+global-03	REL	D:packages/core/shortcuts/definitions.ts:71	{ id: "createTask", category: "general", defaultShortcut: createShortcutChord("C"), allowInEditable: false },
+global-03	REL	D:packages/views/layout/global-shortcuts.tsx:75	if (!action.allowInEditable) {
+global-04	REL	D:packages/core/shortcuts/definitions.ts:72	{ id: "findInTask", category: "general", defaultShortcut: primary("F"), allowInEditable: true },
+global-04	NOREL	D:packages/views/tasks/detail/hooks/use-task-detail-shortcuts.ts:61	if (actionId === "findInTask") {
+global-04	REL	D:packages/views/chat/chat-page-content.tsx:168	if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
+global-05	REL	D:packages/core/shortcuts/definitions.ts:79	id: "openThreadNav",
+global-05	NOREL	D:packages/views/layout/global-shortcuts.tsx:109	document.addEventListener("keydown", onKeyDown);
+global-06	REL	D:packages/core/shortcuts/definitions.ts:84	{ id: "send", category: "general", defaultShortcut: createShortcutChord("Enter", { primary: true }), allowInEditable: true },
+global-06	NOREL	D:packages/views/editor/extensions/submit-shortcut.ts:19	!event.repeat &&
+global-07	NOREL	D:packages/core/shortcuts/definitions.ts:85	{ id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
+global-07	NOREL	D:packages/core/shortcuts/definitions.ts:86	{ id: "goForward", category: "navigation", defaultShortcut: primary("]"), allowInEditable: false },
+global-08	REL	D:packages/core/shortcuts/definitions.ts:87	{ id: "goInbox", category: "navigation", defaultShortcut: null, allowInEditable: false },
+global-09	REL	D:packages/core/shortcuts/definitions.ts:265	const PRIMARY_RESERVED_KEYS = new Set([
+global-09	REL	D:packages/core/shortcuts/definitions.ts:288	const BROWSER_ONLY_PRIMARY_RESERVED_KEYS = new Set([
+global-09	NOREL	D:packages/core/shortcuts/definitions.ts:293	export function isReservedShortcut(
+global-10	REL	D:packages/views/layout/global-shortcuts.tsx:66	const onKeyDown = (event: KeyboardEvent) => {
+global-10	REL	D:packages/core/shortcuts/definitions.ts:139	if (event.getModifierState?.("AltGraph")) return null;
+global-10	REL	D:packages/core/utils.ts:57	export function isImeComposing(event: {
+global-11	NOREL	D:packages/ui/components/ui/sidebar.tsx:207	if (!event.key || event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return
+global-12	REL	D:packages/views/meetings/meeting-room-shortcuts.ts:38	if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.repeat) return;
+global-13	REL	D:packages/views/email-hub/use-email-hub-shortcuts.ts:60	const onKeyDown = (event: KeyboardEvent) => {
+global-14	REL	D:packages/views/notifications/inbox-view.tsx:141	if (e.altKey || e.ctrlKey || e.metaKey) return;
+global-15	REL	D:packages/views/editor/picker-keys.ts:71	if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+global-16	NOREL	D:packages/views/chat/chat-sidebar-header.tsx:286	document.addEventListener("keydown", onKeyDown, true);
+global-16	REL	D:packages/views/chat/chat-page-content.tsx:168	if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
+global-17	REL	D:packages/views/office/frame/office-module-frame.tsx:265	// Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
+global-17	NOREL	D:packages/core/office/docs-frame-protocol.ts:1556	const FRAME_EVENTS: Record<FrameEventType, true> = {
+global-18	NOREL	D:packages/views/office/frame/office-module-frame.tsx:360	<Save aria-hidden />
+global-18	NOREL	D:packages/views/office/frame/frame-focus.ts:28	const focusFrame = useCallback(() => {
+global-19	NOREL	D:packages/views/editor/extensions/index.ts:378	export function createPageDocumentExtensions(
+global-20	NOREL	D:packages/views/documents/document-tree.tsx:180	if ((event.ctrlKey || event.metaKey) && event.key.startsWith("Arrow")) {
+global-20	REL	D:packages/views/documents/document-tree-row-menu.tsx:37	return event.key === "ContextMenu" || (Boolean(event.shiftKey) && event.key === "F10");
+global-21	NOREL	D:packages/views/documents/document-comment-composer.tsx:226	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+global-22	NOREL	D:packages/views/editor/hooks/use-zoom-canvas.ts:342	const handleKeyDown = useCallback(
+global-23	REL	D:packages/views/documents/use-documents-search.ts:118	const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

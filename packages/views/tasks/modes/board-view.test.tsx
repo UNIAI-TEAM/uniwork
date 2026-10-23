@@ -144,7 +144,7 @@ describe("modes/BoardView", () => {
       await screen.findByTestId("board-column-assignee:human:u2"),
     ).toBeInTheDocument();
     expect(screen.getByTitle("Bình")).toBeInTheDocument();
-    expect(screen.getByText("Chưa giao")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chưa giao, 1" })).toBeInTheDocument();
     expect(screen.queryByTestId("board-column-todo")).toBeNull();
   });
 });

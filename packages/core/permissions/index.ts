@@ -4,7 +4,8 @@
  * directly. Add to this list only when there is a caller.
  */
 export type { Decision, DecisionReason, PermissionContext } from "./types";
-export { canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
+export { canCommentDocument, documentLevelRank } from "./rules";
+export { canAdministerDocument, canAssignAgent, canCreateInsideFolder, canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canEditDocument, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
 export {
   canChangeOrgRole,
   canDeactivateMember,
@@ -17,4 +18,4 @@ export {
   canTransferOwnership,
 } from "./rules";
 export { useCurrentMember, useOrgMembership } from "./use-current-member";
-export { usePeoplePermissions, useAuditPermissions, useBillingPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";
+export { usePeoplePermissions, useAuditPermissions, useBillingPermissions, useOrgPermissions, useProjectPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";

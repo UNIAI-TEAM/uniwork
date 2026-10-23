@@ -1,19 +1,18 @@
 "use client";
 
-// Native system notification bridge for the WEB app.
+// Browser Notification API wrapper. The caller (`WorkspaceChatAttention` in
+// views) owns the WHETHER — focus and the mute preferences — and this owns only
+// the rendering. Inside the UniChat shell the same banner is shown; a click
+// then also asks the shell to bring its window forward.
 //
-// The desktop app renders OS banners through its Electron main process
-// (`window.desktopAPI.showNotification`); the web app has no such bridge, so it
-// uses the browser Notification API here. `handleInboxNew` (realtime sync) is
-// the single decision point — it already gates on focus + the source
-// workspace's mute preference — and calls `showWebNotification` as the web path
-// when no `desktopAPI` is present.
-//
-// Lives in `packages/core` (not `packages/views`) because the caller
-// (`handleInboxNew`) lives in core and `views` cannot be imported from core
-// (dependency direction is views → core). The click-routing decision, which
-// needs the app router, is injected by the host app via
-// `registerSystemNotificationClickHandler` instead — core stays headless.
+// Lives in `packages/core` so it stays headless: the click-routing decision,
+// which needs the app router, is injected by the host app via
+// `registerSystemNotificationClickHandler`.
+
+import { useSyncExternalStore } from "react";
+import { getDesktopBridge } from "./desktop-bridge";
+
+const PERMISSION_CHANGED = "uniwork:notification-permission";
 
 export interface SystemNotificationPayload {
   /**
@@ -25,8 +24,12 @@ export interface SystemNotificationPayload {
   itemId: string;
   /** `?issue=<…>` selector for the inbox page (issue id, else the item id). */
   issueKey: string;
+  /** Same-origin path a click opens (the room, the inbox…); the host's click handler navigates there. */
+  href: string;
   title: string;
   body: string;
+  /** No sound with the banner (UniChat's "Âm thanh khi có tin mới" off). */
+  silent?: boolean;
 }
 
 type ClickHandler = (payload: SystemNotificationPayload) => void;
@@ -37,9 +40,9 @@ type ClickHandler = (payload: SystemNotificationPayload) => void;
 let clickHandler: ClickHandler | null = null;
 
 /**
- * Register how a clicked web notification routes (focus + navigate to the
- * source workspace's inbox, focused on the item). Called once by the web app
- * shell; pass `null` to unregister. Desktop does NOT use this — it routes
+ * Register how a clicked web notification routes (navigate to its `href`).
+ * Called once by the web app shell (`apps/web/platform/navigation.tsx`);
+ * pass `null` to unregister. Desktop does NOT use this — it routes
  * through its own Electron IPC bridge (`onInboxOpen`).
  */
 export function registerSystemNotificationClickHandler(
@@ -70,6 +73,23 @@ export function getWebNotificationPermission(): WebNotificationPermission {
   return ctor ? ctor.permission : "unsupported";
 }
 
+function subscribePermission(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(PERMISSION_CHANGED, onChange);
+  window.addEventListener("focus", onChange);
+  document.addEventListener("visibilitychange", onChange);
+  return () => {
+    window.removeEventListener(PERMISSION_CHANGED, onChange);
+    window.removeEventListener("focus", onChange);
+    document.removeEventListener("visibilitychange", onChange);
+  };
+}
+
+/** Share permission changes between settings, the invitation and live notification listeners. */
+export function useWebNotificationPermission(): WebNotificationPermission {
+  return useSyncExternalStore(subscribePermission, getWebNotificationPermission, () => "unsupported");
+}
+
 /**
  * Prompt for notification permission. Resolves to the resulting permission, or
  * "unsupported". Only "default" triggers the browser prompt — an
@@ -84,23 +104,24 @@ export async function requestWebNotificationPermission(): Promise<WebNotificatio
   } catch {
     // Older Safari used a callback signature and can reject the promise form.
     return ctor.permission;
+  } finally {
+    window.dispatchEvent?.(new Event(PERMISSION_CHANGED));
   }
 }
 
 /**
- * Show a native browser notification for a new inbox item. No-op unless the
- * Notification API is supported AND permission is "granted" — the caller
- * (`handleInboxNew`) owns the WHETHER (focus + mute gating); this owns only the
- * rendering. Clicking the banner focuses the tab and routes via the registered
- * click handler.
+ * Show a native browser notification. No-op unless the Notification API is
+ * supported AND permission is "granted". Clicking the banner focuses the tab
+ * (and the UniChat window) and routes via the registered click handler.
  */
-export function showWebNotification(payload: SystemNotificationPayload): void {
+export function showWebNotification(payload: SystemNotificationPayload): Notification | undefined {
   const ctor = getNotificationCtor();
   if (!ctor || ctor.permission !== "granted") return;
   let notification: Notification;
   try {
     notification = new ctor(payload.title, {
       body: payload.body,
+      silent: payload.silent ?? false,
       // Collapse repeat banners for the same inbox row (e.g. a reconnect
       // replays the `inbox:new` event).
       tag: payload.itemId,
@@ -114,10 +135,12 @@ export function showWebNotification(payload: SystemNotificationPayload): void {
   notification.onclick = () => {
     try {
       window.focus();
+      getDesktopBridge()?.focusWindow();
     } catch {
       // Best-effort; some browsers disallow programmatic focus.
     }
     notification.close();
     clickHandler?.(payload);
   };
+  return notification;
 }

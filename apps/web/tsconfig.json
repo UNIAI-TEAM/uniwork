@@ -1,6 +1,8 @@
 {
   "extends": "@uniwork/tsconfig/nextjs.json",
-  "compilerOptions": { "paths": { "@/*": ["./*"] } },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "compilerOptions": {
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "app/.well-known/**/*.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

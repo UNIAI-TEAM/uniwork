@@ -1,0 +1,111 @@
+{{- if .Values.officeEngine.enabled }}
+{{- $oe := .Values.officeEngine }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniwork-office-engine
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ $oe.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-office-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uniwork-office-engine
+        reap.io/pool: pool-app
+    spec:
+      serviceAccountName: uniwork
+      automountServiceAccountToken: false
+      # Compose runs the engine with `init: true`; a pod has no such switch and
+      # `node main.mjs` is not a reaper. With a shared PID namespace the pause
+      # container is PID 1 and reaps every re-parented grandchild a native
+      # handler leaves behind, so zombies never pile up against the node's
+      # podPidsLimit. process-tree.ts is unaffected: it matches by pid
+      # descendants, the job tag in environ and the slot uid (never "pid 1"),
+      # skips its own pid, and a single container means no foreign process is
+      # visible in /proc. The supervisor's own environ (service token, grant
+      # key) stays unreadable to workers because they run as a different uid.
+      shareProcessNamespace: true
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      # Mirrors stop_grace_period in the compose `office` profile: the engine
+      # drains and kills every worker tree on SIGTERM.
+      terminationGracePeriodSeconds: {{ $oe.terminationGracePeriodSeconds }}
+      # A fresh emptyDir is 0777 without the sticky bit (compose mounts /tmp as
+      # mode=1777). Without it any worker uid could rename or delete the
+      # supervisor's /tmp/uniwork-office-engine directory; 1777 restricts that
+      # to its owner. Same image (already pulled), no extra capability: the
+      # volume root is owned by root, and an owner may chmod its own directory.
+      initContainers:
+        - name: tmp-sticky
+          image: {{ include "uniwork.image" $oe.image | quote }}
+          imagePullPolicy: {{ $oe.image.pullPolicy }}
+          command: ["/bin/chmod", "1777", "/tmp"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 32Mi }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: uniwork-office-engine
+          image: {{ include "uniwork.image" $oe.image | quote }}
+          imagePullPolicy: {{ $oe.image.pullPolicy }}
+          # The supervisor is uid 0 only so it can drop each worker to its own
+          # slot uid (the image sets no USER, so no runAsNonRoot here).
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add:
+                {{- toYaml $oe.securityContext.addCapabilities | nindent 16 }}
+          ports:
+            - name: http
+              containerPort: {{ $oe.port }}
+          envFrom:
+            - configMapRef:
+                name: uniwork-office-engine
+          env:
+            - name: OFFICE_ENGINE_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oe.secrets.serviceToken.name }}
+                  key: {{ $oe.secrets.serviceToken.key }}
+            - name: OFFICE_ENGINE_GRANT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oe.secrets.grantKey.name }}
+                  key: {{ $oe.secrets.grantKey.key }}
+          resources:
+            {{- toYaml $oe.resources | nindent 12 }}
+          # /healthz is the only route that needs no service credential.
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ $oe.tmpSizeLimit }}
+{{- end }}

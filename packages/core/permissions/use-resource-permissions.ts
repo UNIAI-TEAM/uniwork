@@ -1,14 +1,17 @@
 "use client";
 
+import type { Project } from "../types/project";
 import type { Task } from "../types/task";
 import type { Member } from "../types/workspace";
 import {
   canChangeMemberRole,
+  canCloseOrg,
   canChangeOrgRole,
   canCreateWorkspaceInOrg,
   canDeactivateMember,
   canEditEmploymentFields,
   canEditProfile,
+  canEditProject,
   canExportPeople,
   canLeaveOrg,
   canManageDepartments,
@@ -23,6 +26,7 @@ import {
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canManageTaskCatalog,
   canRemoveMember,
   canUpdateWorkspaceSettings,
 } from "./rules";
@@ -63,6 +67,7 @@ export function useWorkspacePermissions(wsId: string): {
   canManageMembers: Decision;
   canDeleteMeeting: Decision;
   canUpdateSettings: Decision;
+  canManageTaskCatalog: Decision;
   decideRemove: (target: Member) => Decision;
   decideChangeRole: (target: Member) => Decision;
   isLoading: boolean;
@@ -75,6 +80,7 @@ export function useWorkspacePermissions(wsId: string): {
       canManageMembers: PENDING,
       canDeleteMeeting: PENDING,
       canUpdateSettings: PENDING,
+      canManageTaskCatalog: PENDING,
       decideRemove: () => PENDING,
       decideChangeRole: () => PENDING,
       isLoading,
@@ -85,6 +91,7 @@ export function useWorkspacePermissions(wsId: string): {
     canManageMembers: canManageMembers(ctx),
     canDeleteMeeting: canDeleteMeeting(null, ctx),
     canUpdateSettings: canUpdateWorkspaceSettings(ctx),
+    canManageTaskCatalog: canManageTaskCatalog(ctx),
     decideRemove: (target: Member) => canRemoveMember(target, ctx),
     decideChangeRole: (target: Member) => canChangeMemberRole(target, ctx),
     isLoading,
@@ -123,6 +130,23 @@ export function useOrgPermissions(orgId: string): { canCreateWorkspace: Decision
   return { canCreateWorkspace: canCreateWorkspaceInOrg(ctx), isLoading };
 }
 
+/**
+ * The project write gate (UNI-898). The context is built once per screen and
+ * `decideEdit` is asked per project, so a list does not run the member
+ * queries once per row.
+ */
+export function useProjectPermissions(wsId: string): {
+  decideEdit: (
+    project: Pick<Project, "created_by" | "created_by_kind" | "lead_type" | "lead_id"> | null,
+  ) => Decision;
+  isLoading: boolean;
+} {
+  const { userId, role, isLoading } = useCurrentMember(wsId);
+  if (isLoading) return { decideEdit: () => PENDING, isLoading };
+  const ctx: PermissionContext = { userId, orgRole: null, wsRole: role };
+  return { decideEdit: (project) => canEditProject(project, ctx), isLoading };
+}
+
 export function useMeetingPermissions(
   meeting: { host_user_id?: string } | null,
   wsId: string,
@@ -150,6 +174,8 @@ export function usePeoplePermissions(orgSlug: string): {
   decideEditProfile: (target: { user_id: string } | null) => Decision;
   decideChangeRole: (target: { user_id: string; role: string } | null) => Decision;
   decideDeactivate: (target: { user_id: string; role: string } | null) => Decision;
+  /** Close the organization; the caller knows whether anyone else is still active. */
+  decideClose: (hasOtherActiveMembers: boolean) => Decision;
   isLoading: boolean;
 } {
   const { user, status } = useSession();
@@ -175,6 +201,7 @@ export function usePeoplePermissions(orgSlug: string): {
       decideEditProfile: pending,
       decideChangeRole: pending,
       decideDeactivate: pending,
+      decideClose: pending,
       isLoading: loading,
     };
   }
@@ -188,6 +215,7 @@ export function usePeoplePermissions(orgSlug: string): {
     decideEditProfile: (target) => canEditProfile(target, ctx),
     decideChangeRole: (target) => canChangeOrgRole(target, ctx),
     decideDeactivate: (target) => canDeactivateMember(target, ctx),
+    decideClose: (hasOtherActiveMembers) => canCloseOrg(ctx, hasOtherActiveMembers),
     isLoading: loading,
   };
 }

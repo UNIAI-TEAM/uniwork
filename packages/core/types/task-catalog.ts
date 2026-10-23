@@ -9,7 +9,11 @@ export const TaskCatalogStatusSchema = z.object({
   description: z.string(),
   category: z.string(),
   color: z.string(),
+  /** A category whose glyph the status draws; "" (or absent) draws its own. */
+  icon: z.string().optional(),
   is_system: z.boolean(),
+  /** A built-in an admin renamed, recoloured or re-iconed: show its own values. */
+  customized: z.boolean().optional(),
   position: z.number(),
   archived_at: z.string().optional(),
   created_at: z.string(),
@@ -30,6 +34,9 @@ export const TaskLabelSchema = z.object({
   updated_at: z.string(),
 });
 export type TaskLabel = z.infer<typeof TaskLabelSchema>;
+
+export const TaskLabelLinkSchema = z.object({ task_id: z.string(), label_id: z.string() });
+export type TaskLabelLink = z.infer<typeof TaskLabelLinkSchema>;
 
 export const TaskPropertySchema = z.object({
   id: z.string(),

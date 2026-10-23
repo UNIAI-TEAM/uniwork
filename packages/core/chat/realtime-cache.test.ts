@@ -1,12 +1,13 @@
-import { QueryClient } from "@tanstack/react-query";
+import { InfiniteQueryObserver, QueryClient, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import * as chatApi from "../api/endpoints/chat";
+import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import { chatKeys } from "./hooks";
 import {
-  CHAT_MESSAGE_CACHE_MAX,
   bumpThreadRootReplyCount,
   fetchAndPatchChatMessage,
+  insertCreatedRoomMessage,
   isChatThreadReply,
   mergeMessageIntoList,
   patchChatMessageDeleted,
@@ -15,6 +16,13 @@ import {
   patchRoomSidebarFromMessage,
   removeMessageFromList,
 } from "./realtime-cache";
+import {
+  CHAT_MESSAGE_CACHE_MAX,
+  compareMessages,
+  flattenRoomTimeline,
+  type RoomMessagesPageParam,
+  type RoomTimeline,
+} from "./room-timeline";
 
 const sampleMessage = (id: string, createdAt: string): ChatMessageRecord => ({
   id,
@@ -31,6 +39,26 @@ const sampleMessage = (id: string, createdAt: string): ChatMessageRecord => ({
   reply_count: 0,
   thread_unread: false,
 });
+
+const timelineOf = (rows: ChatMessageRecord[]): RoomTimeline => ({ pages: [rows], pageParams: [null] });
+/** A timeline a screen shows: realtime only asks the server for those (UNI-1078). */
+const seed = (qc: QueryClient, queryKey: QueryKey, data: unknown) => {
+  qc.setQueryData(queryKey, data);
+  new QueryObserver(qc, { queryKey, enabled: false }).subscribe(() => {});
+};
+const timelineIds = (qc: QueryClient, roomId: string) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", roomId));
+  return data ? flattenRoomTimeline(data).map((m) => m.id) : undefined;
+};
+
+const threadReply = (id: string, createdAt: string): ChatMessageRecord => ({
+  ...sampleMessage(id, createdAt),
+  thread_root_id: "root1",
+});
+const threadIds = (qc: QueryClient) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.threadMessages("ws1", "room1", "root1"));
+  return data ? flattenRoomTimeline(data).sort(compareMessages).map((m) => m.id) : undefined;
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -79,6 +107,7 @@ describe("patchRoomSidebarFromMessage", () => {
         name: "A",
         workspace_id: "ws1",
         member_user_ids: [],
+        member_count: 0,
         unread_count: 0,
         mention_unread_count: 0,
         last_message_at: "2026-01-01T09:00:00Z",
@@ -89,6 +118,7 @@ describe("patchRoomSidebarFromMessage", () => {
         name: "B",
         workspace_id: "ws1",
         member_user_ids: [],
+        member_count: 0,
         unread_count: 0,
         mention_unread_count: 0,
         last_message_at: "2026-01-01T10:00:00Z",
@@ -99,20 +129,455 @@ describe("patchRoomSidebarFromMessage", () => {
     expect(next[0]?.id).toBe("room-a");
     expect(next[0]?.last_message_body).toBe(message.body);
     expect(next[0]?.unread_count).toBe(1);
+
+    // A call log carries its outcome, a voice note its length, as the room list does.
+    const call = patchRoomSidebarFromMessage(rooms, "room-a", {
+      ...message,
+      kind: "voice_call_log",
+      voice_call: { outcome: "unanswered", caller_id: "u2" },
+    });
+    expect(call[0]?.last_message_call_outcome).toBe("unanswered");
+    const voice = patchRoomSidebarFromMessage(call, "room-a", {
+      ...message,
+      kind: "voice",
+      voice: { duration_ms: 42000, content_type: "", size_bytes: 0, url: "", url_expires_at: "" },
+    } as typeof message);
+    expect([voice[0]?.last_message_call_outcome, voice[0]?.last_message_duration_ms]).toEqual([undefined, 42000]);
+  });
+});
+
+describe("fetchAndPatchChatMessage unread", () => {
+  it("does not locally increment unread for DM rooms (activity refetch owns the count)", async () => {
+    const message = sampleMessage("m1", "2026-01-01T11:00:00Z");
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "dm",
+        name: "Bob",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.last_message_body).toBe(
+      message.body,
+    );
+  });
+
+  // Migration 165 turned the workspace room into the default channel; it is
+  // the one room without `chat.room.activity`, so it counts locally.
+  it("increments unread locally for the default channel", async () => {
+    const message = { ...sampleMessage("m1", "2026-01-01T11:00:00Z"), room_id: "ws-room" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "channel",
+        is_default: true,
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    seed(qc, chatKeys.roomMessages("ws1", "ws-room"), timelineOf([]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true);
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(1);
+  });
+
+  it("does not locally increment unread for a non-default channel", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "channel",
+        is_default: false,
+        name: "Dev",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+  });
+
+  // C2: every member online fetched every message of every room. Only a
+  // timeline someone has loaded is worth the GET; `chat.room.activity` owns
+  // the sidebar of the rest.
+  it("does not GET a message whose room timeline is not loaded", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "dm",
+        name: "Bob",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toBeUndefined();
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+  });
+
+  it("shows the new default-channel message in the sidebar while another room is open", async () => {
+    const message = {
+      ...sampleMessage("m-new", "2026-01-01T11:00:00Z"),
+      room_id: "ws-room",
+      body: "tin mới từ Chung",
+    };
+    const get = vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    seed(qc, chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "channel",
+        is_default: true,
+        name: "Chung",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+        last_message_body: "tin cũ của mình",
+        last_message_sender_id: "u1",
+        last_message_at: "2026-01-01T09:00:00Z",
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m-new", true, "u2");
+
+    const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0];
+    expect(get).toHaveBeenCalledWith("ws1", "ws-room", "m-new");
+    expect(room?.last_message_body).toBe("tin mới từ Chung");
+    expect(room?.last_message_sender_id).toBe("u2");
+    expect(room?.unread_count).toBe(1);
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "ws-room"))).toBeUndefined();
+  });
+
+  it("counts a new default-channel message without a GET when its timeline is not loaded", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "channel",
+        is_default: true,
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 2,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true);
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m0", false);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(3);
+  });
+
+  // UNI-1079: a message this user sent from another tab or device counted as unread.
+  it("does not count the user's own default-channel message", async () => {
+    setSessionUser({
+      id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room", kind: "channel", is_default: true, name: "General", workspace_id: "ws1",
+        member_user_ids: [], member_count: 0, unread_count: 2, mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true, "u1");
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m2", true, "u2");
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(3);
+    resetAuthStoreForTests();
+  });
+
+  it("does not count an edit or a reaction as unread", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "channel",
+        is_default: true,
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        member_count: 0,
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("m1", "2026-01-01T11:00:00Z")]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+  });
+
+  it("records a message new to a loaded timeline as having no links yet", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([]));
+    qc.setQueryData(chatKeys.roomMessageLinksRoom("ws1", "room1"), new Map([["m0", []]]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    const links = qc.getQueryData<Map<string, unknown[]>>(chatKeys.roomMessageLinksRoom("ws1", "room1"));
+    expect(links?.get("m1")).toEqual([]);
+    expect(links?.get("m0")).toEqual([]);
+  });
+});
+
+// UNI-1692: an edit, reaction or vote on an older message became the room's preview and sank it.
+describe("fetchAndPatchChatMessage sidebar", () => {
+  const sidebar = (): ChatRoomRecord[] => [
+    {
+      id: "room1", kind: "channel", is_default: false, name: "Dev", workspace_id: "ws1",
+      member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
+      last_message_body: "mới", last_message_at: "2026-01-01T12:00:00Z",
+    },
+    {
+      id: "room2", kind: "channel", is_default: false, name: "Ops", workspace_id: "ws1",
+      member_user_ids: [], member_count: 0, unread_count: 0, mention_unread_count: 0,
+      last_message_at: "2026-01-01T11:30:00Z",
+    },
+  ];
+
+  it("keeps the sidebar preview and order when an older message is edited or reacted to", async () => {
+    const old = sampleMessage("m-old", "2026-01-01T09:00:00Z");
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(old);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), sidebar());
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([old]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m-old", false);
+
+    const rooms = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"));
+    expect(rooms?.map((r) => r.id)).toEqual(["room1", "room2"]);
+    expect(rooms?.[0]?.last_message_body).toBe("mới");
+    expect(rooms?.[0]?.last_message_at).toBe("2026-01-01T12:00:00Z");
+  });
+
+  it("updates the preview when the latest message itself is edited", async () => {
+    const latest = { ...sampleMessage("m-new", "2026-01-01T12:00:00Z"), body: "mới (đã sửa)" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(latest);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), sidebar());
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([latest]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m-new", false);
+
+    const rooms = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"));
+    expect(rooms?.map((r) => r.id)).toEqual(["room1", "room2"]);
+    expect(rooms?.[0]?.last_message_body).toBe("mới (đã sửa)");
+  });
+});
+
+describe("fetchAndPatchChatMessage timeline", () => {
+  const twoPages = (): RoomTimeline => ({
+    pages: [[sampleMessage("m3", "2026-01-01T10:03:00Z")], [sampleMessage("m1", "2026-01-01T10:01:00Z")]],
+    pageParams: [null, { cursor: "c-m3" }],
+  });
+
+  it("appends a created message to the newest page", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m4", "2026-01-01T10:04:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), twoPages());
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m4", true);
+
+    expect(timelineIds(qc, "room1")).toEqual(["m1", "m3", "m4"]);
+  });
+
+  // H4: an edit, reaction or vote on a message outside the loaded window used
+  // to be inserted into it.
+  it("never inserts an updated message that is not loaded", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m0", "2026-01-01T09:00:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), twoPages());
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m0", false);
+
+    expect(timelineIds(qc, "room1")).toEqual(["m1", "m3"]);
+  });
+
+  it("updates a message on an older page in place", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      ...sampleMessage("m1", "2026-01-01T10:01:00Z"),
+      body: "edited",
+    });
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), twoPages());
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+
+    const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", "room1"));
+    expect(data?.pages[1]?.[0]?.body).toBe("edited");
+    expect(timelineIds(qc, "room1")).toEqual(["m1", "m3"]);
+  });
+
+  it("refetches instead of inserting a created message older than the newest page", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m2", "2026-01-01T10:02:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), twoPages());
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m2", true);
+
+    expect(timelineIds(qc, "room1")).toEqual(["m1", "m3"]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.roomMessages("ws1", "room1") });
   });
 });
 
 describe("patchChatMessageDeleted", () => {
   it("removes message from room cache", () => {
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), [
-      sampleMessage("m1", "2026-01-01T10:00:00Z"),
-      sampleMessage("m2", "2026-01-01T10:01:00Z"),
-    ]);
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), {
+      pages: [[sampleMessage("m2", "2026-01-01T10:01:00Z")], [sampleMessage("m1", "2026-01-01T10:00:00Z")]],
+      pageParams: [null, { cursor: "c" }],
+    });
     patchChatMessageDeleted(qc, "ws1", "room1", "m1");
-    expect(qc.getQueryData<ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "room1"))?.map((m) => m.id)).toEqual([
-      "m2",
-    ]);
+    expect(timelineIds(qc, "room1")).toEqual(["m2"]);
+  });
+});
+
+describe("room shared summary", () => {
+  it("goes stale when a message is created or deleted, not when one is edited", async () => {
+    const qc = new QueryClient();
+    const key = chatKeys.roomSharedSummary("ws1", "room1");
+    const stale = () => qc.getQueryState(key)?.isInvalidated;
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("m1", "2026-01-01T10:00:00Z")]));
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({ ...sampleMessage("m1", "2026-01-01T10:00:00Z"), body: "edited" });
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+    expect(stale()).toBe(false);
+
+    insertCreatedRoomMessage(qc, "ws1", "room1", sampleMessage("m2", "2026-01-01T10:01:00Z"));
+    expect(stale()).toBe(true);
+
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+    patchChatMessageDeleted(qc, "ws1", "room1", "m2");
+    expect(stale()).toBe(true);
+  });
+});
+
+// UNI-1077: an infinite query writes back the pages it started from when a
+// fetch ends, so a patch applied meanwhile was lost.
+describe("patches while the room timeline fetches", () => {
+  const key = chatKeys.roomMessages("ws1", "room1");
+  const m1 = sampleMessage("m1", "2026-01-01T10:01:00Z");
+  const m3 = sampleMessage("m3", "2026-01-01T10:03:00Z");
+  const m4 = sampleMessage("m4", "2026-01-01T10:04:00Z");
+
+  function deferred() {
+    let resolve!: (rows: ChatMessageRecord[]) => void;
+    const promise = new Promise<ChatMessageRecord[]>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  function timelineQuery(qc: QueryClient, pages: { head: Promise<ChatMessageRecord[]>; older: Promise<ChatMessageRecord[]> }) {
+    const observer = new InfiniteQueryObserver<ChatMessageRecord[], Error, RoomTimeline, typeof key, RoomMessagesPageParam>(qc, {
+      queryKey: key,
+      queryFn: ({ pageParam }) => (pageParam === null ? pages.head : pages.older),
+      initialPageParam: null,
+      getNextPageParam: (last) => (last[0] ? { cursor: `c-${last[0].id}` } : undefined),
+    });
+    observer.subscribe(() => {});
+    return observer;
+  }
+
+  it("keeps a message created while an older page loads", async () => {
+    const qc = new QueryClient();
+    const older = deferred();
+    const observer = timelineQuery(qc, { head: Promise.resolve([m3]), older: older.promise });
+    await vi.waitFor(() => expect(timelineIds(qc, "room1")).toEqual(["m3"]));
+
+    const next = observer.fetchNextPage();
+    insertCreatedRoomMessage(qc, "ws1", "room1", m4);
+    older.resolve([m1]);
+    await next;
+
+    await vi.waitFor(() => expect(timelineIds(qc, "room1")).toEqual(["m1", "m3", "m4"]));
+  });
+
+  it("keeps a message deleted while an older page loads deleted", async () => {
+    const qc = new QueryClient();
+    const older = deferred();
+    const observer = timelineQuery(qc, { head: Promise.resolve([m3, m4]), older: older.promise });
+    await vi.waitFor(() => expect(timelineIds(qc, "room1")).toEqual(["m3", "m4"]));
+
+    const next = observer.fetchNextPage();
+    patchChatMessageDeleted(qc, "ws1", "room1", "m4");
+    older.resolve([m1]);
+    await next;
+
+    await vi.waitFor(() => expect(timelineIds(qc, "room1")).toEqual(["m1", "m3"]));
+  });
+
+  it("applies a frame that arrives during the first load after it", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(m4);
+    const qc = new QueryClient();
+    const head = deferred();
+    timelineQuery(qc, { head: head.promise, older: Promise.resolve([]) });
+
+    const patched = fetchAndPatchChatMessage(qc, "ws1", "room1", "m4", true);
+    head.resolve([m3]);
+    await patched;
+
+    expect(timelineIds(qc, "room1")).toEqual(["m3", "m4"]);
+  });
+});
+
+// UNI-1078: a loaded timeline nobody shows cost one GET per frame.
+describe("fetchAndPatchChatMessage for a timeline nobody shows", () => {
+  it("asks nothing and marks the timeline stale", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
+    const qc = new QueryClient();
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), timelineOf([]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(qc.getQueryState(chatKeys.roomMessages("ws1", "room1"))?.isInvalidated).toBe(true);
   });
 });
 
@@ -138,6 +603,15 @@ describe("thread reply cache patches", () => {
     expect(next?.[0]?.last_reply_at).toBe(reply.created_at);
   });
 
+  it("puts the replier first on the root's faces, once, three at most", () => {
+    const root = { ...sampleMessage("root1", "2026-01-01T10:00:00Z"), thread_participant_ids: ["u3", "u2", "u4"] };
+    const reply = { ...sampleMessage("r1", "2026-01-01T10:01:00Z"), thread_root_id: "root1", sender_id: "u2" };
+    expect(bumpThreadRootReplyCount([root], reply)?.[0]?.thread_participant_ids).toEqual(["u2", "u3", "u4"]);
+    const first = { ...sampleMessage("r2", "2026-01-01T10:02:00Z"), thread_root_id: "root1", sender_id: "u9" };
+    const bare = sampleMessage("root1", "2026-01-01T10:00:00Z");
+    expect(bumpThreadRootReplyCount([bare], first)?.[0]?.thread_participant_ids).toEqual(["u9"]);
+  });
+
   it("keeps thread replies off the main room list", async () => {
     const reply = {
       ...sampleMessage("r1", "2026-01-01T10:01:00Z"),
@@ -147,29 +621,83 @@ describe("thread reply cache patches", () => {
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(reply);
 
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), [
-      sampleMessage("root1", "2026-01-01T10:00:00Z"),
-      reply,
-    ]);
+    const root = sampleMessage("root1", "2026-01-01T10:00:00Z");
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([root, reply]));
+    seed(qc, chatKeys.threadMessages("ws1", "room1", "root1"), timelineOf([root]));
 
     await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
 
-    const main = qc.getQueryData<ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "room1"));
-    expect(main?.map((m) => m.id)).toEqual(["root1"]);
-    expect(main?.[0]?.reply_count).toBe(1);
-    expect(
-      qc.getQueryData<ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "room1", "root1"))?.map(
-        (m) => m.id,
-      ),
-    ).toEqual(["r1"]);
+    const main = flattenRoomTimeline(qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", "room1"))!);
+    expect(main.map((m) => m.id)).toEqual(["root1"]);
+    expect(main[0]?.reply_count).toBe(1);
+    expect(threadIds(qc)).toEqual(["root1", "r1"]);
+  });
+
+  it("counts a reply once when more frames for it reach an unloaded thread", async () => {
+    const root = { ...sampleMessage("root1", "2026-01-01T10:00:00Z"), reply_count: 5, last_reply_at: "2026-01-01T10:00:30Z" };
+    const r1 = { ...sampleMessage("r1", "2026-01-01T10:01:00Z"), thread_root_id: "root1" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(r1);
+
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([root]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1", true);
+    // A second frame for the same reply (an edit or a reaction).
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    const main = flattenRoomTimeline(qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", "room1"))!);
+    expect(main[0]?.reply_count).toBe(6);
+    expect(qc.getQueryData(chatKeys.threadMessages("ws1", "room1", "root1"))).toBeUndefined();
+  });
+
+  it("does not seed a thread cache nobody loaded", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(threadReply("r1", "2026-01-01T10:01:00Z"));
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("root1", "2026-01-01T10:00:00Z")]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    expect(qc.getQueryData(chatKeys.threadMessages("ws1", "room1", "root1"))).toBeUndefined();
+  });
+
+  it("drops a deleted reply from an older page of the thread", () => {
+    const qc = new QueryClient();
+    const key = chatKeys.threadMessages("ws1", "room1", "root1");
+    qc.setQueryData<RoomTimeline>(key, {
+      pages: [
+        [sampleMessage("root1", "2026-01-01T10:00:00Z"), threadReply("r3", "2026-01-01T10:03:00Z")],
+        [threadReply("r1", "2026-01-01T10:01:00Z"), threadReply("r2", "2026-01-01T10:02:00Z")],
+      ],
+      pageParams: [null, { cursor: "c3" }],
+    });
+
+    patchChatMessageDeleted(qc, "ws1", "room1", "r1");
+
+    expect(threadIds(qc)).toEqual(["root1", "r2", "r3"]);
+  });
+
+  it("refetches the thread for an edit of a reply older than its first page", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      ...threadReply("r1", "2026-01-01T10:01:00Z"),
+      body: "edited",
+    });
+    const qc = new QueryClient();
+    const key = chatKeys.threadMessages("ws1", "room1", "root1");
+    seed(qc, key, timelineOf([sampleMessage("root1", "2026-01-01T10:00:00Z"), threadReply("r3", "2026-01-01T10:03:00Z")]));
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "r1");
+
+    expect(threadIds(qc)).toEqual(["root1", "r3"]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key, exact: true });
   });
 });
 
 describe("message / thread link cache patches", () => {
   it("invalidates messageLinks without touching message lists", () => {
     const qc = new QueryClient();
-    const messages = [sampleMessage("m1", "2026-01-01T10:00:00Z")];
-    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), messages);
+    const messages = timelineOf([sampleMessage("m1", "2026-01-01T10:00:00Z")]);
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), messages);
     qc.setQueryData(chatKeys.messageLinks("ws1", "m1"), [{ id: "l1" }]);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
 
@@ -178,7 +706,27 @@ describe("message / thread link cache patches", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.roomLinkedTasksRoot("ws1"),
+    });
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
+  });
+
+  it("drops a linked message from the room links cache so only it is fetched again", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(
+      chatKeys.roomMessageLinksRoom("ws1", "room1"),
+      new Map([
+        ["m1", []],
+        ["m2", []],
+      ]),
+    );
+
+    patchChatMessageLinked(qc, "ws1", "room1", "m1");
+
+    const links = qc.getQueryData<Map<string, unknown[]>>(chatKeys.roomMessageLinksRoom("ws1", "room1"));
+    expect(links?.has("m1")).toBe(false);
+    expect(links?.has("m2")).toBe(true);
   });
 
   it("invalidates links for the thread root on chat.thread.linked", () => {

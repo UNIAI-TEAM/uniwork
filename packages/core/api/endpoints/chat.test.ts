@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
   createChatGroup,
+  inviteChatGroupMembers,
+  patchChatRoom,
+  voteChatPollMessage,
+  addChatPollOptionMessage,
+  getChatPollVoters,
+  uploadChatRoomAvatar,
+  removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
   getWorkspaceChatRoom,
   leaveChatRoom,
@@ -10,19 +17,24 @@ import {
   listChatRoomMembers,
   patchChatRoomMember,
   listChatRoomMessages,
+  markChatRoomRead,
+  setChatRoomMuted,
+  olderThan,
   searchChatRoomMessages,
+  searchChatMessages,
   listChatRoomMessagesAround,
   listChatRooms,
-  listWorkspaceChatMessages,
+  getChatUnreadSummary,
   lookupChatUser,
   lookupChatUserById,
   resolveDMRoom,
   sendChatRoomMessage,
   sendChatVoiceMessage,
   sendChatFileMessage,
-  loadChatVoiceBlob,
-  loadChatFileBlob,
-  sendWorkspaceChatMessage,
+  sendChatDocumentMessage,
+  sendChatDocumentLink,
+  shareChatMessageAsDocument,
+  getChatRoom,
   signalChatTyping,
   signalChatVoiceAccept,
   signalChatVoiceHangup,
@@ -39,6 +51,7 @@ import {
   listChatNicknames,
   setChatNickname,
   searchChatGifs,
+  getChatRoomSharedSummary,
   listTrendingChatGifs,
   searchChatStickers,
   listTrendingChatStickers,
@@ -85,16 +98,6 @@ describe("chat endpoints", () => {
     expect(room?.room_id).toBe("01ROOM");
   });
 
-  it("listWorkspaceChatMessages degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await listWorkspaceChatMessages("ws1")).toEqual([]);
-  });
-
-  it("sendWorkspaceChatMessage degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    expect(await sendWorkspaceChatMessage("ws1", { body: "hi" })).toBeNull();
-  });
-
   it("lookupChatUser degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await lookupChatUser("ws1", "a@b.com")).toBeNull();
@@ -103,6 +106,13 @@ describe("chat endpoints", () => {
   it("listChatRooms degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await listChatRooms("ws1")).toEqual([]);
+  });
+
+  it("listChatRooms hands the query's AbortSignal to fetch", async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ rooms: [] }));
+    await listChatRooms("ws1", controller.signal);
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.signal).toBe(controller.signal);
   });
 
   it("listChatRooms accepts null member_user_ids from Go", async () => {
@@ -129,6 +139,7 @@ describe("chat endpoints", () => {
         name: "Peer",
         workspace_id: "ws1",
         member_user_ids: [],
+        member_count: 0,
         unread_count: 0,
         mention_unread_count: 0,
         peer_user_id: "user-b",
@@ -136,6 +147,59 @@ describe("chat endpoints", () => {
         peer_display_name: "B",
       },
     ]);
+  });
+
+  it("listChatRooms reads a channel's member_count and degrades a missing or malformed one to 0", async () => {
+    const channel = { kind: "channel", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...channel, id: "c1", name: "big", member_count: 1000 },
+          { ...channel, id: "c2", name: "missing" },
+          { ...channel, id: "c3", name: "drifted", member_count: "12" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((room) => [room.id, room.member_count])).toEqual([
+      ["c1", 1000],
+      ["c2", 0],
+      ["c3", 0],
+    ]);
+  });
+
+  it("getChatUnreadSummary reads the totals", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: { unread: 4, mentions: 1 },
+        workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 4, mentions: 1 },
+      workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+    });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://api.test/api/v1/me/chat/unread-summary");
+  });
+
+  it("getChatUnreadSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await getChatUnreadSummary()).toEqual({ direct: { unread: 0, mentions: 0 }, workspaces: [] });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: "lots",
+        workspaces: [
+          { workspace_id: "ws1", unread: "3", mentions: 2 },
+          { unread: 9, mentions: 9 },
+          "ws3",
+        ],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 0, mentions: 0 },
+      workspaces: [{ workspace_id: "ws1", unread: 0, mentions: 2 }],
+    });
   });
 
   it("resolveDMRoom degrades on malformed response", async () => {
@@ -146,6 +210,213 @@ describe("chat endpoints", () => {
   it("createChatGroup degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await createChatGroup("ws1", { name: "G", member_user_ids: ["a", "b"] })).toBeNull();
+  });
+
+  it("uploadChatRoomAvatar posts the file and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new File(["png"], "nhom.png", { type: "image/png" });
+    expect(await uploadChatRoomAvatar("ws1", "room1", file)).toBeNull();
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(url).toBe("http://api.test/api/v1/workspaces/ws1/chat/rooms/room1/avatar");
+    expect(init?.method).toBe("POST");
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("removeChatRoomAvatar degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await removeChatRoomAvatar("ws1", "room1")).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe("DELETE");
+  });
+
+  it("listChatRooms reads a group's avatar_url and drops a malformed one, not the room", async () => {
+    const group = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: ["a", "b"] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...group, id: "g1", avatar_url: "https://storage.test/a.png" },
+          { ...group, id: "g2", avatar_url: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((room) => [room.id, room.avatar_url])).toEqual([
+      ["g1", "https://storage.test/a.png"],
+      ["g2", undefined],
+    ]);
+  });
+
+  it("listChatRooms keeps valid rooms when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          {
+            id: "room-dm",
+            kind: "dm",
+            name: "Peer",
+            workspace_id: "ws1",
+            member_user_ids: [],
+            peer_user_id: "user-b",
+          },
+          { id: "broken", kind: "not-a-kind", name: "X", workspace_id: "ws1" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.id).toBe("room-dm");
+  });
+
+  it("listChatRooms reads a call's outcome and a voice note's length, and drops drifted ones", async () => {
+    const room = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_message_kind: "voice_call_log", last_message_call_outcome: "unanswered" },
+          { ...room, id: "r2", last_message_kind: "voice", last_message_duration_ms: 42000 },
+          { ...room, id: "r3", last_message_call_outcome: 7, last_message_duration_ms: "long" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => [r.id, r.last_message_call_outcome, r.last_message_duration_ms])).toEqual([
+      ["r1", "unanswered", undefined],
+      ["r2", undefined, 42000],
+      ["r3", undefined, undefined],
+    ]);
+  });
+
+  it("listChatRooms reads the caller's read pointer and degrades a drifted one", async () => {
+    const room = { kind: "dm", name: "Peer", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_read_at: "2026-09-05T00:00:00.123456Z" },
+          { ...room, id: "r2", last_read_at: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => r.last_read_at)).toEqual(["2026-09-05T00:00:00.123456Z", undefined]);
+  });
+
+  it("listChatRoomMessages keeps valid messages when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "m1",
+            room_id: "room1",
+            workspace_id: "ws1",
+            sender_id: "u1",
+            sender_display_name: "A",
+            body: "hi",
+            created_at: "2026-09-05T00:00:00Z",
+          },
+          { id: "bad", body: "missing fields" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe("m1");
+  });
+
+  it("listChatRoomMessages reads my_reactions and degrades a drifted value to none", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+      reactions: { "👍": 2 },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          { ...base, id: "m1", my_reactions: ["👍"] },
+          { ...base, id: "m2", my_reactions: "👍" },
+          { ...base, id: "m3" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages.map((m) => m.my_reactions)).toEqual([["👍"], undefined, undefined]);
+  });
+
+  it("listChatRoomMessages sends mark_read=0 when mark_read is false", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await listChatRoomMessages("ws1", "room1", { mark_read: false, limit: 20 });
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("mark_read=0");
+    expect(url).toContain("limit=20");
+  });
+
+  it("listChatRoomMessages sends the cursor back verbatim and degrades a drifted one", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ messages: [{ ...base, id: "m1", cursor: "1788566400123456.m1" }, { ...base, id: "m2", cursor: 7 }] }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1", { cursor: "1788566400999999.m9" });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("cursor=1788566400999999.m9");
+    expect(messages.map((m) => m.cursor)).toEqual(["1788566400123456.m1", undefined]);
+  });
+
+  it("listChatRoomMessages reads forward with after and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: "nope" }));
+    expect(await listChatRoomMessages("ws1", "room1", { after: "1788566400123456.m1", limit: 50 })).toEqual([]);
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("after=1788566400123456.m1");
+    expect(url).not.toContain("cursor=");
+  });
+
+  it("olderThan prefers the opaque cursor and falls back to before without one", () => {
+    expect(olderThan({ cursor: "1.m1", created_at: "2026-09-05T00:00:00Z" })).toEqual({ cursor: "1.m1" });
+    expect(olderThan({ created_at: "2026-09-05T00:00:00Z" })).toEqual({ before: "2026-09-05T00:00:00Z" });
+  });
+
+  it("markChatRoomRead posts to the room read endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await markChatRoomRead("ws1", "room1")).toBe(true);
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toEqual(
+      expect.stringContaining("/chat/rooms/room1/read"),
+    );
+  });
+
+  it("setChatRoomMuted posts to mute and deletes to unmute", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await setChatRoomMuted("ws1", "room1", true)).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await setChatRoomMuted("ws1", "room1", false)).toBe(true);
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls[0]?.[0]).toEqual(expect.stringContaining("/chat/rooms/room1/mute"));
+    expect(calls[0]?.[1]?.method).toBe("POST");
+    expect(calls[1]?.[1]?.method).toBe("DELETE");
+  });
+
+  it("setChatRoomMuted degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: 42 }));
+    expect(await setChatRoomMuted("ws1", "room1", true)).toBe(false);
+  });
+
+  it("listChatRooms reads the caller's server-side mute and tolerates a drifted one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { id: "r1", kind: "dm", name: "A", workspace_id: "ws1", member_user_ids: [], notifications_muted: true },
+          { id: "r2", kind: "dm", name: "B", workspace_id: "ws1", member_user_ids: [], notifications_muted: "yes" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => r.notifications_muted)).toEqual([true, undefined]);
   });
 
   it("listChatRoomMessages degrades on malformed response", async () => {
@@ -259,29 +530,361 @@ describe("chat endpoints", () => {
     const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
     expect(form.get("reply_to_message_id")).toBeNull();
   });
-
-  it("loadChatFileBlob returns authenticated binary response", async () => {
+  it("sendChatDocumentMessage sends multipart fields with share_level", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("%PDF", { headers: { "Content-Type": "application/pdf" } }),
+      json({
+        message: {
+          id: "d1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "plan.docx",
+          created_at: "2026-01-01T10:00:00Z",
+          document: {
+            document_id: "01J8X4DOC",
+            viewer_has_access: true,
+            viewer_level: "comment",
+            viewer_can_manage: true,
+            viewer_can_upload_version: true,
+            title: "plan.docx",
+            format: "docx",
+            version_number: 1,
+            revision: "1",
+            can_open_in_app: true,
+            recipient_count: 3,
+          },
+        },
+      }),
     );
-    const blob = await loadChatFileBlob("ws1", "room1", "message1");
-    expect(blob.type).toBe("application/pdf");
+    const file = new Blob(["pk"], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file,
+      filename: "plan.docx",
+      share_level: "comment",
+      client_msg_id: "client-doc-1",
+      reply_to_message_id: "reply-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/chat/rooms/room1/messages/document");
+    const form = init?.body as FormData;
+    expect(form.get("share_level")).toBe("comment");
+    expect(form.get("client_msg_id")).toBe("client-doc-1");
+    expect(form.get("reply_to_message_id")).toBe("reply-1");
+    const part = form.get("file");
+    expect(part).toBeInstanceOf(Blob);
+    expect((part as File).name).toBe("plan.docx");
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+    expect(sent?.kind).toBe("document");
+    expect(sent?.document).toMatchObject({
+      document_id: "01J8X4DOC",
+      viewer_level: "comment",
+      version_number: 1,
+      revision: "1",
+      recipient_count: 3,
+    });
   });
 
-  it("loadChatVoiceBlob returns authenticated binary response", async () => {
+  it("sendChatDocumentMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await sendChatDocumentMessage("ws1", "room1", {
+        file: new Blob(["x"], { type: "application/pdf" }),
+        filename: "a.pdf",
+        share_level: "view",
+        client_msg_id: "client-doc-2",
+      }),
+    ).toBeNull();
+  });
+
+  it("sendChatDocumentMessage omits reply_to and drops a garbage document block", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("voice", { headers: { "Content-Type": "audio/webm" } }),
+      json({
+        message: {
+          id: "d2",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: 42, viewer_level: "comment" },
+        },
+      }),
     );
-    const blob = await loadChatVoiceBlob("ws1", "room1", "message1");
-    expect(blob.type).toBe("audio/webm");
-    // jsdom Blob has size/type but no .text()/.arrayBuffer(); FileReader still works.
-    const text = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
-      reader.readAsText(blob);
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "application/pdf" }),
+      filename: "a.pdf",
+      share_level: "edit",
+      client_msg_id: "client-doc-3",
     });
-    expect(text).toBe("voice");
+    const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
+    expect(form.get("reply_to_message_id")).toBeNull();
+    // A block that fails shape (a non-string document_id) falls away whole;
+    // the card renders neutral instead of throwing.
+    expect(sent?.document).toBeUndefined();
+  });
+
+  // UNI-2012 D8: the delete confirmation reads origin and other_editors_count.
+  it.each([
+    ["upload and a count", { origin: "upload", other_editors_count: 2 }, { origin: "upload", other_editors_count: 2 }],
+    ["link", { origin: "link" }, { origin: "link", other_editors_count: undefined }],
+    ["both absent (legacy)", {}, { origin: undefined, other_editors_count: undefined }],
+    ["an origin the client does not know", { origin: "mirror" }, { origin: undefined }],
+    ["a non-string origin", { origin: 7 }, { origin: undefined }],
+    ["a non-number count", { origin: "upload", other_editors_count: "2" }, { origin: "upload" }],
+  ])("sendChatDocumentMessage reads %s on the document block without dropping the card", async (_name, extra, expected) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "d3",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", title: "a.pdf", ...extra },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "application/pdf" }),
+      filename: "a.pdf",
+      share_level: "view",
+      client_msg_id: "client-doc-4",
+    });
+    expect(sent?.document?.title).toBe("a.pdf");
+    expect({ origin: sent?.document?.origin, other_editors_count: sent?.document?.other_editors_count }).toEqual(expected);
+  });
+
+  // UNI-2012 S4: the server route is contract-first (slice S2); the transport
+  // is mocked, so these pin the wire shape the FE promises.
+  it("sendChatDocumentLink posts JSON to the document-link route and returns the message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "l1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "bao-cao.docx",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", viewer_level: "manage", viewer_can_manage: true },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentLink("ws1", "room1", {
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/api/v1/workspaces/ws1/chat/rooms/room1/messages/document-link");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    expect(sent?.kind).toBe("document");
+    expect(sent?.document?.document_id).toBe("01J8X4DOC");
+  });
+
+  it("sendChatDocumentLink defaults share_level to comment and omits an absent reply", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await sendChatDocumentLink("ws1", "room1", { document_id: "D1", client_msg_id: "link-msg-2" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({
+      document_id: "D1",
+      share_level: "comment",
+      client_msg_id: "link-msg-2",
+    });
+  });
+
+  it("sendChatDocumentLink degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l3" }),
+    ).toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: { id: 7, kind: ["document"] } }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l4" }),
+    ).toBeNull();
+  });
+
+  it("shareChatMessageAsDocument posts the level and returns the converted message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "m1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "D1", viewer_level: "view" },
+        },
+      }),
+    );
+    const updated = await shareChatMessageAsDocument("ws1", "room1", "m1", {
+      share_level: "view",
+      client_msg_id: "link-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/chat/rooms/room1/messages/m1/share-as-document");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ share_level: "view", client_msg_id: "link-1" });
+    expect(updated?.kind).toBe("document");
+    expect(updated?.document?.document_id).toBe("D1");
+  });
+
+  it("shareChatMessageAsDocument degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await shareChatMessageAsDocument("ws1", "room1", "m1", {
+        share_level: "edit",
+        client_msg_id: "link-2",
+      }),
+    ).toBeNull();
+  });
+
+  it("getChatRoom reads the room detail and its can_send_document flag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        room: {
+          id: "room1",
+          kind: "dm",
+          name: "An",
+          workspace_id: "ws1",
+          member_user_ids: ["u1", "u2"],
+          member_count: 2,
+          can_send_document: true,
+        },
+      }),
+    );
+    const room = await getChatRoom("ws1", "room1");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/room1");
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method ?? "GET").toBe("GET");
+    expect(room?.can_send_document).toBe(true);
+  });
+
+  it("getChatRoom reads can_send_document as absent when missing or drifted", async () => {
+    const roomRow = {
+      id: "room1",
+      kind: "dm",
+      name: "An",
+      workspace_id: "ws1",
+      member_user_ids: [],
+      member_count: 0,
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ room: roomRow }))
+      .mockResolvedValueOnce(json({ room: { ...roomRow, can_send_document: "yes" } }));
+    expect((await getChatRoom("ws1", "room1"))?.can_send_document).toBeUndefined();
+    expect((await getChatRoom("ws1", "room1"))?.can_send_document).toBeUndefined();
+  });
+
+  it("getChatRoom degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await getChatRoom("ws1", "room1")).toBeNull();
+  });
+
+  it("listChatRoomMessages keeps can_share_as_document and survives a drifted document block", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            ...base,
+            id: "f1",
+            kind: "file",
+            body: "a.pdf",
+            can_share_as_document: true,
+            file: { filename: "a.pdf", content_type: "application/pdf" },
+          },
+          { ...base, id: "d1", kind: "document", body: "a.docx", document: "not-an-object" },
+          {
+            ...base,
+            id: "d2",
+            kind: "document",
+            body: "b.docx",
+            document: { document_id: "D2", viewer_level: "owner" },
+          },
+        ],
+      }),
+    );
+    const [file, noAccess, drifted] = await listChatRoomMessages("ws1", "room1");
+    expect(file?.can_share_as_document).toBe(true);
+    expect(noAccess).toBeDefined();
+    expect(noAccess?.can_share_as_document).toBeUndefined();
+    expect(noAccess?.document).toBeUndefined();
+    // An unknown level string narrows to the empty default, never a throw.
+    expect(drifted?.document?.viewer_level).toBe("");
+  });
+
+  it("listChatRoomMessages carries the signed media URLs, empty when absent", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            ...base,
+            id: "f1",
+            kind: "file",
+            body: "anh.png",
+            file: {
+              filename: "anh.png",
+              content_type: "image/png",
+              size_bytes: 10,
+              url: "https://storage.test/f1",
+              download_url: "https://storage.test/f1?dl=1",
+              thumb_url: "https://storage.test/f1-thumb",
+              url_expires_at: "2026-09-05T12:00:00Z",
+            },
+          },
+          {
+            ...base,
+            id: "v1",
+            kind: "voice",
+            body: "",
+            voice: { duration_ms: 1000, url: "https://storage.test/v1", url_expires_at: "2026-09-05T12:00:00Z" },
+          },
+          { ...base, id: "f2", kind: "file", body: "old.pdf", file: { filename: "old.pdf" } },
+        ],
+      }),
+    );
+    const [photo, voice, unsigned] = await listChatRoomMessages("ws1", "room1");
+    expect(photo?.file).toMatchObject({
+      url: "https://storage.test/f1",
+      download_url: "https://storage.test/f1?dl=1",
+      thumb_url: "https://storage.test/f1-thumb",
+      url_expires_at: "2026-09-05T12:00:00Z",
+    });
+    expect(voice?.voice).toMatchObject({ url: "https://storage.test/v1", url_expires_at: "2026-09-05T12:00:00Z" });
+    expect(unsigned?.file).toMatchObject({ url: "", download_url: "", thumb_url: "", url_expires_at: "" });
   });
 
   it("leaveChatRoom degrades on malformed response", async () => {
@@ -329,6 +932,40 @@ describe("chat endpoints", () => {
     expect(await listChatRoomMembers("ws1", "room1")).toEqual([]);
   });
 
+  it("listChatRoomMembers keeps a member whose is_creator drifts, as not the creator", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        members: [
+          { user_id: "u1", role: "admin", email: "a@x.vn", display_name: "A", is_creator: "yes" },
+          { user_id: "u2", role: "member", email: "b@x.vn", display_name: "B", is_creator: true },
+        ],
+      }),
+    );
+    const members = await listChatRoomMembers("ws1", "room1");
+    expect(members.map((m) => [m.user_id, m.is_creator])).toEqual([
+      ["u1", false],
+      ["u2", true],
+    ]);
+  });
+
+  it("listChatRoomMembers keeps a member whose last_read_at drifts, as never read", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        members: [
+          { user_id: "u1", role: "admin", email: "a@x.vn", display_name: "A", last_read_at: 42 },
+          { user_id: "u2", role: "member", email: "b@x.vn", display_name: "B", last_read_at: "2026-01-01T10:00:00.123456Z" },
+          { user_id: "u3", role: "member", email: "c@x.vn", display_name: "C" },
+        ],
+      }),
+    );
+    const members = await listChatRoomMembers("ws1", "room1");
+    expect(members.map((m) => [m.user_id, m.last_read_at])).toEqual([
+      ["u1", undefined],
+      ["u2", "2026-01-01T10:00:00.123456Z"],
+      ["u3", undefined],
+    ]);
+  });
+
   it("patchChatRoomMember degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await patchChatRoomMember("ws1", "room1", "user1", { role: "admin" })).toBe(false);
@@ -370,6 +1007,20 @@ describe("chat endpoints", () => {
   it("searchChatRoomMessages degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await searchChatRoomMessages("ws1", "room1", { q: "hello" })).toEqual([]);
+  });
+
+  it("searchChatMessages degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await searchChatMessages("ws1", { q: "ra mat", scope: "messages" })).toEqual([]);
+  });
+
+  it("searchChatMessages asks one scope of my rooms", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await searchChatMessages("ws1", { q: "ra mắt", scope: "workspace", limit: 20 });
+    const url = String(vi.mocked(fetch).mock.calls.at(-1)?.[0]);
+    expect(url).toContain("/api/v1/workspaces/ws1/chat/messages/search?");
+    expect(new URL(url, "http://x").searchParams.get("scope")).toBe("workspace");
+    expect(new URL(url, "http://x").searchParams.get("q")).toBe("ra mắt");
   });
 
   it("listChatRoomMessagesAround degrades on malformed response", async () => {
@@ -447,5 +1098,60 @@ describe("chat endpoints", () => {
   it("getChatMediaStatus degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await getChatMediaStatus("ws1")).toEqual({ tenorEnabled: false });
+  });
+
+  it("getChatRoomSharedSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ counts: "lots", recent_photos: [{ id: 1 }] }));
+    expect(await getChatRoomSharedSummary("ws1", "r1")).toEqual({
+      counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 },
+      recent_photos: [],
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/r1/shared-summary");
+  });
+
+  it("voteChatPollMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
+    expect(await voteChatPollMessage("ws1", "room1", "msg1", "opt1")).toBeNull();
+  });
+
+  it("addChatPollOptionMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
+    expect(await addChatPollOptionMessage("ws1", "room1", "msg1", "New")).toBeNull();
+  });
+
+  it("getChatPollVoters degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ votes_by_user: "bad" }));
+    expect(await getChatPollVoters("ws1", "room1", "msg1")).toEqual({});
+  });
+
+  it("inviteChatGroupMembers degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ room: 42 }));
+    expect(await inviteChatGroupMembers("ws1", "room1", ["u2"])).toBeNull();
+  });
+
+  it("patchChatRoom degrades on malformed response with permissive defaults", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ allow_send_messages: "yes" }));
+    expect(await patchChatRoom("ws1", "room1", { name: "x" })).toEqual({
+      allow_change_profile: true,
+      allow_pin_content: true,
+      allow_create_notes: true,
+      allow_create_polls: true,
+      allow_send_messages: true,
+      allow_forward: true,
+    });
+  });
+
+  it("getChatRoomSharedSummary keeps a count and a photo whose optional fields drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        counts: { photo: 48, gif: "4", file: 12, link: 9, voice: 6 },
+        recent_photos: [{ message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: 3, created_at: "2026-10-17T10:00:00Z" }],
+      }),
+    );
+    const out = await getChatRoomSharedSummary("ws1", "r1");
+    expect(out.counts).toEqual({ photo: 48, gif: 0, video: 0, file: 12, link: 9, voice: 6 });
+    expect(out.recent_photos).toEqual([
+      { message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: undefined, created_at: "2026-10-17T10:00:00Z" },
+    ]);
   });
 });

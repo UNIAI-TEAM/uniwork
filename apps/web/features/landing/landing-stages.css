@@ -1,0 +1,72 @@
+/* Large presentation stages, based on the user's framed-scene references. */
+.landing-site { --landing-scene-width: 1400px; --landing-scene-gutter: 32px; --landing-scene-radius: 36px; }
+.landing-product-story, .landing-future-story, .landing-conversion-story { background: var(--background); }
+.landing-product-story > .studio-section,
+.landing-trust-story,
+.landing-future-story,
+.landing-conversion-story > section {
+  width: min(var(--landing-scene-width), calc(100% - var(--landing-scene-gutter) * 2));
+  margin-inline: auto;
+}
+.landing-product-story > .platform-section,
+.landing-trust-story,
+.landing-future-story,
+.landing-conversion-story > .pricing-section,
+.landing-conversion-story > .final-section {
+  border-radius: var(--landing-scene-radius);
+  overflow: clip;
+  transform-origin: center top;
+}
+.landing-product-story > .solutions-section { padding-block: 104px 72px; background: transparent; }
+.landing-product-story > .ai-section { width: 100%; padding: 48px 0 0; background: var(--background); }
+.ai-section > div { max-width: none; padding-inline: 0; }
+.ai-intro { padding: 32px 24px 64px; max-width: 960px; }
+.ai-intro .studio-description { max-width: 54ch; margin: 24px auto; }
+.ai-stage {
+  width: min(var(--landing-scene-width), calc(100% - var(--landing-scene-gutter) * 2));
+  margin-inline: auto;
+  min-height: 640px;
+  display: grid;
+  grid-template-columns: .82fr 1.18fr;
+  align-items: center;
+  border-radius: var(--landing-scene-radius);
+  overflow: clip;
+  position: relative;
+  background: radial-gradient(ellipse at 74% 25%, var(--landing-paper), transparent 52%), linear-gradient(130deg, var(--landing-cyan), var(--landing-violet) 62%, var(--landing-stage));
+  transform-origin: center top;
+}
+.ai-stage-copy { padding: 72px 0 72px clamp(32px, 5vw, 80px); position: relative; z-index: 1; }
+.ai-companion-name { font-size: var(--text-hero-lg); font-weight: 700; line-height: 1; letter-spacing: -.04em; }
+.ai-companion-description { max-width: 19ch; font-size: var(--text-display-sm); font-weight: 500; line-height: 1.4; margin-block: 16px 36px; }
+.ai-stage .ai-benefits { max-width: 420px; }
+.ai-stage .ai-benefits [data-slot=accordion-item] { border-color: color-mix(in srgb, var(--brand) 18%, var(--border)); }
+.ai-stage .ai-visual { overflow: visible; border-radius: 0; }
+.ai-stage .mascot-stage { height: 580px; }
+.ai-stage .mascot-portrait { inset: 12px 0 0; }
+.ai-stage .mascot-ground { bottom: 16px; left: 28%; width: 46%; }
+.landing-trust-story { margin-top: 24px; background: var(--landing-deep); }
+.landing-future-story { margin-block: 24px; background: linear-gradient(140deg, var(--landing-lime), var(--landing-stage-soft) 58%, var(--landing-cyan)); overflow: clip; }
+.landing-future-story > section { background: transparent; padding-block: 80px; }
+.landing-conversion-story > .pricing-section { margin-bottom: 24px; }
+.landing-conversion-story > .landing-faq { background: var(--background); padding-block: 88px; }
+.landing-conversion-story > .final-section { margin-bottom: 24px; }
+@media (max-width: 1023px) {
+  .landing-site { --landing-scene-gutter: 20px; --landing-scene-radius: 28px; }
+  .ai-stage { grid-template-columns: .9fr 1.1fr; min-height: 560px; }
+  .ai-stage-copy { padding: 48px 0 48px 32px; }
+  .ai-stage .mascot-stage { height: 450px; }
+}
+@media (max-width: 767px) {
+  .landing-site { --landing-scene-gutter: 12px; --landing-scene-radius: 24px; }
+  .landing-product-story > .studio-section { padding-block: 64px; }
+  .landing-product-story > .ai-section { padding-block: 16px 0; }
+  .ai-intro { padding: 32px 24px 40px; }
+  .ai-stage { grid-template-columns: 1fr; }
+  .ai-stage-copy { padding: 32px 24px 0; }
+  .ai-companion-name { font-size: var(--text-hero-sm); }
+  .ai-companion-description { max-width: none; font-size: var(--text-title); margin-block: 12px 16px; }
+  .ai-stage .ai-benefits { max-width: none; }
+  .ai-stage .mascot-stage { height: 390px; }
+  .ai-stage .mascot-portrait { inset: 0; }
+  .landing-future-story > section, .landing-conversion-story > .landing-faq { padding-block: 64px; }
+}

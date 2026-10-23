@@ -24,6 +24,8 @@ postgres_port=5432
 backend_port=$((18080 + offset))
 frontend_port=$((13000 + offset))
 frontend_origin="http://localhost:${frontend_port}"
+preview_port=$((frontend_port + 1))
+preview_origin="http://localhost:${preview_port}"
 metrics_port=$((19090 + offset))
 
 cat > "$ENV_FILE" <<EOF
@@ -43,14 +45,34 @@ PORT=${backend_port}
 JWT_SECRET=dev-secret-change-me
 FRONTEND_PORT=${frontend_port}
 FRONTEND_ORIGIN=${frontend_origin}
+PREVIEW_ORIGIN=${preview_origin}
+PREVIEW_CAPABILITY_SECRET=dev-preview-capability-secret-${slug}-32bytes
+PREVIEW_ASSET_TTL=10m
+PREVIEW_ASSET_MAX_BYTES=10485760
 METRICS_ADDR=127.0.0.1:${metrics_port}
+# Storage is chosen explicitly: an unset STORAGE_BACKEND means minio, and the
+# server refuses to start without the MINIO_* group. Switch to MinIO with
+# "make minio-up" and the block below (the bucket is shared by every worktree).
+STORAGE_BACKEND=local
 LOCAL_UPLOAD_DIR=./server/data/uploads-${slug}
 LOCAL_UPLOAD_BASE_URL=http://localhost:${backend_port}
+# STORAGE_BACKEND=minio
+# MINIO_ENDPOINT=http://localhost:9000
+# MINIO_BUCKET=uniwork
+# MINIO_ACCESS_KEY_ID=minioadmin
+# MINIO_SECRET_ACCESS_KEY=minioadmin
+# MINIO_REGION=us-east-1
 
 NEXT_PUBLIC_API_URL=http://localhost:${backend_port}
 NEXT_PUBLIC_WS_URL=ws://localhost:${backend_port}
 NEXT_PUBLIC_APP_URL=${frontend_origin}
 E2E_BASE_URL=${frontend_origin}
+
+# Same development defaults the CI e2e job sets: the fixed verification code the
+# e2e helpers type on /verify, and the public API origin for links the server builds.
+APP_ENV=development
+DEV_VERIFICATION_CODE=123456
+API_PUBLIC_URL=http://localhost:${backend_port}
 
 # Shared local LiveKit (make start / make livekit-up). Webhook targets this worktree's PORT.
 LIVEKIT_URL=ws://localhost:7880

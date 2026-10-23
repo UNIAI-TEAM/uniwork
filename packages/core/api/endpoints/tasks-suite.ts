@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  AssigneeFrequencySchema,
   ChildProgressSchema,
   TaskDependencySchema,
   TaskGroupSchema,
   TaskQueryPageSchema,
   TaskSchema,
+  type AssigneeFrequency,
   type ChildProgress,
   type Task,
   type TaskDependency,
@@ -23,6 +25,7 @@ const BatchUpdateResponse = z.object({ updated: z.number() });
 const BatchDeleteResponse = z.object({ deleted: z.number() });
 const ChildProgressResponse = z.object({ progress: z.array(ChildProgressSchema) });
 const DependencyResponse = z.object({ dependency: TaskDependencySchema });
+const AssigneeFrequencyResponse = z.object({ items: z.array(AssigneeFrequencySchema) });
 
 export interface QueryTasksBody {
   status?: string;
@@ -78,10 +81,15 @@ function qs(params: Record<string, string | number | undefined | null>): string 
   return s ? `?${s}` : "";
 }
 
-export async function queryTasks(workspaceId: string, body: QueryTasksBody = {}): Promise<TaskQueryPage> {
+export async function queryTasks(
+  workspaceId: string,
+  body: QueryTasksBody = {},
+  init: { signal?: AbortSignal } = {},
+): Promise<TaskQueryPage> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks/query`, {
     method: "POST",
     body,
+    signal: init.signal,
   });
   return parseWithFallback<TaskQueryPage>(
     raw,
@@ -151,14 +159,27 @@ export async function listMyTasks(
     limit?: number;
     offset?: number;
   } = {},
+  init: { signal?: AbortSignal } = {},
 ): Promise<TaskQueryPage> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/my-tasks${qs(opts)}`);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/my-tasks${qs(opts)}`, {
+    signal: init.signal,
+  });
   return parseWithFallback<TaskQueryPage>(
     raw,
     TaskQueryPageSchema,
     { tasks: [], total: 0, limit: 0, offset: 0 },
     { endpoint: "GET /api/v1/workspaces/{ws}/my-tasks" },
   );
+}
+
+export async function getAssigneeFrequency(workspaceId: string): Promise<AssigneeFrequency[]> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/assignee-frequency`);
+  return parseWithFallback<{ items: AssigneeFrequency[] }>(
+    raw,
+    AssigneeFrequencyResponse,
+    { items: [] },
+    { endpoint: "GET /api/v1/workspaces/{ws}/assignee-frequency" },
+  ).items;
 }
 
 export async function listTaskChildren(taskId: string): Promise<Task[]> {

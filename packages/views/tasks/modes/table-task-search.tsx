@@ -25,6 +25,7 @@ export function TableTaskSearch({
         aria-hidden
       />
       <Input
+        variant="subtle"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

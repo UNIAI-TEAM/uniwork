@@ -14,6 +14,7 @@ type ConferenceProvider interface {
 	IssueJoinCredential(ctx context.Context, req IssueJoinCredentialRequest) (JoinCredential, error)
 	RemoveParticipant(ctx context.Context, req RemoveProviderParticipantRequest) error
 	UpdateParticipant(ctx context.Context, req UpdateProviderParticipantRequest) error
+	GetParticipantPermissions(ctx context.Context, req GetProviderParticipantRequest) (MediaPermissions, error)
 	EndSession(ctx context.Context, req EndProviderSessionRequest) error
 	StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error)
 	StopRecording(ctx context.Context, req StopRecordingRequest) error
@@ -62,10 +63,20 @@ type RemoveProviderParticipantRequest struct {
 	Identity string
 }
 
+// UpdateProviderParticipantRequest sets a participant's whole permission set:
+// providers replace it rather than merge, so every grant is spelled out.
 type UpdateProviderParticipantRequest struct {
-	RoomName   string
-	Identity   string
-	CanPublish *bool
+	RoomName    string
+	Identity    string
+	Permissions MediaPermissions
+}
+
+// GetProviderParticipantRequest names a participant whose current
+// permissions are read back. Locks live only on the provider, so changing one
+// source reads the other's lock here first.
+type GetProviderParticipantRequest struct {
+	RoomName string
+	Identity string
 }
 
 type EndProviderSessionRequest struct {
@@ -74,10 +85,28 @@ type EndProviderSessionRequest struct {
 
 // StartRecordingRequest asks the provider to record the whole room.
 // FilePrefix is the object key prefix (no extension); the provider appends
-// its own file name.
+// its own file name. Layout defaults to "speaker" when empty.
 type StartRecordingRequest struct {
 	RoomName   string
 	FilePrefix string
+	Layout     string
+	// OutputTarget, when set, is the write target the storage layer reserved
+	// for this recording (FileService provider output). The provider writes
+	// exactly that object and FilePrefix is ignored; nil keeps the
+	// provider-owned path. It mirrors files.WriteTarget without importing the
+	// contract package — the arch test forbids internal/meetings importing
+	// internal/files.
+	OutputTarget *RecordingOutputTarget
+}
+
+// RecordingOutputTarget is the provider-facing view of a FileService write
+// target: one object, one deadline, issued by the server. The provider never
+// derives an object key from a webhook or event payload.
+type RecordingOutputTarget struct {
+	URL       string
+	Method    string
+	Headers   map[string]string
+	ExpiresAt time.Time
 }
 
 type RecordingRef struct {

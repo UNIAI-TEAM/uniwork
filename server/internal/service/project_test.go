@@ -6,10 +6,122 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"golang.org/x/text/unicode/norm"
 )
+
+func requireDuplicateProjectTitle(t *testing.T, err error) {
+	t.Helper()
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "duplicate_project_title" || ce.Status != http.StatusConflict {
+		t.Fatalf("want duplicate_project_title 409, got %v", err)
+	}
+}
+
+func TestCreateProjectRejectsNormalizedDuplicateTitleWithinWorkspace(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	if _, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Alpha roadmap"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "  alpha   roadmap  "})
+	requireDuplicateProjectTitle(t, err)
+
+	orgs := NewOrganizationService(s.pool, s.q)
+	wsSvc := NewWorkspaceService(s.pool, s.q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	other, err := wsSvc.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Other", "project-duplicate-other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, actor, other.Workspace.ID, CreateProjectInput{Title: " alpha roadmap "}); err != nil {
+		t.Fatalf("same normalized title in another workspace: %v", err)
+	}
+}
+
+func TestCreateProjectRejectsUnicodeEquivalentDuplicateTitle(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	composed := "Kế\u00a0hoạch"
+	if _, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: composed}); err != nil {
+		t.Fatal(err)
+	}
+	decomposed := norm.NFD.String("kế hoạch")
+	_, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: decomposed})
+	requireDuplicateProjectTitle(t, err)
+}
+
+func TestUpdateProjectRejectsNormalizedDuplicateTitle(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	if _, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Product launch"}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Other project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.UpdateProject(ctx, actor, w.ID, second.ID, UpdateProjectInput{
+		ExpectedRevision: second.Revision,
+		Title:            strPtr(" product   LAUNCH "),
+	})
+	requireDuplicateProjectTitle(t, err)
+
+	unchanged, err := s.GetProject(ctx, actor, w.ID, second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Title != second.Title || unchanged.Revision != second.Revision {
+		t.Fatalf("project changed after duplicate rename: got %+v, want title=%q revision=%d", unchanged, second.Title, second.Revision)
+	}
+}
+
+func TestCreateProjectSerializesConcurrentDuplicateTitles(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for range 2 {
+		go func() {
+			ready.Done()
+			<-start
+			_, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Concurrent roadmap"})
+			errs <- err
+		}()
+	}
+	ready.Wait()
+	close(start)
+
+	successes, duplicates := 0, 0
+	for range 2 {
+		err := <-errs
+		if err == nil {
+			successes++
+			continue
+		}
+		var ce CodedError
+		if errors.As(err, &ce) && ce.Code == "duplicate_project_title" && ce.Status == http.StatusConflict {
+			duplicates++
+			continue
+		}
+		t.Fatalf("unexpected concurrent create error: %v", err)
+	}
+	if successes != 1 || duplicates != 1 {
+		t.Fatalf("concurrent creates: successes=%d duplicates=%d, want 1 each", successes, duplicates)
+	}
+}
 
 func TestCreateListProjectTenantIsolation(t *testing.T) {
 	s, events, ua, ub, w := taskFixture(t)

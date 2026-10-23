@@ -1,4 +1,5 @@
 packages:
+  # Web and desktop are first-class hosts; each app owns its platform graph.
   - "apps/*"
   - "packages/*"
   - "e2e"
@@ -10,7 +11,23 @@ catalog:
   "@types/react-dom": "^19.2.0"
   typescript: "^5.9.3"
   "@types/node": "^25.0.10"
+  # Office build tooling (UNI-684): builds vendored engine source without the
+  # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
+  esbuild: "0.28.2"
+  jszip: "3.10.1"
   zod: "^4.1.5"
+  # Office engine PDF lane (UNI-688 / G2-05, Advisor-approved delta): pdfium WASM
+  # (pin = vendored pdf2docx floor), pdf-lib serialize, hb-subset font subsetting,
+  # pure-JS image codec (pngjs decode/encode + jpeg-js decode) replacing the
+  # Electron nativeImage path.
+  "@embedpdf/pdfium": "2.15.0"
+  pdf-lib: "1.17.1"
+  # Chat PDF card (UNI-1908 F6): page count + first-page preview rendered in the
+  # browser, loaded lazily; the server never renders an untrusted PDF.
+  pdfjs-dist: "6.4.299"
+  harfbuzzjs: "1.6.2"
+  pngjs: "7.0.0"
+  jpeg-js: "0.4.4"
   "@tanstack/react-query": "^5.96.2"
   tailwindcss: "^4"
   "@tailwindcss/postcss": "^4"
@@ -21,15 +38,22 @@ catalog:
   lucide-react: "^1.0.1"
   i18next: "^26.0.8"
   react-i18next: "^17.0.6"
+  vite: "8.2.4"
   vitest: "^4.1.0"
   "@vitest/coverage-v8": "^4.1.0"
   jsdom: "26.1.0"
+  fake-indexeddb: "6.2.5"
   "@vitejs/plugin-react": "^6.0.1"
   "@testing-library/react": "^16.3.2"
   "@testing-library/jest-dom": "^6.9.1"
 
   # State management — Zustand giữ client/view state; React Query giữ server state
   zustand: "^5.0.0"
+
+  # Kéo-thả — board/swimlane (views) và kéo đổi thứ tự cột (ui) đều dùng
+  "@dnd-kit/core": "^6.3.1"
+  "@dnd-kit/sortable": "^10.0.0"
+  "@dnd-kit/utilities": "^3.2.2"
 
   # Bảng và danh sách ảo hoá
   "@tanstack/react-table": "^8.21.3"
@@ -62,7 +86,6 @@ catalog:
   "@tiptap/extension-table-row": "3.27.1"
   "@tiptap/extension-text": "3.27.1"
   "@tiptap/extension-typography": "3.27.1"
-  "@tiptap/extensions": "3.27.1"
   "@tiptap/markdown": "3.27.1"
   "@tiptap/pm": "3.27.1"
   "@tiptap/react": "3.27.1"
@@ -76,6 +99,14 @@ catalog:
 
   # Animation loading cho StatusPill
   unicode-animations: "^1.0.3"
+
+  # Animation cho landing page (apps/web/features/landing). Chỉ app web khai
+  # báo hai gói này; phần còn lại của sản phẩm dùng `motion`, và
+  # apps/web/eslint.config.mjs chặn hai chiều để chúng không trộn vào nhau.
+  gsap: "^3.13.0"
+  "@gsap/react": "^2.1.2"
+  three: "0.186.0"
+  "@types/three": "0.186.0"
 
   # Testing
   "@testing-library/user-event": "^14.6.1"
@@ -95,3 +126,19 @@ catalog:
   sonner: "^2.0.7"
   vaul: "^1.1.2"
   date-fns: "^4.1.0"
+
+  # Calendar hub month view (packages/views/calendar)
+  "@fullcalendar/core": "^6.1.19"
+  "@fullcalendar/react": "^6.1.19"
+  "@fullcalendar/daygrid": "^6.1.19"
+  "@fullcalendar/timegrid": "^6.1.19"
+  "@fullcalendar/interaction": "^6.1.19"
+
+  # UniChat desktop shell (apps/chat-desktop)
+  electron: "^43.7.6"
+  electron-vite: "^5.0.0"
+  electron-builder: "^26.0.12"
+
+  # UniChat mobile app (apps/chat-mobile) — Expo SDK and the React Native it pins
+  expo: "~57.0.26"
+  react-native: "0.86.3"

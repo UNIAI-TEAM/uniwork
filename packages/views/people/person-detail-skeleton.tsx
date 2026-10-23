@@ -10,17 +10,23 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 export function PersonDetailSkeleton() {
   return (
     <div aria-hidden="true" className="min-h-0 flex-1 overflow-hidden">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
           <Skeleton className="size-16 shrink-0 rounded-full sm:size-20" />
           <div className="min-w-0 flex-1 space-y-2.5">
-            <Skeleton className="h-5 w-56" />
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-3.5 w-full max-w-prose" />
+            <Skeleton className="h-6 w-64" />
+            <Skeleton className="h-4 w-44" />
+            <div className="flex gap-2 pt-2">
+              <Skeleton className="h-8 w-28 rounded-lg" />
+              <Skeleton className="h-8 w-28 rounded-lg" />
+            </div>
           </div>
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-          <PanelShape rows={4} />
+          <div className="flex flex-col gap-4">
+            <PanelShape rows={2} />
+            <PanelShape rows={1} />
+          </div>
           <PanelShape rows={2} />
         </div>
       </div>

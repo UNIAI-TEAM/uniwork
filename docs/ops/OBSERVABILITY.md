@@ -38,7 +38,7 @@ và `docker run --rm -v "$PWD/deploy:/etc/prometheus:ro" --entrypoint promtool p
    ```sh
    docker compose logs --since 1h server | grep '"trace_id":"<id>"'
    ```
-   Loki: `{container=~".*server.*"} | json | trace_id = "<id>"`. Muốn thấy toàn bộ request kèm span: gọi lại với header `X-Debug-Trace: 1` từ tài khoản `platform_role` — request đó luôn được sample.
+   Loki: `{container=~".*server.*"} | json | trace_id = "<id>"`. Muốn thấy toàn bộ request kèm span: gọi lại với header `X-Debug-Trace: 1` từ tài khoản `platform_role` — request đó luôn được sample (chỉ khi có exporter).
 5. **Audit.** Với thao tác của người dùng, `audit_events` là sự thật cuối (không sửa/xóa được, ADR 0012). Với thao tác của platform admin, `admin_actions` (cùng transaction với audit, `reason` ≥ 10 ký tự). Cả hai đã hiện ở bước 3; SQL trực tiếp khi cần quá 500 dòng:
    ```sql
    SELECT created_at, action, actor_id, organization_id FROM audit_events
@@ -50,7 +50,7 @@ và `docker run --rm -v "$PWD/deploy:/etc/prometheus:ro" --entrypoint promtool p
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
 | `METRICS_ADDR` | rỗng = tắt | Listener Prometheus riêng, không đi qua auth. Chạy trực tiếp trên máy: `127.0.0.1:9090` (chỉ loopback, Prometheus cùng máy). Trong compose/Kubernetes: `0.0.0.0:9090` và **không** publish cổng ra ngoài — chỉ mạng nội bộ của compose/cluster |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng = không export | OTLP/gRPC, ví dụ `http://otel-collector:4317`. Rỗng vẫn tạo span (để có `X-Trace-Id`) nhưng không mở kết nối |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng = không export | OTLP/gRPC, ví dụ `http://otel-collector:4317`. Rỗng thì không ghi span nào và không mở kết nối, nhưng mọi request vẫn có trace id (`X-Trace-Id`, `correlation_id`) |
 | `OTEL_SERVICE_NAME` | `uniwork-api` | Tên service trong backend trace |
 | `OTEL_TRACES_SAMPLER_ARG` | rỗng = `1.0` | Tỷ lệ sampling parent-based 0..1. Xem mục sampling |
 | `LOG_FORMAT` | text | `json` ở production; gì khác là text màu cho terminal |
@@ -73,12 +73,12 @@ request đó bất kể tỷ lệ; từ tài khoản thường bị bỏ qua. Fl
 ## `/healthz` và `/readyz`
 
 - `/healthz`: 200 khi tiến trình còn trả lời. Liveness, không hơn.
-- `/readyz`: JSON `{ready, checks[{name, ok, detail}]}`; 503 khi bất kỳ check
-  nào fail. Check gồm `db` (`SELECT 1`, hạn 500 ms), `migrations`
-  (`schema_migrations` == version embedded trong binary; `detail` ghi hai
-  số khi lệch), `redis` (PING, chỉ khi đặt `REDIS_URL`). **Không kiểm S3** —
-  không có probe rẻ cho bucket, và upload lỗi không nên kéo cả node ra khỏi
-  load balancer. Load balancer/Kubernetes dùng `/readyz`; Prometheus probe nó
+- `/readyz`: JSON `{ready, checks[{name, ok, detail}]}`; 503 chỉ khi `db`
+  hoặc `migrations` fail. `db` là `SELECT 1` (hạn 2 s); `migrations` fail khi
+  `schema_migrations` **cũ hơn** version embedded trong binary (schema mới hơn
+  vẫn ready, vì rollout migrate trước khi pod cũ rút). `redis` (PING, chỉ khi
+  đặt `REDIS_URL`) và `storage` (khi có adapter) chạy với hạn 300 ms và chỉ
+  được báo cáo: lỗi của chúng không kéo node duy nhất ra khỏi Service. Load balancer/Kubernetes dùng `/readyz`; Prometheus probe nó
   qua blackbox (`ReadinessFailing`). Cả hai đường bị `IsHealthProbePath` loại
   khỏi metric HTTP và access log mức info.
 

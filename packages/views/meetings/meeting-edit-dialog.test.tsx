@@ -1,0 +1,252 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toast } from "sonner";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Meeting } from "@uniwork/core/types";
+import { requestMock, wrapWithNav } from "../test/api-mock";
+import { MeetingEditDialog } from "./meeting-edit-dialog";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+function localIso(date: string, time: string) {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+const meeting: Meeting = {
+  id: "m1",
+  workspace_id: "w1",
+  title: "Standup",
+  description: "agenda",
+  starts_at: localIso("2030-01-10", "09:00"),
+  ends_at: localIso("2030-01-10", "09:30"),
+  room_name: "uw_mtg_m1",
+  created_by: "u-host",
+  status: "SCHEDULED",
+  timezone: "Asia/Ho_Chi_Minh",
+};
+
+/** Base UI Select picks an item on pointer up, not on a bare click. */
+function pickOption(option: HTMLElement) {
+  fireEvent.pointerDown(option);
+  fireEvent.pointerUp(option);
+  fireEvent.mouseUp(option);
+  fireEvent.click(option);
+}
+
+beforeEach(() => {
+  requestMock.mockReset();
+  vi.mocked(toast.success).mockClear();
+});
+
+function openDialog(m: Meeting = meeting) {
+  render(wrapWithNav(<MeetingEditDialog workspaceId="w1" meeting={m} trigger={<button type="button">Mở</button>} />));
+  fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+  return screen.getByRole("dialog");
+}
+
+describe("MeetingEditDialog", () => {
+  it("confirms with a message, not the button label", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu thay đổi"));
+  });
+
+  it("sends the quorum the host types", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu") as HTMLInputElement;
+    expect(input.value).toBe("50");
+    fireEvent.change(input, { target: { value: "60" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ quorum_percent: 60 }) }),
+      ),
+    );
+  });
+
+  it("clears the quorum with 0 when the field is emptied", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu"), { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ body: expect.objectContaining({ quorum_percent: 0 }) }),
+      ),
+    );
+  });
+
+  it("leaves an untouched quorum out, so a title edit still saves on a finalized roll", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    const dialog = openDialog({ ...meeting, quorum_percent: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Standup mới" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ title: "Standup mới" }) }),
+      ),
+    );
+    const call = requestMock.mock.calls.find(([url]) => url === "/api/v1/meetings/m1");
+    expect(call?.[1]?.body).not.toHaveProperty("quorum_percent");
+  });
+
+  it("rejects a quorum outside 1–100 and keeps focus on it", () => {
+    const dialog = openDialog();
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu");
+    fireEvent.change(input, { target: { value: "150" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    expect(within(dialog).getByText("Nhập số nguyên từ 1 đến 100")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(document.activeElement).toBe(input);
+    // The dialog reads /config for the project field; nothing is saved.
+    expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
+  });
+
+  it("names hour and minute segments apart", () => {
+    const dialog = openDialog();
+    expect(within(dialog).getByLabelText("Giờ bắt đầu")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Phút bắt đầu")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Giờ kết thúc")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Phút kết thúc")).toBeInTheDocument();
+  });
+
+  it("flags an end equal to the start on the field and keeps focus there on Save", () => {
+    const dialog = openDialog({ ...meeting, ends_at: meeting.starts_at });
+    const error = within(dialog).getByText("Giờ kết thúc phải khác giờ bắt đầu.");
+    const save = within(dialog).getByRole("button", { name: "Lưu thay đổi" });
+    expect(save).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(save);
+    expect(requestMock).not.toHaveBeenCalledWith(expect.stringContaining("/meetings/m1"), expect.anything());
+    expect(within(dialog).getByRole("group", { name: "Kết thúc" })).toHaveAttribute("aria-describedby", error.id);
+    expect(document.activeElement).toBe(within(dialog).getByLabelText("Giờ kết thúc"));
+  });
+
+  it("puts the title error under the title and focuses it on Save", () => {
+    const dialog = openDialog();
+    const input = within(dialog).getByLabelText("Tiêu đề");
+    fireEvent.change(input, { target: { value: " " } });
+    const save = within(dialog).getByRole("button", { name: "Lưu thay đổi" });
+    expect(save).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(save);
+    const error = within(dialog).getByText("Nhập tiêu đề để tiếp tục");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", error.id);
+    expect(document.activeElement).toBe(input);
+    // The dialog reads /config for the project field; nothing is saved.
+    expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
+  });
+
+  it("types and saves times in the meeting's zone, not the browser's", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    // 00:00Z is 09:00 in Tokyo.
+    const tokyo: Meeting = {
+      ...meeting,
+      timezone: "Asia/Tokyo",
+      starts_at: "2030-01-10T00:00:00.000Z",
+      ends_at: "2030-01-10T00:30:00.000Z",
+    };
+    const dialog = openDialog(tokyo);
+    expect(within(dialog).getByLabelText("Giờ bắt đầu")).toHaveValue("09");
+    expect(within(dialog).getByLabelText("Giờ kết thúc")).toHaveValue("09");
+    expect(within(dialog).getByRole("combobox", { name: "Múi giờ" })).toHaveTextContent("GMT+9 · Tokyo");
+    fireEvent.keyDown(within(dialog).getByLabelText("Giờ kết thúc"), { key: "ArrowUp" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({
+          body: expect.objectContaining({
+            starts_at: "2030-01-10T00:00:00.000Z",
+            ends_at: "2030-01-10T01:30:00.000Z",
+            timezone: "Asia/Tokyo",
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("flags a moved start that already passed, but not an untouched one", () => {
+    const past: Meeting = {
+      ...meeting,
+      status: "SCHEDULED",
+      starts_at: "2020-01-10T02:00:00.000Z",
+      ends_at: "2020-01-10T02:30:00.000Z",
+    };
+    const dialog = openDialog(past);
+    expect(within(dialog).queryByText("Giờ bắt đầu đã qua.")).not.toBeInTheDocument();
+    fireEvent.keyDown(within(dialog).getByLabelText("Phút bắt đầu"), { key: "ArrowUp" });
+    expect(within(dialog).getByText("Giờ bắt đầu đã qua.")).toBeInTheDocument();
+  });
+
+  it("keeps the draft when the meeting changes elsewhere, and offers to reload", () => {
+    const { rerender } = render(
+      wrapWithNav(<MeetingEditDialog workspaceId="w1" meeting={{ ...meeting, version: 1 }} trigger={<button type="button">Mở</button>} />),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Đang gõ" } });
+    rerender(
+      wrapWithNav(
+        <MeetingEditDialog
+          workspaceId="w1"
+          meeting={{ ...meeting, title: "Đổi ở nơi khác", version: 2 }}
+          trigger={<button type="button">Mở</button>}
+        />,
+      ),
+    );
+    expect(within(dialog).getByLabelText("Tiêu đề")).toHaveValue("Đang gõ");
+    expect(within(dialog).getByText("Cuộc họp vừa được cập nhật ở nơi khác.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tải lại" }));
+    expect(within(dialog).getByLabelText("Tiêu đề")).toHaveValue("Đổi ở nơi khác");
+    expect(within(dialog).queryByText("Cuộc họp vừa được cập nhật ở nơi khác.")).not.toBeInTheDocument();
+  });
+
+  it("shows the pending label while saving", async () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang lưu…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(within(dialog).getByRole("button", { name: "Hủy" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("clears the project with an empty string", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.startsWith("/api/v1/config")) {
+        return Promise.resolve({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "tasks.projects": { status: "available" } } });
+      }
+      if (p.includes("/projects")) {
+        return Promise.resolve({ projects: [{ id: "p1", organization_id: "o1", workspace_id: "w1", title: "Ra mắt Q4", description: "", status: "in_progress", priority: "none", revision: 1, task_count: 0, done_count: 0, resource_count: 0, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" }], total: 1 });
+      }
+      return Promise.resolve({ meeting: { ...meeting, project_id: "" } });
+    });
+    const dialog = openDialog({ ...meeting, project_id: "p1" });
+    fireEvent.click(await within(dialog).findByRole("combobox", { name: "Dự án" }));
+    pickOption(await screen.findByRole("option", { name: "Không thuộc dự án" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ project_id: "" }) }),
+      ),
+    );
+  });
+
+  it("leaves the project out of the PATCH when it did not change", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).startsWith("/api/v1/config")
+        ? Promise.resolve({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "tasks.projects": { status: "available" } } })
+        : Promise.resolve({ meeting }),
+    );
+    const dialog = openDialog({ ...meeting, project_id: "p1" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(true));
+    const patch = requestMock.mock.calls.find((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH");
+    expect((patch?.[1] as { body: Record<string, unknown> }).body).not.toHaveProperty("project_id");
+  });
+});
+

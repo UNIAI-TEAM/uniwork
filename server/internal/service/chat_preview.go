@@ -15,12 +15,24 @@ type chatLastMessagePreview struct {
 	Kind              string
 	SenderID          string
 	SenderDisplayName string
+	CallOutcome       string
+	DurationMS        int
 	CreatedAt         time.Time
 }
 
-func chatSidebarPreviewBody(body, kind string) string {
+// ChatPreviewBody is the one-line preview of a chat message: mentions read as
+// @Name, poll/reminder/note carry their emoji, cut at 120 runes.
+func ChatPreviewBody(body, kind string) string {
 	if kind == "voice_call_log" {
 		return ""
+	}
+	if kind == "poll_vote" {
+		preview := strings.TrimSpace(body)
+		runes := []rune(preview)
+		if len(runes) > 120 {
+			preview = string(runes[:120]) + "…"
+		}
+		return "📊 " + preview
 	}
 	if kind == "poll" {
 		preview := strings.TrimSpace(body)
@@ -59,15 +71,18 @@ func applyLastMessagePreview(summary *ChatRoomSummary, preview *chatLastMessageP
 	if summary == nil || preview == nil || preview.CreatedAt.IsZero() {
 		return
 	}
-	summary.LastMessageBody = chatSidebarPreviewBody(preview.Body, preview.Kind)
+	summary.LastMessageBody = ChatPreviewBody(preview.Body, preview.Kind)
 	summary.LastMessageKind = preview.Kind
 	summary.LastMessageSenderID = preview.SenderID
 	summary.LastMessageSenderName = preview.SenderDisplayName
+	summary.LastMessageCallOutcome = preview.CallOutcome
+	summary.LastMessageDurationMS = preview.DurationMS
 	summary.LastMessageAt = &preview.CreatedAt
 }
 
 func lastMessagePreviewFromListRow(
-	body, kind, senderID, senderName string,
+	body, kind, senderID, senderName, callOutcome string,
+	durationMS int,
 	createdAt pgtype.Timestamptz,
 ) *chatLastMessagePreview {
 	if !createdAt.Valid {
@@ -78,6 +93,8 @@ func lastMessagePreviewFromListRow(
 		Kind:              kind,
 		SenderID:          senderID,
 		SenderDisplayName: senderName,
+		CallOutcome:       callOutcome,
+		DurationMS:        durationMS,
 		CreatedAt:         createdAt.Time,
 	}
 }

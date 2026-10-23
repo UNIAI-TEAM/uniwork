@@ -2,18 +2,18 @@
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { errorCode } from "@uniwork/core/api";
+import { toast } from "sonner";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   outboxEntryFromPayload,
   type ChatTextSendPayload,
 } from "@uniwork/core/chat/deliver-chat-text-message";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
-import { isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
+import { isChatSendNetworkError, isChatSendRateLimited, isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type {
@@ -22,6 +22,7 @@ import type {
   useLeaveChatRoom,
   useResolveDMRoom,
   useSendChatRoomMessage,
+  useSetChatRoomAvatar,
 } from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar";
@@ -36,17 +37,17 @@ export function useChatPageActions({
   activeRoomId,
   activeGroup,
   activeChannel,
-  draft,
+  getDraft,
   setDraft,
   replyTo,
   setReplyTo,
   activeThreadRootId = null,
-  workHubEnabled = false,
   ensureRoom,
   sendRoomMessage,
   sendThreadMessage,
   resolveDM,
   createGroup,
+  setRoomAvatar,
   inviteMembers,
   leaveRoom,
   setConnectError,
@@ -70,12 +71,13 @@ export function useChatPageActions({
   activeRoomId: string | null;
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
-  draft: string;
-  setDraft: React.Dispatch<React.SetStateAction<string>>;
+  /** Reads the composer's draft at send time (it lives in the draft store, not in page state). */
+  getDraft: () => string;
+  /** Writes the draft of the conversation the send started in. */
+  setDraft: (value: string) => void;
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   activeThreadRootId?: string | null;
-  workHubEnabled?: boolean;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
   sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
   sendThreadMessage?: {
@@ -88,6 +90,7 @@ export function useChatPageActions({
   };
   resolveDM: Pick<ReturnType<typeof useResolveDMRoom>, "mutateAsync">;
   createGroup: Pick<ReturnType<typeof useCreateChatGroup>, "mutateAsync">;
+  setRoomAvatar: Pick<ReturnType<typeof useSetChatRoomAvatar>, "mutateAsync">;
   inviteMembers: Pick<ReturnType<typeof useInviteChatGroupMembers>, "mutateAsync">;
   leaveRoom: Pick<ReturnType<typeof useLeaveChatRoom>, "mutateAsync">;
   setConnectError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -106,10 +109,14 @@ export function useChatPageActions({
 }) {
   const { t } = useTranslation();
 
+  // Sends one body (text, reply, sticker, GIF). It never touches the draft:
+  // the composer path below owns that. True when sent or queued.
+  // `sideThreadRootId` is the thread open beside the timeline: its composer
+  // has no reply or priority, so the main composer's are neither sent nor cleared.
   const sendMessageBody = useCallback(
-    async (text: string) => {
+    async (text: string, sideThreadRootId?: string): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
 
       let roomId = activeRoomId;
       if (target.kind === "workspace" && !roomId) {
@@ -120,37 +127,42 @@ export function useChatPageActions({
         const room = await resolveDM.mutateAsync(target.contact.user_id);
         roomId = room?.id ?? null;
       }
-      if (!roomId) return;
+      if (!roomId) return false;
+
+      const threadsAllowed =
+        target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
+      const threadRootId = sideThreadRootId ?? activeThreadRootId;
+      const sendingInThread = Boolean(threadsAllowed && threadRootId && sendThreadMessage);
+      const mainComposer = !sideThreadRootId;
+      const clearComposerExtras = () => {
+        if (!mainComposer) return;
+        setReplyTo(null);
+        setComposerPriority?.(null);
+      };
 
       const payload: ChatTextSendPayload = {
         roomId,
         body: trimmed,
         client_msg_id: newChatClientMsgId(),
-        ...(replyTo && !(workHubEnabled && activeThreadRootId)
-          ? { reply_to_message_id: replyTo.id }
-          : {}),
-        ...(composerPriority ? { priority: composerPriority } : {}),
+        ...(mainComposer && replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
+        ...(mainComposer && composerPriority ? { priority: composerPriority } : {}),
+        ...(sendingInThread && threadRootId ? { thread_root_id: threadRootId } : {}),
       };
 
-      const queueForLater = () => {
+      // A send the server refused for a passing reason (5xx, 408…) while the
+      // network is up stays in the timeline as failed with "Thử lại"; only a
+      // real network loss waits quietly for the reconnect.
+      const queueForLater = (failed = false) => {
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, payload));
-        setReplyTo(null);
-        setDraft("");
-        setComposerPriority?.(null);
-        setConnectError(t("chat.send_queued_offline"));
+        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload, { failed }));
+        clearComposerExtras();
+        setConnectError(failed ? null : t("chat.send_queued_offline"));
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        if (workHubEnabled && activeThreadRootId) {
-          setConnectError(t("chat.send_queued_offline"));
-          return;
-        }
         queueForLater();
-        return;
+        return true;
       }
-
-      const sendingInThread = Boolean(workHubEnabled && activeThreadRootId && sendThreadMessage);
 
       usePendingChatMessagesStore.getState().upsert({
         workspaceId,
@@ -160,17 +172,15 @@ export function useChatPageActions({
         senderId: currentUserId,
         createdAt: Date.now(),
         reply_to_message_id: payload.reply_to_message_id,
-        ...(sendingInThread && activeThreadRootId
-          ? { thread_root_id: activeThreadRootId }
-          : {}),
+        thread_root_id: payload.thread_root_id,
         priority: payload.priority,
         status: "sending",
       });
 
       try {
-        if (sendingInThread && activeThreadRootId && sendThreadMessage) {
+        if (sendingInThread && threadRootId && sendThreadMessage) {
           await sendThreadMessage.mutateAsync({
-            threadRootId: activeThreadRootId,
+            threadRootId,
             body: payload.body,
             client_msg_id: payload.client_msg_id,
             priority: payload.priority,
@@ -178,20 +188,25 @@ export function useChatPageActions({
         } else {
           await sendRoomMessage.mutateAsync(payload);
         }
-        setReplyTo(null);
-        setDraft("");
-        setComposerPriority?.(null);
+        clearComposerExtras();
         setConnectError(null);
+        return true;
       } catch (err: unknown) {
         if (errorCode(err) === "chat_user_blocked") {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
           setConnectError(t("chat.block_send_error"));
+        } else if (isChatSendRateLimited(err)) {
+          // Still online: keep the draft so the sender can send it again.
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(t("chat.send_rate_limited"));
         } else if (isRetriableChatSendError(err)) {
-          queueForLater();
+          queueForLater(!isChatSendNetworkError(err));
+          return true;
         } else {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(err instanceof Error ? err.message : "send_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
         }
+        return false;
       }
     },
     [
@@ -206,8 +221,6 @@ export function useChatPageActions({
       replyTo,
       setReplyTo,
       activeThreadRootId,
-      workHubEnabled,
-      setDraft,
       setConnectError,
       composerPriority,
       setComposerPriority,
@@ -215,27 +228,39 @@ export function useChatPageActions({
     ],
   );
 
-  const provisionAndSend = useCallback(async () => {
-    const text = serializeComposerDraftToMessageBody(
-      draft.trim(),
-      mentionCandidates,
-      mentionAllLabel,
-    );
-    if (!text) return;
-    await sendMessageBody(text);
-  }, [draft, mentionCandidates, mentionAllLabel, sendMessageBody]);
+  // The main composer's draft by default; the side thread's composer passes
+  // its own draft and root.
+  const provisionAndSend = useCallback(
+    async (read: () => string = getDraft, write: (value: string) => void = setDraft, sideThreadRootId?: string) => {
+      const raw = read().trim();
+      const text = serializeComposerDraftToMessageBody(raw, mentionCandidates, mentionAllLabel);
+      if (!text) return;
+      // Clear at once: a second Enter finds nothing to send, and text typed
+      // while the server answers is not wiped when it does.
+      write("");
+      let sent = false;
+      try {
+        sent = await sendMessageBody(text, sideThreadRootId);
+      } finally {
+        // Not sent and not queued: give the words back, ahead of anything typed since.
+        if (!sent) {
+          const typed = read();
+          write(typed ? `${raw}\n${typed}` : raw);
+        }
+      }
+    },
+    [getDraft, setDraft, mentionCandidates, mentionAllLabel, sendMessageBody],
+  );
 
   const handleCreateGroup = useCallback(
-    (members: ChatContact[], name: string) => {
+    (members: ChatContact[], name: string, avatar: File | null = null) => {
       if (members.length < 2) return;
       setCreatingGroup(true);
       setConnectError(null);
-      const resolvedName =
-        name.trim() ||
-        members.map((member) => displayLabelForChatContact(member)).join(", ");
       void createGroup
         .mutateAsync({
-          name: resolvedName,
+          // Empty lets the server pick a short default from the members' names.
+          name: name.trim(),
           member_user_ids: members.map((member) => member.user_id),
         })
         .then((room) => {
@@ -248,15 +273,21 @@ export function useChatPageActions({
           };
           setTarget({ kind: "group", group });
           setCreateGroupOpen(false);
+          // The group exists either way: a photo that does not follow is a toast, not a failed create.
+          if (avatar) {
+            setRoomAvatar
+              .mutateAsync({ roomId: room.id, file: avatar })
+              .catch(() => toast.error(t("chat.group_avatar_failed_after_create")));
+          }
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_failed"));
         })
         .finally(() => {
           setCreatingGroup(false);
         });
     },
-    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup],
+    [createGroup, setRoomAvatar, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup, t],
   );
 
   const handleAddGroupMembers = useCallback(
@@ -293,20 +324,20 @@ export function useChatPageActions({
               channel: {
                 ...activeChannel,
                 ...room,
-                member_user_ids: room.member_user_ids,
               },
             });
           }
           setAddMembersOpen(false);
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_invite_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_invite_failed"));
         })
         .finally(() => {
           setInvitingMembers(false);
         });
     },
     [
+      t,
       target.kind,
       activeChannel,
       activeGroup,
@@ -331,7 +362,7 @@ export function useChatPageActions({
         setGroupSettingsOpen(false);
         clearGroupMemberProfiles();
       } catch (err: unknown) {
-        setConnectError(err instanceof Error ? err.message : t("chat.leave_conversation_failed"));
+        setConnectError(apiErrorMessage(err) ?? t("chat.leave_conversation_failed"));
       } finally {
         setLeavingConversation(false);
       }

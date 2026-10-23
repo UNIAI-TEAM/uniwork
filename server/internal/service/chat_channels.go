@@ -46,7 +46,6 @@ type UpdateChannelInput struct {
 type ListChannelsInput struct {
 	Scope     string // mine | discoverable
 	ProjectID string
-	Query     string
 }
 
 func errChatChannelNameInvalid() error {
@@ -97,15 +96,14 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 		}
 	}
 
-	memberIDs := uniqueUserIDs(append([]string{userID}, in.MemberUserIDs...))
-	for _, id := range memberIDs {
-		if id == userID {
-			continue
-		}
-		if err := s.requireOrgPeer(ctx, w.OrganizationID, id); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	inviteIDs := normalizeUserIDs(in.MemberUserIDs)
+	if len(inviteIDs) > chatInviteMaxIDs {
+		return ChatRoomSummary{}, Invalid("mỗi tối đa 100 thành viên mỗi lần")
 	}
+	if err := s.requireOrgPeers(ctx, w.OrganizationID, inviteIDs); err != nil {
+		return ChatRoomSummary{}, err
+	}
+	memberIDs := uniqueUserIDs(append([]string{userID}, inviteIDs...))
 
 	roomID := util.NewID()
 	tx, err := s.pool.Begin(ctx)
@@ -123,7 +121,7 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 		ID:              roomID,
 		Kind:            chatRoomKindChannel,
 		WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-		OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
+		OrganizationID:  w.OrganizationID,
 		Name:            name,
 		MemberSetKey:    pgtype.Text{},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -137,14 +135,8 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	for _, id := range memberIDs {
-		role := "member"
-		if id == userID {
-			role = "admin"
-		}
-		if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, id, role); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	if err := insertChatRoomMembers(ctx, q, room, workspaceID, userID, memberIDs); err != nil {
+		return ChatRoomSummary{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
@@ -176,29 +168,24 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		scope = "mine"
 	}
 	proj := optionalText(strings.TrimSpace(in.ProjectID))
-	q := optionalText(strings.TrimSpace(in.Query))
 	ws := pgtype.Text{String: workspaceID, Valid: true}
 
 	switch scope {
 	case "mine":
 		rows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
-			UserID: userID, WorkspaceID: ws, ProjectID: proj, SearchQ: q,
+			UserID: userID, WorkspaceID: ws, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err
 		}
 		out := make([]ChatRoomSummary, 0, len(rows))
 		for _, row := range rows {
-			sum, err := s.channelSummaryFromMineRow(ctx, userID, row)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, sum)
+			out = append(out, channelSummaryFromMineRow(row))
 		}
 		return out, nil
 	case "discoverable":
 		rows, err := s.q.ListChatChannelsDiscoverable(ctx, db.ListChatChannelsDiscoverableParams{
-			WorkspaceID: ws, UserID: userID, ProjectID: proj, SearchQ: q,
+			WorkspaceID: ws, UserID: userID, ProjectID: proj,
 		})
 		if err != nil {
 			return nil, err
@@ -306,7 +293,7 @@ func (s *ChatService) UpdateChannel(ctx context.Context, userID, workspaceID, ro
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	orgID := roomOrganizationID(updated)
+	orgID := updated.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -366,16 +353,18 @@ func (s *ChatService) JoinChannel(ctx context.Context, userID, workspaceID, room
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	_ = q.ReactivateChatRoomMember(ctx, db.ReactivateChatRoomMemberParams{
+	// A fresh row, like a re-invite: reviving old 'left' rows breaks the
+	// one-active-row index once a user has left more than once.
+	added, err := s.addRoomMember(ctx, q, room, workspaceID, userID, "member")
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	if !added { // a concurrent join already added the row
+		return s.channelSummaryFromRoom(ctx, userID, room, 0)
+	}
+	if err := q.CarryOverChatRoomMemberSendRestricted(ctx, db.CarryOverChatRoomMemberSendRestrictedParams{
 		RoomID: roomID, UserID: userID,
-	})
-	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
-	}); errors.Is(err, pgx.ErrNoRows) {
-		if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, userID, "member"); err != nil {
-			return ChatRoomSummary{}, err
-		}
-	} else if err != nil {
+	}); err != nil {
 		return ChatRoomSummary{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -417,7 +406,7 @@ func (s *ChatService) ArchiveChannel(ctx context.Context, userID, workspaceID, r
 	} else if err != nil {
 		return err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -451,7 +440,7 @@ func (s *ChatService) UnarchiveChannel(ctx context.Context, userID, workspaceID,
 	} else if err != nil {
 		return err
 	}
-	orgID := roomOrganizationID(room)
+	orgID := room.OrganizationID
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID,
 		Actor:        audit.User(userID),
@@ -463,7 +452,14 @@ func (s *ChatService) UnarchiveChannel(ctx context.Context, userID, workspaceID,
 	}}); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// chat.channel.updated is ephemeral: the outbox row above reaches no client.
+	s.publishChatRoomMembersEvent(ctx, roomID, Event{
+		Type: "chat.channel.updated", Payload: map[string]string{"room_id": roomID, "workspace_id": workspaceID},
+	})
+	return nil
 }
 
 // CreateChannelForProject creates a public channel linked to a project (optional CreateProject tick).
@@ -480,7 +476,7 @@ func (s *ChatService) CreateChannelForProject(ctx context.Context, q *db.Queries
 		ID:              roomID,
 		Kind:            chatRoomKindChannel,
 		WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
-		OrganizationID:  pgtype.Text{String: orgID, Valid: true},
+		OrganizationID:  orgID,
 		Name:            name,
 		MemberSetKey:    pgtype.Text{},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
@@ -494,7 +490,7 @@ func (s *ChatService) CreateChannelForProject(ctx context.Context, q *db.Queries
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	if err := s.ensureRoomMemberTx(ctx, q, roomID, workspaceID, userID, "admin"); err != nil {
+	if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, userID, "admin"); err != nil {
 		return db.ChatRoom{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -524,7 +520,7 @@ func (s *ChatService) requireProjectInWorkspace(ctx context.Context, workspaceID
 }
 
 func (s *ChatService) authorizeChannelAdmin(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
-	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
@@ -571,7 +567,7 @@ func (s *ChatService) authorizeChannelAdminIncludingArchived(ctx context.Context
 	if !room.WorkspaceID.Valid || room.WorkspaceID.String != workspaceID {
 		return db.ChatRoom{}, ErrNotFound
 	}
-	if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+	if room.OrganizationID != w.OrganizationID {
 		return db.ChatRoom{}, ErrNotFound
 	}
 	if room.CreatedBy == userID {
@@ -606,19 +602,16 @@ func (s *ChatService) channelSummaryFromRoom(ctx context.Context, userID string,
 	return sum, nil
 }
 
-func (s *ChatService) channelSummaryFromMineRow(ctx context.Context, userID string, row db.ListChatChannelsMineRow) (ChatRoomSummary, error) {
-	wsID := ""
-	if row.WorkspaceID.Valid {
-		wsID = row.WorkspaceID.String
+func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
+	sum := ChatRoomSummary{
+		ID: row.ID, Kind: row.Kind, Name: row.Name, WorkspaceID: textOrEmpty(row.WorkspaceID),
+		MemberCount: int(row.MemberCount), UnreadCount: int(row.UnreadCount),
+		MentionUnreadCount: int(row.MentionUnreadCount),
+		MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
+		Visibility:         row.Visibility, Topic: row.Topic, IsDefault: row.IsDefault,
+		ProjectID: textOrEmpty(row.ProjectID), LastReadAt: timePtr(row.MyLastReadAt),
+		NotificationsMuted: row.NotificationsMuted,
 	}
-	sum, err := s.roomSummary(ctx, userID, wsID, row.ID, row.Kind, row.Name, chatUnreadCount(row.UnreadCount), "", row.MemberPermissions)
-	if err != nil {
-		return ChatRoomSummary{}, err
-	}
-	sum.Visibility = row.Visibility
-	sum.Topic = row.Topic
-	sum.IsDefault = row.IsDefault
-	sum.ProjectID = textOrEmpty(row.ProjectID)
 	if row.LastMessageAt.Valid {
 		t := row.LastMessageAt.Time
 		sum.LastMessageAt = &t
@@ -626,8 +619,10 @@ func (s *ChatService) channelSummaryFromMineRow(ctx context.Context, userID stri
 		sum.LastMessageKind = row.LastMessageKind
 		sum.LastMessageSenderID = row.LastMessageSenderID
 		sum.LastMessageSenderName = row.LastMessageSenderName
+		sum.LastMessageCallOutcome = row.LastMessageCallOutcome
+		sum.LastMessageDurationMS = int(row.LastMessageDurationMs)
 	}
-	return sum, nil
+	return sum
 }
 
 func channelSummaryFromDiscoverRow(row db.ListChatChannelsDiscoverableRow) ChatRoomSummary {

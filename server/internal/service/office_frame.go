@@ -1,0 +1,678 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/storage"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// OfficeFrameService mints and checks the token of the Office web frames: the
+// Docs frame (UNI-1013) and the other genoffice modules (UNI-1014/1015/1016). The host page mints one with its session; the frame presents it
+// as its only credential. A token is stateless and server-signed, and binds
+// exactly one document, its workspace and organization, and the user. It
+// grants nothing by itself: every request it carries is re-authorized through
+// DocumentService as that user, so a revoked share or membership stops the
+// next call, and the short lifetime bounds a leaked token.
+type OfficeFrameService struct {
+	documents *DocumentService
+	// sources serves the "other sources" frame (UNI-1869): the mint and every
+	// read of an ofs1. token re-run the source's own gate through it. Nil
+	// leaves the source routes not_found.
+	sources *DocumentSourceService
+	people  *PeopleService
+	key     []byte
+	ttl     time.Duration
+	now     func() time.Time
+}
+
+// OfficeFrameTokenTTL is the lifetime of a frame token (a signed image URL of
+// a Markdown/HTML frame lives OfficeFrameAssetURLTTL, any other the token's).
+// There is no token-to-token renewal: before it ends the frame sends the
+// protocol's token.refresh and the host re-mints with its session, so a token
+// never outlives the session that minted it by more than one TTL.
+const OfficeFrameTokenTTL = 10 * time.Minute
+
+const (
+	officeFrameTokenPrefix  = "oft1."
+	officeFrameAssetPrefix  = "ofa1."
+	officeFrameSourcePrefix = "ofs1."
+)
+
+// ErrOfficeFrameToken is every invalid, expired or foreign frame credential;
+// the handler answers it with one 401 so nothing about the document leaks.
+var ErrOfficeFrameToken = errors.New("office_frame_token_invalid")
+
+// OfficeFrameClaims are what a frame token binds.
+type OfficeFrameClaims struct {
+	Version        int    `json:"v"`
+	DocumentID     string `json:"d"`
+	WorkspaceID    string `json:"w"`
+	OrganizationID string `json:"o"`
+	UserID         string `json:"u"`
+	ExpiresAt      int64  `json:"e"`
+	Nonce          string `json:"n"`
+	// Module is the genoffice web module the token opens, derived from the
+	// document's stored format at mint. Empty is docs: a Docs token carries no
+	// m, so tokens minted before modules existed stay valid and mean docs.
+	Module string `json:"m,omitempty"`
+}
+
+// ModuleName is the token's module, with the absent claim read as docs.
+func (c OfficeFrameClaims) ModuleName() string {
+	if c.Module == "" {
+		return OfficeFrameModuleDocs
+	}
+	return c.Module
+}
+
+// OfficeFrameToken is a minted token with what the host needs to hand over.
+type OfficeFrameToken struct {
+	Token     string
+	ExpiresAt time.Time
+	Claims    OfficeFrameClaims
+	CanEdit   bool
+}
+
+// OfficeFrameDocument is the frame's open/save view of its document.
+type OfficeFrameDocument struct {
+	Document db.Document
+	Access   DocumentAccess
+	File     DocumentFileInfo
+	Module   string
+}
+
+// OfficeFrameAssetURL is one signed image URL.
+type OfficeFrameAssetURL struct {
+	AssetID   string
+	URL       string
+	ExpiresAt time.Time
+}
+
+type officeFrameAssetClaims struct {
+	DocumentID     string `json:"d"`
+	AssetID        string `json:"a"`
+	WorkspaceID    string `json:"w"`
+	OrganizationID string `json:"o"`
+	UserID         string `json:"u"`
+	ExpiresAt      int64  `json:"e"`
+	// Module is the token's m, carried over so the byte route checks the flag
+	// of the module the URL was signed for; empty is docs, as on a token.
+	Module string `json:"m,omitempty"`
+}
+
+// NewOfficeFrameService derives its signing key from secret (the JWT secret)
+// under its own label, so a frame token can never pass for an access token or
+// a preview capability and the other way round.
+func NewOfficeFrameService(documents *DocumentService, secret string) *OfficeFrameService {
+	if documents == nil || len(secret) == 0 {
+		return nil
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte("uniwork/office-frame/v1"))
+	var people *PeopleService
+	if documents.q != nil || documents.orgs != nil {
+		people = NewPeopleService(documents.pool, documents.q, documents.orgs)
+	}
+	return &OfficeFrameService{documents: documents, people: people, key: mac.Sum(nil), ttl: OfficeFrameTokenTTL, now: time.Now}
+}
+
+// SetSources wires the source frame (UNI-1869). Without it the source routes
+// answer not_found, the way an unwired domain source is left out of the list.
+func (s *OfficeFrameService) SetSources(sources *DocumentSourceService) {
+	if s == nil {
+		return
+	}
+	s.sources = sources
+}
+
+// SetPeople wires the organization directory reader used by OpenAvatar
+// (UNI-1986). When left unset, NewOfficeFrameService builds one over the
+// document service's queries and organization gate.
+func (s *OfficeFrameService) SetPeople(people *PeopleService) {
+	if s == nil || people == nil {
+		return
+	}
+	s.people = people
+}
+
+// SetClock replaces the clock (tests).
+func (s *OfficeFrameService) SetClock(now func() time.Time) {
+	if now == nil {
+		now = time.Now
+	}
+	s.now = now
+}
+
+// SetTTL replaces the token lifetime (tests that outlive the default).
+func (s *OfficeFrameService) SetTTL(ttl time.Duration) {
+	if ttl > 0 {
+		s.ttl = ttl
+	}
+}
+
+// Mint checks that actor may view documentID, that it is a live file document
+// one of the web modules opens, and signs a token for it bound to that module. The caller cannot choose the lifetime
+// or any bound id.
+func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID string) (OfficeFrameToken, error) {
+	if s == nil || actor.Kind != "human" || actor.ID == "" {
+		return OfficeFrameToken{}, ErrNotFound
+	}
+	d, err := s.load(ctx, actor, documentID)
+	if err != nil {
+		return OfficeFrameToken{}, err
+	}
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return OfficeFrameToken{}, err
+	}
+	expires := s.now().Add(s.ttl)
+	claims := OfficeFrameClaims{
+		Version: 1, DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID,
+		OrganizationID: d.Document.OrganizationID, UserID: actor.ID,
+		ExpiresAt: expires.UnixMilli(), Nonce: base64.RawURLEncoding.EncodeToString(nonce),
+	}
+	if d.Module != OfficeFrameModuleDocs {
+		claims.Module = d.Module
+	}
+	token, err := s.sign(officeFrameTokenPrefix, claims)
+	if err != nil {
+		return OfficeFrameToken{}, err
+	}
+	// A shelved document stays openable (load admits it - it is not the
+	// trash) but is read-only: the token tells the frame so, and the save
+	// routes refuse on their own (ARCHIVE-01 §3, SH-6).
+	return OfficeFrameToken{Token: token, ExpiresAt: time.UnixMilli(claims.ExpiresAt).UTC(), Claims: claims, CanEdit: d.Access.Level.rank() >= DocumentLevelEdit.rank() && !d.Document.ShelvedAt.Valid}, nil
+}
+
+// Verify checks signature, version and lifetime. It does not touch the
+// database: authorization happens on every call through DocumentService.
+func (s *OfficeFrameService) Verify(token string) (OfficeFrameClaims, error) {
+	var claims OfficeFrameClaims
+	if s == nil || !s.verify(officeFrameTokenPrefix, token, &claims) {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	if claims.Version != 1 || claims.DocumentID == "" || claims.WorkspaceID == "" || claims.OrganizationID == "" || claims.UserID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	if claims.Module == OfficeFrameModuleDocs {
+		// Mint never writes m for docs: one spelling per token.
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	if _, ok := OfficeFrameModuleFlag(claims.ModuleName()); !ok {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	return claims, nil
+}
+
+// Open is the frame's view of its document, rechecked as the token's user.
+func (s *OfficeFrameService) Open(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameDocument, error) {
+	d, err := s.Authorize(ctx, claims)
+	if err != nil {
+		return OfficeFrameDocument{}, err
+	}
+	s.documents.RecordDocumentRead(ctx, Human(claims.UserID), d.Document, d.Access, DocumentAccessView, nil)
+	return d, nil
+}
+
+// Authorize rechecks that the token's user may still view its document and
+// that the document is still in the workspace the token names and still of the
+// token's module; a document moved to another workspace, or whose current
+// version is now another format, is refused like a missing one.
+func (s *OfficeFrameService) Authorize(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameDocument, error) {
+	d, err := s.load(ctx, Human(claims.UserID), claims.DocumentID)
+	if err != nil {
+		return OfficeFrameDocument{}, err
+	}
+	if d.Document.WorkspaceID != claims.WorkspaceID || d.Document.OrganizationID != claims.OrganizationID || d.Module != claims.ModuleName() {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
+	return d, nil
+}
+
+// AuthorizeSave is Authorize for the two save routes (uploads, versions/commit).
+// The one difference is an archived document: a frame actor who could save
+// (edit or more) on it, in the workspace and organization the token names,
+// gets document_archived (403) so the client shows "archived" instead of
+// "deleted"; everyone else, and every other frame route, keeps not_found.
+func (s *OfficeFrameService) AuthorizeSave(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameDocument, error) {
+	d, err := s.Authorize(ctx, claims)
+	if err == nil || !errors.Is(err, ErrNotFound) {
+		return d, err
+	}
+	doc, access, rerr := s.documents.readableDocument(ctx, Human(claims.UserID), claims.DocumentID)
+	if rerr == nil && doc.ArchivedAt.Valid && doc.Kind == DocumentKindFile &&
+		doc.WorkspaceID == claims.WorkspaceID && doc.OrganizationID == claims.OrganizationID {
+		if refusal := archivedSaveRefusal(access); !errors.Is(refusal, ErrNotFound) {
+			return OfficeFrameDocument{}, refusal
+		}
+	}
+	return OfficeFrameDocument{}, err
+}
+
+// load authorizes view and keeps only live file documents a web module
+// opens; the module comes from the stored file, never from the caller.
+func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID string) (OfficeFrameDocument, error) {
+	doc, access, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return OfficeFrameDocument{}, err
+	}
+	if doc.Kind != DocumentKindFile || doc.ArchivedAt.Valid {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
+	file, err := s.documents.currentFileInfo(ctx, doc)
+	if err != nil {
+		return OfficeFrameDocument{}, err
+	}
+	if file == nil {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
+	module, ok := officeFrameModuleOf(file.MimeType, file.Filename)
+	if !ok {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
+	return OfficeFrameDocument{Document: doc, Access: access, File: *file, Module: module}, nil
+}
+
+// SignAsset returns a URL for one image of the token's document that an <img>
+// can load without a header. The signature binds the asset, the document and
+// the user and lives urlTTL; the byte route still rechecks view.
+func (s *OfficeFrameService) SignAsset(claims OfficeFrameClaims, assetID string) (OfficeFrameAssetURL, error) {
+	expires := s.now().Add(s.urlTTL(claims))
+	sig, err := s.sign(officeFrameAssetPrefix, officeFrameAssetClaims{
+		DocumentID: claims.DocumentID, AssetID: assetID, WorkspaceID: claims.WorkspaceID,
+		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: expires.UnixMilli(),
+		Module: claims.Module,
+	})
+	if err != nil {
+		return OfficeFrameAssetURL{}, err
+	}
+	return OfficeFrameAssetURL{
+		AssetID:   assetID,
+		URL:       "/api/v1/office-frame/documents/" + claims.DocumentID + "/assets/" + assetID + "?sig=" + sig,
+		ExpiresAt: time.UnixMilli(expires.UnixMilli()).UTC(),
+	}, nil
+}
+
+// urlTTL is the lifetime of a signed asset or sibling URL: the token's for a
+// Docs frame (as UNI-1013 shipped it), OfficeFrameAssetURLTTL for the Markdown
+// and HTML frames, which re-read their pictures for the whole session and
+// re-sign through Resolve.
+func (s *OfficeFrameService) urlTTL(claims OfficeFrameClaims) time.Duration {
+	if officeFrameLoadsSiblings(claims.ModuleName()) {
+		return OfficeFrameAssetURLTTL
+	}
+	return s.ttl
+}
+
+// VerifyAsset returns the frame claims a signed image URL was issued under,
+// when it names exactly this document and asset and has not expired. The
+// claims open only that asset: the handler serves nothing else with them.
+func (s *OfficeFrameService) VerifyAsset(sig, documentID, assetID string) (OfficeFrameClaims, error) {
+	var claims officeFrameAssetClaims
+	if s == nil || !s.verify(officeFrameAssetPrefix, sig, &claims) {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	if claims.DocumentID != documentID || claims.AssetID != assetID || claims.UserID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	// The same module rules as Verify: one spelling for docs, no unknown module.
+	if claims.Module == OfficeFrameModuleDocs {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	out := OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
+		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt, Module: claims.Module}
+	if _, ok := OfficeFrameModuleFlag(out.ModuleName()); !ok {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	return out, nil
+}
+
+// SignAssets signs URLs for assets that belong to the token's document, after
+// checking view as the token's user. One foreign or unknown id refuses all.
+func (s *OfficeFrameService) SignAssets(ctx context.Context, claims OfficeFrameClaims, assetIDs []string) ([]OfficeFrameAssetURL, error) {
+	if len(assetIDs) == 0 || len(assetIDs) > 100 {
+		return nil, Invalid("asset_ids cần từ 1 đến 100 mục")
+	}
+	actor := Human(claims.UserID)
+	out := make([]OfficeFrameAssetURL, 0, len(assetIDs))
+	for _, id := range assetIDs {
+		if _, _, _, err := s.documents.authorizeDocumentAsset(ctx, actor, claims.DocumentID, id, DocumentLevelView); err != nil {
+			return nil, err
+		}
+		u, err := s.SignAsset(claims, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, nil
+}
+
+// Recents lists the user's recently opened or edited file documents of the
+// token's module in its workspace. It reuses the Documents recent list (the
+// same ACL filter) and keeps only what the frame can open, judged as load
+// judges it:
+// the current version's mime type or its stored file name. The current
+// versions come in one query and the file names in one batch resolve.
+func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClaims, limit int) ([]db.Document, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	page, err := s.documents.ListRecentDocuments(ctx, Human(claims.UserID), claims.WorkspaceID, ListDocumentsInput{Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]db.Document, 0, len(page.Items))
+	versionIDs := make([]string, 0, len(page.Items))
+	for _, item := range page.Items {
+		doc := item.Document
+		if doc.Kind != DocumentKindFile || doc.ArchivedAt.Valid || !doc.FileVersionID.Valid ||
+			doc.OrganizationID != claims.OrganizationID || doc.WorkspaceID != claims.WorkspaceID {
+			continue
+		}
+		candidates = append(candidates, doc)
+		versionIDs = append(versionIDs, doc.FileVersionID.String)
+	}
+	out := make([]db.Document, 0, limit)
+	if len(candidates) == 0 {
+		return out, nil
+	}
+	versions, err := s.documents.q.ListDocumentVersionsByIDs(ctx, db.ListDocumentVersionsByIDsParams{
+		OrganizationID: claims.OrganizationID, WorkspaceID: claims.WorkspaceID, Ids: versionIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]db.DocumentVersion, len(versions))
+	fileIDs := make([]files.FileID, 0, len(versions))
+	for _, v := range versions {
+		byID[v.ID] = v
+		if v.FileID.Valid {
+			fileIDs = append(fileIDs, files.FileID(v.FileID.String))
+		}
+	}
+	names := s.fileNames(ctx, claims, fileIDs)
+	for _, doc := range candidates {
+		v, ok := byID[doc.FileVersionID.String]
+		if !ok || v.DocumentID != doc.ID {
+			continue
+		}
+		name := doc.Title
+		if n := names[files.FileID(v.FileID.String)]; n != "" {
+			name = s.documents.versionFilename(ctx, doc, v, n)
+		}
+		if m, ok := officeFrameModuleOf(v.MimeType.String, name); !ok || m != claims.ModuleName() {
+			continue
+		}
+		out = append(out, doc)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+// fileNames resolves the stored names of fileIDs in the token's workspace,
+// as currentFileInfo does for one; a file that does not resolve is left out
+// and its document falls back to its title.
+func (s *OfficeFrameService) fileNames(ctx context.Context, claims OfficeFrameClaims, fileIDs []files.FileID) map[files.FileID]string {
+	out := make(map[files.FileID]string, len(fileIDs))
+	if s.documents.files == nil || len(fileIDs) == 0 {
+		return out
+	}
+	resolved, err := s.documents.files.ResolveMany(ctx, files.ResolveInput{
+		Scope: documentScope(claims.OrganizationID, claims.WorkspaceID), Mode: files.ReadProxy,
+		Disposition: files.DispositionAttachment, FileIDs: fileIDs,
+	})
+	if err != nil {
+		return out
+	}
+	for _, r := range resolved {
+		if r.Err == nil && r.File.Filename != "" {
+			out[r.File.ID] = r.File.Filename
+		}
+	}
+	return out
+}
+
+func (s *OfficeFrameService) sign(prefix string, claims any) (string, error) {
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	body := prefix + base64.RawURLEncoding.EncodeToString(payload)
+	return body + "." + base64.RawURLEncoding.EncodeToString(s.mac(body)), nil
+}
+
+func (s *OfficeFrameService) verify(prefix, token string, into any) bool {
+	rest, ok := strings.CutPrefix(token, prefix)
+	if !ok {
+		return false
+	}
+	payload, sig, ok := strings.Cut(rest, ".")
+	if !ok || payload == "" || sig == "" {
+		return false
+	}
+	// Strict: one spelling per MAC (see PreviewAssetService.verify).
+	got, err := base64.RawURLEncoding.Strict().DecodeString(sig)
+	if err != nil || !hmac.Equal(got, s.mac(prefix+payload)) {
+		return false
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(payload)
+	if err != nil {
+		return false
+	}
+	return json.Unmarshal(raw, into) == nil
+}
+
+func (s *OfficeFrameService) mac(body string) []byte {
+	m := hmac.New(sha256.New, s.key)
+	m.Write([]byte(body))
+	return m.Sum(nil)
+}
+
+// UploadAsset attaches an image to the token's document with edit access.
+// The page orphan sweep never runs on a file document, so the asset is held
+// while the document lives and purged with it.
+func (s *OfficeFrameService) UploadAsset(ctx context.Context, claims OfficeFrameClaims, in DocumentUploadInput) (db.DocumentAsset, error) {
+	if _, err := s.Authorize(ctx, claims); err != nil {
+		return db.DocumentAsset{}, err
+	}
+	return s.documents.uploadDocumentAsset(ctx, Human(claims.UserID), claims.DocumentID, in, func(doc db.Document) bool {
+		return doc.Kind == DocumentKindFile && doc.WorkspaceID == claims.WorkspaceID
+	})
+}
+
+// OpenUploadSession opens a chunked multipart upload session (> 20 MiB) for the
+// frame token's document after AuthorizeSave.
+func (s *OfficeFrameService) OpenUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID string, in OpenUploadSessionInput) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.OpenFrameUploadSession(ctx, claims, documentID, in)
+}
+
+// GetUploadSession returns the status, completed parts, and missing presigned
+// URLs of a frame upload session.
+func (s *OfficeFrameService) GetUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) (UploadSessionView, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionView{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionView{}, err
+	}
+	return s.documents.GetFrameUploadSession(ctx, claims, documentID, sessionID)
+}
+
+// CompleteUploadSession assembles, validates, and stages a frame upload
+// session.
+func (s *OfficeFrameService) CompleteUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string, in CompleteUploadSessionInput) (UploadSessionCompleteResult, error) {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return UploadSessionCompleteResult{}, ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	return s.documents.CompleteFrameUploadSession(ctx, claims, documentID, sessionID, in)
+}
+
+// AbortUploadSession aborts an open frame upload session and releases its
+// reserved storage quota.
+func (s *OfficeFrameService) AbortUploadSession(ctx context.Context, claims OfficeFrameClaims, documentID, sessionID string) error {
+	if claims.DocumentID == "" || claims.DocumentID != documentID {
+		return ErrNotFound
+	}
+	if _, err := s.AuthorizeSave(ctx, claims); err != nil {
+		return err
+	}
+	return s.documents.AbortFrameUploadSession(ctx, claims, documentID, sessionID)
+}
+
+const (
+	// officeFrameAvatarMaxBytes is the user_avatar upload cap (2 MiB, FS-C1).
+	officeFrameAvatarMaxBytes int64 = 2 << 20
+	officeFrameAvatarSniffLen       = 512
+)
+
+type officeFrameReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// OpenAvatar streams a same-organization member's file-backed avatar to an
+// Office web frame (UNI-1986). Every "nothing to serve" case — another
+// organization, a deactivated member, no avatar, a legacy or external
+// avatar_url, a missing/locked/deleted/out-of-scope file, a genuine missing
+// storage object (storage.ErrNotFound), a non-ULID userID, bytes over 2 MiB,
+// or bytes whose first 512 bytes do not sniff as PNG, JPEG, GIF or WebP (never
+// SVG) — returns ErrNotFound so the handler answers one uniform 404. Transient
+// storage/read or DB failures after authorization travel through filesError so
+// mapServiceError answers 5xx instead of a negatively cached 404.
+func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameClaims, userID string) (files.Reader, error) {
+	if s == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	d, err := s.Authorize(ctx, claims)
+	if err != nil {
+		return files.Reader{}, err
+	}
+	if !isOfficeFrameULID(userID) || s.people == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	fileID, err := s.people.AvatarFileOf(ctx, d.Document.OrganizationID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return files.Reader{}, ErrNotFound
+		}
+		return files.Reader{}, err
+	}
+	fs := s.avatarFiles()
+	if fs == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	rd, err := fs.Open(ctx, files.OpenInput{
+		Scope:   files.Scope{UserID: userID},
+		FileID:  fileID,
+		Variant: files.VariantThumb,
+	})
+	if err != nil {
+		return files.Reader{}, officeFrameAvatarOpenError(err)
+	}
+	if rd.File.SizeBytes <= 0 || rd.File.SizeBytes > officeFrameAvatarMaxBytes {
+		_ = rd.Close()
+		return files.Reader{}, ErrNotFound
+	}
+	var head [officeFrameAvatarSniffLen]byte
+	n, rerr := io.ReadFull(rd.Body, head[:])
+	if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+		_ = rd.Close()
+		return files.Reader{}, officeFrameAvatarOpenError(files.StorageUnavailable(rerr))
+	}
+	ct, ok := officeFrameAvatarContentType(head[:n])
+	if !ok {
+		_ = rd.Close()
+		return files.Reader{}, ErrNotFound
+	}
+	rd.File.ContentType = ct
+	rd.Body = &officeFrameReadCloser{
+		Reader: io.LimitReader(io.MultiReader(bytes.NewReader(head[:n]), rd.Body), rd.File.SizeBytes),
+		Closer: rd.Body,
+	}
+	return rd, nil
+}
+
+// officeFrameAvatarOpenError keeps every genuine "nothing to serve" refusal
+// (including a missing storage object wrapped in files.StorageUnavailable) as
+// ErrNotFound, while preserving transient storage outages and non-files.Error
+// DB/context errors for mapServiceError's 5xx handling (RBF-01, RBF-06).
+func officeFrameAvatarOpenError(err error) error {
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+	var fe *files.Error
+	if errors.As(err, &fe) {
+		if fe.Code == files.CodeStorageUnavailable {
+			return filesError(fe)
+		}
+		return ErrNotFound
+	}
+	return filesError(err)
+}
+
+func (s *OfficeFrameService) avatarFiles() files.Service {
+	if s.people != nil && s.people.files != nil {
+		return s.people.files
+	}
+	if s.documents != nil {
+		return s.documents.files
+	}
+	return nil
+}
+
+func isOfficeFrameULID(id string) bool {
+	if len(id) != 26 {
+		return false
+	}
+	for i := range len(id) {
+		c := id[i]
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'A' && c <= 'H':
+		case c == 'J' || c == 'K':
+		case c >= 'M' && c <= 'N':
+		case c >= 'P' && c <= 'T':
+		case c >= 'V' && c <= 'Z':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func officeFrameAvatarContentType(head []byte) (string, bool) {
+	if len(head) == 0 {
+		return "", false
+	}
+	switch ct := http.DetectContentType(head); ct {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return ct, true
+	default:
+		return "", false
+	}
+}

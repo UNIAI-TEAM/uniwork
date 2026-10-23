@@ -14,24 +14,25 @@ const TOAST_OVERTIME = "meeting-schedule-overtime";
 
 /**
  * Live countdown inside the room: warn before ends_at, then stay in overtime.
- * Participants leave only when status is ENDED or CANCELED (host or system).
+ * The room closes only when status is ENDED or CANCELED (host or system), and
+ * through `onClosed`: the room says why before anyone is sent away.
  */
 export function useMeetingScheduleDeadline({
   endsAt,
   status,
   admitted,
-  onLeave,
+  onClosed,
 }: {
   endsAt?: string;
   status?: string;
   admitted: boolean;
-  onLeave: () => void;
+  onClosed: (reason: "ended" | "canceled") => void;
 }) {
   const { t } = useTranslation();
   const warnedRef = useRef(new Set<string>());
   const overtimeRef = useRef(false);
-  const onLeaveRef = useRef(onLeave);
-  onLeaveRef.current = onLeave;
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
 
   useEffect(() => {
     warnedRef.current = new Set();
@@ -39,11 +40,12 @@ export function useMeetingScheduleDeadline({
   }, [endsAt]);
 
   useEffect(() => {
-    if (!endsAt || !admitted) return;
+    if (!admitted) return;
     if (status === "ENDED" || status === "CANCELED") {
-      onLeaveRef.current();
+      onClosedRef.current(status === "CANCELED" ? "canceled" : "ended");
       return;
     }
+    if (!endsAt) return;
 
     const enterOvertime = () => {
       if (overtimeRef.current) return;

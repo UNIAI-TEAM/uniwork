@@ -18,6 +18,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useAppOrigin } from "./use-app-origin";
+import { useEditorLinkContext } from "./editor-link-context";
 import { useTranslation } from "react-i18next";
 import {
   navigateWithFallback,
@@ -152,6 +153,7 @@ function LinkHoverCard({
   const slug = useEditorWorkspaceSlug();
   const appOrigin = useAppOrigin();
   const navigation = useOptionalNavigation();
+  const linkContext = useEditorLinkContext();
   const { t } = useTranslation();
 
   const navigate = (path: string, disposition: LinkClickIntent = "push") => {
@@ -200,7 +202,7 @@ function LinkHoverCard({
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    openLink(href, slug, appOrigin, "push", navigate);
+    openLink(href, slug, appOrigin, "push", navigate, linkContext);
   };
 
   return createPortal(

@@ -28,6 +28,7 @@ const many = Array.from({ length: 500 }, (_, i) => person(i));
 
 function renderTable({
   people = [person(1)],
+  total = undefined as number | undefined,
   hiddenColumns = [] as PeopleColumnKey[],
   hasNextPage = false,
   onLoadMore = vi.fn(),
@@ -36,6 +37,7 @@ function renderTable({
     wrapWithNav(
       <PeopleTable
         people={people}
+        total={total ?? people.length}
         hrefFor={(id) => `/acme/doi/people/${id}`}
         hiddenColumns={hiddenColumns}
         hasNextPage={hasNextPage}
@@ -125,11 +127,18 @@ describe("PeopleTable", () => {
     expect(screen.getByText("Đã vô hiệu hóa")).toBeInTheDocument();
   });
 
+  it("states the directory's row count as the server counts it, and its name order", () => {
+    renderTable({ people: [person(1), person(2)], total: 240, hasNextPage: true });
+    expect(screen.getByRole("table")).toHaveAttribute("aria-rowcount", "241");
+    expect(screen.getByRole("columnheader", { name: "Tên" })).toHaveAttribute("aria-sort", "ascending");
+  });
+
   it("shows row-shaped placeholders while the next page loads", () => {
     render(
       wrapWithNav(
         <PeopleTable
           people={[person(1)]}
+          total={1}
           hrefFor={(id) => `/acme/doi/people/${id}`}
           hiddenColumns={[]}
           hasNextPage

@@ -19,6 +19,14 @@ func TestValidateChatMessageBody(t *testing.T) {
 	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
 		t.Fatalf("expected long body error, got %v", err)
 	}
+	// The limit counts characters, not UTF-8 bytes ("ệ" is 3 bytes).
+	if err := validateChatMessageBody(strings.Repeat("ệ", maxChatMessageBodyLen)); err != nil {
+		t.Fatalf("Vietnamese body at the limit: %v", err)
+	}
+	err = validateChatMessageBody(strings.Repeat("ệ", maxChatMessageBodyLen+1))
+	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
+		t.Fatalf("expected long Vietnamese body error, got %v", err)
+	}
 }
 
 func TestValidateClientMsgID(t *testing.T) {

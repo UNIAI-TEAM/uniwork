@@ -1,0 +1,77 @@
+# UNI-1994 nit 6 visual round 3 + regression smoke (tester_visual, bro, head ca6a7c1e4, 2026-10-20)
+
+Build under test: bro worktree `/home/ubuntu/orca/workspaces/uniwork/feature-UNI-1994-doc-nits` @ca6a7c1e4 (already fast-forwarded; no product edits by me, `git status` clean after I restored `apps/web/next-env.d.ts`). Only the web app was rebuilt: `next build` under `flock -o ~/office-g5g6g7/automation/state/heavy.lock`, held for the build step only, `nice`, Node 22 (about 2m40s wall, 11:06–11:08 UTC+7, `logs-r3/web-build.log`). The round 1/2 server binary was reused unchanged; migrations applied to a fresh DB `uniwork_visual_1994c`, ports 18850/13770 checked free with `ss` first, local storage (`uploads-r3/`, 0 files).
+Load gate: before the build 5-min load 7.14 (1-min 8.14 right after launching), MemAvailable 8.7 GB; matrix started at 5-min 7.43, MemAvailable 8.6 GB, other lanes pushed the 5-min load to 9.4 while it ran. One app at a time, shots unlocked.
+Evidence: `shots-r3/` (231 files, names `r3-<step>-<loc>-<mode>-<width>.png`, `explore-*` are first-look shots of the seed), `logs-r3/r3-all.out` (metrics, 0 `ERROR`), `logs-r3/samples-all.out` (every 100 ms tick of every sampler run), `r3b.out`, `r3c.out`, `api-checks-r3.json`, `api-checks-r3-dana.json`. Drivers: `seed-r3.mjs`, `seed-dana-r3.mjs`, `r3.mjs`, `r3b.mjs`, `r3c.mjs`. Round 1/2 files untouched. Same files on bro in `~/office-g5g6g7/reports/docs-ui_local/visual-1994/`.
+
+## Verdicts
+
+| Scenario | Verdict | One line |
+| --- | --- | --- |
+| A owner, one folder with files, 0 loose root docs | **PASS** | scoped copy 12/12 (vi/en x light/dark x 1280/768/390); the workspace-empty title never appears in any sample, cold load 12/12 and client navigation 12/12; the folder card sits above the Documents section 12/12 |
+| B no documents, no folders | **PASS** | workspace-empty copy kept 12/12, scoped copy never; doubles as the positive control of the sampler |
+| C root with folders, filter or search giving 0 | **FAIL (major, F-R3-1)** | Type filter and search give distinct no-results states (12/12 each); the **Edited by** and **Updated** filters give the workspace-empty copy next to a visible folder card (12/12 each) |
+| D recipient without folders and root docs | **PASS** | Dana (member, nothing shared, no folders): workspace-empty copy 12/12, scoped copy never. Minh (two shares, no folders): list of two rows, no empty state 12/12 |
+| Smoke (vi light 1280 and 390) | **PASS** | leaf name whole, New menu, folder by document URL, comment badge; the known touch-390 leaf shortfall is unchanged |
+
+**Blocking: none** (no unstyled, placeholder or raw-DOM screen anywhere). **Major: 1 (C, F-R3-1)**, pre-existing in the code path, not introduced by the nit 6 diff, but it is the same false claim the nit is about. Minor: 1 (F-R3-2).
+
+## Seed (what the screens run on)
+`seed-r3.mjs` over the HTTP API. Org with two workspaces. **Workspace A**: folder "Kế hoạch kinh doanh quý bốn" holding a page and a sub-folder "Hợp đồng khách hàng" with two pages (the folders hold pages, not uploaded files), zero loose root documents; Minh (member) has the two sub-folder pages shared at `comment` and `view`. **Workspace B** (same org): nothing. `api-checks-r3.json` proves it: owner B `documents:[]`, `folders:[]`; Minh's folder list empty, his two shares come back without `parent_id`, so they are root rows for him (`minh_comment my_level comment`, `minh_view my_level view`). Because of that Minh's root is never empty, so I added **Dana** (`seed-dana-r3.mjs`), a workspace A member with nothing shared: `api-checks-r3-dana.json` `documents:[]`, `folders:[]`. A "My Folder" entry in the sidebar is the app's own, shown in every workspace.
+
+## A — folder with files, no loose documents: PASS
+- Copy: en title **No documents outside folders**, hint **Look in the folders above, pick a type in the Create row, or drop files here to upload one outside them.** (`r3-A-2-section-en-light-768.png` and `explore-owner-A-en-light-1280.png`, viewed); vi **Không có tài liệu nào ngoài thư mục** / **Hãy xem trong các thư mục phía trên, chọn một loại ở hàng Tạo mới, hoặc kéo thả file vào đây để tải lên ngoài thư mục.** (`r3-A-3-final-vi-dark-390.png`, viewed; other combinations by the text log). Text matches the spec verbatim in all 12 (`logs-r3/r3-all.out`, lines `A <tag>: … final="…"`). "No documents in this workspace yet" / "Workspace chưa có tài liệu" is absent.
+- Sampler (`r3.mjs` `SAMPLER`): a `MutationObserver` on the whole document plus a 100 ms poll, armed at document start by `addInitScript`, checks the page's visible text for the workspace-empty title (en and vi) at every tick and every mutation. Result `wsEver=false wsMut=false` in **12/12 cold loads** (`A <tag>` lines; 44–61 polls per run, every tick in `samples-all.out`; 78 mutations seen in the `vi-light-1280` run) and in **12/12 client navigations** (folder page, then the first crumb back to the root, sampler re-armed before the click: `A-clientnav <tag>`, 61 ticks). The log shows the states the page goes through, e.g. `samples-all.out` `## vi-light-1280 A`: boot splash (no `main`, skeleton) to t=907, then `main` mounted with 11 skeleton rows and neither title (t=1236, 1339), then at t=1507 `folderCard=1 SCOPED=1`, no tick in between with `WS_EMPTY=1`. The cold load is slow on this busy host (section mounts at 1.4–3.3 s); I therefore polled for 6 s, the first 3 s are the asked window.
+- Control for the sampler: the same sampler sees the workspace-empty title in B (12/12 `wsEver=true`) and for Dana (12/12), so a silent sampler is ruled out.
+- The first frame: `r3-A-1-early-*` (taken at DOMContentLoaded) is only the app boot splash (`r3-A-1-early-en-light-1280.png`), the section is not mounted yet; `r3-A-2-section-*` is taken when the sampler first sees the Documents section. Caveat: screenshots lag the sampler by about 100–300 ms, so `r3-A-2-section-*` and the three `r3-A-5-skeleton-frame-*` already show the settled scoped copy, **they are not skeleton frames**. The skeleton state is evidenced by the sampler log lines (`sk=11 … WS_EMPTY=0 SCOPED=0`) and by `r3b.out` ("skeleton frame … sk=11 scoped=false wsEmpty=false"), not by a picture.
+- Hint true to the layout, judged in the shots and measured (`A geometry` lines): in 12/12 the folder card bottom < "Documents 0" heading top < empty state top, no horizontal scroll (`scrollW == clientW`). 1280: card at y 389–458, heading 478, empty state 506 (`explore-owner-A-en-light-1280.png`, the folder tree also stands left in the sidebar); 768: card 381–450 (`r3-A-2-section-en-light-768.png`); 390: card 541–610, heading 630 (`r3-A-3-final-vi-dark-390.png`). So "the folders above" is true everywhere, the folders are a card row directly above the Documents section, the Create row above that.
+- Finding F-R3-2 (minor): at 390 the empty state starts at y 658 and its hint ends at y 874 of an 844 px viewport (`r3c.out`: `hintBottomBefore 874`), so on first load the last line of the (longer) hint is cut off at the fold (`r3-A-3-final-vi-dark-390.png`: "…chọn một loại ở hàng Tạo mới, hoặc kéo" cut). The page does not scroll as a document (`scrollH == 844`, `r3b.out`); the inner `section` scrolls 114 px and shows all of it (numbers in `r3c.out`: `hintBottomAfter 760`; shots `r3-A-7-scrolled-*` not viewed by eye), with no scroll cue. B does not have the problem (hint ends at y 731). Reachable and not wrong, so minor.
+
+## B — no documents, no folders: PASS
+Workspace-empty copy kept in 12/12: en **No documents in this workspace yet** / "Pick a type in the Create row above, or drop files here to upload them." (`r3-B-3-final-en-dark-768.png`), vi **Workspace chưa có tài liệu** / "Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên." (`r3-D-dana-3-final-vi-dark-390.png` is the same state). The scoped title never appears (`scFirstAt=null` 12/12). No "Folders" section, "No folders yet." in the sidebar.
+
+## C — filters and search giving 0 at a root with a folder: FAIL (major)
+All against workspace A's root, where the folder card stays visible. `C-<key> <tag>` lines in `r3-all.out` (`WS=` workspace-empty title present, `SC=` scoped title present).
+
+| Control | Result (12/12 each) | Shot |
+| --- | --- | --- |
+| Type: Sheets (chip filter) | **OK**: "No documents match the filters" / "No files of this type. Create one above or clear the filter." + Clear filters button; vi "Không có tài liệu khớp bộ lọc". `WS=false SC=false` | `r3-C-type-en-dark-390.png` |
+| Search "zzqxk" | **OK**: separate results panel, "No results" / "Không tìm thấy kết quả", All / Folders / Documents tabs. `WS=false SC=false` | `r3-C-search-vi-dark-768.png` |
+| Edited by: Me | **FAIL**: "Documents 0" under "Folders 1" and the title **No documents in this workspace yet** / **Workspace chưa có tài liệu**. `WS=true` | `r3-C-editor-*` |
+| Updated: Today | **FAIL**: same, `WS=true` | `r3-C-updated-vi-light-1280.png` |
+
+- F-R3-1 (major): `r3-C-updated-vi-light-1280.png` shows "Cập nhật: Hôm nay" active, "Thư mục 1" with its card, and under "Tài liệu 0" the line "Workspace chưa có tài liệu". With a folder on screen and a filter on, the page says the workspace has no documents, which is the false message of the user's nit. It is neither the scoped copy nor a no-results state, so C's "distinct from both" does not hold for these two filters.
+- Cause, **read from the source, not separately tested**: `packages/views/documents/documents-page-view.tsx:269` `filteredBy` is set only for the type chip and access filter, not for `homeFilters` (editor/updated, line 267); `documents-library-list.tsx` then reaches `empty.title` (not the no-results branch), and `outsideFolders` (line 284) is `!filtered && …`, so the filtered case takes the workspace-empty key. The same copy shows without the nit 6 diff (the diff did not touch this), so it is pre-existing; the brief's "filters active … keep the existing no-results state" is only true for the type chip and search.
+- Suggested direction (not applied): treat editor/updated filters as `filteredBy` so the no-results branch (with Clear filters) renders.
+
+## D — recipient without folders: PASS
+- Dana (`r3-D-dana-3-final-vi-dark-390.png`, `…-en-*`): workspace-empty copy 12/12, sidebar "No folders yet.", no "Folders" section, `scFirstAt=null` 12/12: no scoped copy claims folders that do not exist. Owner's folders are restricted, so they are not in her tree (`api-checks-r3-dana.json`).
+- Minh (`r3-D-minh-3-final-en-light-768.png`): the two shared pages are root rows ("Documents 2", "Comment · 1 person", "View only · 1 person"), no empty state of either kind (`wsEver=false`, `scFirstAt=null` 12/12). So a recipient with shares never sees an empty root; the case needed Dana.
+
+## Regression smoke (vi light 1280 and 390, once)
+- Folder page, leaf whole name (`smoke leaf`, `r3-S1-folder-leaf-vi-light-1280.png`, `r3-S1c-crumb-crop-vi-light-390.png`): "Hợp đồng khách hàng" complete, natural 156 = content 156 (shortfall 0) at 1280 and at 390 fine pointer, page `scrollW == clientW`. **Touch 390** (`r3-S1-folder-leaf-touch-vi-light-390.png`): h1 box 130, shortfall 34, still ellipsized, unchanged from F-R2-1 (nit, known).
+- New menu (`r3-S2-new-menu-vi-light-1280.png`): Thư mục, UniNote, Docs/Sheets/Slides/Markdown/HTML/PDF, then "Chia sẻ với workspace" last, y 427–463 at 1280; at 390 "Tải lên" below it at y 504–540 of 844 (in `r3.mjs` `smoke newmenu` lines). At 1280 Upload is hidden in the menu by design (header button).
+- Folder by document URL (`r3-S3-folder-by-doc-url-vi-light-390.png`): `/documents/<folder>` ends on `/documents?folder=<id>`, page is the folder page (crumbs, "Tài liệu 2"), banner text polled every 60 ms for 5 s and never seen (`bannerSeenAnyPoll=false`, `bodyHasBanner=false`, 1280 and 390).
+- Comment-level recipient (Minh opens the comment page): 390 header chip **Xem và nhận xét** with the "Bạn xem và nhận xét được…" title (`r3-S4-comment-recipient-vi-light-390.png`); at 1280 the chip is hidden by design and the notice strip reads "Bạn xem và nhận xét được trên bản đã lưu…" (`smoke comment-badge vi-light-1280`). "Chỉ xem" does not appear. Same as round 1.
+
+## UI quality
+Everything I viewed rendered styled: A at 1280 light (first look), 768 light en, 390 dark vi, C (updated, type, search), B 768 dark, D Dana 390 dark and Minh 768, folder page 390, redirect result, comment page 390. No placeholder, raw-DOM or unstyled screen; dark mode legible (text/icon contrast fine by eye in `r3-A-3-final-vi-dark-390.png`, `r3-C-search-vi-dark-768.png`, `r3-B-3-final-en-dark-768.png`); the empty-state icon, title and hint are centred and consistent between scoped, workspace-empty and no-results states. vi copy follows the brief verbatim. I did not view every one of the 231 files; the text and geometry logs cover the rest. Not checked: hover states, screen reader, the C-editor shots by eye (the text log shows the same state as C-updated).
+
+| ID | Sev | Screen | Finding | Evidence |
+| --- | --- | --- | --- | --- |
+| F-R3-1 | major | Documents root, Edited by / Updated filter, folder present | workspace-empty copy next to a folder card with a filter on; no no-results state | `r3-C-updated-vi-light-1280.png`, `C-editor`/`C-updated` lines, 12/12 each |
+| F-R3-2 | minor | Documents root A at 390 | last line of the scoped hint is below the fold on load, reachable only by an inner scroll without a cue | `r3-A-3-final-vi-dark-390.png`, `r3c.out`, `r3-A-7-scrolled-vi-light-390.png` |
+
+## Method notes (stated, not hidden)
+- Sampler window 6 s, not 3: the cold section mount sat at 1.4–3.3 s on the loaded host, a 3 s window would have ended before the scoped copy rendered in some runs. The mutation observer keeps checking beyond the poll window and the log covers t up to 6 s. While the page boots the main thread is busy, so early polls are 100–350 ms apart; the observer's mutation checks fill the gap (`wsMut` is a separate flag, false in A 24/24).
+- Theme was set with the browser colour scheme (next-themes `system`), so even the early frame is themed. A first single-combination trial (`vi-light-1280`) was run to learn the filter controls (they are listbox buttons, not menus) and the status geometry; its files were overwritten by the full run.
+- One login per context per combination (rotating refresh cookie), the sampler is re-armed per navigation, nothing reused from earlier rounds.
+- Shot lag: see A, the "skeleton-frame" files are not skeleton frames.
+- `r3.mjs` smoke touch pass was run once (390 vi light), as an addition to the asked fine-pointer pass.
+
+## Cleanup
+- Servers stopped by PID with `kill -TERM`, descendants first, no `pkill`, nothing by image name: `check-server` **1605906**, `pnpm exec next start` **1605907**, `next-server` **1605947** (`killed-pids-r3.txt`); `ss` shows 18850, 13770 and 19860 free afterwards, no `r3*.mjs` process left.
+- DB `uniwork_visual_1994c` dropped (`DROP DATABASE … WITH (FORCE)`, listing shows 0 `uniwork_visual_1994*`). The org, two workspaces and users I created lived only in that DB. Local storage `uploads-r3/` has 0 files; Redis db 5 holds only the session keys of the throwaway users, left to expire.
+- Bro worktree `apps/web/next-env.d.ts` (rewritten by `next build`) restored, `git status` clean at ca6a7c1e4; `.next` stays in the worktree. Shots and logs kept on bro and here; nothing committed or pushed, no `--no-verify`, no `--interrupt`.
+
+VISUAL_1994_R3_DONE

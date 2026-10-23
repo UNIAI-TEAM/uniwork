@@ -65,6 +65,10 @@ func (h *handlers) myInvitations(w http.ResponseWriter, r *http.Request) {
 			"expires_at":   x.ExpiresAt.Time.Format(time.RFC3339),
 			"organization": map[string]string{"id": x.OrganizationID, "slug": x.OrganizationSlug, "name": x.OrganizationName},
 			"invited_by":   map[string]string{"display_name": pgText(x.InvitedByName)},
+			// Every workspace accepting grants (UNI-1582); `workspace` below
+			// stays for clients that only know the one an invitation was
+			// sent from.
+			"workspaces": toInvitationWorkspaceDTOs(x.Workspaces),
 		}
 		// An organization-level invitation names no workspace, so the key is
 		// absent rather than an object of empty strings (F-03).

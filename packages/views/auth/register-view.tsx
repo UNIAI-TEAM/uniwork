@@ -1,15 +1,14 @@
 "use client";
-import { Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useRegister } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
+import { AUTH_INPUT, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
 import { AUTH_LINK } from "./login-view";
@@ -42,8 +41,8 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
   return (
     <AuthShell title={t("auth.register")} description={t("auth.registerSubtitle")}>
       <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
-        <FieldGroup>
-          <Field>
+        <FieldGroup className="gap-4">
+          <Field className="gap-2">
             <FieldLabel htmlFor="register-name">{t("auth.displayName")}</FieldLabel>
             <Input
               id="register-name"
@@ -53,10 +52,10 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
               enterKeyHint="next"
               autoFocus
               required
-              className="h-10 text-body pointer-coarse:h-11"
+              className={AUTH_INPUT}
             />
           </Field>
-          <Field data-invalid={emailTaken ? true : undefined}>
+          <Field className="gap-2" data-invalid={emailTaken ? true : undefined}>
             <FieldLabel htmlFor="register-email">{t("auth.email")}</FieldLabel>
             <Input
               id="register-email"
@@ -73,10 +72,10 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
               required
               aria-invalid={emailTaken || undefined}
               aria-describedby={emailTaken ? errorId : undefined}
-              className="h-10 text-body pointer-coarse:h-11"
+              className={AUTH_INPUT}
             />
           </Field>
-          <Field>
+          <Field className="gap-2">
             <FieldLabel htmlFor="register-password">{t("auth.password")}</FieldLabel>
             <PasswordField
               id="register-password"
@@ -93,22 +92,10 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
           <FieldError id={errorId}>{errorMsg}</FieldError>
         </FieldGroup>
 
-        <div className="flex flex-col gap-4">
-          <Button
-            type="submit"
-            size="lg"
-            className="h-10 w-full pointer-coarse:h-11 aria-disabled:cursor-progress aria-disabled:opacity-100"
-            aria-disabled={reg.isPending || undefined}
-          >
-            {reg.isPending ? (
-              <>
-                <Loader2 aria-hidden className="animate-spin" />
-                {t("auth.registering")}
-              </>
-            ) : (
-              t("auth.register")
-            )}
-          </Button>
+        <div className="flex flex-col gap-3">
+          <AuthSubmit pending={reg.isPending} pendingLabel={t("auth.registering")}>
+            {t("auth.register")}
+          </AuthSubmit>
           <GoogleButton />
           <p className="text-center text-body text-muted-foreground">
             {t("auth.hasAccount")}{" "}

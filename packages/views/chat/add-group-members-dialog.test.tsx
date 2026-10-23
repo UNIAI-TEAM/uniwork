@@ -13,6 +13,18 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
   }),
 }));
 
+// The dialog now lists workspace members (shared picker) instead of a separate
+// "quick pick from contacts" list, so the member comes from useMembers.
+vi.mock("@uniwork/core/workspaces", () => ({
+  useMembers: () => ({
+    data: [
+      { workspace_id: "ws1", user_id: "u2", role: "member", email: "binh@example.com", display_name: "Binh" },
+      { workspace_id: "ws1", user_id: "u3", role: "member", email: "an@example.com", display_name: "An" },
+    ],
+    isLoading: false,
+  }),
+}));
+
 const group = {
   id: "g1",
   name: "Design",
@@ -49,8 +61,35 @@ describe("AddGroupMembersDialog", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Binh/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Binh/ }));
+    expect(screen.getByRole("checkbox", { name: /Binh/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Đã chọn 1 người")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mời vào nhóm" }));
     expect(onInvite).toHaveBeenCalledWith([contact]);
+  });
+
+  it("keeps people already in the group ticked and locked, and says why the invite is disabled", () => {
+    render(
+      wrap(
+        <AddGroupMembersDialog
+          open
+          onOpenChange={vi.fn()}
+          workspaceId="ws1"
+          group={group}
+          currentUserId="self"
+          contacts={[]}
+          onInvite={vi.fn()}
+        />,
+      ),
+    );
+
+    const already = screen.getByRole("checkbox", { name: /An/ });
+    expect(already).toHaveAttribute("aria-checked", "true");
+    expect(already).toHaveAttribute("aria-disabled", "true");
+    expect(already).toHaveTextContent("Đã có trong nhóm");
+    fireEvent.click(already);
+    expect(already).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Mời vào nhóm" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Chọn ít nhất một người để mời.")).toBeInTheDocument();
   });
 });

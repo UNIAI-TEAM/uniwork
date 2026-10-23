@@ -15,7 +15,8 @@ import (
 
 func toWorkspaceDTO(w service.WorkspaceView) sdo.WorkspaceDTO {
 	return sdo.WorkspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name, OrganizationID: w.OrganizationID,
-		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName}
+		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName,
+		Description: w.Description, IconEmoji: w.IconEmoji.String, IconURL: w.IconURL, TaskPrefix: w.TaskPrefix}
 }
 
 func toMemberDTO(m db.ListWorkspaceMembersRow) sdo.MemberDTO {
@@ -70,7 +71,7 @@ func (h *handlers) patchWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.Workspaces.Update(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name})
+		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name, Description: in.Description, IconEmoji: in.IconEmoji, TaskPrefix: in.TaskPrefix, Slug: in.Slug})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -153,8 +154,51 @@ func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.InvitationCreateSDO{Invitations: out, Skipped: skipped})
 }
 
+// GET /invitations/{token} — the invitation page reads it before anything is
+// accepted (spec §4.3).
+func (h *handlers) previewInvitation(w http.ResponseWriter, r *http.Request) {
+	p, err := h.Workspaces.PreviewInvitation(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.InvitationPreviewSDO{
+		Invitation: sdo.InvitationPreviewDTO{
+			ID: p.ID, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
+			Organization: sdo.InvitationOrgDTO{ID: p.Organization.ID, Slug: p.Organization.Slug, Name: p.Organization.Name},
+			OrgRole:      p.OrgRole, InviterName: p.InviterName,
+			Workspaces: toInvitationWorkspaceDTOs(p.Workspaces),
+		},
+		Conflicts: make([]sdo.MembershipConflictDTO, 0, len(p.Conflicts)),
+	}
+	if p.Workspace != nil {
+		out.Invitation.Workspace = &sdo.InvitationWorkspaceDTO{ID: p.Workspace.ID, Slug: p.Workspace.Slug, Name: p.Workspace.Name}
+	}
+	for _, c := range p.Conflicts {
+		out.Conflicts = append(out.Conflicts, sdo.MembershipConflictDTO{
+			Organization: sdo.InvitationOrgDTO{ID: c.Organization.ID, Slug: c.Organization.Slug, Name: c.Organization.Name},
+			Role:         c.Role, RequiredAction: c.RequiredAction, BlockedReason: c.BlockedReason,
+			TransferCandidatesCount: c.TransferCandidatesCount,
+		})
+	}
+	respondJSON(w, 200, out)
+}
+
+// POST /invitations/{token}/accept — the body is optional, so a client that
+// sends nothing still joins when nothing stands in the way.
 func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
-	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
+	var in sdi.AcceptInvitationSDI
+	if !decodeOptionalBody(w, r, &in) {
+		return
+	}
+	resolve := make([]service.SwitchResolution, 0, len(in.Resolve))
+	for _, x := range in.Resolve {
+		resolve = append(resolve, service.SwitchResolution{
+			OrganizationID: x.OrganizationID, Action: x.Action,
+			TransferToUserID: x.TransferToUserID, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
+		})
+	}
+	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"), resolve)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -162,9 +206,9 @@ func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	out := sdo.AcceptInviteSDO{Organization: sdo.OrganizationDTO{
 		ID: result.Organization.ID, Slug: result.Organization.Slug, Name: result.Organization.Name,
 	}}
-	// An organization-level invitation leaves the person in the company but in
-	// no team yet, so `workspace` is absent and the client sends them to the
-	// workspace picker rather than into a workspace they do not have.
+	// With nowhere to land - no workspace granted and none the person may
+	// open - `workspace` is absent and the client says so (UNI-1472) rather
+	// than sending them into a workspace they do not have.
 	if result.Workspace != nil {
 		dto := toWorkspaceDTO(*result.Workspace)
 		out.Workspace = &dto

@@ -1,0 +1,1735 @@
+{
+ "subtotal": [
+  [
+   {
+    "op": "insert_rows",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "index": 5,
+     "count": 1
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "B7"
+    },
+    "attributes": {
+     "formula": "=SUM(B2:B4)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C7"
+    },
+    "attributes": {
+     "formula": "=SUM(C2:C4)"
+    }
+   }
+  ],
+  [
+   {
+    "op": "insert_rows",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "index": 5,
+     "count": 1
+    }
+   }
+  ],
+  [
+   {
+    "op": "insert_rows",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "index": 4,
+     "count": 1
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 3,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 3,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   }
+  ],
+  [
+   {
+    "op": "insert_rows",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "index": 3,
+     "count": 1
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 4,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "B10"
+    },
+    "attributes": {
+     "formula": "=SUM(B2:B5)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C10"
+    },
+    "attributes": {
+     "formula": "=SUM(C2:C5)"
+    }
+   }
+  ],
+  [
+   {
+    "op": "insert_rows",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "index": 2,
+     "count": 1
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 5,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_conditional_formats",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 1,
+         "endColumn": 1
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "number",
+        "operator": "greaterThan",
+        "value": 1000000000,
+        "style": {}
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "stopIfTrue": false,
+       "rule": {
+        "type": "highlightCell",
+        "subType": "formula",
+        "operator": "containsText",
+        "value": "=C2<700000000",
+        "style": {}
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_data_validations",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "rules": [
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 0,
+         "endColumn": 0
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-0",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      },
+      {
+       "ranges": [
+        {
+         "startRow": 1,
+         "endRow": 6,
+         "startColumn": 2,
+         "endColumn": 2
+        }
+       ],
+       "rule": {
+        "uid": "file-dv-sheet-1-1",
+        "type": "list",
+        "allowBlank": true,
+        "formula1": "Quý I,Quý II",
+        "showDropDown": true,
+        "renderMode": 0,
+        "showInputMessage": true
+       }
+      }
+     ]
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "B11"
+    },
+    "attributes": {
+     "formula": "=SUM(B2:B6)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C11"
+    },
+    "attributes": {
+     "formula": "=SUM(C2:C6)"
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "A3"
+    },
+    "attributes": {
+     "value": "Tổng Doanh thu"
+    },
+    "style": {
+     "wrapText": false
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C3"
+    },
+    "attributes": {
+     "formula": "=SUBTOTAL(9,C2:C2)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "A5"
+    },
+    "attributes": {
+     "value": "Tổng Chi phí"
+    },
+    "style": {
+     "wrapText": false
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C5"
+    },
+    "attributes": {
+     "formula": "=SUBTOTAL(9,C4:C4)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "A7"
+    },
+    "attributes": {
+     "value": "Tổng Lợi nhuận"
+    },
+    "style": {
+     "wrapText": false
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C7"
+    },
+    "attributes": {
+     "formula": "=SUBTOTAL(9,C6:C6)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "A9"
+    },
+    "attributes": {
+     "value": "Tổng Tăng trưởng"
+    },
+    "style": {
+     "wrapText": false
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C9"
+    },
+    "attributes": {
+     "formula": "=SUBTOTAL(9,C8:C8)"
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "A10"
+    },
+    "attributes": {
+     "value": "Tổng chung"
+    },
+    "style": {
+     "wrapText": false
+    }
+   },
+   {
+    "op": "set_cell",
+    "target": {
+     "sheet": "Data",
+     "cell": "C10"
+    },
+    "attributes": {
+     "formula": "=SUBTOTAL(9,C2:C9)"
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_rows_outline",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "start": 1,
+     "end": 8,
+     "level": 1
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_rows_outline",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "start": 1,
+     "end": 1,
+     "level": 2
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_rows_outline",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "start": 3,
+     "end": 3,
+     "level": 2
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_rows_outline",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "start": 5,
+     "end": 5,
+     "level": 2
+    }
+   }
+  ],
+  [
+   {
+    "op": "set_rows_outline",
+    "target": {
+     "sheet": "Data"
+    },
+    "attributes": {
+     "start": 7,
+     "end": 7,
+     "level": 2
+    }
+   }
+  ]
+ ],
+ "undo": [
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 7,
+    "end": 7,
+    "level": 0
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 7,
+    "end": 7,
+    "level": 1
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 5,
+    "end": 5,
+    "level": 0
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 5,
+    "end": 5,
+    "level": 1
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 3,
+    "end": 3,
+    "level": 0
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 3,
+    "end": 3,
+    "level": 1
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 1,
+    "end": 1,
+    "level": 0
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 1,
+    "end": 1,
+    "level": 1
+   }
+  },
+  {
+   "op": "set_rows_outline",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "start": 1,
+    "end": 8,
+    "level": 0
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "A3"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C3"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "A5"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C5"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "A7"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C7"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "A9"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C9"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "A10"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C10"
+   },
+   "attributes": {
+    "value": null,
+    "styleReset": true
+   }
+  },
+  {
+   "op": "remove_rows",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "index": 2,
+    "count": 1
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 6,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 6,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "B10"
+   },
+   "attributes": {
+    "formula": "=SUM(B2:B5)"
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C10"
+   },
+   "attributes": {
+    "formula": "=SUM(C2:C5)"
+   }
+  },
+  {
+   "op": "remove_rows",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "index": 3,
+    "count": 1
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 5,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "B9"
+   },
+   "attributes": {
+    "formula": "=SUM(B2:B4)"
+   }
+  },
+  {
+   "op": "set_cell",
+   "target": {
+    "sheet": "Data",
+    "cell": "C9"
+   },
+   "attributes": {
+    "formula": "=SUM(C2:C4)"
+   }
+  },
+  {
+   "op": "remove_rows",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "index": 4,
+    "count": 1
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 4,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_conditional_formats",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 1,
+        "endColumn": 1
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "number",
+       "operator": "greaterThan",
+       "value": 1000000000,
+       "style": {}
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "stopIfTrue": false,
+      "rule": {
+       "type": "highlightCell",
+       "subType": "formula",
+       "operator": "containsText",
+       "value": "=C2<700000000",
+       "style": {}
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_data_validations",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "rules": [
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 0,
+        "endColumn": 0
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-0",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Doanh thu,Chi phí,Lợi nhuận,Tăng trưởng",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     },
+     {
+      "ranges": [
+       {
+        "startRow": 1,
+        "endRow": 3,
+        "startColumn": 2,
+        "endColumn": 2
+       }
+      ],
+      "rule": {
+       "uid": "file-dv-sheet-1-1",
+       "type": "list",
+       "allowBlank": true,
+       "formula1": "Quý I,Quý II",
+       "showDropDown": true,
+       "renderMode": 0,
+       "showInputMessage": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "remove_rows",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "index": 5,
+    "count": 1
+   }
+  },
+  {
+   "op": "remove_rows",
+   "target": {
+    "sheet": "Data"
+   },
+   "attributes": {
+    "index": 5,
+    "count": 1
+   }
+  }
+ ]
+}

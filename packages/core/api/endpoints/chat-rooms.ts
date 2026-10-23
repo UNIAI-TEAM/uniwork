@@ -17,12 +17,51 @@ import type {
   WorkspaceChatRoom,
 } from "./chat-schemas";
 
-export async function listChatRooms(workspaceId: string): Promise<ChatRoomRecord[]> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms`);
+export async function listChatRooms(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<ChatRoomRecord[]> {
+  // The signal lets React Query abort a superseded sidebar load on the wire.
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms`, { signal });
   const parsed = parseWithFallback(raw, ChatRoomsListSchema, { rooms: [] }, {
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms",
   });
   return parsed.rooms ?? [];
+}
+
+const ChatUnreadTotalsSchema = z.object({
+  unread: z.number().catch(0),
+  mentions: z.number().catch(0),
+});
+
+const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
+
+const ChatUnreadSummarySchema = z.object({
+  direct: ChatUnreadTotalsSchema.catch({ unread: 0, mentions: 0 }),
+  // One drifted row drops alone instead of emptying every badge.
+  workspaces: z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.flatMap((item) => {
+        const row = ChatWorkspaceUnreadSchema.safeParse(item);
+        return row.success ? [row.data] : [];
+      }),
+    ),
+});
+/**
+ * The caller's chat unread across workspaces (muted rooms count mentions
+ * only): dms and groups once in `direct`, each workspace's channels apart.
+ */
+type ChatUnreadSummary = z.infer<typeof ChatUnreadSummarySchema>;
+
+const EMPTY_UNREAD_SUMMARY: ChatUnreadSummary = { direct: { unread: 0, mentions: 0 }, workspaces: [] };
+
+export async function getChatUnreadSummary(signal?: AbortSignal): Promise<ChatUnreadSummary> {
+  const raw = await request("/api/v1/me/chat/unread-summary", { signal });
+  return parseWithFallback(raw, ChatUnreadSummarySchema, EMPTY_UNREAD_SUMMARY, {
+    endpoint: "GET /api/v1/me/chat/unread-summary",
+  });
 }
 
 export async function resolveDMRoom(workspaceId: string, userId: string): Promise<ChatRoomRecord | null> {
@@ -61,6 +100,38 @@ export async function inviteChatGroupMembers(
   );
   const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members",
+  });
+  return parsed.room ?? null;
+}
+
+/** Sets a group's avatar; PNG, JPEG, GIF or WebP up to 2 MiB. */
+export async function uploadChatRoomAvatar(
+  workspaceId: string,
+  roomId: string,
+  file: File,
+): Promise<ChatRoomRecord | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
+  });
+  return parsed.room ?? null;
+}
+
+export async function removeChatRoomAvatar(
+  workspaceId: string,
+  roomId: string,
+): Promise<ChatRoomRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
+    { method: "DELETE" },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "DELETE /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
   });
   return parsed.room ?? null;
 }
@@ -149,12 +220,48 @@ export async function ensureWorkspaceChatRoom(workspaceId: string): Promise<Work
   });
 }
 
+/**
+ * The room detail read (UNI-1966 L5): the one place the server resolves
+ * viewer-scoped room state like `can_send_document`. The room LIST never
+ * carries those fields.
+ */
+export async function getChatRoom(
+  workspaceId: string,
+  roomId: string,
+): Promise<ChatRoomRecord | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}`);
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
+  });
+  return parsed.room ?? null;
+}
+
+export async function uploadChatRoomWallpaper(
+  workspaceId: string,
+  roomId: string,
+  file: File,
+): Promise<ChatRoomRecord | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/wallpaper`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/wallpaper",
+  });
+  return parsed.room ?? null;
+}
+
 export async function patchChatRoom(
   workspaceId: string,
   roomId: string,
   body: {
     name?: string;
+    /** The room's description; "" clears it. */
+    topic?: string;
     member_permissions?: Partial<ChatRoomMemberPermissions>;
+    wallpaper?: { preset: string };
   },
 ): Promise<ChatRoomMemberPermissions> {
   const raw = await request(
@@ -167,6 +274,7 @@ export async function patchChatRoom(
     allow_create_notes: true,
     allow_create_polls: true,
     allow_send_messages: true,
+    allow_forward: true,
   }, {
     endpoint: "PATCH /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
   });

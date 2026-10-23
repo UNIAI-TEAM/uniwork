@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -39,7 +42,7 @@ func TestCreateTaskFromMessageAndLink(t *testing.T) {
 	if task.Title == "" || task.OriginType.String != chatMessageOriginType {
 		t.Fatalf("task title/origin: %+v", task)
 	}
-	links, err := s.ListChatMessageLinks(ctx, ua.ID, w.ID, msg.ID)
+	links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, []string{msg.ID})
 	if err != nil || len(links) != 1 || links[0].Relation != chatLinkRelationCreated {
 		t.Fatalf("links: err=%v %+v", err, links)
 	}
@@ -57,7 +60,7 @@ func TestCreateTaskFromMessageAndLink(t *testing.T) {
 	if linked.Relation != chatLinkRelationMentions {
 		t.Fatalf("relation=%s", linked.Relation)
 	}
-	links, err = s.ListChatMessageLinks(ctx, ua.ID, w.ID, msg.ID)
+	links, err = s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, []string{msg.ID})
 	if err != nil || len(links) != 2 {
 		t.Fatalf("links after mention: err=%v len=%d", err, len(links))
 	}
@@ -126,5 +129,345 @@ func TestSyncThreadTask(t *testing.T) {
 	}
 	if err := s.UnsyncThreadTask(ctx, ua.ID, w.ID, root.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSyncThreadTaskRefusesASecondThreadForTheSameTask(t *testing.T) {
+	s, tasks, _, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "sync-dup", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootA, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "thread A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootB, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "thread B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "one task two threads"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkA, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootA.ID, SyncThreadTaskInput{TaskID: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootB.ID, SyncThreadTaskInput{TaskID: task.ID}); !codedIs(err, "chat_task_already_synced") {
+		t.Fatalf("second thread: want chat_task_already_synced, got %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM chat_thread_task_links WHERE task_id = $1`, task.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("link rows = %d, want 1", count)
+	}
+	linkAgain, err := s.SyncThreadTask(ctx, ua.ID, w.ID, rootA.ID, SyncThreadTaskInput{TaskID: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkAgain.ID != linkA.ID {
+		t.Fatalf("idempotent sync changed link id %s -> %s", linkA.ID, linkAgain.ID)
+	}
+}
+
+func TestListRoomMessageLinksBatchesOneRoom(t *testing.T) {
+	s, _, _, ua, ub, w, pool := chatFixtureWithPool(t)
+	q := db.New(pool)
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "two"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlinked, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "three"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range []ChatMessageRow{first, second} {
+		if _, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg.ID, CreateTaskFromMessageInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID,
+		[]string{first.ID, second.ID, unlinked.ID, first.ID, " "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 2 || links[0].MessageID == links[1].MessageID {
+		t.Fatalf("want one link per linked message, got %+v", links)
+	}
+
+	empty, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("no ids: err=%v links=%+v", err, empty)
+	}
+
+	tooMany := make([]string, maxRoomMessageLinkIDs+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("id-%d", i)
+	}
+	if _, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, tooMany); err == nil {
+		t.Fatal("over the cap must be refused")
+	}
+
+	// Someone outside the workspace learns nothing about the room's links.
+	if _, err := s.ListRoomMessageLinks(ctx, ub.ID, w.ID, room.RoomID, []string{first.ID}); err == nil {
+		t.Fatal("non-member must be refused")
+	}
+}
+
+func TestReactionOnFileMessageReportsMine(t *testing.T) {
+	s, _, _, ua, _, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "react"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := s.ToggleChatMessageReaction(ctx, ua.ID, w.ID, room.RoomID, msg.ID, "👍")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(row.MyReactions) != 1 || row.MyReactions[0] != "👍" || row.Reactions["👍"] != 1 {
+		t.Fatalf("mine=%v counts=%v", row.MyReactions, row.Reactions)
+	}
+	list, err := s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range list {
+		if m.ID == msg.ID {
+			found = len(m.MyReactions) == 1
+		}
+	}
+	if !found {
+		t.Fatal("list must carry my_reactions for the viewer")
+	}
+}
+
+// Linking, creating a task from a message and (un)syncing a thread change what
+// everyone in the room sees, so they need the standing of a writer there.
+func TestLinkCommandsNeedSendStandingInRoom(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "thong-bao", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "Lịch nghỉ lễ"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	synced, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "synced by A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: synced.ID}); err != nil {
+		t.Fatal(err)
+	}
+	bTask, err := tasks.Create(ctx, Human(ub.ID), w.ID, CreateTaskInput{Title: "B's task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count := func(sql, arg string) int {
+		t.Helper()
+		var n int
+		if err := pool.QueryRow(ctx, sql, arg).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	snapshot := func() [3]int {
+		return [3]int{
+			count(`SELECT count(*) FROM tasks WHERE workspace_id = $1`, w.ID),
+			count(`SELECT count(*) FROM chat_message_links WHERE room_id = $1`, ch.ID),
+			count(`SELECT count(*) FROM chat_thread_task_links WHERE room_id = $1`, ch.ID),
+		}
+	}
+	before := snapshot()
+
+	refused := func(stage string, ok func(error) bool) {
+		t.Helper()
+		if _, err := s.LinkChatMessage(ctx, ub.ID, w.ID, root.ID, CreateChatMessageLinkInput{
+			TargetType: "task", TargetID: bTask.ID,
+		}); !ok(err) {
+			t.Fatalf("%s link: %v", stage, err)
+		}
+		if _, err := s.CreateTaskFromMessage(ctx, ub.ID, w.ID, root.ID, CreateTaskFromMessageInput{}); !ok(err) {
+			t.Fatalf("%s create task: %v", stage, err)
+		}
+		if _, err := s.SyncThreadTask(ctx, ub.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: bTask.ID}); !ok(err) {
+			t.Fatalf("%s sync: %v", stage, err)
+		}
+		if err := s.UnsyncThreadTask(ctx, ub.ID, w.ID, root.ID); !ok(err) {
+			t.Fatalf("%s unsync: %v", stage, err)
+		}
+		if after := snapshot(); after != before {
+			t.Fatalf("%s: rows changed %v -> %v", stage, before, after)
+		}
+	}
+
+	refused("not a member", func(err error) bool { return codedIs(err, "chat_not_member") })
+
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateChatRoomMemberSendRestricted(ctx, db.UpdateChatRoomMemberSendRestrictedParams{
+		RoomID: ch.ID, UserID: ub.ID, SendRestricted: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	refused("send restricted", func(err error) bool {
+		var invalid ValidationError
+		return errors.As(err, &invalid)
+	})
+}
+
+// TestDeleteTaskDropsItsChatLinks: deleting a task takes its card off the
+// message and frees the thread it synced with, in the same transaction, so a
+// new task can sync the thread again (UNI-1686).
+func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
+	s, tasks, q, ua, w, pool := chatWithTasks(t)
+	ctx := context.Background()
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{Name: "drop-links", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	synced, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, root.ID, CreateTaskFromMessageInput{SyncThread: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carded, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, other.ID, CreateTaskFromMessageInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlinkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked"))
+	linkedBefore := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked"))
+
+	if err := tasks.Delete(ctx, ua.ID, synced.ID); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{root.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("root links after delete: err=%v %+v; want none", err, links)
+	}
+	if _, err := q.GetChatThreadTaskLinkByThread(ctx, root.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("thread link after delete: %v; want ErrNoRows", err)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.thread.unlinked")) - unlinkedBefore; got != 1 {
+		t.Fatalf("chat.thread.unlinked rows: %d; want 1", got)
+	}
+	if got := len(topicsLike(t, pool, w.OrganizationID, "chat.message.linked")) - linkedBefore; got != 1 {
+		t.Fatalf("chat.message.linked rows: %d; want 1", got)
+	}
+
+	// The batch delete goes through the same path.
+	if _, err := tasks.BatchDeleteTasks(ctx, Human(ua.ID), w.ID, []string{carded.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{other.ID}); err != nil || len(links) != 0 {
+		t.Fatalf("other links after batch delete: err=%v %+v; want none", err, links)
+	}
+
+	next, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "next"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncThreadTask(ctx, ua.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: next.ID}); err != nil {
+		t.Fatalf("sync freed thread to a new task: %v", err)
+	}
+}
+
+func TestListRoomLinkedTasksDistinctNewestFirst(t *testing.T) {
+	s, tasks, _, ua, w, _ := chatWithTasks(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(body string) string {
+		msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return msg.ID
+	}
+	m1, m2 := send("first"), send("second")
+
+	first, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, m1, CreateTaskFromMessageInput{Title: "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := "2026-10-23"
+	second, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "second", AssigneeID: &ua.ID, AssigneeKind: "human", DueDate: &due})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{second.ID, first.ID} {
+		if _, err := s.LinkChatMessage(ctx, ua.ID, w.ID, m2, CreateChatMessageLinkInput{TargetType: "task", TargetID: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rows, total, err := s.ListRoomLinkedTasks(ctx, ua.ID, w.ID, room.RoomID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(rows) != 2 || rows[0].ID != first.ID || rows[1].ID != second.ID {
+		t.Fatalf("total=%d rows=%+v, want first (relinked last) then second", total, rows)
+	}
+	if rows[1].AssigneeName != "A" || rows[1].DueDate.Time.Format("2006-01-02") != due {
+		t.Fatalf("second row: %+v", rows[1])
+	}
+
+	rows, total, err = s.ListRoomLinkedTasks(ctx, ua.ID, w.ID, room.RoomID, 1)
+	if err != nil || total != 2 || len(rows) != 1 {
+		t.Fatalf("limit 1: err=%v total=%d len=%d", err, total, len(rows))
+	}
+}
+
+func TestListRoomLinkedTasksRefusesANonMember(t *testing.T) {
+	s, _, _, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.ListRoomLinkedTasks(ctx, ub.ID, w.ID, room.RoomID, 0); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member: err=%v, want ErrForbidden or ErrNotFound", err)
 	}
 }

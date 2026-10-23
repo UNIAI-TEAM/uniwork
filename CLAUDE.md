@@ -10,10 +10,11 @@ one that is not, fix the rule or the file.
 
 ## Conventions
 
-The source of truth for code naming, the vi–en i18n glossary, and the
-Vietnamese voice guide is `docs/conventions.md`. Read it before naming a
-route/package/file/DB column/type, before editing
-`packages/core/i18n/locales/`, and before writing Vietnamese UI copy.
+The source of truth for code naming, the vi–en i18n glossary, the
+Vietnamese voice guide and icon use is `docs/conventions.md`. Read it before
+naming a route/package/file/DB column/type, before editing
+`packages/core/i18n/locales/`, before writing Vietnamese UI copy, and before
+picking an icon.
 HTTP API + Swagger (SDI/SDO, Chi `apiOp`, `pathParamSDI`) is
 `docs/api-sdi-sdo.md`. The *why* behind every "never" / "only" below is an
 ADR in `docs/adr/` — read it before arguing with the rule, and write one
@@ -31,18 +32,27 @@ Product intent and design principles live in `PRODUCT.md`.
   → `pkg/db`; `server/internal/arch_test.go` fails on an import that crosses
   them the wrong way.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
-  Next.js APIs (router, env) are touched.
+  Next.js APIs (router, env) are touched. Office documents open in the
+  genoffice module frames that `apps/web/platform/office-frame/` hosts.
+- `apps/office-engine/` — the Office engine service the server calls
+  (`server/internal/office/` is its client): PDF, XLSX, legacy-format
+  conversion and DOCX→PDF export jobs.
+- `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
+- `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Four modules came
-  over with the port and no host reaches them yet: `packages/core/analytics/`,
-  `packages/core/diagnostics/`, `packages/core/modals/`,
-  `packages/core/navigation/`. They import each other, not the app (the
+  Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
+  host reaches yet: `packages/core/analytics/`,
+  `packages/core/diagnostics/`, `packages/core/modals/`, and
+  `packages/core/navigation/`. The ported four import each
+  other, not the app (the
   shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
   with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
   task-views and constants left when they were wired or removed — constants
-  with UNI-505 TipTap catalog). Wire one before relying on it;
+  with UNI-505 TipTap catalog; documents left with UNI-679 G1-05a: document.*
+  realtime events invalidate the workspace-scoped document keys). Wire one
+  before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
-  2026-09-30 unless it is empty — wire or delete by then.
+  2026-10-31 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
@@ -50,12 +60,12 @@ Product intent and design principles live in `PRODUCT.md`.
 
 Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
-Web is the only host today; the adapters (`NavigationAdapter`,
-`StorageAdapter`, `CoreProvider`) exist so a desktop host can be added
-without rewriting `views`. Mobile is not a host of `views`: it will be a
-separate Expo / React Native app under apps/mobile that imports only types
+Web is the only host today. The adapters (`NavigationAdapter`,
+`StorageAdapter`, `CoreProvider`) keep views independent of the platform.
+Mobile is not a host of `views`: it is a
+separate Expo / React Native app, `apps/chat-mobile`, that imports only types
 and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
-`usf` repo); its rules land in its own CLAUDE.md when the app exists.
+`usf` repo); its rules are in `apps/chat-mobile/CLAUDE.md`.
 
 ## State Rules
 
@@ -72,8 +82,37 @@ Keep server state and client state separate.
 - Only the auth store and `api/endpoints/*` talk to the transport. Every
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
-  The frame payload is never written into a query or a store — the cache is
-  refreshed from the API. `packages/core/realtime/use-realtime-sync.test.tsx` pins this.
+  In-room meeting events (chat, transcript, the roll, motions, recordings,
+  the lobby queue) are catalogued `Scope: meeting` and reach only sockets that
+  hold the meeting open: a screen that shows a meeting's in-room data calls
+  `useMeetingScope(meetingId)`, the hub admits it through
+  `MeetingService.AuthorizeMeetingScope` (fail closed), and guests hear their
+  share on the lobby socket. `server/internal/realtime/hub_meeting_scope_test.go`
+  and `TestIsolationRealtime` hold it.
+  The frame payload is never written into a store, and into a query only
+  through one exception (ADR 0015): the fields the `task.updated` catalogue row
+  lists in `Patch` patch a cached record of the task, and only when ALL hold —
+  the frame has at least one `Patch` key and no content key outside `Patch`
+  (any key besides `task_id`, `workspace_id`, the revision pair and `Patch`
+  fields, such as a field a later ADR adds to `Patch`, makes the whole frame
+  ids-only, so opening a new field only makes deployed clients refetch); every
+  `Patch` value in it decodes (a string, and `due_date` empty or
+  `YYYY-MM-DD`; one value that does not makes the whole frame ids-only);
+  `revision_before` and `revision` are
+  both digit strings that are safe integers, with `revision > revision_before`;
+  the record already exists (the detail entry, or the task's row in a list,
+  query, my-tasks or table-rows entry) and its `revision` equals
+  `revision_before`; and its entry is not already due a refetch — a detail
+  entry with a fetch under way (even paused) or already invalidated, and a
+  list-style entry that is idle and already invalidated, are not patched, and
+  their invalidation stays. A patched record takes the frame's `revision`; a
+  patched detail entry skips that frame's refetch, otherwise the detail key
+  invalidates as for any frame. List roots always invalidate, rows never move
+  between groups or pages, and a frame never adds an entry or a row.
+  `packages/core/realtime/use-realtime-sync.test.tsx` and
+  `packages/core/tasks/realtime-task-patch.test.ts` pin this;
+  `scripts/events-catalogue.test.mjs` fails when the client's field list and
+  the catalogue's `Patch` differ.
 - Optimistic updates only when ALL hold: the outcome is locally predictable,
   the user stays on the same screen, failure is rare, rollback is a cache
   restore. Canonical: task status/position on the board
@@ -140,23 +179,21 @@ ports via `.env.worktree` (`make worktree-env`, `make setup-worktree`,
 and generates the file itself.
 
 CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
-`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
+`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high` (unfixable
+advisories listed in root `package.json` → `pnpm.auditConfig.ignoreCves`),
 `govulncheck`, a gitleaks scan, and the Playwright suite (`e2e` job: server
 binary + production Next build against the same services).
 
 ## Accepted Decisions Awaiting Enforcement
 
-ADR 0008 and 0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
-Phase F feature, but their guard tests do not exist yet. Until the named test
-lands, reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
+ADR 0010 (`docs/adr/`) was accepted on 2026-09-04 and shapes every Phase F
+feature, but its guard tests do not exist yet. Until the named test lands,
+reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
 when it lands, move the rule into the section above it belongs to and name the
-test there. Planned guards are written without backticks on purpose: they are
-not paths yet.
+test there (ADR 0008 moved to Database and Migration Rules on 2026-10-02).
+Planned guards are written without backticks on purpose: they are not paths
+yet.
 
-- ADR 0008 — every query filters by `organization_id`; membership still only
-  via `RequireMember`. The column rule itself is enforced (see Database and
-  Migration Rules). Still to land with F-08/F-02: a query-scope scanner over
-  `server/pkg/db/queries/`, a two-organization isolation matrix test.
 - ADR 0010 — the agent runtime never writes business tables; agent writes go
   proposal → human confirm → execute; `accepted` is human-only. The gateway
   half landed with F-09 (see Audit and Events); still to land with F-10: a
@@ -176,6 +213,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Migration prefixes stop at `998`; later files are `999<unix-ms>_name`, so
+  string order (sqlc) and numeric order (the runner) agree
+  (`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`).
 - Attribution is a pair (ADR 0007): a table created after migration `065`
   that has `created_by` also has `created_by_kind` (`human` | `agent` |
   `system`), and `tasks`, `task_comments`, `meetings`, `chat_messages` carry
@@ -184,18 +224,59 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   agents join a workspace through `workspace_agent_members`
   (`RequireAgentMember`, same file as `RequireMember`). `TestActorKindOnEveryCreatedBy`
   (migration lint) and `TestActorConstructedOnlyInService` (arch test) hold it.
-- Every business table created after migration `065` declares
-  `organization_id TEXT NOT NULL` (ADR 0008); identity and infrastructure
-  tables are exempted by name, with a reason, in `tenantExemptTables`. The
-  older tables still missing the column are listed in `tenantBackfillDebt`
-  and the list only shrinks — a backfill migration removes its table there.
-  `TestNewTablesCarryOrganizationID` and
-  `TestTablesWithoutOrganizationIDAreTheKnownDebt` hold both.
-- Every query filters by `workspace_id`; membership is decided only in
-  `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins, and only in `OrganizationService.RequireMember`
-  for the organization tier. `server/internal/arch_test.go` fails if any
-  other file calls the membership queries.
+- Every business table carries `organization_id TEXT NOT NULL` (ADR 0008).
+  A table created after migration `065` declares it in its first migration;
+  the older ones were backfilled from their parent rows, so the debt is paid.
+  Identity and infrastructure tables are exempted by name, with a reason, in
+  `tenantExemptTables`; a column that may hold NULL is listed with the rows
+  that need it (`nullableTenantTables`, `nullableTenantColumns`), and an entry
+  whose column is NOT NULL fails. `TestNewTablesCarryOrganizationID` and
+  `TestEveryBusinessTableCarriesOrganizationID` (migration lint) and
+  `TestTenantColumnIsNotNull` (migrated database,
+  `server/migrations/tenant_schema_test.go`) hold it.
+- Membership is decided only in `WorkspaceService.RequireMember`, where
+  organization owners/admins are implicit workspace admins, and only in
+  `OrganizationService.RequireMember` for the organization tier.
+  `server/internal/arch_test.go` fails if any other file calls the membership
+  queries.
+- Every sqlc query that touches a tenant table (one with `organization_id`)
+  constrains it by a parameter — `organization_id = $n` or `workspace_id = $n`,
+  the tenant the service took from `RequireMember` — or carries a
+  `-- tenant:` line from a closed set (`by-id`, `parent <column>`, `self`,
+  `token`, `system`, `platform`) saying why it need not (ADR 0008).
+  `TestEveryQueryNamesItsTenant` (`server/migrations/query_scope_test.go`)
+  holds it; the reason is what a reviewer checks in the caller.
+- Tenant isolation is tested end to end (ADR 0008). `TestIsolationMatrix`
+  (`server/internal/handler/isolation_matrix_test.go`) builds two
+  organizations through the API, with a row of A's in every tenant table but
+  the few `isoUnseeded` names. B's owner calls every tenant route with A's
+  ids, with B's parent and A's child ids, and with A's rows named in a body
+  (`isoReferences`) — the last two again once B's owner is also a member of
+  A, inserted by raw SQL because no API can create that account any more
+  (a multi-organization account left from before ADR 0032) — and
+  the routes are called once more with no session at all. The answer is a
+  refusal (403/404; 401 without a session) carrying no text or id of A's,
+  every row with A's `organization_id` hashes the same before and after, and
+  no row of B's comes to point at A. Each refusal has a control unless
+  `isoRoutes` says why it cannot: the tenant's own owner reads and writes
+  through the same route without being refused, so a broken route cannot
+  pass for an isolated one. A route whose path names a tenant row is covered
+  the day it is registered; one without fails until `isoRoutes` classifies it
+  with a reason. A row marked `uniformAnswer` — today only `POST
+  /documents/{documentID}/access-requests`, whose whole answer is one uniform
+  `202 {"status":"sent"}` that must never reveal whether a document exists —
+  lets the cross-tenant pass accept any non-5xx, but only after it makes both
+  calls itself and holds the foreign-id answer byte-identical to the same call
+  with an id that names no row, still hashes every A row, and fails if a
+  `document_access_requests` row appears in either organization; the anonymous
+  and member-of-both passes keep requiring a real refusal. A request field
+  ending in `_id`/`_ids` fails
+  `TestEveryBodyIDFieldHasAReferenceCase` until it has an `isoReferences`
+  case or an exemption with a reason. `TestIsolationRealtime` holds the two
+  WebSockets, delivery included. `TestIsolationMCP` holds `/mcp` (ADR 0031): a
+  grant reads its own organization only, whatever ids its tools name, each
+  refusal is the tools' one not-found answer, and A's own grant runs every
+  attacked tool as the control.
 - Organization membership has a lifecycle (F-03). A member with
   `organization_members.deactivated_at` set keeps every row they own —
   workspace membership, authored content, history — and is refused by BOTH
@@ -205,10 +286,30 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   holds it. An organization has exactly one owner at a time
   (`idx_org_members_single_owner`); ownership moves only through
   `TransferOwnership`, never through a role change.
+- A person belongs to at most one active organization (ADR 0032): a
+  membership row with `deactivated_at` unset in an organization that is
+  `active` or `suspended`. `Create`, `AcceptInvite`, `Reactivate`, `Leave`
+  and `Close` take `LockUserMembership` (a per-user advisory lock) first and
+  check `activeOrganizations` inside the transaction; there is no unique
+  index, because accounts already in several organizations are kept. Closing
+  an organization archives it and deletes nothing.
+  `TestOneActiveOrganizationPerAccount` holds it.
 - `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with
   another row. `TestAuditEventsAreAppendOnly` proves it.
+- Table-view SQL is built only in `server/pkg/db/tablequery` (ADR 0020):
+  values are always `$n` parameters, every statement starts with the
+  organization/workspace clause, and only `internal/service/task_table*.go`
+  imports it — `TestTableQueryOnlyFromTaskTableService` and the builder tests
+  in that package hold it.
+- The Work Graph tables (`graph_nodes`, `graph_edges`, `graph_node_facts`,
+  `graph_dirty`) are a projection of the business tables (ADR 0019): only
+  `server/internal/graph/projector` writes them. The marker on the realtime
+  lane marks dirty nodes, the worker re-reads the sources, and
+  `cmd/graph-rebuild` (`--verify` counts drift) reproduces them, so a wrong
+  row is fixed by a rebuild, never by hand. `TestGraphTablesWrittenOnlyByProjector`
+  (`server/internal/arch_test.go`) holds it.
 
 ## Audit and Events
 
@@ -227,11 +328,27 @@ Every command that changes business state writes an `audit_events` row and its
   Direct publish is only for ephemeral signals, and the bar is one sentence:
   losing it costs nobody anything (typing, voice signalling, a transcript line
   the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
+- The dispatcher runs one claim loop per lane (`server/internal/outbox/lane.go`:
+  realtime, notify, provider, push, slow). `Dispatcher.Register` puts a
+  consumer on the realtime lane, which is only for consumers that touch
+  memory, Redis, one indexed read, or one keyed upsert (the Work Graph
+  marker); a consumer that waits on a third party or fans out across tables
+  uses `RegisterLane`. A topic runs on the slowest lane
+  among its consumers, and one row's consumers run concurrently.
+  `TestSlowLaneDoesNotDelayARealtimeRow` and
+  `TestLanesDeliverEachRowOnceAcrossNodes` hold it.
 - Event names are `<entity>.<verb>`; the version is the `event_version` column,
-  never part of the name; payloads carry ids only. The catalogue exists three
-  times — that file, `server/internal/outbox/catalogue.go`,
+  never part of the name. Client-visible payloads carry ids only, except on a
+  catalogue row that lists fields in `Patch` — today only `task.updated`
+  (ADR 0015) — whose frame may also carry those fields and the
+  `revision_before` / `revision` pair that guards them. The catalogue exists
+  three times — that file, `server/internal/outbox/catalogue.go`,
   `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
-  fails when they disagree.
+  fails when the three disagree, when a client-visible row declares a key that
+  is neither an id nor a revision key, when any row carries a revision key
+  without `Patch`, when a row with `Patch` lacks either revision key, when the
+  patchable field set changes, or when any row but `task.updated` declares
+  `Patch`.
 - Every request carries a `correlation_id` (`middleware.Correlation`), and it
   reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
   is the runbook.
@@ -242,6 +359,25 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+- The signed-in desktop app uses the keys the person saved on UniWork only
+  through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
+  key, and its calls record the `office.byok_desktop` capability while web and
+  frame calls keep `office.byok`.
+  `TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability` and
+  `TestProxySurfaceCapability` hold it.
+- External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
+  the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
+  opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`
+  never accepts a session JWT: `TestMcpTokenRejectedByREST` and
+  `TestSessionTokenRejectedByMCP`. Its tools act as the human who consented,
+  through `RequireMember` (ADR 0033): read tools never write
+  (`TestMCPReadToolsDoNotMutate`); write tools run only with the `write`
+  scope, the `mcp_connector_write` flag and the organization's write switch
+  (`TestMCPWriteToolsNeedScopeFlagAndPolicy`), never delete
+  (`TestMCPHasNoDeleteTool`, `TestMcpToolsCallNoDelete`), each names its undo
+  (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
+  `metadata.via` (`TestMcpCallCarriesTheVia`,
+  `TestRecordWritesTheViaOfTheRequest`).
 
 ## Platform Admin and Observability
 
@@ -268,7 +404,8 @@ behind its own gate and never reaches content.
   workspace on the span and the log fields. Log lines identify people by id,
   never email or name (`scripts/no-pii-log.test.mjs`; `// log-pii-ok: <why>`
   is the escape hatch).
-- `/healthz` is liveness only; `/readyz` checks DB, schema version and Redis.
+- `/healthz` is liveness only; `/readyz` is gated only by DB and a schema not older than the
+  binary (2s budget); Redis and storage are reported, never gating.
 - Every variable the server reads is listed in `.env.example`
   (`scripts/env-example.test.mjs`). Every alert in `deploy/alerts.yml` has a
   runbook in `docs/runbooks/` with the four sections
@@ -341,8 +478,26 @@ database and never reveal whether an id exists to a non-member.
 - Nothing rewrites `r.RemoteAddr` from a forwarded header — no `RealIP`
   middleware. Each consumer of the client address (rate limiter, WebSocket
   origin check) applies `TRUSTED_PROXIES` itself. `server/internal/handler/router_test.go` pins it.
-- Rate limits exist only with Redis and are keyed by IP and path; the
-  credential routes carry their own small budget in `server/internal/handler/router/router.go`.
+- Rate limits exist only with Redis and are keyed by path plus the client IP
+  or a verified identity (`mw.RateLimitByIdentity`): the global limiter
+  checks the bearer token itself, the in-room meeting limiters use the
+  `OptionalAuth` user or an HMAC-signed guest session, the chat
+  presence/typing limiter uses the bearer user, and anything unverified falls
+  back to the IP, or, under an address ceiling, to an unverified key. Each
+  limiter Redis call gives up after 100ms and fails open. The LiveKit
+  webhook, `/mcp` and `/api/v1/auth/desktop/refresh` skip the global
+  limiter; refresh is budgeted per device (`desktop-refresh`, 60/min, keyed
+  by the address plus the unverified `X-UniWork-Device` header, so a known
+  id cannot be spent from elsewhere) under an address ceiling
+  (`desktop-refresh-ip`, 600/min):
+  `TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling`. `/mcp` is
+  budgeted per access-token hash (`mcp`, 120/min; the router reads no
+  database, so the token is not verified there) under a
+  per-address ceiling (`mcp-ip`, 1200/min):
+  `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
+  `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
+  their own small budget in `server/internal/handler/router/router.go`,
+  whose tests pin all of it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
@@ -357,7 +512,11 @@ database and never reveal whether an id exists to a non-member.
   `server/internal/handler/dto/sdo/` with `description` and `example`
   tags. A new `{param}` name needs a `pathParamSDI` case in
   `server/internal/handler/router/openapi.go`. Full checklist:
-  `docs/api-sdi-sdo.md`. `GET /api/v1/ws` stays off the spec.
+  `docs/api-sdi-sdo.md`. `GET /api/v1/ws` stays off the spec, and so do
+  `/oauth/*`, `/.well-known/oauth-*` and `/mcp` (ADR 0031): their bodies
+  follow the RFCs and the MCP spec, not SDI/SDO, so they are mounted outside
+  the `api` wrapper and cap their own bodies instead of going through
+  `decode`. `TestMCPOAuthRoutesAreMountedOutsideTheAPIWrapper` pins them.
 
 ## Web Features
 
@@ -414,6 +573,12 @@ When adding a shared screen:
   (`mcp.frontendchecklist.io` — it sends the file's source to that service)
   as an advisory review; it is not a gate and its regex findings are verified
   against the code before being acted on.
+- Icons follow `docs/conventions.md` › Icons. Import canonical lucide names
+  (`no-restricted-imports` names the replacement; regenerate the list with
+  `pnpm generate:lucide-aliases`), draw a module with `MODULE_ICONS` from
+  `packages/views/layout/module-icons.ts`, and show loading with `<Spinner />`.
+  `scripts/lucide-aliases.test.mjs` fails on an alias import or a raw
+  `LoaderCircle` at every gate level.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`
@@ -530,5 +695,8 @@ the same way it accepts Merge and Revert.
   WebSocket handshake carry the pair (`/{orgSlug}/{wsSlug}`, `workspace_slug=org/ws`).
 - `onboarded_at` on the user is the single source of truth for "may enter a
   workspace"; never infer it from the workspace count.
-- Realtime event names are `<entity>.<verb>` with id-only payloads
-  (`packages/core/types/events.ts`, published from `server/internal/service`).
+- Realtime event names are `<entity>.<verb>`, listed in
+  `packages/core/types/events.ts` and published from `server/internal/service`;
+  client-visible payloads carry ids only, except the fields a catalogue row
+  lists in `Patch` and the `revision_before` / `revision` pair that guards them
+  (ADR 0015, held by `scripts/events-catalogue.test.mjs`).

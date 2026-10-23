@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "engine_incompatible",
+    "message": "Định dạng tài liệu yêu cầu engine mới hơn phiên bản hiện tại.",
+    "error_class": "incompatible",
+    "fields": {
+      "required_contract_version": "uniwork-office-engine-contract/2",
+      "engine_version": "genoffice@1.4.2+uniwork-office.3"
+    }
+  }
+}

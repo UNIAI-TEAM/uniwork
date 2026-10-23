@@ -1,5 +1,8 @@
 export { useAuthStore, resetAuthStoreForTests } from "./store";
 export type { AuthState, SessionStatus } from "./store";
+export { hasSessionHint } from "./session-hint";
+export { registerSessionProvider, getSessionProvider } from "./session-provider";
+export { deleteAccountProofRefused } from "./errors";
 export {
   authKeys,
   setSessionUser,
@@ -20,6 +23,7 @@ export {
   useRegister,
   useResendVerification,
   useResetPassword,
+  useKnownSession,
   useSession,
   useUploadAvatar,
   useVerifyEmail,

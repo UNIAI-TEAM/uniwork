@@ -100,6 +100,11 @@ business logic nên không vi phạm ràng buộc của `packages/ui`.
 
 ## Wordmark
 
+> **Thay thế 2026-09-17:** wordmark nay là "uni" + mark + "ork" (mark đứng thay
+> chữ w), Plus Jakarta Sans ExtraBold viết thường. Phần dưới đây là thiết kế
+> Inter cũ, giữ lại làm lịch sử; nguồn hiện hành là `packages/ui/brand/README.md`
+> và `scripts/brand/build-wordmark.py`.
+
 Typeset từ Inter SemiBold (600) — đúng font `apps/web/app/layout.tsx` đã load,
 nên không thêm byte font nào. Tracking −2%. Chuyển sang path bằng `fontTools`
 tại thời điểm thiết kế, nên file SVG không phụ thuộc font lúc render.

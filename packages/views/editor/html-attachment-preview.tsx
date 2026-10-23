@@ -30,7 +30,7 @@ import { Download, ExternalLink, Maximize2, Trash2 } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useTranslation } from "react-i18next";
-import { useNavigation } from "@uniwork/views/navigation";
+import { useOptionalNavigation } from "@uniwork/views/navigation";
 import { useAttachmentHtmlText } from "./hooks/use-attachment-html-text";
 import { HtmlPreviewBody } from "./html-preview-body";
 
@@ -63,7 +63,7 @@ export function HtmlAttachmentPreview({
   // new-tab button) when the component is somehow mounted outside a
   // workspace route.
   const slug = useEditorWorkspaceSlug();
-  const navigation = useNavigation();
+  const navigation = useOptionalNavigation();
 
   // Only enable the new-tab button when the workspace slug is resolvable —
   // outside a workspace context the path is meaningless. Prefer desktop's
@@ -112,7 +112,7 @@ export function HtmlAttachmentPreview({
             onPreview();
           }}
         >
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="size-3.5" />
         </button>
         {canOpenInNewTab && (
           <button
@@ -126,7 +126,7 @@ export function HtmlAttachmentPreview({
               handleOpenInNewTab();
             }}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="size-3.5" />
           </button>
         )}
         <button
@@ -140,7 +140,7 @@ export function HtmlAttachmentPreview({
             onDownload();
           }}
         >
-          <Download className="h-3.5 w-3.5" />
+          <Download className="size-3.5" />
         </button>
         {onDelete && (
           <button
@@ -154,7 +154,7 @@ export function HtmlAttachmentPreview({
               onDelete();
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-3.5" />
           </button>
         )}
       </div>

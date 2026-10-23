@@ -5,29 +5,81 @@ import type { ChatMessage } from "./chat-messages";
 export interface NameContextEntry {
   user_id: string;
   display_name: string;
+  avatar_url?: string;
+  email?: string;
 }
 
+// React Query keeps an unchanged record the same object across refetches
+// (structural sharing), so mapping through this cache gives an unchanged
+// message the same object too: rows can memoise on it, and an attachment
+// preview keyed on it does not reload when the timeline rebuilds.
+const mapped = new WeakMap<ChatMessageRecord, ChatMessage>();
+
 export function toChatMessage(record: ChatMessageRecord): ChatMessage {
+  const cached = mapped.get(record);
+  if (cached && mappedRecordStillMatches(record, cached)) return cached;
+  const message = mapRecord(record);
+  mapped.set(record, message);
+  return message;
+}
+
+function mappedRecordStillMatches(record: ChatMessageRecord, cached: ChatMessage): boolean {
+  const pinnedAt = record.pinned_at ? Date.parse(record.pinned_at) : undefined;
+  return (
+    cached.pinned === record.pinned &&
+    cached.pinnedAt === pinnedAt &&
+    cached.body === record.body &&
+    cached.editedAt === (record.edited_at ? Date.parse(record.edited_at) : undefined)
+  );
+}
+
+function mapRecord(record: ChatMessageRecord): ChatMessage {
   return {
     id: record.id,
     sender: record.sender_id,
     body: record.body,
     kind: record.kind,
     ts: Date.parse(record.created_at),
+    cursor: record.cursor,
     replyToEventId: record.reply_to_message_id,
     threadRootId: record.thread_root_id,
     replyCount: record.reply_count,
     lastReplyAt: record.last_reply_at ? Date.parse(record.last_reply_at) : undefined,
+    threadParticipantIds: record.thread_participant_ids,
     threadUnread: record.thread_unread,
     editedAt: record.edited_at ? Date.parse(record.edited_at) : undefined,
     pinned: record.pinned,
+    pinnedAt: record.pinned_at ? Date.parse(record.pinned_at) : undefined,
     mentionedUserIds: record.mentioned_user_ids,
     reactions: record.reactions ?? {},
+    myReactions: record.my_reactions,
     voiceCall: record.voice_call
       ? {
           outcome: record.voice_call.outcome,
           duration_seconds: record.voice_call.duration_seconds,
           caller_id: record.voice_call.caller_id,
+          participants: record.voice_call.participants?.map((p) => ({
+            user_id: p.user_id,
+            display_name: p.display_name ?? "",
+          })),
+          recording_id: record.voice_call.recording_id,
+          recording_status: record.voice_call.recording_status,
+          recording_url: record.voice_call.recording_url,
+          ...(record.voice_call.video ? { video: true } : {}),
+        }
+      : undefined,
+    voiceCallSummary: record.voice_call_summary
+      ? {
+          call_id: record.voice_call_summary.call_id,
+          call_log_message_id: record.voice_call_summary.call_log_message_id,
+          summary: record.voice_call_summary.summary ?? "",
+          highlights: record.voice_call_summary.highlights ?? [],
+          action_items: record.voice_call_summary.action_items.map((item) => ({
+            title: item.title,
+            owner: item.owner ?? "",
+            due: item.due ?? "",
+            source_message_id: item.source_message_id ?? "",
+          })),
         }
       : undefined,
     voice: record.voice,
@@ -36,8 +88,14 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
           filename: record.file.filename,
           content_type: record.file.content_type,
           size_bytes: record.file.size_bytes,
+          url: record.file.url,
+          download_url: record.file.download_url,
+          thumb_url: record.file.thumb_url,
+          url_expires_at: record.file.url_expires_at,
         }
       : undefined,
+    document: record.document,
+    canShareAsDocument: record.can_share_as_document,
     poll: record.poll
       ? {
           question: record.poll.question,
@@ -55,7 +113,12 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
             hide_voters: record.poll.settings.hide_voters ?? false,
           },
           viewer_option_ids: record.poll.viewer_option_ids,
-          votes_by_user: record.poll.votes_by_user,
+        }
+      : undefined,
+    pollVote: record.poll_vote
+      ? {
+          pollMessageId: record.poll_vote.poll_message_id,
+          question: record.poll_vote.question,
         }
       : undefined,
     reminder: record.reminder
@@ -82,8 +145,15 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
       record.priority === "important" || record.priority === "urgent"
         ? record.priority
         : undefined,
+    forwardedFrom: record.forwarded_from
+      ? { senderId: record.forwarded_from.sender_id, senderName: record.forwarded_from.sender_name }
+      : undefined,
     clientMsgId: record.client_msg_id,
   };
+}
+
+function sameSenderId(left: string, right: string): boolean {
+  return left.trim().toUpperCase() === right.trim().toUpperCase();
 }
 
 export function senderLabelFor(
@@ -92,7 +162,11 @@ export function senderLabelFor(
   youLabel: string,
   nameContext: NameContextEntry[],
 ): string {
-  if (message.sender === currentUserId) return youLabel;
-  const match = nameContext.find((entry) => entry.user_id === message.sender);
-  return match?.display_name?.trim() || message.sender;
+  if (sameSenderId(message.sender, currentUserId)) return youLabel;
+  const match = nameContext.find((entry) => sameSenderId(entry.user_id, message.sender));
+  const name = match?.display_name?.trim() ?? "";
+  if (name && !sameSenderId(name, message.sender)) return name;
+  const local = match?.email?.split("@")[0]?.trim() ?? "";
+  if (local && !sameSenderId(local, message.sender)) return local;
+  return name || message.sender;
 }

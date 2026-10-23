@@ -2,11 +2,10 @@ package service
 
 import (
 	"context"
-	"strings"
 )
 
 func (s *ChatService) ChatMediaTenorEnabled() bool {
-	return strings.TrimSpace(s.TenorAPIKey) != ""
+	return s.chatMediaRemoteEnabled()
 }
 
 func (s *ChatService) ChatMediaStatus(ctx context.Context, ownerID, workspaceID string) (bool, error) {

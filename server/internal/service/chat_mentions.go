@@ -2,62 +2,88 @@ package service
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/mentions"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-var (
-	chatMentionMemberPattern = regexp.MustCompile(`mention://member/([A-Z0-9]+)`)
-	chatMentionAllPattern    = regexp.MustCompile(`mention://all/all`)
-)
+var chatMentionAllPattern = regexp.MustCompile(`mention://all/all`)
 
 func parseMentionUserIDsFromBody(body string) (memberIDs []string, mentionsAll bool) {
 	if body == "" {
 		return nil, false
 	}
-	mentionsAll = chatMentionAllPattern.MatchString(body)
-	seen := map[string]struct{}{}
-	for _, match := range chatMentionMemberPattern.FindAllStringSubmatch(body, -1) {
-		if len(match) < 2 {
-			continue
-		}
-		id := strings.ToUpper(strings.TrimSpace(match[1]))
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		memberIDs = append(memberIDs, id)
-	}
-	sort.Strings(memberIDs)
-	return memberIDs, mentionsAll
+	// The member-link grammar is shared (chat_mentions delegates); the
+	// room-wide mention stays chat-local.
+	return mentions.MemberIDs(body), chatMentionAllPattern.MatchString(body)
 }
 
+// chatSmallRoomMembers is the room size up to which every member may use
+// @all and add people to a group; past it only the room's moderators may.
+// Both fan out one frame per member. A var so tests can shrink it.
+var chatSmallRoomMembers = 50
+
+func errChatMentionAllForbidden() error {
+	return coded(http.StatusForbidden, "chat_mention_all_forbidden", "chỉ quản trị phòng mới được nhắc @all trong phòng đông người")
+}
+
+// requireMayNotifyRoom refuses a message that notifies every member (@all, a
+// reminder) from a non-moderator once the room is past chatSmallRoomMembers.
+func (s *ChatService) requireMayNotifyRoom(ctx context.Context, senderID string, room db.ChatRoom, members int) error {
+	if members <= chatSmallRoomMembers {
+		return nil
+	}
+	ok, err := s.isChatRoomModerator(ctx, senderID, room)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errChatMentionAllForbidden()
+	}
+	return nil
+}
+
+// chatMentions is who a message mentions: the members it names, and whether
+// it says @all. Recipients is everyone to notify.
+type chatMentions struct {
+	Named      []string
+	All        bool
+	Recipients []string
+}
+
+// resolveMentionRecipients reads the mentions in body. It refuses @all from a
+// non-moderator in a room past chatSmallRoomMembers, so callers run it before
+// writing the message.
 func (s *ChatService) resolveMentionRecipients(
 	ctx context.Context,
 	senderID string,
 	room db.ChatRoom,
 	body string,
-) ([]string, error) {
+) (chatMentions, error) {
 	if room.Kind != chatRoomKindWorkspace && room.Kind != chatRoomKindChannel && room.Kind != chatRoomKindGroup {
-		return nil, nil
+		return chatMentions{}, nil
 	}
 	memberIDs, mentionsAll := parseMentionUserIDsFromBody(body)
 	if !mentionsAll && len(memberIDs) == 0 {
-		return nil, nil
+		return chatMentions{}, nil
 	}
 
 	roomMemberIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
-		return nil, err
+		return chatMentions{}, err
+	}
+	if mentionsAll {
+		if err := s.requireMayNotifyRoom(ctx, senderID, room, len(roomMemberIDs)); err != nil {
+			return chatMentions{}, err
+		}
 	}
 	active := make(map[string]struct{}, len(roomMemberIDs))
 	for _, id := range roomMemberIDs {
@@ -68,15 +94,8 @@ func (s *ChatService) resolveMentionRecipients(
 		active[id] = struct{}{}
 	}
 
-	recipients := map[string]struct{}{}
+	named := map[string]struct{}{}
 	senderID = strings.ToUpper(strings.TrimSpace(senderID))
-	if mentionsAll {
-		for id := range active {
-			if id != senderID {
-				recipients[id] = struct{}{}
-			}
-		}
-	}
 	for _, id := range memberIDs {
 		if _, ok := active[id]; !ok {
 			continue
@@ -84,21 +103,69 @@ func (s *ChatService) resolveMentionRecipients(
 		if id == senderID {
 			continue
 		}
-		recipients[id] = struct{}{}
+		named[id] = struct{}{}
 	}
-	if len(recipients) == 0 {
-		return nil, nil
+	recipients := named
+	if mentionsAll {
+		recipients = map[string]struct{}{}
+		for id := range active {
+			if id != senderID {
+				recipients[id] = struct{}{}
+			}
+		}
 	}
-	out := make([]string, 0, len(recipients))
-	for id := range recipients {
+	return chatMentions{Named: sortedIDs(named), All: mentionsAll, Recipients: sortedIDs(recipients)}, nil
+}
+
+func sortedIDs(set map[string]struct{}) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for id := range set {
 		out = append(out, id)
 	}
 	sort.Strings(out)
-	return out, nil
+	return out
 }
 
-func mentionedUserIDsFromMetadata(raw []byte) []string {
-	meta := decodeChatMessageMetadata(raw)
+// isChatRoomModerator is canModerateChatRoom with its own lookups.
+func (s *ChatService) isChatRoomModerator(ctx context.Context, userID string, room db.ChatRoom) (bool, error) {
+	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.ID, UserID: userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var wsMember db.WorkspaceMember
+	if isWorkspaceDefaultRoom(room) {
+		if wsMember, err = s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), userID); err != nil {
+			return false, err
+		}
+	}
+	return canModerateChatRoom(userID, member, room, wsMember), nil
+}
+
+// mentionedUserIDsForViewer is the mention list a viewer gets: the named
+// members, plus the viewer when the message says @all and they did not send
+// it. Storing the flag instead of every member's id keeps a 1,000-person
+// @all to a few bytes.
+func mentionedUserIDsForViewer(meta chatMessageMetadata, senderID, viewerID string) []string {
+	ids := mentionedUserIDsFromMetadata(meta)
+	viewerID = strings.ToUpper(strings.TrimSpace(viewerID))
+	if viewerID == "" || viewerID == strings.ToUpper(strings.TrimSpace(senderID)) || !meta.MentionsAll {
+		return ids
+	}
+	if slices.Contains(ids, viewerID) {
+		return ids
+	}
+	return append(ids, viewerID)
+}
+
+func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
 	if len(meta.MentionedUserIDs) == 0 {
 		return nil
 	}
@@ -122,21 +189,33 @@ func mentionedUserIDsFromMetadata(raw []byte) []string {
 	return out
 }
 
-func encodeMentionsMetadata(raw []byte, mentionedUserIDs []string) ([]byte, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.MentionedUserIDs = mentionedUserIDs
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 {
-		return []byte("{}"), nil
+func encodeMentionsMetadata(raw []byte, m chatMentions) ([]byte, error) {
+	var named, all any
+	if len(m.Named) > 0 {
+		named = m.Named
 	}
-	return json.Marshal(meta)
+	if m.All {
+		all = true
+	}
+	out, err := patchMetadataKey(raw, "mentioned_user_ids", named)
+	if err != nil {
+		return nil, err
+	}
+	return patchMetadataKey(out, "mentions_all", all)
 }
 
+// messageMentionsCurrentUser reports whether a message mentions userID; an
+// @all mentions every member (callers skip the sender's own messages).
 func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	userID = strings.ToUpper(strings.TrimSpace(userID))
 	if userID == "" {
 		return false
 	}
-	for _, id := range mentionedUserIDsFromMetadata(raw) {
+	meta := decodeChatMessageMetadata(raw)
+	if meta.MentionsAll {
+		return true
+	}
+	for _, id := range mentionedUserIDsFromMetadata(meta) {
 		if id == userID {
 			return true
 		}
@@ -144,76 +223,55 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	return false
 }
 
-func (s *ChatService) persistMessageMentions(
-	ctx context.Context,
-	msg db.ChatMessage,
-	mentionedUserIDs []string,
-) (db.ChatMessage, error) {
-	if len(mentionedUserIDs) == 0 {
-		return msg, nil
+func buildChatTextMessageMetadata(mentions chatMentions, priority string) ([]byte, error) {
+	var raw []byte
+	if len(mentions.Recipients) > 0 || mentions.All {
+		var err error
+		raw, err = encodeMentionsMetadata(nil, mentions)
+		if err != nil {
+			return nil, err
+		}
 	}
-	meta, err := encodeMentionsMetadata(msg.Metadata, mentionedUserIDs)
-	if err != nil {
-		return msg, err
+	if p := normalizeMessagePriority(priority); p != "" {
+		return encodeMessagePriorityMetadata(raw, p)
 	}
-	return s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: meta,
-	})
+	if len(raw) == 0 {
+		return []byte("{}"), nil
+	}
+	return raw, nil
 }
 
 func (s *ChatService) publishMentionNotifications(
 	ctx context.Context,
 	room db.ChatRoom,
-	senderID, messageID string,
+	senderID, messageID, threadRootID string,
 	mentionedUserIDs []string,
 ) {
 	if len(mentionedUserIDs) == 0 {
 		return
 	}
-	payload := map[string]string{
-		"room_id":    room.ID,
-		"message_id": messageID,
-		"sender_id":  senderID,
-	}
-	for _, userID := range mentionedUserIDs {
-		s.pub.SendToUser(ctx, userID, Event{
-			Type:    "chat.mention.created",
-			Payload: payload,
-		})
-	}
+	s.pub.SendToUsers(ctx, mentionedUserIDs, Event{
+		Type:    "chat.mention.created",
+		Payload: chatMessageFramePayload(room.ID, messageID, senderID, threadRootID),
+	})
 }
 
-func (s *ChatService) roomMentionUnread(
-	ctx context.Context,
-	userID, roomID, anchorWorkspaceID string,
-) (int, error) {
-	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+// chatMessageFramePayload names a thread reply's root only when there is one,
+// so a main-timeline frame keeps its old shape.
+func chatMessageFramePayload(roomID, messageID, senderID, threadRootID string) map[string]string {
+	p := map[string]string{"room_id": roomID, "message_id": messageID, "sender_id": senderID}
+	if threadRootID != "" {
+		p["thread_root_id"] = threadRootID
+	}
+	return p
+}
+
+func (s *ChatService) roomMentionUnread(ctx context.Context, userID, roomID string) (int, error) {
+	n, err := s.q.CountChatMentionUnreadForMember(ctx, db.CountChatMentionUnreadForMemberParams{
 		RoomID: roomID, UserID: userID,
-	})
-	if err != nil {
-		return 0, nil
-	}
-	var since pgtype.Timestamptz
-	if member.LastReadAt.Valid {
-		since = member.LastReadAt
-	}
-	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
-		RoomID: roomID, WorkspaceID: anchorWorkspaceID, BeforeAt: pgtype.Timestamptz{}, MsgLimit: 500,
 	})
 	if err != nil {
 		return 0, err
 	}
-	count := 0
-	for _, row := range rows {
-		if row.SenderID == userID {
-			continue
-		}
-		if since.Valid && !row.CreatedAt.Time.After(since.Time) {
-			continue
-		}
-		if messageMentionsCurrentUser(row.Metadata, userID) {
-			count++
-		}
-	}
-	return count, nil
+	return int(n), nil
 }

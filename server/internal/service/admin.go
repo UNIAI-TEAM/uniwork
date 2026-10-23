@@ -200,6 +200,11 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 	if before.Status == status {
 		return before, nil
 	}
+	if before.Status != OrganizationActive && before.Status != OrganizationSuspended {
+		// Archived (closed or deleted) is terminal here: reopening it would
+		// bring back an organization with no active owner (ADR 0032 D4).
+		return db.Organization{}, ErrConflict
+	}
 	params := db.AdminSetOrganizationStatusParams{ID: orgID, Status: status}
 	action, topic := audit.ActionOrganizationUnsuspended, "organization.unsuspended"
 	if status == OrganizationSuspended {
@@ -208,8 +213,20 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 		action, topic = audit.ActionOrganizationSuspended, "organization.suspended"
 	}
 	after, err := q.AdminSetOrganizationStatus(ctx, params)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Closed between the read and the write.
+		return db.Organization{}, ErrConflict
+	}
 	if err != nil {
 		return db.Organization{}, err
+	}
+	// Suspension bumps the offline policy epoch (G5-D1 row 8): a lease of
+	// the old epoch no longer renews, and the lease revoker consumer of
+	// organization.suspended revokes the live rows.
+	if status == OrganizationSuspended {
+		if _, err := q.BumpOfficeOfflinePolicyEpoch(ctx, orgID); err != nil {
+			return db.Organization{}, err
+		}
 	}
 	changes := map[string]any{"status": status}
 	if err := s.recordAdmin(ctx, q, traceID, adminID, action, "organization", orgID, map[string]any{"status": before.Status}, changes, reason); err != nil {
@@ -240,24 +257,21 @@ func (s *AdminService) SetOrganizationStatus(ctx context.Context, adminID, orgID
 }
 
 // ChangePlan is the manual plan switch (pilots, partners). The subscription
-// change itself, its audit row and event come from BillingService with the
-// admin as actor; admin_actions adds the reason.
+// change, its audit row and admin_actions commit together; the hook inserts
+// the admin row before BillingService commits.
 func (s *AdminService) ChangePlan(ctx context.Context, adminID, orgID, planCode, reason string) (EntitlementSnapshot, error) {
 	if err := checkReason(reason); err != nil {
 		return EntitlementSnapshot{}, err
 	}
+	ctx, traceID := ensureTrace(ctx)
 	cur, err := s.ent.Snapshot(ctx, orgID)
 	if err != nil {
 		return EntitlementSnapshot{}, err
 	}
-	snap, err := s.billing.ChangePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion)
-	if err != nil {
-		return EntitlementSnapshot{}, err
-	}
-	_, traceID := ensureTrace(ctx)
-	err = s.recordAdmin(ctx, s.q, traceID, adminID, "organization.plan_changed", "organization", orgID,
-		map[string]any{"plan_code": cur.Plan.Code}, map[string]any{"plan_code": snap.Plan.Code}, reason)
-	return snap, err
+	return s.billing.changePlan(ctx, adminID, orgID, planCode, cur.Subscription.RowVersion, true, func(ctx context.Context, q *db.Queries, beforeCode, afterCode string) error {
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.plan_changed", "organization", orgID,
+			map[string]any{"plan_code": beforeCode}, map[string]any{"plan_code": afterCode}, reason)
+	})
 }
 
 // Trace is the support view of one trace id: audit rows, outbox rows and

@@ -8,12 +8,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -26,14 +34,51 @@ import (
 // action can only sit there with a written reason, which is the thing a
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
-	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
-	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
-	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
-	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
+	audit.ActionCalendarConnected:           "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
+	audit.ActionCalendarSelectionUpdated:    "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
+	audit.ActionOrganizationUpdated:         "no organization rename command exists yet",
+	audit.ActionMemberRemoved:               "deactivation replaced removal by an admin; leaving writes member.left",
+	audit.ActionAuditExportRequested:        "covered by the audit service's own tests",
+	audit.ActionAuditExported:               "covered by the audit export consumer's own tests",
+	audit.ActionAuditRetentionSet:           "covered by the audit service's own tests",
+	audit.ActionPrivacyExportRequested:      "covered by the privacy export service's own tests",
+	audit.ActionPrivacyExported:             "covered by the privacy export consumer's own tests",
+	audit.ActionPrivacyDeletionRequested:    "covered by the privacy deletion service's own tests",
+	audit.ActionPrivacyDeletionCancelled:    "covered by the privacy deletion service's own tests",
+	audit.ActionPrivacyOrganizationDeleted:  "covered by the privacy deletion consumer's own tests",
+	audit.ActionAuthDesktopStarted:          "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentApproved:  "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentCancelled: "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionCreated:   "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
+
+	audit.ActionMcpGrantCreated:                   "covered by mcp_authorize_test.go",
+	audit.ActionMcpGrantRevoked:                   "covered by mcp_grants_test.go",
+	audit.ActionMcpGrantScopeChanged:              "covered by mcp_authorize_test.go",
+	audit.ActionMcpTokenFamilyRevoked:             "covered by mcp_tokens_test.go",
+	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
+	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
+	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 	cases := map[string]func(t *testing.T, f *auditFixture){
+		audit.ActionCalendarDisconnected: func(t *testing.T, f *auditFixture) {
+			workspace := f.build(t)
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO calendar_connections (
+				id, organization_id, workspace_id, user_id, provider, account_email,
+				access_token_enc, refresh_token_enc, access_token_expires_at
+			) VALUES ('audit-calendar-connection', $1, $2, $3, 'google',
+				'audit-owner@example.com', 'access', 'refresh', now())`, f.orgID, workspace.ID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			svc := NewCalendarConnectionService(f.pool, f.q, f.ws, nil, config.Config{})
+			if err := svc.Disconnect(f.ctx, workspace.ID, f.owner.ID, "google"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationCreated: func(t *testing.T, f *auditFixture) { f.build(t) },
 		audit.ActionMemberJoined:        func(t *testing.T, f *auditFixture) { f.build(t) },
 		audit.ActionWorkspaceCreated:    func(t *testing.T, f *auditFixture) { f.build(t) },
@@ -110,13 +155,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, PeopleFilter{}, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionInvitationRevoked: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember)
+			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,6 +172,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationClosed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if err := f.orgMem.Close(f.ctx, f.owner.ID, f.orgID, "audit-org"); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -172,6 +223,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDesktopDeviceRevoked: func(t *testing.T, f *auditFixture) {
+			_, userID, sess := f.desktopDevice(t, "audit-device@example.com")
+			if _, err := f.admin.RevokeDesktopDevice(f.ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionFlagOverrideSet: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			f.override(t, true)
@@ -181,9 +238,59 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			f.override(t, true)
 			f.override(t, false)
 		},
+		audit.ActionPlanCreated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.CreatePlanCatalog(f.ctx, f.third.ID, CreatePlanCatalogInput{
+				Code: "audit_test_plan",
+				UpdatePlanCatalogInput: UpdatePlanCatalogInput{
+					Name: "Audit test", Description: "", BillingPeriod: "none", PriceCurrency: "VND",
+					IsActive: false, SortOrder: 99,
+				},
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPlanUpdated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.SetPlanCatalog(f.ctx, f.third.ID, "starter", UpdatePlanCatalogInput{
+				Name: "Starter", Description: "Gói mặc định", BillingPeriod: "none", PriceCurrency: "VND",
+				IsActive: true, SortOrder: 0,
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPlanFeatureUpdated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			limit := int64(5)
+			if _, err := f.admin.SetPlanFeature(f.ctx, f.third.ID, "starter", "members.max", UpdatePlanFeatureInput{
+				Enabled: true, QuotaLimit: &limit,
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionBillingInvoiceRefunded: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.suspend(t, OrganizationActive)
+			var subID string
+			if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+				t.Fatal(err)
+			}
+			invID := util.NewID()
+			now := time.Now().UTC()
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+				id, organization_id, subscription_id, provider, number, status,
+				amount_due, amount_paid, currency, period_start, period_end, paid_at
+			) VALUES ($1, $2, $3, 'manual', 'UW-AUDIT-REFUND', 'paid', 1000, 1000, 'VND', $4, $4, $4)`,
+				invID, f.orgID, subID, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.RefundInvoice(f.ctx, f.third.ID, invID, "audit coverage manual refund", "REF-AUDIT", "127.0.0.1", 0); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -299,14 +406,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionAttachmentUploaded: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			body := []byte("# note\n")
-			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
+			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "", "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionAttachmentDeleted: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			body := []byte("# note\n")
-			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "", "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -673,6 +780,30 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatMessageUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "unlink me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "from chat"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			link, err := f.chat.LinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, CreateChatMessageLinkInput{
+				TargetType: "task", TargetID: task.ID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.UnlinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatThreadTaskLinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
@@ -693,6 +824,1060 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				TaskID: task.ID, Direction: "both",
 			}); err != nil {
 				t.Fatal(err)
+			}
+		},
+		audit.ActionChatThreadTaskUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{Name: "audit-unsync", Visibility: "public"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "unsynced"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: task.ID, Direction: "both"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.UnsyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "follow me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "later", nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "patch me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			note := "updated note"
+			if _, err := f.chat.PatchFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID, PatchFollowUpInput{Note: &note}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpCompleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "done me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.CompleteFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "delete audit"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.DeleteChatMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, msg.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatRoomMemberUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			f.addMember(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			adminRole := "admin"
+			if err := f.chat.UpdateChatRoomMember(f.ctx, f.owner.ID, w.ID, room.RoomID, f.member.ID, UpdateChatRoomMemberInput{
+				Role: &adminRole,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatRoomSettingsUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "Kênh chung mới"
+			if _, err := f.chat.UpdateChatRoomSettings(f.ctx, f.owner.ID, w.ID, room.RoomID, UpdateChatRoomSettingsInput{
+				Name: &name,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatVoiceTranscribed: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			withTranscriber(f.chat, f.pool, f.q, &provider.FakeTranscriber{})
+			voice, err := f.chat.SendVoiceMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, SendVoiceMessageInput{
+				DurationMS: 4000, Body: bytes.NewReader(tinyFSVoiceBytes),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.TranscribeVoiceMessage(f.ctx, f.member.ID, f.workspace.ID, voice.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call", false); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceAccept(f.ctx, f.member.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageForwarded: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, f.workspace.ID, room.RoomID, SendChatMessageInput{Body: "forward me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.ForwardChatMessage(f.ctx, f.owner.ID, f.workspace.ID, msg.ID, ForwardChatMessageInput{
+				TargetRoomIDs: []string{dm.ID},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "delete me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.DeleteFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// The only document write that exists in G1-01 is the owner seam: it
+		// runs inside the owner's transaction, so the coverage runs it inside
+		// one and commits before checking the row.
+		audit.ActionDocumentCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+			svc.SetOwnerLevelResolver(fakeOwnerResolver{level: DocumentLevelManage})
+			tx, err := f.pool.Begin(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(f.ctx) }()
+			if _, err := svc.CreateOwnedDocumentInTx(f.ctx, f.q.WithTx(tx), Human(f.owner.ID), OwnedDocumentInput{
+				OrganizationID: f.orgID,
+				WorkspaceID:    w.ID,
+				OwnerID:        "01WP0000000000000000000000",
+				Kind:           DocumentKindPage,
+				Title:          "Work product page",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeDesktopDownloaded: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewOfficeDesktopDownloadService(f.orgs, config.Config{APIPublicURL: "https://api.example.test", OfficeInstallerStableURL: "https://downloads.example.test/installer.exe", DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := svc.Get(f.ctx, f.owner.ID, f.orgID, "stable"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRedeemed: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deviceID := util.NewID()
+			if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := launch.Exchange(f.ctx, OfficeLaunchExchangeInput{Ticket: created.Ticket, AccountID: f.owner.ID, DeploymentID: "default", ClientID: "uniwork-office", DeviceSessionID: deviceID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := launch.Revoke(f.ctx, Human(f.owner.ID), created.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseGranted: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+		},
+		audit.ActionOfficeOfflineLeaseRenewed: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, l := f.offlineLease(t)
+			if _, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID, Lease: l.Token}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseReleased: func(t *testing.T, f *auditFixture) {
+			leases, docID, deviceID, _ := f.offlineLease(t)
+			if err := leases.Release(f.ctx, Human(f.owner.ID), docID, deviceID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflineLeaseRevoked: func(t *testing.T, f *auditFixture) {
+			f.offlineLease(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeOfflinePolicyBumped: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.RevokeOrganizationOfflineLeases(f.ctx, CLIActor, f.orgID, "audit coverage offline revoke"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// ShareDocumentBatch (UNI-1641) writes its own row per user: the
+			// organization share above plus this one make two.
+			f.addMember(t)
+			if _, err := svc.ShareDocumentBatch(f.ctx, Human(f.owner.ID), docID, []string{f.member.ID}, DocumentLevelView); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, docID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 2 {
+				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
+			}
+			// SendDocumentLinkMessage (UNI-2012 D5) writes one row for the
+			// grants its message gives, on a restricted page the member
+			// cannot read yet.
+			linkDocID := util.NewID()
+			insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+				"id": linkDocID, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "visibility": "restricted",
+				"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+			}))
+			chat := NewChatService(f.pool, f.q, f.ws, &capturePublisher{})
+			chat.SetDocuments(svc)
+			dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.workspace.ID, f.member.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := chat.SendDocumentLinkMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID,
+				SendDocumentLinkInput{DocumentID: linkDocID, ShareLevel: "comment"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, linkDocID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 1 {
+				t.Fatalf("document.shared rows after SendDocumentLinkMessage = %d, want 1", n)
+			}
+		},
+		audit.ActionDocumentsAccessReportExported: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ExportDocumentAccessReport(f.ctx, Human(f.owner.ID), d.WorkspaceID, DocumentAccessReportQuery{}, AccessReportFormatCSV, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsDownloadJobCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateDocumentDownloadJob(f.ctx, Human(f.owner.ID), d.WorkspaceID, []string{docID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadPlanned: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+				RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: "audit-folder-upload",
+				Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadCanceled: func(t *testing.T, f *auditFixture) {
+			svc, workspaceID, batchID := f.openFolderUpload(t, "audit-folder-cancel")
+			if _, err := svc.CancelFolderUpload(f.ctx, Human(f.owner.ID), workspaceID, batchID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, batchID := f.openFolderUpload(t, "audit-folder-expire")
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_folder_uploads SET expires_at = now() - interval '1 minute' WHERE id = $1`, batchID); err != nil {
+				t.Fatal(err)
+			}
+			if n, err := svc.SweepFolderUploads(f.ctx); err != nil || n == 0 {
+				t.Fatalf("SweepFolderUploads = %d, err = %v", n, err)
+			}
+		},
+		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			sh, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
+				t.Fatal(err)
+			}
+			// UNI-1974: the folders-unshare clean-up revokes a legacy folder
+			// share through the same writer, as the system actor.
+			folder := f.legacySharedFolder(t)
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentShareRevoked, folder).Scan(&n); err != nil || n == 0 {
+				t.Fatalf("UnshareFolders wrote %d share_revoked rows (%v)", n, err)
+			}
+		},
+		audit.ActionDocumentBreakGlassGranted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			if _, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentBreakGlassRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.breakGlassDocument(t)
+			grant, _, err := svc.GrantDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, "kiểm tra theo yêu cầu kiểm toán")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentBreakGlass(f.ctx, Human(f.owner.ID), docID, grant.Grant.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentSettingsChanged: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			l, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentLink(f.ctx, Human(f.owner.ID), docID, l.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// SH-S1 (UNI-1780): the workspace home row's visibility/level pair.
+		// Two commands move it and both write this one action - the PATCH
+		// with visibility set, and a share for the document's own workspace,
+		// which merges into the row (T4) - so the case runs both.
+		audit.ActionDocumentWorkspaceAccessChanged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.UpdateDocument(f.ctx, Human(f.owner.ID), docID, UpdateDocumentInput{Revision: 1, Visibility: strPtr("restricted")}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: f.workspace.ID, Level: DocumentLevelView,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// UNI-1974: the folders-unshare clean-up closes a workspace-visible
+			// folder through the same writer, as the system actor - since ADR
+			// 0037 only one its location says is restricted (in a My Folder).
+			mf, _, err := svc.EnsureMyFolder(f.ctx, Human(f.owner.ID), f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			folder := f.legacySharedFolder(t)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, mf.Document.ID, folder); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentWorkspaceAccessChanged, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("UnshareFolders wrote %d workspace_access_changed rows (%v), want 1", n, err)
+			}
+		},
+		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
+		audit.ActionDocumentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.UpdateDocument(f.ctx, Human(f.owner.ID), docID, UpdateDocumentInput{Revision: 1, Title: strPtr("Đổi tên")}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1645: the document edit lock commands (addendum §5.1).
+		audit.ActionDocumentEditLockAcquired: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockReleased: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.ReleaseDocumentEditLock(f.ctx, Human(f.owner.ID), docID, l.Lock.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditLockTakenOver: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			f.addMember(t)
+			l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.member.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-member-editor", Client: DocumentEditClientWebPage})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.TakeOverDocumentEditLock(f.ctx, Human(f.owner.ID), docID, TakeOverDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage, ExpectedLockID: l.Lock.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldStarted: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldRenewed: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			// The first hold ends at now + HOLD_MAX; a shorter first hold leaves
+			// the renewal room to extend it.
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_edit_locks SET offline_hold_until = now() + interval '1 hour' WHERE id = $1`, lockID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditHoldEnded: func(t *testing.T, f *auditFixture) {
+			svc, docID, lockID, sid := f.documentEditHold(t)
+			if _, err := svc.PutDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID, sid); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ClearDocumentEditHold(f.ctx, Human(f.owner.ID), docID, lockID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCreated: func(t *testing.T, f *auditFixture) {
+			f.documentEditRequest(t)
+		},
+		audit.ActionDocumentAccessRequested: func(t *testing.T, f *auditFixture) {
+			f.documentAccessRequest(t)
+		},
+		audit.ActionDocumentAccessRequestApproved: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAccessRequestDeclined: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.DeclineDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAccessRequestCancelled: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); !codedIs(err, "access_request_closed") {
+				t.Fatalf("want access_request_closed, got %v", err)
+			}
+		},
+		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentEditRequestCanceled: func(t *testing.T, f *auditFixture) {
+			svc, docID, req := f.documentEditRequest(t)
+			if err := svc.CancelDocumentEditRequest(f.ctx, Human(f.member.ID), docID, req.Request.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G1-04b (UNI-678): the tree and lifecycle commands.
+		audit.ActionDocumentMoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
+				t.Fatal(err)
+			}
+			// UNI-2055 S3: the folders-into-my-folder pass moves a private
+			// folder into its owner's My Folder as the system actor.
+			folder := f.privateRootFolder(t)
+			rep, err := svc.MoveFoldersIntoMyFolder(f.ctx, false, 0, f.orgID)
+			if err != nil || rep.MovedFolders != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder = %+v, err = %v", rep, err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_kind = 'system' AND actor_id = 'folder-ws-public' AND metadata::jsonb->>'reason' = 'folders_into_my_folder'`,
+				audit.ActionDocumentMoved, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder wrote %d document.moved rows (%v), want 1", n, err)
+			}
+			// UNI-2055 S2: trashing a workspace folder moves a document the
+			// actor cannot manage to the workspace root (reason folder_trashed).
+			f.addMember(t)
+			wsFolder, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chung"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owners, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{ParentID: wsFolder.Document.ID, Title: "Trang riêng"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), wsFolder.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4`,
+				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
+			}
+		},
+		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentRestored: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// ARCHIVE-01 (UNI-1845): the shelve pair.
+		audit.ActionDocumentShelved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUnshelved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnshelveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE documents SET archived_at = now() - interval '40 days', purge_after = now() - interval '10 days' WHERE id = $1`,
+				docID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Purged != 1 {
+				t.Fatalf("purged %d, want 1", rep.Purged)
+			}
+		},
+		audit.ActionDocumentVersionsCompacted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			// keep+1 automatic versions: compaction drops the oldest one.
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO document_versions
+				(id, organization_id, workspace_id, document_id, version, kind, reason, content, created_by, created_by_kind)
+				SELECT '01DVC' || lpad(g::text, 23, '0'), $2, $3, $1, g, 'page', 'auto',
+				       '{"type":"doc","content":[]}', $4, 'human'
+				FROM generate_series(1, 501) g`, docID, f.orgID, f.workspace.ID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.CompactVersions(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.VersionsDeleted != 1 {
+				t.Fatalf("compacted %d versions, want 1", rep.VersionsDeleted)
+			}
+		},
+		audit.ActionDocumentAssetPurged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			// A recording spy, not filesfake: the synthetic asset's file_id
+			// exists in no registry and the spy only answers whether the
+			// seam was called inside the transaction.
+			svc.SetFiles(&releaseSpy{})
+			insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"document_id": docID, "file_id": util.NewID(), "mime_type": "image/png",
+				"size_bytes": 10, "created_by": f.owner.ID, "created_by_kind": "human",
+				"orphaned_at": time.Now().Add(-8 * 24 * time.Hour),
+			})
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.AssetsPurged != 1 {
+				t.Fatalf("assets purged %d, want 1", rep.AssetsPurged)
+			}
+		},
+		// G1-03: the file commands run on filesfake; the storage tests run
+		// the same commands on the real FileService.
+		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G5-07: a second attempt takes over an intent whose first claim
+		// expired without a commit.
+		audit.ActionDocumentCommitIntentRenewed: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-intent-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := util.NewID()
+			file, err := resolveUpload(f.ctx, svc.files, documentScope(created.Document.OrganizationID, created.Document.WorkspaceID), up.UploadID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fp := commitFingerprint(created.Document.ID, created.Document.Revision, file.ChecksumSHA256, DocumentEngineInfo{})
+			if _, _, err := svc.claimCommitIntent(f.ctx, Human(f.owner.ID), created.Document, key, fp); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE document_commit_intents SET claim_expires_at = clock_timestamp() - interval '1 second' WHERE idempotency_key = $1`, key); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision, IdempotencyKey: key,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentVersionRestored: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-restore-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, RestoreFileVersionInput{
+				Version: 1, BaseRevision: res.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAssetUploaded: func(t *testing.T, f *auditFixture) {
+			svc, _ := auditFileDocument(t, f)
+			page := baseDoc(map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"created_by": f.owner.ID, "updated_by": f.owner.ID,
+			})
+			insertRow(t, f.ctx, f.pool, "documents", page)
+			if _, err := svc.UploadDocumentAsset(f.ctx, Human(f.owner.ID), page["id"].(string), DocumentUploadInput{
+				Filename: "a.png", Body: bytes.NewReader(pngBody(t, 2, 2)),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "ghi chú tài liệu"}, ""); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "gốc"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateDocumentComment(f.ctx, Human(f.owner.ID), c.ID, UpdateCommentInput{Body: "sửa"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "xóa"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentResolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "resolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUnresolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "unresolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnresolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionRemoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RemoveDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G8-04: the comment row is anchored to an xlsx version first, so the
+		// PUT has a real binding to change.
+		audit.ActionDocumentCommentAnchorsUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			versionID := seedAnchorVersion(t, f, docID, 1)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{
+				Body: "neo", CommentType: "comment",
+				Anchor:        json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B7"}`),
+				BaseVersionID: versionID,
+			}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PutDocumentCommentAnchors(f.ctx, Human(f.owner.ID), docID, DocumentCommentAnchorsInput{
+				VersionID: versionID,
+				// R1-8: the wire anchors key is required, so the command's
+				// presence flag must be set for the call to be accepted.
+				AnchorsPresent: true,
+				Anchors: []DocumentCommentAnchorItem{{
+					CommentID: c.ID, Anchor: json.RawMessage(`{"format":"xlsx","v":1,"sheet":"S1","range":"B9"}`), State: "exact",
+				}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentFavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUnfavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.UnfavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-925 B6: the per-user saved-signature store.
+		audit.ActionSignatureCreated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			if _, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionSignatureDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			row, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteSavedSignature(f.ctx, Human(f.owner.ID), f.orgID, row.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1008 W1: the per-user AI provider key store.
+		audit.ActionAICredentialSaved: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
+			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAICredentialDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
+			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1853: the host turns action items of a meeting summary into tasks.
+		audit.ActionMeetingSummaryTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			svc.Tasks = f.tasks
+			m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := seedSummary(t, svc, m, f.owner.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+			if _, err := svc.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, SummaryTasksInput{
+				SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1132: the owner connects a mailbox.
+		audit.ActionEmailHubAccountConnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			stubEmailHubDial(svc, nil)
+			if _, err := svc.Connect(f.ctx, Human(f.owner.ID), w.ID, ConnectEmailHubInput{
+				EmailAddress: "audit-mailbox@gmail.com", AppPassword: "app-password-1",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// The owner disconnects the mailbox (UNI-1237: an auth failure no longer does).
+		audit.ActionEmailHubAccountDisconnected: func(t *testing.T, f *auditFixture) {
+			workspace := f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
+			if err := svc.Disconnect(f.ctx, Human(f.owner.ID), workspace.ID, acc.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1853 M7: the host generates the meeting's AI summary.
+		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: 2 * time.Minute, HMACKey: []byte("t")})
+			s.AI = ai.NewGateway(f.q, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+				return provider.CompletionResponse{Text: `{"summary":"Đã chốt.","decisions":[],"action_items":[]}`, Model: "fake"}
+			}}, NewAIQuota(s.ent), nil, ai.Options{})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Chốt lịch"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Summarize(f.ctx, f.owner.ID, m.ID, "vi"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
+		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
+			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
+			if !svc.handleAuthError(f.ctx, acc, acc.CredentialVersion, imapclient.ErrAuthFailed) {
+				t.Fatal("expected the account to be marked needs-reconnect")
+			}
+		},
+		// UNI-1862 BIGUP: chunked multipart upload sessions (> 20 MiB).
+		audit.ActionDocumentUploadSessionOpened: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-open")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-open.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionCompleted: func(t *testing.T, f *auditFixture) {
+			svc, store, _ := auditMultipartDocService(t, f)
+			const size = UploadSessionThresholdBytes + 1024
+			body, probe := buildLargePDF(size, "audit-complete")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-complete.pdf",
+				SizeBytes: size,
+				Probe:     probe})
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, err := f.q.GetFileMultipartUploadByID(f.ctx, opened.SessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var parts []CompleteUploadPartInput
+			partSize := int(row.PartSize)
+			for i := 0; i < int(row.TotalParts); i++ {
+				start := i * partSize
+				end := min(start+partSize, len(body))
+				num := i + 1
+				etag, err := store.PutPart(row.ObjectKey, row.StorageUploadID, int32(num), body[start:end])
+				if err != nil {
+					t.Fatal(err)
+				}
+				parts = append(parts, CompleteUploadPartInput{PartNumber: num, ETag: etag})
+			}
+			if _, err := svc.CompleteUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID, CompleteUploadSessionInput{Parts: parts}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionAborted: func(t *testing.T, f *auditFixture) {
+			svc, _, _ := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-abort")
+			opened, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-abort.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.AbortUploadSession(f.ctx, Human(f.owner.ID), opened.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUploadSessionExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, clock := auditMultipartDocService(t, f)
+			_, probe := buildLargePDF(UploadSessionThresholdBytes+1024, "audit-expire")
+			if _, err := svc.OpenWorkspaceUploadSession(f.ctx, Human(f.owner.ID), f.workspace.ID, OpenUploadSessionInput{IdempotencyKey: nextIDK(), Filename: "audit-expire.pdf",
+				SizeBytes: UploadSessionThresholdBytes + 1024,
+				Probe:     probe}); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(25 * time.Hour)
+			n, err := svc.ExpireMultipartUploads(f.ctx, clock.Now())
+			if err != nil || n < 1 {
+				t.Fatalf("ExpireMultipartUploads = %d, err = %v", n, err)
 			}
 		},
 	}
@@ -740,6 +1925,7 @@ func auditActions() []string {
 		audit.ActionPeopleExported,
 		audit.ActionInvitationRevoked,
 		audit.ActionOrganizationOwnershipChanged,
+		audit.ActionOrganizationClosed,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -766,6 +1952,12 @@ func auditActions() []string {
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
 		audit.ActionAuthSessionRevoked,
+		audit.ActionAuthDesktopStarted,
+		audit.ActionAuthDesktopConsentApproved,
+		audit.ActionAuthDesktopConsentCancelled,
+		audit.ActionAuthDesktopSessionCreated,
+		audit.ActionAuthDesktopTokenRotated,
+		audit.ActionAuthDesktopSessionRevoked,
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionUserDeleted,
@@ -775,10 +1967,105 @@ func auditActions() []string {
 		audit.ActionChatChannelUpdated,
 		audit.ActionChatChannelArchived,
 		audit.ActionChatMessageLinked,
+		audit.ActionChatMessageUnlinked,
 		audit.ActionChatThreadTaskLinked,
+		audit.ActionChatThreadTaskUnlinked,
+		audit.ActionChatFollowUpCreated,
+		audit.ActionChatFollowUpUpdated,
+		audit.ActionChatFollowUpCompleted,
+		audit.ActionChatFollowUpDeleted,
+		audit.ActionChatMessageDeleted,
+		audit.ActionChatRoomMemberUpdated,
+		audit.ActionChatRoomSettingsUpdated,
+		audit.ActionChatVoiceCallLogged,
+		audit.ActionChatVoiceTranscribed,
+		audit.ActionChatMessageForwarded,
 		audit.ActionAuditExportRequested,
+		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
+		audit.ActionPrivacyExportRequested,
+		audit.ActionPrivacyExported,
+		audit.ActionPrivacyDeletionRequested,
+		audit.ActionPrivacyDeletionCancelled,
+		audit.ActionPrivacyOrganizationDeleted,
+		audit.ActionDesktopDeviceRevoked,
 		audit.ActionSubscriptionChanged,
+		audit.ActionBillingInvoiceRefunded,
+		audit.ActionDocumentCreated,
+		audit.ActionOfficeLaunchSessionCreated,
+		audit.ActionOfficeLaunchSessionRedeemed,
+		audit.ActionOfficeLaunchSessionRevoked,
+		audit.ActionOfficeDesktopDownloaded,
+		audit.ActionOfficeOfflineLeaseGranted,
+		audit.ActionOfficeOfflineLeaseRenewed,
+		audit.ActionOfficeOfflineLeaseReleased,
+		audit.ActionOfficeOfflineLeaseRevoked,
+		audit.ActionOfficeOfflinePolicyBumped,
+		audit.ActionDocumentShared,
+		audit.ActionDocumentShareRevoked,
+		audit.ActionDocumentBreakGlassGranted,
+		audit.ActionDocumentBreakGlassRevoked,
+		audit.ActionDocumentWorkspaceAccessChanged,
+		audit.ActionDocumentLinkCreated,
+		audit.ActionDocumentLinkRevoked,
+		audit.ActionDocumentSettingsChanged,
+		audit.ActionDocumentUpdated,
+		audit.ActionDocumentEditLockAcquired,
+		audit.ActionDocumentEditLockReleased,
+		audit.ActionDocumentEditLockTakenOver,
+		audit.ActionDocumentEditHoldStarted,
+		audit.ActionDocumentEditHoldRenewed,
+		audit.ActionDocumentEditHoldEnded,
+		audit.ActionDocumentEditRequestCreated,
+		audit.ActionDocumentEditRequestAnswered,
+		audit.ActionDocumentEditRequestCanceled,
+		audit.ActionDocumentAccessRequested,
+		audit.ActionDocumentAccessRequestApproved,
+		audit.ActionDocumentAccessRequestDeclined,
+		audit.ActionDocumentAccessRequestCancelled,
+		audit.ActionDocumentVersionCreated,
+		audit.ActionDocumentVersionRestored,
+		audit.ActionDocumentCommitIntentRenewed,
+		audit.ActionDocumentAssetUploaded,
+		audit.ActionDocumentCommentAdded,
+		audit.ActionDocumentCommentUpdated,
+		audit.ActionDocumentCommentDeleted,
+		audit.ActionDocumentCommentResolved,
+		audit.ActionDocumentCommentUnresolved,
+		audit.ActionDocumentCommentReactionAdded,
+		audit.ActionDocumentCommentReactionRemoved,
+		audit.ActionDocumentCommentAnchorsUpdated,
+		audit.ActionDocumentFavorited,
+		audit.ActionDocumentUnfavorited,
+		audit.ActionDocumentMoved,
+		audit.ActionDocumentArchived,
+		audit.ActionDocumentRestored,
+		audit.ActionDocumentShelved,
+		audit.ActionDocumentUnshelved,
+		audit.ActionDocumentDeleted,
+		audit.ActionDocumentVersionsCompacted,
+		audit.ActionDocumentAssetPurged,
+		audit.ActionDocumentUploadSessionOpened,
+		audit.ActionDocumentUploadSessionCompleted,
+		audit.ActionDocumentUploadSessionAborted,
+		audit.ActionDocumentUploadSessionExpired,
+		audit.ActionSignatureCreated,
+		audit.ActionSignatureDeleted,
+		audit.ActionAICredentialSaved,
+		audit.ActionAICredentialDeleted,
+		audit.ActionEmailHubAccountConnected,
+		audit.ActionEmailHubAccountDisconnected,
+		audit.ActionEmailHubAccountAuthFailed,
+		audit.ActionMcpGrantCreated,
+		audit.ActionMcpGrantRevoked,
+		audit.ActionMcpGrantScopeChanged,
+		audit.ActionMcpTokenFamilyRevoked,
+		audit.ActionMeetingRestored,
+		audit.ActionMeetingSummaryTasksCreated,
+		audit.ActionMeetingSummaryCreated,
+		audit.ActionOrganizationMcpPolicyChanged,
+		audit.ActionOrganizationMcpWritePolicyChanged,
+		audit.ActionOrganizationAskModelsChanged,
 	}
 }
 
@@ -1008,4 +2295,318 @@ func (f *auditFixture) wrote(t *testing.T, action string) bool {
 		}
 	}
 	return false
+}
+
+// document wires a DocumentService on the fixture's gates and inserts one
+// workspace-visible page the organization owner manages (ACL owner).
+// documentEditHold is a document with the owner's edit lock acquired from a
+// live desktop device session (R6 needs one).
+func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	sid := insertEditLockDeviceSession(t, f.ctx, f.pool, f.owner.ID)
+	l, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientDesktop, SessionID: sid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, l.Lock.ID, sid
+}
+
+// openFolderUpload plans a one-file folder upload as the owner and answers the
+// service, the workspace and the open batch (UNI-2052).
+func (f *auditFixture) openFolderUpload(t *testing.T, key string) (*DocumentService, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	svc.SetFiles(filesfake.New(filesfake.Options{}))
+	d, err := f.q.GetDocumentByID(f.ctx, docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+		RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: key,
+		Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, d.WorkspaceID, b.ID
+}
+
+// documentAccessRequest is a restricted document the member cannot read and
+// the request they sent its ACL owner (DOC-07). It answers the service, the
+// document id and the pending request id, so a case can decide the request.
+func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET visibility = 'restricted' WHERE id = $1", docID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
+	if _, err := svc.CreateDocumentAccessRequest(f.ctx, Human(f.member.ID), docID, DocumentAccessRequestInput{
+		RequestedLevel: "view", Message: "kiểm tra theo yêu cầu kiểm toán",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var reqID string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT id FROM document_access_requests WHERE document_id = $1 AND status = 'pending'`, docID).Scan(&reqID); err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, reqID
+}
+
+// documentEditRequest is a document the owner holds and the member asked
+// to edit (R8).
+func (f *auditFixture) documentEditRequest(t *testing.T) (*DocumentService, string, DocumentEditRequestView) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := svc.AcquireDocumentEditLock(f.ctx, Human(f.owner.ID), docID, AcquireDocumentEditLockInput{EditorID: "audit-editor", Client: DocumentEditClientWebPage}); err != nil {
+		t.Fatal(err)
+	}
+	req, err := svc.CreateDocumentEditRequest(f.ctx, Human(f.member.ID), docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, req
+}
+
+func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	w := f.build(t)
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetEntitlements(NewEntitlementService(f.pool, f.q))
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	return svc, id
+}
+
+// legacySharedFolder inserts a folder as the old create toggle left it:
+// open to the workspace, with a live organization share on top.
+func (f *auditFixture) legacySharedFolder(t *testing.T) string {
+	t.Helper()
+	wsID := f.workspace.ID
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": wsID, "kind": "folder",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	if _, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+		ID: util.NewID(), OrganizationID: f.orgID, WorkspaceID: wsID, DocumentID: id,
+		PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: string(DocumentLevelView),
+		GrantedBy: f.owner.ID, GrantedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// privateRootFolder inserts a private folder at the workspace root, the shape
+// the folders-into-my-folder pass moves.
+func (f *auditFixture) privateRootFolder(t *testing.T) string {
+	t.Helper()
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "kind": "folder",
+		"visibility": "restricted", "title": "Thư mục riêng",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	return id
+}
+
+// breakGlassDocument is document() made restricted with another member as its
+// ACL owner, so the organization owner (an implicit workspace admin) holds
+// AdminScope on it and may open break-glass access (DOC-05).
+func (f *auditFixture) breakGlassDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx,
+		"UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1", id, f.member.ID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
+	return svc, id
+}
+
+// fileDocument adapts the shared ACL fixture for commands whose contract is
+// restricted to file documents (the Office launch bridge never mints a ticket
+// for a page). It keeps the document ACL setup identical to document(), while
+// preserving the audit coverage test's single-purpose fixture.
+func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET kind = 'file', content = NULL WHERE id = $1", id); err != nil {
+		t.Fatalf("make audit document a file: %v", err)
+	}
+	return svc, id
+}
+
+// offlineLease grants the owner an offline lease on a file document from a
+// desktop device of their own, with office_offline_library on.
+func (f *auditFixture) offlineLease(t *testing.T) (*OfficeLeaseService, string, string, OfficeLease) {
+	t.Helper()
+	svc, docID := f.fileDocument(t)
+	leases := NewOfficeLeaseService(svc, officeLeaseFlags(t, true), config.Config{JWTSecret: officeLeaseTestSecret})
+	deviceID := util.NewID()
+	if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-lease-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+		t.Fatal(err)
+	}
+	l, err := leases.Put(f.ctx, Human(f.owner.ID), OfficeLeasePutInput{DocumentID: docID, DeviceSessionID: deviceID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leases, docID, deviceID, l
+}
+
+// seedAnchorVersion gives an audit file document an xlsx current version, so
+// an anchor binds to it (G8-04). The file_id is opaque to the anchor rule -
+// the format comes from the version's mime_type; the audit fixture needs no
+// real FileService row for it.
+func seedAnchorVersion(t *testing.T, f *auditFixture, documentID string, ordinal int) string {
+	t.Helper()
+	doc, err := f.q.GetDocumentByID(f.ctx, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	versionID := util.NewID()
+	insertRow(t, f.ctx, f.pool, "document_versions", map[string]any{
+		"id": versionID, "organization_id": doc.OrganizationID, "workspace_id": doc.WorkspaceID,
+		"document_id": doc.ID, "version": ordinal, "kind": "file", "reason": "upload",
+		"file_id":    "01J8X4FILEN1P2Q3R4S5T6U7V8",
+		"mime_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"created_by": doc.CreatedBy, "created_by_kind": "human",
+	})
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET current_version = $1, file_version_id = $2 WHERE id = $3", ordinal, versionID, doc.ID); err != nil {
+		t.Fatalf("point the audit document at its version: %v", err)
+	}
+	return versionID
+}
+
+// Three commands write document.created without owning the action: CreateFolder
+// (a folder is a document of kind folder), SaveSourceFile (a file copied out
+// of chat, a task, a meeting or a mailbox) and CopyDocument (a standalone copy
+// of a file document). TestEveryAuditedCommandWritesItsRow
+// is keyed by action, so a dropped audit write on either would hide behind the
+// other document.created writers. These cases are keyed by command: each runs
+// it and demands an audit row and an outbox row for the document it created.
+func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
+	cases := map[string]func(t *testing.T) (env *docStorageEnv, documentID string){
+		"CreateFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, err := env.svc.CreatePage(context.Background(), human(env.tn.member), env.tn.wsA,
+				CreatePageInput{Kind: DocumentKindFolder, Title: "Audit folder"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, v.Document.ID
+		},
+		"SaveSourceFile": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+			svc, store := sourceService(t, env)
+			taskID := s.task(env.tn, env.tn.wsA)
+			attID := s.attachment(env.tn, env.tn.wsA, taskID, "", "audit.pdf")
+			store.objects["workspaces/"+env.tn.wsA+"/attachments/"+attID+"/audit.pdf"] = pdfBody("audit-save")
+			res, err := svc.Save(context.Background(), human(env.tn.member), env.tn.wsA, "task:"+attID,
+				SaveSourceFileInput{IdempotencyKey: "audit-save"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+		"CopyDocument": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			member := human(env.tn.member)
+			src := env.createFile(t, member, "audit-copy.md", []byte("# Audit copy\n"))
+			res, err := env.svc.CopyDocument(context.Background(), member, src.Document.ID,
+				CopyDocumentInput{Consent: documentCopyConsent, IdempotencyKey: "audit-copy"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
+		"EnsureMyFolder": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			v, created, err := env.svc.EnsureMyFolder(context.Background(), human(env.tn.member), env.tn.wsA)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !created {
+				t.Fatal("expected first EnsureMyFolder to create the row")
+			}
+			return env, v.Document.ID
+		},
+		"PurgeDocument": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			member := human(env.tn.member)
+			v, err := env.svc.CreatePage(context.Background(), member, env.tn.wsA,
+				CreatePageInput{Kind: DocumentKindPage, Title: "Audit purge"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ArchiveDocument(context.Background(), member, v.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			purged, err := env.svc.PurgeDocument(context.Background(), member, v.Document.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(purged) != 1 || purged[0] != v.Document.ID {
+				t.Fatalf("PurgeDocument = %v, want [%s]", purged, v.Document.ID)
+			}
+			return env, v.Document.ID
+		},
+	}
+	for command, run := range cases {
+		t.Run(command, func(t *testing.T) {
+			env, id := run(t)
+			action := audit.ActionDocumentCreated
+			topic := "document.created"
+			if command == "PurgeDocument" {
+				action = audit.ActionDocumentDeleted
+				topic = "document.deleted"
+			}
+			if n := env.countAudit(t, action, id); n != 1 {
+				t.Fatalf("%s wrote %d %s audit rows for %s, want 1", command, n, action, id)
+			}
+			if n := env.countOutbox(t, topic, id); n != 1 {
+				t.Fatalf("%s wrote %d %s outbox rows for %s, want 1", command, n, topic, id)
+			}
+		})
+	}
+}
+
+func auditMultipartDocService(t *testing.T, f *auditFixture) (*DocumentService, *switchStore, *fileTestClock) {
+	t.Helper()
+	f.build(t)
+	backend := localFileBackend()
+	clock := newFileTestClock()
+	store := newSwitchStore(backend.build(t))
+	store.enableMultipart(true)
+	signer := newLocalTestSigner(t, store, clock)
+	ent := NewEntitlementService(f.pool, f.q)
+	fs, err := NewFileService(FileServiceOptions{
+		Pool:               f.pool,
+		Store:              store,
+		Bucket:             backend.bucket,
+		Registry:           documentsOpenRegistry(t),
+		Signer:             signer,
+		Quota:              ent,
+		Clock:              clock.Now,
+		SpoolDir:           t.TempDir(),
+		ReferenceProviders: productionProviders(),
+		GC:                 FileGCConfig{Mode: FileGCDestructive},
+	})
+	if err != nil {
+		t.Fatalf("NewFileService: %v", err)
+	}
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetFiles(fs)
+	svc.SetEntitlements(ent)
+	svc.SetClock(clock.Now)
+	svc.store.spoolDir = t.TempDir()
+	return svc, store, clock
 }

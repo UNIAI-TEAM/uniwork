@@ -1,0 +1,96 @@
+import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { createNodeOfficeEngine } from "../src/node/index";
+import { createOfficeEngine } from "../src/index";
+import { createFakeEngineTransport } from "./fake-transport";
+
+/** sha256 of zero bytes: a convert envelope now carries the measured source
+    tuple, so these refusal tests need a valid one. */
+const EMPTY_SHA256 = createHash("sha256").digest("hex");
+
+// Refusal-path coverage: the node transport and the facade map a raw failure
+// into the named typed surface, and never invent a success.
+
+const validSubmit = {
+  request_id: "r",
+  operation: "open" as const,
+  format: "docx" as const,
+  deadline_ms: 30000,
+  payload: {
+    input_checksum: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+    input_length: 5,
+    base_revision: 1,
+    base_version_id: "v",
+  },
+};
+
+describe("transport refusal mapping", () => {
+  it("node: cancel on an unreachable host maps to engine_crashed", async () => {
+    const engine = createNodeOfficeEngine({
+      baseUrl: "http://engine.local",
+      fetchImpl: (async () => {
+        throw new Error("ECONNREFUSED");
+      }) as typeof fetch,
+    });
+    await expect(engine.cancel("JOB1")).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "engine_crashed",
+      retryable: true,
+    });
+  });
+
+  it("node: cancel returning non-JSON maps to engine_result_invalid", async () => {
+    const engine = createNodeOfficeEngine({
+      baseUrl: "http://engine.local",
+      fetchImpl: (async () => new Response("<html>", { status: 200 })) as typeof fetch,
+    });
+    await expect(engine.cancel("JOB1")).rejects.toMatchObject({
+      name: "EngineBoundaryError",
+      code: "engine_result_invalid",
+    });
+  });
+
+  it("facade: cancel returns the projected result", async () => {
+    const engine = createOfficeEngine({ transport: createFakeEngineTransport() });
+    const result = await engine.cancel("JOB9", "user_closed");
+    expect(result.job_id).toBe("JOB9");
+    expect(result.state).toBe("cancelled");
+  });
+
+  it("facade: convert/export refuse by name at G0 (error envelope -> typed error)", async () => {
+    const transport = createFakeEngineTransport({ boundOperations: ["capability", "open", "edit", "serialize", "cancel", "convert"] });
+    const engine = createOfficeEngine({ transport });
+    await expect(
+      engine.submit({
+        request_id: "r",
+        operation: "convert",
+        format: "docx",
+        deadline_ms: 30000,
+        payload: {
+          source_version_id: "V1",
+          target_format: "pdf",
+          input_checksum: EMPTY_SHA256,
+          input_length: 0,
+        },
+      }),
+    ).rejects.toMatchObject({ name: "EngineBoundaryError", code: "unsupported_operation" });
+  });
+
+  it("facade: a leaking engine result raises instead of emitting it", async () => {
+    const transport = createFakeEngineTransport({
+      results: {
+        open: {
+          job_id: "J1",
+          state: "completed",
+          operation: "open",
+          document_model_ref: "engine-session:J1",
+          // A schema-retained field whose VALUE leaks a host path - the
+          // projection must refuse to emit it.
+          warnings: [{ code: "fonts_substituted", detail: "missing /home/worker/fonts/serif.ttf" }],
+        },
+      },
+    });
+    const engine = createOfficeEngine({ transport });
+    await expect(engine.submit(validSubmit)).rejects.toThrowError(/leak|violation/i);
+  });
+});

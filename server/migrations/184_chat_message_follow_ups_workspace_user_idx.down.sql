@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_chat_message_follow_ups_workspace_user;

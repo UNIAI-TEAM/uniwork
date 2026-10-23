@@ -22,6 +22,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   MEETING_STARTED: "meetings.activity_started",
   MEETING_ENDED: "meetings.activity_ended",
   MEETING_CANCELED: "meetings.activity_canceled",
+  MEETING_RESTORED: "meetings.activity_restored",
   MEETING_UPDATED: "meetings.activity_updated",
   HOST_TRANSFERRED: "meetings.activity_host_transferred",
   PARTICIPANT_INVITED: "meetings.activity_invited",
@@ -36,6 +37,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   INVITE_LINK_USED: "meetings.activity_link_used",
   CONFERENCE_SESSION_CREATED: "meetings.activity_session_created",
   CONFERENCE_SESSION_ENDED: "meetings.activity_session_ended",
+  ATTENDANCE_FINALIZED: "meetings.activity_attendance_finalized",
 };
 
 export function activityLabelKey(eventType: string): string {

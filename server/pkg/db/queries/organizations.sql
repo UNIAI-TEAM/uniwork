@@ -6,17 +6,64 @@ RETURNING *;
 -- name: GetOrganizationByID :one
 SELECT * FROM organizations WHERE id = $1;
 
+-- name: LockOrganizationForUpdate :one
+-- Close holds the organization row while it counts the other members, so an
+-- acceptance into the organization either commits first and is counted, or
+-- waits and finds it archived (ADR 0032 D5).
+SELECT * FROM organizations WHERE id = $1 FOR UPDATE;
+
+-- name: LockOrganizationForShare :one
+-- An acceptance holds the organization row shared before it locks the
+-- invitation, the order that serializes it against Close without deadlock.
+SELECT * FROM organizations WHERE id = $1 FOR SHARE;
+
 -- name: GetOrganizationBySlug :one
 SELECT * FROM organizations WHERE slug = $1;
 
+-- name: ListOrganizationIDsForMaintenance :many
+-- The maintenance worker enumerates tenant roots before asking for each
+-- organization's workspace scopes; no business-table query is unscoped.
+SELECT id FROM organizations ORDER BY id;
+
 -- name: ListOrganizationsForUser :many
+-- tenant: self
 -- Deactivated memberships stay in the switcher so the person can see which
 -- organization locked them out instead of watching it vanish (spec F-03 §6.3).
+-- An archived organization (closed or deleted) is gone for its members, so it
+-- leaves the list (ADR 0032).
 SELECT o.*, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
-WHERE m.user_id = $1
+WHERE m.user_id = $1 AND o.status <> 'archived'
 ORDER BY o.created_at;
+
+-- name: ListOrganizationMembershipsForUser :many
+-- tenant: self
+-- Every membership row of one account, archived organizations included:
+-- account deletion records its erasure in each of them.
+SELECT organization_id, deactivated_at FROM organization_members
+WHERE user_id = $1
+ORDER BY organization_id;
+
+-- name: LockUserMembership :exec
+-- Serializes every membership change of one account (ADR 0032): Create,
+-- AcceptInvite, Reactivate, Leave and Close take it first, then check
+-- ListActiveOrganizationsForUser inside the same transaction.
+SELECT pg_advisory_xact_lock(hashtextextended('org-membership:' || sqlc.arg(user_id)::text, 0));
+
+-- name: ListActiveOrganizationsForUser :many
+-- tenant: self
+-- The organizations an account counts as belonging to (ADR 0032 D1): a
+-- membership not deactivated, in an organization that is active or
+-- suspended. other_active_members is how many people could take ownership.
+SELECT o.id, o.name, o.slug, o.status, m.role,
+       (SELECT count(*) FROM organization_members om
+        WHERE om.organization_id = o.id AND om.user_id <> m.user_id AND om.deactivated_at IS NULL
+       )::bigint AS other_active_members
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND o.status IN ('active', 'suspended')
+ORDER BY m.created_at, o.id;
 
 -- name: AddOrganizationMember :exec
 INSERT INTO organization_members (organization_id, user_id, role)
@@ -26,7 +73,7 @@ ON CONFLICT DO NOTHING;
 -- name: GetOrganizationMember :one
 -- organization_status rides along so RequireMember can refuse a suspended
 -- tenant without a second query (F-11).
-SELECT m.*, o.status AS organization_status
+SELECT m.*, o.status AS organization_status, o.deletion_scheduled_at
 FROM organization_members m JOIN organizations o ON o.id = m.organization_id
 WHERE m.organization_id = $1 AND m.user_id = $2;
 
@@ -48,7 +95,7 @@ ORDER BY w.created_at;
 -- The directory's admin view: membership plus the identity columns, keyset
 -- paged on (display_name, user_id) so a rename cannot skip or repeat a row.
 SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_members m JOIN users u ON u.id = m.user_id
 WHERE m.organization_id = $1
   AND (
@@ -89,12 +136,57 @@ USING workspaces w
 WHERE w.id = wm.workspace_id AND w.organization_id = $1 AND wm.user_id = $2;
 
 -- name: CountActiveOrganizationsForUser :one
+-- tenant: parent user_id
 -- Deactivating a member revokes their sessions only when this is the last
--- organization they can still enter.
-SELECT count(*) FROM organization_members
-WHERE user_id = $1 AND deactivated_at IS NULL AND organization_id <> $2;
+-- organization they can still enter; an archived one is not enterable
+-- (ADR 0032 D1).
+SELECT count(*) FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND m.organization_id <> $2
+  AND o.status IN ('active', 'suspended');
+
+-- name: FilterActiveOrganizationMemberUserIDs :many
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND m.user_id = ANY(sqlc.arg(user_ids)::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active';
+
+-- name: FilterAdmittedOrganizationMemberUserIDs :many
+-- Same admission as GetOrganizationMember / OrganizationService.RequireMemberQ
+-- (active organization, member not deactivated, and only the owner while a
+-- deletion is scheduled), in one query for many user ids: a chat document
+-- grant to a large room or a Documents batch share gates every recipient
+-- without a round trip each (UNI-2012 S1c).
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND m.user_id = ANY(sqlc.arg(user_ids)::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active'
+  AND (o.deletion_scheduled_at IS NULL OR m.role = 'owner');
 
 -- name: LockOrganizationMemberForUpdate :one
 SELECT * FROM organization_members
 WHERE organization_id = $1 AND user_id = $2
 FOR UPDATE;
+
+-- name: CountActiveOtherMembers :one
+-- Close needs the owner to be the organization's only active member
+-- (ADR 0032 D5); deactivated rows hold no access and do not count.
+SELECT count(*) FROM organization_members
+WHERE organization_id = $1 AND user_id <> $2 AND deactivated_at IS NULL;
+
+-- name: CloseOrganization :execrows
+-- Closing archives rather than deletes (ADR 0032 D4): every gate that wants an
+-- active organization already refuses an archived one. 0 rows means the
+-- status moved under the caller.
+UPDATE organizations SET
+  status = 'archived',
+  suspended_at = now(),
+  suspended_reason = 'organization_closed',
+  updated_at = now()
+WHERE id = $1 AND status = 'active';

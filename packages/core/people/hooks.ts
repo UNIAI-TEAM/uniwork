@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as people from "../api/endpoints/people";
 import type { DepartmentInput, PeopleFilters, ProfileInput } from "../types/people";
 
@@ -24,13 +24,19 @@ export const peopleKeys = {
     ["people", orgSlug, "departments", includeArchived] as const,
 };
 
-/** The directory, paged by the opaque cursor the server hands back. */
+/**
+ * The directory, paged by the opaque cursor the server hands back. A new
+ * search or filter keeps the previous answer on screen until the new one
+ * lands (`isPlaceholderData`), rather than dropping the list to a skeleton on
+ * every keystroke.
+ */
 export function usePeople(orgSlug: string, filters: PeopleFilters) {
   return useInfiniteQuery({
     queryKey: peopleKeys.list(orgSlug, filters),
     queryFn: ({ pageParam }) => people.listPeople(orgSlug, filters, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
+    placeholderData: keepPreviousData,
     enabled: !!orgSlug,
   });
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestParseMentionUserIDsFromBody(t *testing.T) {
 
 func TestMentionedUserIDsFromMetadata(t *testing.T) {
 	raw := []byte(`{"mentioned_user_ids":["USER2","USER2","USER3"]}`)
-	got := mentionedUserIDsFromMetadata(raw)
+	got := mentionedUserIDsFromMetadata(decodeChatMessageMetadata(raw))
 	if len(got) != 2 || got[0] != "USER2" || got[1] != "USER3" {
 		t.Fatalf("got %#v", got)
 	}
@@ -34,9 +35,38 @@ func TestMessageMentionsCurrentUser(t *testing.T) {
 	}
 }
 
+func TestEncodeMentionsMetadataKeepsUnknownKeys(t *testing.T) {
+	raw := []byte(`{"voice_call_summary":{"call_id":"c1"}}`)
+	next, err := encodeMentionsMetadata(raw, chatMentions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) {
+		t.Fatalf("unknown key dropped: %s", next)
+	}
+	next, err = encodeMentionsMetadata(raw, chatMentions{Named: []string{"USER2"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) {
+		t.Fatalf("unknown key dropped after mention: %s", next)
+	}
+}
+
+func TestEncodeMessagePriorityMetadataKeepsUnknownKeys(t *testing.T) {
+	raw := []byte(`{"voice_call_summary":{"call_id":"c1"}}`)
+	next, err := encodeMessagePriorityMetadata(raw, chatMessagePriorityUrgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(next, []byte(`voice_call_summary`)) || !bytes.Contains(next, []byte(`urgent`)) {
+		t.Fatalf("got %s", next)
+	}
+}
+
 func TestEncodeMentionsMetadataPreservesReactions(t *testing.T) {
 	raw := []byte(`{"reactions":{"👍":["USER1"]}}`)
-	next, err := encodeMentionsMetadata(raw, []string{"USER2"})
+	next, err := encodeMentionsMetadata(raw, chatMentions{Named: []string{"USER2"}})
 	if err != nil {
 		t.Fatal(err)
 	}

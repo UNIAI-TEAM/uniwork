@@ -1,0 +1,30 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: uniwork-be
+  namespace: reap-edge
+spec:
+  scheme: http
+  passHost: pass
+  # WebSocket (/api/v1/ws) stays open; 60s read idle kills hub ping/pong (~54s).
+  timeout: { connect: 5s, read: 3600s, send: 3600s }
+  externalNodes:
+    - type: Domain
+      name: uniwork-be.uniwork.svc.cluster.local
+      port: 8080
+      weight: 100
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: uniwork-fe
+  namespace: reap-edge
+spec:
+  scheme: http
+  passHost: pass
+  timeout: { connect: 5s, read: 3600s, send: 3600s }
+  externalNodes:
+    - type: Domain
+      name: uniwork-fe.uniwork.svc.cluster.local
+      port: 3000
+      weight: 100

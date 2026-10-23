@@ -14,9 +14,20 @@ export function useTaskAttachments(workspaceId: string, taskId: string) {
 export function useUploadTaskAttachment(workspaceId: string, taskId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => attachments.uploadTaskAttachment(taskId, file),
+    mutationFn: ({ file, purpose }: { file: File; purpose?: string }) =>
+      attachments.uploadTaskAttachment(taskId, file, purpose),
     onSuccess: () =>
       void qc.invalidateQueries({ queryKey: taskKeys.attachments(workspaceId, taskId) }),
+  });
+}
+
+export function useUploadWorkspaceAttachment(workspaceId: string) {
+  return useMutation({
+    mutationFn: async ({ file, purpose }: { file: File; purpose?: string }) => {
+      const attachment = await attachments.uploadWorkspaceAttachment(workspaceId, file, purpose);
+      if (!attachment) throw new Error("Malformed attachment upload response");
+      return attachment;
+    },
   });
 }
 

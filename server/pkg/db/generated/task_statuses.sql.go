@@ -18,7 +18,7 @@ UPDATE task_statuses SET
 WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
   AND is_system = FALSE
   AND archived_at IS NULL
-RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized
 `
 
 type ArchiveTaskStatusParams struct {
@@ -46,6 +46,8 @@ func (q *Queries) ArchiveTaskStatus(ctx context.Context, arg ArchiveTaskStatusPa
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
 	)
 	return i, err
 }
@@ -53,9 +55,9 @@ func (q *Queries) ArchiveTaskStatus(ctx context.Context, arg ArchiveTaskStatusPa
 const createTaskStatus = `-- name: CreateTaskStatus :one
 INSERT INTO task_statuses (
   id, organization_id, workspace_id, key, name, description, category,
-  color, is_system, position, created_by, created_by_kind
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at
+  color, is_system, position, created_by, created_by_kind, icon
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized
 `
 
 type CreateTaskStatusParams struct {
@@ -71,6 +73,7 @@ type CreateTaskStatusParams struct {
 	Position       float64 `json:"position"`
 	CreatedBy      string  `json:"created_by"`
 	CreatedByKind  string  `json:"created_by_kind"`
+	Icon           string  `json:"icon"`
 }
 
 func (q *Queries) CreateTaskStatus(ctx context.Context, arg CreateTaskStatusParams) (TaskStatus, error) {
@@ -87,6 +90,7 @@ func (q *Queries) CreateTaskStatus(ctx context.Context, arg CreateTaskStatusPara
 		arg.Position,
 		arg.CreatedBy,
 		arg.CreatedByKind,
+		arg.Icon,
 	)
 	var i TaskStatus
 	err := row.Scan(
@@ -105,12 +109,14 @@ func (q *Queries) CreateTaskStatus(ctx context.Context, arg CreateTaskStatusPara
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
 	)
 	return i, err
 }
 
 const getTaskStatusByID = `-- name: GetTaskStatusByID :one
-SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized FROM task_statuses
 WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
 `
 
@@ -139,12 +145,14 @@ func (q *Queries) GetTaskStatusByID(ctx context.Context, arg GetTaskStatusByIDPa
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
 	)
 	return i, err
 }
 
 const getTaskStatusByKey = `-- name: GetTaskStatusByKey :one
-SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized FROM task_statuses
 WHERE organization_id = $1 AND workspace_id = $2 AND key = $3
 `
 
@@ -173,26 +181,28 @@ func (q *Queries) GetTaskStatusByKey(ctx context.Context, arg GetTaskStatusByKey
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
 	)
 	return i, err
 }
 
-const listActiveCustomTaskStatusesInCategory = `-- name: ListActiveCustomTaskStatusesInCategory :many
-SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
-WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
-  AND is_system = FALSE
+const listActiveTaskStatusesInCategories = `-- name: ListActiveTaskStatusesInCategories :many
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized FROM task_statuses
+WHERE organization_id = $1 AND workspace_id = $2
+  AND category = ANY($3::text[])
   AND archived_at IS NULL
 ORDER BY position, key
 `
 
-type ListActiveCustomTaskStatusesInCategoryParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Category       string `json:"category"`
+type ListActiveTaskStatusesInCategoriesParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Categories     []string `json:"categories"`
 }
 
-func (q *Queries) ListActiveCustomTaskStatusesInCategory(ctx context.Context, arg ListActiveCustomTaskStatusesInCategoryParams) ([]TaskStatus, error) {
-	rows, err := q.db.Query(ctx, listActiveCustomTaskStatusesInCategory, arg.OrganizationID, arg.WorkspaceID, arg.Category)
+func (q *Queries) ListActiveTaskStatusesInCategories(ctx context.Context, arg ListActiveTaskStatusesInCategoriesParams) ([]TaskStatus, error) {
+	rows, err := q.db.Query(ctx, listActiveTaskStatusesInCategories, arg.OrganizationID, arg.WorkspaceID, arg.Categories)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +226,8 @@ func (q *Queries) ListActiveCustomTaskStatusesInCategory(ctx context.Context, ar
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Customized,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +240,7 @@ func (q *Queries) ListActiveCustomTaskStatusesInCategory(ctx context.Context, ar
 }
 
 const listTaskStatuses = `-- name: ListTaskStatuses :many
-SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized FROM task_statuses
 WHERE organization_id = $1 AND workspace_id = $2
   AND ($3::bool OR archived_at IS NULL)
 ORDER BY position, created_at, id
@@ -265,6 +277,8 @@ func (q *Queries) ListTaskStatuses(ctx context.Context, arg ListTaskStatusesPara
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Customized,
 		); err != nil {
 			return nil, err
 		}
@@ -276,24 +290,49 @@ func (q *Queries) ListTaskStatuses(ctx context.Context, arg ListTaskStatusesPara
 	return items, nil
 }
 
-const maxTaskStatusPositionInCategory = `-- name: MaxTaskStatusPositionInCategory :one
-SELECT COALESCE(MAX(position), -1)::float8 AS max_position
-FROM task_statuses
-WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
+const setTaskStatusPosition = `-- name: SetTaskStatusPosition :one
+UPDATE task_statuses SET position = $4, updated_at = now()
+WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
   AND archived_at IS NULL
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized
 `
 
-type MaxTaskStatusPositionInCategoryParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Category       string `json:"category"`
+type SetTaskStatusPositionParams struct {
+	OrganizationID string  `json:"organization_id"`
+	WorkspaceID    string  `json:"workspace_id"`
+	ID             string  `json:"id"`
+	Position       float64 `json:"position"`
 }
 
-func (q *Queries) MaxTaskStatusPositionInCategory(ctx context.Context, arg MaxTaskStatusPositionInCategoryParams) (float64, error) {
-	row := q.db.QueryRow(ctx, maxTaskStatusPositionInCategory, arg.OrganizationID, arg.WorkspaceID, arg.Category)
-	var max_position float64
-	err := row.Scan(&max_position)
-	return max_position, err
+// Built-ins included: a group's statuses are ordered as a whole.
+func (q *Queries) SetTaskStatusPosition(ctx context.Context, arg SetTaskStatusPositionParams) (TaskStatus, error) {
+	row := q.db.QueryRow(ctx, setTaskStatusPosition,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.Position,
+	)
+	var i TaskStatus
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Category,
+		&i.Color,
+		&i.IsSystem,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
+	)
+	return i, err
 }
 
 const updateTaskStatus = `-- name: UpdateTaskStatus :one
@@ -301,20 +340,24 @@ UPDATE task_statuses SET
   name = COALESCE($1, name),
   description = COALESCE($2, description),
   color = COALESCE($3, color),
-  position = COALESCE($4, position),
+  icon = COALESCE($4, icon),
+  category = COALESCE($5, category),
+  position = COALESCE($6, position),
+  customized = TRUE,
   updated_at = now()
-WHERE organization_id = $5
-  AND workspace_id = $6
-  AND id = $7
-  AND is_system = FALSE
+WHERE organization_id = $7
+  AND workspace_id = $8
+  AND id = $9
   AND archived_at IS NULL
-RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at, icon, customized
 `
 
 type UpdateTaskStatusParams struct {
 	Name           pgtype.Text   `json:"name"`
 	Description    pgtype.Text   `json:"description"`
 	Color          pgtype.Text   `json:"color"`
+	Icon           pgtype.Text   `json:"icon"`
+	Category       pgtype.Text   `json:"category"`
 	Position       pgtype.Float8 `json:"position"`
 	OrganizationID string        `json:"organization_id"`
 	WorkspaceID    string        `json:"workspace_id"`
@@ -326,6 +369,8 @@ func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusPara
 		arg.Name,
 		arg.Description,
 		arg.Color,
+		arg.Icon,
+		arg.Category,
 		arg.Position,
 		arg.OrganizationID,
 		arg.WorkspaceID,
@@ -348,6 +393,8 @@ func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusPara
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Customized,
 	)
 	return i, err
 }

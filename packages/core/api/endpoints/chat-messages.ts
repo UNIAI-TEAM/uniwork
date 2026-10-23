@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request, requestBlob } from "../http";
+import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import { ChatMessageEnvelopeSchema, ChatMessagesListSchema, enc } from "./chat-schemas";
 import type { ChatMessageRecord } from "./chat-schemas";
@@ -7,11 +7,16 @@ import type { ChatMessageRecord } from "./chat-schemas";
 export async function listChatRoomMessages(
   workspaceId: string,
   roomId: string,
-  options?: { before?: string; limit?: number },
+  options?: { cursor?: string; after?: string; before?: string; limit?: number; mark_read?: boolean },
 ): Promise<ChatMessageRecord[]> {
   const params = new URLSearchParams();
+  if (options?.cursor) params.set("cursor", options.cursor);
+  // A message's cursor: the messages newer than it, oldest first (catch-up).
+  if (options?.after) params.set("after", options.after);
   if (options?.before) params.set("before", options.before);
   if (options?.limit) params.set("limit", String(options.limit));
+  // Default true (omit param). mark_read=0 preserves last_read for CatchUp.
+  if (options?.mark_read === false) params.set("mark_read", "0");
   const qs = params.toString();
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages${qs ? `?${qs}` : ""}`,
@@ -20,6 +25,40 @@ export async function listChatRoomMessages(
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages",
   });
   return parsed.messages ?? [];
+}
+
+/**
+ * Query for the page older than `message`: its opaque cursor verbatim, or the
+ * second-precision `before` that a server sending no cursor still understands.
+ */
+export function olderThan(message: { cursor?: string; created_at: string }): {
+  cursor?: string;
+  before?: string;
+} {
+  return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
+}
+
+export async function markChatRoomRead(workspaceId: string, roomId: string): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/read`,
+    { method: "POST", body: {} },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST .../chat/rooms/{roomID}/read",
+  });
+  return parsed.status === "ok";
+}
+
+/** Mutes (or unmutes) the room's notifications and push for the caller only. */
+export async function setChatRoomMuted(workspaceId: string, roomId: string, muted: boolean): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/mute`,
+    { method: muted ? "POST" : "DELETE" },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST|DELETE .../chat/rooms/{roomID}/mute",
+  });
+  return parsed.status === "ok";
 }
 
 export async function getChatRoomMessage(
@@ -50,6 +89,26 @@ export async function searchChatRoomMessages(
   );
   const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/search",
+  });
+  return parsed.messages ?? [];
+}
+
+/** Which of the sidebar's lists a search covers: Tin nhắn (DMs and groups) or a workspace's room and channels. */
+export type ChatSearchScope = "messages" | "workspace";
+
+/** Text messages across every room of mine in one scope, newest first (the sidebar's search). */
+export async function searchChatMessages(
+  workspaceId: string,
+  options: { q: string; scope: ChatSearchScope; before?: string; limit?: number },
+): Promise<ChatMessageRecord[]> {
+  const params = new URLSearchParams();
+  params.set("q", options.q);
+  params.set("scope", options.scope);
+  if (options.before) params.set("before", options.before);
+  if (options.limit) params.set("limit", String(options.limit));
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/messages/search?${params.toString()}`);
+  const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/messages/search",
   });
   return parsed.messages ?? [];
 }
@@ -145,16 +204,6 @@ export async function sendChatVoiceMessage(
   return parsed.message ?? null;
 }
 
-export function loadChatVoiceBlob(
-  workspaceId: string,
-  roomId: string,
-  messageId: string,
-): Promise<Blob> {
-  return requestBlob(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/voice`,
-  );
-}
-
 export async function sendChatFileMessage(
   workspaceId: string,
   roomId: string,
@@ -181,14 +230,96 @@ export async function sendChatFileMessage(
   return parsed.message ?? null;
 }
 
-export function loadChatFileBlob(
+/**
+ * The levels a document send may grant the room (never `manage` — the sender
+ * is already the document's ACL owner). The default the composer opens with
+ * is "comment".
+ */
+export type ChatDocumentShareLevel = "view" | "comment" | "edit";
+
+/**
+ * UNI-1966: sending a file as a document shares it with the room's members
+ * at `share_level`; a sibling route of /messages/file, never a field on it.
+ */
+export async function sendChatDocumentMessage(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    file: Blob;
+    filename: string;
+    share_level: ChatDocumentShareLevel;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const form = new FormData();
+  form.set("file", input.file, input.filename);
+  form.set("share_level", input.share_level);
+  form.set("client_msg_id", input.client_msg_id);
+  if (input.reply_to_message_id) {
+    form.set("reply_to_message_id", input.reply_to_message_id);
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/document`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/document",
+  });
+  return parsed.message ?? null;
+}
+
+/**
+ * UNI-2012: send a document that already exists — no bytes move. The server
+ * checks the sender may share it, grants the room's members `share_level` and
+ * writes the same kind "document" card the upload route does.
+ */
+export async function sendChatDocumentLink(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    document_id: string;
+    share_level?: ChatDocumentShareLevel;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/document-link`,
+    {
+      method: "POST",
+      body: {
+        document_id: input.document_id,
+        share_level: input.share_level ?? "comment",
+        client_msg_id: input.client_msg_id,
+        ...(input.reply_to_message_id ? { reply_to_message_id: input.reply_to_message_id } : {}),
+      },
+    },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/document-link",
+  });
+  return parsed.message ?? null;
+}
+
+/**
+ * UNI-1966: convert the caller's own file attachment into a shared document
+ * in place — the same message id comes back with kind "document".
+ */
+export async function shareChatMessageAsDocument(
   workspaceId: string,
   roomId: string,
   messageId: string,
-): Promise<Blob> {
-  return requestBlob(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file`,
+  input: { share_level: ChatDocumentShareLevel; client_msg_id: string },
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/share-as-document`,
+    { method: "POST", body: input },
   );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/share-as-document",
+  });
+  return parsed.message ?? null;
 }
 
 export async function voteChatPollMessage(
@@ -203,6 +334,44 @@ export async function voteChatPollMessage(
   );
   const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/vote",
+  });
+  return parsed.message ?? null;
+}
+
+const ChatPollVotersSchema = z.object({
+  votes_by_user: z
+    .record(z.string(), z.array(z.string()))
+    .nullish()
+    .transform((value) => value ?? {}),
+});
+
+export async function getChatPollVoters(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+): Promise<Record<string, string[]>> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/poll/voters`,
+    { method: "GET" },
+  );
+  const parsed = parseWithFallback(raw, ChatPollVotersSchema, { votes_by_user: {} }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/voters",
+  });
+  return parsed.votes_by_user;
+}
+
+export async function addChatPollOptionMessage(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  label: string,
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/poll/options`,
+    { method: "POST", body: { label } },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/options",
   });
   return parsed.message ?? null;
 }
@@ -265,37 +434,6 @@ export async function toggleChatMessagePin(
   );
   const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/pin",
-  });
-  return parsed.message ?? null;
-}
-
-export async function listWorkspaceChatMessages(
-  workspaceId: string,
-  options?: { before?: string; limit?: number },
-): Promise<ChatMessageRecord[]> {
-  const params = new URLSearchParams();
-  if (options?.before) params.set("before", options.before);
-  if (options?.limit) params.set("limit", String(options.limit));
-  const qs = params.toString();
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/messages${qs ? `?${qs}` : ""}`,
-  );
-  const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
-    endpoint: "GET /api/v1/workspaces/{ws}/chat/messages",
-  });
-  return parsed.messages ?? [];
-}
-
-export async function sendWorkspaceChatMessage(
-  workspaceId: string,
-  input: { body: string; client_msg_id?: string; reply_to_message_id?: string },
-): Promise<ChatMessageRecord | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/messages`, {
-    method: "POST",
-    body: input,
-  });
-  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/chat/messages",
   });
   return parsed.message ?? null;
 }

@@ -1,0 +1,391 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+const (
+	voiceCallSummaryMinDuration = 30
+	voiceCallSummaryMsgLimit    = 100
+)
+
+// VoiceCallSummaryActionItem is one suggested follow-up on a posted call summary.
+type VoiceCallSummaryActionItem struct {
+	Title           string `json:"title"`
+	Owner           string `json:"owner,omitempty"`
+	Due             string `json:"due,omitempty"`
+	SourceMessageID string `json:"source_message_id,omitempty"`
+}
+
+// VoiceCallSummaryInfo is metadata on a chat message posted after a voice call.
+type VoiceCallSummaryInfo struct {
+	CallID           string
+	CallLogMessageID string
+	Summary          string
+	Highlights       []string
+	ActionItems      []VoiceCallSummaryActionItem
+}
+
+func (s *ChatService) SetAIGateway(gw *ai.Gateway) { s.ai = gw }
+
+// Hourly caps on queued call summaries (H17): a member cannot spend the
+// organization's AI quota by placing calls in a room of their own.
+const (
+	voiceSummaryCallerCapPerHour = 5
+	voiceSummaryRoomCapPerHour   = 8
+)
+
+// voiceCallSummaryAllowed reports whether a finished call may queue an LLM
+// summary: AI is on and neither the caller nor the room has used its hourly
+// cap. The count and the insert are not atomic, so a burst of simultaneous
+// hangups can overshoot by a few; the caps bound spend, not exact counts.
+func (s *ChatService) voiceCallSummaryAllowed(ctx context.Context, room db.ChatRoom, callerID string) (bool, error) {
+	if s.ai == nil || !s.ai.Enabled() {
+		return false, nil
+	}
+	n, err := s.q.CountQueuedVoiceCallSummaries(ctx, db.CountQueuedVoiceCallSummariesParams{
+		CallerID: callerID, RoomID: room.ID, OrganizationID: room.OrganizationID,
+		Since: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	if err != nil {
+		return false, err
+	}
+	return n.ByCaller < voiceSummaryCallerCapPerHour && n.ByRoom < voiceSummaryRoomCapPerHour, nil
+}
+
+// HandleVoiceCallCompleted generates and posts an AI call summary (C-13.8).
+func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[string]string) error {
+	if s.ai == nil || !s.ai.Enabled() {
+		return nil
+	}
+	roomID := strings.TrimSpace(payload["room_id"])
+	callID := strings.TrimSpace(payload["call_id"])
+	callLogID := strings.TrimSpace(payload["call_log_message_id"])
+	callerID := strings.TrimSpace(payload["caller_id"])
+	orgID := strings.TrimSpace(payload["organization_id"])
+	wsID := strings.TrimSpace(payload["workspace_id"])
+	if roomID == "" || callID == "" || callLogID == "" || callerID == "" || orgID == "" || wsID == "" {
+		return nil
+	}
+	logMsg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{ID: callLogID, RoomID: roomID, WorkspaceID: wsID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // the call log is gone: nothing to attach a summary to
+	}
+	if err != nil {
+		return err
+	}
+	if summaryMessageIDFromMetadata(logMsg.Metadata) != "" {
+		return nil
+	}
+	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(payload["started_at"]))
+	if err != nil {
+		startAt = time.Time{}
+	}
+	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(payload["ended_at"]))
+	if err != nil {
+		endAt = time.Now().UTC()
+	}
+	locale := strings.TrimSpace(payload["locale"])
+	if locale == "" {
+		locale = "en"
+	}
+	durationLabel := strings.TrimSpace(payload["duration_label"])
+	participants := strings.TrimSpace(payload["participants"])
+
+	room, err := s.q.GetChatRoomByID(ctx, roomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	rows, err := s.q.ListChatMessagesInRoomBetween(ctx, db.ListChatMessagesInRoomBetweenParams{
+		RoomID: roomID, WorkspaceID: wsID,
+		StartAt:  pgtype.Timestamptz{Time: startAt, Valid: !startAt.IsZero()},
+		EndAt:    pgtype.Timestamptz{Time: endAt, Valid: true},
+		MsgLimit: int32(voiceCallSummaryMsgLimit),
+	})
+	if err != nil {
+		return err
+	}
+
+	base, err := s.chatPathBase(ctx, wsID)
+	if err != nil {
+		return err
+	}
+	sources := make([]ai.Source, 0, len(rows)+1)
+	idByHref := map[string]string{}
+	for _, row := range rows {
+		if row.ID == callLogID {
+			continue
+		}
+		excerpt := strings.TrimSpace(row.Body)
+		if excerpt == "" {
+			excerpt = callSummaryExcerptForKind(row.Kind)
+		}
+		if excerpt == "" {
+			continue
+		}
+		href := base + "/chat?room=" + roomID + "&msg=" + row.ID
+		title := fmt.Sprintf("%s · %s", row.SenderDisplayName, row.CreatedAt.Time.UTC().Format("15:04"))
+		sources = append(sources, ai.Source{Kind: "chat", Title: title, Href: href, Excerpt: excerpt})
+		idByHref[href] = row.ID
+	}
+	if durationLabel != "" || participants != "" {
+		meta := "Cuộc gọi thoại"
+		if durationLabel != "" {
+			meta += " · " + durationLabel
+		}
+		if participants != "" {
+			meta += " · " + participants
+		}
+		sources = append([]ai.Source{{
+			Kind: "chat", Title: "Cuộc gọi", Href: base + "/chat?room=" + roomID + "&msg=" + callLogID, Excerpt: meta,
+		}}, sources...)
+		idByHref[base+"/chat?room="+roomID+"&msg="+callLogID] = callLogID
+	}
+
+	pack, truncated := ai.BuildContext(sources)
+	resp, err := s.ai.Complete(ctx, ai.Request{
+		Actor: Human(callerID), OrganizationID: orgID, WorkspaceID: wsID,
+		Capability: ai.CapChatCallSummary, PromptID: ai.PromptChatCallSummary,
+		Vars: map[string]any{
+			"locale": locale, "today": time.Now().UTC().Format("2006-01-02"),
+			"duration": durationLabel, "participants": participants,
+			"sources": ai.RenderSources(pack),
+		},
+		Sources: pack, Truncated: truncated,
+	})
+	if err != nil {
+		return err
+	}
+	parsed, err := ai.ParseCatchUpJSON(resp.Text, pack)
+	if err != nil {
+		return err
+	}
+
+	items := make([]VoiceCallSummaryActionItem, 0, len(parsed.ActionItems))
+	for _, a := range parsed.ActionItems {
+		msgID := ""
+		if a.SourceID != "" {
+			for _, src := range pack {
+				if src.ID == a.SourceID {
+					msgID = idByHref[src.Href]
+					break
+				}
+			}
+		}
+		items = append(items, VoiceCallSummaryActionItem{
+			Title: a.Title, Owner: a.Owner, Due: a.Due, SourceMessageID: msgID,
+		})
+	}
+
+	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.HighlightTexts(), items)
+}
+
+func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {
+	w, err := s.q.GetWorkspaceWithOrg(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return "/" + w.OrganizationSlug + "/" + w.Slug, nil
+}
+
+// postVoiceCallSummaryMessage posts the summary and links it from the call
+// log in one transaction under the log's row lock, so a redelivered job or a
+// log deleted while the LLM ran never leaves a second or orphaned summary.
+func (s *ChatService) postVoiceCallSummaryMessage(
+	ctx context.Context, room db.ChatRoom, callerID, workspaceID, callID, callLogID, summary string,
+	highlights []string, items []VoiceCallSummaryActionItem,
+) error {
+	body := formatVoiceCallSummaryBody(summary, highlights, items)
+	metaMap := map[string]any{
+		"voice_call_summary": map[string]any{
+			"call_id":             callID,
+			"call_log_message_id": callLogID,
+			"summary":             summary,
+			"highlights":          highlights,
+			"action_items":        items,
+		},
+	}
+	rawMeta, err := json.Marshal(metaMap)
+	if err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	logMsg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
+		ID: callLogID, RoomID: room.ID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // deleted while the LLM ran: drop the summary
+	}
+	if err != nil {
+		return err
+	}
+	if summaryMessageIDFromMetadata(logMsg.Metadata) != "" {
+		return nil // another delivery already posted it
+	}
+	msgID := util.NewID()
+	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
+		ID: msgID, RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: workspaceID,
+		SenderID: callerID, SenderKind: string(audit.KindSystem), Body: body, Metadata: rawMeta,
+	})
+	if err != nil {
+		return err
+	}
+	var logMeta map[string]any
+	if len(logMsg.Metadata) > 0 {
+		_ = json.Unmarshal(logMsg.Metadata, &logMeta)
+	}
+	if logMeta == nil {
+		logMeta = map[string]any{}
+	}
+	logMeta["summary_message_id"] = msgID
+	rawLogMeta, err := json.Marshal(logMeta)
+	if err != nil {
+		return err
+	}
+	if _, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		ID: callLogID, RoomID: room.ID, WorkspaceID: workspaceID, Metadata: rawLogMeta,
+	}); err != nil {
+		return err
+	}
+	if err := q.TouchChatRoomUpdatedAt(ctx, room.ID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
+	return nil
+}
+
+func formatVoiceCallSummaryBody(summary string, highlights []string, items []VoiceCallSummaryActionItem) string {
+	var b strings.Builder
+	b.WriteString("**Tóm tắt cuộc gọi**\n\n")
+	b.WriteString(strings.TrimSpace(summary))
+	if len(highlights) > 0 {
+		b.WriteString("\n\n**Điểm chính**\n")
+		for _, h := range highlights {
+			b.WriteString("- ")
+			b.WriteString(strings.TrimSpace(h))
+			b.WriteByte('\n')
+		}
+	}
+	if len(items) > 0 {
+		b.WriteString("\n**Việc cần làm**\n")
+		for _, it := range items {
+			b.WriteString("- ")
+			b.WriteString(strings.TrimSpace(it.Title))
+			if it.Owner != "" || it.Due != "" {
+				b.WriteString(" (")
+				parts := []string{}
+				if it.Owner != "" {
+					parts = append(parts, it.Owner)
+				}
+				if it.Due != "" {
+					parts = append(parts, it.Due)
+				}
+				b.WriteString(strings.Join(parts, " · "))
+				b.WriteString(")")
+			}
+			b.WriteByte('\n')
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func callSummaryExcerptForKind(kind string) string {
+	switch kind {
+	case "voice":
+		return "(tin nhắn thoại)"
+	case "file":
+		return "(tệp đính kèm)"
+	case "poll":
+		return "(bình chọn)"
+	case "post":
+		return "(bài đăng)"
+	default:
+		return ""
+	}
+}
+
+func voiceCallSummaryFromMetadata(kind string, raw []byte) *VoiceCallSummaryInfo {
+	if kind != "text" || len(raw) == 0 {
+		return nil
+	}
+	var meta struct {
+		Summary struct {
+			CallID           string                       `json:"call_id"`
+			CallLogMessageID string                       `json:"call_log_message_id"`
+			Summary          string                       `json:"summary"`
+			Highlights       []string                     `json:"highlights"`
+			ActionItems      []VoiceCallSummaryActionItem `json:"action_items"`
+		} `json:"voice_call_summary"`
+	}
+	if err := json.Unmarshal(raw, &meta); err != nil || meta.Summary.CallID == "" {
+		return nil
+	}
+	return &VoiceCallSummaryInfo{
+		CallID:           meta.Summary.CallID,
+		CallLogMessageID: meta.Summary.CallLogMessageID,
+		Summary:          strings.TrimSpace(meta.Summary.Summary),
+		Highlights:       meta.Summary.Highlights,
+		ActionItems:      meta.Summary.ActionItems,
+	}
+}
+
+func summaryMessageIDFromMetadata(raw []byte) string {
+	var meta struct {
+		SummaryMessageID string `json:"summary_message_id"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &meta) != nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.SummaryMessageID)
+}
+
+func formatVoiceCallParticipantNames(participants []VoiceCallParticipant) string {
+	names := make([]string, 0, len(participants))
+	for _, p := range participants {
+		name := strings.TrimSpace(p.DisplayName)
+		if name == "" {
+			name = p.UserID
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, ", ")
+}
+
+func formatVoiceCallDurationLabel(seconds int) string {
+	if seconds <= 0 {
+		return ""
+	}
+	m := seconds / 60
+	s := seconds % 60
+	if m >= 60 {
+		h := m / 60
+		m = m % 60
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
+}

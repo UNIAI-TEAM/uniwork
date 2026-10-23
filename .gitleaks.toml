@@ -13,4 +13,9 @@ paths = ['''^\.cursor/''']
 # RFC 6238 appendix B test vector (base32 of the ASCII seed
 # "12345678901234567890"); it is printed in the RFC and cannot be a
 # credential. totp_test.go no longer spells it out, but commit e44d7c4 did.
-regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']
+# IDEMP-H1-CLOB is the idempotency_key of the H1 clobber case in
+# scripts/office-g0/engine-contract.test.mjs (commit 93065e24): a fixed test
+# request label sent to the fake engine, never a credential. generic-api-key
+# matches it only on entropy. The file is byte-pinned in
+# docs/office/g0/evidence-register.json, so the literal stays.
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''', '''^IDEMP-H1-CLOB$''']

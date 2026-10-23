@@ -57,3 +57,70 @@ func TestGuestJoinViaInviteLinkRequiresDisplayName(t *testing.T) {
 		t.Fatalf("error code = %v", out["error"])
 	}
 }
+
+// A lobby retry after the host said no gets the rejection back instead of a
+// fresh request; "request_again" is the explicit way back into the queue.
+func TestJoinAfterRejectionNeedsRequestAgain(t *testing.T) {
+	f := setupChatFixture(t, "joinreject")
+	start := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
+	end := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings", f.tokens["a"], map[string]any{
+		"title": "Reject", "starts_at": start, "ends_at": end, "allow_join_request": true,
+	})
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		t.Fatalf("create meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	joinPath := "/api/v1/meetings/" + meetingID + "/join"
+
+	res, out = doJSON(t, f.srv, "POST", joinPath, f.tokens["b"], map[string]any{})
+	if res.StatusCode != http.StatusOK || out["decision"] != "WAITING_APPROVAL" {
+		t.Fatalf("first join: %d %v", res.StatusCode, out)
+	}
+	requestID := out["join_request_id"].(string)
+	res, out = doJSON(t, f.srv, "POST", "/api/v1/meeting-join-requests/"+requestID+"/reject", f.tokens["a"], map[string]any{})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("reject: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, f.srv, "POST", joinPath, f.tokens["b"], map[string]any{})
+	if res.StatusCode != http.StatusForbidden || out["error"].(map[string]any)["code"] != "join_request_rejected" {
+		t.Fatalf("retry after reject: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, f.srv, "POST", joinPath, f.tokens["b"], map[string]any{"request_again": true})
+	if res.StatusCode != http.StatusOK || out["decision"] != "WAITING_APPROVAL" || out["join_request_id"] == requestID {
+		t.Fatalf("request again: %d %v", res.StatusCode, out)
+	}
+}
+
+// The publish route takes an optional source; anything but the two known ones
+// is a 400 before any provider work, and the host's own share cannot be locked.
+func TestSetParticipantPublishSource(t *testing.T) {
+	f := setupChatFixture(t, "publishsrc")
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings/instant", f.tokens["a"], map[string]string{"title": "Share lock"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("instant meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	if res, out = doJSON(t, f.srv, "POST", "/api/v1/meetings/"+meetingID+"/join", f.tokens["a"], map[string]any{}); res.StatusCode != http.StatusOK {
+		t.Fatalf("host join: %d %v", res.StatusCode, out)
+	}
+	_, out = doJSON(t, f.srv, "GET", "/api/v1/meetings/"+meetingID+"/attendance", f.tokens["a"], nil)
+	hostPID := out["rows"].([]any)[0].(map[string]any)["participant_id"].(string)
+	path := "/api/v1/meetings/" + meetingID + "/participants/" + hostPID + "/publish"
+
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false, "source": "camera"})
+	if res.StatusCode != http.StatusBadRequest || out["error"].(map[string]any)["code"] != "invalid_request" {
+		t.Fatalf("unknown source: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false, "source": "screen_share"})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "cannot_lock_host_share" {
+		t.Fatalf("host share: %d %v", res.StatusCode, out)
+	}
+	// No source is the microphone, as before the field existed.
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "cannot_mute_host" {
+		t.Fatalf("host mic: %d %v", res.StatusCode, out)
+	}
+}

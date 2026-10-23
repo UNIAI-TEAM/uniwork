@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_file_upload_sessions_claim_expiry;

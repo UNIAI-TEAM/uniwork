@@ -4,7 +4,8 @@ import {
   createChatMessageLink,
   createTaskFromChatMessage,
   deleteChatMessageLink,
-  listChatMessageLinks,
+  listChatRoomLinkedTasks,
+  listChatRoomMessageLinks,
   syncChatThreadTask,
   unsyncChatThreadTask,
 } from "./chat-links";
@@ -27,9 +28,33 @@ describe("chat link endpoints", () => {
     await expect(createTaskFromChatMessage("w1", "m1", { title: "Hi" })).resolves.toBeNull();
   });
 
-  it("listChatMessageLinks degrades on malformed response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ links: "nope" }));
-    await expect(listChatMessageLinks("w1", "m1")).resolves.toEqual([]);
+  it("listChatRoomMessageLinks degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ links: [{ id: 1 }] }));
+    await expect(listChatRoomMessageLinks("w1", "r1", ["m1", "m2"])).resolves.toEqual([]);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/chat/rooms/r1/message-links?message_ids=m1%2Cm2",
+    );
+  });
+
+  it("listChatRoomMessageLinks skips the request when there is nothing to ask", async () => {
+    await expect(listChatRoomMessageLinks("w1", "r1", [])).resolves.toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("listChatRoomLinkedTasks degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ tasks: [{ id: 1 }], total: "seven" }));
+    await expect(listChatRoomLinkedTasks("w1", "r1", 3)).resolves.toEqual({ tasks: [], total: 0 });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/r1/linked-tasks?limit=3");
+  });
+
+  it("listChatRoomLinkedTasks keeps a task whose optional fields drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ tasks: [{ id: "t1", title: "Chốt icon", status: 5, due_date: null }], total: 7 }),
+    );
+    const out = await listChatRoomLinkedTasks("w1", "r1");
+    expect(out.total).toBe(7);
+    expect(out.tasks[0]).toMatchObject({ id: "t1", title: "Chốt icon", status: "", due_date: undefined });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/linked-tasks$/);
   });
 
   it("createChatMessageLink degrades on malformed response", async () => {

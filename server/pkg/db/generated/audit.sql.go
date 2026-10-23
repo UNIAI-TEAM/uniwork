@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const auditExportHeldFileIDs = `-- name: AuditExportHeldFileIDs :many
+SELECT file_id FROM audit_exports WHERE file_id = ANY($1::text[])
+`
+
+// tenant: system
+// ReferenceProvider của FileService: id file nào một job export còn giữ.
+func (q *Queries) AuditExportHeldFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, auditExportHeldFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const completeAuditExport = `-- name: CompleteAuditExport :exec
 UPDATE audit_exports SET
   completed_at = now(), object_key = $2, row_count = $3, expires_at = now() + interval '24 hours'
@@ -23,9 +49,35 @@ type CompleteAuditExportParams struct {
 	RowCount  int32       `json:"row_count"`
 }
 
+// tenant: system
 func (q *Queries) CompleteAuditExport(ctx context.Context, arg CompleteAuditExportParams) error {
 	_, err := q.db.Exec(ctx, completeAuditExport, arg.ID, arg.ObjectKey, arg.RowCount)
 	return err
+}
+
+const completeAuditExportWithFile = `-- name: CompleteAuditExportWithFile :one
+UPDATE audit_exports SET
+  completed_at = now(), file_id = $2, row_count = $3, expires_at = now() + interval '24 hours'
+WHERE id = $1 AND completed_at IS NULL AND failed_at IS NULL
+RETURNING id
+`
+
+type CompleteAuditExportWithFileParams struct {
+	ID       string      `json:"id"`
+	FileID   pgtype.Text `json:"file_id"`
+	RowCount int32       `json:"row_count"`
+}
+
+// tenant: system
+// Đường FileService: chỉ ghi khi job chưa chốt — cả completed lẫn failed — để
+// một lần phát lại của outbox không ghi đè kết quả đã gắn, và một nhánh đã
+// fail không bị nhánh khác hồi sinh thành done. ClaimInTx chạy trước, trong
+// cùng transaction của caller.
+func (q *Queries) CompleteAuditExportWithFile(ctx context.Context, arg CompleteAuditExportWithFileParams) (string, error) {
+	row := q.db.QueryRow(ctx, completeAuditExportWithFile, arg.ID, arg.FileID, arg.RowCount)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const countAuditEventsOlderThan = `-- name: CountAuditEventsOlderThan :one
@@ -68,13 +120,14 @@ type FailAuditExportParams struct {
 	Error pgtype.Text `json:"error"`
 }
 
+// tenant: system
 func (q *Queries) FailAuditExport(ctx context.Context, arg FailAuditExportParams) error {
 	_, err := q.db.Exec(ctx, failAuditExport, arg.ID, arg.Error)
 	return err
 }
 
 const getAuditEvent = `-- name: GetAuditEvent :one
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events WHERE id = $1 AND organization_id = $2
 `
 
 type GetAuditEventParams struct {
@@ -101,27 +154,38 @@ func (q *Queries) GetAuditEvent(ctx context.Context, arg GetAuditEventParams) (A
 		&i.IpAddress,
 		&i.UserAgent,
 		&i.OccurredAt,
+		&i.XactID,
 	)
 	return i, err
 }
 
 const getAuditEventByCorrelation = `-- name: GetAuditEventByCorrelation :one
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
+  AND ($4::timestamptz IS NULL OR occurred_at <= $4)
 ORDER BY occurred_at DESC
 LIMIT 1
 `
 
 type GetAuditEventByCorrelationParams struct {
-	CorrelationID string `json:"correlation_id"`
-	Action        string `json:"action"`
-	ResourceID    string `json:"resource_id"`
+	CorrelationID string             `json:"correlation_id"`
+	Action        string             `json:"action"`
+	ResourceID    string             `json:"resource_id"`
+	Before        pgtype.Timestamptz `json:"before"`
 }
 
+// tenant: system
 // The notification consumer asks "which fields moved" here rather than
 // having the task service say so in its payload (OPEN_QUESTIONS N1).
+// before is the event's created_at: one call may commit several rows under
+// one correlation id, and an event reads its own, not a later step's.
 func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEventByCorrelationParams) (AuditEvent, error) {
-	row := q.db.QueryRow(ctx, getAuditEventByCorrelation, arg.CorrelationID, arg.Action, arg.ResourceID)
+	row := q.db.QueryRow(ctx, getAuditEventByCorrelation,
+		arg.CorrelationID,
+		arg.Action,
+		arg.ResourceID,
+		arg.Before,
+	)
 	var i AuditEvent
 	err := row.Scan(
 		&i.ID,
@@ -139,12 +203,13 @@ func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEv
 		&i.IpAddress,
 		&i.UserAgent,
 		&i.OccurredAt,
+		&i.XactID,
 	)
 	return i, err
 }
 
 const getAuditExport = `-- name: GetAuditExport :one
-SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at FROM audit_exports WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports WHERE id = $1 AND organization_id = $2
 `
 
 type GetAuditExportParams struct {
@@ -171,6 +236,7 @@ func (q *Queries) GetAuditExport(ctx context.Context, arg GetAuditExportParams) 
 		&i.CompletedAt,
 		&i.FailedAt,
 		&i.ExpiresAt,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -238,11 +304,38 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 	return err
 }
 
+const insertAuditEventsBatch = `-- name: InsertAuditEventsBatch :exec
+INSERT INTO audit_events (
+  id, organization_id, workspace_id, actor_kind, actor_id, action,
+  resource_type, resource_id, changes, metadata, correlation_id,
+  request_id, ip_address, user_agent, occurred_at
+)
+SELECT
+  t.id, t.organization_id, NULLIF(t.workspace_id, ''), t.actor_kind, t.actor_id, t.action,
+  t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id,
+  NULLIF(t.request_id, ''), NULLIF(t.ip_address, ''), NULLIF(t.user_agent, ''), now()
+FROM jsonb_to_recordset($1::jsonb) AS t(
+  id text, organization_id text, workspace_id text, actor_kind text, actor_id text, action text,
+  resource_type text, resource_id text, changes text, metadata text, correlation_id text,
+  request_id text, ip_address text, user_agent text
+)
+`
+
+// tenant: system
+// Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật): the
+// multi-row form of InsertAuditEvent for one command that touches many rows
+// (a folder archive). rows is a JSON array with one object per audit row; an
+// empty workspace_id / request_id / ip_address / user_agent is NULL.
+func (q *Queries) InsertAuditEventsBatch(ctx context.Context, rows []byte) error {
+	_, err := q.db.Exec(ctx, insertAuditEventsBatch, rows)
+	return err
+}
+
 const insertAuditExport = `-- name: InsertAuditExport :one
 INSERT INTO audit_exports (
   id, organization_id, requested_by, requested_by_kind, format, from_at, to_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at
+RETURNING id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id
 `
 
 type InsertAuditExportParams struct {
@@ -282,12 +375,13 @@ func (q *Queries) InsertAuditExport(ctx context.Context, arg InsertAuditExportPa
 		&i.CompletedAt,
 		&i.FailedAt,
 		&i.ExpiresAt,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const listAuditEvents = `-- name: ListAuditEvents :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE organization_id = $1
   AND ($2::text IS NULL OR id < $2::text)
   AND ($3::text IS NULL OR actor_id = $3::text)
@@ -352,6 +446,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}
@@ -364,7 +459,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 }
 
 const listAuditEventsForExport = `-- name: ListAuditEventsForExport :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE organization_id = $1 AND occurred_at >= $2 AND occurred_at <= $3
 ORDER BY id ASC
 LIMIT $4
@@ -407,6 +502,7 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}
@@ -419,7 +515,7 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 }
 
 const listAuditExports = `-- name: ListAuditExports :many
-SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at FROM audit_exports
+SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports
 WHERE organization_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -455,6 +551,7 @@ func (q *Queries) ListAuditExports(ctx context.Context, arg ListAuditExportsPara
 			&i.CompletedAt,
 			&i.FailedAt,
 			&i.ExpiresAt,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}
@@ -470,6 +567,7 @@ const listAuditOrganizations = `-- name: ListAuditOrganizations :many
 SELECT DISTINCT organization_id FROM audit_events WHERE organization_id <> ''
 `
 
+// tenant: system
 func (q *Queries) ListAuditOrganizations(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, listAuditOrganizations)
 	if err != nil {
@@ -490,8 +588,41 @@ func (q *Queries) ListAuditOrganizations(ctx context.Context) ([]string, error) 
 	return items, nil
 }
 
+const listExpiredAuditExportFiles = `-- name: ListExpiredAuditExportFiles :many
+SELECT id, file_id FROM audit_exports
+WHERE file_id IS NOT NULL AND expires_at IS NOT NULL AND expires_at <= now()
+`
+
+type ListExpiredAuditExportFilesRow struct {
+	ID     string      `json:"id"`
+	FileID pgtype.Text `json:"file_id"`
+}
+
+// tenant: system
+// Tham chiếu file còn gắn sau expires_at: hết cửa sổ tải, chờ giải phóng cho
+// collector. Hàng đường cũ (object_key, không file_id) không nằm trong đây.
+func (q *Queries) ListExpiredAuditExportFiles(ctx context.Context) ([]ListExpiredAuditExportFilesRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredAuditExportFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpiredAuditExportFilesRow{}
+	for rows.Next() {
+		var i ListExpiredAuditExportFilesRow
+		if err := rows.Scan(&i.ID, &i.FileID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listResourceAuditEvents = `-- name: ListResourceAuditEvents :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
 WHERE resource_type = $1 AND resource_id = $2 AND workspace_id = $3
 ORDER BY occurred_at DESC
 LIMIT $4
@@ -534,6 +665,7 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 			&i.IpAddress,
 			&i.UserAgent,
 			&i.OccurredAt,
+			&i.XactID,
 		); err != nil {
 			return nil, err
 		}
@@ -545,10 +677,31 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 	return items, nil
 }
 
+const releaseAuditExportFile = `-- name: ReleaseAuditExportFile :execrows
+UPDATE audit_exports SET file_id = NULL WHERE id = $1 AND file_id = $2
+`
+
+type ReleaseAuditExportFileParams struct {
+	ID     string      `json:"id"`
+	FileID pgtype.Text `json:"file_id"`
+}
+
+// tenant: system
+// Gỡ tham chiếu sau khi hết hạn; caller gọi files.ReleaseInTx trong cùng
+// transaction. Điều kiện file_id khớp để một lần gỡ trùng không xóa nhầm.
+func (q *Queries) ReleaseAuditExportFile(ctx context.Context, arg ReleaseAuditExportFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseAuditExportFile, arg.ID, arg.FileID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const startAuditExport = `-- name: StartAuditExport :exec
 UPDATE audit_exports SET started_at = now() WHERE id = $1 AND started_at IS NULL
 `
 
+// tenant: system
 func (q *Queries) StartAuditExport(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, startAuditExport, id)
 	return err

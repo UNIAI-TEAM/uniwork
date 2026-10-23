@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -19,6 +20,7 @@ import (
 // written against.
 type orgMembersFixture struct {
 	ctx    context.Context
+	pool   *pgxpool.Pool
 	q      *db.Queries
 	orgs   *OrganizationService
 	svc    *OrganizationMemberService
@@ -36,7 +38,7 @@ func newOrgMembersFixture(t *testing.T) *orgMembersFixture {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	f := &orgMembersFixture{ctx: context.Background(), q: q, auth: as}
+	f := &orgMembersFixture{ctx: context.Background(), pool: pool, q: q, auth: as}
 	f.orgs = NewOrganizationService(pool, q)
 	f.svc = NewOrganizationMemberService(pool, q, f.orgs)
 	f.ws = NewWorkspaceService(pool, q, f.orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
@@ -287,5 +289,32 @@ func TestDeactivationClosesTheWorkspaceGateToo(t *testing.T) {
 	}
 	if _, err := ws.RequireMember(f.ctx, view.ID, f.member.ID); err != nil {
 		t.Fatalf("after reactivation: %v", err)
+	}
+}
+
+func TestReactivateFillsTheLastSeat(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	// One seat above the people still active, and two people waiting to come back.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"members.max": 2}'::jsonb WHERE organization_id = $1`, f.org.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Reactivate(f.ctx, f.owner.ID, f.org.ID, f.admin.ID); err != nil {
+		t.Fatalf("last open seat: %v", err)
+	}
+	if _, err := f.svc.Reactivate(f.ctx, f.owner.ID, f.org.ID, f.member.ID); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("past the last seat: got %v", err)
+	}
+	row, err := f.q.GetOrganizationMember(f.ctx, db.GetOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.member.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !row.DeactivatedAt.Valid {
+		t.Fatal("refused reactivation cleared deactivated_at")
 	}
 }

@@ -1,0 +1,362 @@
+import { z } from "zod";
+import { ApiError, request, type RequestOpts } from "../http";
+import { parseWithFallback } from "../schema";
+import { runtimeConfig } from "../../runtime-config";
+
+// Office Docs web frame (UNI-1013). The host page mints a frame token with its
+// session (`mintOfficeFrameToken`) and hands it to the genoffice Docs frame in
+// the postMessage init. Every /api/v1/office-frame/* route takes only that
+// token as Bearer — never the session token or a cookie — and opens only the
+// one document it was minted for. `createOfficeFrameClient` is the frame-side
+// caller, kept here so both sides parse the same schemas. There is no
+// frame-side token refresh: the protocol's `token.refresh` is answered by the
+// host, which mints again with its session.
+
+const enc = encodeURIComponent;
+const id = z.string().min(1).max(128);
+const rfc3339 = z.string().min(1);
+
+// The AI the host may grant the frame (GO-A7 entitlement read at mint, UNI-1014). A field that
+// drifts reads as off: the grant only shows AI, every frame AI route still gates itself.
+const officeFrameAIGrantSchema = z.object({
+  ai: z.boolean().catch(false),
+  web_search: z.boolean().catch(false),
+  image_search: z.boolean().catch(false),
+  image_generation: z.boolean().catch(false),
+  // UniWork AI for this document (G6-03c), independent of `ai` (BYOK). Optional so a grant
+  // from an older server still parses; absent and drifted both read as off.
+  uniwork_ai: z.boolean().optional().catch(false),
+});
+
+export type OfficeFrameAIGrant = z.infer<typeof officeFrameAIGrantSchema>;
+
+export const officeFrameTokenSchema = z.object({
+  token: z.string().min(1),
+  token_type: z.string(),
+  expires_at: rfc3339,
+  expires_in: z.number().int().nonnegative(),
+  document_id: id,
+  workspace_id: id,
+  organization_id: id,
+  can_edit: z.boolean(),
+  /** The genoffice web module the server derived from the stored format (absent from older servers = docs). */
+  module: z.string().optional(),
+  /** Absent (older servers) or malformed = no AI grant. */
+  ai: officeFrameAIGrantSchema.optional().catch(undefined),
+});
+
+// A source file (chat/task/meeting/email attachment, UNI-1869) opens view-only
+// on its own token family (`ofs1.`): minted on the workspace route with the
+// session, accepted by nothing that writes. `can_edit`/`readonly` are
+// constants in the contract: a token that drifts them is refused, not opened.
+export const officeFrameSourceTokenSchema = z.object({
+  token: z.string().min(1),
+  token_type: z.string(),
+  expires_at: rfc3339,
+  expires_in: z.number().int().nonnegative(),
+  source_id: id,
+  parent_kind: z.string().min(1),
+  parent_id: z.string().min(1),
+  workspace_id: id,
+  organization_id: id,
+  can_edit: z.literal(false),
+  module: z.string().optional(),
+  readonly: z.literal(true),
+});
+
+const officeFrameSourceFileSchema = z.object({
+  version: z.number().int(),
+  filename: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number(),
+});
+
+/** Where the file was attached; informational, the open never authorizes with it. */
+const officeFrameSourceParentSchema = z.object({
+  kind: z.string().min(1),
+  id: z.string().min(1),
+  title: z.string(),
+  message_id: z.string().optional(),
+});
+
+export const officeFrameSourceSchema = z.object({
+  source_id: id,
+  principal: z.literal("source"),
+  workspace_id: id,
+  organization_id: id,
+  title: z.string(),
+  revision: z.string().min(1),
+  can_edit: z.literal(false),
+  readonly: z.literal(true),
+  module: z.string().optional(),
+  parent: officeFrameSourceParentSchema.optional(),
+  file: officeFrameSourceFileSchema,
+  download_url: z.string().min(1),
+  updated_at: z.string().optional(),
+});
+
+const officeFrameFileSchema = z.object({
+  file_id: z.string(),
+  version_id: z.string(),
+  version: z.number().int(),
+  filename: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number(),
+  checksum_sha256: z.string(),
+});
+
+export const officeFrameDocumentSchema = z.object({
+  document_id: id,
+  workspace_id: id,
+  organization_id: id,
+  title: z.string(),
+  revision: z.string().min(1),
+  can_edit: z.boolean(),
+  file: officeFrameFileSchema,
+  download_url: z.string().min(1),
+  updated_at: z.string().optional(),
+  module: z.string().optional(),
+  // Markdown/HTML (UNI-1232): relative path as written -> signed frame route.
+  // A drifted map is dropped, never the whole open: the pictures then show
+  // as missing and the document still opens.
+  assets: z.record(z.string().min(1), z.string().min(1)).optional().catch(undefined),
+});
+
+export const officeFrameUploadSchema = z.object({
+  upload_id: id,
+  checksum_sha256: z.string(),
+  size_bytes: z.number(),
+  claim_expires_at: z.string(),
+});
+
+export const officeFrameRecentsSchema = z.object({
+  items: z.array(z.object({
+    document_id: id,
+    title: z.string(),
+    updated_at: z.string().optional(),
+  })),
+});
+
+const officeFrameAssetUrlSchema = z.object({
+  asset_id: id,
+  url: z.string().min(1),
+  expires_at: rfc3339,
+});
+
+export const officeFrameAssetSchema = z.object({
+  asset_id: id,
+  document_id: id,
+  mime_type: z.string(),
+  size_bytes: z.number(),
+  width: z.number().int().optional(),
+  height: z.number().int().optional(),
+  url: z.string().min(1),
+  expires_at: rfc3339,
+});
+
+export const officeFrameAssetUrlsSchema = z.object({ items: z.array(officeFrameAssetUrlSchema) });
+
+/** POST .../assets/resolve: the relative paths that resolved, in request order. */
+export const officeFrameResolvedPathsSchema = z.object({
+  items: z.array(z.object({ path: z.string().min(1), url: z.string().min(1), expires_at: rfc3339 })),
+});
+
+export type OfficeFrameToken = z.infer<typeof officeFrameTokenSchema>;
+export type OfficeFrameSourceToken = z.infer<typeof officeFrameSourceTokenSchema>;
+export type OfficeFrameSource = z.infer<typeof officeFrameSourceSchema>;
+export type OfficeFrameDocument = z.infer<typeof officeFrameDocumentSchema>;
+export type OfficeFrameUpload = z.infer<typeof officeFrameUploadSchema>;
+export type OfficeFrameRecents = z.infer<typeof officeFrameRecentsSchema>;
+export type OfficeFrameAsset = z.infer<typeof officeFrameAssetSchema>;
+export type OfficeFrameAssetUrls = z.infer<typeof officeFrameAssetUrlsSchema>;
+export type OfficeFrameResolvedPaths = z.infer<typeof officeFrameResolvedPathsSchema>;
+
+/** POST /api/v1/documents/{documentID}/office/frame-token — host session only.
+ *  Null when the answer does not match the contract. Rejects with ApiError
+ *  403 `feature_disabled` when the flag of the document's module
+ *  (office_docs_web, office_pdf_web, …) is off for its organization (the host
+ *  shows the unavailable notice), distinct from the 404 `not_found` of a
+ *  missing or foreign document, or one of a format no web module opens. */
+export async function mintOfficeFrameToken(
+  documentId: string,
+  opts?: Pick<RequestOpts, "signal" | "correlationId">,
+): Promise<OfficeFrameToken | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/office/frame-token`, {
+    method: "POST",
+    signal: opts?.signal,
+    correlationId: opts?.correlationId,
+  });
+  return parseWithFallback<OfficeFrameToken | null>(raw, officeFrameTokenSchema, null, {
+    endpoint: "POST /api/v1/documents/{documentID}/office/frame-token",
+  });
+}
+
+/** POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token — host session only.
+ *  The view-only token (`ofs1.`) of one file from another module (UNI-1869).
+ *  Null when the answer does not match the contract. Rejects with ApiError
+ *  403 `feature_disabled` (the module's office flag is off for the
+ *  organization) or 404 `not_found` (missing, foreign or unreadable source, a
+ *  format no web module opens). No size cap answers here: the document mint
+ *  has none either. */
+export async function mintDocumentSourceFrameToken(
+  wsId: string,
+  sourceFileId: string,
+  opts?: Pick<RequestOpts, "signal" | "correlationId">,
+): Promise<OfficeFrameSourceToken | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/sources/${enc(sourceFileId)}/office/frame-token`, {
+    method: "POST",
+    signal: opts?.signal,
+    correlationId: opts?.correlationId,
+  });
+  return parseWithFallback<OfficeFrameSourceToken | null>(raw, officeFrameSourceTokenSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token",
+  });
+}
+
+export interface OfficeFrameClientOptions {
+  /** The current frame token; read on every call so a re-mint takes effect. */
+  getToken: () => string;
+  /** API origin; defaults to the runtime config (same origin in the web host). */
+  apiUrl?: string;
+  /** Injected for tests and non-DOM runtimes. */
+  fetch?: typeof fetch;
+  /**
+   * Which frame subtree the id addresses: `documents/{id}` (default) or
+   * `sources/{id}` (UNI-1869, view-only; every write route belongs to
+   * documents only and an `ofs1.` token never reaches them anyway).
+   */
+  scope?: "documents" | "sources";
+}
+
+export interface OfficeFrameClient {
+  /** The stored document (scope `documents`) or source file (scope `sources`; `source_id`, never `document_id`). */
+  open(id: string): Promise<OfficeFrameDocument | OfficeFrameSource | null>;
+  /** Bytes of `download_url` (an /api/v1/office-frame path). */
+  content(downloadUrl: string, signal?: AbortSignal): Promise<Blob>;
+  upload(documentId: string, file: Blob, filename: string, idempotencyKey?: string, signal?: AbortSignal): Promise<OfficeFrameUpload | null>;
+  /** Save. A stale base rejects with ApiError status 409 code document_version_conflict. */
+  commit(documentId: string, body: { upload_id: string; base_revision: string; edit_lock_id?: string }, idempotencyKey?: string): Promise<OfficeFrameDocument | null>;
+  recents(documentId: string, limit?: number): Promise<OfficeFrameRecents>;
+  uploadAsset(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameAsset | null>;
+  signAssets(documentId: string, assetIds: string[]): Promise<OfficeFrameAssetUrls>;
+  /** Markdown/HTML: signed URLs for relative paths as written (1..50); fresh ones and paths typed after the open. */
+  resolveAssets(documentId: string, paths: string[]): Promise<OfficeFrameResolvedPaths>;
+  /**
+   * PDF of the live bytes (`file`, the editor's unsaved docx) or of a stored
+   * `version` (default: current). Null when a 200 is not a PDF. 501
+   * unsupported_operation (no renderer), 504 and 413 reject as ApiError.
+   */
+  exportPdf(documentId: string, input: OfficeFramePdfInput, idempotencyKey?: string): Promise<ArrayBuffer | null>;
+}
+
+export interface OfficeFramePdfInput {
+  file?: Blob;
+  version?: number;
+  signal?: AbortSignal;
+}
+
+/** A PDF answer is the declared type AND the bytes ("%PDF-"); anything else is drift. */
+const officeFramePdfSchema = z.object({
+  content_type: z.string().regex(/^application\/pdf\b/i),
+  magic: z.literal("%PDF-"),
+});
+
+/** The frame-side caller: Bearer frame token, no cookies, contract-checked. */
+export function createOfficeFrameClient(options: OfficeFrameClientOptions): OfficeFrameClient {
+  const doFetch = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  const base = () => options.apiUrl ?? runtimeConfig().apiUrl;
+
+  async function send(path: string, init: RequestInit & { idempotencyKey?: string } = {}): Promise<Response> {
+    const headers: Record<string, string> = { Authorization: `Bearer ${options.getToken()}` };
+    if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
+    if (typeof init.body === "string") headers["Content-Type"] = "application/json";
+    const res = await doFetch(base() + path, { method: init.method ?? "GET", body: init.body, signal: init.signal, headers, credentials: "omit" });
+    if (!res.ok) {
+      let code = "internal";
+      let message = res.statusText;
+      let fields: Record<string, unknown> | undefined;
+      try {
+        const body = (await res.json()) as { error?: { code?: unknown; message?: unknown; fields?: unknown } };
+        if (typeof body.error?.code === "string") code = body.error.code;
+        if (typeof body.error?.message === "string") message = body.error.message;
+        if (body.error?.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
+          fields = body.error.fields as Record<string, unknown>;
+        }
+      } catch {
+        /* body is not JSON */
+      }
+      throw new ApiError(message, code, res.status, undefined, fields);
+    }
+    return res;
+  }
+
+  async function json(path: string, init?: RequestInit & { idempotencyKey?: string }): Promise<unknown> {
+    const res = await send(path, init);
+    try {
+      return (await res.json()) as unknown;
+    } catch {
+      return undefined;
+    }
+  }
+
+  const scope = options.scope === "sources" ? "sources" : "documents";
+  const docPath = (id: string) => `/api/v1/office-frame/${scope}/${enc(id)}`;
+  const form = (file: Blob, filename: string) => {
+    const body = new FormData();
+    body.append("file", file, filename);
+    return body;
+  };
+
+  return {
+    async open(id) {
+      if (scope === "sources") {
+        return parseWithFallback<OfficeFrameSource | null>(await json(docPath(id)), officeFrameSourceSchema, null, { endpoint: "GET /api/v1/office-frame/sources/{sourceFileID}" });
+      }
+      return parseWithFallback<OfficeFrameDocument | null>(await json(docPath(id)), officeFrameDocumentSchema, null, { endpoint: "GET /api/v1/office-frame/documents/{documentID}" });
+    },
+    async content(downloadUrl, signal) {
+      // Only a route in this client's frame subtree (documents/{id} or sources/{id}).
+      if (!downloadUrl.startsWith(`/api/v1/office-frame/${scope}/`)) {
+        throw new ApiError("download_url is not a frame route", "invalid_request", 400);
+      }
+      return (await send(downloadUrl, { signal })).blob();
+    },
+    async upload(documentId, file, filename, idempotencyKey, signal) {
+      const raw = await json(`${docPath(documentId)}/uploads`, { method: "POST", body: form(file, filename), idempotencyKey, signal });
+      return parseWithFallback<OfficeFrameUpload | null>(raw, officeFrameUploadSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/uploads" });
+    },
+    async commit(documentId, body, idempotencyKey) {
+      const raw = await json(`${docPath(documentId)}/versions/commit`, { method: "POST", body: JSON.stringify(body), idempotencyKey });
+      return parseWithFallback<OfficeFrameDocument | null>(raw, officeFrameDocumentSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/versions/commit" });
+    },
+    async recents(documentId, limit) {
+      const query = limit ? `?limit=${limit}` : "";
+      return parseWithFallback<OfficeFrameRecents>(await json(`${docPath(documentId)}/recents${query}`), officeFrameRecentsSchema, { items: [] }, { endpoint: "GET /api/v1/office-frame/documents/{documentID}/recents" });
+    },
+    async uploadAsset(documentId, file, filename, idempotencyKey) {
+      const raw = await json(`${docPath(documentId)}/assets`, { method: "POST", body: form(file, filename), idempotencyKey });
+      return parseWithFallback<OfficeFrameAsset | null>(raw, officeFrameAssetSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/assets" });
+    },
+    async exportPdf(documentId, input, idempotencyKey) {
+      const body = new FormData();
+      if (input.file) body.append("file", input.file, "document.docx");
+      else if (input.version !== undefined) body.append("version", String(input.version));
+      const res = await send(`${docPath(documentId)}/export/pdf`, { method: "POST", body, idempotencyKey, signal: input.signal });
+      const bytes = await res.arrayBuffer();
+      const answer = {
+        content_type: res.headers.get("Content-Type") ?? "",
+        magic: String.fromCharCode(...new Uint8Array(bytes, 0, Math.min(5, bytes.byteLength))),
+      };
+      const pdf = parseWithFallback(answer, officeFramePdfSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/export/pdf" });
+      return pdf ? bytes : null;
+    },
+    async resolveAssets(documentId, paths) {
+      const raw = await json(`${docPath(documentId)}/assets/resolve`, { method: "POST", body: JSON.stringify({ paths }) });
+      return parseWithFallback<OfficeFrameResolvedPaths>(raw, officeFrameResolvedPathsSchema, { items: [] }, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/assets/resolve" });
+    },
+    async signAssets(documentId, assetIds) {
+      const raw = await json(`${docPath(documentId)}/assets/sign`, { method: "POST", body: JSON.stringify({ asset_ids: assetIds }) });
+      return parseWithFallback<OfficeFrameAssetUrls>(raw, officeFrameAssetUrlsSchema, { items: [] }, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/assets/sign" });
+    },
+  };
+}

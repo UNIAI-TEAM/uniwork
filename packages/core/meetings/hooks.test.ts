@@ -5,7 +5,6 @@ import {
   isJoinAdmitted,
   meetingKeys,
   splitMeetings,
-  upsertMeetingChatMessage,
 } from "./hooks";
 import type { Meeting, MeetingInviteLink } from "../types";
 
@@ -73,27 +72,8 @@ describe("meetingKeys.joinRequests", () => {
   });
 });
 
-describe("upsertMeetingChatMessage", () => {
-  it("appends a saved message in chronological order without duplicates", () => {
-    const existing = [
-      {
-        id: "1",
-        meeting_id: "m1",
-        sender_identity: "a",
-        message: "first",
-        sent_at: "2026-08-29T02:00:00Z",
-      },
-    ];
-    const saved = {
-      id: "2",
-      meeting_id: "m1",
-      sender_identity: "b",
-      message: "second",
-      sent_at: "2026-08-29T02:00:01Z",
-    };
-    const merged = upsertMeetingChatMessage(existing, saved);
-    expect(merged.map((m) => m.id)).toEqual(["1", "2"]);
-    expect(upsertMeetingChatMessage(merged, saved)).toEqual(merged);
-    expect(upsertMeetingChatMessage(undefined, saved).map((m) => m.id)).toEqual(["2"]);
+describe("meetingKeys.motions", () => {
+  it("is its own root, so a ballot does not refetch the meeting", () => {
+    expect(meetingKeys.motions("m1")).toEqual(["meeting-motions", "m1"]);
   });
 });

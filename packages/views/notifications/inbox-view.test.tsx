@@ -1,12 +1,21 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { InboxView } from "./inbox-view";
 
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
+
 initI18n();
+
+/** The Undo action of the last success toast. */
+const lastUndo = () => {
+  const options = toastSuccess.mock.calls.at(-1)?.[1] as { action: { label: string; onClick: () => void } };
+  return options.action;
+};
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
@@ -22,13 +31,30 @@ const row = (id: string, extra: Record<string, unknown> = {}) => ({
   params: { actor: "Bình", task: "Việc " + id }, count: 1, created_at: "2026-09-06T08:00:00Z", ...extra,
 });
 
-function mockApi(notifications: unknown[], unread = { total: 0, by_workspace: {} as Record<string, number> }) {
-  requestMock.mockImplementation((path: string) => {
+function mockApi(
+  notifications: unknown[],
+  unread = { total: 0, by_workspace: {} as Record<string, number> },
+  older: unknown[] = [],
+) {
+  requestMock.mockImplementation((path: string, init?: { body?: { all?: boolean } }) => {
     if (path.startsWith("/api/v1/me/notifications/unread-count")) return Promise.resolve(unread);
-    if (path.startsWith("/api/v1/me/notifications?")) return Promise.resolve({ notifications, next_before: "" });
+    // "Mark all" answers with the ids it read, for the undo.
+    if (path === "/api/v1/me/notifications/read" && init?.body?.all) {
+      return Promise.resolve({ status: "ok", ids: (notifications as { id: string }[]).map((n) => n.id) });
+    }
+    if (path.startsWith("/api/v1/me/notifications?")) {
+      // A second page exists only when `older` is given; it is fetched with the cursor.
+      if (path.includes("before=")) return Promise.resolve({ notifications: older, next_before: "" });
+      return Promise.resolve({ notifications, next_before: older.length > 0 ? "cursor-1" : "" });
+    }
     return Promise.resolve({ status: "ok" });
   });
 }
+
+// jsdom pads every element in an accessible name with spaces, where a browser
+// joins inline text as it reads; the emphasised names inside a row's sentence
+// are spans, so the patterns below allow that padding.
+const sentence = (text: string) => new RegExp(text.replace(/[“”]/g, (q) => (q === "“" ? "“\\s?" : "\\s?”")));
 
 function renderInbox() {
   const nav = {
@@ -48,6 +74,7 @@ function renderInbox() {
 
 beforeEach(() => {
   requestMock.mockReset();
+  toastSuccess.mockReset();
 });
 
 describe("InboxView", () => {
@@ -60,14 +87,21 @@ describe("InboxView", () => {
       { total: 1, by_workspace: { ws1: 1 } },
     );
     renderInbox();
-    const list = await screen.findByRole("listbox", { name: "Hộp việc" });
-    const items = within(list).getAllByRole("presentation");
-    expect(items[0]).toHaveTextContent("Chưa đọc");
-    expect(items[1]).toHaveTextContent("Trước đó");
-    expect(screen.getByRole("link", { name: /Bình đã giao bạn việc “Việc n1”/ })).toHaveAttribute("href", "/acme/team/tasks/t-n1");
+    const list = await screen.findByRole("list", { name: "Hộp việc" });
+    // Each group's label is a heading a screen reader can jump to, and says how many rows it holds.
+    const headings = within(list).getAllByRole("heading", { level: 2 });
+    expect(headings[0]).toHaveAccessibleName(/Chưa đọc.*1 thông báo/);
+    // Read rows are grouped by the viewer's day; 2026-09-06 is well past a week.
+    expect(headings[1]).toHaveTextContent("Cũ hơn");
+    // The header count says what it counts.
+    expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveTextContent("1 chưa đọc");
+    expect(screen.getByRole("link", { name: sentence("Bình đã giao bạn việc “Việc n1”") })).toHaveAttribute(
+      "href",
+      "/acme/team/tasks/t-n1",
+    );
     expect(screen.getByText("và 3 thay đổi khác")).toBeInTheDocument();
     // The deleted meeting is still a row, but not a link.
-    expect(screen.getByText("Bình đã mời bạn họp “Họp”")).toBeInTheDocument();
+    expect(list.querySelector('[data-notification-id="n2"]')).toHaveTextContent("Bình đã mời bạn họp “Họp”");
     expect(screen.queryByRole("link", { name: /Họp/ })).toBeNull();
     expect(screen.getByText("đã xóa")).toBeInTheDocument();
   });
@@ -76,7 +110,10 @@ describe("InboxView", () => {
     mockApi([]);
     renderInbox();
     expect(await screen.findByText("Chưa có thông báo")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Cài đặt thông báo/ })).toHaveAttribute("href", "/acme/team/settings?tab=notifications");
+    // The header's settings link and the empty state's go to the same place.
+    for (const link of screen.getAllByRole("link", { name: /Cài đặt thông báo/ })) {
+      expect(link).toHaveAttribute("href", "/acme/team/settings?tab=notifications");
+    }
     expect(screen.getByRole("button", { name: "Đánh dấu tất cả đã đọc" })).toBeDisabled();
   });
 
@@ -96,27 +133,288 @@ describe("InboxView", () => {
         expect.objectContaining({ body: { all: true, workspace_id: "ws1" } }),
       ),
     );
+    // Undo puts back exactly the rows it read.
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã đánh dấu 2 thông báo là đã đọc", expect.anything()));
+    lastUndo().onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notifications/unread",
+        expect.objectContaining({ body: { ids: ["n1", "n2"] } }),
+      ),
+    );
   });
 
-  it("moves with j/k, archives with e and toggles read with r", async () => {
+  it("undoes a run of archives from one toast", async () => {
+    mockApi([row("n1"), row("n2"), row("n3")], { total: 3, by_workspace: { ws1: 3 } });
+    renderInbox();
+    const first = await screen.findByRole("link", { name: /Việc n1/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "e" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã lưu trữ 1 thông báo", expect.anything()));
+    const second = screen.getByRole("link", { name: /Việc n2/ });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "e" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã lưu trữ 2 thông báo", expect.anything()));
+    lastUndo().onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notifications/unarchive",
+        expect.objectContaining({ body: { ids: ["n1", "n2"] } }),
+      ),
+    );
+  });
+
+  it("hands focus to the filters when the only row is archived", async () => {
+    mockApi([row("n1")], { total: 1, by_workspace: { ws1: 1 } });
+    renderInbox();
+    const only = await screen.findByRole("link", { name: /Việc n1/ });
+    only.focus();
+    fireEvent.keyDown(only, { key: "e" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Mọi loại" }));
+  });
+
+  it("moves focus between real rows with j/k, archives with e and toggles read with r", async () => {
     mockApi([row("n1"), row("n2")], { total: 2, by_workspace: { ws1: 2 } });
     renderInbox();
-    const list = await screen.findByRole("listbox", { name: "Hộp việc" });
-    list.focus();
-    fireEvent.keyDown(list, { key: "j" });
-    fireEvent.keyDown(list, { key: "j" });
-    expect(list.getAttribute("aria-activedescendant")).toBe("n2");
-    fireEvent.keyDown(list, { key: "k" });
-    expect(list.getAttribute("aria-activedescendant")).toBe("n1");
-    fireEvent.keyDown(list, { key: "r" });
+    const first = await screen.findByRole("link", { name: /Việc n1/ });
+    const second = screen.getByRole("link", { name: /Việc n2/ });
+    // The keys act on whichever row holds focus: no separate selection state,
+    // so Tab, mouse and j/k all agree on what "current" is.
+    first.focus();
+    fireEvent.keyDown(first, { key: "j" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "j" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "k" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "r" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
-    fireEvent.keyDown(list, { key: "e" });
+    fireEvent.keyDown(first, { key: "e" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/archive", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
-    // Selection moved on to the next row before the archive settled.
-    expect(list.getAttribute("aria-activedescendant")).toBe("n2");
+    // Focus moved on to the next row before the archive settled.
+    expect(document.activeElement).toBe(second);
+  });
+
+  it("exposes the row actions to the keyboard, not only to hover", async () => {
+    mockApi([row("n1")], { total: 1, by_workspace: { ws1: 1 } });
+    renderInbox();
+    await screen.findByRole("link", { name: /Việc n1/ });
+    const list = screen.getByRole("list", { name: "Hộp việc" });
+    // Plain list semantics: a link and two buttons per row, all in the tab order.
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(within(list).getByRole("button", { name: "Đánh dấu đã đọc" })).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Lưu trữ" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/archive", expect.objectContaining({ body: { ids: ["n1"] } })),
+    );
+  });
+
+  it("names the status and the role in the reader's language and labels an agent as one", async () => {
+    mockApi([
+      row("n1", { kind: "task_status_changed", title_key: "notifications.kind.task_status_changed", params: { actor: "Bình", task: "Việc n1", status: "in_review" } }),
+      row("n2", { kind: "task_commented", title_key: "notifications.kind.task_commented", actor_kind: "agent", params: { actor: "UNI", task: "Việc n2" } }),
+      row("n3", { kind: "role_changed", title_key: "notifications.kind.role_changed", resource_type: "workspace", params: { actor: "Bình", role: "admin" } }),
+    ]);
+    renderInbox();
+    const status = await screen.findByRole("link", { name: /Việc n1/ });
+    expect(status).toHaveTextContent("Bình chuyển “Việc n1” sang Đang review");
+    expect(status).not.toHaveTextContent("in_review");
+    expect(screen.getByRole("link", { name: /Việc n2/ })).toHaveTextContent("UNI Agent đã bình luận trong “Việc n2”");
+    expect(screen.getByRole("link", { name: /vai trò/ })).toHaveTextContent("Bình đã đổi vai trò của bạn thành Quản trị");
+  });
+
+  it("narrows to a category, counting unread per category only when every unread row is loaded", async () => {
+    mockApi(
+      [
+        row("n1", { kind: "mentioned", title_key: "notifications.kind.mentioned" }),
+        row("n2", { kind: "meeting_invited", resource_type: "meeting", title_key: "notifications.kind.meeting_invited", params: { actor: "Bình", meeting: "Họp tuần" } }),
+      ],
+      { total: 2, by_workspace: { ws1: 2 } },
+    );
+    renderInbox();
+    await screen.findByRole("link", { name: /Họp tuần/ });
+    const meetings = screen.getByRole("button", { name: /Cuộc họp/ });
+    expect(meetings).toHaveAccessibleName(/Cuộc họp.*1 chưa đọc/);
+    fireEvent.click(meetings);
+    await waitFor(() => expect(screen.queryByRole("link", { name: /Việc n1/ })).toBeNull());
+    expect(screen.getByRole("link", { name: /Họp tuần/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Giao cho bạn/ }));
+    expect(await screen.findByText("Không có thông báo loại này")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xem mọi loại" }));
+    expect(await screen.findByRole("link", { name: /Việc n1/ })).toBeInTheDocument();
+  });
+
+  it("hides the per-category counts when an unread row is not loaded yet", async () => {
+    mockApi([row("n1", { kind: "mentioned", title_key: "notifications.kind.mentioned" })], { total: 3, by_workspace: { ws1: 3 } });
+    renderInbox();
+    await screen.findByRole("link", { name: /Việc n1/ });
+    expect(screen.getByRole("button", { name: /Nhắc & bình luận/ })).not.toHaveAccessibleName(/chưa đọc/);
+  });
+
+  it("fetches older notifications through the cursor", async () => {
+    mockApi([row("n1")], { total: 1, by_workspace: { ws1: 1 } }, [row("n0", { read_at: "2026-09-01T09:00:00Z", params: { actor: "Bình", task: "Việc cũ" } })]);
+    renderInbox();
+    await screen.findByRole("link", { name: /Việc n1/ });
+    fireEvent.click(screen.getByRole("button", { name: "Xem thông báo cũ hơn" }));
+    expect(await screen.findByRole("link", { name: /Việc cũ/ })).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("before=cursor-1"));
+    expect(screen.getByText("Đã hết thông báo")).toBeInTheDocument();
+  });
+
+  it("keeps a row in its group when r toggles it, so focus stays on it", async () => {
+    const rows = [row("n1"), row("n2")];
+    mockApi(rows, { total: 2, by_workspace: { ws1: 2 } });
+    renderInbox();
+    const first = await screen.findByRole("link", { name: /Việc n1/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "r" });
+    // The server now has it read, so the refetch after the mark agrees.
+    Object.assign(rows[0]!, { read_at: "2026-09-06T09:00:00Z" });
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.objectContaining({ body: { ids: ["n1"] } })),
+    );
+    const list = screen.getByRole("list", { name: "Hộp việc" });
+    expect(within(list).getAllByRole("heading", { level: 2 })).toHaveLength(1);
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: /Việc n1/ }));
+    // Once focus leaves the list, the row goes to the group its state says.
+    fireEvent.blur(screen.getByRole("link", { name: /Việc n1/ }), { relatedTarget: document.body });
+    await waitFor(() => expect(within(list).getAllByRole("heading", { level: 2 })).toHaveLength(2));
+  });
+
+  // S15 from the Inbox side (G8-07): the link names the comment, the second line is the
+  // comment as plain text, and each exception keeps the row while hiding what it may not show.
+  describe("document comment rows", () => {
+    const ULID = "01JABCDEFGHJKMNPQRSTVWXYZ0";
+    const doc = (id: string, extra: Record<string, unknown> = {}, params: Record<string, string> = {}) =>
+      row(id, {
+        kind: "document_commented", title_key: "notifications.kind.document_commented",
+        resource_type: "document", resource_id: "d-" + id,
+        params: { actor: "Bình", document: "Hợp đồng", comment_id: "c-" + id, kind: "comment", snippet: "Xem giúp", ...params },
+        ...extra,
+      });
+
+    it("opens the document at the comment and shows the snippet with mentions as names", async () => {
+      mockApi([doc("n1", {}, { snippet: `Nhờ [@Lê Thu \\[Hà\\]](mention://member/${ULID}) xem điều 4` })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: sentence("Bình đã bình luận trong “Hợp đồng”") });
+      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+      expect(link.querySelector("[data-notification-snippet=text]")).toHaveTextContent("Nhờ @Lê Thu [Hà] xem điều 4");
+      expect(link).not.toHaveTextContent("mention://");
+    });
+
+    it("renders a document name with quotes, ampersands and angle brackets as typed", async () => {
+      mockApi([doc("n1", {}, { document: `Q&A "<b>bản 2</b>"` })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Q&A/ });
+      expect(link).toHaveTextContent(`Bình đã bình luận trong “Q&A "<b>bản 2</b>"”`);
+      expect(link.querySelector("b")).toBeNull();
+    });
+
+    it("keeps a row whose document the reader lost access to, without its snippet", async () => {
+      mockApi([doc("n1", { resource_access_lost: true }, { snippet: "" })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Hợp đồng/ });
+      // The page answers 403 and says so (S15 row 2); the row only stops quoting the comment.
+      expect(link).toHaveAttribute("href", "/acme/team/documents/d-n1?comment=c-n1");
+      expect(link.querySelector("[data-notification-snippet]")).toBeNull();
+    });
+
+    // V7 F1: the server drops the document title once the reader lost access.
+    it.each([
+      ["document_commented", "Bình đã bình luận trong một tài liệu", undefined],
+      ["document_mentioned", "Bình đã nhắc đến bạn trong bình luận tại một tài liệu.", undefined],
+      ["document_comment_replied", "Bình đã phản hồi bình luận của bạn trong một tài liệu.", undefined],
+      ["document_discussion_mentioned", "Bình đã nhắc đến bạn trong thảo luận của một tài liệu.", undefined],
+      ["document_discussion_replied", "Bình đã phản hồi nội dung thảo luận của bạn trong một tài liệu.", undefined],
+      [
+        "document_comment_resolved",
+        "Bình đã đánh dấu một bình luận là đã giải quyết.",
+        "Bình marked a comment as resolved.",
+      ],
+      ["document_break_glass", "Bình đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.", undefined],
+      ["document_body_mentioned", "Bình đã nhắc đến bạn trong một tài liệu.", undefined],
+      ["document_access_requested", "Bình xin quyền truy cập một tài liệu.", undefined],
+      ["document_access_approved", "Bình đã cấp cho bạn quyền truy cập một tài liệu.", undefined],
+    ])("says %s without a name when the title is not in the params", async (kind, sentenceText, enSentenceText) => {
+      for (const document of [undefined, "", "  "]) {
+        requestMock.mockReset();
+        const params = { actor: "Bình", comment_id: "c-n1", kind: "comment", ...(document === undefined ? {} : { document }) };
+        mockApi([doc("n1", { kind, title_key: `notifications.kind.${kind}`, resource_access_lost: true, params })]);
+        renderInbox();
+        const link = await screen.findByRole("link", { name: /Bình/ });
+        expect(link).toHaveTextContent(sentenceText);
+        expect(link.textContent).not.toMatch(/\{\{|“\s*”/);
+        cleanup();
+        if (enSentenceText) {
+          await setLocale("en");
+          renderInbox();
+          const enLink = await screen.findByRole("link", { name: /Bình/ });
+          expect(enLink).toHaveTextContent(enSentenceText);
+          expect(enLink.textContent).not.toMatch(/\{\{|“\s*”/);
+          cleanup();
+          await setLocale("vi");
+        }
+      }
+    });
+
+    // V9 F3: at phone width two lines cut the break-glass sentence before its "(24h)" window.
+    it("gives a break-glass title three lines and every other kind two", async () => {
+      mockApi([
+        doc("n1", { kind: "document_break_glass", title_key: "notifications.kind.document_break_glass" }),
+        doc("n2"),
+      ]);
+      renderInbox();
+      const clampOf = async (name: RegExp) => {
+        const link = await screen.findByRole("link", { name });
+        return link.querySelector("[class*=line-clamp]:not([data-notification-snippet])");
+      };
+      expect(await clampOf(/truy cập khẩn cấp/)).toHaveClass("line-clamp-3");
+      expect(await clampOf(/bình luận trong/)).toHaveClass("line-clamp-2");
+    });
+
+    it("never quotes a snippet for a lost document even if one arrives", async () => {
+      mockApi([doc("n1", { resource_access_lost: true }, { snippet: "bí mật" })]);
+      renderInbox();
+      await screen.findByRole("link", { name: /Hợp đồng/ });
+      expect(screen.queryByText(/bí mật/)).toBeNull();
+    });
+
+    it("keeps a gone document as a row that is not a link", async () => {
+      mockApi([doc("n1", { resource_deleted: true })]);
+      renderInbox();
+      const list = await screen.findByRole("list", { name: "Hộp việc" });
+      expect(list.querySelector('[data-notification-id="n1"]')).toHaveTextContent("đã xóa");
+      expect(screen.queryByRole("link", { name: /Hợp đồng/ })).toBeNull();
+      expect(screen.queryByText("Xem giúp")).toBeNull();
+    });
+
+    it.each([
+      ["comment", "Bình luận này đã bị xóa."],
+      ["discussion", "Bài thảo luận này đã bị xóa."],
+    ])("says a deleted %s is gone instead of quoting it, and still opens the document", async (kind, text) => {
+      mockApi([doc("n1", { comment_deleted: true }, { kind })]);
+      renderInbox();
+      const link = await screen.findByRole("link", { name: /Hợp đồng/ });
+      expect(link.querySelector("[data-notification-snippet=deleted]")).toHaveTextContent(text);
+      expect(link).not.toHaveTextContent("Xem giúp");
+      expect(link).toHaveAttribute("href", `/acme/team/documents/d-n1?comment=c-n1${kind === "discussion" ? "&kind=discussion" : ""}`);
+    });
+
+    it("opens a resolved comment's notification without resolving or reopening anything", async () => {
+      mockApi([doc("n1", { kind: "document_comment_resolved", title_key: "notifications.kind.document_comment_resolved" })], {
+        total: 1, by_workspace: { ws1: 1 },
+      });
+      const nav = renderInbox();
+      const link = await screen.findByRole("link", { name: /giải quyết/ });
+      fireEvent.click(link);
+      await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/d-n1?comment=c-n1"));
+      const writes = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method);
+      expect(writes.map(([path]) => path)).toEqual(["/api/v1/me/notifications/read"]);
+    });
   });
 });
+

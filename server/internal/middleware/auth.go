@@ -2,21 +2,104 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
+// RequireAuthWithDevice extends bearer validation with a live native-device
+// status check. Browser sessions share the sid namespace but are marked in
+// the token, so they skip the lookup; the checker returns nil for an unmarked
+// sid with no device row and only rejects a known revoked device. Any other
+// checker error is infrastructure (a DB timeout) and answers 503: a 401 there
+// would make the client refresh and possibly sign the user out (H8).
+func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, string, string) error) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := r.Header.Get("Authorization")
+			token, ok := strings.CutPrefix(h, "Bearer ")
+			if !ok || token == "" {
+				writeUnauthorized(w, "missing bearer token")
+				return
+			}
+			at, err := m.ParseAccessToken(token)
+			if err != nil {
+				writeUnauthorized(w, "invalid token")
+				return
+			}
+			uid, sid := at.UserID, at.SessionID
+			ctx := r.Context()
+			if !at.Web {
+				// A native device session: the desktop app's sync writes, the
+				// only caller office_sync_write gates (G5-07).
+				ctx = context.WithValue(ctx, deviceSessionKey, true)
+			}
+			if check != nil && !at.Web {
+				if err := check(ctx, uid, sid); err != nil {
+					if codedErrorCode(err) == "device_revoked" {
+						writeDeviceRevoked(w)
+						return
+					}
+					writeUnavailable(w)
+					return
+				}
+			}
+			platform, _, _ := ClientMetadataFromContext(r.Context())
+			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
+			ctx = context.WithValue(WithUserID(ctx, uid), sessionIDKey, sid)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+type errorCodeCarrier interface{ CodeValue() string }
+
+func codedErrorCode(err error) string {
+	var carrier errorCodeCarrier
+	if errors.As(err, &carrier) {
+		return carrier.CodeValue()
+	}
+	return ""
+}
+
+func writeUnavailable(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("unavailable", "session check failed, retry"))
+}
+
+func writeDeviceRevoked(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("device_revoked", "desktop device is no longer authorized"))
+}
+
 type ctxKey int
 
 const (
-	userIDKey    ctxKey = 1
-	sessionIDKey ctxKey = 2
+	userIDKey        ctxKey = 1
+	sessionIDKey     ctxKey = 2
+	deviceSessionKey ctxKey = 3
 )
+
+// DeviceSession reports whether the request's bearer token is a native device
+// session (RequireAuthWithDevice when the token is not marked web). The desktop
+// app's sync writes are the only caller office_sync_write gates (G5-07);
+// browser sessions and the web frame leave it false.
+func DeviceSession(ctx context.Context) bool {
+	v, _ := ctx.Value(deviceSessionKey).(bool)
+	return v
+}
 
 func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -62,7 +145,7 @@ func OptionalAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 func writeUnauthorized(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	_, _ = w.Write([]byte(`{"error":{"code":"unauthorized","message":"` + msg + `"}}`))
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("unauthorized", msg))
 }
 
 // WithUserID also seeds the flag EvalContext with the user, so a service

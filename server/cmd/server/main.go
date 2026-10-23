@@ -9,6 +9,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// The runtime image (alpine, CGO off) ships no zoneinfo; LoadLocation
+	// for a viewer's zone (meetings list tz, home, digests) needs this.
+	_ "time/tzdata"
 
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,17 +24,21 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/handler"
+	"github.com/unicomhub/uniwork/server/internal/linkpreview"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/notification"
+	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
+	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -44,6 +51,7 @@ var (
 )
 
 func main() {
+	tryLoadDevEnv()
 	logger.Init()
 	log := logger.New()
 	cfg, err := config.Load()
@@ -60,7 +68,9 @@ func main() {
 		log.Error("otel", "err", err)
 		os.Exit(1)
 	}
-	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	// Pool size and idle-transaction timeout defaults apply where the DSN is
+	// silent (config.PoolConfig).
+	poolCfg, err := config.PoolConfig(cfg.DatabaseURL)
 	if err != nil {
 		log.Error("db url", "err", err)
 		os.Exit(1)
@@ -86,6 +96,9 @@ func main() {
 			log.Error("redis url", "err", err)
 			os.Exit(1)
 		}
+		// Without it go-redis ignores context deadlines on the socket, and a
+		// slow Redis holds each call for its full read timeout.
+		opt.ContextTimeoutEnabled = true
 		rdb = redis.NewClient(opt)
 		if err := redisotel.InstrumentTracing(rdb); err != nil {
 			log.Warn("redis tracing", "err", err)
@@ -121,28 +134,44 @@ func main() {
 			}
 		}()
 	}
-	// STORAGE_BACKEND=s3 uses the S3-compatible backend (AWS_* / AWS_ENDPOINT_URL);
-	// anything else is local disk under LOCAL_UPLOAD_DIR, served by the API.
-	var store storage.Storage
-	if os.Getenv("STORAGE_BACKEND") == "s3" {
-		store = storage.NewS3StorageFromEnv()
-	} else if local := storage.NewLocalStorageFromEnv(); local != nil {
-		store = local
+	// Storage (FileService T2): STORAGE_BACKEND selects where new files are
+	// written; every declared provider group is built and preflighted here, so
+	// a bad configuration stops startup instead of falling back to local disk.
+	storageCfg, err := storage.LoadConfigFromEnv(storage.NewDefaultRegistry())
+	if err != nil {
+		log.Error("storage config", "err", err)
+		os.Exit(1)
 	}
+	stores, err := storage.BuildStores(ctx, storageCfg, storage.NewDefaultRegistry())
+	if err != nil {
+		log.Error("storage preflight", "backend", string(storageCfg.Backend), "err", err)
+		os.Exit(1)
+	}
+	objectStore := stores[storageCfg.Backend]
+	// The legacy adapter only reads rows written before each module's
+	// cutover; new writes go through FileService.
+	store := storage.NewLegacyStorage(storageCfg)
 	hub := realtime.NewHub()
 	go hub.Run()
 	// Without Redis every event fans out in-process only. With it, the relay
 	// writes each event to a per-scope stream and consumes the streams this
 	// node has subscribers for, so several API nodes deliver each other's
-	// events; DualWrite keeps local delivery immediate.
+	// events; DualWrite keeps local delivery immediate. A single replica has
+	// no other node to reach and turns it off (REALTIME_RELAY=false).
 	var broadcaster realtime.Broadcaster = hub
 	var relay *realtime.RedisRelay
-	if rdb != nil {
-		relay = realtime.NewRedisRelay(hub, rdb)
+	if rdb != nil && cfg.RealtimeRelay {
+		relay = realtime.NewRedisRelayWithClients(hub, rdb, realtime.NewRelayReadClient(rdb))
 		relay.Start(ctx)
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
 	pub := realtime.NewPublisher(broadcaster, log)
+	// Room-wide frames (SendToUsers) are delivered here, off the request that
+	// raised them; it stops after everything that publishes, before the relay.
+	fanoutCtx, fanoutCancel := context.WithCancel(context.Background())
+	defer fanoutCancel()
+	fanoutDone := make(chan struct{})
+	go func() { pub.Run(fanoutCtx); close(fanoutDone) }()
 	// SMTP when SMTP_HOST is set; otherwise messages (and verification codes)
 	// are printed to the log, which is what local development runs on.
 	sender, err := mail.New(mail.SMTPConfig{
@@ -169,6 +198,7 @@ func main() {
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -176,13 +206,14 @@ func main() {
 			URL: cfg.LiveKitURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret,
 			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		}
-		if cfg.LiveKitRecordingBucket != "" {
-			lk.Recording = &meetings.RecordingS3{
-				AccessKey: os.Getenv("AWS_ACCESS_KEY_ID"), Secret: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-				Region: os.Getenv("AWS_REGION"), Endpoint: os.Getenv("AWS_ENDPOINT_URL"),
-				Bucket: cfg.LiveKitRecordingBucket,
-			}
-			log.Info("meeting recording enabled", "bucket", cfg.LiveKitRecordingBucket)
+		recording, err := recordingTarget(storageCfg, cfg.LiveKitRecordingBucket, os.Getenv("LIVEKIT_RECORDING_S3_ENDPOINT"))
+		if err != nil {
+			log.Error("meeting recording config", "err", err)
+			os.Exit(1)
+		}
+		if recording != nil {
+			lk.Recording = recording
+			log.Info("meeting recording enabled", "bucket", recording.Bucket, "backend", string(storageCfg.Backend))
 		}
 		conference = lk
 	}
@@ -196,8 +227,9 @@ func main() {
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
-	readiness := service.NewReadiness(pool, rdb)
-	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
+	readiness := service.NewReadiness(pool, rdb).WithStorageProber(objectStore)
+	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg))
+	billingSvc.SetLogger(log)
 	actorSvc := service.NewActorService(q)
 	// One AI gateway for the process (F-09): meeting summaries and Ask UNI
 	// share the provider, the policy, the meter and the audit trail. No
@@ -211,47 +243,323 @@ func main() {
 	if reg != nil {
 		gateway.SetMetrics(reg.AI)
 	}
+	// UniWork AI transcript store (G6-03a, G6-D1 A9): the Office assistant's
+	// conversations live on the server, each turn sealed with secretbox under
+	// AI_CONVERSATION_KEY. No key means no store, and UniWork AI reads as not
+	// configured (fail closed, never plaintext).
+	var uniworkConversationBox *secretbox.Box
+	if key, err := secretbox.LoadKey(ai.ConversationKeyEnv); err == nil {
+		uniworkConversationBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("uniwork ai transcript store disabled", "err", err)
+		}
+	} else if os.Getenv(ai.ConversationKeyEnv) != "" {
+		log.Warn("uniwork ai transcript store disabled", "err", err)
+	} else {
+		// Absent, not broken: one line so an operator can tell a
+		// deliberately unconfigured store from a healthy one.
+		log.Info("uniwork ai transcript store not configured")
+	}
+	uniworkConversations := ai.NewConversationStore(pool, q, uniworkConversationBox)
+	// G6-03b: the run counters (A3) sit behind the same key as the transcript
+	// — a run never outlives its conversation — and both the service (the
+	// take of each turn) and the TTL worker (the sweep) read them.
+	uniworkRuns := ai.NewRunStore(q)
+	// The kill switch hides the capability for one organization; the
+	// transcripts it left behind follow one sweep later (design §9.4).
+	uniworkKillSwitchOff := func(ctx context.Context, organizationID string) (bool, error) {
+		def := false
+		if f, ok := featureflags.Lookup(uniworkAIKillSwitchFlag); ok {
+			def = f.Default
+		}
+		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: organizationID})
+		return !flags.IsEnabled(ctx, uniworkAIKillSwitchFlag, def), nil
+	}
+	uniworkConversationSweep := ai.NewConversationTTLWorker(
+		uniworkConversations, uniworkKillSwitchOff, ai.UniworkConversationSweepInterval, log)
+	if reg != nil {
+		uniworkConversationSweep.SetMetrics(reg.AIUniwork)
+		// G6-03b: the run sweep and the unknown-usage reconciliation ride this
+		// worker's clock (design §3.4, §6.3); the meter is the same adapter the
+		// Gateway charges through.
+		uniworkConversationSweep.SetRunMetrics(reg.AIUniwork)
+		uniworkConversationSweep.SetUsageReconciler(ai.NewUsageReconciler(q, uniworkConversationBox,
+			service.NewAIQuota(service.NewEntitlementService(pool, q)), reg.AIUniwork))
+	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
+	}
+	if reg != nil && reg.Billing != nil {
+		billingSvc.SetBillingMetrics(reg.Billing)
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	chatSvc.SetTasks(taskSvc)
+	chatSvc.SetConference(conference)
+	chatSvc.SetAIGateway(gateway)
+	// Presence lives in Redis when there is one, so every replica sees the same
+	// online set and a transition is announced once; nil keeps it in process.
+	chatSvc.SetPresenceStore(rdb)
 	taskSvc.Chat = chatSvc
+	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
-	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
+	// Chat rooms and in-room meeting events are scopes a socket must be let into;
+	// both authorizers fail closed.
+	hub.SetAuthorizer(realtime.ScopeAuthorizers{
+		realtime.ScopeChat:    realtime.NewChatScopeAuthorizer(chatSvc),
+		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(meetingSvc),
+	})
 	// Directory and department events belong to the organization, so every
 	// connection joins its organization scope at connect time (F-03 §6.4).
 	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
-	// One dispatcher drains outbox_events for the whole process. Registering a
-	// consumer is the only thing a new bounded context has to do to receive
-	// domain events; nothing here knows what produced them.
+	privacySvc := service.NewPrivacyExportService(pool, q, orgSvc)
+	peopleSvc := service.NewPeopleService(pool, q, orgSvc)
+	// One FileService for the process. Every writer below is wired in the
+	// same step as the reference provider that covers it: the collector must
+	// never meet a file_id column it cannot ask about. The collector runs in
+	// FILE_GC_MODE, destructive unless the environment says dry_run or off
+	// (user decision 2026-10-14; docs/ops/RUNBOOK_FILE_GC.md).
+	fileSvc, err := service.NewFileService(service.FileServiceOptions{
+		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
+		DocumentMaxBytes:   cfg.EffectiveDocumentMaxBytes(),
+		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
+		// storage.bytes reservations for the Document purposes (G1-03): the
+		// hook ignores every other purpose.
+		Quota: service.NewEntitlementService(pool, q),
+		GC:    service.FileGCConfig{Mode: service.FileGCMode(cfg.FileGCMode)},
+	})
+	if err != nil {
+		log.Error("file service", "err", err)
+		os.Exit(1)
+	}
+	taskSvc.SetFiles(fileSvc)
+	authSvc.SetFiles(fileSvc)
+	peopleSvc.SetFiles(fileSvc)
+	wsSvc.SetFiles(fileSvc)
+	orgMemberSvc.SetFiles(fileSvc)
+	actorSvc.SetFiles(fileSvc)
+	chatSvc.SetFiles(fileSvc)
+	chatSvc.SetVoiceRecordingFiles(fileSvc)
+	meetingSvc.SetFiles(fileSvc)
+	auditSvc.SetFileService(fileSvc)
+	privacySvc.SetFileService(fileSvc)
+	fileAccess, err := service.NewFileAccessService(service.FileAccessOptions{
+		Files: fileSvc, Workspaces: wsSvc, Secret: fileAccessSecret(cfg.JWTSecret),
+	})
+	if err != nil {
+		log.Error("file access", "err", err)
+		os.Exit(1)
+	}
+	fileGC := fileSvc.NewFileGCWorker()
+	// Office engine jobs (G2-02). No OFFICE_ENGINE_URL means no engine is
+	// deployed: office jobs are refused and nothing else depends on it - the
+	// engine is never part of /readyz, so an outage cannot take Documents
+	// list/download down with it.
+	officeCfg := office.ConfigFromEnv()
+	var officeEngine service.OfficeEngine
+	if officeCfg.Enabled() {
+		client, err := office.NewClient(officeCfg, nil)
+		if err != nil {
+			log.Error("office engine", "err", err)
+			os.Exit(1)
+		}
+		officeEngine = client
+	}
+	var officeMetrics service.OfficeMetrics
+	if reg != nil {
+		officeMetrics = reg.Office
+	}
+	// One DocumentService for the process (BE-I4-1): the HTTP routes, the
+	// preview broker, the office change feed, the notification reads, office
+	// commands and launch, and the document workers all share the instance
+	// newDocumentService builds. Office commands authorize through the
+	// document ACL (G1-02), so they hold the same service as the routes; a
+	// second construction leaves the office_sync_write gate (G5-07), the
+	// commit-intent policy and the counters inert on whichever instance the
+	// routes got.
+	var documentMetrics service.DocumentMetrics
+	var officeIntentMetrics service.OfficeIntentMetrics
+	if reg != nil {
+		documentMetrics, officeIntentMetrics = reg.Documents, reg.Office
+	}
+	documentSvc := newDocumentService(documentServiceOptions{
+		Pool: pool, Queries: q, Organizations: orgSvc, Workspaces: wsSvc, Files: fileSvc,
+		Flags: flags, Metrics: documentMetrics, IntentMetrics: officeIntentMetrics,
+		// File commit intents (G5-07): the claim TTL and resume window, and
+		// office_sync_write, read through the same evaluator as
+		// /api/v1/config. A zero field keeps the contract-p0 §7 default.
+		Policy: service.CommitIntentPolicy{
+			ClaimTTL:  cfg.DocumentCommitIntentClaimTTL,
+			Retention: cfg.DocumentCommitIntentRetention,
+			SweepTick: cfg.DocumentCommitIntentSweepTick,
+		},
+		IdempotencyKeyPolicy: service.IdempotencyKeyPolicy{
+			Retention: cfg.IdempotencyKeyRetention,
+			SweepTick: cfg.IdempotencyKeySweepTick,
+		},
+		// The edit lock timing (UNI-1645 §7), validated by config.Load.
+		EditLock: service.DocumentEditLockConfig{
+			TTL:               cfg.DocumentEditLockTTL,
+			Heartbeat:         cfg.DocumentEditLockHeartbeat,
+			SweepInterval:     cfg.DocumentEditLockSweepInterval,
+			HoldMax:           cfg.DocumentEditHoldMax,
+			HoldChainMax:      cfg.DocumentEditHoldChainMax,
+			RequestTTL:        cfg.DocumentEditRequestTTL,
+			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
+		},
+		FolderUploadMaxFiles: cfg.FolderUploadMaxFiles,
+		FolderUploadMaxBytes: cfg.FolderUploadMaxBytes,
+	})
+	// The chat document send files its bytes into the Documents tree and the
+	// read path resolves each message's document block against it
+	// (UNI-1966), so the chat service holds the one Documents service the
+	// routes use.
+	chatSvc.SetDocuments(documentSvc)
+	// The document maintenance worker (auto-version, purge, compaction -
+	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
+	// the routes use; it is awaited in the shutdown sequence below, so a sweep
+	// never outlives the process.
+	docWorkers := documentSvc.NewDocumentWorkers()
+	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
+	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
+	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
+		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
+		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
+	})
+	// One dispatcher drains outbox_events for the whole process, one claim
+	// loop per lane. Registering a consumer is the only thing a new bounded
+	// context has to do to receive domain events; the lane says how long it
+	// may keep a row, so slow work (LiveKit, LLM, exports, push gateways)
+	// never sits in front of the realtime frames (G3).
 	dispatcher := outbox.New(pool, q, outbox.Options{
 		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
 	})
-	dispatcher.Register(meetingSvc.ProviderConsumer())
+	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
-	dispatcher.Register(service.NewAuditExportConsumer(q, store))
-	dispatcher.Register(outbox.WebhookConsumer{})
-	dispatcher.Register(service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
+	// Sockets are checked only when they connect or subscribe; this closes
+	// the ones a committed removal, kick or sign-out has taken access from.
+	// Notify lane: a kick re-asks the database once per holding socket.
+	dispatcher.RegisterLane(outbox.LaneNotify, realtime.NewAccessRevoker(hub, membershipCache))
+	auditExports := service.NewAuditExportConsumer(q, store)
+	auditExports.SetFileService(pool, fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)
+	privacyExports := service.NewPrivacyExportConsumer(pool, q)
+	privacyExports.SetFileService(fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, privacyExports)
+	privacyDeletion := service.NewPrivacyDeletionConsumer(pool, q)
+	privacyDeletion.SetFileService(fileSvc)
+	privacyDeletion.SetGraphForget(projector.ForgetOrganization)
+	dispatcher.RegisterLane(outbox.LaneSlow, privacyDeletion)
+	dispatcher.RegisterLane(outbox.LaneSlow, outbox.WebhookConsumer{})
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// Link previews (ADR 0035): a fetch waits on a third party, so never the realtime lane.
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatLinkPreviewConsumer(chatSvc, linkpreview.New(linkpreview.Options{})))
+	// The UniWork AI transcript follows what it is bound to: a deleted document
+	// or a membership that ended takes its conversations, and no request
+	// answers from a copy of content the person may no longer read (A9).
+	dispatcher.RegisterLane(outbox.LaneSlow, ai.NewConversationCleanupConsumer(uniworkConversations))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside
 	// them. VAPID keys missing means push is off, not broken.
 	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
-	var pushSender notification.PushSender
+	notifConsumer.SetOrgMembers(orgSvc)
+	// Document read permission is a DocumentService decision; the consumer
+	// gets the resolver injected so notification never imports the service
+	// package (G1-07).
+	previewSvc, previewErr := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
+		Documents: documentSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
+		TTL: cfg.PreviewAssetTTL, MaxBytes: cfg.PreviewAssetMaxBytes,
+	})
+	if previewErr != nil {
+		log.Error("preview broker", "err", previewErr)
+		os.Exit(1)
+	}
+	// The Office change feed (G5-01a) reads through the same DocumentService
+	// the document routes use; its snapshot sweep is awaited in the shutdown
+	// sequence below.
+	docChanges := service.NewDocumentChangesService(documentSvc, flags, cfg)
+	docChangesSweep := docChanges.NewSnapshotSweeper(log)
+	if reg != nil {
+		docChangesSweep.SetMetrics(reg.OfficeChanges)
+		docChanges.SetFeedLagMetrics(reg.OfficeChanges)
+	}
+	// Offline leases (G5-08s): the routes and the revoke consumer read the
+	// ACL through the same DocumentService; the consumer rides the notify lane
+	// (a database fan-out over one person's or one document's leases, no third
+	// party), and the sweep is awaited in the shutdown sequence below.
+	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
+	officeLeaseSweep := officeLeases.NewSweeper(log)
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	// The multi-document zip (UNI-2045) streams every file through FileService,
+	// so it waits on storage: slow lane, never realtime. The expiry release
+	// rides the audit retention tick already in the shutdown sequence.
+	documentDownloads := service.NewDocumentDownloadConsumer(pool, q, documentSvc)
+	documentDownloads.SetFileService(fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, documentDownloads)
+	// The edit lock (UNI-1645 §3.5): the releaser ends tenures on a revoked
+	// session, lost access, suspension and delete - audit + outbox across
+	// several tables, so it rides the notify lane, not realtime - and the
+	// expiry sweep is awaited in the shutdown sequence below.
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentShareRevoker(documentSvc))
+	// The card refresher stays on the realtime lane: one indexed read returns
+	// every card with its room and members, then only ephemeral publishes, so
+	// the document.* frames of the Documents UI are not slowed down.
+	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
+	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	if reg != nil {
+		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
+	}
+	notifConsumer.SetDocumentReaders(documentSvc)
+	notifConsumer.SetDocumentAdministrators(documentSvc)
+	notifConsumer.SetMeetingSummaries(meetingSvc)
+	// A call ring is delivered only while the call still rings for that person.
+	notifConsumer.SetCallRinging(chatSvc)
+	// The optional task/meeting source a document access request may name
+	// (DOC-07): the narrow ports keep the document, task and meeting services
+	// from importing each other. Unwired, a source is dropped silently.
+	documentSvc.SetAccessRequestSources(taskSvc, meetingSvc)
+	var webSender notification.PushSender
 	if cfg.PushEnabled() {
-		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
+		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
-	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	pushConsumer.SetPresence(chatSvc)
+	pushConsumer.SetCallRinging(chatSvc)
+	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
-	dispatcher.Register(notifConsumer)
+	// The inbox list marks a document row's resource_access_lost /
+	// resource_deleted through the same DocumentService the routes use
+	// (G8-07 section 4.6); the page checker is the read-side mirror of the
+	// consumer's document readers wired just above.
+	notifSvc.SetDocumentReaders(documentSvc)
+	// The daily digest applies the same gate (G8-07 R1-2): a document row the
+	// recipient may no longer read is dropped from the mail instead of
+	// shipping the title the inbox withholds.
+	digest.SetDocumentReaders(documentSvc)
+	digest.SetOrgMembers(orgSvc)
+	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
+	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
+	// event); the worker projects dirty nodes. The graph flag is read per
+	// organization, so enabling one needs no restart (then graph-rebuild --org).
+	graphFlagDefault := false
+	if f, ok := featureflags.Lookup("graph"); ok {
+		graphFlagDefault = f.Default
+	}
+	graphMarker := projector.NewMarker(q, func(ctx context.Context, orgID string) bool {
+		return flags.IsEnabled(featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: orgID}), "graph", graphFlagDefault)
+	})
+	dispatcher.Register(graphMarker)
+	graphWorker := projector.NewWorker(pool, q)
 	dispatcher.Register(featureflags.NewInvalidator(flagOverrides))
-	dispatcher.Register(pushConsumer)
+	dispatcher.RegisterLane(outbox.LanePush, pushConsumer)
 	if reg != nil {
 		dispatcher.SetMetrics(reg.Outbox)
 		realtimeConsumer.SetMetrics(reg.Outbox)
@@ -259,18 +567,76 @@ func main() {
 		notifConsumer.SetMetrics(reg.Notifications)
 		pushConsumer.SetMetrics(reg.Notifications)
 		digest.SetMetrics(reg.Notifications)
+		graphMarker.SetMetrics(reg.Graph)
+		graphWorker.SetMetrics(reg.Graph)
+		readiness.SetMetrics(reg.Readiness)
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
-	go meetingSvc.RunWorkers(runCtx)
-	go meetingSvc.RunAutoEnd(runCtx)
+	// The meeting workers (webhook inbox, attendance metering, reconcile) and
+	// auto-end stop with runCancel and are awaited below.
+	meetingWorkersDone := make(chan struct{})
+	go func() { meetingSvc.RunWorkers(runCtx); close(meetingWorkersDone) }()
+	meetingAutoEndDone := make(chan struct{})
+	go func() { meetingSvc.RunAutoEnd(runCtx); close(meetingAutoEndDone) }()
+	billingWorkersDone := make(chan struct{})
+	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// Chat reminders (H16) fire from here, not the browser; stops with
+	// runCancel and is awaited below.
+	chatRemindersDone := make(chan struct{})
+	go func() { chatSvc.NewChatReminderWorker().Run(runCtx); close(chatRemindersDone) }()
+	// Run returns only once every lane has stopped, so awaiting dispatcherDone
+	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
 	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
+	graphWorkerDone := make(chan struct{})
+	go func() { graphWorker.Run(runCtx); close(graphWorkerDone) }()
 	if reg != nil {
 		go auditSvc.RunRetentionMarker(runCtx, reg.Outbox)
 	}
+	// The file collector stops with the dispatcher (runCancel) and is awaited
+	// in the shutdown sequence below, so a sweep never outlives the process.
+	fileGCDone := make(chan struct{})
+	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
+	// The document worker (auto-version, purge, compaction, commit intent
+	// sweep) stops with runCancel and is awaited below like the file collector.
+	docWorkersDone := make(chan struct{})
+	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
+	// awaited below.
+	docChangesSweepDone := make(chan struct{})
+	go func() { docChangesSweep.Run(runCtx); close(docChangesSweepDone) }()
+	// The UniWork AI conversation sweep (G6-03a A9): expired transcripts and
+	// the organizations whose kill switch is off. It stops with runCancel and
+	// is awaited below.
+	uniworkSweepDone := make(chan struct{})
+	go func() { uniworkConversationSweep.Run(runCtx); close(uniworkSweepDone) }()
+	// The offline lease sweep (G5-08s) stops with runCancel and is awaited
+	// below.
+	officeLeaseSweepDone := make(chan struct{})
+	go func() { officeLeaseSweep.Run(runCtx); close(officeLeaseSweepDone) }()
+	// The edit lock expiry sweep (UNI-1645 §3.5) stops with runCancel and is
+	// awaited below.
+	editLockSweepDone := make(chan struct{})
+	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
+	// callbacks and the provider-event ledger past their windows. It stops with
+	// runCancel and is awaited below.
+	retention := service.NewEventRetention(q, log, service.EventRetentionPolicy{})
+	if reg != nil {
+		retention.SetMetrics(reg.Outbox)
+	}
+	retentionDone := make(chan struct{})
+	go func() { retention.Run(runCtx); close(retentionDone) }()
+	// The office reconciler settles jobs the engine finished, lost or timed
+	// out; it stops with runCancel and is awaited below.
+	officeDone := make(chan struct{})
+	go func() { officeSvc.RunReconciler(runCtx); close(officeDone) }()
+	officeSpoolSweep := officeSvc.NewSpoolSweeper()
+	officeSpoolSweepDone := make(chan struct{})
+	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -287,38 +653,154 @@ func main() {
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
+	var emailHubBox *secretbox.Box
+	if key, err := secretbox.LoadKey("EMAIL_HUB_CREDENTIAL_KEY"); err == nil {
+		if box, err := secretbox.New(key); err == nil {
+			emailHubBox = box
+			log.Info("email hub enabled")
+		} else {
+			log.Warn("email hub disabled", "err", err)
+		}
+	} else if os.Getenv("EMAIL_HUB_CREDENTIAL_KEY") != "" {
+		log.Warn("email hub disabled", "err", err)
+	}
+	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	emailHubSvc.ConfigureOAuth(cfg)
+	if store != nil {
+		emailHubSvc.SetObjectStorage(store)
+	}
+	var calendarBox *secretbox.Box
+	if key, err := secretbox.LoadKey("CALENDAR_CREDENTIAL_KEY"); err == nil {
+		calendarBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("connected calendars disabled", "err", err)
+		}
+	} else if os.Getenv("CALENDAR_CREDENTIAL_KEY") != "" {
+		log.Warn("connected calendars disabled", "err", err)
+	}
+	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
+	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
+	// server still boots and the credential routes answer 503.
+	var aiCredentialBox *secretbox.Box
+	if key, err := secretbox.LoadKey("AI_CREDENTIAL_KEY"); err == nil {
+		aiCredentialBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("AI provider credentials disabled", "err", err)
+		}
+	} else if os.Getenv("AI_CREDENTIAL_KEY") != "" {
+		log.Warn("AI provider credentials disabled", "err", err)
+	}
+	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
+	// BYOK proxy for the web host (UNI-1008): the stored key, resolved per call.
+	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), aiCredentialSvc, gateway)
+	emailHubSvc.AI = gateway
+	emailHubSvc.Tasks = taskSvc
+	askUNI.SetEmailHub(emailHubSvc)
+	askUNI.SetDocuments(documentSvc)
+	askUNI.SetFlags(flags)
+	// Leave, an invitation switch and account deletion revoke the Google
+	// grants of the mailboxes they disconnect.
+	orgMemberSvc.SetEmailHub(emailHubSvc)
+	wsSvc.SetEmailHub(emailHubSvc)
+	authSvc.SetEmailHub(emailHubSvc)
+	go emailHubSvc.RunWorkers(runCtx)
+	go emailHubSvc.RunHubWatchers(runCtx)
+	graphSvc := service.NewGraphService(q, orgSvc, wsSvc, chatSvc)
+	graphSvc.SetFlags(flags)
+	if reg != nil {
+		graphSvc.SetMetrics(reg.Graph)
+	}
+	// The UniWork AI façade (G6-03a) with G6-03b's run counters behind it: the
+	// service reserves each turn's model call here, so the cap holds across
+	// pods through the store rather than in this process.
+	aiUniworkSvc := service.NewAIUniworkService(orgSvc, service.NewEntitlementService(pool, q), documentSvc, flags,
+		gateway, uniworkConversations, rdb)
+	aiUniworkSvc.SetRunStore(uniworkRuns)
+	// The four run/usage counters of §7 the service advances (run seconds and
+	// credits, usage_unknown, dropped tool calls): registered by NewRegistry,
+	// they stayed at 0 in production until this wiring (BE3B-7).
+	if reg != nil {
+		aiUniworkSvc.SetUniworkMetrics(reg.AIUniwork)
+	}
+	// The MCP connector (ADR 0031): UniWork as an OAuth server and a remote MCP
+	// server for external AI clients. The platform flag mcp_connector decides
+	// per person and organization whether it answers at all.
+	homeSvc := service.NewHomeService(q, wsSvc)
+	mcpAuth := service.NewMcpAuthService(pool, q, orgSvc, cfg)
+	mcpAuth.SetFlags(flags)
+	mcpAuth.SetFetcher(service.NewCIMDFetcher(cfg.FrontendOrigin))
+	if reg != nil {
+		mcpAuth.SetMetrics(reg.Mcp)
+	}
+	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
+	mcpTools.SetDocuments(documentSvc)
+	mcpTools.SetFlags(flags)
+	askUNI.SetReadTools(mcpTools)
+	if reg != nil {
+		askUNI.SetAgentMetrics(reg.AIAsk)
+	}
+	// The sweep of expired attempts, tokens and abandoned clients stops with
+	// runCancel and is awaited below.
+	mcpCleanupDone := make(chan struct{})
+	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth:            authSvc,
-		Verification:    verification,
-		PasswordReset:   passwordReset,
-		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
-		Google:          google,
-		Organizations:   orgSvc,
-		OrgMembers:      orgMemberSvc,
-		People:          service.NewPeopleService(pool, q, orgSvc),
-		Departments:     service.NewDepartmentService(pool, q, orgSvc),
-		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
-		Tasks:           taskSvc,
-		Agents:          agentSvc,
-		Actors:          actorSvc,
-		Audit:           auditSvc,
-		Billing:         billingSvc,
-		Notifications:   notifSvc,
-		AskUNI:          askUNI,
-		Meetings:        meetingSvc,
-		Chat:            chatSvc,
-		Hub:             hub,
-		Redis:           rdb,
-		FeatureFlags:    flags,
-		Bus:             bus,
-		Storage:         store,
+		Auth:                authSvc,
+		DesktopAuth:         desktopAuthSvc,
+		Verification:        verification,
+		PasswordReset:       passwordReset,
+		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
+		Google:              google,
+		Organizations:       orgSvc,
+		OrgMembers:          orgMemberSvc,
+		People:              peopleSvc,
+		Departments:         service.NewDepartmentService(pool, q, orgSvc),
+		Workspaces:          wsSvc,
+		Onboarding:          service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
+		Tasks:               taskSvc,
+		Home:                homeSvc,
+		Calendar:            service.NewCalendarService(q, wsSvc),
+		CalendarConnections: calendarConnectionSvc,
+		EmailHub:            emailHubSvc,
+		Agents:              agentSvc,
+		Actors:              actorSvc,
+		Audit:               auditSvc,
+		Privacy:             privacySvc,
+		Billing:             billingSvc,
+		Notifications:       notifSvc,
+		AskUNI:              askUNI,
+		McpAuth:             mcpAuth,
+		McpTools:            mcpTools,
+		AIBYOK:              aiBYOK,
+		Meetings:            meetingSvc,
+		Chat:                chatSvc,
+		Graph:               graphSvc,
+		Hub:                 hub,
+		Redis:               rdb,
+		FeatureFlags:        flags,
+		Bus:                 bus,
+		Storage:             store,
+		FileAccess:          fileAccess,
+		Documents:           documentSvc,
+		DocumentChanges:     docChanges,
+		OfficeLease:         officeLeases,
+		Signatures:          service.NewSignatureService(pool, q, orgSvc),
+		AICredentials:       aiCredentialSvc,
+		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
+		// The UniWork AI façade (G6-03a): the org, document and frame routes,
+		// the conversation store why the key above exists, and the process's
+		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
+		// attaches the run counters built above.
+		AIUniwork:       aiUniworkSvc,
+		OfficeLaunch:    officeLaunchSvc,
+		Office:          officeSvc,
+		Preview:         previewSvc,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),
 		Readiness:       readiness,
 		Admin:           adminSvc,
+		DemoRequests:    service.NewDemoRequestService(pool, q),
 		Version:         version,
 		Commit:          commit,
 	})
@@ -362,12 +844,21 @@ func main() {
 		log.Info("shutting down", "signal", sig.String())
 	}
 	signal.Stop(quit)
+	// Ask UNI runs first: each stores what it streamed as interrupted and
+	// ends its stream, so srv.Shutdown below does not wait on a model call.
+	askUNI.Shutdown()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// srv.Shutdown never sees hijacked WebSockets. Close them with 1012 in
+	// batches over 8s, inside the same 10s budget, so clients reconnect to
+	// the other nodes gradually; events keep flowing to the ones still open.
+	wsDrained := make(chan struct{})
+	go func() { hub.DrainConnections(shutdownCtx, 8*time.Second); close(wsDrained) }()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
 	}
+	<-wsDrained
 	stopWorker()
 	select {
 	case <-outboxDone:
@@ -381,6 +872,88 @@ func main() {
 	case <-dispatcherDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: dispatcher did not stop in time")
+	}
+	select {
+	case <-graphWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("graph: projector worker did not stop in time")
+	}
+	// The meeting workers publish through the relay too, so they stop before it.
+	select {
+	case <-meetingWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: workers did not stop in time")
+	}
+	select {
+	case <-meetingAutoEndDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: auto-end did not stop in time")
+	}
+	select {
+	case <-chatRemindersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("chat: reminder worker did not stop in time")
+	}
+	select {
+	case <-fileGCDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("files: gc worker did not stop in time")
+	}
+	select {
+	case <-docWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: maintenance worker did not stop in time")
+	}
+	select {
+	case <-docChangesSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: change snapshot sweep did not stop in time")
+	}
+	select {
+	case <-uniworkSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: uniwork conversation sweep did not stop in time")
+	}
+	select {
+	case <-officeLeaseSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: offline lease sweep did not stop in time")
+	}
+	select {
+	case <-editLockSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: edit lock sweep did not stop in time")
+	}
+	select {
+	case <-retentionDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("outbox: event retention did not stop in time")
+	}
+	select {
+	case <-mcpCleanupDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mcp: cleanup sweep did not stop in time")
+	}
+	select {
+	case <-officeDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: reconciler did not stop in time")
+	}
+	select {
+	case <-officeSpoolSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: spool sweep did not stop in time")
+	}
+	select {
+	case <-billingWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("billing: workers did not stop in time")
+	}
+	fanoutCancel()
+	select {
+	case <-fanoutDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("realtime: fan-out queue did not drain in time")
 	}
 	if relay != nil {
 		relay.Stop()
@@ -406,3 +979,8 @@ func webVitals(reg *metrics.Registry) *metrics.WebVitals {
 	}
 	return reg.WebVitals
 }
+
+// uniworkAIKillSwitchFlag is the registry key (internal/featureflags) whose
+// default decides whether an organization may use UniWork AI; the TTL worker
+// reads it through the same override chain the config route uses.
+const uniworkAIKillSwitchFlag = "office_ai_uniwork"
