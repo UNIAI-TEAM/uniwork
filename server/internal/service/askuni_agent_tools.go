@@ -148,7 +148,7 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"status":      strArg("A task status as the tools show it, such as Cần làm, or its key such as todo; \"\" for any."),
 				"project_id":  strArg("A project id from list_projects; \"\" for any."),
 				"assignee_id": strArg("A user id from list_members, or \"me\" for the user asking; \"\" for anyone."),
-				"priority":    strArg("none, low, medium, high or urgent; \"\" for any."),
+				"priority":    strArg("A priority as the tools show it, such as Cao, or its key: none, low, medium, high or urgent; \"\" for any."),
 				"due_from":    strArg("Due on or after this date, YYYY-MM-DD; \"\" for no bound."),
 				"due_to":      strArg("Due on or before this date, YYYY-MM-DD; \"\" for no bound."),
 				"overdue":     boolArg("true for overdue tasks only."),
@@ -291,7 +291,7 @@ func (s *AskUNIService) taskItem(l taskLabels, t McpTask, text string) agentItem
 		project = orNone(l.projects[t.ProjectID]) + " (" + t.ProjectID + ")"
 	}
 	fields := fmt.Sprintf("Ref: %s\nStatus: %s\nPriority: %s\nDue: %s\nAssignee: %s\nProject: %s",
-		l.ref(t), statusLabel(l.statuses, t.Status), orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
+		l.ref(t), statusLabel(l.statuses, t.Status), priorityLabel(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
 	h := s.href(t.URL)
 	return agentItem{Kind: "task", ID: t.ID, Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -306,6 +306,8 @@ func (s *AskUNIService) agentListTasks(ctx context.Context, tc ai.ToolContext, r
 		// The model reads a status by its label (statusLabel) and may pass that back.
 		in.Status = statusKey(s.taskStatusLabels(ctx, tc), in.Status)
 	}
+	// So with a priority (priorityLabel).
+	in.Priority = statusKey(viPriority, in.Priority)
 	list, err := s.reads.ListTasks(ctx, principalOf(tc), in)
 	if err != nil {
 		return nil, err
@@ -432,7 +434,7 @@ func (s *AskUNIService) agentGetMeeting(ctx context.Context, tc ai.ToolContext, 
 
 func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text string) agentItem {
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nPriority: %s\nDue: %s\nLead: %s\nTask count: %d (%d done)",
-		p.ID, statusLabel(viProjectStatus, p.Status), orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
+		p.ID, statusLabel(viProjectStatus, p.Status), priorityLabel(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
 	h := s.href(p.URL)
 	return agentItem{Kind: "project", ID: p.ID, Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
 }

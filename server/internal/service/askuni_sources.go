@@ -487,7 +487,7 @@ func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext
 
 func taskSource(base string, t taskRow, names, statuses map[string]string) ai.Source {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", statusLabel(statuses, t.Status), t.Priority)
+	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", statusLabel(statuses, t.Status), priorityLabel(t.Priority))
 	if t.DueDate.Valid {
 		fmt.Fprintf(&b, " · Hạn: %s", t.DueDate.Time.Format("2006-01-02"))
 	}

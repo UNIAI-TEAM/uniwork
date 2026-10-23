@@ -427,15 +427,15 @@ func checkFakeCase(t *testing.T, e *evalWorld, c evalCase, convs map[string]stri
 			t.Errorf("no request to the model holds %q:\n%s", want, run.seen)
 		}
 	}
-	if raw := rawWords(res.Message.Content, rawStatusKeys()); len(raw) > 0 {
+	if raw := rawWords(res.Message.Content, rawLabelKeys()); len(raw) > 0 {
 		t.Errorf("answer holds the raw %v: %s", raw, res.Message.Content)
 	}
 	// The fake model echoes no status and only searches, so what offline can
-	// show is that no status line of search, focus or P0 sources hands the
-	// model a key to copy (UNI-2150). The read tools' lines are held by
-	// TestAskAgentStatusesReadAsTheWebShowsThem.
-	if raw := rawWords(statusLines(run.seen), rawStatusKeys()); len(raw) > 0 {
-		t.Errorf("a status line the model reads holds the raw %v:\n%s", raw, statusLines(run.seen))
+	// show is that no status or priority line of search, focus or P0 sources
+	// hands the model a key to copy (UNI-2150, UNI-2151). The read tools'
+	// lines are held by TestAskAgentStatusesAndPrioritiesReadAsTheWebShowsThem.
+	if raw := rawWords(labelLines(run.seen), rawLabelKeys()); len(raw) > 0 {
+		t.Errorf("a status or priority line the model reads holds the raw %v:\n%s", raw, labelLines(run.seen))
 	}
 	if c.Injection && c.InjectionInPart {
 		checkInjectionStaysInTheFile(t, run, c.InjectionText)
@@ -531,12 +531,16 @@ func rawWords(answer string, words []string) []string {
 	return found
 }
 
-// rawStatusKeys is every task, project and meeting status key that is not
-// its own label: none of them belongs in a Vietnamese answer, whatever was
-// asked. "backlog" reads "Backlog" on the web, so it is not raw.
-func rawStatusKeys() []string {
+// rawLabelKeys is every task, project and meeting status key and every
+// priority key that is not its own label: none of them belongs in a
+// Vietnamese answer, whatever was asked. "backlog" reads "Backlog" on the
+// web, so it is not raw. "none" and "low" are English words too, yet every
+// case wants a Vietnamese answer, dock_language included (its locale is en,
+// its question Vietnamese): an answer in English is wrong either way. A case
+// that wants English would have to skip the priority keys (UNI-2151).
+func rawLabelKeys() []string {
 	var keys []string
-	for _, labels := range []map[string]string{viTaskStatus, viProjectStatus, viMeetingStatus} {
+	for _, labels := range []map[string]string{viTaskStatus, viProjectStatus, viMeetingStatus, viPriority} {
 		for key, label := range labels {
 			if !strings.EqualFold(key, label) && !slices.Contains(keys, key) {
 				keys = append(keys, key)
@@ -547,17 +551,18 @@ func rawStatusKeys() []string {
 	return keys
 }
 
-// statusLines is the value of every "Status:" field and "Trạng thái:" excerpt
-// in text, one per line: what a model reads as the status it may repeat.
-func statusLines(text string) string {
+// labelLines is the value of every "Status:" and "Priority:" field and every
+// "Trạng thái:" and "Ưu tiên:" excerpt in text, one per line: what a model
+// reads as the status or priority it may repeat.
+func labelLines(text string) string {
 	var b strings.Builder
-	for _, m := range statusLineRE.FindAllStringSubmatch(text, -1) {
+	for _, m := range labelLineRE.FindAllStringSubmatch(text, -1) {
 		b.WriteString(m[1] + "\n")
 	}
 	return b.String()
 }
 
-var statusLineRE = regexp.MustCompile(`(?:Status|Trạng thái): ([^\n·]*)`)
+var labelLineRE = regexp.MustCompile(`(?:Status|Trạng thái|Priority|Ưu tiên): ([^\n·]*)`)
 
 func citesTitle(cs []AskCitation, title string) bool {
 	for _, c := range cs {
@@ -754,7 +759,7 @@ func TestAskUniEvalLive(t *testing.T) {
 				priced++
 			}
 		}
-		if w := rawWords(answer, rawStatusKeys()); len(w) > 0 {
+		if w := rawWords(answer, rawLabelKeys()); len(w) > 0 {
 			raw = append(raw, c.ID+" ("+strings.Join(w, ", ")+")")
 		}
 		if c.Security {
@@ -785,8 +790,9 @@ func TestAskUniEvalLive(t *testing.T) {
 		// theirs too). The grader still reads every security answer.
 		fmt.Fprintf(&b, "\nCâu bảo mật: %d/%d không lộ tiêu đề bị cấm (%.0f%%) so với ngưỡng 100%%.\n", securityOK, security, 100*float64(securityOK)/float64(security))
 	}
-	// A raw status key in a Vietnamese answer makes the case wrong (UNI-2137).
-	fmt.Fprintf(&b, "\nMã trạng thái thô trong câu trả lời: %d/%d ca (%s); mỗi ca có mã thô là sai.\n", len(raw), len(cases), strings.Join(raw, "; "))
+	// A raw status or priority key in a Vietnamese answer makes the case wrong
+	// (UNI-2137, UNI-2151).
+	fmt.Fprintf(&b, "\nMã trạng thái hoặc ưu tiên thô trong câu trả lời: %d/%d ca (%s); mỗi ca có mã thô là sai.\n", len(raw), len(cases), strings.Join(raw, "; "))
 	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -799,6 +805,6 @@ func TestAskUniEvalLive(t *testing.T) {
 		t.Error("no priced model call in the run: check the provider key and model rates")
 	}
 	if len(raw) > 0 {
-		t.Errorf("%d answer(s) hold a raw status key: %s", len(raw), strings.Join(raw, "; "))
+		t.Errorf("%d answer(s) hold a raw status or priority key: %s", len(raw), strings.Join(raw, "; "))
 	}
 }
