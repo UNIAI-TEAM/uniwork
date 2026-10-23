@@ -2,7 +2,7 @@
 
 Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838); `scripts/store-metadata.mjs` sinh từ
 đây `store/apple/store.config.json` (EAS Metadata, `eas metadata:push`) và `store/play/<ngôn ngữ>/*.txt` (main store
-listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên hiển thị "UniChat", định danh
+listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên trên store "UniWork Chat" ở cả App Store lẫn Google Play (tên "UniChat" trên App Store đã có app khác giữ); tên dưới icon trên máy "UniChat", định danh
 `com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
 `docs/superpowers/specs/2026-10-16-chat-native-apps-design.md` §3.1, §3.4, §11; quy trình nộp:
 `docs/runbooks/unichat-mobile-release.md`. Chữ ở đây là bản nháp; chủ sở hữu duyệt trước lần nộp production (Q1).
@@ -15,7 +15,7 @@ listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự c�
 
 **vi — mô tả:**
 
-> UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
+> UniWork Chat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
 > đồng bộ với UniWork trên web và máy tính.
 >
 > - Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc
@@ -35,7 +35,7 @@ listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự c�
 
 **en — description:**
 
-> UniChat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
+> UniWork Chat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
 > stay in sync with UniWork on the web and desktop.
 >
 > - Instant messages, quoted replies, threads, reactions, mentions and read receipts

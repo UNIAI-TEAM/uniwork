@@ -112,6 +112,7 @@ describe("the generated store metadata", () => {
     for (const info of Object.values(apple.apple.info)) {
       expect(`${info.subtitle}\n${info.description}\n${info.keywords.join(",")}`).not.toMatch(/gọi|call/i);
     }
+    expect(Object.values(apple.apple.info).map((info) => (info as { title?: string }).title)).toEqual(["UniWork Chat", "UniWork Chat"]);
     expect(apple.apple.review.notes).toContain("terms#acceptable-use");
     expect(apple.apple.review.notes).not.toMatch(/password: /i);
   });

@@ -21,7 +21,9 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const storeDir = path.resolve(here, "../store");
 const SITE = "https://app.uniworkos.com";
-const TITLE = "UniChat";
+// The stores' name. "UniChat" is held by another app on the App Store, so both stores list "UniWork Chat";
+// the name under the icon stays "UniChat" (app.config.ts › name).
+const TITLE = "UniWork Chat";
 // What the iOS copy drops while calls are off on iPhone (unichat_mobile_calls_ios): the description's
 // calls line and the review notes' calls paragraph.
 const CALLS_LINE = { vi: /^- Gọi thoại và video/, en: /^- Voice and video calls/ };

@@ -1,4 +1,4 @@
-UniChat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels stay in sync with UniWork on the web and desktop.
+UniWork Chat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels stay in sync with UniWork on the web and desktop.
 
 - Instant messages, quoted replies, threads, reactions, mentions and read receipts
 - Share photos and files in a conversation

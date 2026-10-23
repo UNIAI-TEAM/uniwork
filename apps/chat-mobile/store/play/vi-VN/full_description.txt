@@ -1,4 +1,4 @@
-UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn đồng bộ với UniWork trên web và máy tính.
+UniWork Chat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn đồng bộ với UniWork trên web và máy tính.
 
 - Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc
 - Gửi ảnh và tệp vào cuộc trò chuyện
