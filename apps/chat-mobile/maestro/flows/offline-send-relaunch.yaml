@@ -49,11 +49,11 @@ onFlowComplete:
       - evalScript: ${output.n = (output.n || 0) + 1}
       - tapOn:
           id: composer-input
-      - inputText: ${output.stamp + ' #' + output.n}
+      - inputText: ${output.stamp + '#' + output.n}
       - tapOn:
           id: composer-send
       - extendedWaitUntil:
-          visible: .*${output.stamp} #${output.n}.*
+          visible: .*${output.stamp}#${output.n}.*
           timeout: 10000
 # Killed with three messages in the outbox, opened again with no network.
 - stopApp
@@ -65,10 +65,10 @@ onFlowComplete:
 - tapOn:
     id: room-row-${MAESTRO_ROOM_ID}
 - extendedWaitUntil:
-    visible: .*${output.stamp} #3.*
+    visible: .*${output.stamp}#3.*
     timeout: 15000
-- assertVisible: .*${output.stamp} #1.*
-- assertVisible: .*${output.stamp} #2.*
+- assertVisible: .*${output.stamp}#1.*
+- assertVisible: .*${output.stamp}#2.*
 - setAirplaneMode: disabled
 # Delivered: the list's preview is the last one, as the server has it.
 # With unread elsewhere the back button reads "Back, 1 unread message" (chat-header.tsx › backBadge).
@@ -76,7 +76,7 @@ onFlowComplete:
 - extendedWaitUntil:
     visible:
       id: room-row-${MAESTRO_ROOM_ID}
-      text: .*${output.stamp} #3.*
+      text: .*${output.stamp}#3.*
     timeout: 60000
 # One more cold start, online: what the room shows now is the server's.
 - stopApp
@@ -88,26 +88,26 @@ onFlowComplete:
 - tapOn:
     id: room-row-${MAESTRO_ROOM_ID}
 - extendedWaitUntil:
-    visible: .*${output.stamp} #3.*
+    visible: .*${output.stamp}#3.*
     timeout: 30000
 - assertNotVisible:
     id: connection-banner-offline
 # In the order written…
 - assertVisible:
-    text: .*${output.stamp} #2.*
+    text: .*${output.stamp}#2.*
     below:
-      text: .*${output.stamp} #1.*
+      text: .*${output.stamp}#1.*
 - assertVisible:
-    text: .*${output.stamp} #3.*
+    text: .*${output.stamp}#3.*
     below:
-      text: .*${output.stamp} #2.*
+      text: .*${output.stamp}#2.*
 # …and each exactly once.
 - assertNotVisible:
-    text: .*${output.stamp} #1.*
+    text: .*${output.stamp}#1.*
     index: 1
 - assertNotVisible:
-    text: .*${output.stamp} #2.*
+    text: .*${output.stamp}#2.*
     index: 1
 - assertNotVisible:
-    text: .*${output.stamp} #3.*
+    text: .*${output.stamp}#3.*
     index: 1
