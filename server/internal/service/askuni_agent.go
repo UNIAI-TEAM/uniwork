@@ -301,7 +301,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	question := base.Question
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
-	// What the turn read that the asker did not write (R8); Task 10 reads it.
+	// What the turn read that the asker did not write (R8): a tainted turn
+	// never auto-applies a row.
 	taint := askTaint{conv: convTainted(conv)}
 	started := s.now()
 	// ranFor is the run's own time, taken before the title call that follows it.
@@ -443,6 +444,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		emit.emit(AskEvent{Name: "sources", Sources: cs})
 	}
 
+	// The write tools go to a dock turn only, with the actions open (R2).
+	writes := s.turnWrites(runCtx, tc, in)
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
 	promptID := ai.PromptCopilotAnswerV3
 	if in.Dock {
@@ -454,8 +457,17 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if withFiles {
 		promptID, vars["files"] = ai.PromptCopilotAnswerV5, plan.Files
 	}
+	if writes != nil { // @4 and @5 with the action rules (R12)
+		promptID = ai.PromptCopilotAnswerV6
+		if withFiles {
+			promptID = ai.PromptCopilotAnswerV7
+		}
+	}
 	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows, true)
+	if err := s.historyProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
+		return AskResult{}, err
+	}
 	// The rendered question as the gateway sends it on the first call, with
 	// the files; later calls replay it byte for byte, so the cached prefix
 	// holds, and send the files again on it (a tool-result turn or a
@@ -470,7 +482,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
-		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
+		Tools: agentToolRegistry(tools, writes.offered()), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 		Attachments: plan.Parts,
 	}
 	// Every call streams its text to the asker as it arrives (R2); without a
@@ -528,7 +540,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		if regen {
 			return keepOld(ai.NoticeRefused, err)
 		}
-		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil)
+		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil, nil)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
@@ -547,7 +559,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		// The dock's draft stops before the follow-up block, so a stop keeps the
 		// answer cut there and no question.
-		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil, nil)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -574,7 +586,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil, nil)
 	}
 
 	var resp ai.Response
@@ -611,7 +623,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
 		for i, c := range resp.ToolCalls {
 			before := book.next
-			content, step, items, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
+			content, step, items, err := s.agentToolCall(runCtx, tools, writes, tc, c, book, i, room)
 			if err != nil {
 				if n := askStopNotice(ctx, runCtx, err); n != "" {
 					return stop(n, err)
@@ -660,14 +672,18 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		if regen {
 			return keepOld(ai.NoticeAgentFailed, ai.ErrOutputInvalid)
 		}
-		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil, nil)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
 	var followups []string
 	if splitOff {
 		answer, followups = splitFollowups(answer)
 	}
-	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
+	// Only an answered turn stores its rows, with the taint it ended with.
+	if writes != nil {
+		writes.tainted = taint.tainted()
+	}
+	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups, writes)
 	if first && in.Dock {
 		nameWith = namedSources(answer, book)
 	}
@@ -690,29 +706,42 @@ func namedSources(answer string, b *sourceBook) string {
 	})
 }
 
-// finishAgent stores the turn with the last call's usage row. Its text
-// already streamed, so it ends with citations, any follow-ups and done.
-func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes})
+// finishAgent stores the turn with the last call's usage row, and with the
+// rows writes recorded (nil on every turn that did not answer). Its text
+// already streamed, so it ends with any proposals, citations, any follow-ups
+// and done.
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string, writes *askWrites) (AskResult, error) {
+	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes}
+	if writes != nil {
+		turn.Proposals, turn.Mode, turn.Tainted, turn.RunID = writes.rows, writes.mode, writes.tainted, res.RunID
+	}
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, turn)
 	if err != nil {
 		return AskResult{}, err
 	}
 	res.Message, res.Citations = msg, citations
+	if len(turn.Proposals) > 0 {
+		if res.Proposals = s.turnProposals(ctx, base.UserID, w.OrganizationID, msg.ID, writes); len(res.Proposals) > 0 {
+			emit.emit(AskEvent{Name: "proposal", Proposals: res.Proposals})
+		}
+	}
 	emit.emitDone(res, followups)
 	return res, nil
 }
 
 // agentToolCall answers the i-th tool call of a reply: past
 // askAgentMaxCallsPerRound it is refused unrun, a tool the agent lacks is
-// answered unrun, and any other call runs and is rendered within limit bytes.
-// The step reports it, counting the sources it found by kind (errors and
-// notes carry no Key). It returns the items the tool found, for the taint rules.
-// A Go error is the server's and ends the run.
-func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, []agentItem, error) {
+// answered unrun, a write tool records a proposal row (agentWriteCall), and
+// any other call runs and is rendered within limit bytes. The step reports
+// it, counting the sources it found by kind (errors and notes carry no Key).
+// It returns the items the tool found or read, for the taint rules. A Go
+// error is the server's and ends the run.
+func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, writes *askWrites, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, []agentItem, error) {
 	started := s.now()
 	j := slices.IndexFunc(tools, func(t agentTool) bool { return t.Name == c.Name })
+	wt, isWrite := writes.tool(c.Name)
 	name := "unknown" // the model's own name would be an unbounded metric label
-	if j >= 0 {
+	if j >= 0 || isWrite {
 		name = c.Name
 	}
 	content, status := "error: too_many_calls", "error"
@@ -721,6 +750,8 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 	var items []agentItem
 	switch {
 	case i >= askAgentMaxCallsPerRound:
+	case isWrite:
+		content, status, step.Label, items, err = s.agentWriteCall(ctx, writes, wt, tc, c.Input)
 	case j < 0:
 		content = "error: unknown_tool"
 	default:
@@ -734,11 +765,11 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 				step.Counts[it.Kind]++
 			}
 		}
-		// The run's deadline reached inside a tool is the same refusal as one
-		// reached inside a model call.
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = &ai.Error{Code: ai.ErrProviderTimeout.Code, Status: ai.ErrProviderTimeout.Status, Msg: ai.ErrProviderTimeout.Msg, Err: err}
-		}
+	}
+	// The run's deadline reached inside a tool is the same refusal as one
+	// reached inside a model call.
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = &ai.Error{Code: ai.ErrProviderTimeout.Code, Status: ai.ErrProviderTimeout.Status, Msg: ai.ErrProviderTimeout.Msg, Err: err}
 	}
 	if s.agentMetrics != nil {
 		s.agentMetrics.ObserveAskTool(name, status, s.now().Sub(started).Seconds())
@@ -764,6 +795,11 @@ func stepLabel(tool string, args json.RawMessage, items []agentItem) string {
 		_ = json.Unmarshal(args, &a)
 		label = a.Query
 	}
+	return clipLabel(label)
+}
+
+// clipLabel is a step label on one line, at most stepLabelMax runes.
+func clipLabel(label string) string {
 	label = oneLine(label)
 	if r := []rune(label); len(r) > stepLabelMax {
 		label = strings.TrimSpace(string(r[:stepLabelMax]))

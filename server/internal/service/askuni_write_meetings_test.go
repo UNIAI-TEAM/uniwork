@@ -294,9 +294,11 @@ func TestAskWriteMeetingSameTurnConflicts(t *testing.T) {
 			t.Errorf("%s after a cancel of the same meeting: err = %v", c.tool, err)
 		}
 	}
-	// a second edit would be written against a revision the first one outdates
+	// a second edit would be written against a revision the first one
+	// outdates: the loop refuses any second row on one existing meeting
 	first := askPrepare(t, s, tc, "update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Một"}`, m.ID))
-	if _, err := writeToolNamed(t, s, "update_meeting").prepare(ctx, tc, json.RawMessage(fmt.Sprintf(`{"meeting_id":%q,"title":"Hai"}`, m.ID)), []askDraftRow{first}); !errors.As(err, new(McpInvalidArgs)) {
+	second := askPrepare(t, s, tc, "update_meeting", fmt.Sprintf(`{"meeting_id":%q,"title":"Hai"}`, m.ID), first)
+	if err := askSameTarget(second, []askDraftRow{first}); !errors.As(err, new(McpInvalidArgs)) {
 		t.Errorf("second edit: err = %v", err)
 	}
 	// a state the service would refuse is no row

@@ -117,13 +117,17 @@ func (e *evalWorld) useAgent(t *testing.T, on bool) {
 }
 
 // evalAgentFlags is the seed's flags with ask_uni_agent and ask_uni_attachments
-// on for one organization.
+// on for one organization, and ask_uni_actions off: the eval measures the
+// read-only prompts, @4 and @5 (R12).
 type evalAgentFlags struct {
 	base McpFlags
 	org  string
 }
 
 func (f evalAgentFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
+	if key == askActionsFlag {
+		return false
+	}
 	if key == askAgentFlag || key == askAttachmentsFlag {
 		return featureflag.EvalContextFrom(ctx).OrganizationID == f.org
 	}

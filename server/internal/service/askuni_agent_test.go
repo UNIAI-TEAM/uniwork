@@ -600,11 +600,11 @@ func TestAgentToolCallCountsASourceOncePerRun(t *testing.T) {
 	}}}
 	b := newSourceBook(nil)
 	call := provider.ToolCall{ID: "c", Name: "find", Input: json.RawMessage(`{}`)}
-	_, first, _, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	_, first, _, err := s.agentToolCall(context.Background(), tools, nil, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, second, _, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	_, second, _, err := s.agentToolCall(context.Background(), tools, nil, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -968,7 +968,7 @@ func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
-	_, _, _, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
+	_, _, _, err := s.agentToolCall(ctx, s.agentTools(), nil, tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
 	if !errors.Is(err, ai.ErrProviderTimeout) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}

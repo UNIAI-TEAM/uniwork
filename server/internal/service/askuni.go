@@ -126,6 +126,9 @@ type AskInput struct {
 	// AttachmentIDs are the files the asker uploaded for this question, in the
 	// order they were attached: at most five, each an unsent upload of theirs.
 	AttachmentIDs []string
+	// Mode is the permission mode the asker runs this turn in (ask, plan,
+	// auto); "" is their saved one. The organization's ceiling clamps it (R9).
+	Mode string
 }
 
 // errRegenerateTarget is the one refusal for a message id that is not the
@@ -155,6 +158,9 @@ type AskResult struct {
 	RunID string
 	// Usage sums the turn's model calls.
 	Usage AskUsage
+	// Proposals are the rows the turn proposed, as they stand after any
+	// auto-applied ones ran; none when the agent proposed nothing.
+	Proposals []AskProposal
 }
 
 const (
@@ -307,6 +313,13 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			return AskResult{}, err
 		}
 		q, ok := regenerateQuestion(rows, in.Regenerate)
+		if ok { // an answer with proposals, in any state, is kept (R15)
+			n, err := s.q.AiCountMessageProposals(ctx, db.AiCountMessageProposalsParams{OrganizationID: w.OrganizationID, MessageID: strText(in.Regenerate)})
+			if err != nil {
+				return AskResult{}, err
+			}
+			ok = n == 0
+		}
 		if !ok {
 			return AskResult{}, Invalid(errRegenerateTarget)
 		}
@@ -797,6 +810,12 @@ type askTurn struct {
 	UserID, WorkspaceID string
 	// FileNotes are the files of the turn read only in part, stored on the answer.
 	FileNotes []askFileNote
+	// Proposals are the rows the turn's write calls recorded, stored with the
+	// answer from position 1 under the turn's Mode, Tainted mark and RunID.
+	Proposals []askDraftRow
+	Mode      string
+	Tainted   bool
+	RunID     string
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -846,6 +865,9 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		FileNotes: jsonOrEmptyList(t.FileNotes),
 	})
 	if err != nil {
+		return db.AiMessage{}, err
+	}
+	if err := s.insertTurnProposals(ctx, q, orgID, convID, msg.ID, t); err != nil {
 		return db.AiMessage{}, err
 	}
 	// A regenerate has no question of its own: an empty title leaves the stored one.
@@ -915,11 +937,11 @@ func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID str
 	return out, nil
 }
 
-// DeleteConversation drops a conversation with its messages, feedback and
-// files: a file lives as long as the conversation holds it, so the rows go and
-// the file store is told to release them in the same transaction (the bytes
-// are its collector's to remove). Deleting is not audited, like the rest of
-// the asker's private history.
+// DeleteConversation drops a conversation with its messages, feedback,
+// proposals and files: a file lives as long as the conversation holds it, so
+// the rows go and the file store is told to release them in the same
+// transaction (the bytes are its collector's to remove). Deleting is not
+// audited, like the rest of the asker's private history.
 func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversationID string) error {
 	conv, err := s.ownConversation(ctx, userID, conversationID, "")
 	if err != nil {
@@ -935,6 +957,10 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 		return err
 	}
 	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
+		return err
+	}
+	// Its proposals go with it; what they changed and its audit stay (R20).
+	if err := q.AiDeleteConversationProposals(ctx, db.AiDeleteConversationProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: strText(conversationID)}); err != nil {
 		return err
 	}
 	fileIDs, err := q.AiDeleteConversationAttachments(ctx, db.AiDeleteConversationAttachmentsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID})

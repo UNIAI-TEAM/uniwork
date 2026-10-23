@@ -139,24 +139,17 @@ func (s *AskUNIService) askMeetingTarget(ctx context.Context, tc ai.ToolContext,
 	return before, target, refs, false, nil
 }
 
-// askMeetingClash refuses a row that an earlier row of this turn would make fail
-// or go stale: the meeting is already cancelled, or an earlier row changed it
-// and moved the revision this row was read at. A meeting made this turn has no
-// revision to outdate, so only the cancel counts for it.
-func askMeetingClash(tool, meetingID string, earlier []askDraftRow) error {
-	changes := func(t string) bool { return t == "update_meeting" || t == "cancel_meeting" || t == "restore_meeting" }
+// askMeetingClash refuses a row on a meeting an earlier row of this turn
+// cancels: it would fail at apply. A second row on an existing meeting is the
+// loop's to refuse (askSameTarget); this is what remains for a meeting made
+// this turn, which a {{row:N.id}} names and which has no revision to outdate.
+func askMeetingClash(meetingID string, earlier []askDraftRow) error {
 	for i, r := range earlier {
 		var a struct {
 			MeetingID string `json:"meeting_id"`
 		}
-		if json.Unmarshal(r.Args, &a) != nil || a.MeetingID != meetingID || r.Tool == "schedule_meeting" {
-			continue
-		}
-		if r.Tool == "cancel_meeting" {
+		if r.Tool == "cancel_meeting" && json.Unmarshal(r.Args, &a) == nil && a.MeetingID == meetingID {
 			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already cancels this meeting; make one change per meeting per turn", i+1)}
-		}
-		if r.TargetRevision != nil && changes(tool) && changes(r.Tool) {
-			return McpInvalidArgs{Msg: fmt.Sprintf("row %d of this turn already changes this meeting; make one change per meeting per turn", i+1)}
 		}
 	}
 	return nil
@@ -265,7 +258,7 @@ func (s *AskUNIService) prepareUpdateMeeting(ctx context.Context, tc ai.ToolCont
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	if err := askMeetingClash("update_meeting", in.MeetingID, earlier); err != nil {
+	if err := askMeetingClash(in.MeetingID, earlier); err != nil {
 		return askDraftRow{}, err
 	}
 	if !isRef {
@@ -340,7 +333,7 @@ func (s *AskUNIService) prepareInviteToMeeting(ctx context.Context, tc ai.ToolCo
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	if err := askMeetingClash("invite_to_meeting", in.MeetingID, earlier); err != nil {
+	if err := askMeetingClash(in.MeetingID, earlier); err != nil {
 		return askDraftRow{}, err
 	}
 	if !isRef && before.Status != MeetingScheduled && before.Status != MeetingInProgress {
@@ -379,7 +372,7 @@ func (s *AskUNIService) prepareMeetingState(ctx context.Context, tc ai.ToolConte
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	if err := askMeetingClash(tool, meetingID, earlier); err != nil {
+	if err := askMeetingClash(meetingID, earlier); err != nil {
 		return askDraftRow{}, err
 	}
 	if !isRef {
