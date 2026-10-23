@@ -908,10 +908,13 @@ func main() {
 		log.Warn("http shutdown", "err", err)
 	}
 	<-wsDrained
-	// A clerk's summary run outlives its request (UNI-1995 #12): the runs in
-	// flight get time to store, then the rest are cancelled, so each settles
-	// its usage row and gives its lease back before the pool closes.
-	if !meetingSvc.StopSummaryRuns(20 * time.Second) {
+	// A clerk's summary run outlives its request (UNI-1995 #12). A run takes
+	// 1-3 minutes, so waiting for it would not fit the pod's 30s default
+	// grace (deployment-be.yaml sets none): the runs get 2s, then are
+	// cancelled, and each settles its usage row and gives its lease back
+	// (failure code on GET summary) while the pod is still alive. A run
+	// already storing finishes its store (summaryStoreTimeout).
+	if !meetingSvc.StopSummaryRuns(2 * time.Second) {
 		log.Warn("meetings: summary runs did not stop in time")
 	}
 	stopWorker()
