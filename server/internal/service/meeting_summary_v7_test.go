@@ -427,7 +427,7 @@ func TestSummaryRunDeadlineFitsEveryCall(t *testing.T) {
 }
 
 // Demo bug (UNI-1995 #12): a run that answered a thinner record (topics with
-// no points, or no decisions, items or open questions where the stored record
+// no points and no decisions, items or open questions where the stored record
 // had them) replaced the better stored summary. It is now refused as
 // incomplete and the stored summary stays; a record with fewer items because
 // people handled them since is still stored.
@@ -444,8 +444,7 @@ func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, thin := range []struct{ name, text string }{
-		{"topics without points", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[{"title":"Gửi bản build","owner":"An","due":"","description":"","priority":"","evidence":["S1"],"draft":""}],"open_questions":[]}`},
-		{"no decisions, items or questions", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[{"text":"Ship","evidence":["S1"]}]}],"decisions":[],"action_items":[],"open_questions":[]}`},
+		{"topics only, without points", `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[],"action_items":[],"open_questions":[]}`},
 		{"items lost while nothing was handled", `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`},
 	} {
 		reply = thin.text
@@ -468,7 +467,8 @@ func TestSummarizeKeepsTheBetterStoredRecord(t *testing.T) {
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, itemID, "đã xong"); err != nil {
 		t.Fatal(err)
 	}
-	reply = `{"tldr":"Chốt ship.","topics":[],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`
+	// and a short meeting's topic without points is not a thinner record.
+	reply = `{"tldr":"Chốt ship.","topics":[{"title":"Phát hành","start_label":"S1","points":[]}],"decisions":[{"text":"Ship thứ Sáu","evidence":["S1"]}],"action_items":[],"open_questions":[]}`
 	if next, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil || next.ID == first.ID {
 		t.Fatalf("a record without the handled item was refused: %v", err)
 	}

@@ -343,18 +343,14 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor A
 }
 
 // summaryRegression says why next is a thinner record than the stored prev,
-// "" when it is not. The model sometimes answers a long meeting with topics
-// whose points are missing, or with every list empty; storing that would
-// replace a better record people may have read. Fewer action items are fine
-// when the meeting holds items people handled (handled): those are left out
-// of the prompt on purpose, so a stored record of items only may be followed
-// by one with no list at all.
+// "" when it is not. The model sometimes answers a long meeting with every
+// list empty (its topics then often lack points too); storing that would
+// replace a better record people may have read. A topic without points alone
+// is not thin: a short meeting's single topic is often answered that way.
+// Fewer action items are fine when the meeting holds items people handled
+// (handled): those are left out of the prompt on purpose, so a stored record
+// of items only may be followed by one with no list at all.
 func summaryRegression(prev db.MeetingSummary, next ai.MeetingSummary, handled bool) string {
-	for _, t := range next.Topics {
-		if len(t.Points) == 0 {
-			return "a topic without points"
-		}
-	}
 	if len(DecodeSummaryDecisions(prev.Decisions))+len(DecodeSummaryDecisions(prev.OpenQuestions)) > 0 &&
 		len(next.Decisions)+len(next.ActionItems)+len(next.OpenQuestions) == 0 {
 		return "no decisions, action items or open questions"
