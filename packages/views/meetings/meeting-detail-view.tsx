@@ -363,7 +363,8 @@ export function MeetingDetailView({
                   <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meeting.id} />
                 </div>
               ) : null}
-              {showSummary && aiCaps?.ask_uni ? (
+              {/* The box answers from what was said: for the people of the meeting only. */}
+              {showSummary && aiCaps?.ask_uni && !aiRestricted ? (
                 <div className="order-3 min-w-0">
                   <PanelCard title={t("meetings.askUniTitle")} icon={Sparkles}>
                     {/* Chat takes a message only from someone in the room. */}

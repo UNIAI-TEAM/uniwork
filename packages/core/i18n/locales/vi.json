@@ -3999,6 +3999,7 @@
       "dismissedGroup": "Đã bỏ qua ({{count}})",
       "empty": "Chưa có việc cần làm. Thêm việc để giao sau họp.",
       "emptyReadOnly": "Chưa có việc nào.",
+      "restrictedNote": "Các việc khác của cuộc họp chỉ dành cho người tham dự.",
       "loadFailed": "Chưa tải được việc cần làm.",
       "sourceManual": "Thêm tay",
       "sourceAi": "Từ tóm tắt AI",

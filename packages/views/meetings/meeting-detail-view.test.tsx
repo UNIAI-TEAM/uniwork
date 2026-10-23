@@ -508,19 +508,30 @@ describe("MeetingDetailView", () => {
           meeting: { ...meeting, host_user_id: "u-other", status: "ENDED", ai_content_readable: false },
         });
       }
+      if (p.endsWith("/ai/capabilities")) return Promise.resolve(capabilities());
       if (p.endsWith("/action-items")) {
+        // What the server answers an outsider: the tasks the meeting handed out.
         return Promise.resolve({
-          items: [{ id: "a0", source: "AI", title: "Gửi biên bản", status: "PENDING", evidence: [{ kind: "segment", id: "g1" }] }],
-          counts: { pending: 1, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+          items: [
+            {
+              id: "a0", source: "AI", title: "Đặt cọc hội trường", status: "CONVERTED",
+              task: { id: "t1", title: "Đặt cọc hội trường", status: "todo", done: false, overdue: false },
+            },
+          ],
+          counts: { pending: 2, converted: 1, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
         });
       }
       return Promise.resolve({});
     });
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByTestId("meeting-ai-restricted")).toBeInTheDocument();
-    // The action items stay with the workspace; the lines they cite do not.
-    expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
+    // The tasks the meeting handed out stay with the workspace; the rest, and the lines they cite, do not.
+    expect(await screen.findByText("Đặt cọc hội trường")).toBeInTheDocument();
+    expect(screen.getByText("Các việc khác của cuộc họp chỉ dành cho người tham dự.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
+    // Ask UNI's box answers from what was said: not for them either.
+    await waitFor(() => expect(asked.some((p) => p.endsWith("/ai/capabilities"))).toBe(true));
+    expect(screen.queryByRole("heading", { name: "Hỏi UNI về cuộc họp" })).not.toBeInTheDocument();
     expect(asked.some((p) => p.endsWith("/transcript") || p.endsWith("/summary"))).toBe(false);
   });
 

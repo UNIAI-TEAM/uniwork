@@ -4000,6 +4000,7 @@
       "dismissedGroup": "Dismissed ({{count}})",
       "empty": "No action items yet. Add one to assign after the meeting.",
       "emptyReadOnly": "No items yet.",
+      "restrictedNote": "The meeting's other items are for its participants.",
       "loadFailed": "Couldn't load the action items.",
       "sourceManual": "Added by hand",
       "sourceAi": "From the AI summary",
