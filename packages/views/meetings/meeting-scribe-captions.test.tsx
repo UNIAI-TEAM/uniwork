@@ -9,6 +9,7 @@ import {
   SCRIBE_CAPTION_TOPIC,
   scribeTranslationTopic,
   useScribeInRoom,
+  useScribePaused,
 } from "./meeting-scribe-captions";
 import { humanParticipants } from "./meeting-signals";
 
@@ -17,7 +18,7 @@ type Handler = (reader: { info: { attributes?: Record<string, string> }; readAll
 const lk = vi.hoisted(() => ({
   handlers: new Map<string, Handler>(),
   people: new Map<string, { identity: string; name: string; isAgent?: boolean }>(),
-  remote: [] as { identity: string; isAgent?: boolean }[],
+  remote: [] as { identity: string; isAgent?: boolean; attributes?: Record<string, string> }[],
   remoteOptions: [] as unknown[],
 }));
 
@@ -291,6 +292,25 @@ describe("useScribeInRoom", () => {
     render(<Probe />);
     expect(screen.getByTestId("scribe")).toHaveTextContent("true");
     expect(lk.remoteOptions[0]).toEqual({ updateOnlyOn: [] });
+  });
+});
+
+describe("useScribePaused", () => {
+  it("reads the agent's own uw.scribe_state and follows attribute changes", () => {
+    function Probe() {
+      return <span data-testid="paused">{String(useScribePaused())}</span>;
+    }
+    // Only the agent's attribute counts: nobody else can pause the scribe for the room.
+    lk.remote = [
+      { identity: "uw_participant_p1", attributes: { "uw.scribe_state": "degraded" } },
+      { identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } },
+    ];
+    const view = render(<Probe />);
+    expect(screen.getByTestId("paused")).toHaveTextContent("false");
+    expect(lk.remoteOptions[0]).toEqual({ updateOnlyOn: ["participantAttributesChanged"] });
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
+    view.rerender(<Probe />);
+    expect(screen.getByTestId("paused")).toHaveTextContent("true");
   });
 });
 

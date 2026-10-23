@@ -24,6 +24,9 @@ type ConferenceProvider interface {
 	// dispatch id; RemoveScribe cancels that dispatch and removes the agent.
 	DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error)
 	RemoveScribe(ctx context.Context, req RemoveScribeRequest) error
+	// ScribeDispatchAssigned reports whether a worker took the dispatch's
+	// job; false means no worker had capacity for it yet.
+	ScribeDispatchAssigned(ctx context.Context, req RemoveScribeRequest) (bool, error)
 	// SetParticipantAttributes writes server-owned attributes on a
 	// participant in the room (an empty value deletes one) and leaves its
 	// permissions alone.

@@ -7,7 +7,10 @@ import { wrapWithNav } from "../test/api-mock";
 import { ParticipantPresenceAnnouncer, ScreenShareAnnouncer, ScribeAnnouncer } from "./meeting-room-announcers";
 import { MeetingStageHeader } from "./meeting-stage-header";
 
-const lk = vi.hoisted(() => ({ room: null as unknown, remote: [] as { identity: string; isAgent?: boolean }[] }));
+const lk = vi.hoisted(() => ({
+  room: null as unknown,
+  remote: [] as { identity: string; isAgent?: boolean; attributes?: Record<string, string> }[],
+}));
 
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => lk.room,
@@ -315,6 +318,20 @@ describe("ScribeAnnouncer", () => {
     lk.remote = [];
     rerender(<ScribeAnnouncer />);
     expect(live).toHaveTextContent("Thư ký AI đã dừng ghi lời");
+  });
+
+  it("says when the scribe pauses on an STT outage and when it is back", () => {
+    vi.useRealTimers();
+    const meeting = { scribe_enabled: true };
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    const { rerender } = render(<ScribeAnnouncer meeting={meeting} />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
+    rerender(<ScribeAnnouncer meeting={meeting} />);
+    expect(live).toHaveTextContent("Thư ký AI tạm dừng, đang thử lại");
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } }];
+    rerender(<ScribeAnnouncer meeting={meeting} />);
+    expect(live).toHaveTextContent("Thư ký AI đang ghi lời");
   });
 
   it("tells the room once when the scribe's status turns FAILED", () => {

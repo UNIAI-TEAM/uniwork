@@ -27,6 +27,7 @@ from scribe import config, metrics
 from scribe.api import ApiError, UniworkClient
 from scribe.batcher import SegmentBatcher
 from scribe.extract import ExtractCadence
+from scribe.health import StatePublisher, SttHealth
 from scribe.job import (
     AGENT_IDENTITY,
     AGENT_NAME,
@@ -74,11 +75,13 @@ server = AgentServer(
     # Spec §4.1: subscribe and publish data; visible in the room. Audio only
     # for the phone callers' notice (UNI-1995 access): microphone source, a
     # track only the caller being told may subscribe to; never video.
+    # can_update_metadata: the agent's own uw.scribe_state attribute
+    # (benchmark #1); it never writes anyone else's.
     permissions=WorkerPermissions(
         can_publish=True,
         can_subscribe=True,
         can_publish_data=True,
-        can_update_metadata=False,
+        can_update_metadata=True,
         can_publish_sources=[models.TrackSource.MICROPHONE],
     ),
 )
@@ -91,7 +94,9 @@ async def entrypoint(ctx: JobContext) -> None:
         return
     http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     client = UniworkClient(http, SETTINGS.api_url, meta["meeting_id"], meta["token"])
-    batcher = SegmentBatcher(client.segments)
+    # A 404 mid-meeting: this run's token is no longer valid; leave so the sweep sends a fresh run.
+    batcher = SegmentBatcher(client.segments, on_gone=lambda: ctx.shutdown(reason="run gone"))
+    health = SttHealth()
 
     async def extract() -> None:
         # The server reads what it stored: send the queued finals first.
@@ -150,12 +155,13 @@ async def entrypoint(ctx: JobContext) -> None:
             # The job id keeps segment ids unique across the runs of one meeting.
             segment_prefix=f"{ctx.job.id}-{track.sid}",
             identity=p.identity,
-            stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize),
+            stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize, base_url=SETTINGS.stt_base_url),
             publish=publish,
             on_final=on_final,
             idle_close_s=SETTINGS.idle_close_s,
             language=meta["locale"],
             diarize=diarize,
+            health=health,
         )
 
     async def transcribe(t: TrackTranscriber, track: rtc.Track) -> None:
@@ -231,7 +237,10 @@ async def entrypoint(ctx: JobContext) -> None:
         for t in list(transcribers.values()):
             if t.identity == p.identity:
                 task = asyncio.create_task(
-                    t.set_stt(make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize), diarize=diarize)
+                    t.set_stt(
+                        make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize, base_url=SETTINGS.stt_base_url),
+                        diarize=diarize,
+                    )
                 )
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
@@ -343,6 +352,16 @@ async def entrypoint(ctx: JobContext) -> None:
 
     translating["task"] = asyncio.create_task(translate_ticks())
     tasks.add(translating["task"])
+
+    # Benchmark #1: the room learns when STT is down, and its clients fall back to device captions.
+    state = StatePublisher(health, lambda attrs: ctx.room.local_participant.set_attributes(attrs))
+
+    async def health_ticks() -> None:
+        while True:
+            await asyncio.sleep(1)
+            await state.tick()
+
+    tasks.add(asyncio.create_task(health_ticks()))
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

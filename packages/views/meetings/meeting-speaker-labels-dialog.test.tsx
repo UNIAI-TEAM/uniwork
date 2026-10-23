@@ -118,6 +118,23 @@ describe("MeetingSpeakerLabelsDialog", () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it("offers the same mic's named speaker as a one-click merge", async () => {
+    // Benchmark #18: the next STT session's "A" is often the same person.
+    openDialog();
+    const merge = await screen.findByRole("button", { name: "Giống Người nói 2 · An" });
+    // A speaker with a name already gets no suggestion.
+    expect(screen.getAllByRole("button", { name: /^Giống / })).toHaveLength(1);
+    fireEvent.click(merge);
+    expect(screen.queryByRole("button", { name: /^Giống / })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l1", {
+        method: "PUT",
+        body: { user_id: "u1" },
+      }),
+    );
+  });
+
   it("says when there is nobody to name yet", async () => {
     labels = [];
     openDialog();

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRemoteParticipants, useRoomContext } from "@livekit/components-react";
+import { RoomEvent } from "livekit-client";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -52,6 +53,20 @@ export function applyScribeCaption(lines: readonly ScribeCaption[], c: ScribeCap
 export function useScribeInRoom(): boolean {
   // Joins and leaves only (LiveKit always follows those): a speaking change must not re-render the stage.
   return useRemoteParticipants({ updateOnlyOn: [] }).some((p) => p.isAgent);
+}
+
+/** The agent's own attribute: "degraded" while its speech recognition fails and it retries (benchmark #1). */
+export const SCRIBE_STATE_ATTRIBUTE = "uw.scribe_state";
+
+/**
+ * The scribe is in the room but paused: its STT vendor fails. Only the
+ * agent's attribute counts (it is the one participant that sets its own).
+ * Each viewer then keeps their device captions on until it is back.
+ */
+export function useScribePaused(): boolean {
+  return useRemoteParticipants({ updateOnlyOn: [RoomEvent.ParticipantAttributesChanged] }).some(
+    (p) => p.isAgent && p.attributes?.[SCRIBE_STATE_ATTRIBUTE] === "degraded",
+  );
 }
 
 /** vi-VN and vi are the same caption language (the agent's base_language). */

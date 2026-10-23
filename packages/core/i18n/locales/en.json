@@ -4119,7 +4119,11 @@
       "noticeAck": "Got it",
       "formLabel": "AI scribe",
       "formHint": "Writes the transcript, shows captions and summarizes the meeting. The audio is processed outside Vietnam.",
-      "createdScribeNotSet": "The meeting was created, but the AI scribe wasn't changed. Change it on the meeting page."
+      "createdScribeNotSet": "The meeting was created, but the AI scribe wasn't changed. Change it on the meeting page.",
+      "chipPaused": "AI scribe paused, retrying",
+      "chipPausedShort": "Paused",
+      "explainPaused": "Speech recognition is failing. The AI scribe stays in the room and keeps retrying; meanwhile captions use each person's device.",
+      "speakerSameAs": "Same as speaker {{n}} · {{name}}"
     },
     "aiAccess": {
       "title": "AI scribe and AI content",

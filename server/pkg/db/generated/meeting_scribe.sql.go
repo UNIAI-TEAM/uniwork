@@ -543,6 +543,51 @@ func (q *Queries) MeetingExtractCursor(ctx context.Context, meetingID string) (s
 	return cursor, err
 }
 
+const requeueScribeRunDispatch = `-- name: RequeueScribeRunDispatch :one
+UPDATE meeting_scribe_runs SET dispatched_at = now(), updated_at = now()
+WHERE id = $1 AND status = 'DISPATCHED' AND dispatch_id = $2
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
+`
+
+type RequeueScribeRunDispatchParams struct {
+	ID         string `json:"id"`
+	DispatchID string `json:"dispatch_id"`
+}
+
+// tenant: by-id
+// A dispatch no worker took (benchmark #13): the 60 s clock restarts without
+// counting a miss. Guarded by the dispatch id the caller read, so two sweeps
+// that saw the same dispatch send one new one.
+func (q *Queries) RequeueScribeRunDispatch(ctx context.Context, arg RequeueScribeRunDispatchParams) (MeetingScribeRun, error) {
+	row := q.db.QueryRow(ctx, requeueScribeRunDispatch, arg.ID, arg.DispatchID)
+	var i MeetingScribeRun
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.MeetingID,
+		&i.DispatchID,
+		&i.Status,
+		&i.Failures,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.SpeechMs,
+		&i.Segments,
+		&i.MeteredMs,
+		&i.SttSessionMs,
+		&i.ExtractCursorSegmentID,
+		&i.Extracts,
+		&i.LastExtractAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AgentParticipantSid,
+	)
+	return i, err
+}
+
 const scribeRoomPresence = `-- name: ScribeRoomPresence :one
 SELECT
   EXISTS (SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = $1 AND a.left_at IS NULL) AS present,
@@ -561,6 +606,37 @@ func (q *Queries) ScribeRoomPresence(ctx context.Context, meetingID string) (Scr
 	row := q.db.QueryRow(ctx, scribeRoomPresence, meetingID)
 	var i ScribeRoomPresenceRow
 	err := row.Scan(&i.Present, &i.LastLeftAt)
+	return i, err
+}
+
+const scribeRunHealth = `-- name: ScribeRunHealth :one
+SELECT
+  count(*)::int AS active,
+  (count(*) FILTER (WHERE r.segments > 0 AND NOT EXISTS (
+    SELECT 1 FROM meeting_transcript_segments s
+    WHERE s.meeting_id = r.meeting_id AND s.created_at > $1::timestamptz)))::int AS silent
+FROM meeting_scribe_runs r
+WHERE r.status = 'ACTIVE' AND r.started_at < $1::timestamptz
+  AND EXISTS (SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = r.meeting_id AND a.left_at IS NULL)
+`
+
+type ScribeRunHealthRow struct {
+	Active int32 `json:"active"`
+	Silent int32 `json:"silent"`
+}
+
+// tenant: system
+// Fleet-wide, for the sweep's gauge (benchmark #1): ACTIVE runs that started
+// before since and have people in the room now, and of those the ones that
+// transcribed and then no transcript line reached after since
+// (idx_meeting_transcript_meeting_created). A run that never transcribed is a
+// quiet room (screen share, everyone muted), not an outage; an outage from
+// the first word is MeetingScribeSttErrors' to catch. A device-caption line
+// counts: the transcript still flows.
+func (q *Queries) ScribeRunHealth(ctx context.Context, since pgtype.Timestamptz) (ScribeRunHealthRow, error) {
+	row := q.db.QueryRow(ctx, scribeRunHealth, since)
+	var i ScribeRunHealthRow
+	err := row.Scan(&i.Active, &i.Silent)
 	return i, err
 }
 

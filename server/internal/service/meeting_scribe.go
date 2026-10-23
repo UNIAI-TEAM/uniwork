@@ -41,8 +41,17 @@ const (
 	scribeEmptyGrace = 60 * time.Second
 	// The sweep repeats the agent's removal this long after a switch-off.
 	scribeRemoveRetry = time.Minute
-	// The agent's token outlives the scheduled end by this much (D6).
-	scribeTokenGrace  = 4 * time.Hour
+	// The agent's token is a hard cap only (benchmark #25): agentRun accepts
+	// it while its run is open and for agentDrainWindow after it closed, so an
+	// extended meeting keeps its scribe and a finished run's token stops.
+	scribeTokenMaxAge = 24 * time.Hour
+	// A dispatch no worker took is not a miss (no capacity at a peak): it is
+	// sent again on the 60 s clock without counting, for at most this long
+	// after the run opened, then misses count again (benchmark #13).
+	scribeCapacityWait = 10 * time.Minute
+	// An ACTIVE run with people in the room and no transcript line this long
+	// is silent; the sweep reports how many (benchmark #1).
+	scribeSilentAfter = 3 * time.Minute
 	scribeCallTimeout = 10 * time.Second
 	// No organization locale exists yet; the STT steers to vi with en
 	// code switching (S0 §2.3).
@@ -206,11 +215,7 @@ func (s *MeetingService) ensureScribeRun(ctx context.Context, meetingID string, 
 // dispatchScribe signs the run's token and sends the agent. A failed call
 // leaves the run DISPATCHED; the 60 s rule counts it and dispatches again.
 func (s *MeetingService) dispatchScribe(ctx context.Context, m db.Meeting, run db.MeetingScribeRun) error {
-	at := time.Now()
-	exp := at.Add(scribeTokenGrace)
-	if m.EndsAt.Valid && m.EndsAt.Time.After(at) {
-		exp = m.EndsAt.Time.Add(scribeTokenGrace)
-	}
+	exp := time.Now().Add(scribeTokenMaxAge)
 	token := meetings.SignAgentToken(s.rt.HMACKey, meetings.AgentClaims{
 		MeetingID: m.ID, OrganizationID: m.OrganizationID, RunID: run.ID, ExpiresAt: exp,
 	})
@@ -234,8 +239,18 @@ func (s *MeetingService) dispatchScribe(ctx context.Context, m db.Meeting, run d
 
 // scribeMissed counts one dispatch that never became ACTIVE while people were
 // in the room: it removes that dispatch and sends another, or fails the run on
-// the third miss.
+// the third miss. A dispatch no worker took is sent again without counting
+// (scribeCapacityWait); a provider that cannot say counts the miss.
 func (s *MeetingService) scribeMissed(ctx context.Context, m db.Meeting, run db.MeetingScribeRun) error {
+	if time.Since(run.CreatedAt.Time) < scribeCapacityWait && run.DispatchID != "" {
+		assigned, err := s.provider.ScribeDispatchAssigned(ctx, meetings.RemoveScribeRequest{RoomName: meetings.RoomNameForMeeting(m.ID), DispatchID: run.DispatchID})
+		if err != nil {
+			slog.Warn("meeting scribe: dispatch state unknown", "meeting", m.ID, "err", err)
+		}
+		if err == nil && !assigned {
+			return s.requeueScribe(ctx, m, run)
+		}
+	}
 	r, err := s.q.FailScribeRunDispatch(ctx, db.FailScribeRunDispatchParams{ID: run.ID, Failures: run.Failures, MaxFailures: scribeMaxFailures})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil // another sweep counted this miss, or the agent arrived
@@ -250,6 +265,21 @@ func (s *MeetingService) scribeMissed(ctx context.Context, m db.Meeting, run db.
 		s.emitScribeUpdated(ctx, m)
 		return nil
 	}
+	return s.dispatchScribe(ctx, m, r)
+}
+
+// requeueScribe replaces a dispatch no worker took. Guarded by the dispatch
+// id the caller read, so two sweeps send one new dispatch.
+func (s *MeetingService) requeueScribe(ctx context.Context, m db.Meeting, run db.MeetingScribeRun) error {
+	r, err := s.q.RequeueScribeRunDispatch(ctx, db.RequeueScribeRunDispatchParams{ID: run.ID, DispatchID: run.DispatchID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	s.count("scribe_no_capacity")
+	s.removeScribe(ctx, m, run.DispatchID)
 	return s.dispatchScribe(ctx, m, r)
 }
 
@@ -285,7 +315,14 @@ func (s *MeetingService) finishScribeRun(ctx context.Context, runID string, sttS
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	q := s.q.WithTx(tx)
+	if closed, err = s.finishScribeRunTx(ctx, s.q.WithTx(tx), runID, sttSessionMs); err != nil {
+		return false, err
+	}
+	return closed, tx.Commit(ctx)
+}
+
+// finishScribeRunTx is finishScribeRun inside the caller's transaction q.
+func (s *MeetingService) finishScribeRunTx(ctx context.Context, q *db.Queries, runID string, sttSessionMs int64) (bool, error) {
 	r, err := q.FinishScribeRun(ctx, db.FinishScribeRunParams{ID: runID, SttSessionMs: sttSessionMs})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if sttSessionMs > 0 {
@@ -293,15 +330,12 @@ func (s *MeetingService) finishScribeRun(ctx context.Context, runID string, sttS
 				return false, err
 			}
 		}
-		return false, tx.Commit(ctx)
+		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	if err := s.meterScribeRun(ctx, q, r); err != nil {
-		return false, err
-	}
-	return true, tx.Commit(ctx)
+	return true, s.meterScribeRun(ctx, q, r)
 }
 
 // meterScribeRun moves the run's spoken time into meeting.transcription in
@@ -364,10 +398,34 @@ func (s *MeetingService) sweepScribes(ctx context.Context) error {
 			cancel()
 		}
 		if len(ids) < int(scribeSweepBatch) {
+			if err := s.reportScribeRunHealth(ctx); err != nil {
+				errs = append(errs, err)
+			}
 			return errors.Join(errs...)
 		}
 		params.After = ids[len(ids)-1]
 	}
+}
+
+// scribeRunGauge is the optional part of MeetingMetrics the Prometheus
+// registry implements; a test double without it records nothing.
+type scribeRunGauge interface{ SetScribeRuns(active, silent int) }
+
+// reportScribeRunHealth sets uniwork_meeting_scribe_runs: ACTIVE runs older
+// than scribeSilentAfter with people in the room now, and those of them that
+// transcribed before but no transcript line reached in that time. Every
+// replica sets the same fleet-wide numbers; the alert reads their max.
+func (s *MeetingService) reportScribeRunHealth(ctx context.Context) error {
+	g, ok := s.metrics.(scribeRunGauge)
+	if !ok {
+		return nil
+	}
+	h, err := s.q.ScribeRunHealth(ctx, pgtype.Timestamptz{Time: time.Now().Add(-scribeSilentAfter), Valid: true})
+	if err != nil {
+		return err
+	}
+	g.SetScribeRuns(int(h.Active), int(h.Silent))
+	return nil
 }
 
 // SetScribe switches the scribe off or back on for one meeting (D14): host
@@ -400,6 +458,18 @@ func (s *MeetingService) SetScribe(ctx context.Context, userID, meetingID string
 		return db.Meeting{}, err
 	}
 	changed := m.ScribeOffAt.Valid != updated.ScribeOffAt.Valid
+	// The open run closes with the switch, so its close time is the privacy
+	// cut-off AppendAgentSegments keeps even after the scribe is switched back
+	// on (benchmark #25). The agent's removal follows the commit.
+	if !enabled {
+		if r, err := q.GetLatestScribeRun(ctx, m.ID); err == nil && scribeRunOpen(r) {
+			if _, err := s.finishScribeRunTx(ctx, q, r.ID, 0); err != nil {
+				return db.Meeting{}, err
+			}
+		} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return db.Meeting{}, err
+		}
+	}
 	if changed {
 		s.record(ctx, q, updated, audit.User(userID), "scribe.updated",
 			map[string]string{"meeting_id": m.ID, "workspace_id": m.WorkspaceID},

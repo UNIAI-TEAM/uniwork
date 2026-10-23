@@ -125,7 +125,7 @@ groups:
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebhookInboxLagHigh.md
 
       - alert: MeetingScribeCannotJoin
-        expr: sum(increase(uniwork_meetings_total{event=~"scribe_failed|scribe_dispatch_failed"}[15m])) > 2
+        expr: sum(increase(uniwork_meetings_total{event=~"scribe_failed|scribe_dispatch_failed|scribe_no_capacity"}[15m])) > 2
         for: 5m
         labels:
           severity: "3"
@@ -143,6 +143,34 @@ groups:
           summary: "Nhiều cuộc gọi điện thoại vào họp bị từ chối"
           description: "{{ $value | printf \"%.0f\" }} cuộc gọi vào phòng họp qua PIN cũ, rule lạ hoặc cuộc họp đã kết thúc bị ngắt trong 10 phút: có thể có người dò PIN trên trunk dùng chung mọi tổ chức."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingDialInRefusedCalls.md
+
+      # Benchmark #1: an expired key or a vendor outage fails every STT session
+      # while the agent stays in the room. Rate and ratio, so one flaky mic is quiet.
+      - alert: MeetingScribeSttErrors
+        expr: |
+          sum(rate(scribe_stt_errors_total[10m])) / clamp_min(sum(rate(scribe_stt_sessions_opened_total[10m])), 0.001) > 0.05
+          and sum(rate(scribe_stt_errors_total[10m])) > 0.05
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Thư ký AI lỗi nhận dạng giọng nói (STT)"
+          description: "{{ $value | humanizePercentage }} phiên STT mở trong 10 phút lỗi: phòng họp hiện \"Thư ký AI tạm dừng, đang thử lại\", phụ đề quay về máy từng người và transcript có thể thiếu."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeSttErrors.md
+
+      # The server's own check, independent of the agent's metrics: ACTIVE runs
+      # with people in the room that transcribed, then no line for 3 minutes.
+      - alert: MeetingScribeRunsSilent
+        expr: |
+          max(uniwork_meeting_scribe_runs{state="silent"}) >= 2
+          and max(uniwork_meeting_scribe_runs{state="silent"}) / clamp_min(max(uniwork_meeting_scribe_runs{state="active"}), 1) >= 0.5
+        for: 10m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Nhiều cuộc họp có thư ký AI mà không có lời thoại nào"
+          description: "{{ $value }} lần chạy thư ký AI đang ACTIVE, phòng có người, đã ghi được lời thoại rồi 3 phút không có dòng transcript nào: STT, token agent hoặc đường gửi đoạn có thể đang hỏng."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeRunsSilent.md
 
       - alert: RealtimeSlowEvictions
         expr: sum(increase(uniwork_realtime_slow_evictions_total[10m])) > 25

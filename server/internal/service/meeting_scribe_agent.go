@@ -65,13 +65,19 @@ func (s *MeetingService) agentRun(ctx context.Context, c meetings.AgentClaims) (
 		return db.Meeting{}, db.MeetingScribeRun{}, err
 	}
 	r, err := s.q.GetScribeRun(ctx, c.RunID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && r.MeetingID != m.ID) {
+	// The token lives with its run (benchmark #25): refused once the run has
+	// been closed longer than the drain window, whatever its signed expiry.
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (r.MeetingID != m.ID || !agentRunUsable(r, time.Now()))) {
 		return db.Meeting{}, db.MeetingScribeRun{}, ErrNotFound
 	}
 	if err != nil {
 		return db.Meeting{}, db.MeetingScribeRun{}, err
 	}
 	return m, r, nil
+}
+
+func agentRunUsable(r db.MeetingScribeRun, now time.Time) bool {
+	return scribeRunOpen(r) || (r.FinishedAt.Valid && now.Sub(r.FinishedAt.Time) <= agentDrainWindow)
 }
 
 // AgentStarted marks the run ACTIVE and records the agent's LiveKit
@@ -195,10 +201,21 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 	if m.Status != MeetingInProgress && !draining {
 		return 0, 0, errInvalidState()
 	}
+	// Spoken after the run closed (a switch-off closes it in the same
+	// transaction) or after the host switched the scribe off: not stored,
+	// counted or metered, whatever the agent still sends before it is removed.
+	// The run's own close stays after the switch is turned back on, so a late
+	// batch cannot bring the off window back (benchmark #25).
+	var cutoff []time.Time
+	if run.FinishedAt.Valid {
+		cutoff = append(cutoff, run.FinishedAt.Time)
+	}
 	if m.ScribeOffAt.Valid {
-		// Spoken after the host switched the scribe off: not stored, counted
-		// or metered, whatever the agent still sends before it is removed.
-		segs = slices.DeleteFunc(segs, func(g AgentSegmentInput) bool { return g.SpokenAt.After(m.ScribeOffAt.Time) })
+		cutoff = append(cutoff, m.ScribeOffAt.Time)
+	}
+	if len(cutoff) > 0 {
+		at := slices.MinFunc(cutoff, time.Time.Compare)
+		segs = slices.DeleteFunc(segs, func(g AgentSegmentInput) bool { return g.SpokenAt.After(at) })
 		if len(segs) == 0 {
 			return 0, 0, errInvalidState()
 		}

@@ -27,7 +27,7 @@ import {
   MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
-import { MeetingScribeCaptions, useScribeInRoom } from "./meeting-scribe-captions";
+import { MeetingScribeCaptions, useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -211,9 +211,11 @@ function ConferenceStage({
     ),
     [t],
   );
-  // The AI scribe in the room captions everyone; without it each viewer keeps
-  // their own Web Speech captions (spec D12).
+  // The AI scribe in the room captions everyone; without it, or while its STT
+  // fails (benchmark #1), each viewer keeps their own Web Speech captions (spec D12).
   const scribeInRoom = useScribeInRoom();
+  const scribePaused = useScribePaused();
+  const scribeCaptioning = scribeInRoom && !scribePaused;
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -238,7 +240,7 @@ function ConferenceStage({
   );
   const captions = useMemo(
     () =>
-      scribeInRoom ? (
+      scribeCaptioning ? (
         <MeetingScribeCaptions enabled={captionsOn} meetingId={resolvedMeetingId || undefined} />
       ) : (
         <MeetingLiveCaptions
@@ -247,7 +249,7 @@ function ConferenceStage({
           onError={handleCaptionsError}
         />
       ),
-    [resolvedMeetingId, captionsOn, scribeInRoom, handleCaptionsError],
+    [resolvedMeetingId, captionsOn, scribeCaptioning, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(

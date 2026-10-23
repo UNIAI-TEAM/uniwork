@@ -279,3 +279,217 @@ async def test_shared_mic_session_rides_out_pauses_up_to_five_minutes():
     await t.tick()
     assert not t.open  # back to the 30 s rule
     await t.close()
+
+
+def errors(reason: str) -> float:
+    from scribe import metrics
+
+    return metrics.STT_ERRORS.labels(reason=reason)._value.get()
+
+
+async def test_failure_reason_tells_the_session_limit_from_other_failures():
+    """Benchmark #13: AssemblyAI closes with 1008 (or answers 429) past the
+    new-sessions-per-minute limit; the plugin wraps it after its retries."""
+    import aiohttp
+    from livekit.agents import APIConnectionError, APIStatusError
+
+    from scribe.transcriber import failure_reason
+
+    def wrapped(inner: Exception) -> Exception:
+        try:
+            raise APIConnectionError("failed to recognize speech after 3 attempts") from inner
+        except APIConnectionError as e:
+            return e
+
+    assert failure_reason(wrapped(APIStatusError("closed", status_code=1008))) == "session_limit"
+    handshake = aiohttp.WSServerHandshakeError(None, (), status=429, message="Too Many Requests")  # type: ignore[arg-type]
+    assert failure_reason(wrapped(handshake)) == "session_limit"
+    assert failure_reason(wrapped(APIStatusError("closed", status_code=1011))) == "stream"
+    assert failure_reason(RuntimeError("socket")) == "stream"
+
+
+async def test_speech_during_a_refused_session_and_its_backoff_is_replayed():
+    """Benchmark #13: a refused open no longer loses the turn. The audio sent
+    to the dead session and the audio heard during the backoff go into the
+    next session, so the final carries every word."""
+    from scribe.health import SttHealth
+
+    clock = Clock()
+    stt_impl = FlakySTT()
+    health = SttHealth(clock=clock)
+    finals: list[Final] = []
+
+    async def publish(c: Caption) -> None:
+        pass
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR",
+        identity="p",
+        stt_impl=stt_impl,
+        publish=publish,
+        on_final=finals.append,
+        clock=clock,
+        health=health,
+        rand=lambda: 1.0,
+    )
+    before = errors("stream")
+    opened_before = __import__("scribe.metrics", fromlist=["x"]).STT_SESSIONS._value.get()
+    t.on_vad_start([frame(True)])
+    await t.push(frame(True))
+    await asyncio.sleep(0.05)  # the vendor refuses the session
+    assert t.failures == 1 and errors("stream") == before + 1
+    assert health.state() == "ok"  # not yet 20 s
+    for _ in range(150):  # 1.5 s of speech: the drop, the 1 s backoff, the reopening
+        await t.push(frame(True))
+        clock.t += 0.01
+    t.on_vad_end(1.52)
+    await asyncio.sleep(0.05)
+    assert stt_impl.streams == 2
+    assert [f.text for f in finals] == ["từ1 từ2 từ3"]
+    assert __import__("scribe.metrics", fromlist=["x"]).STT_SESSIONS._value.get() == opened_before + 2
+    await t.close()
+
+
+async def test_the_backoff_buffer_is_bounded():
+    from scribe.transcriber import BUFFER_MAX_S
+
+    clock = Clock()
+    t, _, _ = make(clock, stt_impl=FlakySTT())
+    t.on_vad_start([frame(True)])
+    await t.push(frame(True))
+    await asyncio.sleep(0.05)
+    t._retry_s = 1000.0  # a long backoff
+    await t.push(frame(True))  # the drop; this frame is buffered
+    t._retry_at = clock.t + 1000
+    for _ in range(int(BUFFER_MAX_S * 100) + 500):
+        await t.push(frame(True))
+    assert t._preroll is not None
+    assert abs(t._preroll.seconds - BUFFER_MAX_S) < 0.02
+    await t.close()
+
+
+async def test_retry_is_jittered():
+    clock = Clock()
+    t, _, _ = make(clock, stt_impl=FlakySTT())
+    t._rand = lambda: 0.0  # the low end: half the backoff
+    t.on_vad_start([frame(True)])
+    await t.push(frame(True))
+    await asyncio.sleep(0.05)
+    await t.push(frame(True))
+    assert t._retry_at == clock.t + 0.5
+    await t.close()
+
+
+async def test_a_failed_push_counts_as_an_stt_error_and_marks_health():
+    from scribe.health import SttHealth
+
+    class BrokenPush(FakeSTT):
+        def stream(self, **kw):  # noqa: ANN003
+            s = super().stream(**kw)
+
+            def boom(_self, _f):  # noqa: ANN001
+                raise RuntimeError("closed")
+
+            s.__class__ = type("BrokenPushStream", (s.__class__,), {"push_frame": boom})
+            return s
+
+    clock = Clock()
+    health = SttHealth(clock=clock)
+    finals: list[Final] = []
+
+    async def publish(c: Caption) -> None:
+        pass
+
+    before = errors("push")
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR",
+        identity="p",
+        stt_impl=BrokenPush(),
+        publish=publish,
+        on_final=finals.append,
+        clock=clock,
+        health=health,
+    )
+    t.on_vad_start([])
+    await t.push(frame(True))
+    assert errors("push") == before + 1
+    clock.t += 20
+    assert health.state() == "ok"  # one failure, then nothing: not proof of an outage
+    await t.push(frame(True))  # drops the dead session; the backoff starts
+    clock.t += 2
+    await t.push(frame(True))  # the retry fails too, 22 s after the first
+    assert errors("push") == before + 2
+    assert health.state() == "degraded"
+    await t.close()
+
+
+async def test_a_transcript_marks_health_ok():
+    from scribe.health import SttHealth
+
+    clock = Clock()
+    health = SttHealth(clock=clock)
+    health.failed()
+    clock.t += 30
+    finals: list[Final] = []
+
+    async def publish(c: Caption) -> None:
+        pass
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR",
+        identity="p",
+        stt_impl=FakeSTT(),
+        publish=publish,
+        on_final=finals.append,
+        clock=clock,
+        health=health,
+    )
+    await speak(t, clock, 0.6)
+    assert health.state() == "ok"
+    await t.close()
+
+
+async def test_speech_heard_while_degraded_is_not_replayed():
+    """Review: while the meeting is degraded every client writes its own device
+    captions into the transcript; replaying that audio into the next session
+    would store the same words twice. Audio buffered before the fallback is
+    still replayed."""
+    from scribe.health import SttHealth
+
+    clock = Clock()
+    stt_impl = FlakySTT()
+    health = SttHealth(clock=clock)
+    finals: list[Final] = []
+
+    async def publish(c: Caption) -> None:
+        pass
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR",
+        identity="p",
+        stt_impl=stt_impl,
+        publish=publish,
+        on_final=finals.append,
+        clock=clock,
+        health=health,
+        rand=lambda: 1.0,
+    )
+    t.on_vad_start([frame(True)])
+    for _ in range(40):  # 0.4 s of speech go to the session the vendor drops
+        await t.push(frame(True))
+    await asyncio.sleep(0.05)
+    assert t.failures == 1
+    health.failed()
+    clock.t += 20
+    health.failed()  # other tracks kept failing: the room fell back to device captions
+    assert health.state() == "degraded"
+    for _ in range(150):  # 1.5 s heard while degraded, through the backoff and the reopening
+        await t.push(frame(True))
+        clock.t += 0.01
+    t.on_vad_end(1.9)
+    await asyncio.sleep(0.05)
+    assert stt_impl.streams == 2
+    # 0.41 s from before the fallback plus 0.5 s heard live after the reopening
+    # make one 0.5 s word; replaying the 1 s of the backoff would make three.
+    assert [f.text for f in finals] == ["từ1"]
+    await t.close()

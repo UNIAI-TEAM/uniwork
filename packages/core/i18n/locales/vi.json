@@ -4118,7 +4118,11 @@
       "noticeAck": "Đã hiểu",
       "formLabel": "Thư ký AI",
       "formHint": "Ghi lời thoại, hiện phụ đề và tóm tắt cuộc họp. Âm thanh được xử lý ở ngoài Việt Nam.",
-      "createdScribeNotSet": "Đã tạo cuộc họp nhưng chưa đổi được Thư ký AI. Đổi lại trên trang cuộc họp."
+      "createdScribeNotSet": "Đã tạo cuộc họp nhưng chưa đổi được Thư ký AI. Đổi lại trên trang cuộc họp.",
+      "chipPaused": "Thư ký AI tạm dừng, đang thử lại",
+      "chipPausedShort": "Tạm dừng",
+      "explainPaused": "Dịch vụ nhận dạng giọng nói đang lỗi. Thư ký AI vẫn ở trong phòng và tự thử lại; trong lúc chờ, phụ đề dùng giọng nói trên máy của từng người.",
+      "speakerSameAs": "Giống Người nói {{n}} · {{name}}"
     },
     "aiAccess": {
       "title": "Thư ký AI và nội dung AI",

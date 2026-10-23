@@ -79,3 +79,26 @@ async def test_concurrent_flushes_send_each_segment_once():
         b.add(seg(i))
     await asyncio.gather(b.flush(), b.flush())
     assert sent == ["s0", "s1", "s2", "s3", "s4"]
+
+
+async def test_a_404_tells_the_agent_its_run_is_gone_once():
+    """Benchmark #25: the token or the run is no longer valid mid-meeting. The
+    agent leaves, so the server's sweep dispatches a fresh run; a 409 (scribe
+    paused, nothing kept) is not a reason to leave."""
+    gone: list[int] = []
+    status = {"v": 404}
+
+    async def send(batch: list[dict]) -> None:
+        raise ApiError(status["v"], "/segments")
+
+    b = SegmentBatcher(send, on_gone=lambda: gone.append(1))
+    b.add(seg(1))
+    await b.flush()
+    b.add(seg(2))
+    await b.flush()
+    assert gone == [1]
+    status["v"] = 409
+    b2 = SegmentBatcher(send, on_gone=lambda: gone.append(2))
+    b2.add(seg(3))
+    await b2.flush()
+    assert gone == [1]

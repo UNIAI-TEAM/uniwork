@@ -56,6 +56,10 @@ spec:
           env:
             - { name: MEETING_SCRIBE_AGENT_NAME, value: {{ $ma.agentName | quote }} }
             - { name: SCRIBE_STT_PROVIDER, value: {{ $ma.sttProvider | quote }} }
+            # Empty: the agent follows AI_MEETING_TRANSCRIBE_BASE_URL (scribe/config.py stt_base_url).
+            - { name: SCRIBE_STT_BASE_URL, value: {{ $ma.sttBaseUrl | quote }} }
+            {{- $be := include "uniwork.envFileData" ((.Values.env | default dict).beContent | default "") | fromYaml | default dict }}
+            - { name: AI_MEETING_TRANSCRIBE_BASE_URL, value: {{ get $be "AI_MEETING_TRANSCRIBE_BASE_URL" | default "" | quote }} }
             - { name: SCRIBE_HEALTH_PORT, value: {{ $ma.healthPort | quote }} }
             - { name: SCRIBE_METRICS_PORT, value: {{ $ma.metricsPort | quote }} }
             # Two minutes under the grace period: a job the drain cuts off still
@@ -82,6 +86,7 @@ spec:
             httpGet: { path: /worker, port: health }
             initialDelaySeconds: 10
             periodSeconds: 5
+{{- if not $ma.keda.enabled }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -100,4 +105,5 @@ spec:
       resource:
         name: cpu
         target: { type: Utilization, averageUtilization: 50 }
+{{- end }}
 {{- end }}

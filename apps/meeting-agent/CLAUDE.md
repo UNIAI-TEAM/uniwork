@@ -26,6 +26,21 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0038.
 - **Âm thanh chỉ có một:** lời báo thư ký AI cho người gọi điện thoại (UNI-1995, `scribe/notice.py`,
   `assets/sip-notice-vi.wav` sinh bằng `say -v Linh`). Agent chỉ phát khi server đặt `uw.dial_in=admitted` cho người
   gọi, mỗi người một lần mỗi job, và quyền subscribe của track chỉ ghi identity người gọi đó. Không phát gì khác.
+- **Sức khoẻ STT (UNI-1995 #1):** `scribe/health.py` — mọi phiên của cuộc họp lỗi liên tục 20 s mà
+  không track nào ra lời (phải có lỗi ở cả hai đầu 20 s; một lỗi rồi phòng im không tính) thì agent
+  đặt attribute của chính nó `uw.scribe_state=degraded` (về `ok` ở lời đầu tiên, hoặc khi 45 s không
+  còn lỗi nào); web đọc nó để hiện "tạm dừng, đang thử lại" và bật lại phụ đề trên máy. Đây là lý
+  do duy nhất worker có `can_update_metadata=True`: agent chỉ ghi attribute của mình.
+- **Lỗi STT không làm mất lời (#13):** âm thanh chưa có final (tối đa `BUFFER_MAX_S` = 30 s mỗi
+  track) và âm thanh nghe được trong lúc lùi lại được gửi vào phiên kế tiếp, trừ âm thanh nghe được
+  khi cuộc họp đang `degraded` (phòng đã tự ghi bằng phụ đề trên máy; phát lại sẽ ghi hai lần); lùi lại có jitter
+  (0,5–1× của 1 s→30 s). `scribe_stt_errors_total{reason}`: `stream` | `push` | `session_limit`
+  (1008/429 — giới hạn phiên mới mỗi phút); `scribe_stt_sessions_opened_total` đếm phiên mở.
+- **Micro hội trường:** `voice_focus="far-field"` và `max_speakers=10`; micro cá nhân `near-field`.
+- **Vùng STT (#15):** `SCRIBE_STT_BASE_URL`; rỗng thì theo `AI_MEETING_TRANSCRIBE_BASE_URL` (EU →
+  `wss://streaming.eu.assemblyai.com`, còn lại US) — `scribe/config.py` `stt_base_url`.
+- **404 giữa chừng ở `/agent/segments` (#25):** token/lần chạy không còn hiệu lực → agent rời phòng
+  (`ctx.shutdown`) để vòng quét gọi lần chạy mới; 409 thì không rời.
 - Phiên bản ghim theo kết quả S0 (`livekit-agents==1.8.8`); đổi phiên bản là đổi có chủ đích.
 
 ## Cấu trúc
@@ -39,7 +54,7 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0038.
   thử lại vì mỗi lần là một lời gọi model), `translate.py` (S6, UNI-2028: phụ đề dịch — đọc
   attribute `uw.caption_lang` do server đặt, gom final theo ngôn ngữ đích, tối đa 1 lần gọi
   `/agent/translate` mỗi giây mỗi ngôn ngữ, phát `uw.caption.<L>`, không thử lại), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
-  `stt.py` (`FakeSTT`, `make_stt`), `config.py`, `notice.py` (ai được nghe lời báo, đọc WAV, cắt khung 10 ms).
+  `stt.py` (`FakeSTT`, `make_stt`), `health.py` (`uw.scribe_state`), `config.py`, `notice.py` (ai được nghe lời báo, đọc WAV, cắt khung 10 ms).
 
 ## Chạy
 
