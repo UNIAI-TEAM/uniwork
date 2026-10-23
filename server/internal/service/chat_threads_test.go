@@ -152,18 +152,30 @@ func TestChatThreadFollowMarkReadAndList(t *testing.T) {
 		t.Fatalf("unfollow then follow: %v", err)
 	}
 	// Each read hands back the pointer it replaced, so a catch-up asked for
-	// after opening the thread still starts where the reader left off.
+	// after opening the thread still starts where the reader left off. A reply
+	// leaves the root's author unread (no pointer yet), so the first read hands
+	// back the root's own time.
+	rootRow, err := q.GetChatMessageByID(ctx, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 2; i++ {
 		before, err := q.GetChatThreadFollower(ctx, db.GetChatThreadFollowerParams{ThreadRootID: root.ID, UserID: ua.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
+		want := rootRow.CreatedAt.Time
+		if before.LastReadAt.Valid {
+			want = before.LastReadAt.Time
+		} else if i > 0 {
+			t.Fatalf("mark read %d: the first read left no pointer", i)
+		}
 		prev, err := s.MarkThreadRead(ctx, ua.ID, w.ID, root.ID)
 		if err != nil {
 			t.Fatalf("mark read %d: %v", i, err)
 		}
-		if !before.LastReadAt.Valid || !prev.Equal(before.LastReadAt.Time) {
-			t.Fatalf("mark read %d: previous=%v want %v", i, prev, before.LastReadAt)
+		if !prev.Equal(want) {
+			t.Fatalf("mark read %d: previous=%v want %v", i, prev, want)
 		}
 	}
 
