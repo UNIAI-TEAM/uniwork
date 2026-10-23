@@ -563,20 +563,26 @@ Chủ tọa, thư ký hoặc quản trị workspace (clerk) được:
 
 - sửa nội dung một câu (`PATCH /meetings/{id}/transcript/{segmentID}`): nguyên văn đầu tiên
   giữ ở cột `original_text` trên server (không trả về client), câu hiện "đã sửa";
-- xóa một câu (`DELETE .../transcript/{segmentID}`), một khoảng thời gian
-  (`DELETE .../transcript?from=&to=`, mọi nguồn) hoặc toàn bộ lời thoại
-  (`DELETE .../transcript`);
-- xóa một lần ghi lời file đã `COMPLETE`/`FAILED` cùng các câu của nó và file ghi âm
-  (`DELETE .../transcriptions/{transcriptionID}`: nhả giữ file cho bộ thu gom xóa).
+- xóa một câu (`DELETE .../transcript/{segmentID}`), một đoạn từ câu này tới câu kia, gồm cả
+  hai (`DELETE .../transcript?from_segment_id=&to_segment_id=`, mọi nguồn, theo thứ tự đọc
+  `(spoken_at, id)`; server đọc mốc từ chính hai câu nên client không gửi thời gian nào —
+  thời gian làm tròn từng bỏ sót câu cuối) hoặc toàn bộ lời thoại (`DELETE .../transcript`);
+- xóa từng lần ghi lời file đã `COMPLETE`/`FAILED` cùng các câu của nó và file ghi âm
+  (`DELETE .../transcriptions/{transcriptionID}`: nhả giữ file cho bộ thu gom xóa); mọi lần
+  tải lên đã xong đều xóa được trên giao diện, không chỉ lần mới nhất.
 
 Mỗi lệnh ghi audit (`meeting.transcript_segment_edited`, `…_segment_deleted`,
 `…_range_deleted`, `meeting.transcript_deleted`, `meeting.transcription_deleted`) và phát
 `transcript.changed` trong cùng giao dịch; dòng audit chỉ ghi số câu, không chép nội dung.
-Sau mỗi thay đổi, tóm tắt hiện có được đánh dấu `transcript_changed_at`: trang cuộc họp nói
-"Lời thoại đã thay đổi sau khi tóm tắt này được tạo" và cho clerk "Tạo lại tóm tắt".
+Sau mỗi thay đổi của clerk, tóm tắt hiện có được đánh dấu `transcript_changed_at`: trang cuộc
+họp nói "Lời thoại đã thay đổi sau khi tóm tắt này được tạo" và cho clerk "Tạo lại tóm tắt"
+(qua hộp xác nhận tạo lại như mọi lần). Lượt quét thời hạn lưu **không** đánh dấu: tóm tắt
+được giữ có chủ đích, tạo lại khi lời thoại đã hết hạn chỉ cho bản nghèo hơn.
 
 Owner/admin tổ chức chọn thời hạn lưu (`PUT /orgs/{orgID}/meetings/transcript-retention`):
 giữ mãi (mặc định), 30, 90, 180 hoặc 365 ngày; đổi giá trị ghi `meeting.settings_changed`.
+Rút ngắn thời hạn (từ giữ mãi, hoặc xuống số ngày nhỏ hơn) phải qua hộp xác nhận nói rõ trong
+vòng một giờ lời thoại và file ghi âm cũ hơn sẽ bị xóa vĩnh viễn trong cả tổ chức.
 Mỗi giờ một máy chủ (khóa advisory, các máy khác bỏ lượt) xóa câu lời thoại và file ghi âm
 tải lên cũ hơn thời hạn (`meeting.transcript_expired`, `meeting.transcription_deleted` với
 `reason: retention`, người làm là system). Tóm tắt, biên bản, việc cần làm và task không bị
