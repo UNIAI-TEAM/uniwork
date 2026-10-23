@@ -61,8 +61,8 @@ func TestChatRoomWallpaperProviderHoldsOnlyTheCurrentImage(t *testing.T) {
 		t.Fatalf("room after upload: preset=%q file=%v err=%v", room.WallpaperPreset, room.WallpaperFileID, err)
 	}
 	firstID := files.FileID(room.WallpaperFileID.String)
-	if first.WallpaperURL != "fake://presign/"+string(firstID) {
-		t.Fatalf("wallpaper url = %q", first.WallpaperURL)
+	if first.WallpaperURL != "fake://presign/"+string(firstID) || first.WallpaperPreset != chatWallpaperPresetCustom {
+		t.Fatalf("upload summary: url=%q preset=%q", first.WallpaperURL, first.WallpaperPreset)
 	}
 
 	if _, err := f.s.UploadRoomWallpaper(ctx, f.ua.ID, f.w.ID, f.group.ID, "nen2.png", bytes.NewReader(workspaceIconPNG)); err != nil {

@@ -4,20 +4,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatRoomMemberPermissions } from "@uniwork/core/api/endpoints/chat";
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
+import { mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { CHAT_SWITCH_CLASS } from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
 import { ChatSettingsNote } from "./chat-settings-ui";
-
-const defaultPermissions = (): ChatRoomMemberPermissions => ({
-  allow_change_profile: true,
-  allow_pin_content: true,
-  allow_create_notes: true,
-  allow_create_polls: true,
-  allow_send_messages: true,
-  allow_forward: true,
-});
 
 type PermissionKey = keyof ChatRoomMemberPermissions;
 
@@ -51,7 +43,7 @@ export function ChatGroupManageSection({
 }) {
   const { t } = useTranslation();
   const updateSettings = useUpdateChatRoomSettings(workspaceId);
-  const current = { ...defaultPermissions(), ...permissions };
+  const current = mergeRoomMemberPermissions(permissions);
 
   const toggle = (key: PermissionKey, checked: boolean) => {
     if (!canManage || updateSettings.isPending) return;
@@ -99,4 +91,4 @@ export function ChatGroupManageSection({
   );
 }
 
-export { defaultPermissions as defaultChatRoomMemberPermissions };
+export { mergeRoomMemberPermissions as defaultChatRoomMemberPermissions };

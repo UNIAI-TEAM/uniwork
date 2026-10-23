@@ -217,6 +217,17 @@ describe("chat-sidebar-preview", () => {
     expect(compareRoomPreviewRecency(newer, older)).toBeLessThan(0);
   });
 
+  it("labels yesterday when calendar days differ by almost one day (DST-safe)", () => {
+    const now = new Date(2026, 2, 26, 10, 0, 0);
+    const yesterday = new Date(2026, 2, 25, 23, 30, 0);
+    expect(
+      formatChatSidebarTime(yesterday.toISOString(), {
+        now,
+        yesterdayLabel: "Hôm qua",
+      }),
+    ).toBe("Hôm qua");
+  });
+
   it("formats today as time and yesterday label", () => {
     const now = new Date("2026-03-26T15:00:00Z");
     expect(

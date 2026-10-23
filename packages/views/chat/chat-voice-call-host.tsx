@@ -18,6 +18,7 @@ import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
 import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
+import { acceptVoiceCallWithFallback } from "./voice-call-accept";
 import type { VoiceCallDeviceError, VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 type ChatVoiceCallContextValue = {
@@ -188,7 +189,7 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
         workspaceId={workspaceId}
         state={voice.voiceCall}
         incomingDeviceError={incomingDeviceError}
-        onAccept={() => void acceptCall()}
+        onAccept={() => void acceptVoiceCallWithFallback(acceptCall, voice.declineCall)}
         onDecline={() => void voice.declineCall()}
         onLeave={voice.leaveCall}
         onDisconnected={voice.finalizeCallOnDisconnect}

@@ -175,6 +175,7 @@ describe("DocumentHeaderActions", () => {
     const doc = mount({ documents: { default: true } });
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" }));
     expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "document", id: doc.id, label: doc.title });
+    expect(useAiPanelStore.getState().page).toEqual({ kind: "document", id: doc.id, label: doc.title });
   });
 
   it("still shows Ask UNI when comments are disabled", async () => {

@@ -1,9 +1,8 @@
--- chat_room_wallpaper (UNI-2134) joins the org-required, workspace-optional
--- branch beside chat_room_avatar: 9991792710000000 opened the purpose in the
--- registry but not in these checks, so every wallpaper upload on the real
--- FileService failed the purpose check. It is a tenant file, so never the
--- NULL tenant (ADR 0023). Both checks are restated in full, as every purpose
--- change before this did.
+-- chat_room_wallpaper: 9991792710000000 opened the purpose in the registry
+-- but never restated the checks, so every wallpaper upload was refused here.
+-- Its registry scope is the chat one (organization, workspace optional), so
+-- it joins chat_room_avatar. Both checks are restated in full, as every
+-- purpose change before this did.
 ALTER TABLE file_upload_sessions DROP CONSTRAINT file_upload_sessions_purpose_check;
 ALTER TABLE file_upload_sessions ADD CONSTRAINT file_upload_sessions_purpose_check
   CHECK (purpose IN ('user_avatar', 'task_attachment', 'task_description_image',

@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +21,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // sseFrame is one parsed frame; a comment frame (": ping") has no event.
@@ -98,7 +101,11 @@ func TestAskUniStreamWritesEventsInOrder(t *testing.T) {
 		t.Fatalf("headers %v", res.Header)
 	}
 	frames := collectFrames(readSSE(res.Body))
+	// The first answer of a conversation is named: a title frame follows done.
 	names := eventsOf(frames)
+	if n := len(names); n > 0 && names[n-1] == "title" {
+		names = names[:n-1]
+	}
 	if len(names) < 4 || names[0] != "run" || names[len(names)-1] != "done" || names[len(names)-2] != "citations" {
 		t.Fatalf("events %v", names)
 	}
@@ -350,5 +357,184 @@ func TestAskUniStreamCancelledRunLogsNothing(t *testing.T) {
 	h.askErrorCode(errors.New("boom"))
 	if buf.Len() == 0 {
 		t.Fatal("a real failure must still log")
+	}
+}
+
+func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
+	fake := &provider.Fake{}
+	n := 0
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if n++; n <= 2 { // a search that finds nothing, then the members
+			call := provider.ToolCall{ID: "c1", Name: "search", Input: json.RawMessage(`{"query":"owner"}`)}
+			if n == 2 {
+				call = provider.ToolCall{ID: "c2", Name: "list_members", Input: json.RawMessage(`{"query":""}`)}
+			}
+			return provider.CompletionResponse{UsagePresent: true, InputTokens: 5, StopReason: "tool_use", ToolCalls: []provider.ToolCall{call}}
+		}
+		return provider.CompletionResponse{Text: "Xong", UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}
+	srv, owner, _, wsID := askWorld(t, fake)
+	res := postStream(t, srv, wsID, owner, map[string]any{"question": "ai trong nhóm?", "locale": "vi"})
+	frames := collectFrames(readSSE(res.Body))
+	var step, sources, done string
+	stepAt, sourcesAt := -1, -1
+	for i, f := range frames {
+		switch f.event {
+		case "step":
+			if step == "" {
+				step = f.data
+			}
+			stepAt = i
+		case "sources":
+			sources, sourcesAt = f.data, i
+		case "done":
+			done = f.data
+		}
+	}
+	if !strings.Contains(step, `"label":"owner"`) {
+		t.Fatalf("step %s", step)
+	}
+	if stepAt < 0 || sourcesAt < stepAt || !strings.Contains(sources, `"object_id"`) {
+		t.Fatalf("events %v\nsources %s", eventsOf(frames), sources)
+	}
+	if !strings.Contains(done, `"steps":[{"tool":"search","label":"owner"`) {
+		t.Fatalf("done %s", done)
+	}
+}
+
+func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
+	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]"}
+	out := toAiMessageDTO(m)
+	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
+		t.Fatalf("%+v", out)
+	}
+}
+
+// The stream route asks as the dock: the answer's follow-up block becomes a
+// followups frame right before done. The JSON route never does.
+func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
+	answer := "Xong.\n<followups>\n- Việc nào trễ?\n</followups>"
+	fake := &provider.Fake{StreamChunk: 4, Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: answer, UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}}
+	srv, owner, _, wsID := askWorld(t, fake)
+	frames := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"}).Body))
+	names := eventsOf(frames)
+	at := slices.Index(names, "followups")
+	if at < 0 || at != len(names)-3 || names[len(names)-2] != "done" || names[len(names)-1] != "title" {
+		t.Fatalf("events %v", names)
+	}
+	var deltas strings.Builder
+	for _, f := range frames {
+		switch f.event {
+		case "followups":
+			if f.data != `{"followups":["Việc nào trễ?"]}` {
+				t.Fatalf("followups %s", f.data)
+			}
+		case "delta":
+			deltas.WriteString(f.data)
+		case "done":
+			if !strings.Contains(f.data, `"content":"Xong."`) || !strings.Contains(f.data, `"followups":["Việc nào trễ?"]`) {
+				t.Fatalf("done %s", f.data)
+			}
+		}
+	}
+	if strings.Contains(deltas.String(), "follo") {
+		t.Fatalf("the block streamed: %s", deltas.String())
+	}
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"})
+	msg, _ := out["message"].(map[string]any)
+	if res.StatusCode != http.StatusOK || msg["content"] != answer {
+		t.Fatalf("JSON route: %d %v", res.StatusCode, out)
+	}
+}
+
+// A regenerate that names no live last answer is a JSON 400 before any stream
+// (the question is sent, so the id is what is refused); on the JSON route,
+// which is not the dock, it is the dock-only 400.
+func TestAskUniStreamRegenerateRefusals(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply})
+	_, first := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "hỏi"})
+	conv := first["conversation_id"].(string)
+	body := map[string]any{"question": "hỏi lại", "conversation_id": conv, "regenerate_message_id": "01NOSUCHMESSAGE0000000000000"}
+	res := postStream(t, srv, wsID, owner, body)
+	var out map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	if res.StatusCode != 400 || strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") || !strings.Contains(fmt.Sprint(out), "regenerate: not the last answer") {
+		t.Fatalf("stream: %d %v", res.StatusCode, out)
+	}
+	body["regenerate_message_id"] = first["message"].(map[string]any)["id"]
+	r, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, body)
+	if r.StatusCode != 400 || !strings.Contains(fmt.Sprint(out), "regenerate: dock only") {
+		t.Fatalf("json route: %d %v", r.StatusCode, out)
+	}
+}
+
+// A regenerate through the stream route answers in place: a done frame, and
+// the conversation still lists one question and one answer, the answer new.
+func TestAskUniStreamRegenerateReplacesTheAnswer(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply})
+	first := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "task nào quá hạn?", "locale": "vi"}).Body))
+	var run struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	var done struct{ Message struct{ ID string } }
+	for _, f := range first {
+		switch f.event {
+		case "run":
+			_ = json.Unmarshal([]byte(f.data), &run)
+		case "done":
+			_ = json.Unmarshal([]byte(f.data), &done)
+		}
+	}
+	res := postStream(t, srv, wsID, owner, map[string]any{"question": "x", "locale": "vi", "conversation_id": run.ConversationID, "regenerate_message_id": done.Message.ID})
+	frames := collectFrames(readSSE(res.Body))
+	var again struct{ Message struct{ ID string } }
+	for _, f := range frames {
+		if f.event == "done" {
+			_ = json.Unmarshal([]byte(f.data), &again)
+		}
+	}
+	if res.StatusCode != 200 || again.Message.ID == "" || again.Message.ID == done.Message.ID {
+		t.Fatalf("status %d events %v done %+v", res.StatusCode, eventsOf(frames), again)
+	}
+	_, list := doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+run.ConversationID+"/messages", owner, nil)
+	msgs, _ := list["messages"].([]any)
+	if len(msgs) != 2 || msgs[1].(map[string]any)["id"] != again.Message.ID {
+		t.Fatalf("messages %v", list)
+	}
+}
+
+// The first answer of a conversation names it: a title frame follows done.
+func TestAskUniStreamWritesTitleAfterDone(t *testing.T) {
+	fake := &provider.Fake{StreamChunk: 4, Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		if strings.Contains(req.System, "Name this conversation") {
+			return provider.CompletionResponse{Text: "\"Việc trễ.\"", UsagePresent: true, InputTokens: 3, StopReason: "end_turn"}
+		}
+		return provider.CompletionResponse{Text: "Xong.", UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
+	}}
+	srv, owner, _, wsID := askWorld(t, fake)
+	frames := collectFrames(readSSE(postStream(t, srv, wsID, owner, map[string]any{"question": "việc nào trễ?", "locale": "vi"}).Body))
+	names := eventsOf(frames)
+	if len(names) < 2 || names[len(names)-2] != "done" || names[len(names)-1] != "title" {
+		t.Fatalf("events %v", names)
+	}
+	var run struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	var title struct {
+		ConversationID string `json:"conversation_id"`
+		Title          string `json:"title"`
+	}
+	for _, f := range frames {
+		switch f.event {
+		case "run":
+			_ = json.Unmarshal([]byte(f.data), &run)
+		case "title":
+			_ = json.Unmarshal([]byte(f.data), &title)
+		}
+	}
+	if title.Title != "Việc trễ" || title.ConversationID == "" || title.ConversationID != run.ConversationID {
+		t.Fatalf("title %+v run %+v", title, run)
 	}
 }

@@ -39,9 +39,9 @@ func escapeILIKEPattern(query string) string {
 	return b.String()
 }
 
-// chatSearchPattern checks a query's length and folds it into the ILIKE
+// foldSearchPattern checks a query's length and folds it into the ILIKE
 // pattern the queries compare with uw_fold_search(body), so "hop" finds "Họp".
-func chatSearchPattern(raw string) (string, error) {
+func foldSearchPattern(raw string) (string, error) {
 	query := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(query) < minChatSearchQueryRunes {
 		return "", Invalid("từ khóa tìm kiếm quá ngắn")
@@ -83,7 +83,7 @@ func (s *ChatService) SearchMessages(
 	if !chatSearchScopes[scope] {
 		return nil, Invalid("phạm vi tìm kiếm không hợp lệ")
 	}
-	pattern, err := chatSearchPattern(in.Query)
+	pattern, err := foldSearchPattern(in.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (s *ChatService) SearchMessages(
 func (s *ChatService) SearchRoomMessages(
 	ctx context.Context, userID, workspaceID, roomID string, in SearchChatMessagesInput,
 ) ([]ChatMessageRow, error) {
-	pattern, err := chatSearchPattern(in.Query)
+	pattern, err := foldSearchPattern(in.Query)
 	if err != nil {
 		return nil, err
 	}

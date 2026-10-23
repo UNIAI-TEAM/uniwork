@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -100,7 +101,18 @@ type AskInput struct {
 	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
 	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
 	Model, Effort string
+	// Dock is the docked panel asking (the stream route, R1): the agent runs
+	// copilot_answer@4 and splits off its follow-up questions. P0 ignores it.
+	Dock bool
+	// Regenerate is the id of the conversation's last answer to answer again
+	// in place with the stored question and context; Dock only, and Question
+	// is ignored.
+	Regenerate string
 }
+
+// errRegenerateTarget is the one refusal for a message id that is not the
+// conversation's last live answer, whatever the reason, so it reveals nothing.
+const errRegenerateTarget = "regenerate: not the last answer"
 
 // AskCitation is a validated citation enriched with what the client needs to
 // render a link; it is what ai_messages.citations stores.
@@ -110,6 +122,8 @@ type AskCitation struct {
 	Kind     string `json:"kind"`
 	Title    string `json:"title"`
 	Href     string `json:"href"`
+	// ObjectID is the one object the source is; empty for a source that is none.
+	ObjectID string `json:"object_id,omitempty"`
 }
 
 type AskResult struct {
@@ -147,7 +161,8 @@ return count
 // "not limited" (fail open, ruling P22). Without Redis nothing is counted.
 func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
-		return 0, false
+		userID := strings.TrimPrefix(key, "uw:ai:ask:")
+		return askMemIncrement(userID, s.now(), askRateWindow), true
 	}
 	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
@@ -201,20 +216,35 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 }
 
 // AskStream is one turn: membership → rate limit → conversation → permitted
-// sources → gateway → validated citations → two message rows. Every refusal
-// comes before emit is first called; the events then run, delta, citations,
-// done (R5).
+// sources → gateway → validated citations → the question and answer rows (a
+// regenerate writes only the answer). Every refusal comes before emit is first
+// called; the events then run, step, sources, delta, citations, followups,
+// done and title (R5). An error after run is returned for the handler to send
+// as an error event.
 func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
+	regen := in.Regenerate != ""
 	question := strings.TrimSpace(in.Question)
-	if question == "" {
-		return AskResult{}, Invalid("câu hỏi không được để trống")
-	}
-	if len([]rune(question)) > 2000 {
-		return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
-	}
-	mentions, err := askMentions(in.Focus, in.Mentions)
-	if err != nil {
-		return AskResult{}, err
+	var mentions []ai.Focus
+	if regen {
+		// Only the dock regenerates, and only inside a conversation: an empty
+		// id would otherwise open a new one.
+		if !in.Dock {
+			return AskResult{}, Invalid("regenerate: dock only")
+		}
+		if in.ConversationID == "" {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+	} else {
+		if question == "" {
+			return AskResult{}, Invalid("câu hỏi không được để trống")
+		}
+		if len([]rune(question)) > 2000 {
+			return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
+		}
+		var err error
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
 	}
 	w, err := s.requireMember(ctx, userID, workspaceID)
 	if err != nil {
@@ -237,17 +267,43 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if err != nil {
 		return AskResult{}, err
 	}
+	base := askTurn{Question: question}
+	if regen {
+		// The conversation is the asker's (above); the target must be its last
+		// live answer, right after a question, or nothing runs.
+		rows, err := s.q.AiListMessages(ctx, conv.ID)
+		if err != nil {
+			return AskResult{}, err
+		}
+		q, ok := regenerateQuestion(rows, in.Regenerate)
+		if !ok {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+		base.Question, base.Regenerates = q.Content, in.Regenerate
+		in.Focus, in.Mentions = storedContext(q)
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
+		question = base.Question
+	}
 	// The focus and mentions must be readable by the asker on both paths,
-	// before anything streams (R9).
+	// before anything streams (R9); a regenerate reads the stored ones again.
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
-	ctxItems, err := s.askContext(ctx, tc, in.Focus, mentions)
+	agent := s.agentOn(ctx, tc) // read once: a flag flip between reads would send a regenerate down P0
+	if regen && !agent {
+		return AskResult{}, Invalid("regenerate: needs the agent")
+	}
+	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
 	if err != nil {
 		return AskResult{}, err
 	}
+	if in.Dock {
+		base.Focus, base.Mentions = refs.Focus, refs.Mentions
+	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
-	if s.agentOn(ctx, tc) {
-		return s.askAgent(ctx, userID, w, conv, question, in, ctxItems, emit)
+	if agent {
+		return s.askAgent(ctx, userID, w, conv, base, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {
@@ -282,7 +338,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: history(rows, false), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
 		stopped := ""
 		if err != nil {
@@ -317,11 +373,11 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	for _, c := range answer.Citations {
 		for _, src := range pack {
 			if src.ID == c.SourceID {
-				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href})
+				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href, ObjectID: sourceObjectID(src.Kind, src.Href)})
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, notice, citations, resp.UsageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID, Focus: base.Focus, Mentions: base.Mentions})
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -329,6 +385,39 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
 	emit.emitAnswer(res)
 	return res, nil
+}
+
+// regenerateQuestion is the question behind the answer id when that answer is
+// the last of the rows, still live, and follows a question.
+func regenerateQuestion(rows []db.AiMessage, id string) (db.AiMessage, bool) {
+	n := len(rows)
+	if n < 2 || rows[n-1].ID != id || rows[n-1].Role != "assistant" || rows[n-2].Role != "user" {
+		return db.AiMessage{}, false
+	}
+	return rows[n-2], true
+}
+
+// storedContext decodes the focus and mentions a question row kept; what does
+// not decode was never kept.
+func storedContext(q db.AiMessage) (*ai.Focus, []ai.Focus) {
+	var focus *ai.Focus
+	var ref AskContextRef
+	if q.Focus.Valid {
+		if json.Unmarshal([]byte(q.Focus.String), &ref) != nil {
+			slog.Warn("ask uni: stored focus does not decode", "message_id", q.ID)
+		} else if ref.ID != "" {
+			focus = &ai.Focus{Kind: ref.Kind, ID: ref.ID}
+		}
+	}
+	var refs []AskContextRef
+	if json.Unmarshal([]byte(q.Mentions), &refs) != nil {
+		slog.Warn("ask uni: stored mentions do not decode", "message_id", q.ID)
+	}
+	mentions := make([]ai.Focus, 0, len(refs))
+	for _, r := range refs {
+		mentions = append(mentions, ai.Focus{Kind: r.Kind, ID: r.ID})
+	}
+	return focus, mentions
 }
 
 func (s *AskUNIService) conversation(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (db.AiConversation, error) {
@@ -581,8 +670,9 @@ func citedID(c AskCitation) (string, bool) {
 	return id, id != "" && !strings.ContainsAny(id, "/?#")
 }
 
-// history replays the conversation's last turns, wrapped as untrusted.
-func history(rows []db.AiMessage) []provider.Message {
+// history replays the conversation's last turns, wrapped as untrusted; with
+// cited (the agent), each answer is followed by the sources it cited.
+func history(rows []db.AiMessage, cited bool) []provider.Message {
 	// Drop notice replies (no sources, empty answer, or the fixed text older
 	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
 	var kept []db.AiMessage
@@ -601,34 +691,108 @@ func history(rows []db.AiMessage) []provider.Message {
 		if r.Role == "assistant" {
 			src = "prior_answer"
 		}
-		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
+		content := ai.WrapUntrusted(src, r.Content)
+		if cited {
+			content += priorSources(r)
+		}
+		out = append(out, provider.Message{Role: r.Role, Content: content})
 	}
 	return out
 }
 
-func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
+// priorSources lists what an earlier answer cited, so a follow-up trusts those
+// sources instead of calling its own answer unverified. Rows whose citations
+// do not decode get no block.
+func priorSources(r db.AiMessage) string {
+	if r.Role != "assistant" {
+		return ""
+	}
+	var cites []AskCitation
+	if json.Unmarshal([]byte(r.Citations), &cites) != nil || len(cites) == 0 {
+		return ""
+	}
+	lines := make([]string, len(cites))
+	for i, c := range cites {
+		lines[i] = c.SourceID + " " + c.Kind + " " + oneLine(c.Title)
+	}
+	return "\nSources cited in that answer, read with tools in that turn:\n" + ai.WrapUntrusted("prior_sources", strings.Join(lines, "\n"))
+}
+
+// AskContextRef names a task, document or meeting a question was asked about.
+type AskContextRef struct {
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// AskStep is one tool the agent ran, as the panel shows it.
+type AskStep struct {
+	Tool   string         `json:"tool"`
+	Label  string         `json:"label"`
+	Counts map[string]int `json:"counts"`
+}
+
+// askTurn is one question and its answer, as store writes them. A non-empty
+// Regenerates names the answer this one replaces, and writes no question row.
+type askTurn struct {
+	Question, Answer, Notice string
+	Citations                []AskCitation
+	UsageEventID             string
+	Focus                    *AskContextRef
+	Mentions                 []AskContextRef
+	Steps                    []AskStep
+	Followups                []string
+	Regenerates              string
+	// Model is the catalogue key of the model the person chose; "" for Auto.
+	Model string
+}
+
+// jsonOrEmptyList marshals v, writing "[]" for a nil slice.
+func jsonOrEmptyList[T any](v []T) string {
+	if len(v) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTurn) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.AiMessage{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: question, Citations: "[]",
-	}); err != nil {
+	if t.Regenerates == "" {
+		var focus pgtype.Text
+		if t.Focus != nil {
+			fj, _ := json.Marshal(t.Focus)
+			focus = strText(string(fj))
+		}
+		if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
+			ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
+			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions),
+		}); err != nil {
+			return db.AiMessage{}, err
+		}
+	} else if n, err := q.AiSupersedeMessage(ctx, db.AiSupersedeMessageParams{ID: t.Regenerates, ConversationID: convID}); err != nil {
 		return db.AiMessage{}, err
+	} else if n == 0 {
+		// Another regenerate got there first; the rollback keeps one live answer.
+		return db.AiMessage{}, Invalid(errRegenerateTarget)
 	}
-	cj, _ := json.Marshal(citations)
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: answer,
-		Citations: string(cj), UsageEventID: strText(usageEventID), Notice: strText(notice),
+		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
+		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
+		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
 	})
 	if err != nil {
 		return db.AiMessage{}, err
 	}
-	title := question
-	if r := []rune(title); len(r) > 80 {
-		title = string(r[:80]) + "…"
+	// A regenerate has no question of its own: an empty title leaves the stored one.
+	title := ""
+	if t.Regenerates == "" {
+		title = questionTitle(t.Question)
 	}
 	if err := q.AiTouchConversation(ctx, db.AiTouchConversationParams{ID: convID, Title: title}); err != nil {
 		return db.AiMessage{}, err
@@ -636,9 +800,18 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answ
 	return msg, tx.Commit(ctx)
 }
 
-func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID string) ([]db.AiConversation, error) {
+// ListConversations is the asker's recent conversations, or, for a non-blank
+// q, the ones whose title matches it, accents folded.
+func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID, q string) ([]db.AiConversation, error) {
 	if _, err := s.requireMember(ctx, userID, workspaceID); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(q) != "" {
+		pattern, err := foldSearchPattern(q)
+		if err != nil {
+			return nil, err
+		}
+		return s.q.AiSearchConversations(ctx, db.AiSearchConversationsParams{WorkspaceID: workspaceID, UserID: userID, SearchPattern: pattern})
 	}
 	return s.q.AiListConversations(ctx, db.AiListConversationsParams{WorkspaceID: workspaceID, UserID: userID})
 }
