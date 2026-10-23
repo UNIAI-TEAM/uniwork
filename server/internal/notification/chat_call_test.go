@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"slices"
 	"testing"
 	"time"
 
@@ -49,7 +48,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
-	// A browser too: a call also reaches a browser whose page is closed (UNI-1965).
+	// A browser too: it rings in-app through realtime, so the call push is the phone's only.
 	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
 	now := time.Now()
 	spy := &spySender{}
@@ -100,10 +99,8 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 			ExpiresAt: rung.CreatedAt.Time.Add(callRingWindow).UnixMilli(),
 		},
 	}
-	gotEndpoints := slices.Sorted(slices.Values(spy.endpoints))
-	if len(spy.sent) != 2 || spy.sent[0] != want || spy.sent[1] != want ||
-		!slices.Equal(gotEndpoints, []string{"ExponentPushToken[member]", "https://push.example/member-browser"}) {
-		t.Fatalf("sent = %+v to %v, want %+v to the phone and the browser", spy.sent, spy.endpoints, want)
+	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[member]" {
+		t.Fatalf("sent = %+v to %v, want %+v to the phone only", spy.sent, spy.endpoints, want)
 	}
 	if rungParams["call_kind"] != "dm" || rungParams["video"] != "1" {
 		t.Fatalf("ring params = %v, want the call's kind and camera", rungParams)
@@ -144,7 +141,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, ended); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 2 {
+	if len(spy.sent) != 1 {
 		t.Fatalf("a call that ended was pushed: %+v", spy.sent)
 	}
 	if n := f.notificationOf(t, ended); !n.ReadAt.Valid {
@@ -185,7 +182,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, raced); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 2 || !f.notificationOf(t, raced).ReadAt.Valid {
+	if len(spy.sent) != 1 || !f.notificationOf(t, raced).ReadAt.Valid {
 		t.Fatalf("a ring answered before the push lane was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-race"); err != nil {
@@ -202,7 +199,7 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, behind); err != nil {
 		t.Fatal(err)
 	}
-	if len(spy.sent) != 2 || !f.notificationOf(t, behind).ReadAt.Valid {
+	if len(spy.sent) != 1 || !f.notificationOf(t, behind).ReadAt.Valid {
 		t.Fatalf("a ring past its window was pushed or left open: %+v", spy.sent)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-push-5"); err != nil {
