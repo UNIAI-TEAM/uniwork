@@ -130,13 +130,27 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByText("Lý do: Đã có bản in")).toBeInTheDocument();
   });
 
-  // UNI-1995 access review: the items stay with the workspace, the lines they cite do not.
-  it("shows a member outside the meeting the items without their evidence chips", async () => {
+  // UNI-1995 access (demo bug 2): what the scribe drew from the transcript is for
+  // the people of the meeting. A member outside it sees the tasks it handed out,
+  // and a line saying the rest is for the participants, even from a server that
+  // still sends the rest.
+  it("shows a member outside the meeting only the tasks it handed out", async () => {
     renderSection({ canClerk: false, aiRestricted: true });
-    expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: 'Mở việc "Báo khách hàng"' })).toBeInTheDocument();
+    expect(screen.getByText("Các việc khác của cuộc họp chỉ dành cho người tham dự.")).toBeInTheDocument();
+    expect(screen.queryByText("Gửi biên bản")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Chờ xử lý/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Đã bỏ qua/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Căn cứ \d/ })).not.toBeInTheDocument();
     expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/evidence"))).toBe(false);
+  });
+
+  it("tells a member outside a meeting that handed out nothing who its items are for", async () => {
+    respond({ items: () => ({ items: [], counts: { pending: 2, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
+    renderSection({ canClerk: false, aiRestricted: true });
+    expect(await screen.findByText("Các việc khác của cuộc họp chỉ dành cho người tham dự.")).toBeInTheDocument();
+    expect(screen.queryByText("Chưa có việc nào.")).not.toBeInTheDocument();
   });
 
   it("labels an item the AI scribe heard during the meeting as the scribe's, with its time", async () => {

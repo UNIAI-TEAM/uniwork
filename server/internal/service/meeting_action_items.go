@@ -22,7 +22,8 @@ import (
 // The action items of a meeting (UNI-1998, spec meeting follow-through §3,
 // §5.1, §6.1–6.3): what a summary proposed, what a clerk added, and what
 // became of each. Anyone in the workspace reads them; only a clerk (host,
-// secretary, workspace admin) adds, dismisses, restores or converts.
+// secretary, workspace admin) adds, dismisses, restores or converts. What an
+// item says beyond its task is AI content (meeting_ai_access.go).
 
 const (
 	// maxActionItemsPerConvert caps one conversion request.
@@ -100,9 +101,15 @@ type ActionItemsView struct {
 	Counts ActionItemCounts
 }
 
-// ActionItems lists a meeting's action items for any member of its workspace.
+// ActionItems lists a meeting's action items for any member of its
+// workspace: in full for whoever may read its AI content, as task references
+// (asTaskReferences) for everyone else.
 func (s *MeetingService) ActionItems(ctx context.Context, userID, meetingID string) (ActionItemsView, error) {
-	m, _, err := s.authorize(ctx, userID, meetingID)
+	m, mem, err := s.authorize(ctx, userID, meetingID)
+	if err != nil {
+		return ActionItemsView{}, err
+	}
+	readable, err := s.aiContentReader(ctx, m, mem, userID)
 	if err != nil {
 		return ActionItemsView{}, err
 	}
@@ -110,7 +117,11 @@ func (s *MeetingService) ActionItems(ctx context.Context, userID, meetingID stri
 	if err != nil {
 		return ActionItemsView{}, err
 	}
-	return s.describeActionItems(ctx, m, rows, time.Now())
+	v, err := s.describeActionItems(ctx, m, rows, time.Now())
+	if err != nil || readable {
+		return v, err
+	}
+	return asTaskReferences(v), nil
 }
 
 func (s *MeetingService) describeActionItems(ctx context.Context, m db.Meeting, rows []db.ListMeetingActionItemsRow, now time.Time) (ActionItemsView, error) {

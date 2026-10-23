@@ -14,7 +14,8 @@ import (
 // A meeting's AI content - the verbatim transcript, the AI summary, the
 // evidence lines it cites, the live catch-up, and the Ask UNI and MCP reads
 // of them - is narrower than the meeting itself (UNI-1995 access). Its
-// title, time, agenda and action items stay with the workspace (authorize);
+// title, time and agenda stay with the workspace (authorize), and so do the
+// tasks its action items became (asTaskReferences);
 // what was said is for the people of the meeting: the host, the workspace
 // admins (organization owners/admins are implicit ones in RequireMember),
 // and every signed-in participant whose row is still ACTIVE - the invited,
@@ -66,6 +67,31 @@ func (s *MeetingService) aiContentReader(ctx context.Context, m db.Meeting, mem 
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// asTaskReferences is the action items of a meeting for a member who may not
+// read its AI content: only the converted ones, each reduced to the task it
+// became (the task's own title, state, assignee and due, which the workspace
+// reads anyway). Pending and dismissed items, and every phrase the scribe drew
+// from the transcript (owner, due, description, priority, evidence, the
+// item's own title, a dismiss reason), stay with the people of the meeting.
+// The counts stay: they say how much was handed out, not what was said.
+func asTaskReferences(v ActionItemsView) ActionItemsView {
+	out := ActionItemsView{Counts: v.Counts, Items: []ActionItemView{}}
+	for _, it := range v.Items {
+		if it.Status != ActionItemConverted || it.Task == nil {
+			continue
+		}
+		i := it.Item
+		out.Items = append(out.Items, ActionItemView{
+			Item: db.MeetingActionItem{
+				ID: i.ID, OrganizationID: i.OrganizationID, WorkspaceID: i.WorkspaceID, MeetingID: i.MeetingID,
+				Source: i.Source, Position: i.Position, Title: it.Task.Title, TaskID: i.TaskID, CreatedAt: i.CreatedAt,
+			},
+			Status: it.Status, Task: it.Task,
+		})
+	}
+	return out
 }
 
 // CanReadAIContent tells the meeting page whether to show the AI content or

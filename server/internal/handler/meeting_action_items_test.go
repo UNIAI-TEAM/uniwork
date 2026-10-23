@@ -85,8 +85,14 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 		t.Fatalf("carried over without a project: %d %v", res.StatusCode, out)
 	}
 
-	// Any member reads the list; the summary no longer carries the items.
+	// A member outside the meeting reads what it handed out, nothing yet, and
+	// how much is left (UNI-1995 access, demo bug 2); the people of the meeting
+	// read the items. The summary no longer carries them.
 	res, out = doJSON(t, srv, "GET", base, member, nil)
+	if items, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(items) != 0 || out["counts"].(map[string]any)["pending"] != float64(2) {
+		t.Fatalf("list for a member outside the meeting: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", base, host, nil)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("list: %d %v", res.StatusCode, out)
 	}
@@ -172,6 +178,22 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	_, out = doJSON(t, srv, "GET", base, host, nil)
 	if got := out["items"].([]any)[0].(map[string]any); got["status"] != "CONVERTED" || got["task"].(map[string]any)["id"] != taskID {
 		t.Fatalf("after conversion: %v", got)
+	}
+	// Outside the meeting, the converted item is the task it became and no
+	// word the meeting said about it: no owner or due phrase, no evidence.
+	outsider, _ := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "act-tuan@example.com")
+	res, out = doJSON(t, srv, "GET", base, outsider, nil)
+	if items, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(items) != 1 {
+		t.Fatalf("list for an outsider after conversion: %d %v", res.StatusCode, out)
+	}
+	ref := out["items"].([]any)[0].(map[string]any)
+	if ref["id"] != reportID || ref["status"] != "CONVERTED" || ref["title"] != "Gửi báo cáo" || ref["task"].(map[string]any)["id"] != taskID ||
+		ref["owner_text"] != "" || ref["due_text"] != "" || ref["description"] != "" || ref["suggested_priority"] != "" ||
+		ref["suggested_assignee_id"] != nil || ref["suggested_due_date"] != nil || ref["summary_id"] != nil {
+		t.Fatalf("converted item for an outsider: %v", ref)
+	}
+	if ev, ok := ref["evidence"].([]any); !ok || len(ev) != 0 {
+		t.Fatalf("evidence for an outsider: %v", ref["evidence"])
 	}
 
 	// Dismiss with a reason, restore, and restore again (409).

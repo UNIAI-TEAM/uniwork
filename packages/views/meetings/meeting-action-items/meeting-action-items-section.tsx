@@ -278,7 +278,10 @@ export function MeetingActionItemsSection({
   /** The meeting's project: new tasks start there while it still exists. */
   projectId?: string;
   canClerk: boolean;
-  /** The viewer may not read the meeting's AI content (meeting.ai_content_readable false): no evidence chips. */
+  /**
+   * The viewer may not read the meeting's AI content (meeting.ai_content_readable false):
+   * only the tasks it handed out, which is all the server sends them, and no evidence chips.
+   */
   aiRestricted?: boolean;
   variant?: ActionItemsVariant;
   /** Ticks kept by a screen that unmounts this section; else kept here. */
@@ -300,7 +303,9 @@ export function MeetingActionItemsSection({
   // A restored row unmounts with its focused button: follow the item back to its pending row.
   const restoring = useRef<string | null>(null);
 
-  const items = query.data?.items ?? NO_ITEMS;
+  const all = query.data?.items ?? NO_ITEMS;
+  // Kept on the client too, so an older server's full list never reaches an outsider.
+  const items = aiRestricted ? all.filter((item) => item.status === "CONVERTED") : all;
   const pending: MeetingActionItem[] = [];
   const converted: MeetingActionItem[] = [];
   const dismissed: MeetingActionItem[] = [];
@@ -335,10 +340,13 @@ export function MeetingActionItemsSection({
   ) : (
     <div ref={bodyRef} className="space-y-4" data-testid="meeting-action-items">
       {items.length > 0 && query.data ? <ProgressLine counts={query.data.counts} /> : null}
-      {items.length === 0 && !canClerk ? (
+      {aiRestricted ? (
+        <p className="text-label text-muted-foreground">{t("meetings.actionItemsSection.restrictedNote")}</p>
+      ) : null}
+      {items.length === 0 && !canClerk && !aiRestricted ? (
         <p className="text-label text-muted-foreground">{t("meetings.actionItemsSection.emptyReadOnly")}</p>
       ) : null}
-      {canClerk || pending.length > 0 ? (
+      {(canClerk && !aiRestricted) || pending.length > 0 ? (
         <section>
           {pending.length > 0 ? (
             <GroupHeading>{t("meetings.actionItemsSection.pendingGroup", { count: pending.length })}</GroupHeading>

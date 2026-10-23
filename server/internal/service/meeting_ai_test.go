@@ -96,9 +96,9 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
-	// The stored summary's items are the meeting's action items; any member
-	// reads them, the host converts one.
-	items, err := s.ActionItems(ctx, ub.ID, m.ID)
+	// The stored summary's items are the meeting's action items; the host
+	// reads and converts one.
+	items, err := s.ActionItems(ctx, ua.ID, m.ID)
 	if err != nil || len(items.Items) != 1 || items.Items[0].Item.Title != "Gửi báo cáo" || items.Items[0].Item.SummaryID.String != sum.ID {
 		t.Fatalf("%+v %v", items, err)
 	}

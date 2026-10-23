@@ -300,7 +300,10 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	r.Get("/meetings/{meetingID}/action-items", h.ListActionItems, apiOp{
 		summary: "Action items of the meeting (pending, converted, dismissed)", tags: []string{"meetings"},
 		description: "Mọi thành viên workspace. Trạng thái suy ra: DISMISSED khi đã bỏ qua, CONVERTED khi task còn tồn tại, " +
-			"còn lại PENDING (task bị xoá thì việc về chờ xử lý). Gợi ý người và hạn chỉ có với việc chờ xử lý.",
+			"còn lại PENDING (task bị xoá thì việc về chờ xử lý). Gợi ý người và hạn chỉ có với việc chờ xử lý. " +
+			"Đọc đủ: chủ trì, thư ký, người tham gia còn ACTIVE, quản trị workspace, hoặc mọi thành viên khi cuộc họp bật chia sẻ nội dung AI (PUT .../ai-sharing). " +
+			"Thành viên khác vẫn nhận 200 nhưng chỉ các việc CONVERTED, rút về tham chiếu task: title là tiêu đề task, " +
+			"owner_text/due_text/description/suggested_priority/dismiss_reason rỗng, evidence [] và summary_id null; counts giữ nguyên.",
 		sdo: sdo.MeetingActionItemsSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/carried-over-items", h.ListCarriedOverItems, apiOp{
