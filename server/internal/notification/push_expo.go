@@ -95,7 +95,8 @@ const (
 	ChannelMentions    = "mentions"
 	ChannelMessages    = "messages"
 	ChannelGeneral     = "general"
-	// ChannelChatQuiet is low importance, no sound and no vibration: a chat
+	// ChannelChatQuiet is default importance with no sound and no vibration
+	// (a low one would file the room under Android's "Silent"): a chat
 	// push that follows one the phone alerted for in the same room within
 	// chatAlertWindow replaces the room's notification on it, silently. Only
 	// a build that created it is sent it (expoChatQuiet): Android shows a

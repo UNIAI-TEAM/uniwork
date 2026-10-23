@@ -14,7 +14,6 @@ const log = createLogger("push");
 const IMPORTANCE = {
   high: Notifications.AndroidImportance.HIGH,
   default: Notifications.AndroidImportance.DEFAULT,
-  low: Notifications.AndroidImportance.LOW,
 } as const;
 
 export function callChannelNames(t: Translate): CallChannelNames {
@@ -34,7 +33,7 @@ export async function ensureNotificationChannels(
   try {
     env.native.ensureChannels(callChannelNames(t));
     for (const channel of NOTIFICATION_CHANNELS) {
-      const quiet = channel.importance === "low";
+      const quiet = channel.silent === true;
       await Notifications.setNotificationChannelAsync(channel.id, {
         name: t(channel.nameKey),
         description: t(channel.descriptionKey),

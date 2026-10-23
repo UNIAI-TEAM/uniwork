@@ -145,7 +145,8 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   này (cùng bản đăng ký `chat_quiet`) mới nhận tiêu đề thêm "· N tin nhắn mới"; bản cũ vẫn mỗi push một thông báo,
   tiêu đề trơn. Một đợt tin chỉ reo một lần mỗi `chatAlertWindow` (30 s, `push_consumer.go`): `phone_pushed_at`
   là lần cuối điện thoại reo cho hàng; tin tới trong cửa sổ là tin im (`quiet` = `1` trong data): iPhone không
-  `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên thấp, không chuông, không rung), chỉ tới bản đã
+  `sound`, mức `passive`; Android đi kênh `chat_quiet` (độ ưu tiên mặc định, không chuông, không rung — không để mức thấp, vì Android 10+
+  dồn thông báo mức thấp vào mục "Im lặng" thu gọn và bỏ biểu tượng trên thanh trạng thái), chỉ tới bản đã
   đăng ký `chat_quiet: true` (`data/push.ts`, user agent `…; chat-quiet`) — bản cũ không có kênh đó sẽ hiện trên kênh
   dự phòng có chuông, nên không nhận tin im; listener khi app mở cũng không phát tiếng cho tin im
   (`foregroundBehavior`). Đọc phòng đóng hàng, nên tin đầu sau khi đọc luôn reo. Khoá của hành động thông báo là

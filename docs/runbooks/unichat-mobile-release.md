@@ -724,7 +724,8 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   được payload — xem log `push` "chat notification action" trong logcat.
 - [ ] Mỗi tin một push (UNI-2141; app ở nền hay đã kill, server đã deploy migration `pushed_message_id`): người kia gửi
   liên tiếp 4 tin DM trong 10 giây — Android: một thông báo của phòng, chữ đổi theo tin mới nhất, tiêu đề thêm "· 4 tin
-  nhắn mới", chỉ reo/rung ở tin đầu (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo
+  nhắn mới", chỉ reo/rung ở tin đầu, và sau các tin im thông báo vẫn ở mục thường (không bị dồn vào "Im lặng") và còn
+  biểu tượng trên thanh trạng thái (Cài đặt › Thông báo của UniChat có kênh "Tin nhắn liền sau"); iPhone: 4 thông báo
   xếp chồng dưới một mục của phòng, chỉ tin đầu có tiếng. Chờ hơn 30 giây rồi gửi tin nữa: reo lại. Đọc phòng trên web
   rồi gửi tin: reo ngay. Tắt thông báo phòng: không push nào. "Trả lời" ở thông báo tin thứ hai sau khi đã trả lời tin
   đầu: tin vẫn đi (khoá hành động theo id tin); chạm thông báo đó sau khi đã chạm thông báo của tin đầu: mở đúng tin
