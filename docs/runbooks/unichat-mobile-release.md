@@ -583,8 +583,16 @@ từng mục khi đã nộp:
   hộp thư `contact@unicomhub.com` có người trực — **mọi báo cáo được xử lý trong 24 giờ**, điều khoản sử dụng hứa vậy
   (Apple 1.2).
 - [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
-  nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
-  `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
+  nên bản iOS gửi review (cả TestFlight external) phải hiện nút Apple — ADR
+  [0041](../adr/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md). Trước khi nộp: App ID `com.uniworkos.chat` (và
+  `.staging`) bật capability Sign In with Apple (EAS bật khi ký bằng credential nó quản lý; không thì Certificates,
+  Identifiers & Profiles › Identifiers › App ID › Sign In with Apple, "Enable as a primary App ID", rồi tạo lại profile);
+  một khoá ở Keys › "+" › Sign in with Apple › Configure với primary App ID `com.uniworkos.chat`, tải `.p8` (một lần);
+  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat` (staging thêm `com.uniworkos.chat.staging`),
+  `APPLE_SIWA_TEAM_ID=XJAM488A6D`, `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY` (nội dung `.p8`) và đã deploy bản có
+  migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Thử trên máy
+  thật: đăng nhập bằng Apple (cả "Ẩn email"), đăng xuất, đăng nhập lại vào đúng tài khoản, xoá tài khoản — log server
+  không có `apple revoke failed`. Ghi chú review: "Sign in with Apple is on the first screen."
 - [ ] **iOS background modes (Apple 2.5.4)**: Info.plist của bản nộp chỉ có `UIBackgroundModes: processing` khi gọi còn
   tắt trên iPhone (`app.config.test.ts` đọc Info.plist cuối của bản release), và ghi chú review giải thích nó: "UniChat
   schedules a background processing task (BGTaskScheduler) that sends messages the user wrote while offline once the
