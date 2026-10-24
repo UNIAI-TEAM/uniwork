@@ -300,6 +300,7 @@ func main() {
 	// Presence lives in Redis when there is one, so every replica sees the same
 	// online set and a transition is announced once; nil keeps it in process.
 	chatSvc.SetPresenceStore(rdb)
+	hub.SetPresenceSignaler(handler.ChatPresenceSignaler(chatSvc))
 	// Call sessions are journaled in Redis when there is one, so a restart or a
 	// deploy keeps the calls ringing and under way (chat_voice_journal.go).
 	chatSvc.SetVoiceCallJournal(rdb)
