@@ -18,14 +18,14 @@ WHERE room_id = $1 AND call_id = $2 AND caller_id <> $3
 `
 
 type AcceptChatVoiceCallSessionParams struct {
-	RoomID   string `json:"room_id"`
-	CallID   string `json:"call_id"`
-	CallerID string `json:"caller_id"`
+	RoomID     string `json:"room_id"`
+	CallID     string `json:"call_id"`
+	AccepterID string `json:"accepter_id"`
 }
 
 // tenant: parent room_id
 func (q *Queries) AcceptChatVoiceCallSession(ctx context.Context, arg AcceptChatVoiceCallSessionParams) error {
-	_, err := q.db.Exec(ctx, acceptChatVoiceCallSession, arg.RoomID, arg.CallID, arg.CallerID)
+	_, err := q.db.Exec(ctx, acceptChatVoiceCallSession, arg.RoomID, arg.CallID, arg.AccepterID)
 	return err
 }
 

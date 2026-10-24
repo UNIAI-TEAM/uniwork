@@ -191,8 +191,8 @@ func (s *ChatService) trackVoiceCallInvite(ctx context.Context, room db.ChatRoom
 		RoomName:       sess.roomName,
 		Video:          sess.video,
 		InvitedAt:      timestamptzOf(sess.invitedAt),
-		ParticipantIds: append([]string(nil), sess.participantIDs...),
-		InviteeIds:     append([]string(nil), sess.inviteeIDs...),
+		ParticipantIds: pgTextArray(sess.participantIDs),
+		InviteeIds:     pgTextArray(sess.inviteeIDs),
 		DeclinedIds:    []string{},
 	})
 	if err != nil {
@@ -264,6 +264,13 @@ func (s *ChatService) trackVoiceCallAccept(ctx context.Context, orgID, roomID, c
 	now := time.Now()
 	sess.acceptedAt = &now
 	s.storeVoiceCallSession(ctx, orgID, sess)
+	if s.q != nil {
+		if err := s.q.AcceptChatVoiceCallSession(ctx, db.AcceptChatVoiceCallSessionParams{
+			RoomID: roomID, CallID: callID, AccepterID: userID,
+		}); err != nil {
+			slog.Warn("chat: voice call accept not persisted", "room_id", roomID, "call_id", callID, "error", err)
+		}
+	}
 }
 
 // requireDMVoiceAllowed rejects voice signaling when either party blocked the other.
@@ -481,12 +488,15 @@ func (s *ChatService) ListPendingVoiceInvites(
 	}
 	now := time.Now()
 	out := make([]PendingVoiceInvite, 0)
-	seen := make(map[string]struct{})
-	appendPending := func(sess voiceCallSession) {
+	merged := make(map[string]voiceCallSession)
+	stagePending := func(sess voiceCallSession) {
 		key := voiceCallSessionKey(sess.roomID, sess.callID)
-		if _, dup := seen[key]; dup {
-			return
+		if prev, ok := merged[key]; ok {
+			sess = mergeVoiceCallSession(prev, sess)
 		}
+		merged[key] = sess
+	}
+	appendPending := func(sess voiceCallSession) {
 		if sess.acceptedAt != nil || sess.callerID == userID || slices.Contains(sess.declinedIDs, userID) {
 			return
 		}
@@ -503,7 +513,6 @@ func (s *ChatService) ListPendingVoiceInvites(
 		if blockErr := s.requireDMVoiceAllowed(ctx, room, userID); blockErr != nil {
 			return
 		}
-		seen[key] = struct{}{}
 		out = append(out, PendingVoiceInvite{
 			RoomID:     sess.roomID,
 			CallID:     sess.callID,
@@ -524,15 +533,23 @@ func (s *ChatService) ListPendingVoiceInvites(
 			return nil, err
 		}
 		for _, row := range rows {
-			appendPending(voiceCallSessionFromRow(row))
+			stagePending(voiceCallSessionFromRow(row))
 		}
 	}
 	voiceCallSessions.Range(func(_ any, value any) bool {
 		if sess, ok := value.(voiceCallSession); ok {
-			appendPending(sess)
+			stagePending(sess)
 		}
 		return true
 	})
+	for key, sess := range merged {
+		if fresh, ok := s.loadVoiceCallSession(ctx, sess.roomID, sess.callID); ok {
+			merged[key] = mergeVoiceCallSession(sess, fresh)
+		}
+	}
+	for _, sess := range merged {
+		appendPending(sess)
+	}
 	return out, nil
 }
 
@@ -557,18 +574,13 @@ func (s *ChatService) ListOutgoingVoiceCalls(ctx context.Context, userID, worksp
 	}
 	now := time.Now()
 	sessions := make([]voiceCallSession, 0)
-	seen := make(map[string]struct{})
-	appendOutgoing := func(sess voiceCallSession) {
+	merged := make(map[string]voiceCallSession)
+	stageOutgoing := func(sess voiceCallSession) {
 		key := voiceCallSessionKey(sess.roomID, sess.callID)
-		if _, dup := seen[key]; dup || sess.callerID != userID || sess.expired(now) {
-			return
+		if prev, ok := merged[key]; ok {
+			sess = mergeVoiceCallSession(prev, sess)
 		}
-		room, err := s.q.GetChatRoomByID(ctx, sess.roomID)
-		if err != nil || room.OrganizationID != w.OrganizationID {
-			return
-		}
-		seen[key] = struct{}{}
-		sessions = append(sessions, sess)
+		merged[key] = sess
 	}
 	if s.q != nil {
 		rows, err := s.q.ListOutgoingChatVoiceCallSessions(ctx, db.ListOutgoingChatVoiceCallSessionsParams{
@@ -580,15 +592,30 @@ func (s *ChatService) ListOutgoingVoiceCalls(ctx context.Context, userID, worksp
 			return nil, err
 		}
 		for _, row := range rows {
-			appendOutgoing(voiceCallSessionFromRow(row))
+			stageOutgoing(voiceCallSessionFromRow(row))
 		}
 	}
 	voiceCallSessions.Range(func(_ any, value any) bool {
 		if sess, ok := value.(voiceCallSession); ok {
-			appendOutgoing(sess)
+			stageOutgoing(sess)
 		}
 		return true
 	})
+	for key, sess := range merged {
+		if fresh, ok := s.loadVoiceCallSession(ctx, sess.roomID, sess.callID); ok {
+			merged[key] = mergeVoiceCallSession(sess, fresh)
+		}
+	}
+	for _, sess := range merged {
+		if sess.callerID != userID || sess.expired(now) {
+			continue
+		}
+		room, err := s.q.GetChatRoomByID(ctx, sess.roomID)
+		if err != nil || room.OrganizationID != w.OrganizationID {
+			continue
+		}
+		sessions = append(sessions, sess)
+	}
 	slices.SortFunc(sessions, func(a, b voiceCallSession) int { return a.invitedAt.Compare(b.invitedAt) })
 	out := make([]OutgoingVoiceCall, 0, len(sessions))
 	for _, sess := range sessions {

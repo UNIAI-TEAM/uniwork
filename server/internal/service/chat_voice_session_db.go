@@ -13,6 +13,26 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// mergeVoiceCallSession combines two views of the same call (memory vs Postgres).
+// In-process state can carry accepted_at before a list query reads a stale row.
+func mergeVoiceCallSession(a, b voiceCallSession) voiceCallSession {
+	out := a
+	if b.acceptedAt != nil && (out.acceptedAt == nil || b.acceptedAt.After(*out.acceptedAt)) {
+		t := *b.acceptedAt
+		out.acceptedAt = &t
+	}
+	if b.invitedAt.After(out.invitedAt) {
+		out.invitedAt = b.invitedAt
+	}
+	if len(b.participantIDs) > len(out.participantIDs) {
+		out.participantIDs = append([]string(nil), b.participantIDs...)
+	}
+	if len(b.declinedIDs) > len(out.declinedIDs) {
+		out.declinedIDs = append([]string(nil), b.declinedIDs...)
+	}
+	return out
+}
+
 func voiceCallSessionFromRow(row db.ChatVoiceCallSession) voiceCallSession {
 	sess := voiceCallSession{
 		roomID:         row.RoomID,
@@ -34,6 +54,14 @@ func voiceCallSessionFromRow(row db.ChatVoiceCallSession) voiceCallSession {
 		sess.acceptedAt = &t
 	}
 	return sess
+}
+
+// pgTextArray sends PostgreSQL TEXT[] as '{}' instead of NULL (NOT NULL columns).
+func pgTextArray(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 
 func timestamptzOf(t time.Time) pgtype.Timestamptz {
@@ -75,9 +103,9 @@ func (s *ChatService) upsertVoiceCallSessionRow(ctx context.Context, orgID strin
 		Video:          sess.video,
 		InvitedAt:      timestamptzOf(sess.invitedAt),
 		AcceptedAt:     timestamptzPtr(sess.acceptedAt),
-		ParticipantIds: append([]string(nil), sess.participantIDs...),
-		InviteeIds:     append([]string(nil), sess.inviteeIDs...),
-		DeclinedIds:    append([]string(nil), sess.declinedIDs...),
+		ParticipantIds: pgTextArray(sess.participantIDs),
+		InviteeIds:     pgTextArray(sess.inviteeIDs),
+		DeclinedIds:    pgTextArray(sess.declinedIDs),
 	})
 }
 

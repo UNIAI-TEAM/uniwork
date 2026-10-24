@@ -36,7 +36,7 @@ ON CONFLICT (room_id, call_id) DO UPDATE SET
 -- tenant: parent room_id
 UPDATE chat_voice_call_sessions
 SET accepted_at = COALESCE(accepted_at, now())
-WHERE room_id = $1 AND call_id = $2 AND caller_id <> $3;
+WHERE room_id = sqlc.arg(room_id) AND call_id = sqlc.arg(call_id) AND caller_id <> sqlc.arg(accepter_id);
 
 -- name: AddChatVoiceCallParticipant :exec
 -- tenant: parent room_id
