@@ -214,7 +214,7 @@ export class WSClient {
     }
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        if (this.presenceBeatWaiter) this.presenceBeatWaiter = null;
+        this.presenceBeatWaiter = null;
         resolve(null);
       }, 10_000);
       this.presenceBeatWaiter = { resolve, timer };

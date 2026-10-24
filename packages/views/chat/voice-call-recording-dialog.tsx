@@ -55,6 +55,9 @@ export function VoiceCallRecordingDialog({
 
   useEffect(() => {
     if (!open) {
+      if (getCachedVoiceRecordingPlayback(cacheKeyRef.current)?.kind === "blob") {
+        releaseVoiceRecordingPlayback(cacheKeyRef.current);
+      }
       playbackUrlRef.current = null;
       setStatus("idle");
       return;
