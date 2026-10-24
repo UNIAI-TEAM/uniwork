@@ -25,8 +25,8 @@ export function AskUniSourcesBar() {
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   return (
-    // A rounded box inset under the header, the same shape as the composer below.
-    <div data-slot="ask-uni-sources" className="mx-3 mt-2 flex shrink-0 items-center gap-2 rounded-xl border border-border bg-muted/40 py-1 ps-3 pe-1">
+    // A softly rounded box inset under the header.
+    <div data-slot="ask-uni-sources" className="mx-3 mt-2 flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted/40 py-1 ps-3 pe-1">
       <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">{t("ai.source_bar.title")}</span>
       <ul aria-label={t("ai.source_bar.title")} className="flex items-center gap-1">
         {APPS.map(({ name, Mark }) => {
