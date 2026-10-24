@@ -93,9 +93,10 @@ export function AskUniMessageTurn({
     [sources, message.citations],
   );
   const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
-  // With actions off (or not read yet) the card is history: its rows, no button.
+  // With actions off, the ceiling off (the server refuses every decision then) or not read yet, the card is history: its rows, no button.
   const hasProposals = (message.proposals?.length ?? 0) > 0;
-  const actionsOn = useAiCapabilities(wsId, wsId !== "" && hasProposals).data?.actions.enabled === true;
+  const actions = useAiCapabilities(wsId, wsId !== "" && hasProposals).data?.actions;
+  const actionsOn = actions?.enabled === true && actions.ceiling !== "off";
   // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
   const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
   if (message.role === "user") {

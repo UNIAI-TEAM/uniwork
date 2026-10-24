@@ -264,9 +264,9 @@ describe("AskUniMessageTurn", () => {
       id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending", mode: "ask",
       preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] },
     });
-    const serveActions = (enabled: boolean) =>
+    const serveActions = (enabled: boolean, ceiling = "plan") =>
       requestMock.mockImplementation((path: string) =>
-        Promise.resolve(path === "/api/v1/workspaces/ws1/ai/capabilities" ? { enabled: true, ask_uni: true, actions: { enabled, ceiling: "plan", mode: "ask" } } : {}),
+        Promise.resolve(path === "/api/v1/workspaces/ws1/ai/capabilities" ? { enabled: true, ask_uni: true, actions: { enabled, ceiling, mode: "ask" } } : {}),
       );
     const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
@@ -278,6 +278,15 @@ describe("AskUniMessageTurn", () => {
 
     it("keeps the rows as history, with no button, once actions are off", async () => {
       serveActions(false);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
+
+    it("keeps the rows as history under an off ceiling too, where the server refuses every decision", async () => {
+      serveActions(true, "off");
       mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
       await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
       await settle();
