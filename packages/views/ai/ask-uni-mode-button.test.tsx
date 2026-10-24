@@ -73,7 +73,10 @@ describe("AskUniModeButton", () => {
   it("says every change still asks first in a tainted conversation on Tự động", async () => {
     serve({ enabled: true, ceiling: "auto", mode: "auto" });
     mount(true);
-    expect(await screen.findByRole("status")).toHaveTextContent("mọi thay đổi vẫn hỏi bạn trước");
+    const note = await screen.findByRole("status");
+    expect(note).toHaveTextContent("mọi thay đổi vẫn hỏi bạn trước");
+    // Content UNI or an app wrote taints too, so the note does not say a person wrote it.
+    expect(note).toHaveTextContent("không do bạn viết");
   });
 
   it("shows no such note when the conversation is clean or the mode is not Tự động", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { useSetAskUniMode } from "@uniwork/core/ai/proposals";
@@ -42,6 +42,8 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
           disabled={save.isPending}
           render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("label_with", { mode: current })} />}
         >
+          {/* The model picker beside it can also read "Tự động"; the shield marks this one as permissions. */}
+          <ShieldCheck aria-hidden />
           {current}
           <ChevronDown aria-hidden />
         </DropdownMenuTrigger>
@@ -61,12 +63,12 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
         </DropdownMenuContent>
       </DropdownMenu>
       {save.isError ? (
-        <p role="alert" className="basis-full text-caption text-destructive">
+        <p role="alert" className="order-last basis-full text-caption text-destructive">
           {t("save_failed")}
         </p>
       ) : null}
       {conversationTainted && state.mode === "auto" ? (
-        <p role="status" className="basis-full text-caption text-muted-foreground">
+        <p role="status" className="order-last basis-full text-caption text-muted-foreground">
           {t("tainted_note")}
         </p>
       ) : null}

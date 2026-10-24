@@ -6205,7 +6205,7 @@
       "auto": "Auto",
       "label_with": "Mode: {{mode}}",
       "save_failed": "Could not save the mode. Try again.",
-      "tainted_note": "This conversation has read content someone else wrote, so every change will still ask you first, even in Auto mode."
+      "tainted_note": "This conversation has read content you did not write, so every change will still ask you first, even in Auto mode."
     },
     "model": {
       "label": "Choose a model",
