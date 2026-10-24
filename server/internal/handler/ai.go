@@ -76,6 +76,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
 		Models: models, AutoModel: c.AutoModel, Attachments: c.Attachments,
 		Actions: sdo.AiActionsDTO{Enabled: c.Actions.Enabled, Ceiling: c.Actions.Ceiling, Mode: c.Actions.Mode},
+		Memory:  sdo.AiMemoryCapsDTO{Enabled: c.Memory.Enabled, On: c.Memory.On},
 	})
 }
 

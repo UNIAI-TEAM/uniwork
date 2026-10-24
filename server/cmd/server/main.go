@@ -773,6 +773,7 @@ func main() {
 	askUNI.SetFlags(flags)
 	aiMemorySvc := service.NewAiMemoryService(pool, q, orgSvc, wsSvc)
 	aiMemorySvc.SetFlags(flags)
+	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
@@ -846,6 +847,7 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		AiMemory:            aiMemorySvc,
 		McpAuth:             mcpAuth,
 		McpTools:            mcpTools,
 		AIBYOK:              aiBYOK,

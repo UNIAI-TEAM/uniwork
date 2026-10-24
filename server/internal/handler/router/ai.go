@@ -29,6 +29,11 @@ import (
 //	PUT    /api/v1/orgs/{org}/ai/ask-models
 //	GET    /api/v1/orgs/{org}/ai/ask-write-policy
 //	PUT    /api/v1/orgs/{org}/ai/ask-write-policy
+//	GET    /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory
+//	PATCH  /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory
 //	POST   /api/v1/ai/proposals/{proposalID}/apply
 //	POST   /api/v1/ai/proposals/{proposalID}/reject
 //	POST   /api/v1/ai/proposals/{proposalID}/undo
@@ -187,6 +192,47 @@ func registerAI(r api, h Routes) {
 		sdi:  sdi.AskWritePolicySDI{},
 		sdo:  sdo.AskWritePolicySDO{},
 		auth: true,
+	})
+	r.Get("/orgs/{org}/ai/memory", h.ListAiMemory, apiOp{
+		summary: "My Ask UNI memory",
+		description: "Các mục bộ nhớ của người gọi trong tổ chức (riêng từng người, không ai khác đọc được), cách trả lời trước rồi mới nhất trước, kèm công tắc, trần 50 và số chỗ còn lại. " +
+			"Thành viên tổ chức; cờ ask_uni_memory tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryListSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory", h.CreateAiMemory, apiOp{
+		summary: "Add a memory entry",
+		description: "Thêm một mục cho chính mình (source manual, ghi audit không kèm chữ). kind sai hoặc chữ rỗng, quá 300 ký tự, có xuống dòng -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate; đủ 50 mục -> 409 ai_memory_full; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags:   []string{"ai"},
+		sdi:    sdi.AiMemoryCreateSDI{},
+		sdo:    sdo.AiMemoryDTO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	r.Patch("/orgs/{org}/ai/memory/{memoryID}", h.UpdateAiMemory, apiOp{
+		summary: "Edit a memory entry",
+		description: "Đổi kind và/hoặc chữ của mục của chính mình; trường bỏ trống thì giữ. Mục của người khác hay id không có -> 404 như nhau; chữ sai -> 400; trùng mục khác -> 409 ai_memory_duplicate; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryUpdateSDI{},
+		sdo:  sdo.AiMemoryDTO{},
+		auth: true,
+	})
+	r.Delete("/orgs/{org}/ai/memory/{memoryID}", h.DeleteAiMemory, apiOp{
+		summary:     "Delete a memory entry",
+		description: "Xóa một mục của chính mình, không hoàn tác. Mục của người khác hay id không có -> 404 như nhau; cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		status:      http.StatusNoContent,
+		auth:        true,
+	})
+	r.Delete("/orgs/{org}/ai/memory", h.ClearAiMemory, apiOp{
+		summary:     "Clear my memory",
+		description: "Xóa toàn bộ mục của người gọi trong tổ chức này, không hoàn tác; trả số mục đã xóa (0 thì không ghi audit). Cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AiMemoryClearSDO{},
+		auth:        true,
 	})
 	r.Post("/ai/proposals/{proposalID}/apply", h.ApplyAiProposal, apiOp{
 		summary: "Apply an Ask UNI proposal",

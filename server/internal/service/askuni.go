@@ -35,6 +35,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	memory   *AiMemoryService
 	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
@@ -66,6 +67,9 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
+
+// SetMemory wires the memory service whose flag and switch capabilities report.
+func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
 
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
@@ -103,7 +107,13 @@ type AICapabilities struct {
 	Attachments bool
 	// Actions is Ask UNI's write state: the flag, the ceiling, the asker's mode.
 	Actions AskActions
+	// Memory is the memory flag with the agent on (R9) and the asker's switch.
+	Memory AskMemoryCaps
 }
+
+// AskMemoryCaps is what capabilities say about memory: Enabled is the flag with
+// the agent on, On is the person's own switch.
+type AskMemoryCaps struct{ Enabled, On bool }
 
 type AskInput struct {
 	ConversationID string
@@ -230,7 +240,15 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	out.Actions = s.askActions(ctx, tc, "")
 	// Write tools reach only an agent turn (agentOn), as files do.
-	out.Actions.Enabled = out.Actions.Enabled && s.agentOn(ctx, tc)
+	agent := s.agentOn(ctx, tc)
+	out.Actions.Enabled = out.Actions.Enabled && agent
+	if s.memory != nil {
+		out.Memory.Enabled = agent && s.memory.AskMemoryEnabled(ctx, userID, w.OrganizationID)
+		out.Memory.On = true
+		if off, err := s.q.GetUserAskUniMemoryOff(ctx, userID); err == nil {
+			out.Memory.On = !off
+		}
+	}
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)

@@ -76,3 +76,20 @@ type AskUniModeSDI struct {
 type AskWritePolicySDI struct {
 	Ceiling string `json:"ceiling" description:"Trần chế độ ghi của Hỏi UNI trong tổ chức: off, ask, plan hoặc auto; giá trị khác thì 400" example:"plan"`
 }
+
+// AiMemoryCreateSDI is POST /api/v1/orgs/{org}/ai/memory.
+type AiMemoryCreateSDI struct {
+	Kind string `json:"kind" description:"preference hoặc fact" example:"fact"`
+	Text string `json:"text" description:"Một dòng 1–300 ký tự, không xuống dòng hay ký tự điều khiển" example:"Tôi làm ở phòng kinh doanh"`
+}
+
+// AiMemoryUpdateSDI is PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}; a field left out stays.
+type AiMemoryUpdateSDI struct {
+	Kind *string `json:"kind" description:"preference hoặc fact; bỏ trống thì giữ" example:"preference"`
+	Text *string `json:"text" description:"Chữ mới 1–300 ký tự; bỏ trống thì giữ" example:"Trả lời ngắn gọn"`
+}
+
+// AiMemorySwitchSDI is PUT /api/v1/me/ask-uni-memory.
+type AiMemorySwitchSDI struct {
+	Enabled bool `json:"enabled" description:"true bật Dùng bộ nhớ, false tắt" example:"true"`
+}

@@ -18,8 +18,9 @@ type AiCapabilitiesSDO struct {
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
 	// Attachments is false while ask_uni_attachments is off for the caller or
 	// their turn would not run the agent; the client then hides the upload entry.
-	Actions     AiActionsDTO `json:"actions" description:"Trạng thái hành động ghi của Hỏi UNI cho người gọi"`
-	Attachments bool         `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
+	Actions     AiActionsDTO    `json:"actions" description:"Trạng thái hành động ghi của Hỏi UNI cho người gọi"`
+	Memory      AiMemoryCapsDTO `json:"memory" description:"Bộ nhớ của Hỏi UNI cho người gọi"`
+	Attachments bool            `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
 }
 
 // AiActionsDTO is Ask UNI's write state for the caller.
@@ -355,4 +356,33 @@ type AskUniModeSDO struct {
 // AskWritePolicySDO is GET and PUT /api/v1/orgs/{org}/ai/ask-write-policy.
 type AskWritePolicySDO struct {
 	Ceiling string `json:"ceiling" description:"off, ask, plan hoặc auto; chưa đặt thì plan" example:"plan"`
+}
+
+// AiMemoryCapsDTO is Ask UNI's memory state for the caller.
+type AiMemoryCapsDTO struct {
+	Enabled bool `json:"enabled" description:"Cờ ask_uni_memory bật và lượt hỏi chạy agent; false thì client ẩn mọi thứ về bộ nhớ" example:"true"`
+	On      bool `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi (users.ask_uni_memory_off đảo lại)" example:"true"`
+}
+
+// AiMemoryDTO is one entry of the caller's memory.
+type AiMemoryDTO struct {
+	ID        string `json:"id" example:"01K4AIMEM0000000000000001"`
+	Kind      string `json:"kind" description:"preference (cách UNI trả lời) hoặc fact (về bạn)" example:"fact"`
+	Text      string `json:"text" description:"Một dòng, 1–300 ký tự" example:"Tôi làm ở phòng kinh doanh"`
+	Source    string `json:"source" description:"manual, chat hoặc import" example:"manual"`
+	CreatedAt string `json:"created_at" example:"2026-10-24T09:00:00Z"`
+	UpdatedAt string `json:"updated_at" example:"2026-10-24T09:00:00Z"`
+}
+
+// AiMemoryListSDO is GET /api/v1/orgs/{org}/ai/memory.
+type AiMemoryListSDO struct {
+	Entries   []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức, cách trả lời trước, rồi mới nhất trước"`
+	On        bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit     int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining int           `json:"remaining" description:"Số mục còn thêm được" example:"49"`
+}
+
+// AiMemoryClearSDO is DELETE /api/v1/orgs/{org}/ai/memory.
+type AiMemoryClearSDO struct {
+	Deleted int64 `json:"deleted" description:"Số mục đã xóa" example:"3"`
 }

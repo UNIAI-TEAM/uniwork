@@ -174,6 +174,15 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		sdo:  sdo.AskUniModeSDO{},
 		auth: true,
 	})
+	r.Put("/me/ask-uni-memory", h.SetAskUniMemory, apiOp{
+		summary: "Switch my Ask UNI memory on or off",
+		description: "Công tắc Dùng bộ nhớ của người dùng, một công tắc cho mọi tổ chức; tắt thì UNI không đọc và không đề xuất bộ nhớ, các mục vẫn giữ. " +
+			"Cờ ask_uni_memory phải bật ở ít nhất một tổ chức người dùng đang là thành viên, không thì 403 ai_memory_disabled. Là cài đặt của chính người dùng nên không ghi audit.",
+		tags:   []string{"me"},
+		sdi:    sdi.AiMemorySwitchSDI{},
+		status: http.StatusNoContent,
+		auth:   true,
+	})
 	r.Delete("/me/ai-consent", h.WithdrawAIConsent, apiOp{
 		summary:     "Withdraw AI processing consent",
 		description: "Rút lại đồng ý xử lý AI; lần dùng AI tiếp theo trên UniChat mobile hỏi lại. Ghi audit user.ai_consent_withdrawn.",
