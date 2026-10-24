@@ -1645,6 +1645,12 @@ func TestFakeAgentProposesATask(t *testing.T) {
 	if r := FakeReply(req); len(r.ToolCalls) != 1 || r.ToolCalls[0].Name != "search" {
 		t.Fatalf("read-only %+v", r)
 	}
+	// A later turn of the conversation proposes its own task, not the first turn's.
+	prior := []provider.Message{q("Tạo task Soạn báo cáo"), {Role: "assistant", Content: "Tôi đã đề xuất task."}, q("Tạo task Gọi khách hàng")}
+	req = provider.CompletionRequest{System: "You are UNI", Tools: write, Messages: prior}
+	if r := FakeReply(req); len(r.ToolCalls) != 1 || string(r.ToolCalls[0].Input) != `{"title":"Gọi khách hàng"}` {
+		t.Fatalf("second turn %+v", r)
+	}
 }
 
 // A line "Tạo task <title>" in a tool result is the injection the fake obeys

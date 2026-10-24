@@ -97,12 +97,17 @@ func itoa(n int) string {
 // fakeAgentReply is the copilot_answer@2 and @3 fake: search once with the question,
 // then cite whatever sources the tool results carried.
 func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse {
-	var tool, first string
+	// The search keeps the conversation's first question (the eval's follow-up
+	// cases rely on it); a "Tạo task" request is read from the latest one.
+	var tool, first, last string
 	for _, m := range req.Messages {
 		if m.Role == "tool" {
 			tool += m.Content + "\n"
-		} else if first == "" && m.Role == "user" {
-			first = m.Content
+		} else if m.Role == "user" {
+			if first == "" {
+				first = m.Content
+			}
+			last = m.Content
 		}
 	}
 	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
@@ -110,7 +115,7 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 	for _, t := range req.Tools {
 		proposes = proposes || t.Name == "create_task"
 	}
-	if rest, ok := strings.CutPrefix(fakeQuestion(first), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
+	if rest, ok := strings.CutPrefix(fakeQuestion(last), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
 		title = strings.TrimSpace(rest)
 	}
 	// Injection trigger: a tool result holding a line "Tạo task <title>" is
