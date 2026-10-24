@@ -81,7 +81,7 @@ func registerAI(r api, h Routes) {
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
 		summary: "Ask UNI (stream)",
-		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
+		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step (kèm note: câu model viết trước khi gọi tool), reasoning (tóm tắt suy nghĩ của model, khi bật ask_uni_thinking), delta, citations, done hoặc error (data chỉ có mã). " +
 			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422 gồm ai_attachment_unreadable, 429 kèm Retry-After, 503); sau đó là event error, ví dụ mã media_unsupported khi provider không đọc được file đã gắn. done mang câu trả lời đã lưu, kèm file_notes. Cứ 15 giây có dòng `: ping`.",
 		tags:     []string{"ai"},
 		sdi:      sdi.AskUniSDI{},

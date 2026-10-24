@@ -786,11 +786,17 @@ type AskContextRef struct {
 	Title string `json:"title"`
 }
 
-// AskStep is one tool the agent ran, as the panel shows it.
+// AskStep is one tool the agent ran, as the panel shows it. The first step of
+// a round carries the round's Note (what the model said before calling) and
+// Thought (its thinking summary, ask_uni_thinking). Kind "think" is the
+// thinking before the answer, with no tool.
 type AskStep struct {
-	Tool   string         `json:"tool"`
-	Label  string         `json:"label"`
-	Counts map[string]int `json:"counts"`
+	Tool    string         `json:"tool"`
+	Label   string         `json:"label"`
+	Counts  map[string]int `json:"counts"`
+	Note    string         `json:"note,omitempty"`
+	Thought string         `json:"thought,omitempty"`
+	Kind    string         `json:"kind,omitempty"`
 }
 
 // askTurn is one question and its answer, as store writes them. A non-empty

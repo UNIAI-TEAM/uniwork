@@ -27,6 +27,17 @@ import (
 
 const askAgentFlag = "ask_uni_agent"
 
+// askThinkingFlag shows how UNI reasons: the model's adaptive thinking
+// streamed as reasoning and kept on the steps, and a dock prompt (@8 to @11)
+// that says one sentence before each tool call.
+const askThinkingFlag = "ask_uni_thinking"
+
+// askNarrated is the dock prompt with the narrate line for each one without.
+var askNarrated = map[string]string{
+	ai.PromptCopilotAnswerV4: ai.PromptCopilotAnswerV8, ai.PromptCopilotAnswerV5: ai.PromptCopilotAnswerV9,
+	ai.PromptCopilotAnswerV6: ai.PromptCopilotAnswerV10, ai.PromptCopilotAnswerV7: ai.PromptCopilotAnswerV11,
+}
+
 // The bounds of one run (R10, R11). They are starting values, tuned by the
 // eval.
 const (
@@ -41,6 +52,13 @@ const (
 	// input_tokens leaves them out.
 	askAgentInputBudget  = 60_000
 	askAgentOutputBudget = 4_000
+	// askAgentThinkingOutputBudget replaces askAgentOutputBudget when the
+	// model thinks: its thinking is billed as output.
+	askAgentThinkingOutputBudget = 16_000
+	// A step keeps at most askThoughtRunes of thinking and askNoteRunes of
+	// the model's sentence before its tools.
+	askThoughtRunes = 4_000
+	askNoteRunes    = 400
 	// askAgentToolResultMax caps one tool result, the focus block (ruling
 	// P11) and a round's results together (ruling P18), in bytes: whole
 	// sources are dropped from the end.
@@ -125,6 +143,22 @@ func (s *AskUNIService) agentOn(ctx context.Context, tc ai.ToolContext) bool {
 	f, _ := featureflags.Lookup(askAgentFlag)
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
 	return s.flags.IsEnabled(ctx, askAgentFlag, f.Default)
+}
+
+// thinkingOn reports whether this turn shows how UNI reasons (askThinkingFlag).
+func (s *AskUNIService) thinkingOn(ctx context.Context, tc ai.ToolContext) bool {
+	if s.flags == nil {
+		return false
+	}
+	f, _ := featureflags.Lookup(askThinkingFlag)
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
+	return s.flags.IsEnabled(ctx, askThinkingFlag, f.Default)
+}
+
+// askStepNote is a tool round's text as its first step's note: untrusted tags
+// stripped, capped.
+func askStepNote(text string) string {
+	return capRunes(strings.TrimSpace(ai.StripUntrustedTags(text)), askNoteRunes, "…")
 }
 
 // sourceBook numbers what a conversation's tools found: an object keeps the
@@ -463,6 +497,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			promptID = ai.PromptCopilotAnswerV7
 		}
 	}
+	// Reasoning shows only where it streams: the dock's route.
+	thinking := emit != nil && s.thinkingOn(runCtx, tc)
+	if narrated, ok := askNarrated[promptID]; ok && thinking {
+		promptID = narrated
+	}
 	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows, true)
 	if err := s.historyProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
@@ -491,9 +530,22 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if emit != nil {
 		req.OnDelta = draft.add
 	}
+	outputBudget := askAgentOutputBudget
+	if thinking {
+		req.Thinking, req.OnThinking = true, draft.think
+		outputBudget = askAgentThinkingOutputBudget
+	}
 	var steps []AskStep // the tool steps so far, stored with the turn
-	spentInput := 0     // the input budget's count, cached tokens included (P12)
-	billed := ""        // the usage row of the last call that answered
+	// withThought is steps and, when the current call has thought, a think
+	// step: the thinking that led to the answer (or to where a stop cut it).
+	withThought := func() []AskStep {
+		if t := draft.takeThought(); t != "" {
+			return append(steps, AskStep{Kind: "think", Thought: t, Counts: map[string]int{}})
+		}
+		return steps
+	}
+	spentInput := 0 // the input budget's count, cached tokens included (P12)
+	billed := ""    // the usage row of the last call that answered
 	call := func() (ai.Response, error) {
 		draft.reset()
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
@@ -559,7 +611,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		// The dock's draft stops before the follow-up block, so a stop keeps the
 		// answer cut there and no question.
-		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, withThought(), nil, nil)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -597,7 +649,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		if calls > 0 {
 			final = over || rounds == askAgentMaxToolRounds || spentInput >= askAgentInputBudget ||
-				res.OutputTokens >= askAgentOutputBudget || deadline.Sub(s.now()) < askAgentFinalReserve
+				res.OutputTokens >= outputBudget || deadline.Sub(s.now()) < askAgentFinalReserve
 		}
 		if final {
 			msgs[len(msgs)-1].Content += askAgentBudgetNote
@@ -621,6 +673,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		// conservative 3 bytes a token (ruling P18), so one round cannot carry
 		// the next call far past it.
 		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
+		// What the model said and thought before asking rides the round's first step.
+		note, thought := askStepNote(resp.Text), draft.takeThought()
 		for i, c := range resp.ToolCalls {
 			before := book.next
 			content, step, items, err := s.agentToolCall(runCtx, tools, writes, tc, c, book, i, room)
@@ -633,9 +687,13 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			// The step follows its tool, which supplies the counts; the client
 			// clears the text of the call that asked for it.
 			step.Round = rounds
+			stored := AskStep{Tool: step.Tool, Label: step.Label, Counts: step.Counts}
+			if i == 0 {
+				step.Note, stored.Note, stored.Thought = note, note, thought
+			}
 			s.taintFrom(runCtx, tc, conv.ID, &taint, items)
 			draft.step(step)
-			steps = append(steps, AskStep{Tool: step.Tool, Label: step.Label, Counts: step.Counts})
+			steps = append(steps, stored)
 			if cs := book.since(before); len(cs) > 0 {
 				emit.emit(AskEvent{Name: "sources", Sources: cs})
 			}
@@ -651,8 +709,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		msgs = append(msgs, provider.Message{Role: "user", Content: askAgentFormatReminder})
 		req.History, req.Vars, req.ToolResultTurn, req.Continuation = msgs, nil, false, true
 		s.agentCallOver(runCtx, w.OrganizationID)
+		retried := AskStep{Counts: map[string]int{}, Thought: draft.takeThought()}
 		draft.step(AskStepEvent{Round: rounds + 1, Phase: "retry", Counts: map[string]int{}})
-		steps = append(steps, AskStep{Counts: map[string]int{}}) // stored steps equal the streamed ones
+		steps = append(steps, retried) // stored steps equal the streamed ones
 		resp, err = call()
 		if errors.Is(err, ai.ErrRefused) {
 			return refused(err)
@@ -683,7 +742,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if writes != nil {
 		writes.tainted = taint.tainted()
 	}
-	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups, writes)
+	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, withThought(), followups, writes)
 	if first && in.Dock {
 		nameWith = namedSources(answer, book)
 	}

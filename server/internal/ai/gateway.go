@@ -113,7 +113,16 @@ type Request struct {
 	// it accumulates; a tag may span two deltas). A provider that cannot
 	// stream sends the whole text once, after the call.
 	OnDelta func(text string)
+	// Thinking asks for the model's adaptive thinking where it has it
+	// (ask_uni_thinking); OnThinking, on a streamed call, receives its
+	// summary as it is written. The summary is not part of Response.Text.
+	Thinking   bool
+	OnThinking func(text string)
 }
+
+// thinkingMaxTokens is the floor of a thinking call's max_tokens: a ceiling,
+// not a spend.
+const thinkingMaxTokens = 16_384
 
 type Response struct {
 	Text         string
@@ -268,12 +277,17 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	creq := provider.CompletionRequest{
 		Model: model, System: system, MaxTokens: officeMaxTokens(req, policy), Temperature: policy.Temperature,
-		JSONSchema: prompt.OutputSchema, Effort: effort,
+		JSONSchema: prompt.OutputSchema, Effort: effort, Thinking: req.Thinking, OnThinking: req.OnThinking,
 		// Only a loop resends its prefix; a one-shot call would pay the
 		// cache write and never read it back (ruling P17).
 		CacheHistory: req.ToolResultTurn || req.Continuation || req.Capability == CapCopilotAgent || req.Capability == CapOfficeUniworkAI,
 	}
 	creq.Messages = msgs
+	// Thinking spends the call's max_tokens before the answer does, so a
+	// thinking call gets room for both.
+	if req.Thinking && creq.MaxTokens < thinkingMaxTokens {
+		creq.MaxTokens = thinkingMaxTokens
+	}
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
 	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
 	// schema, context must already be in Vars — do not advertise tools.

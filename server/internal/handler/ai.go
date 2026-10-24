@@ -29,7 +29,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 		if counts == nil {
 			counts = map[string]int{}
 		}
-		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts})
+		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts, Note: st.Note, Thought: st.Thought, Kind: st.Kind})
 	}
 	out.Followups = decodeList[string](m.Followups)
 	for _, r := range decodeList[service.AskContextRef](m.Mentions) {

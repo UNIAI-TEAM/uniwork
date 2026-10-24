@@ -64,11 +64,15 @@ type AiCitationDTO struct {
 	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 }
 
-// AiStepDTO is one tool the agent ran for an answer.
+// AiStepDTO is one tool the agent ran for an answer, or (kind think) the
+// thinking that led to the answer.
 type AiStepDTO struct {
-	Tool   string         `json:"tool" description:"Tên tool đã chạy" example:"search"`
-	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
-	Counts map[string]int `json:"counts" description:"Số nguồn mới tìm thấy theo loại" example:"{\"task\":3}"`
+	Tool    string         `json:"tool" description:"Tên tool đã chạy; rỗng ở bước retry và bước think" example:"search"`
+	Label   string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
+	Counts  map[string]int `json:"counts" description:"Số nguồn mới tìm thấy theo loại" example:"{\"task\":3}"`
+	Note    string         `json:"note" description:"Câu model viết trước khi gọi tool của vòng này, chỉ ở bước đầu của vòng; rỗng nếu không có" example:"Mình xem các việc đang mở để tìm hạn gần nhất."`
+	Thought string         `json:"thought" description:"Tóm tắt suy nghĩ của model trước bước này (ask_uni_thinking); rỗng nếu không có" example:"Cần lọc các việc quá hạn trước."`
+	Kind    string         `json:"kind" description:"Rỗng cho bước tool hoặc retry; think là phần suy nghĩ trước câu trả lời" example:""`
 }
 
 // AiContextRefDTO is an object a question named: its focus or an @-mention.
@@ -146,11 +150,17 @@ type AskStreamStepDTO struct {
 	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search"`
 	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
 	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
+	Note   string         `json:"note" description:"Câu model viết trước khi gọi tool của vòng này, chỉ ở bước đầu của vòng; rỗng nếu không có" example:"Mình xem các việc đang mở để tìm hạn gần nhất."`
 }
 
 // AskStreamDeltaDTO is the data of event delta.
 type AskStreamDeltaDTO struct {
 	Text string `json:"text" description:"Đoạn chữ nối thêm vào câu trả lời đang hiện" example:"Có 1 việc quá hạn"`
+}
+
+// AskStreamReasoningDTO is the data of event reasoning.
+type AskStreamReasoningDTO struct {
+	Text string `json:"text" description:"Đoạn tóm tắt suy nghĩ nối thêm vào phần suy nghĩ của lần gọi model hiện tại (ask_uni_thinking)" example:"Cần xem các việc đang mở."`
 }
 
 // AskStreamCitationsDTO is the data of event citations.

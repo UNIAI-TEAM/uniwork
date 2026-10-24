@@ -120,11 +120,12 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
-		// copilot_answer@2 to @7 are the prompts with no OutputSchema: the
+		// copilot_answer@2 to @11 are the prompts with no OutputSchema: the
 		// schema would switch the tools off for the agent. The title prompt is
 		// free text.
 		freeText := k == PromptCopilotAnswerV2 || k == PromptCopilotAnswerV3 || k == PromptCopilotAnswerV4 || k == PromptCopilotAnswerV5 ||
-			k == PromptCopilotAnswerV6 || k == PromptCopilotAnswerV7 || k == PromptConversationTitle
+			k == PromptCopilotAnswerV6 || k == PromptCopilotAnswerV7 || k == PromptCopilotAnswerV8 || k == PromptCopilotAnswerV9 ||
+			k == PromptCopilotAnswerV10 || k == PromptCopilotAnswerV11 || k == PromptConversationTitle
 		if p.Key() != k || (len(p.OutputSchema) == 0 && !freeText) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
@@ -196,12 +197,16 @@ func TestPromptSnapshots(t *testing.T) {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
 		},
-		PromptCopilotAnswerV2: copilotAgent,
-		PromptCopilotAnswerV3: copilotAgent,
-		PromptCopilotAnswerV4: copilotAgent,
-		PromptCopilotAnswerV5: copilotFiles,
-		PromptCopilotAnswerV6: copilotAgent,
-		PromptCopilotAnswerV7: copilotFiles,
+		PromptCopilotAnswerV2:  copilotAgent,
+		PromptCopilotAnswerV3:  copilotAgent,
+		PromptCopilotAnswerV4:  copilotAgent,
+		PromptCopilotAnswerV5:  copilotFiles,
+		PromptCopilotAnswerV6:  copilotAgent,
+		PromptCopilotAnswerV7:  copilotFiles,
+		PromptCopilotAnswerV8:  copilotAgent,
+		PromptCopilotAnswerV9:  copilotFiles,
+		PromptCopilotAnswerV10: copilotAgent,
+		PromptCopilotAnswerV11: copilotFiles,
 		PromptConversationTitle: {
 			"question": "Việc nào trễ trong dự án Q4?", "answer": "Có 2 việc trễ [S1] [S2].",
 		},
@@ -1212,6 +1217,27 @@ func TestGatewayDropsUnknownEffort(t *testing.T) {
 	}
 }
 
+// A thinking call reaches the provider asking to think, with its summary
+// sink and room in max_tokens for the thought; any other call does not.
+func TestGatewayPassesThinking(t *testing.T) {
+	fp := &provider.Fake{Reply: okReply}
+	g, _ := gatewayFixture(t, fp, nil)
+	req := askReq()
+	if _, err := g.Complete(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if fp.Last.Thinking || fp.Last.OnThinking != nil || fp.Last.MaxTokens >= thinkingMaxTokens {
+		t.Fatalf("plain call: %+v", fp.Last)
+	}
+	req.Thinking, req.OnThinking = true, func(string) {}
+	if _, err := g.Complete(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if !fp.Last.Thinking || fp.Last.OnThinking == nil || fp.Last.MaxTokens != thinkingMaxTokens {
+		t.Fatalf("thinking call: thinking %v sink %v max_tokens %d", fp.Last.Thinking, fp.Last.OnThinking != nil, fp.Last.MaxTokens)
+	}
+}
+
 func TestGatewayPricesCacheTokens(t *testing.T) {
 	ctx := context.Background()
 	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
@@ -1373,6 +1399,30 @@ There is no tool to delete anything, to email outside the organization or to cha
 		}
 		if want := strings.TrimSuffix(b.System, UntrustedFooter) + rules + UntrustedFooter; w.System != want {
 			t.Errorf("%s system is not %s with the action rules:\n%s", with, base, w.System)
+		}
+		if w.Render(vars) != b.Render(vars) {
+			t.Errorf("%s renders the user turn unlike %s", with, base)
+		}
+	}
+}
+
+// @8 to @11 are @4 to @7 with the narrate lines before the footer, and render
+// the user turn exactly as they do. @4 to @7 keep their goldens untouched.
+func TestPromptGoldensCopilotNarrate(t *testing.T) {
+	const line = "Before each tool call, write one short sentence in the answer's language saying what you will look up and why; the panel shows it under that step. Never repeat these sentences in the answer.\n" +
+		"The panel also shows a summary of your thinking: in it, name tasks, people and documents by their titles, never by source numbers like S1.\n"
+	vars := map[string]any{"question": "việc nào gấp?", "locale": "vi", "today": "2026-10-24", "files": []AttachedFile{{Name: "a.txt", Kind: "text", Text: "x"}}}
+	for base, with := range map[string]string{
+		PromptCopilotAnswerV4: PromptCopilotAnswerV8, PromptCopilotAnswerV5: PromptCopilotAnswerV9,
+		PromptCopilotAnswerV6: PromptCopilotAnswerV10, PromptCopilotAnswerV7: PromptCopilotAnswerV11,
+	} {
+		b, _ := LookupPrompt(base)
+		w, ok := LookupPrompt(with)
+		if !ok || len(w.OutputSchema) != 0 {
+			t.Fatalf("%s must be registered without an output schema", with)
+		}
+		if want := strings.TrimSuffix(b.System, UntrustedFooter) + line + UntrustedFooter; w.System != want {
+			t.Errorf("%s system is not %s with the narrate lines:\n%s", with, base, w.System)
 		}
 		if w.Render(vars) != b.Render(vars) {
 			t.Errorf("%s renders the user turn unlike %s", with, base)
