@@ -1238,6 +1238,7 @@
         "priority": "Độ ưu tiên",
         "assignee_id": "Người phụ trách",
         "assignee_kind": "Loại người phụ trách",
+        "ask_uni_write_ceiling": "Quyền thay đổi của Hỏi UNI",
         "due_date": "Hạn",
         "start_date": "Ngày bắt đầu",
         "project_id": "Dự án",

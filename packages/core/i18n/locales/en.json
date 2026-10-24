@@ -1239,6 +1239,7 @@
         "priority": "Priority",
         "assignee_id": "Assignee",
         "assignee_kind": "Assignee kind",
+        "ask_uni_write_ceiling": "Ask UNI change permission",
         "due_date": "Due",
         "start_date": "Start date",
         "project_id": "Project",
