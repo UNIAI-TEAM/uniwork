@@ -145,7 +145,7 @@ describe("useFolderUpload: files the browser cannot read", () => {
     act(() => {
       options.action.onClick();
     });
-    const reason = await screen.findByText(/Trình duyệt không đọc được tệp này vì đường dẫn trên máy quá dài/);
+    const reason = await screen.findByText(/Trình duyệt không đọc được tệp này, thường do đường dẫn trên máy quá dài/);
     expect(reason).toHaveTextContent("Mở UniWork Office để tải thư mục này, hoặc chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại.");
   });
 
