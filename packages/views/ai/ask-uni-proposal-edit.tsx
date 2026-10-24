@@ -153,8 +153,19 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
         return <Textarea id={id} aria-label={label} value={v} rows={4} onChange={(e) => set(i.key, e.target.value)} />;
       case "date":
         return <DateField id={id} ariaLabel={label} value={v} onChange={(d) => set(i.key, d)} />;
-      case "datetime":
-        return <DateTimeField id={id} value={v} onChange={(d) => set(i.key, d)} hourLabel={t("meetings.startHour")} minuteLabel={t("meetings.startMinute")} />;
+      case "datetime": {
+        // Only a meeting's end is a datetime besides its start; each names its own hour and minute.
+        const end = i.key === "ends_at";
+        return (
+          <DateTimeField
+            id={id}
+            value={v}
+            onChange={(d) => set(i.key, d)}
+            hourLabel={t(end ? "meetings.endHour" : "meetings.startHour")}
+            minuteLabel={t(end ? "meetings.endMinute" : "meetings.startMinute")}
+          />
+        );
+      }
       case "enum":
         return (
           <Select

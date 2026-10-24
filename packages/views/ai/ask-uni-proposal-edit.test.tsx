@@ -153,6 +153,13 @@ describe("AskUniProposalEdit", () => {
     expect((patches()[0]![1].body as { changes: { starts_at: string } }).changes.starts_at).toMatch(/^2026-10-10T\d\d:\d\d:00Z$/);
   });
 
+  it("names the hour and minute of the start and the end apart", () => {
+    const start = { field: "starts_at", type: "datetime", from: null, to: "2026-10-15T03:00:00Z" };
+    const end = { field: "ends_at", type: "datetime", from: null, to: "2026-10-15T03:30:00Z" };
+    edit(row([start, end], { tool: "schedule_meeting", preview: { target: { kind: "meeting", id: "", title: "H" }, fields: [start, end] } }));
+    for (const name of ["Giờ bắt đầu", "Phút bắt đầu", "Giờ kết thúc", "Phút kết thúc"]) expect(screen.getAllByRole("textbox", { name })).toHaveLength(1);
+  });
+
   it("clears a date with null", async () => {
     edit(row(TASK));
     fireEvent.click(screen.getByRole("button", { name: "Sửa Hạn" }));
