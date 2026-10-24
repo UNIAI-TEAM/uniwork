@@ -6151,6 +6151,11 @@
     "placeholder_project": "Hỏi về dự án này…",
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
+    "source_bar": {
+      "title": "UNI tìm trong",
+      "more": "Kết nối thêm ứng dụng · Sắp có",
+      "hide": "Ẩn thanh nguồn"
+    },
     "notes": {
       "hide": "Thu gọn lưu ý trong 1 ngày",
       "show_other": "Xem {{count}} lưu ý"

@@ -6200,6 +6200,11 @@
     "placeholder_project": "Ask about this project…",
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
+    "source_bar": {
+      "title": "UNI searches",
+      "more": "Connect more apps · Coming soon",
+      "hide": "Hide the sources bar"
+    },
     "notes": {
       "hide": "Fold these notes for a day",
       "show_one": "Show {{count}} note",
