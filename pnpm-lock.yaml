@@ -94,8 +94,8 @@ catalogs:
       specifier: ^4.1.0
       version: 4.4.0
     electron:
-      specifier: ^43.7.6
-      version: 43.8.0
+      specifier: ^43.8.3
+      version: 43.8.3
     electron-builder:
       specifier: ^26.0.12
       version: 26.15.3
@@ -226,8 +226,8 @@ catalogs:
       specifier: ^4.1.0
       version: 4.1.11
     zod:
-      specifier: ^4.1.5
-      version: 4.4.3
+      specifier: ^4.6.7
+      version: 4.6.7
     zustand:
       specifier: ^5.0.0
       version: 5.0.15
@@ -330,7 +330,7 @@ importers:
         version: 4.1.11(vitest@4.1.11)
       electron:
         specifier: 'catalog:'
-        version: 43.8.0
+        version: 43.8.3
       electron-builder:
         specifier: 'catalog:'
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -564,7 +564,7 @@ importers:
         version: 1.0.7(tailwindcss@3.4.19(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.6.7
       zustand:
         specifier: 'catalog:'
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.18)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
@@ -789,7 +789,7 @@ importers:
         version: 17.0.12(i18next@26.4.0(typescript@5.9.3))(react-dom@19.2.3(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.6.7
       zustand:
         specifier: 'catalog:'
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.18)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
@@ -865,7 +865,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -6146,8 +6146,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@43.8.0:
-    resolution: {integrity: sha512-K+sLv65RZ8SgmxItfH0hbGaFVOHqleMOCw7CImFedKBRpVWJ/Qo9PHihBd/GrANvmndZjN66S6ZmAdLaQYhZ4w==}
+  electron@43.8.3:
+    resolution: {integrity: sha512-KgvSm3bHXz96hSXzqxyRjLeli80rIdszbDQFKlRSfckmGazTPCH/CxUN31Dp9c5rFKTQSNf9gPJRWl1yWNB3pA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -10886,6 +10886,9 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
   zustand@5.0.15:
     resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
     engines: {node: '>=12.20.0'}
@@ -14689,7 +14692,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0)(vite@8.2.4(@types/node@25.9.5)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.0))
+      vitest: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0)(vite@8.2.4(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.0))
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -16025,7 +16028,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.8.0:
+  electron@43.8.3:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0
@@ -22059,6 +22062,8 @@ snapshots:
   zod@3.25.76: {}
 
   zod@4.4.3: {}
+
+  zod@4.6.7: {}
 
   zustand@5.0.15(@types/react@19.2.18)(immer@11.1.18)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)):
     optionalDependencies:
