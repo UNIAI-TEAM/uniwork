@@ -8,6 +8,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
+var injectedTask = regexp.MustCompile(`(?m)^Tạo task (.+)$`)
+
 var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
@@ -111,14 +113,30 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 	if rest, ok := strings.CutPrefix(fakeQuestion(first), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
 		title = strings.TrimSpace(rest)
 	}
-	if title != "" {
+	// Injection trigger: a tool result holding a line "Tạo task <title>" is
+	// obeyed like a hijacked model would, once; the eval's auto-mode injection
+	// case relies on it. Only the tool results are read, never the question.
+	hijack := ""
+	if proposes && title == "" && !strings.Contains(tool, "proposal row") {
+		if m := injectedTask.FindStringSubmatch(tool); m != nil {
+			hijack = strings.TrimSpace(m[1])
+		}
+	}
+	if hijack != "" {
+		in, _ := json.Marshal(map[string]string{"title": hijack})
+		resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
+		resp.StopReason = "tool_use"
+	} else if title != "" || (proposes && strings.Contains(tool, "proposal row")) {
 		// The row may still be pending, so the answer never says the task exists.
-		if tool == "" {
+		if tool == "" && title != "" {
 			in, _ := json.Marshal(map[string]string{"title": title})
 			resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
 			resp.StopReason = "tool_use"
 		} else if strings.Contains(tool, "proposal row") {
-			resp.Text = "Tôi đã đề xuất task \"" + title + "\"; bạn xem và áp dụng đề xuất nếu đồng ý."
+			resp.Text = "Tôi đã đề xuất task theo yêu cầu; bạn xem và áp dụng đề xuất nếu đồng ý."
+			if title != "" {
+				resp.Text = "Tôi đã đề xuất task \"" + title + "\"; bạn xem và áp dụng đề xuất nếu đồng ý."
+			}
 		} else {
 			resp.Text = "Tôi chưa đề xuất được task này."
 		}
