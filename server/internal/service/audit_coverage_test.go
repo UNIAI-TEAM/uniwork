@@ -62,6 +62,11 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
 	audit.ActionOrganizationAskWritePolicyChanged: "covered by askuni_modes_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
+	audit.ActionAIMemoryCreated:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
+	audit.ActionAIMemoryUpdated:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
+	audit.ActionAIMemoryDeleted:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
+	audit.ActionAIMemoryCleared:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
+	audit.ActionAIMemoryProposalRejected:          "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -2169,6 +2174,11 @@ func auditActions() []string {
 		audit.ActionAIProposalApplied,
 		audit.ActionAIProposalRejected,
 		audit.ActionAIProposalUndone,
+		audit.ActionAIMemoryCreated,
+		audit.ActionAIMemoryUpdated,
+		audit.ActionAIMemoryDeleted,
+		audit.ActionAIMemoryCleared,
+		audit.ActionAIMemoryProposalRejected,
 	}
 }
 

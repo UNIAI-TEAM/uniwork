@@ -103,6 +103,7 @@ var catalogue = []Flag{
 	{Key: "ask_uni_stream", Description: "Hỏi UNI dùng dock mới và luồng stream SSE thay cho panel cũ (UNI-2015, P2); tắt thì giữ panel cũ và POST …/ai/ask. Chỉ chuyển giao diện, server không chặn route stream", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 2, 28)},
 	{Key: "ask_uni_attachments", Description: "Hỏi UNI nhận file gắn vào câu hỏi (UNI-2119); tắt thì ẩn nút tải file và server từ chối", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 3, 31)},
 	{Key: "ask_uni_actions", Description: "Hỏi UNI đề xuất thay đổi ghi (task, bình luận, tin nhắn…) để người dùng xác nhận (UNI-2148, P3); tắt thì vòng agent không gửi tool ghi và các route đề xuất trả 403 ai_actions_disabled", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 4, 30)},
+	{Key: "ask_uni_memory", Description: "Hỏi UNI có bộ nhớ riêng của từng người (UNI-2156, P4): đề xuất nhớ khi người dùng xác nhận, màn Bộ nhớ, nhập từ AI khác; tắt thì không có khối bộ nhớ trong prompt, không có tool propose_memory, mọi route bộ nhớ trả 403 ai_memory_disabled", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 5, 31)},
 	{Key: "ask_uni_thinking", Description: "Hỏi UNI cho thấy cách suy luận (UNI-2148): bật suy nghĩ thích ứng của model Anthropic, stream phần tóm tắt suy nghĩ và chạy prompt @8–@11 có một câu dẫn trước mỗi lần tra cứu; tốn thêm token output. Tắt thì giữ @4–@7, không suy nghĩ", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 4, 30)},
 }
 
