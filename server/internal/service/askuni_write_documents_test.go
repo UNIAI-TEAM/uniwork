@@ -197,9 +197,14 @@ func TestAskWriteDocumentPreviewShowsTheBody(t *testing.T) {
 
 	row = askPrepare(t, s, tc, "update_document", fmt.Sprintf(`{"document_id":%q,"content":"## Thêm","title":"Tên mới"}`, id))
 	f := row.Preview.Fields
-	if row.Preview.Body != "## Thêm" || len(f) != 2 || f[0].Field != "title" || f[0].From != "Kế hoạch" || f[0].To != "Tên mới" || f[1].Field != "content" || f[1].Type != "markdown" ||
+	// The new text is the body; the field says only how it lands, so the card shows it once.
+	if row.Preview.Body != "## Thêm" || len(f) != 2 || f[0].Field != "title" || f[0].From != "Kế hoạch" || f[0].To != "Tên mới" || f[1].Field != "mode" || f[1].Type != "enum" || f[1].To != "append" ||
 		row.TargetRevision == nil || *row.TargetRevision != page.Document.Revision || row.Preview.Target.ID != id {
 		t.Fatalf("update preview = %+v (%v)", row.Preview, row.TargetRevision)
+	}
+	row = askPrepare(t, s, tc, "update_document", fmt.Sprintf(`{"document_id":%q,"content":%q}`, id, strings.Repeat("b", mcpMaxItemRunes+50)))
+	if !row.Preview.BodyTruncated || len([]rune(row.Preview.Body)) != mcpMaxItemRunes {
+		t.Errorf("a long edit: body %d characters, truncated %v; Sửa must not save the cut text", len([]rune(row.Preview.Body)), row.Preview.BodyTruncated)
 	}
 
 	row = askPrepare(t, s, tc, "add_document_comment", fmt.Sprintf(`{"document_id":%q,"body":"dòng 1\ndòng 2 [@Bình](mention://member/%s)"}`, id, x.ub.ID))

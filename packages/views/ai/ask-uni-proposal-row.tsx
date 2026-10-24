@@ -49,13 +49,15 @@ function Fields({ proposal }: { proposal: AiProposal }) {
   if (fields.length === 0) return null;
   // A row that makes a new object has no old value: schedule_meeting creates without the create_ prefix.
   const creates = proposal.tool.startsWith("create_") || proposal.tool === "schedule_meeting";
+  // A page edit's mode says how the body below lands; it has no old value either.
+  const noFrom = (field: string) => creates || field === "mode";
   return (
     <dl className="mt-1.5 flex flex-col gap-1 text-caption">
       {fields.map((f, i) => (
         <div key={`${f.field}-${i}`} className="flex flex-wrap items-baseline gap-x-2">
           <dt className="text-muted-foreground">{fieldLabel(t, f.field)}</dt>
           <dd className="min-w-0 break-words whitespace-pre-wrap text-foreground">
-            {creates ? null : (
+            {noFrom(f.field) ? null : (
               <>
                 <span className="text-muted-foreground">{formatProposalValue(f.from, f.type, f.field, t, i18n.language, proposal.tool)}</span>
                 <span> → </span>

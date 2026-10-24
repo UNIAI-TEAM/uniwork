@@ -266,8 +266,11 @@ func (s *AskUNIService) prepareUpdateDocument(ctx context.Context, tc ai.ToolCon
 		row.Preview.Fields = append(row.Preview.Fields, AskProposalField{Field: "title", Type: "text", From: orNil(beforeTitle), To: title})
 	}
 	if in.Content != nil && !(in.Mode == "replace" && *in.Content == beforeMD && len(refs) == 0) {
-		row.Preview.Fields = append(row.Preview.Fields, AskProposalField{Field: "content", Type: "markdown", From: beforeMD, To: *in.Content})
+		// The new text is the body; the field says only whether it is appended
+		// or replaces the page, so the card neither repeats it nor prints the old page.
+		row.Preview.Fields = append(row.Preview.Fields, AskProposalField{Field: "mode", Type: "enum", To: in.Mode})
 		row.Preview.Body = askDocBody(*in.Content)
+		row.Preview.BodyTruncated = utf8.RuneCountInString(*in.Content) > mcpMaxItemRunes
 	}
 	if len(row.Preview.Fields) == 0 {
 		return askDraftRow{}, McpInvalidArgs{Msg: "nothing to change: the page already holds this"}

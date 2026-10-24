@@ -237,6 +237,17 @@ describe("AskUniProposalCard", () => {
     expect(container.textContent).not.toMatch(/trống|→/);
   });
 
+  it("shows a page edit's text once, with how it lands", () => {
+    const { container } = mount([
+      row({ tool: "update_document", preview: { target: { kind: "document", id: "D1", title: "Ghi chú" }, fields: [{ field: "mode", type: "enum", from: null, to: "append" }], body: "## Cảm ơn" } }),
+      row({ id: "p2", position: 2, tool: "update_document", preview: { target: { kind: "document", id: "D2", title: "Khác" }, fields: [{ field: "mode", type: "enum", from: null, to: "replace" }], body: "Mới" } }),
+    ]);
+    expect(screen.getByText("Thêm vào cuối tài liệu")).toBeInTheDocument();
+    expect(screen.getByText("Thay toàn bộ tài liệu")).toBeInTheDocument();
+    expect(screen.getAllByText("## Cảm ơn")).toHaveLength(1);
+    expect(container.textContent).not.toMatch(/trống|→/);
+  });
+
   it("labels the project and meeting status enums", () => {
     mount([
       row({ id: "a", tool: "update_project", preview: { target: { kind: "project", id: "P", title: "D" }, fields: [{ field: "status", type: "enum", from: "planned", to: "paused" }] } }),

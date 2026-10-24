@@ -44,6 +44,7 @@ export function formatProposalValue(v: unknown, type: string, field: string, t: 
     if (type === "date" || type === "datetime") return formatDate(v, type === "datetime", locale);
     if (type === "enum" && field === "priority" && SAFE_KEY.test(v)) return t(`tasks.priority_${v}`, { defaultValue: v });
     if (type === "enum" && field === "status") return statusLabel(v, tool, t);
+    if (type === "enum" && field === "mode" && SAFE_KEY.test(v)) return t(`ai.proposal.content_mode.${v}`, { defaultValue: v });
     return clip(v);
   }
   if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -82,7 +83,7 @@ export function editKind(f: AiProposal["preview"]["fields"][number], tool: strin
 }
 
 /** The tool argument `preview.body` stands for: a page's content, a cancellation's reason, else the text it posts. */
-export const bodyArg = (tool: string) => (tool === "create_document" ? "content" : tool === "cancel_meeting" ? "reason" : "body");
+export const bodyArg = (tool: string) => (tool === "create_document" || tool === "update_document" ? "content" : tool === "cancel_meeting" ? "reason" : "body");
 
 /** The body "Sửa" may change: not one the server cut to fit the card, or saving it would cut the page. */
 export const bodyEditable = (p: AiProposal) => p.preview.body !== "" && !p.preview.body_truncated;

@@ -177,6 +177,15 @@ describe("AskUniProposalEdit", () => {
     await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { starts_at: null } }));
   });
 
+  it("edits a page edit's text as its content, in one box", async () => {
+    const mode = { field: "mode", type: "enum", from: null, to: "append" };
+    edit(row([mode], { tool: "update_document", preview: { target: { kind: "document", id: "D1", title: "Trang" }, fields: [mode], body: "Cũ" } }));
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    fireEvent.change(screen.getByRole("textbox", { name: "Sửa Nội dung" }), { target: { value: "Mới" } });
+    await save();
+    await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { content: "Mới" } }));
+  });
+
   it("still shows a refusal when a field key holds regex characters", async () => {
     requestMock.mockImplementation((path: string) => (path === "/api/v1/ai/proposals/p1" ? Promise.reject(new ApiError("a(b is not valid", "invalid_args", 400)) : composerRoutes(path)));
     edit(row([{ field: "a(b", type: "text", from: "x", to: "x" }]));

@@ -6380,7 +6380,12 @@
         "parent_id": "Inside",
         "labels": "Labels",
         "attendee_ids": "Attendees",
-        "user_ids": "Invited people"
+        "user_ids": "Invited people",
+        "mode": "Content"
+      },
+      "content_mode": {
+        "append": "Added at the end of the document",
+        "replace": "Replaces the whole document"
       }
     }
   },

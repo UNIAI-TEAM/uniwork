@@ -6330,7 +6330,12 @@
         "parent_id": "Nằm trong",
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
-        "user_ids": "Người được mời"
+        "user_ids": "Người được mời",
+        "mode": "Nội dung"
+      },
+      "content_mode": {
+        "append": "Thêm vào cuối tài liệu",
+        "replace": "Thay toàn bộ tài liệu"
       }
     }
   },
