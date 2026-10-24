@@ -196,8 +196,11 @@ describe("AskUniThread", () => {
     await waitFor(() => expect(requestMock.mock.calls.some((c) => c[0] === "/api/v1/ai/conversations/c1/messages")).toBe(true));
     resolve({ messages: history });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
-    expect(screen.getByText("một phần")).toBeInTheDocument();
+    // The loaded history re-renders its rows, so read both lines from the settled screen, not from a node found before it.
+    await waitFor(() => {
+      expect(screen.getByText("Có 3 task quá hạn.")).toBeInTheDocument();
+      expect(screen.getByText("một phần")).toBeInTheDocument();
+    });
   });
 
   it("marks the list busy while streaming", async () => {
