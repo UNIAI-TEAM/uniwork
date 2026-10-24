@@ -522,6 +522,23 @@ type ChatUserNickname struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ChatVoiceCallSession struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	RoomID         string             `json:"room_id"`
+	CallID         string             `json:"call_id"`
+	CallerID       string             `json:"caller_id"`
+	CallerName     string             `json:"caller_name"`
+	CallKind       string             `json:"call_kind"`
+	RoomName       string             `json:"room_name"`
+	Video          bool               `json:"video"`
+	InvitedAt      pgtype.Timestamptz `json:"invited_at"`
+	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
+	ParticipantIds []string           `json:"participant_ids"`
+	InviteeIds     []string           `json:"invitee_ids"`
+	DeclinedIds    []string           `json:"declined_ids"`
+}
+
 type ChatVoiceRecording struct {
 	ID             string `json:"id"`
 	OrganizationID string `json:"organization_id"`

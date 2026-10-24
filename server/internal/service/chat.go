@@ -803,5 +803,5 @@ func (s *ChatService) MintVoiceTokenRoom(ctx context.Context, userID, chatRoomID
 	if err := s.requireVoiceTokenAccess(ctx, room, userID, wsID); err != nil {
 		return "", err
 	}
-	return liveKitRoomForActiveVoiceCall(room, callID)
+	return s.liveKitRoomForActiveVoiceCall(ctx, room, callID)
 }

@@ -904,7 +904,7 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	backdateVoiceCallAnswer(t, dm.ID, "call-log-1", 42*time.Second)
+	backdateVoiceCallAnswer(t, s, dm.ID, "call-log-1", 42*time.Second)
 	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "call-log-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}

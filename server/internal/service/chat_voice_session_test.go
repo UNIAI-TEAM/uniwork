@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -39,7 +41,7 @@ func TestLiveKitRoomForLongCallIDIsRefused(t *testing.T) {
 	callID := strings.Repeat("a", 300)
 	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), voiceCallSession{invitedAt: time.Now()})
 	t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey(room.ID, callID)) })
-	_, err := liveKitRoomForActiveVoiceCall(room, callID)
+	_, err := (&ChatService{}).liveKitRoomForActiveVoiceCall(context.Background(), room, callID)
 	requireValidationError(t, err, "long call_id")
 }
 
@@ -57,14 +59,16 @@ func TestSignalVoiceInviteRefusesALongCallID(t *testing.T) {
 }
 
 func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
+	s, _, _, _, _, w := chatFixture(t)
+	ctx := context.Background()
 	now := time.Now()
 	answeredLongAgo := now.Add(-voiceCallAnsweredTTL - time.Minute)
 	answeredRecently := now.Add(-time.Minute)
 	sessions := map[string]voiceCallSession{
-		"stale-invite":    {invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute)},
-		"stale-call":      {invitedAt: answeredLongAgo, acceptedAt: &answeredLongAgo},
-		"ringing":         {invitedAt: now.Add(-time.Minute)},
-		"long-but-active": {invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute), acceptedAt: &answeredRecently},
+		"stale-invite":    {roomID: "room-sweep", callID: "stale-invite", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute)},
+		"stale-call":      {roomID: "room-sweep", callID: "stale-call", invitedAt: answeredLongAgo, acceptedAt: &answeredLongAgo},
+		"ringing":         {roomID: "room-sweep", callID: "ringing", invitedAt: now.Add(-time.Minute)},
+		"long-but-active": {roomID: "room-sweep", callID: "long-but-active", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute), acceptedAt: &answeredRecently},
 	}
 	for callID, sess := range sessions {
 		voiceCallSessions.Store(voiceCallSessionKey("room-sweep", callID), sess)
@@ -72,13 +76,13 @@ func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
 	}
 
 	// The lazy check drops an expired session on access.
-	if _, ok := loadVoiceCallSession(voiceCallSessionKey("room-sweep", "stale-call")); ok {
+	if _, ok := s.loadVoiceCallSession(ctx, "room-sweep", "stale-call"); ok {
 		t.Fatal("a call answered past the TTL is still live")
 	}
 
 	// A new invite sweeps the rest.
 	lastVoiceCallSweep.Store(0)
-	if err := (&ChatService{}).trackVoiceCallInvite(db.ChatRoom{ID: "room-sweep", Kind: chatRoomKindDM}, "new", "U1", "A", false, nil); err != nil {
+	if err := s.trackVoiceCallInvite(ctx, db.ChatRoom{ID: "room-sweep", OrganizationID: w.OrganizationID, Kind: chatRoomKindDM}, "new", "U1", "A", false, nil); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-sweep", "new")) })
@@ -112,4 +116,50 @@ func TestOutgoingVoiceCallSessionsListTheCallersLiveCalls(t *testing.T) {
 	if none := outgoingVoiceCallSessions("U-nobody", now); len(none) != 0 {
 		t.Fatalf("someone else's calls listed: %+v", none)
 	}
+}
+
+func TestVoiceCallSurvivesAServerRestart(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const callID = "restart-survives"
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, callID, false); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, callID); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	var accepted pgtype.Timestamptz
+	if err := pool.QueryRow(ctx,
+		`SELECT accepted_at FROM chat_voice_call_sessions WHERE room_id = $1 AND call_id = $2`, dm.ID, callID,
+	).Scan(&accepted); err != nil || !accepted.Valid {
+		t.Fatalf("accepted_at in db: err=%v valid=%v", err, accepted.Valid)
+	}
+	voiceCallSessions.Range(func(k, _ any) bool {
+		voiceCallSessions.Delete(k)
+		return true
+	})
+	s2 := NewChatService(pool, q, s.ws, &capturePublisher{})
+	if _, err := s2.MintVoiceTokenRoom(ctx, ub.ID, dm.ID, callID); err != nil {
+		t.Fatalf("token after restart: %v", err)
+	}
+	backdateVoiceCallAnswer(t, s2, dm.ID, callID, 42*time.Second)
+	if err := s2.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, callID); err != nil {
+		t.Fatalf("hangup: %v", err)
+	}
+	msgs, err := s2.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range msgs {
+		if msg.Kind == "voice_call_log" && msg.VoiceCall != nil && msg.VoiceCall.CallID == callID && msg.VoiceCall.Outcome == voiceCallOutcomeCompleted {
+			return
+		}
+	}
+	t.Fatal("expected completed voice_call_log after restart hangup")
 }
