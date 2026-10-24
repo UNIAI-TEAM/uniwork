@@ -108,6 +108,16 @@ describe("ai proposal endpoints", () => {
     expect(await applyAiMessageProposals("c1", "m1", ["p1"])).toEqual([]);
   });
 
+  it("reads body_truncated, and anything but a boolean as false", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(row({ preview: { ...row().preview, body: "Đầu trang", body_truncated: true } })))
+      .mockResolvedValueOnce(json(row({ preview: { ...row().preview, body_truncated: "yes" } })))
+      .mockResolvedValueOnce(json(row()));
+    expect((await applyAiProposal("p1")).preview.body_truncated).toBe(true);
+    expect((await applyAiProposal("p1")).preview.body_truncated).toBe(false);
+    expect((await applyAiProposal("p1")).preview.body_truncated).toBe(false);
+  });
+
   it("keeps readable from/to values of any shape", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(row({ preview: { fields: [{ field: "labels", type: "labels", from: ["a"], to: null }] } })));
     const r = await applyAiProposal("p1");

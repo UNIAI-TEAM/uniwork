@@ -93,6 +93,7 @@ const EMPTY_PREVIEW = {
   target: { kind: "", id: "", title: "" },
   fields: [],
   body: "",
+  body_truncated: false,
   audience: { visibility: "", room_members: 0, notifies: [], notifies_more: false },
   refs: [],
 };
@@ -127,6 +128,8 @@ export const AiProposalSchema = z.object({
         )
         .catch([]),
       body: z.string().catch(""),
+      /** `body` holds only the start of a longer text (a long page): it is shown, never edited. */
+      body_truncated: z.boolean().catch(false),
       audience: z
         .object({
           visibility: z.string().catch(""),

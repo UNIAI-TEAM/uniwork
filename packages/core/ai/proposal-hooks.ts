@@ -19,11 +19,14 @@ function putRows(qc: QueryClient, conversationId: string, rows: AiProposal[]) {
   );
 }
 
-// A refused call may still carry rows (a failed row, a stopped apply-all): those are the truth, so no refetch.
+// A refused call may still carry rows (a failed row, a stopped apply-all): those are the truth, so no refetch,
+// unless one is new to the cache (a "Tạo tài liệu" row that failed on its first try) and cannot be spliced in.
 // Any other refusal (a row already decided, expired) leaves the card stale, so the answers are read again.
 function putRowsOfError(qc: QueryClient, conversationId: string, err: unknown) {
   const rows = api.proposalRowsOfError(err);
-  if (rows.length > 0) return putRows(qc, conversationId, rows);
+  const cached = new Set(qc.getQueryData<AiMessage[]>(aiKeys.messages(conversationId))?.flatMap((m) => m.proposals.map((p) => p.id)));
+  if (rows.length > 0 && rows.every((r) => cached.has(r.id))) return putRows(qc, conversationId, rows);
+  if (rows.length > 0) return void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
   if (errorCode(err)?.startsWith("proposal_")) void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
 }
 

@@ -108,6 +108,15 @@ describe("proposal hooks", () => {
     expect(rowsOf(qc).map((r) => r.status)).toEqual(["applied", "failed"]);
   });
 
+  it("a failed row new to the cache (the first Tạo tài liệu) refetches the messages", async () => {
+    const { qc, wrapper } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    vi.mocked(fetch).mockResolvedValueOnce(err("invalid_args", { proposal: row("pd", { position: 0, status: "failed", error_code: "invalid_args" }) }));
+    const { result } = renderHook(() => useSaveAiAnswerAsDocument("c1"), { wrapper });
+    await act(async () => void (await result.current.mutateAsync("m1").catch(() => undefined)));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: aiKeys.messages("c1") }));
+  });
+
   it("proposal_not_pending without rows refetches the messages", async () => {
     const { qc, wrapper } = setup();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
