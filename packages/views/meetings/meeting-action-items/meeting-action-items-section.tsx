@@ -18,10 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { PanelCard } from "../../common/panel-card";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
-import { MODULE_ICONS } from "../../layout/module-icons";
-import { moduleTone } from "../../layout/module-tones";
 import { CreateTaskDialog } from "../../tasks/create-task-dialog";
 import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingSectionError, MeetingSectionLoading } from "../meeting-section-state";
@@ -56,9 +53,6 @@ function ProgressLine({ counts }: { counts: MeetingActionItemCounts }) {
     </p>
   );
 }
-
-/** Rows keep this much room below a focused control while the phone's assign bar sticks (WCAG 2.4.11). */
-const STICKY_BAR_CLEARANCE = "max-sm:**:scroll-mb-[calc(5rem+env(safe-area-inset-bottom))]";
 
 const NO_ITEMS: readonly MeetingActionItem[] = [];
 
@@ -107,8 +101,7 @@ function RowsSkeleton() {
  * composer for one the summary missed. The call to action stays rendered
  * once there is any item, even with none left pending (aria-disabled, with
  * the reason beside it), so focus has somewhere to land; it is the primary
- * button only once something is ticked, and on a phone it then sticks to the
- * bottom of the screen so it is never below every row.
+ * button only once something is ticked.
  */
 function ClerkPendingList({
   workspaceId,
@@ -142,7 +135,6 @@ function ClerkPendingList({
   const landing = useRef<{ leaving: string; next?: string } | null>(null);
   const count = flow.pickedPending.length;
   const blocked = count === 0 || flow.pending;
-  const sticky = variant === "panel" && count > 0;
 
   useEffect(() => {
     const l = landing.current;
@@ -154,7 +146,7 @@ function ClerkPendingList({
   return (
     <div className="space-y-2.5">
       {pending.length > 0 ? (
-        <ul ref={listRef} className={cn(LIST_CLASS[variant], sticky && STICKY_BAR_CLEARANCE)}>
+        <ul ref={listRef} className={LIST_CLASS[variant]}>
           {pending.map((item, at) => (
             <PendingRow
               key={item.id}
@@ -209,11 +201,7 @@ function ClerkPendingList({
       ) : null}
       <div
         data-testid="action-items-bar"
-        className={cn(
-          "flex flex-wrap items-center gap-2",
-          sticky &&
-            "max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-surface max-sm:px-4 max-sm:pt-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]",
-        )}
+        className="flex flex-wrap items-center gap-2"
       >
         {items.length > 0 ? (
           <Button
@@ -261,8 +249,8 @@ function ClerkPendingList({
  * "After the meeting" (spec meeting follow-through §9.2 item 1): the meeting's
  * action items in three groups — pending, assigned (with each task's state)
  * and dismissed (folded). A clerk (host, secretary, workspace admin) works the
- * pending list down; everyone else reads. `compact` is the in-room Copilot's
- * version, without the panel frame.
+ * pending list down; everyone else reads. This is the in-room Copilot's list;
+ * the detail page reviews and assigns through meeting-detail/close-out.
  */
 export function MeetingActionItemsSection({
   workspaceId,
@@ -270,7 +258,7 @@ export function MeetingActionItemsSection({
   projectId,
   canClerk,
   aiRestricted = false,
-  variant = "panel",
+  variant = "compact",
   selection,
 }: {
   workspaceId: string;
@@ -283,7 +271,8 @@ export function MeetingActionItemsSection({
    * only the tasks it handed out, which is all the server sends them, and no evidence chips.
    */
   aiRestricted?: boolean;
-  variant?: ActionItemsVariant;
+  /** The room's Copilot list; the detail page's panel moved to meeting-detail/close-out. */
+  variant?: Extract<ActionItemsVariant, "compact">;
   /** Ticks kept by a screen that unmounts this section; else kept here. */
   selection?: ActionItemSelection;
 }) {
@@ -451,25 +440,10 @@ export function MeetingActionItemsSection({
     </div>
   );
 
-  if (variant === "compact") {
-    return (
-      <section className="space-y-3">
-        <SummaryLiveRegion message={announcement.text} seq={announcement.seq} />
-        {body}
-      </section>
-    );
-  }
   return (
-    // clip, not hidden: the phone's sticky assign bar needs a card that is not a scroll container.
-    <PanelCard
-      id="action-items-heading"
-      icon={MODULE_ICONS.tasks}
-      iconTone={moduleTone("tasks")}
-      title={t("meetings.actionItemsSection.title")}
-      className="overflow-clip"
-    >
+    <section className="space-y-3">
       <SummaryLiveRegion message={announcement.text} seq={announcement.seq} />
       {body}
-    </PanelCard>
+    </section>
   );
 }

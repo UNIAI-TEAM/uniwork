@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../common/notice";
+import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 
 const ackKey = (meetingKey: string) => `uw.meeting.scribeNotice.${meetingKey}`;
 
@@ -27,8 +27,9 @@ function acknowledge(meetingKey: string) {
 /**
  * Consent notice before anyone is transcribed (UNI-1995 access, #2): shown in
  * the prejoin and the lobby, to members and guests alike, while the meeting
- * has the AI scribe. It says who keeps the transcript, who reads it and that
- * the audio is processed outside Vietnam; once acknowledged it stays away for
+ * has the scribe. It says that Thư ký UNI is an AI, who keeps the transcript
+ * and who reads it (where the audio is processed is said only in the
+ * organization's settings); once acknowledged it stays away for
  * the meeting in this tab, so prejoin and lobby do not ask twice.
  */
 export function MeetingScribeNotice({ meetingKey, scribeOn }: { meetingKey: string; scribeOn: boolean }) {
@@ -38,7 +39,7 @@ export function MeetingScribeNotice({ meetingKey, scribeOn }: { meetingKey: stri
   return (
     <Notice
       tone="info"
-      icon={Sparkles}
+      icon={ScribeMark}
       layout="inline"
       live="off"
       className="items-start text-left"

@@ -14,12 +14,13 @@ beforeEach(() => {
 
 // UNI-1995 access (#2): informed consent before anyone is transcribed.
 describe("MeetingScribeNotice", () => {
-  it("says who keeps the transcript and that the audio leaves Vietnam", () => {
+  it("says the scribe is an AI and who keeps the transcript, and leaves where the audio goes to the settings", () => {
     render(<MeetingScribeNotice meetingKey="m1" scribeOn />);
     const notice = screen.getByTestId("meeting-scribe-notice");
-    expect(notice).toHaveTextContent("Cuộc họp này có Thư ký AI");
+    expect(notice).toHaveTextContent("Cuộc họp này có Thư ký UNI");
     expect(notice).toHaveTextContent(/tổ chức chủ trì cuộc họp lưu/);
-    expect(notice).toHaveTextContent(/ngoài Việt Nam/);
+    expect(notice).toHaveTextContent(/là trợ lý AI của UniWork/);
+    expect(notice).not.toHaveTextContent(/Việt Nam/);
   });
 
   it("is not shown where the meeting has no scribe", () => {

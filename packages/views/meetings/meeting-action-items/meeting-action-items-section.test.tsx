@@ -159,8 +159,8 @@ describe("MeetingActionItemsSection", () => {
     respond({ items: () => ({ items: [live, noTime], counts: { pending: 2, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
     renderSection();
     expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
-    expect(screen.getByText(/^Thư ký AI ghi lúc \d{2}:\d{2}$/)).toBeInTheDocument();
-    expect(screen.getByText("Thư ký AI ghi trong họp")).toBeInTheDocument();
+    expect(screen.getByText(/^Ghi lúc \d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(screen.getByText("Ghi trong họp")).toBeInTheDocument();
   });
 
   it("is read-only for a member who is not a clerk", async () => {
@@ -398,7 +398,9 @@ describe("MeetingActionItemsSection source labels", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Đã bỏ qua \(1\)/ }));
     await screen.findByText("In tài liệu");
     // Pending, assigned and dismissed AI rows all keep their source.
-    expect(screen.getAllByText("Từ tóm tắt AI")).toHaveLength(3);
+    expect(screen.getAllByText("Từ tóm tắt")).toHaveLength(3);
+    // The scribe's mark stands for its name: read out and shown on hover.
+    expect(screen.getAllByTitle("Thư ký UNI")).toHaveLength(3);
     // The label stays out of the checkbox's name.
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeInTheDocument();
   });

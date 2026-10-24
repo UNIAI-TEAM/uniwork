@@ -1378,6 +1378,26 @@ describe("useRealtimeSync › meeting scribe", () => {
     vi.useRealTimers();
   });
 
+  it("refreshes the notes on note.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "note.created", payload: { meeting_id: "m1", version: "3", note_id: "n1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
+  });
+
+  it("refreshes every meeting detail on meeting.created, so a series learns its next meeting", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "meeting.created", payload: { meeting_id: "m2" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting"]));
+  });
+
   it("refreshes the meeting detail on scribe.updated", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

@@ -1,0 +1,3170 @@
+{
+  "source": "capture/data.json 2026-10-23T14:29:05.566Z",
+  "org": {
+    "id": "01M5KRMH3RP0WDCMZ55Z4CY17C",
+    "slug": "sao-mai-mvkm79lj",
+    "name": "Công ty Sao Mai"
+  },
+  "workspace": {
+    "id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+    "slug": "van-hanh",
+    "name": "Vận hành"
+  },
+  "project": {
+    "id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+    "title": "Ra mắt sản phẩm Q4"
+  },
+  "users": {
+    "lan": {
+      "id": "01M5KRMGN7ZSA038MB933C31Q1",
+      "name": "Lan Phạm"
+    },
+    "ha": {
+      "id": "01M5KRMGT4MFM37NXRN3R50QY9",
+      "name": "Hà Vũ"
+    },
+    "minh": {
+      "id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+      "name": "Minh Trần"
+    },
+    "tuan": {
+      "id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+      "name": "Tuấn Đỗ"
+    },
+    "bao": {
+      "id": "01M5KRMH2MFDGMS0YZF6N0K7JM",
+      "name": "Bảo Nguyễn"
+    }
+  },
+  "members": [
+    {
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+      "role": "owner",
+      "email": "lan@saomai.test",
+      "display_name": "Lan Phạm"
+    },
+    {
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+      "role": "member",
+      "email": "ha@saomai.test",
+      "display_name": "Hà Vũ"
+    },
+    {
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+      "role": "member",
+      "email": "minh@saomai.test",
+      "display_name": "Minh Trần"
+    },
+    {
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "user_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+      "role": "member",
+      "email": "tuan@saomai.test",
+      "display_name": "Tuấn Đỗ"
+    },
+    {
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "user_id": "01M5KRMH2MFDGMS0YZF6N0K7JM",
+      "role": "admin",
+      "email": "bao@saomai.test",
+      "display_name": "Bảo Nguyễn"
+    }
+  ],
+  "meetings": {
+    "m1": {
+      "meeting": {
+        "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+        "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+        "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+        "description": "Họp giao ban hằng tuần của nhóm ra mắt sản phẩm Q4: tiến độ kỹ thuật, sự kiện ra mắt, phản hồi khách dùng thử.",
+        "starts_at": "2026-10-22T02:00:00Z",
+        "ends_at": "2026-10-22T02:28:00Z",
+        "room_name": "uw_mtg_01M5KRZXPWCY9F8NB0960E7JKZ",
+        "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "created_at": "2026-10-16T02:00:00Z",
+        "status": "ENDED",
+        "meeting_type": "SCHEDULED",
+        "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "allow_join_request": true,
+        "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+        "actual_start_at": "2026-10-22T02:00:00Z",
+        "actual_end_at": "2026-10-22T02:28:00Z",
+        "version": 3,
+        "quorum_percent": null,
+        "scribe_enabled": true,
+        "ai_content_shared": false,
+        "ai_content_readable": true
+      },
+      "participants": [
+        {
+          "id": "01M5KRZXQ626GT3SMYBMH324SN",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "display_name_snapshot": "Lan Phạm",
+          "role": "MODERATOR",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "display_name_snapshot": "Hà Vũ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": true,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5KRZXR98MFR7PKBQ5G3078B",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+          "display_name_snapshot": "Minh Trần",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        }
+      ],
+      "invitations": [
+        {
+          "id": "01M5KRZXQTFSBNMK6EGN2R94QH",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+          "response_status": "ACCEPTED"
+        },
+        {
+          "id": "01M5KRZXRB0C2J3XC2334AY8QJ",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+          "response_status": "ACCEPTED"
+        }
+      ],
+      "attendance": {
+        "finalized_at": "2026-10-23T07:00:52Z",
+        "finalized_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "quorum_percent": null,
+        "summary": {
+          "members": 3,
+          "present": 3,
+          "late": 0,
+          "excused": 0,
+          "absent": 0,
+          "quorum_met": null
+        },
+        "rows": [
+          {
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "display_name": "Lan Phạm",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "display_name": "Hà Vũ",
+            "standing": "MEMBER",
+            "is_secretary": true,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "display_name": "Minh Trần",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          }
+        ]
+      },
+      "summary": {
+        "summary": {
+          "id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "summary": "Buổi giao ban tuần 43 có đủ 3/3 thành viên tham dự (không đặt mức tối thiểu), rà việc tồn và bàn tiến độ kỹ thuật bản 3.0, sự kiện ra mắt 15/11 cùng phản hồi khách dùng thử. Nhóm chốt khóa tính năng ngày 30/10, kiểm thử tải xong trước 5/11, ngân sách sự kiện 350 triệu đồng và dời hóa đơn điện tử sang bản 3.1 đầu tháng 12. Hai việc còn để mở là mời báo chí và giá gói khởi đầu, sẽ quyết ở buổi tuần sau.",
+          "decisions": [
+            {
+              "text": "Áp dụng mức chiết khấu 15% cho khách hàng từ 20 cửa hàng trở lên khi làm báo giá gói doanh nghiệp.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY0K1G0Y96XZQATDJJDE"
+                }
+              ]
+            },
+            {
+              "text": "Khóa tính năng bản SaoMai POS 3.0 vào thứ Sáu ngày 30/10; hai lỗi nghiêm trọng về in hóa đơn phải sửa xong trước thứ Ba ngày 27.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY414KVB344AYAGME5HQ"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY4G80ET1EB2EJ3EVRHR"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY4Q1AW7YSTZBY0QBFJ1"
+                },
+                {
+                  "kind": "note",
+                  "id": "01M5KRZYYBWGB94PNSDZ7QH2CQ"
+                }
+              ]
+            },
+            {
+              "text": "Kiểm thử tải chạy trên bản đã khóa, từ ngày 31/10 và hoàn tất trước ngày 5/11.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY59Y59638KS87TQF020"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY5ZAQB72WCXJNFRDWVQ"
+                },
+                {
+                  "kind": "note",
+                  "id": "01M5KRZYYBWGB94PNSDZ7QH2CQ"
+                }
+              ]
+            },
+            {
+              "text": "Chốt ngân sách sự kiện ra mắt là 350 triệu đồng, đã gồm hội trường, âm thanh ánh sáng, quà tặng và in ấn, không được vượt.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY87WEAH6C4908V1MWVK"
+                },
+                {
+                  "kind": "note",
+                  "id": "01M5KRZYYXQ091PV8HHN88BP57"
+                }
+              ]
+            },
+            {
+              "text": "Danh sách khách mời sự kiện không quá 180 người, để dành chỗ cho báo chí nếu được duyệt.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY9PME94GM9Q2X0FFVQD"
+                }
+              ]
+            },
+            {
+              "text": "Đưa bộ phát 4G dự phòng vào danh sách thiết bị của khu trải nghiệm tại sự kiện.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYB2WZ914SYWRWFW4D42"
+                }
+              ]
+            },
+            {
+              "text": "Không đưa tính năng hóa đơn điện tử vào bản 3.0 mà chuyển sang bản 3.1 phát hành đầu tháng 12, và nêu rõ lộ trình này với Hòa Bình cũng như trong phần trình bày ở sự kiện.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYFSWNAEX3MXFVWFDCAZ"
+                },
+                {
+                  "kind": "note",
+                  "id": "01M5KRZYYXQ091PV8HHN88BP57"
+                }
+              ]
+            },
+            {
+              "text": "Chọn bình giữ nhiệt in logo SaoMai POS làm quà tặng khách mời.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYPYJ3HSF4EQXD8B5H73"
+                }
+              ]
+            },
+            {
+              "text": "Ngày sự kiện bố trí 4 người kỹ thuật: ba người ở khu trải nghiệm và một người trực hệ thống nắm phần đồng bộ kho.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYQRMPQMH09QK4XE0B7M"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYR11Y0RH62T67HG3K9B"
+                }
+              ]
+            },
+            {
+              "text": "Buổi giao ban tuần sau giữ nguyên giờ, thứ Năm ngày 29 lúc 9 giờ sáng.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYVYGZQEJ1H9EBVKRRSW"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYWTNX2QY8EQE80D3QWE"
+                }
+              ]
+            }
+          ],
+          "model": "claude-opus-5",
+          "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+          "created_by_kind": "human",
+          "created_at": "2026-10-22T02:31:00Z",
+          "partial": false,
+          "topics": [
+            {
+              "title": "Rà soát việc tồn tuần trước",
+              "start": {
+                "kind": "segment",
+                "id": "01M5KRZXYBWMAMH5569YDP53XD"
+              },
+              "start_at": "2026-10-22T02:01:14Z",
+              "points": [
+                {
+                  "text": "Hợp đồng giữ chỗ khách sạn Riverside đã ký và kế hoạch kiểm thử tải đã gửi lên kênh dự án, còn kịch bản video và danh sách khách mời chưa chốt.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZXYNG7SC01RC3PB5X6SB"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZXZ16GXZAG62W09B703A"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZXZAYEY883MSCTVSWDW2"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZXZH7SBTNBKQRPN9R583"
+                    }
+                  ]
+                },
+                {
+                  "text": "Báo giá cho chuỗi siêu thị Hòa Bình bị chậm do chờ mức chiết khấu, Lan Phạm xác nhận đã duyệt 15% cho khách từ 20 cửa hàng trở lên nên Minh Trần sẽ gửi chậm nhất thứ Hai ngày 26.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY04EEZWM4A10XJXFJ0V"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY0B0J41XXW34PJF3WKD"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY0K1G0Y96XZQATDJJDE"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY0TSQM33PBK9N9VPEXF"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Tiến độ kỹ thuật bản SaoMai POS 3.0",
+              "start": {
+                "kind": "segment",
+                "id": "01M5KRZY195MQVZ6AEAXZA3KGJ"
+              },
+              "start_at": "2026-10-22T02:04:02Z",
+              "points": [
+                {
+                  "text": "Thanh toán QR và đồng bộ kho nhiều chi nhánh đã xong kiểm thử chức năng, báo cáo theo ca đạt 80%, còn 12 lỗi mở trong đó hai lỗi nghiêm trọng về in hóa đơn trên máy in nhiệt 58mm.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY1GCPRR2J1MT42CW7PT"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY2FR1BE75NQPV6KRFFE"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY2RX9YPW6MM5FACZR71"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY3FJ4MNZG9W8T5K8M2Y"
+                    }
+                  ]
+                },
+                {
+                  "text": "Kiểm thử tải được dời chạy trên bản đã khóa từ 31/10 đến 5/11, mô phỏng giờ cao điểm theo số liệu thật của Mộc An nhân ba để có biên an toàn.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY4ZV9AAWQTH22ZC04G1"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY59Y59638KS87TQF020"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY5ZAQB72WCXJNFRDWVQ"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY66P8XC3Q8HWZAJQ6XA"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Sự kiện ra mắt ngày 15/11",
+              "start": {
+                "kind": "segment",
+                "id": "01M5KRZY6WZY3V8KKP26EQHGK5"
+              },
+              "start_at": "2026-10-22T02:09:19Z",
+              "points": [
+                {
+                  "text": "Hội trường tầng 3 Riverside đã giữ cho chiều 15/11 với sức chứa 200 khách, cần đặt cọc khoảng 63 triệu trước 31/10, trong ngân sách tổng 350 triệu đồng.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY745PNSXVAB32D8SWS3"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY7EEZW3Y3J07QXN7BK1"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY7ZW9G17YB7677VEVQ2"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZY87WEAH6C4908V1MWVK"
+                    }
+                  ]
+                },
+                {
+                  "text": "Kỹ thuật sẽ dựng khu trải nghiệm ở sảnh (cần sơ đồ trước 2/11) và kịch bản video rút còn 90 giây sẽ được Lan Phạm duyệt trước thứ Sáu ngày 23 để kịp quay ngày 3/11.",
+                  "evidence": [
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZYA455H42XT7Z4KA3W7R"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZYACW0EGT0KGCGK8V6AD"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZYBNGSW1WE48CSX7KBH4"
+                    },
+                    {
+                      "kind": "segment",
+                      "id": "01M5KRZYC843Q1J202PK9XT8HB"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "open_questions": [
+            {
+              "text": "Có mời khoảng 10 phóng viên hay không, khi chi phí tăng thêm 40 triệu đồng và vượt ngân sách — chờ ban giám đốc quyết trong tuần sau.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYCRWJ9QKBVD24YJEZWK"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYD775FYSFGGP54CF9FR"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYDP9Z1WBFTXC8Y5A5HY"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYDYXA48ZXGSP7TZYKKA"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYSQJKEC8P28AG17BC4Y"
+                }
+              ]
+            },
+            {
+              "text": "Giá gói khởi đầu chọn mức nào: 299 nghìn, 349 nghìn hay 299 nghìn cho năm đầu rồi tăng — quyết ở buổi tuần sau cùng bảng chi phí hạ tầng.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYHWF2KGCG1MXED6Z24G"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYKPH6EWYASEG3HAJEVZ"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYM66KYX8FV70S9NKCRA"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYMFMF2JK4RQN9VJR638"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYSQJKEC8P28AG17BC4Y"
+                }
+              ]
+            },
+            {
+              "text": "Phương án dự phòng nếu kiểm thử tải phát hiện vấn đề lớn ở đồng bộ kho; Lan Phạm muốn xem số liệu kiểm thử giữa chừng trước khi quyết.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYSZAH8NT11K9SN1A4FR"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYT762GD8RZCYTE2RYF4"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYTEKBZ6GTH9N1CQH0FM"
+                }
+              ]
+            },
+            {
+              "text": "Có mở thêm cụm máy chủ ở Thành phố Hồ Chí Minh sau ra mắt hay không, và ảnh hưởng chi phí tới giá gói.",
+              "evidence": [
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY6NDP1T65XY485T1MZ5"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZY6WZY3V8KKP26EQHGK5"
+                },
+                {
+                  "kind": "segment",
+                  "id": "01M5KRZYKD5K4G1HZ8BFAZ19V2"
+                }
+              ]
+            }
+          ]
+        },
+        "run": {
+          "status": "idle",
+          "at": null,
+          "attempts": 0,
+          "failure": null
+        }
+      },
+      "action_items": {
+        "items": [
+          {
+            "id": "01M5EF21F6FF58F14DDCAE26E3",
+            "source": "AI",
+            "position": 1,
+            "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+            "owner_text": "Minh Trần",
+            "due_text": "thứ Hai ngày 26/10",
+            "description": "Báo giá cho 25 cửa hàng, áp chiết khấu 15% đã được duyệt cho khách từ 20 cửa hàng trở lên.",
+            "suggested_priority": "high",
+            "suggested_assignee_id": null,
+            "suggested_due_date": null,
+            "status": "CONVERTED",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": {
+              "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+              "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-10-26"
+            },
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY0K1G0Y96XZQATDJJDE"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY0TSQM33PBK9N9VPEXF"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY12PBW1JC5MHDSBJXRB"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M514B40651B6E34F7C469521",
+            "source": "AI",
+            "position": 2,
+            "title": "Theo dõi sửa hai lỗi in hóa đơn trên máy in nhiệt khổ 58 mm",
+            "owner_text": "Minh Trần",
+            "due_text": "thứ Ba ngày 27/10",
+            "description": "Lỗi cắt mất tổng tiền khi hóa đơn dài và lỗi phông chữ có dấu; Tùng đang sửa, phải xong trước ngày khóa tính năng 30/10.",
+            "suggested_priority": "high",
+            "suggested_assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "suggested_due_date": "2026-10-27",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY3FJ4MNZG9W8T5K8M2Y"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY495PRD2P2M3ZVR7X69"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY4G80ET1EB2EJ3EVRHR"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5FD5BACAA4851E63B98AE0A",
+            "source": "AI",
+            "position": 3,
+            "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+            "owner_text": "Minh Trần",
+            "due_text": "trước ngày 5/11",
+            "description": "Chạy từ 31/10, mô phỏng giờ cao điểm 2.000 giao dịch mỗi phút từ số liệu thật của Mộc An, nhân ba để có biên an toàn.",
+            "suggested_priority": "",
+            "suggested_assignee_id": null,
+            "suggested_due_date": null,
+            "status": "CONVERTED",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": {
+              "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+              "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-11-05"
+            },
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY59Y59638KS87TQF020"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY5ZAQB72WCXJNFRDWVQ"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY66P8XC3Q8HWZAJQ6XA"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M52A44A893CD1F783D8961E8",
+            "source": "AI",
+            "position": 4,
+            "title": "Báo kết quả kiểm thử tải giữa chừng",
+            "owner_text": "Minh Trần",
+            "due_text": "ngày 3/11",
+            "description": "Để kịp quyết phương án dự phòng nếu đồng bộ kho có vấn đề lớn.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "suggested_due_date": "2026-11-03",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYTEKBZ6GTH9N1CQH0FM"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYTNZ68EA2359VEWDR4P"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M512AA1C451F483B9BD7DC33",
+            "source": "AI",
+            "position": 5,
+            "title": "Gửi sơ đồ khu trải nghiệm và danh sách thiết bị cho khách sạn",
+            "owner_text": "Minh Trần",
+            "due_text": "trước ngày 2/11",
+            "description": "Năm máy POS, một màn hình lớn và bộ phát 4G dự phòng; khách sạn cần thời gian kéo thêm đường điện.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "suggested_due_date": "2026-11-02",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYACW0EGT0KGCGK8V6AD"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYAKM2723FNX9ABVTKC6"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYB2WZ914SYWRWFW4D42"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5B6358E7E55E2DEC9D34EB2",
+            "source": "AI",
+            "position": 6,
+            "title": "Lập bảng chi phí hạ tầng theo số cửa hàng",
+            "owner_text": "Minh Trần",
+            "due_text": "thứ Năm ngày 29/10",
+            "description": "Từ 100 đến 2.000 cửa hàng, gồm cụm máy chủ phía Nam, làm căn cứ quyết giá gói khởi đầu.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "suggested_due_date": "2026-10-29",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYKPH6EWYASEG3HAJEVZ"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYKYJ4FJQWAHBBNCHCE1"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5AFAFDE2D3C738F0D541634",
+            "source": "AI",
+            "position": 7,
+            "title": "Viết tài liệu hướng dẫn sử dụng bản 3.0",
+            "owner_text": "Minh Trần",
+            "due_text": "ngày 6/11",
+            "description": "Bên hỗ trợ khách hàng cần một tuần đào tạo nội bộ trước sự kiện.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "suggested_due_date": "2026-11-06",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYNNZYV6NDH0AZT0B0WS"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYNXW2MQ06Z9SXBDT2DR"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5A1E117A222E7C69E449328",
+            "source": "AI",
+            "position": 8,
+            "title": "Chốt danh sách khách mời sự kiện ra mắt",
+            "owner_text": "Hà Vũ",
+            "due_text": "thứ Tư ngày 28/10",
+            "description": "Bổ sung khoảng 30 chủ cửa hàng phía Nam, tổng không quá 180 người.",
+            "suggested_priority": "",
+            "suggested_assignee_id": null,
+            "suggested_due_date": null,
+            "status": "CONVERTED",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": {
+              "id": "01M5KSNFH9BB1CM9N4G20760QE",
+              "title": "Chốt danh sách khách mời sự kiện ra mắt",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            },
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY9F4SQFTKED992Z95DQ"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY9PME94GM9Q2X0FFVQD"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5879E80B0EB0C11FF85810E",
+            "source": "AI",
+            "position": 9,
+            "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+            "owner_text": "Hà Vũ",
+            "due_text": "thứ Tư ngày 28/10",
+            "description": "Cọc 30% hợp đồng 210 triệu, khoảng 63 triệu đồng, phải chuyển trước ngày 31/10.",
+            "suggested_priority": "high",
+            "suggested_assignee_id": null,
+            "suggested_due_date": null,
+            "status": "CONVERTED",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": {
+              "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+              "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            },
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY7EEZW3Y3J07QXN7BK1"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY7ZW9G17YB7677VEVQ2"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZY8QXK557E16K6N9CF8T"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M59627AB3B4284EAF604F135",
+            "source": "AI",
+            "position": 10,
+            "title": "Đặt quà tặng bình giữ nhiệt in logo SaoMai POS",
+            "owner_text": "Hà Vũ",
+            "due_text": "ngày 30/10",
+            "description": "",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "suggested_due_date": "2026-10-30",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYPYJ3HSF4EQXD8B5H73"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYQ8F08P2NYQETSH4D0V"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M5053D534CC6DC494D1F1DC2",
+            "source": "AI",
+            "position": 11,
+            "title": "Gửi trang tóm tắt chi phí và lợi ích của việc mời báo chí",
+            "owner_text": "Hà Vũ",
+            "due_text": "thứ Hai",
+            "description": "Để chị Lan trình ban giám đốc.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "suggested_due_date": "2026-10-26",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYDYXA48ZXGSP7TZYKKA"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYE59NE8TJ5XH1DTM99E"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M54B59E12753DFFB23B223F5",
+            "source": "AI",
+            "position": 12,
+            "title": "Gửi thư mời chính thức cho khách mời",
+            "owner_text": "Hà Vũ",
+            "due_text": "trước ngày 5/11",
+            "description": "",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "suggested_due_date": "2026-11-05",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZY9X5Y7YCTN10GQQVKYH"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M594247948D65400BE8B1439",
+            "source": "AI",
+            "position": 13,
+            "title": "Duyệt kịch bản video giới thiệu bản 90 giây",
+            "owner_text": "Lan Phạm",
+            "due_text": "thứ Sáu ngày 23/10",
+            "description": "Agency cần duyệt trong tuần để kịp quay ngày 3/11.",
+            "suggested_priority": "",
+            "suggested_assignee_id": null,
+            "suggested_due_date": null,
+            "status": "CONVERTED",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": {
+              "id": "01M5KSNFJ914PHYTDZVR1B5796",
+              "title": "Duyệt kịch bản video giới thiệu bản 90 giây",
+              "status": "done",
+              "done": true,
+              "overdue": false,
+              "assignee_id": "01M5KRMGN7ZSA038MB933C31Q1",
+              "due_date": "2026-10-23"
+            },
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYC0XXMH72VXVQ2SYDPE"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYC843Q1J202PK9XT8HB"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          },
+          {
+            "id": "01M526C2487ADDB33DE0A969CF",
+            "source": "AI",
+            "position": 14,
+            "title": "Trình ban giám đốc việc mời báo chí dự sự kiện",
+            "owner_text": "Lan Phạm",
+            "due_text": "tuần sau",
+            "description": "Chi phí thêm khoảng 40 triệu, vượt ngân sách 350 triệu.",
+            "suggested_priority": "",
+            "suggested_assignee_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "suggested_due_date": "2026-10-29",
+            "status": "PENDING",
+            "dismiss_reason": "",
+            "dismissed_by": null,
+            "dismissed_at": null,
+            "task": null,
+            "evidence": [
+              {
+                "kind": "segment",
+                "id": "01M5KRZYD775FYSFGGP54CF9FR"
+              },
+              {
+                "kind": "segment",
+                "id": "01M5KRZYDP9Z1WBFTXC8Y5A5HY"
+              }
+            ],
+            "summary_id": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "created_at": "2026-10-22T02:31:00Z"
+          }
+        ],
+        "counts": {
+          "pending": 9,
+          "converted": 5,
+          "dismissed": 0,
+          "tasks_done": 1,
+          "tasks_overdue": 0
+        }
+      },
+      "notes": [
+        {
+          "id": "01M5KRZYYBWGB94PNSDZ7QH2CQ",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "author_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "body": "Khóa tính năng SaoMai POS 3.0 ngày 30/10; kiểm thử tải xong trước 5/11.",
+          "created_at": "2026-10-22T09:18:54.880861+07:00",
+          "display_name": "Hà Vũ",
+          "avatar_url": null,
+          "avatar_file_id": null
+        },
+        {
+          "id": "01M5KRZYYXQ091PV8HHN88BP57",
+          "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+          "author_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "body": "Sự kiện ra mắt 15/11 tại khách sạn Riverside, ngân sách 350 triệu đồng. Hóa đơn điện tử chuyển sang bản 3.1 (đầu tháng 12).",
+          "created_at": "2026-10-22T09:26:20.688316+07:00",
+          "display_name": "Hà Vũ",
+          "avatar_url": null,
+          "avatar_file_id": null
+        }
+      ],
+      "motions": {
+        "motions": []
+      },
+      "minutes": {
+        "minutes": {
+          "document_id": "01M5KSNFN888K76WZ05BHT638T",
+          "finalized": false,
+          "finalized_at": null,
+          "finalized_by": null,
+          "finalized_version_id": null,
+          "finalized_version": null,
+          "edited_since_finalized": false,
+          "can_edit": true,
+          "pending_items": 9
+        }
+      },
+      "activity": {
+        "activity": [
+          {
+            "id": "01M5MJHWHDYRX6KT7CPDCXY91M",
+            "event_type": "TASKS_CREATED_FROM_SUMMARY",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "occurred_at": "2026-10-23T14:27:33Z"
+          },
+          {
+            "id": "01M5KSRXFZPA533C5BQ29K4Y5J",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T07:14:29Z"
+          },
+          {
+            "id": "01M5KSRXFKEQ9Q48B2F065J1TG",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T07:14:29Z"
+          },
+          {
+            "id": "01M5KSNFKAQCB37VF36320XDNE",
+            "event_type": "TASKS_CREATED_FROM_SUMMARY",
+            "actor_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "occurred_at": "2026-10-23T07:12:36Z"
+          },
+          {
+            "id": "01M5KSJKZD662NWQY5XFZKDM63",
+            "event_type": "SUMMARY_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KSJKYV5GV3ZY4KC12RR759",
+            "occurred_at": "2026-10-23T07:11:03Z"
+          },
+          {
+            "id": "01M5KSEECSK2JYE6GZJETT1XDZ",
+            "event_type": "SUMMARY_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KSEECC9R0WT6SESCEMRF53",
+            "occurred_at": "2026-10-23T07:08:46Z"
+          },
+          {
+            "id": "01M5KS6EKWKS91R9X10DD6T2FD",
+            "event_type": "SUMMARY_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KS6EKCVTWGX33EFE47XCFZ",
+            "occurred_at": "2026-10-23T07:04:24Z"
+          },
+          {
+            "id": "01M5KRZZQXDKSAWCKE7N6WWAMV",
+            "event_type": "ATTENDANCE_FINALIZED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "occurred_at": "2026-10-23T07:00:52Z"
+          },
+          {
+            "id": "01M5KRZYZZWAB76QR8YXKRF9NE",
+            "event_type": "MEETING_ENDED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "IN_PROGRESS",
+            "to_state": "ENDED",
+            "occurred_at": "2026-10-23T07:00:51Z"
+          },
+          {
+            "id": "01M5KRZZ0AC070R94XC39MEV7X",
+            "event_type": "CONFERENCE_SESSION_ENDED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "ACTIVE",
+            "to_state": "ENDED",
+            "occurred_at": "2026-10-23T07:00:51Z"
+          },
+          {
+            "id": "01M5KRZXS75ZQF6G3S67ZN4CVS",
+            "event_type": "MEETING_STARTED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "SCHEDULED",
+            "to_state": "IN_PROGRESS",
+            "occurred_at": "2026-10-23T07:00:50Z"
+          },
+          {
+            "id": "01M5KRZXQYS2KMD8SN7E8VQ0MV",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "occurred_at": "2026-10-23T07:00:50Z"
+          },
+          {
+            "id": "01M5KRZXRCAMF37B7YFXFTCJ52",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "occurred_at": "2026-10-23T07:00:50Z"
+          },
+          {
+            "id": "01M5KRZXREG3V8H5PXHQV2JDX8",
+            "event_type": "MEETING_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "SCHEDULED",
+            "occurred_at": "2026-10-23T07:00:50Z"
+          }
+        ]
+      },
+      "carried_over": {
+        "items": [],
+        "total": 0
+      },
+      "invite_links": {
+        "invite_links": []
+      },
+      "join_requests": {
+        "join_requests": []
+      },
+      "recordings": {
+        "recordings": []
+      },
+      "dial_in": {
+        "enabled": false,
+        "number": "",
+        "pin": ""
+      },
+      "transcript": {
+        "segments": [
+          {
+            "id": "01M5KRZXXAJ15YAJZ3F3GQTX4J",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Chào cả nhà, mọi người nghe rõ chị không? Ừ, vậy mình bắt đầu giao ban tuần 43 nhé, hôm nay chị muốn gọn trong khoảng ba mươi lăm phút.",
+            "spoken_at": "2026-10-22T02:00:12Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXXQWTFCD2XKJB5HDZRX",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Hôm nay có bốn phần: một là rà lại việc tồn của tuần trước, hai là tiến độ kỹ thuật bản SaoMai POS 3.0, ba là sự kiện ra mắt ngày 15 tháng 11, bốn là phản hồi của khách dùng thử và chuyện giá gói.",
+            "spoken_at": "2026-10-22T02:00:31Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXY2PR6YQGM3HGB84PW0",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Dạ, em ghi biên bản như mọi tuần ạ. Em cũng bật ghi chú chung, ai muốn bổ sung gì thì gõ vào đó luôn nhé.",
+            "spoken_at": "2026-10-22T02:00:58Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXYBWMAMH5569YDP53XD",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Được. Hà đọc lại giúp chị các việc tồn của tuần trước đi.",
+            "spoken_at": "2026-10-22T02:01:14Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXYNG7SC01RC3PB5X6SB",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Dạ, tuần trước mình có năm việc. Thứ nhất là kịch bản video giới thiệu, agency gửi bản đầu nhưng chị Lan trả về vì dài quá, hơn ba phút.",
+            "spoken_at": "2026-10-22T02:01:25Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXZ16GXZAG62W09B703A",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Thứ hai là danh sách khách mời sự kiện, em mới gom được một trăm bốn mươi người, chưa chốt. Thứ ba là báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình, việc này giao anh Minh.",
+            "spoken_at": "2026-10-22T02:01:46Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXZAYEY883MSCTVSWDW2",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Thứ tư là hợp đồng với khách sạn Riverside, đã ký bản giữ chỗ rồi. Thứ năm là kế hoạch kiểm thử tải, anh Minh nói sẽ có bản nháp vào đầu tuần này.",
+            "spoken_at": "2026-10-22T02:02:08Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXZH7SBTNBKQRPN9R583",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Ok, vậy hợp đồng khách sạn coi như xong. Kế hoạch kiểm thử tải có chưa Minh?",
+            "spoken_at": "2026-10-22T02:02:27Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZXZT76MDTWX655R7620H",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ có rồi chị, em gửi lên kênh dự án hôm thứ Hai. Em sẽ nói kỹ hơn ở phần kỹ thuật.",
+            "spoken_at": "2026-10-22T02:02:36Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY04EEZWM4A10XJXFJ0V",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Còn báo giá Hòa Bình thì sao em? Chị thấy bên đó nhắc hai lần rồi đấy.",
+            "spoken_at": "2026-10-22T02:02:47Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY0B0J41XXW34PJF3WKD",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ, cái này em nhận là chậm. Em đang chờ phòng kinh doanh xác nhận mức chiết khấu cho khách từ hai mươi cửa hàng trở lên, chưa có số nên em chưa dám gửi.",
+            "spoken_at": "2026-10-22T02:02:56Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY0K1G0Y96XZQATDJJDE",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Chiết khấu đó chị duyệt rồi mà, mười lăm phần trăm cho từ hai mươi cửa hàng trở lên. Chắc phòng kinh doanh chưa chuyển tiếp cho em. Em cứ áp dụng mức đó.",
+            "spoken_at": "2026-10-22T02:03:15Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY0TSQM33PBK9N9VPEXF",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ vâng, vậy thì em làm xong được ngay. Em sẽ gửi báo giá cho Hòa Bình chậm nhất là thứ Hai tuần sau, ngày 26.",
+            "spoken_at": "2026-10-22T02:03:33Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY12PBW1JC5MHDSBJXRB",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Em ghi lại: anh Minh gửi báo giá gói doanh nghiệp cho Hòa Bình trước thứ Hai ngày 26 tháng 10, áp chiết khấu mười lăm phần trăm.",
+            "spoken_at": "2026-10-22T02:03:46Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY195MQVZ6AEAXZA3KGJ",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Đúng rồi. Việc video với khách mời thì để phần sự kiện mình nói. Giờ sang kỹ thuật, Minh cập nhật đi em.",
+            "spoken_at": "2026-10-22T02:04:02Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY1GCPRR2J1MT42CW7PT",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ. Về tổng thể thì bản 3.0 đang đúng tiến độ. Hai tính năng chính là thanh toán QR và đồng bộ kho nhiều chi nhánh đã xong, đã qua kiểm thử chức năng.",
+            "spoken_at": "2026-10-22T02:04:14Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY1Q30V8ZY7N4BDDQG10",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Thanh toán QR thì mình đã tích hợp với ba ngân hàng, giao dịch thử trên môi trường thật đều thành công, thời gian xác nhận trung bình khoảng hai giây.",
+            "spoken_at": "2026-10-22T02:04:33Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY1YKWA9SW9R4N8P1A5V",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Đồng bộ kho thì bên Mộc An đang dùng thử với năm chi nhánh, độ trễ đồng bộ dưới mười giây, họ khá hài lòng.",
+            "spoken_at": "2026-10-22T02:04:52Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY26M8N7SWZPPPX5RGR1",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Tốt. Còn module báo cáo doanh thu theo ca? Tuần trước em nói mới được một nửa.",
+            "spoken_at": "2026-10-22T02:05:07Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY2FR1BE75NQPV6KRFFE",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ, giờ thì được khoảng tám mươi phần trăm rồi chị. Phần còn lại là xuất báo cáo ra Excel và lọc theo nhân viên thu ngân, em tính xong trong tuần sau.",
+            "spoken_at": "2026-10-22T02:05:15Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY2RX9YPW6MM5FACZR71",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Bên QA thì báo còn mười hai lỗi mở. Mười lỗi là lỗi giao diện nhỏ, nhưng có hai lỗi nghiêm trọng, đều liên quan đến in hóa đơn trên máy in nhiệt khổ 58 milimét.",
+            "spoken_at": "2026-10-22T02:05:34Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY3397KR8968CX05HX4N",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Nghiêm trọng là sao em? Khách bị ảnh hưởng thế nào?",
+            "spoken_at": "2026-10-22T02:05:55Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY3FJ4MNZG9W8T5K8M2Y",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXR98MFR7PKBQ5G3078B",
+            "speaker_name": "Minh Trần",
+            "text": "Dạ, một lỗi là khi hóa đơn dài hơn hai mươi dòng thì máy in cắt mất phần tổng tiền. Lỗi còn lại là tên món có dấu tiếng Việt bị lỗi phông trên một số dòng máy in đời cũ.",
+            "spoken_at": "2026-10-22T02:06:02Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY3R55KGRHXAGH4N9ZFQ",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQRBS4QYP5DWPTXP0Y3",
+            "speaker_name": "Hà Vũ",
+            "text": "Lỗi phông thì khách nhìn thấy ngay đấy chị, nhất là bên chuỗi cà phê, tên món nào cũng có dấu.",
+            "spoken_at": "2026-10-22T02:06:22Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5KRZY414KVB344AYAGME5HQ",
+            "meeting_id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+            "participant_id": "01M5KRZXQ626GT3SMYBMH324SN",
+            "speaker_name": "Lan Phạm",
+            "text": "Ừ, hai lỗi đó phải sửa trước ngày khóa tính năng. Mình đã thống nhất khóa tính năng vào thứ Sáu ngày 30 tháng 10 đúng không?",
+            "spoken_at": "2026-10-22T02:06:31Z",
+            "source": "CAPTION"
+          }
+        ]
+      },
+      "transcript_total": 119
+    },
+    "m3": {
+      "meeting": {
+        "id": "01M5KSPARCDNM37E49EDDZXE29",
+        "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+        "title": "Duyệt kịch bản sự kiện ra mắt với đối tác tổ chức",
+        "description": "Cùng agency Ánh Dương duyệt kịch bản chương trình, khu trải nghiệm và hậu cần cho ngày 15/11.",
+        "starts_at": "2026-10-24T07:00:00Z",
+        "ends_at": "2026-10-24T08:00:00Z",
+        "room_name": "uw_mtg_01M5KSPARCDNM37E49EDDZXE29",
+        "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "created_at": "2026-10-23T07:13:04Z",
+        "status": "SCHEDULED",
+        "meeting_type": "SCHEDULED",
+        "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "allow_join_request": true,
+        "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+        "version": 1,
+        "quorum_percent": null,
+        "scribe_enabled": true,
+        "ai_content_shared": false,
+        "ai_content_readable": true
+      },
+      "participants": [
+        {
+          "id": "01M5KSPARSHM85A4YM5Y7H83DC",
+          "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "display_name_snapshot": "Lan Phạm",
+          "role": "MODERATOR",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5KSPASA35598R951V88PR4P",
+          "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "display_name_snapshot": "Hà Vũ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5KSPASQ4CPZXZH1MBEY0RBQ",
+          "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+          "display_name_snapshot": "Minh Trần",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        }
+      ],
+      "invitations": [
+        {
+          "id": "01M5KSPASB0CZFZ08CXF2DQB08",
+          "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+          "participant_id": "01M5KSPASA35598R951V88PR4P",
+          "response_status": "ACCEPTED"
+        },
+        {
+          "id": "01M5KSPASRRTABKXB4F7Z47EWN",
+          "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+          "participant_id": "01M5KSPASQ4CPZXZH1MBEY0RBQ",
+          "response_status": "PENDING"
+        }
+      ],
+      "attendance": {
+        "quorum_percent": null,
+        "summary": {
+          "members": 3,
+          "present": 0,
+          "late": 0,
+          "excused": 0,
+          "absent": 3,
+          "quorum_met": null
+        },
+        "rows": [
+          {
+            "participant_id": "01M5KSPARSHM85A4YM5Y7H83DC",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "display_name": "Lan Phạm",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5KSPASA35598R951V88PR4P",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "display_name": "Hà Vũ",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5KSPASQ4CPZXZH1MBEY0RBQ",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "display_name": "Minh Trần",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          }
+        ]
+      },
+      "summary": {
+        "summary": null,
+        "run": {
+          "status": "idle",
+          "at": null,
+          "attempts": 0,
+          "failure": null
+        }
+      },
+      "action_items": {
+        "items": [],
+        "counts": {
+          "pending": 0,
+          "converted": 0,
+          "dismissed": 0,
+          "tasks_done": 0,
+          "tasks_overdue": 0
+        }
+      },
+      "notes": [],
+      "motions": {
+        "motions": []
+      },
+      "minutes": {
+        "minutes": null
+      },
+      "activity": {
+        "activity": [
+          {
+            "id": "01M5KSRXHP733G1JT15XPZYWCJ",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T07:14:29Z"
+          },
+          {
+            "id": "01M5KSPATKTNJA35DG1RPACAWG",
+            "event_type": "INVITE_LINK_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KSPATE4TT7170ME90BS1R6",
+            "occurred_at": "2026-10-23T07:13:04Z"
+          },
+          {
+            "id": "01M5KSPASF1CW8PPG3TQ5J0W1B",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KSPASA35598R951V88PR4P",
+            "occurred_at": "2026-10-23T07:13:04Z"
+          },
+          {
+            "id": "01M5KSPASTFE16T34BGG8QD5SF",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5KSPASQ4CPZXZH1MBEY0RBQ",
+            "occurred_at": "2026-10-23T07:13:04Z"
+          },
+          {
+            "id": "01M5KSPASWK8F03MEV4Y99CKPR",
+            "event_type": "MEETING_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "SCHEDULED",
+            "occurred_at": "2026-10-23T07:13:04Z"
+          }
+        ]
+      },
+      "carried_over": {
+        "items": [
+          {
+            "action_item_id": "01M5EF21F6FF58F14DDCAE26E3",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+              "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-10-26"
+            }
+          },
+          {
+            "action_item_id": "01M5A1E117A222E7C69E449328",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFH9BB1CM9N4G20760QE",
+              "title": "Chốt danh sách khách mời sự kiện ra mắt",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5879E80B0EB0C11FF85810E",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+              "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5FD5BACAA4851E63B98AE0A",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+              "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-11-05"
+            }
+          }
+        ],
+        "total": 4
+      },
+      "invite_links": {
+        "invite_links": [
+          {
+            "id": "01M5KSPATE4TT7170ME90BS1R6",
+            "meeting_id": "01M5KSPARCDNM37E49EDDZXE29",
+            "name": "Agency Ánh Dương",
+            "access_mode": "REQUEST_APPROVAL",
+            "expires_at": "2026-10-31T00:00:00Z",
+            "max_uses": 5,
+            "used_count": 0,
+            "created_at": "2026-10-23T07:13:04Z"
+          }
+        ]
+      },
+      "join_requests": {
+        "join_requests": []
+      },
+      "recordings": {
+        "recordings": []
+      },
+      "dial_in": {
+        "enabled": false,
+        "number": "",
+        "pin": ""
+      },
+      "transcript": {
+        "segments": []
+      },
+      "transcript_total": 0
+    },
+    "m4": {
+      "meeting": {
+        "id": "01M5MHXM1S11AQK5V26DS2DA9R",
+        "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+        "title": "Họp nhanh xử lý sự cố thanh toán POS",
+        "description": "Từ 20:30 nhiều cửa hàng báo thanh toán QR trên SaoMai POS bị treo ở bước xác nhận. Họp nhanh để khoanh vùng, chọn cách khắc phục tạm thời và thống nhất thông báo cho khách.",
+        "starts_at": "2026-10-23T13:54:29Z",
+        "ends_at": "2026-10-23T15:08:44Z",
+        "room_name": "uw_mtg_01M5MHXM1S11AQK5V26DS2DA9R",
+        "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "created_at": "2026-10-23T14:16:29Z",
+        "status": "IN_PROGRESS",
+        "meeting_type": "SCHEDULED",
+        "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "allow_join_request": true,
+        "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+        "actual_start_at": "2026-10-23T13:54:29Z",
+        "version": 3,
+        "quorum_percent": null,
+        "scribe_enabled": true,
+        "ai_content_shared": false,
+        "ai_content_readable": true
+      },
+      "participants": [
+        {
+          "id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "display_name_snapshot": "Lan Phạm",
+          "role": "MODERATOR",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "display_name_snapshot": "Hà Vũ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": true,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+          "display_name_snapshot": "Minh Trần",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHXM3PK8ST05P1R8MAC99G",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+          "display_name_snapshot": "Tuấn Đỗ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHXM3Y3Y7FV7TE25ZQXJBD",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "principal_type": "USER",
+          "user_id": "01M5KRMH2MFDGMS0YZF6N0K7JM",
+          "display_name_snapshot": "Bảo Nguyễn",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        }
+      ],
+      "invitations": [
+        {
+          "id": "01M5MHXM2VH65VTXHXTM6WEHKJ",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "participant_id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+          "response_status": "ACCEPTED"
+        },
+        {
+          "id": "01M5MHXM3FKENDZPVK7AHXXYVC",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+          "response_status": "ACCEPTED"
+        },
+        {
+          "id": "01M5MHXM3QY00DHRCCHY4XZ3RQ",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "participant_id": "01M5MHXM3PK8ST05P1R8MAC99G",
+          "response_status": "ACCEPTED"
+        },
+        {
+          "id": "01M5MHXM3ZCWK3SHBNDNKPHVPB",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "participant_id": "01M5MHXM3Y3Y7FV7TE25ZQXJBD",
+          "response_status": "DECLINED"
+        }
+      ],
+      "attendance": {
+        "quorum_percent": null,
+        "summary": {
+          "members": 5,
+          "present": 3,
+          "late": 1,
+          "excused": 1,
+          "absent": 0,
+          "quorum_met": null
+        },
+        "rows": [
+          {
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "display_name": "Lan Phạm",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "display_name": "Hà Vũ",
+            "standing": "MEMBER",
+            "is_secretary": true,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "display_name": "Minh Trần",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "PRESENT",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHXM3PK8ST05P1R8MAC99G",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+            "display_name": "Tuấn Đỗ",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "LATE",
+            "source": "MANUAL",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHXM3Y3Y7FV7TE25ZQXJBD",
+            "principal_type": "USER",
+            "user_id": "01M5KRMH2MFDGMS0YZF6N0K7JM",
+            "display_name": "Bảo Nguyễn",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "EXCUSED",
+            "source": "MANUAL",
+            "note": "Đang gặp khách ở Đà Nẵng",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          }
+        ]
+      },
+      "summary": {
+        "summary": null,
+        "run": {
+          "status": "idle",
+          "at": null,
+          "attempts": 0,
+          "failure": null
+        }
+      },
+      "action_items": {
+        "items": [],
+        "counts": {
+          "pending": 0,
+          "converted": 0,
+          "dismissed": 0,
+          "tasks_done": 0,
+          "tasks_overdue": 0
+        }
+      },
+      "notes": [
+        {
+          "id": "01M5MHXMPQA4VS1V5R0XH1ZAT6",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "author_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "body": "Sự cố chỉ ảnh hưởng thanh toán QR; thẻ và tiền mặt bình thường. 42 cuộc gọi hỗ trợ trong 20 phút đầu.",
+          "created_at": "2026-10-23T21:03:29.76+07:00",
+          "display_name": "Hà Vũ",
+          "avatar_url": null,
+          "avatar_file_id": null
+        },
+        {
+          "id": "01M5MHXMPYZ3HJ22E13EKK177F",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "author_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "body": "Đã có 3 cửa hàng báo khách bị trừ tiền hai lần — gom danh sách giao dịch để hoàn tiền trong ngày.",
+          "created_at": "2026-10-23T21:08:29.76+07:00",
+          "display_name": "Hà Vũ",
+          "avatar_url": null,
+          "avatar_file_id": null
+        },
+        {
+          "id": "01M5MHXMQ3M69C47YZ5AABPRM7",
+          "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+          "author_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "body": "Đối tác ví hẹn ổn định trong 30 phút; Minh cập nhật lại lúc 21:30.",
+          "created_at": "2026-10-23T21:13:29.76+07:00",
+          "display_name": "Lan Phạm",
+          "avatar_url": null,
+          "avatar_file_id": null
+        }
+      ],
+      "motions": {
+        "motions": [
+          {
+            "id": "01M5MHXMTER3T3FBKJNGG32T58",
+            "title": "Bật chế độ đối soát chậm cho thanh toán QR trên toàn hệ thống",
+            "description": "Áp dụng ngay từ máy chủ; tắt lại khi đối tác ví ổn định 2 giờ liên tục.",
+            "position": 1,
+            "ballot_mode": "PUBLIC",
+            "threshold": "MAJORITY",
+            "base": "PRESENT",
+            "status": "OPEN",
+            "opened_at": "2026-10-23T14:16:30Z",
+            "roll_size": 4,
+            "total_members": 5,
+            "cast_count": 2,
+            "result": null
+          },
+          {
+            "id": "01M5MHXMTTPJEWXMNXWVBK4PYF",
+            "title": "Hoàn tiền ngay cho khách bị trừ hai lần, không chờ đối soát cuối ngày",
+            "description": "",
+            "position": 2,
+            "ballot_mode": "PUBLIC",
+            "threshold": "TWO_THIRDS",
+            "base": "PRESENT",
+            "status": "DRAFT",
+            "roll_size": null,
+            "total_members": null,
+            "cast_count": 0,
+            "result": null
+          }
+        ]
+      },
+      "minutes": {
+        "minutes": null
+      },
+      "activity": {
+        "activity": [
+          {
+            "id": "01M5MHY0DX6J22W0CE0E8BJN5S",
+            "event_type": "MEETING_UPDATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "IN_PROGRESS",
+            "to_state": "IN_PROGRESS",
+            "occurred_at": "2026-10-23T14:16:42Z"
+          },
+          {
+            "id": "01M5MHY0CQX26AHHVFVQGRH44M",
+            "event_type": "JOIN_REQUESTED",
+            "actor_id": "01M5MHY0C7P6MZ2BNKD86WV4NA",
+            "to_state": "01M5MHY0CNY963V7JWJ2ETYV9K",
+            "occurred_at": "2026-10-23T14:16:42Z"
+          },
+          {
+            "id": "01M5MHXMX51ZS4XYN712MMSMGG",
+            "event_type": "INVITE_LINK_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHXMX3PQE8Y3H3EZRGW5X4",
+            "occurred_at": "2026-10-23T14:16:30Z"
+          },
+          {
+            "id": "01M5MHXMVNY3TQR2M2GZPCPXGS",
+            "event_type": "MOTION_OPENED",
+            "actor_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "from_state": "DRAFT",
+            "to_state": "OPEN",
+            "occurred_at": "2026-10-23T14:16:30Z",
+            "payload": {
+              "title": "Bật chế độ đối soát chậm cho thanh toán QR trên toàn hệ thống"
+            }
+          },
+          {
+            "id": "01M5MHXM9W8FC0GTSGP9WSSRC5",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMH2MFDGMS0YZF6N0K7JM",
+            "from_state": "PENDING",
+            "to_state": "DECLINED",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM9GQKGDY1N59H69JA7J",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM953PVT9BE4V7W0Y5GX",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM8T3V22P5WRH2BVRQ8R",
+            "event_type": "INVITATION_RESPONDED",
+            "actor_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "from_state": "PENDING",
+            "to_state": "ACCEPTED",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM53KEE3F9JXE4D5M3TC",
+            "event_type": "MEETING_STARTED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "SCHEDULED",
+            "to_state": "IN_PROGRESS",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM30C1PEK40GJAM06DNK",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHXM2TZPX2HST92P4GBNJ4",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM3HKE16GSB5HAZX83PT",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM3S9RV79QBF7BPV35Q5",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHXM3PK8ST05P1R8MAC99G",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM40XTHFGT4HCGRGTBBT",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHXM3Y3Y7FV7TE25ZQXJBD",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          },
+          {
+            "id": "01M5MHXM4285HGJFA7W2E8R9ZD",
+            "event_type": "MEETING_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "SCHEDULED",
+            "occurred_at": "2026-10-23T14:16:29Z"
+          }
+        ]
+      },
+      "carried_over": {
+        "items": [
+          {
+            "action_item_id": "01M5EF21F6FF58F14DDCAE26E3",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+              "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-10-26"
+            }
+          },
+          {
+            "action_item_id": "01M5A1E117A222E7C69E449328",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFH9BB1CM9N4G20760QE",
+              "title": "Chốt danh sách khách mời sự kiện ra mắt",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5879E80B0EB0C11FF85810E",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+              "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5FD5BACAA4851E63B98AE0A",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+              "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-11-05"
+            }
+          }
+        ],
+        "total": 4
+      },
+      "invite_links": {
+        "invite_links": [
+          {
+            "id": "01M5MHXMX3PQE8Y3H3EZRGW5X4",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "name": "Đối tác ví MoMoPay",
+            "access_mode": "REQUEST_APPROVAL",
+            "expires_at": "2026-10-25T14:16:30Z",
+            "max_uses": 3,
+            "used_count": 0,
+            "created_at": "2026-10-23T14:16:30Z"
+          }
+        ]
+      },
+      "join_requests": {
+        "join_requests": [
+          {
+            "id": "01M5MHY0CNY963V7JWJ2ETYV9K",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "display_name_snapshot": "Trịnh Văn Long",
+            "status": "PENDING"
+          }
+        ]
+      },
+      "recordings": {
+        "recordings": []
+      },
+      "dial_in": {
+        "enabled": false,
+        "number": "",
+        "pin": ""
+      },
+      "transcript": {
+        "segments": [
+          {
+            "id": "01M5MHXMG513HBP3Y8S4K1TKVW",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Mọi người vào đủ chưa? Mình bắt đầu luôn nhé, từ tám rưỡi tối nhiều cửa hàng báo thanh toán QR bị treo.",
+            "spoken_at": "2026-10-23T13:55:36Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMGKVFBG8XMPYQ68Z8KD",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Em xác nhận rồi chị. Treo ở bước chờ xác nhận từ cổng thanh toán, tiền đã trừ bên khách nhưng máy POS không nhận kết quả.",
+            "spoken_at": "2026-10-23T13:56:58Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMGTXX0R3A7NVK3KQFYS",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+            "speaker_name": "Hà Vũ",
+            "text": "Bên hỗ trợ đã nhận bốn mươi hai cuộc gọi trong hai mươi phút, chủ yếu từ chuỗi Mộc An và các cửa hàng phía Nam.",
+            "spoken_at": "2026-10-23T13:57:46Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMH144HF1VCEB9YHGKR4",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Có ảnh hưởng thanh toán thẻ với tiền mặt không em?",
+            "spoken_at": "2026-10-23T13:59:09Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMH94SSTT47KW3KS8F08",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Không chị, chỉ QR. Thẻ và tiền mặt vẫn bình thường. Em nghi cổng callback của đối tác ví bị chậm, độ trễ đang lên tới bốn mươi giây.",
+            "spoken_at": "2026-10-23T13:59:40Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMHGHYBFR7P89ZGN6G9T",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Máy POS chờ tối đa ba mươi giây rồi báo lỗi, nên giao dịch vẫn thành công nhưng màn hình lại báo thất bại.",
+            "spoken_at": "2026-10-23T14:00:44Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMHQR41940P1HXSKNHNB",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Vậy rủi ro lớn nhất là thu tiền hai lần nếu nhân viên bấm thử lại.",
+            "spoken_at": "2026-10-23T14:02:39Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMHYG1QZPTMYX1KW002N",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+            "speaker_name": "Hà Vũ",
+            "text": "Đúng chị, đã có ba cửa hàng báo khách bị trừ tiền hai lần. Em đang gom danh sách giao dịch để hoàn tiền.",
+            "spoken_at": "2026-10-23T14:03:49Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMJ4Q2TM0J7GCVTCQQEK",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Cách tạm thời là bật chế độ đối soát chậm: POS không báo lỗi sau ba mươi giây mà hiện chờ xác nhận, rồi tự hỏi lại trạng thái mỗi mười giây.",
+            "spoken_at": "2026-10-23T14:06:02Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMJBNFJ1FM5FWK71GS68",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Bật cái đó có cần cập nhật ứng dụng trên máy không?",
+            "spoken_at": "2026-10-23T14:06:35Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMJHMVF6R8CYM5GXN3X4",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Không cần chị, đó là cấu hình từ máy chủ, em bật được trong năm phút và áp dụng ngay cho mọi cửa hàng.",
+            "spoken_at": "2026-10-23T14:07:47Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMJRX1BSFJVV7P7PY5M9",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM2TZPX2HST92P4GBNJ4",
+            "speaker_name": "Hà Vũ",
+            "text": "Em đề xuất gửi tin nhắn cho các cửa hàng ngay: tạm thời không bấm thanh toán lại, kiểm tra lịch sử giao dịch trước.",
+            "spoken_at": "2026-10-23T14:09:46Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMJYBN4QNTVAG5YP4AKW",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Đồng ý. Hà soạn tin, chị duyệt trong mười phút. Minh liên hệ đối tác ví để có mốc khắc phục.",
+            "spoken_at": "2026-10-23T14:10:38Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMK4HA36PV2GNEFG0G7X",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM3EYDVDDEQHWT63X9H4",
+            "speaker_name": "Minh Trần",
+            "text": "Em vừa gọi được kỹ thuật bên ví, họ đang tăng tài nguyên cho máy chủ callback, dự kiến ổn định trong ba mươi phút.",
+            "spoken_at": "2026-10-23T14:12:50Z",
+            "source": "CAPTION"
+          },
+          {
+            "id": "01M5MHXMKBX73FNPY2VBC9R6KX",
+            "meeting_id": "01M5MHXM1S11AQK5V26DS2DA9R",
+            "participant_id": "01M5MHXM26PQGRM1BFBKJPT4W1",
+            "speaker_name": "Lan Phạm",
+            "text": "Mình biểu quyết luôn việc bật chế độ đối soát chậm cho toàn hệ thống nhé, Hà mở mục biểu quyết giúp chị.",
+            "spoken_at": "2026-10-23T14:13:59Z",
+            "source": "CAPTION"
+          }
+        ]
+      },
+      "transcript_total": 15
+    },
+    "m5": {
+      "meeting": {
+        "id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+        "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+        "title": "Tập dượt sự kiện ra mắt tại khách sạn Riverside",
+        "description": "Chạy thử kịch bản sân khấu, âm thanh và khu trải nghiệm POS cùng agency Ánh Dương.",
+        "starts_at": "2026-10-28T03:00:00Z",
+        "ends_at": "2026-10-28T04:30:00Z",
+        "room_name": "uw_mtg_01M5MHYC4BDSTVTYTVQMCSN4Z7",
+        "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "created_at": "2026-10-23T14:16:54Z",
+        "status": "CANCELED",
+        "meeting_type": "SCHEDULED",
+        "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "allow_join_request": true,
+        "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+        "version": 2,
+        "quorum_percent": null,
+        "scribe_enabled": true,
+        "ai_content_shared": false,
+        "ai_content_readable": true
+      },
+      "participants": [
+        {
+          "id": "01M5MHYC4KN11XC8PF14CV0VDE",
+          "meeting_id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "display_name_snapshot": "Lan Phạm",
+          "role": "MODERATOR",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHYC52QSQF6K3D4W72K046",
+          "meeting_id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+          "display_name_snapshot": "Hà Vũ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHYC5E7V4SGFM2JAJKPHJM",
+          "meeting_id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+          "display_name_snapshot": "Minh Trần",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        }
+      ],
+      "invitations": [
+        {
+          "id": "01M5MHYC53QPFCV4CK2ZHBB7KE",
+          "meeting_id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+          "participant_id": "01M5MHYC52QSQF6K3D4W72K046",
+          "response_status": "PENDING"
+        },
+        {
+          "id": "01M5MHYC5FB67G7FVQ48QNPVDE",
+          "meeting_id": "01M5MHYC4BDSTVTYTVQMCSN4Z7",
+          "participant_id": "01M5MHYC5E7V4SGFM2JAJKPHJM",
+          "response_status": "PENDING"
+        }
+      ],
+      "attendance": {
+        "quorum_percent": null,
+        "summary": {
+          "members": 3,
+          "present": 0,
+          "late": 0,
+          "excused": 0,
+          "absent": 3,
+          "quorum_met": null
+        },
+        "rows": [
+          {
+            "participant_id": "01M5MHYC4KN11XC8PF14CV0VDE",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "display_name": "Lan Phạm",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHYC52QSQF6K3D4W72K046",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "display_name": "Hà Vũ",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHYC5E7V4SGFM2JAJKPHJM",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "display_name": "Minh Trần",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          }
+        ]
+      },
+      "summary": {
+        "summary": null,
+        "run": {
+          "status": "idle",
+          "at": null,
+          "attempts": 0,
+          "failure": null
+        }
+      },
+      "action_items": {
+        "items": [],
+        "counts": {
+          "pending": 0,
+          "converted": 0,
+          "dismissed": 0,
+          "tasks_done": 0,
+          "tasks_overdue": 0
+        }
+      },
+      "notes": [],
+      "motions": {
+        "motions": []
+      },
+      "minutes": {
+        "minutes": null
+      },
+      "activity": {
+        "activity": [
+          {
+            "id": "01M5MHYC63RKD06C87E014QK5G",
+            "event_type": "MEETING_CANCELED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "from_state": "SCHEDULED",
+            "to_state": "CANCELED",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          },
+          {
+            "id": "01M5MHYC56HAN1DGX3E29H3FBD",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHYC52QSQF6K3D4W72K046",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          },
+          {
+            "id": "01M5MHYC5H8MPCB40NM00C8706",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHYC5E7V4SGFM2JAJKPHJM",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          },
+          {
+            "id": "01M5MHYC5KYKHKA2FBWSJG3EZD",
+            "event_type": "MEETING_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "SCHEDULED",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          }
+        ]
+      },
+      "carried_over": {
+        "items": [
+          {
+            "action_item_id": "01M5EF21F6FF58F14DDCAE26E3",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+              "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-10-26"
+            }
+          },
+          {
+            "action_item_id": "01M5A1E117A222E7C69E449328",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFH9BB1CM9N4G20760QE",
+              "title": "Chốt danh sách khách mời sự kiện ra mắt",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5879E80B0EB0C11FF85810E",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+              "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5FD5BACAA4851E63B98AE0A",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+              "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-11-05"
+            }
+          }
+        ],
+        "total": 4
+      },
+      "invite_links": {
+        "invite_links": []
+      },
+      "join_requests": {
+        "join_requests": []
+      },
+      "recordings": {
+        "recordings": []
+      },
+      "dial_in": {
+        "enabled": false,
+        "number": "",
+        "pin": ""
+      },
+      "transcript": {
+        "segments": []
+      },
+      "transcript_total": 0
+    },
+    "m6": {
+      "meeting": {
+        "id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+        "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+        "title": "Rà soát hợp đồng thuê máy chủ phía Nam",
+        "description": "Xem lại điều khoản mở rộng và giá theo số cửa hàng trước khi ký phụ lục.",
+        "starts_at": "2026-10-22T08:00:00Z",
+        "ends_at": "2026-10-22T08:45:00Z",
+        "room_name": "uw_mtg_01M5MHYC6HFA6WDYF2SBC18WTB",
+        "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+        "created_at": "2026-10-23T14:16:54Z",
+        "status": "SCHEDULED",
+        "meeting_type": "SCHEDULED",
+        "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "allow_join_request": true,
+        "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+        "version": 1,
+        "quorum_percent": null,
+        "scribe_enabled": true,
+        "ai_content_shared": false,
+        "ai_content_readable": true
+      },
+      "participants": [
+        {
+          "id": "01M5MHYC6NN0RMTVWVGEVSVT09",
+          "meeting_id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+          "display_name_snapshot": "Lan Phạm",
+          "role": "MODERATOR",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHYC6TNKBX817PCJBA0KT1",
+          "meeting_id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+          "display_name_snapshot": "Minh Trần",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        },
+        {
+          "id": "01M5MHYC71SSCQXEHBAKSRGM0W",
+          "meeting_id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+          "principal_type": "USER",
+          "user_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+          "display_name_snapshot": "Tuấn Đỗ",
+          "role": "ATTENDEE",
+          "status": "ACTIVE",
+          "standing": "MEMBER",
+          "is_secretary": false,
+          "shared_mic": false
+        }
+      ],
+      "invitations": [
+        {
+          "id": "01M5MHYC6VEB3B74P34AGKSJ10",
+          "meeting_id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+          "participant_id": "01M5MHYC6TNKBX817PCJBA0KT1",
+          "response_status": "PENDING"
+        },
+        {
+          "id": "01M5MHYC7266W2EFRZTHDRG9R4",
+          "meeting_id": "01M5MHYC6HFA6WDYF2SBC18WTB",
+          "participant_id": "01M5MHYC71SSCQXEHBAKSRGM0W",
+          "response_status": "PENDING"
+        }
+      ],
+      "attendance": {
+        "quorum_percent": null,
+        "summary": {
+          "members": 3,
+          "present": 0,
+          "late": 0,
+          "excused": 0,
+          "absent": 3,
+          "quorum_met": null
+        },
+        "rows": [
+          {
+            "participant_id": "01M5MHYC6NN0RMTVWVGEVSVT09",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "display_name": "Lan Phạm",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHYC6TNKBX817PCJBA0KT1",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "display_name": "Minh Trần",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          },
+          {
+            "participant_id": "01M5MHYC71SSCQXEHBAKSRGM0W",
+            "principal_type": "USER",
+            "user_id": "01M5KRMGZTY1CHM7WGZZVD4N80",
+            "display_name": "Tuấn Đỗ",
+            "standing": "MEMBER",
+            "is_secretary": false,
+            "status": "ABSENT",
+            "source": "SUGGESTED",
+            "note": "",
+            "in_room": false,
+            "present_seconds": 0,
+            "session_count": 0,
+            "removed": false,
+            "joined_after_finalize": false
+          }
+        ]
+      },
+      "summary": {
+        "summary": null,
+        "run": {
+          "status": "idle",
+          "at": null,
+          "attempts": 0,
+          "failure": null
+        }
+      },
+      "action_items": {
+        "items": [],
+        "counts": {
+          "pending": 0,
+          "converted": 0,
+          "dismissed": 0,
+          "tasks_done": 0,
+          "tasks_overdue": 0
+        }
+      },
+      "notes": [],
+      "motions": {
+        "motions": []
+      },
+      "minutes": {
+        "minutes": null
+      },
+      "activity": {
+        "activity": [
+          {
+            "id": "01M5MHYC6XCF4ATZP50V1ZK3XK",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHYC6TNKBX817PCJBA0KT1",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          },
+          {
+            "id": "01M5MHYC74AXKF15SFR65TS47Z",
+            "event_type": "PARTICIPANT_INVITED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "01M5MHYC71SSCQXEHBAKSRGM0W",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          },
+          {
+            "id": "01M5MHYC76YH0WA8XZNZVRJAB1",
+            "event_type": "MEETING_CREATED",
+            "actor_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "to_state": "SCHEDULED",
+            "occurred_at": "2026-10-23T14:16:54Z"
+          }
+        ]
+      },
+      "carried_over": {
+        "items": [
+          {
+            "action_item_id": "01M5EF21F6FF58F14DDCAE26E3",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+              "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-10-26"
+            }
+          },
+          {
+            "action_item_id": "01M5A1E117A222E7C69E449328",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFH9BB1CM9N4G20760QE",
+              "title": "Chốt danh sách khách mời sự kiện ra mắt",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5879E80B0EB0C11FF85810E",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+              "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+              "due_date": "2026-10-28"
+            }
+          },
+          {
+            "action_item_id": "01M5FD5BACAA4851E63B98AE0A",
+            "meeting": {
+              "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+              "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+              "started_at": "2026-10-22T02:00:00Z"
+            },
+            "task": {
+              "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+              "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+              "status": "todo",
+              "done": false,
+              "overdue": false,
+              "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+              "due_date": "2026-11-05"
+            }
+          }
+        ],
+        "total": 4
+      },
+      "invite_links": {
+        "invite_links": []
+      },
+      "join_requests": {
+        "join_requests": []
+      },
+      "recordings": {
+        "recordings": []
+      },
+      "dial_in": {
+        "enabled": false,
+        "number": "",
+        "pin": ""
+      },
+      "transcript": {
+        "segments": []
+      },
+      "transcript_total": 0
+    }
+  },
+  "m1_as_outsider": {
+    "meeting": {
+      "id": "01M5KRZXPWCY9F8NB0960E7JKZ",
+      "workspace_id": "01M5KRMH5T2Y8HXCDYG91NRGVV",
+      "title": "Giao ban tuần 43 — Ra mắt SaoMai POS 3.0",
+      "description": "Họp giao ban hằng tuần của nhóm ra mắt sản phẩm Q4: tiến độ kỹ thuật, sự kiện ra mắt, phản hồi khách dùng thử.",
+      "starts_at": "2026-10-22T02:00:00Z",
+      "ends_at": "2026-10-22T02:28:00Z",
+      "room_name": "uw_mtg_01M5KRZXPWCY9F8NB0960E7JKZ",
+      "created_by": "01M5KRMGN7ZSA038MB933C31Q1",
+      "created_at": "2026-10-16T02:00:00Z",
+      "status": "ENDED",
+      "meeting_type": "SCHEDULED",
+      "host_user_id": "01M5KRMGN7ZSA038MB933C31Q1",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "allow_join_request": true,
+      "project_id": "01M5KRMHHJMQD0A8VG7SZG0T1G",
+      "actual_start_at": "2026-10-22T02:00:00Z",
+      "actual_end_at": "2026-10-22T02:28:00Z",
+      "version": 3,
+      "quorum_percent": null,
+      "scribe_enabled": true,
+      "ai_content_shared": false,
+      "ai_content_readable": false
+    },
+    "action_items": {
+      "items": [
+        {
+          "id": "01M5EF21F6FF58F14DDCAE26E3",
+          "source": "AI",
+          "position": 1,
+          "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+          "owner_text": "",
+          "due_text": "",
+          "description": "",
+          "suggested_priority": "",
+          "suggested_assignee_id": null,
+          "suggested_due_date": null,
+          "status": "CONVERTED",
+          "dismiss_reason": "",
+          "dismissed_by": null,
+          "dismissed_at": null,
+          "task": {
+            "id": "01M5KSNFGAT8W9F391AY6GH0XV",
+            "title": "Gửi báo giá gói doanh nghiệp cho chuỗi siêu thị Hòa Bình",
+            "status": "todo",
+            "done": false,
+            "overdue": false,
+            "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "due_date": "2026-10-26"
+          },
+          "evidence": [],
+          "summary_id": null,
+          "created_at": "2026-10-22T02:31:00Z"
+        },
+        {
+          "id": "01M5FD5BACAA4851E63B98AE0A",
+          "source": "AI",
+          "position": 3,
+          "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+          "owner_text": "",
+          "due_text": "",
+          "description": "",
+          "suggested_priority": "",
+          "suggested_assignee_id": null,
+          "suggested_due_date": null,
+          "status": "CONVERTED",
+          "dismiss_reason": "",
+          "dismissed_by": null,
+          "dismissed_at": null,
+          "task": {
+            "id": "01M5KSNFJXRA55HZ2J8FNEENTB",
+            "title": "Hoàn thành kiểm thử tải trên bản đã khóa tính năng",
+            "status": "todo",
+            "done": false,
+            "overdue": false,
+            "assignee_id": "01M5KRMGWVTGHEV9HQ5RYN615T",
+            "due_date": "2026-11-05"
+          },
+          "evidence": [],
+          "summary_id": null,
+          "created_at": "2026-10-22T02:31:00Z"
+        },
+        {
+          "id": "01M5A1E117A222E7C69E449328",
+          "source": "AI",
+          "position": 8,
+          "title": "Chốt danh sách khách mời sự kiện ra mắt",
+          "owner_text": "",
+          "due_text": "",
+          "description": "",
+          "suggested_priority": "",
+          "suggested_assignee_id": null,
+          "suggested_due_date": null,
+          "status": "CONVERTED",
+          "dismiss_reason": "",
+          "dismissed_by": null,
+          "dismissed_at": null,
+          "task": {
+            "id": "01M5KSNFH9BB1CM9N4G20760QE",
+            "title": "Chốt danh sách khách mời sự kiện ra mắt",
+            "status": "todo",
+            "done": false,
+            "overdue": false,
+            "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "due_date": "2026-10-28"
+          },
+          "evidence": [],
+          "summary_id": null,
+          "created_at": "2026-10-22T02:31:00Z"
+        },
+        {
+          "id": "01M5879E80B0EB0C11FF85810E",
+          "source": "AI",
+          "position": 9,
+          "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+          "owner_text": "",
+          "due_text": "",
+          "description": "",
+          "suggested_priority": "",
+          "suggested_assignee_id": null,
+          "suggested_due_date": null,
+          "status": "CONVERTED",
+          "dismiss_reason": "",
+          "dismissed_by": null,
+          "dismissed_at": null,
+          "task": {
+            "id": "01M5KSNFHS3YQ37JRZCYWB9G8V",
+            "title": "Gửi đề nghị thanh toán tiền cọc hội trường khách sạn Riverside",
+            "status": "todo",
+            "done": false,
+            "overdue": false,
+            "assignee_id": "01M5KRMGT4MFM37NXRN3R50QY9",
+            "due_date": "2026-10-28"
+          },
+          "evidence": [],
+          "summary_id": null,
+          "created_at": "2026-10-22T02:31:00Z"
+        },
+        {
+          "id": "01M594247948D65400BE8B1439",
+          "source": "AI",
+          "position": 13,
+          "title": "Duyệt kịch bản video giới thiệu bản 90 giây",
+          "owner_text": "",
+          "due_text": "",
+          "description": "",
+          "suggested_priority": "",
+          "suggested_assignee_id": null,
+          "suggested_due_date": null,
+          "status": "CONVERTED",
+          "dismiss_reason": "",
+          "dismissed_by": null,
+          "dismissed_at": null,
+          "task": {
+            "id": "01M5KSNFJ914PHYTDZVR1B5796",
+            "title": "Duyệt kịch bản video giới thiệu bản 90 giây",
+            "status": "done",
+            "done": true,
+            "overdue": false,
+            "assignee_id": "01M5KRMGN7ZSA038MB933C31Q1",
+            "due_date": "2026-10-23"
+          },
+          "evidence": [],
+          "summary_id": null,
+          "created_at": "2026-10-22T02:31:00Z"
+        }
+      ],
+      "counts": {
+        "pending": 9,
+        "converted": 5,
+        "dismissed": 0,
+        "tasks_done": 1,
+        "tasks_overdue": 0
+      }
+    }
+  }
+}

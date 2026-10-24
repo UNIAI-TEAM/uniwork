@@ -142,8 +142,13 @@ export async function joinWorkspaceAsMember(
 /** Signs an API-registered account in through the UI so the app has a session. */
 export async function loginViaUi(page: Page, email: string): Promise<void> {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill(PASSWORD);
+  // Under `next dev` the form can hydrate after the first fill and clear it: fill until it holds.
+  await expect(async () => {
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Mật khẩu", { exact: true }).fill(PASSWORD);
+    await page.waitForTimeout(300);
+    await expect(page.getByLabel("Email")).toHaveValue(email, { timeout: 500 });
+  }).toPass({ timeout: 15_000 });
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await expect(page).not.toHaveURL(/\/login$/, { timeout: 20_000 });
 }

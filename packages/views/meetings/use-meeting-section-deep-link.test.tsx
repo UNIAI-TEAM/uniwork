@@ -70,6 +70,12 @@ describe("useMeetingSectionDeepLink", () => {
     expect(nav.replace).toHaveBeenCalledWith("/acme/team/meetings/m1");
   });
 
+  it("keeps the page on the tab of a section that is not on the first one", () => {
+    const nav = adapter("section=transcript&segment=s1");
+    render(wrapWithNav(<Probe ready />, nav));
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/meetings/m1?tab=transcript");
+  });
+
   it("does nothing without the param", () => {
     const nav = adapter("");
     render(wrapWithNav(<Probe ready />, nav));

@@ -1,16 +1,15 @@
 "use client";
-import { CalendarPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { followUpAttendeeIds, followUpScheduleDraft } from "./follow-up-meeting";
-import { NewMeetingDialog } from "./new-meeting-dialog";
+import { cn } from "@uniwork/ui/lib/utils";
+import { kitButton } from "./meeting-detail/ui/kit-buttons";
+import { MeetingSheet } from "./meeting-sheet";
 
 /**
- * "Lên lịch cuộc họp tiếp theo" (follow-4): the schedule form, filled in from
- * this meeting - title, agenda, project, the people still in it, the same
- * slot a week on - whose meeting joins this one's series, so the tasks still
- * open carry over to it.
+ * "Lên lịch họp tiếp" (follow-4): the meeting sheet in follow-up mode — the
+ * next week's slot, the title's week moved on, the people again as members,
+ * and what this meeting leaves open — whose meeting joins this one's series.
  */
 export function ScheduleFollowUpButton({
   workspaceId,
@@ -25,21 +24,15 @@ export function ScheduleFollowUpButton({
 }) {
   const { t } = useTranslation();
   return (
-    <NewMeetingDialog
+    <MeetingSheet
+      mode="followUp"
       workspaceId={workspaceId}
-      onCreated={onCreated}
-      scheduleDefaults={followUpScheduleDraft(meeting)}
-      followUp={{
-        meetingId: meeting.id,
-        title: meeting.title,
-        description: meeting.description,
-        projectId: meeting.project_id || undefined,
-        attendeeUserIds: followUpAttendeeIds(participants, meeting.host_user_id),
-      }}
+      previous={meeting}
+      previousParticipants={participants}
+      onDone={onCreated}
       trigger={
-        <Button type="button" size="sm" variant="outline">
-          <CalendarPlus aria-hidden />
-          {t("meetings.followUp.action")}
+        <Button type="button" size="lg" variant="ghost" className={cn(kitButton.base, kitButton.ghost)}>
+          {t("meetings.sheet.followUpAction")}
         </Button>
       }
     />

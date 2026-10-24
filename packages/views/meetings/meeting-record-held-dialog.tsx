@@ -15,7 +15,7 @@ import { Notice } from "../common/notice";
 import { sameUtcOffset, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { browserTimeZone, MeetingScheduleFields, scheduleValid } from "./meeting-schedule-fields";
-import { transcriptFocusTarget } from "./meeting-transcript-panel";
+import { transcriptFocusTarget } from "./meeting-detail/transcript/transcript-tab";
 import { useNow } from "./use-now";
 
 /**

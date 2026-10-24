@@ -105,25 +105,30 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   const meetingURL = `/${host.orgSlug}/${host.wsSlug}/meetings/${first.id}`;
   await page.goto(meetingURL);
   const section = page.getByRole("region", { name: "Việc cần làm", exact: true });
+  // Select → review sheet → "Giao n việc" (ADR 0010: the AI proposes, the clerk confirms).
   await section.getByRole("checkbox", { name: "Gửi báo giá" }).check({ timeout: 20_000 });
   await section.getByRole("checkbox", { name: "Đặt phòng hội thảo" }).check();
-  const assign = section.getByRole("button", { name: "Giao 2 việc" });
+  await page.getByRole("region", { name: "Việc đã chọn" }).getByRole("button", { name: "Xem lại và giao" }).click();
+  const review = page.getByRole("dialog", { name: /^Giao 2 việc/ });
+  const assign = review.getByRole("button", { name: "Giao 2 việc" });
   await expect(assign).not.toHaveAttribute("aria-busy", "true");
   await assign.click();
-  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible({ timeout: 15_000 });
+  await expect(review).toBeHidden({ timeout: 15_000 });
+  await expect(section.getByText("2 chờ giao · 2 đã giao")).toBeVisible({ timeout: 15_000 });
 
-  await section.getByRole("button", { name: 'Bỏ qua "In tài liệu"' }).click();
+  const printRow = section.getByRole("listitem").filter({ hasText: "In tài liệu" });
+  await printRow.getByRole("button", { name: "Thao tác khác với việc này" }).click();
+  await page.getByRole("menuitem", { name: "Bỏ qua…" }).click();
   await page.getByLabel("Lý do (không bắt buộc)").fill("Đã có bản in");
   await page.getByRole("button", { name: "Bỏ qua việc" }).click();
-  await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
+  await expect(section.getByRole("button", { name: "Đã bỏ qua 1" })).toBeVisible();
 
-  await section.getByRole("button", { name: "Thêm task" }).click();
+  await section.getByRole("button", { name: "Thêm việc" }).click();
   const composer = page.getByRole("dialog", { name: /Task sau họp/ });
   await composer.getByRole("textbox", { name: "Tiêu đề issue" }).fill("Chốt ngân sách");
   await composer.getByRole("button", { name: /^Tạo/ }).click();
   await expect(composer).toBeHidden({ timeout: 15_000 });
-  await expect(section.getByRole("heading", { name: "Đã giao (3)" })).toBeVisible();
-  await expect(section.getByRole("heading", { name: "Chờ xử lý (1)" })).toBeVisible();
+  await expect(section.getByText("1 chờ giao · 3 đã giao")).toBeVisible();
 
   const { items } = await ok<{ items: { title: string; status: string; task?: { id: string; assignee_id?: string } }[] }>(
     await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
@@ -148,10 +153,10 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await ok(await summarize(), "summarize again");
   await summaryRunEnded("summarize again");
   await page.reload();
-  await expect(section.getByRole("heading", { name: "Chờ xử lý (1)" })).toBeVisible({ timeout: 20_000 });
-  await expect(section.getByRole("heading", { name: "Đã giao (3)" })).toBeVisible();
-  await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
-  await expect(section.getByText("Gửi báo giá", { exact: true })).toHaveCount(1);
+  await expect(section.getByText("1 chờ giao · 3 đã giao")).toBeVisible({ timeout: 20_000 });
+  await expect(section.getByRole("button", { name: "Đã bỏ qua 1" })).toBeVisible();
+  // Assigned rows fold per owner; none of them came back as a pending row.
+  await expect(section.getByRole("checkbox", { name: "Gửi báo giá" })).toHaveCount(0);
 
   // The next meeting of the project shows the two open tasks.
   const startsAt = Date.now() + 60 * 60_000;
@@ -169,9 +174,11 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
     "create next meeting",
   );
   await page.goto(`/${host.orgSlug}/${host.wsSlug}/meetings/${next.id}`);
-  const carried = page.getByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" });
-  await expect(carried.getByRole("link", { name: title })).toBeVisible({ timeout: 20_000 });
-  await expect(carried.getByRole("link", { name: 'Mở việc "Gửi báo giá"' })).toBeVisible();
-  await expect(carried.getByRole("link", { name: 'Mở việc "Đặt phòng hội thảo"' })).toBeVisible();
+  // The host sees it folded to one line ("Việc còn tồn 3 …"); it opens in place.
+  await page.getByRole("button", { name: /^Việc còn tồn/ }).click({ timeout: 20_000 });
+  const carried = page.getByRole("list", { name: "Việc còn tồn" });
+  await expect(carried.getByRole("link", { name: "Gửi báo giá" })).toBeVisible();
+  await expect(carried.getByRole("link", { name: "Đặt phòng hội thảo" })).toBeVisible();
   await expect(carried.getByText("In tài liệu")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: `từ ${title}` })).toBeVisible();
 });

@@ -271,10 +271,6 @@ export function formatRemaining(endsAt: string, nowMs = Date.now()): string | nu
 
 export type ScheduleDraft = { date: string; start: string; end: string };
 
-export function scheduleDraftFromDefaults(scheduleDefaults?: ScheduleDraft): ScheduleDraft {
-  return scheduleDefaults ?? defaultScheduleDraft();
-}
-
 export function defaultScheduleDraft(): ScheduleDraft {
   const start = new Date();
   start.setMinutes(0, 0, 0);

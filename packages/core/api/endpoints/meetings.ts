@@ -137,6 +137,11 @@ export async function listMeetings(workspaceId: string, filters?: MeetingListFil
   return { meetings: parsed.meetings, total: parsed.total ?? parsed.meetings.length };
 }
 
+/** One key per submit session: a retry with the same key replays the first create instead of making a second meeting. */
+function idempotencyHeaders(opts?: { idempotencyKey?: string }): Record<string, string> {
+  return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {};
+}
+
 export async function getMeeting(meetingId: string): Promise<Meeting | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}`);
   return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
@@ -144,8 +149,16 @@ export async function getMeeting(meetingId: string): Promise<Meeting | null> {
   })?.meeting ?? null;
 }
 
-export async function createMeeting(workspaceId: string, body: CreateMeetingBody): Promise<Meeting | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings`, { method: "POST", body });
+export async function createMeeting(
+  workspaceId: string,
+  body: CreateMeetingBody,
+  opts?: { idempotencyKey?: string },
+): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings`, {
+    method: "POST",
+    body,
+    headers: idempotencyHeaders(opts),
+  });
   return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/meetings",
   })?.meeting ?? null;
@@ -318,10 +331,15 @@ export async function resolveInviteLink(linkId: string, secret: string): Promise
   return resolved;
 }
 
-export async function createInstantMeeting(workspaceId: string, title?: string): Promise<Meeting | null> {
+export async function createInstantMeeting(
+  workspaceId: string,
+  title?: string,
+  opts?: { idempotencyKey?: string },
+): Promise<Meeting | null> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings/instant`, {
     method: "POST",
     body: { title: title ?? "" },
+    headers: idempotencyHeaders(opts),
   });
   return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/meetings/instant",

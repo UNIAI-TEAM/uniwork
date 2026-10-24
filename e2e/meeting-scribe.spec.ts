@@ -41,7 +41,7 @@ test.describe("meeting AI scribe", () => {
     await expect(page.getByTestId("meeting-stage")).toBeVisible({ timeout: 30_000 });
 
     // The 15 s sweep dispatches once someone is in the room.
-    await expect(page.getByTestId("meeting-scribe-chip")).toContainText("AI đang ghi lời", { timeout: 60_000 });
+    await expect(page.getByTestId("meeting-scribe-chip")).toContainText("UNI đang ghi lời", { timeout: 60_000 });
     // The agent is not a person: it gets no tile (the copilot panel is also titled "UniWork AI").
     await expect(page.getByTestId("meeting-stage-content").getByText("UniWork AI", { exact: true })).toHaveCount(0);
 

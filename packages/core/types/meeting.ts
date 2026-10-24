@@ -34,6 +34,12 @@ export const MeetingSchema = z.object({
    * server) reads as readable; the reads themselves still answer 403.
    */
   ai_content_readable: z.boolean().optional(),
+  /** Detail only: the series root's id on a follower; absent on a root or a lone meeting. */
+  series_id: z.string().optional().catch(undefined),
+  /** Detail only: the series' latest uncanceled meeting starting before this one. */
+  previous_meeting_id: z.string().optional().catch(undefined),
+  /** Detail only: the series' earliest uncanceled meeting starting after this one. */
+  next_meeting_id: z.string().optional().catch(undefined),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 

@@ -170,6 +170,19 @@ describe("MeetingUnderlineTabs", () => {
     expect(list.scrollLeft).toBe(120);
   });
 
+  it("draws the page size of the meeting detail tabs, leaving the room's default alone", () => {
+    const { rerender } = render(
+      <MeetingUnderlineTabs tabs={["a", "b"] as const} value="a" onChange={() => {}} label={(tab) => tab} size="page" />,
+    );
+    expect(screen.getByRole("tablist")).toHaveClass("h-11", "gap-6");
+    const active = screen.getByRole("tab", { name: "a" });
+    expect(active).toHaveClass("h-11", "px-0", "text-body", "font-medium", "text-foreground");
+    expect(active).not.toHaveClass("text-brand", "text-caption", "px-2", "leading-tight");
+    rerender(<MeetingUnderlineTabs tabs={["a", "b"] as const} value="a" onChange={() => {}} label={(tab) => tab} />);
+    expect(screen.getByRole("tab", { name: "a" })).toHaveClass("text-brand", "text-caption", "px-2");
+    expect(screen.getByRole("tablist")).not.toHaveClass("gap-6");
+  });
+
   it("sizes the badge with the text-micro token", () => {
     render(<MeetingUnderlineTabBadge>5</MeetingUnderlineTabBadge>);
     const badge = screen.getByText("5");

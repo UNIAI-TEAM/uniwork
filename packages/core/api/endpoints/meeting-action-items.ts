@@ -35,6 +35,8 @@ const ActionItemSchema = z.object({
   suggested_assignee_id: z.string().nullish(),
   /** Pending items only: the due phrase read against the meeting's day (YYYY-MM-DD). */
   suggested_due_date: z.string().nullish(),
+  /** True when suggested_due_date was guessed from a loose phrase ("thứ Hai", "tuần sau"), not a written date; absent (an older server) reads as not guessed. */
+  suggested_due_guessed: z.boolean().optional().catch(false),
   status: z.string(),
   dismiss_reason: z.string().nullish(),
   dismissed_by: z.string().nullish(),

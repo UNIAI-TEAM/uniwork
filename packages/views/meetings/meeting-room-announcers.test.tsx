@@ -313,11 +313,11 @@ describe("ScribeAnnouncer", () => {
 
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
     rerender(<ScribeAnnouncer />);
-    expect(live).toHaveTextContent("Thư ký AI đang ghi lời");
+    expect(live).toHaveTextContent("Thư ký UNI đang ghi lời");
 
     lk.remote = [];
     rerender(<ScribeAnnouncer />);
-    expect(live).toHaveTextContent("Thư ký AI đã dừng ghi lời");
+    expect(live).toHaveTextContent("Thư ký UNI đã dừng ghi lời");
   });
 
   it("says when the scribe pauses on an STT outage and when it is back", () => {
@@ -328,10 +328,10 @@ describe("ScribeAnnouncer", () => {
     const live = screen.getByTestId("meeting-scribe-announcer");
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
     rerender(<ScribeAnnouncer meeting={meeting} />);
-    expect(live).toHaveTextContent("Thư ký AI tạm dừng, đang thử lại");
+    expect(live).toHaveTextContent("Thư ký UNI tạm dừng, đang thử lại");
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } }];
     rerender(<ScribeAnnouncer meeting={meeting} />);
-    expect(live).toHaveTextContent("Thư ký AI đang ghi lời");
+    expect(live).toHaveTextContent("Thư ký UNI đang ghi lời");
   });
 
   it("tells the room once when the scribe's status turns FAILED", () => {
@@ -340,9 +340,9 @@ describe("ScribeAnnouncer", () => {
     const live = screen.getByTestId("meeting-scribe-announcer");
     expect(live).toHaveTextContent("");
     rerender(<ScribeAnnouncer meeting={{ scribe_enabled: true, scribe_status: "FAILED" }} />);
-    expect(live).toHaveTextContent("Thư ký AI gặp sự cố nên không ghi lời thoại");
+    expect(live).toHaveTextContent("Thư ký UNI gặp sự cố nên không ghi lời thoại");
     // Turned off by the host: no longer a failure, and nothing new to say.
     rerender(<ScribeAnnouncer meeting={{ scribe_enabled: false, scribe_status: "FAILED" }} />);
-    expect(live).toHaveTextContent("Thư ký AI gặp sự cố nên không ghi lời thoại");
+    expect(live).toHaveTextContent("Thư ký UNI gặp sự cố nên không ghi lời thoại");
   });
 });

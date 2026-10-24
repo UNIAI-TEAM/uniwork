@@ -2,6 +2,7 @@ import { expect, test, type APIResponse, type Page } from "@playwright/test";
 import {
   createInstantMeeting,
   createRecordingAccount,
+  endMeeting,
   joinWorkspaceAsMember,
   loginViaUi,
   registerApiUser,
@@ -151,31 +152,23 @@ async function findMotion(page: Page, meetingId: string, auth: AuthHeaders, titl
   return motion as MotionRow;
 }
 
-test("votes: the secretary drafts, opens and closes an item; the result reaches the detail page and the timeline", async ({ page }) => {
+test("votes: the secretary opens a drafted item from the strip, votes and closes it; the result reaches the overview and the history", async ({ page }) => {
   // The first visit to a workspace route compiles it under `next dev`.
   test.slow();
   const seed = await seedGovernance(page, "gov", { secretary: true, quorumPercent: 50 });
   const { meeting, hostAuth, memberAuth } = seed;
   const title = `Kế hoạch quý IV ${Date.now()}`;
+  // Drafts are written before the meeting (the scheduled page's "Thêm biểu quyết"); this one is live already.
+  const drafted = await page.request.post(`${API}/api/v1/meetings/${meeting.id}/motions`, {
+    headers: hostAuth,
+    data: { title, description: "", ballot_mode: "PUBLIC", threshold: "MAJORITY", base: "PRESENT" },
+  });
+  expect(drafted.ok(), `create motion: HTTP ${drafted.status()} ${await drafted.text()}`).toBeTruthy();
 
   await loginViaUi(page, seed.member.email);
   await page.goto(`/${seed.host.orgSlug}/${seed.host.wsSlug}/meetings/${meeting.id}`);
-  // PanelCard is a <section aria-labelledby="motions-heading">.
-  const card = page.getByRole("region", { name: "Biểu quyết", exact: true });
-  await expect(
-    card.getByText("Chưa có nội dung biểu quyết. Soạn trước, mở từng nội dung khi đang họp."),
-  ).toBeVisible({ timeout: 30_000 });
-
-  // Draft with the defaults: open ballot, majority, of members present.
-  await card.getByRole("button", { name: "Thêm nội dung" }).click();
-  const form = page.getByRole("dialog", { name: "Thêm nội dung biểu quyết" });
-  await form.getByLabel("Nội dung", { exact: true }).fill(title);
-  await form.getByRole("button", { name: "Thêm", exact: true }).click();
-  await expect(form).toBeHidden();
-  await expect(card.getByText(title, { exact: true })).toBeVisible();
-  await expect(card.getByText("Nháp", { exact: true })).toBeVisible();
-
-  await card.getByRole("button", { name: "Mở biểu quyết", exact: true }).click();
+  const strip = page.getByRole("region", { name: "Việc tiếp theo của bạn" });
+  await strip.getByRole("button", { name: `Mở biểu quyết: ${title}` }).click({ timeout: 30_000 });
   const openConfirm = page.getByRole("alertdialog");
   await expect(openConfirm.getByText("2 thành viên có mặt sẽ được bỏ phiếu.")).toBeVisible();
   await expect(openConfirm.getByText("Người vào phòng sau khi mở sẽ không được bỏ phiếu nội dung này.")).toBeVisible();
@@ -183,22 +176,22 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   await expect(openConfirm.getByText(/Chưa đủ tỉ lệ có mặt tối thiểu/)).toHaveCount(0);
   await openConfirm.getByRole("button", { name: "Mở biểu quyết", exact: true }).click();
   await expect(openConfirm).toBeHidden();
-  await expect(card.getByText("Đang bỏ phiếu", { exact: true })).toBeVisible();
-  await expect(card.getByText("Đã bỏ phiếu 0/2")).toBeVisible();
-  // The detail page shows progress only; ballots are cast from the room.
-  await expect(card.getByText("Bỏ phiếu trong phòng họp.")).toBeVisible();
-  await expect(card.getByRole("radio")).toHaveCount(0);
+  const vote = strip.getByRole("region", { name: title });
+  await expect(vote.getByText(/^0\/2 đã bỏ phiếu/)).toBeVisible();
 
   const open = await findMotion(page, meeting.id, hostAuth, title);
   expect(open.status).toBe("OPEN");
   expect(open.roll_size).toBe(2);
-  // Host first, then member: public voters are listed in cast order.
-  for (const auth of [hostAuth, memberAuth]) {
-    const cast = await castBallot(page, meeting.id, open.id, auth, "YES");
-    expect(cast.ok(), `ballot: HTTP ${cast.status()} ${await cast.text()}`).toBeTruthy();
-  }
+  // Host first through the API, then the secretary on the page: public voters are listed in cast order.
+  const hostCast = await castBallot(page, meeting.id, open.id, hostAuth, "YES");
+  expect(hostCast.ok(), `ballot: HTTP ${hostCast.status()} ${await hostCast.text()}`).toBeTruthy();
+  // The segmented control's radios are visually hidden; their labels take the click.
+  await vote.getByText("Tán thành", { exact: true }).click();
+  await expect(vote.getByRole("radio", { name: "Tán thành", exact: true })).toBeChecked();
+  await vote.getByRole("button", { name: "Gửi phiếu" }).click();
+  await expect(vote.getByText("Bạn đã chọn: Tán thành")).toBeVisible();
   // A second ballot (double click, a second tab) is refused and never counted.
-  const again = await castBallot(page, meeting.id, open.id, hostAuth, "NO");
+  const again = await castBallot(page, meeting.id, open.id, memberAuth, "NO");
   expect(again.status()).toBe(409);
   expect(await errorCode(again)).toBe("already_voted");
   // While the item is open nobody sees the tally, the host included.
@@ -206,21 +199,15 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   expect(counting.cast_count).toBe(2);
   expect(counting.result).toBeNull();
   expect(await myBallot(page, meeting.id, hostAuth, open.id)).toEqual({ motion_id: open.id, cast: true, choice: "YES" });
-  // motion.ballot_cast reaches the open page through realtime, not a reload.
-  await expect(card.getByText("Đã bỏ phiếu 2/2")).toBeVisible({ timeout: 15_000 });
+  // The host's motion.ballot_cast reached the open page through realtime, not a reload.
+  await expect(vote.getByText(/^2\/2 đã bỏ phiếu/)).toBeVisible({ timeout: 15_000 });
 
-  await card.getByRole("button", { name: "Đóng biểu quyết", exact: true }).click();
+  await vote.getByRole("button", { name: "Đóng biểu quyết", exact: true }).click();
   const closeConfirm = page.getByRole("alertdialog");
   await expect(closeConfirm.getByText("Kết quả được kiểm ngay và không thay đổi được nữa.")).toBeVisible();
   await closeConfirm.getByRole("button", { name: "Đóng biểu quyết", exact: true }).click();
   await expect(closeConfirm).toBeHidden();
-  await expect(card.getByText("Đã đóng", { exact: true })).toBeVisible();
-  await expect(card.getByText("Thông qua", { exact: true })).toBeVisible();
-  await expect(card.getByText("Tán thành: 2 (100%)", { exact: true })).toBeVisible();
-  await expect(card.getByText("Không tán thành: 0 (0%)", { exact: true })).toBeVisible();
-  await expect(card.getByText("Cần 2/2 phiếu tán thành", { exact: true })).toBeVisible();
-  await card.getByRole("button", { name: "Xem ai chọn gì" }).click();
-  await expect(card.getByText("gov-host, gov-member", { exact: true })).toBeVisible();
+  await expect(vote).toBeHidden();
 
   const late = await castBallot(page, meeting.id, open.id, memberAuth, "NO");
   expect(late.status()).toBe(409);
@@ -231,18 +218,21 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   expect(named?.yes).toEqual(expect.arrayContaining(["gov-host", "gov-member"]));
   expect(named?.no).toEqual([]);
 
-  // "Đã biểu quyết" renders from the closed item even with no AI summary.
-  const summary = page.getByRole("region", { name: "Tóm tắt", exact: true });
-  await expect(summary.getByText("Đã biểu quyết", { exact: true })).toBeVisible();
-  await expect(summary.getByText(title, { exact: true })).toBeVisible();
-  await expect(summary.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến", { exact: true })).toBeVisible();
+  // Once the meeting ends, the overview's "Quyết định" lists the closed vote, even with no AI summary.
+  await endMeeting(page, API, seed.host.token, meeting.id);
+  await page.reload();
+  const decisions = page.getByRole("region", { name: "Quyết định" });
+  await expect(decisions.getByText(title, { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(decisions.getByText("Thông qua", { exact: true })).toBeVisible();
+  await expect(decisions.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến")).toBeVisible();
 
-  // exact: the toasts say "Đã mở/đóng biểu quyết" too. The rail shows the
-  // five newest rows, and these two are the newest.
-  const timeline = page.getByRole("region", { name: "Lịch sử thao tác" });
-  await expect(timeline.getByText("đã mở biểu quyết", { exact: true })).toBeVisible();
-  await expect(timeline.getByText("đã đóng biểu quyết", { exact: true })).toBeVisible();
-  await expect(timeline.getByText(`"${title}" · Thông qua`, { exact: true })).toBeVisible();
+  // The history drawer (header ⋯ → "Lịch sử thao tác") records both steps.
+  await page.getByRole("button", { name: /^Thao tác khác: / }).click();
+  await page.getByRole("menuitem", { name: "Lịch sử thao tác" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử thao tác" });
+  await expect(history.getByText(/đã mở biểu quyết$/)).toBeVisible();
+  await expect(history.getByText(/đã đóng biểu quyết$/)).toBeVisible();
+  await expect(history.getByText(`"${title}" · Thông qua`, { exact: true })).toBeVisible();
 });
 
 test.describe("votes in the meeting room", () => {

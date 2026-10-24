@@ -13,6 +13,7 @@ export function MeetingUnderlineTabs<T extends string>({
   badge,
   panelId,
   ariaLabel,
+  size,
   className,
 }: {
   tabs: readonly T[];
@@ -29,8 +30,11 @@ export function MeetingUnderlineTabs<T extends string>({
   panelId?: (tab: T) => string;
   /** The tablist's name; two tab rows on one screen must not both read as "tab list". */
   ariaLabel?: string;
+  /** `page`: the meeting detail page's tabs (kit `.tabs`): body 500, 44 tall, 24 apart, no padding, ink active. */
+  size?: "page";
   className?: string;
 }) {
+  const page = size === "page";
   const baseId = useId();
   const tabRefs = useRef(new Map<T, HTMLButtonElement>());
   const edges = useScrollEdges<HTMLDivElement>();
@@ -87,6 +91,7 @@ export function MeetingUnderlineTabs<T extends string>({
       style={edges.style}
       className={cn(
         "relative isolate flex w-full min-w-0 shrink-0 items-stretch overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        page && "h-11 gap-6",
         className,
       )}
     >
@@ -108,16 +113,26 @@ export function MeetingUnderlineTabs<T extends string>({
             tabIndex={active ? 0 : -1}
             className={cn(
               "relative min-h-10 shrink-0 rounded-md border-0 bg-transparent focus-visible:-outline-offset-2 px-2 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-standard pointer-coarse:min-h-11",
-              active ? "text-brand" : "text-muted-foreground hover:text-foreground",
+              page && "inline-flex h-11 items-center gap-2 rounded-xs px-0 py-0 text-body",
+              active ? (page ? "text-foreground" : "text-brand") : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onChange(tab)}
             onKeyDown={(event) => onKeyDown(event, index)}
           >
-            <span className="inline-flex items-center gap-1">
-              {icon?.(tab) ?? null}
-              <span>{text}</span>
-              {badge?.(tab) ?? null}
-            </span>
+            {/* The page tab carries its label as its own text (kit `a.tab`), so the label box is the 44 tab. */}
+            {page ? (
+              <>
+                {icon?.(tab) ?? null}
+                {text}
+                {badge?.(tab) ?? null}
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                {icon?.(tab) ?? null}
+                <span>{text}</span>
+                {badge?.(tab) ?? null}
+              </span>
+            )}
             {active ? (
               <span
                 aria-hidden

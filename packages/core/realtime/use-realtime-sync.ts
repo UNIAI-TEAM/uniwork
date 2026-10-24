@@ -249,6 +249,8 @@ function keysFor(
         // The auto summary is queued with the end: an open panel reads the run and starts polling it.
         if (type === "meeting.ended") push(meetingKeys.summary(payload.meeting_id));
       }
+      // A new follow-up changes its series neighbours' next_meeting_id: refetch every open meeting detail.
+      if (type === "meeting.created") push(meetingKeys.detail("").slice(0, 1));
       pushCalendar();
       break;
     }
@@ -334,6 +336,10 @@ function keysFor(
     // The AI scribe was switched, or its run changed state.
     case "scribe.updated": {
       if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      break;
+    }
+    case "note.created": {
+      if (payload.meeting_id) push(meetingKeys.notes(payload.meeting_id));
       break;
     }
     case "transcript.appended": {

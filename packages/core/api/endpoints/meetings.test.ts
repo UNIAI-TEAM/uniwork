@@ -5,6 +5,7 @@ import {
   addNote,
   appendMeetingChat,
   appendTranscript,
+  createInstantMeeting,
   createJoinRequest,
   createMeeting,
   deleteMeeting,
@@ -94,6 +95,42 @@ describe("meetings endpoints", () => {
       title: "Sync", starts_at: meeting.starts_at, ends_at: meeting.ends_at,
     });
     expect(created?.id).toBe("m1");
+  });
+
+  it("getMeeting reads the series neighbours and drops a malformed one", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, series_id: "m0", previous_meeting_id: "m0", next_meeting_id: "m2" } }))
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, series_id: 7, previous_meeting_id: null, next_meeting_id: {} } }));
+    expect(await getMeeting("m1")).toMatchObject({ series_id: "m0", previous_meeting_id: "m0", next_meeting_id: "m2" });
+    const drifted = await getMeeting("m1");
+    expect(drifted?.id).toBe("m1");
+    expect(drifted?.series_id).toBeUndefined();
+    expect(drifted?.previous_meeting_id).toBeUndefined();
+    expect(drifted?.next_meeting_id).toBeUndefined();
+  });
+
+  it("createMeeting / createInstantMeeting send the Idempotency-Key only when given", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ meeting }))
+      .mockResolvedValueOnce(json({ meeting }))
+      .mockResolvedValueOnce(json({ meeting: "x" }));
+    const body = { title: "Sync", starts_at: meeting.starts_at, ends_at: meeting.ends_at };
+    await createMeeting("ws1", body, { idempotencyKey: "k1" });
+    await createInstantMeeting("ws1", "Sync", { idempotencyKey: "k2" });
+    await expect(createInstantMeeting("ws1")).resolves.toBeNull();
+    const headers = (i: number) => new Headers(vi.mocked(fetch).mock.calls[i]![1]!.headers as HeadersInit);
+    expect(headers(0).get("Idempotency-Key")).toBe("k1");
+    expect(headers(1).get("Idempotency-Key")).toBe("k2");
+    expect(headers(2).get("Idempotency-Key")).toBeNull();
+  });
+
+  it("listInviteLinks keeps a re-derived secret and drops a malformed one", async () => {
+    const link = { id: "l1", meeting_id: "m1", name: "n", access_mode: "AUTO_ADMIT", expires_at: meeting.ends_at, used_count: 0 };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ invite_links: [{ ...link, secret: "s3cr3t" }] }))
+      .mockResolvedValueOnce(json({ invite_links: [{ ...link, secret: 12 }] }));
+    expect((await listInviteLinks("m1"))[0]?.secret).toBe("s3cr3t");
+    await expect(listInviteLinks("m1")).resolves.toEqual([]);
   });
 
   it("deleteMeeting and addNote resolve without a body", async () => {

@@ -20,9 +20,8 @@ from pathlib import Path
 DIAL_IN_ATTR = "uw.dial_in"
 NOTICE_PATH = Path(__file__).resolve().parent.parent / "assets" / "sip-notice-vi.wav"
 NOTICE_TEXT_VI = (
-    "Cuộc họp này có Thư ký AI của UniWork ghi lời nói thành văn bản. "
-    "Bản ghi do tổ chức chủ trì cuộc họp lưu trên UniWork. "
-    "Âm thanh được một dịch vụ chuyển giọng nói thành chữ xử lý ở ngoài Việt Nam."
+    "Cuộc họp này có Thư ký UNI, trợ lý AI của UniWork, ghi lời nói thành văn bản. "
+    "Bản ghi do tổ chức chủ trì cuộc họp lưu trên UniWork."
 )
 
 

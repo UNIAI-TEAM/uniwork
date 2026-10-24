@@ -67,6 +67,13 @@ describe("meeting action item endpoints", () => {
     expect(got.counts).toEqual(counts);
   });
 
+  it("getMeetingActionItems reads whether the due date was guessed, and a missing or wrong flag as not", async () => {
+    const items = [{ ...pending, suggested_due_guessed: true }, { ...pending, id: "a3", suggested_due_guessed: "yes" }, converted];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items, counts }));
+    const got = await getMeetingActionItems("m1");
+    expect(got.items.map((i) => i.suggested_due_guessed)).toEqual([true, false, undefined]);
+  });
+
   it("getMeetingActionItems keeps the well-formed evidence of an item and reads a missing one as none", async () => {
     const items = [{ ...pending, evidence: [{ kind: "note", id: "n1" }, { id: 4 }] }, { ...converted, evidence: null }];
     vi.mocked(fetch).mockResolvedValueOnce(json({ items, counts }));

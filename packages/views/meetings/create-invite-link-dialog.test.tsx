@@ -19,7 +19,34 @@ describe("CreateInviteLinkDialog", () => {
     const dialog = renderDialog();
     const description = within(dialog).getByText(/Tạo liên kết để khách bên ngoài/);
     expect(description).not.toHaveClass("sr-only");
-    expect(within(dialog).getByText("Khách vào phòng ngay khi cuộc họp đã bắt đầu.")).toBeInTheDocument();
+    // The host lets each guest in unless they choose otherwise.
+    expect(within(dialog).getByText("Khách chờ chủ trì cho vào phòng.")).toBeInTheDocument();
+  });
+
+  it("starts from a caller's values and refuses auto-admit without a use limit", async () => {
+    render(
+      wrapWithNav(
+        <CreateInviteLinkDialog meetingId="m1" open onOpenChange={() => {}} initial={{ name: "Agency Ánh Dương", mode: "AUTO_ADMIT" }} />,
+      ),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("textbox", { name: "Tên liên kết" })).toHaveValue("Agency Ánh Dương");
+    expect(within(dialog).getByText(/Đặt giới hạn lượt khi cho khách tự vào\./)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo liên kết" }));
+    const limit = within(dialog).getByRole("spinbutton", { name: "Giới hạn lượt" });
+    expect(limit).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getByText(/^Khách tự vào cần giới hạn lượt/)).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalled();
+
+    requestMock.mockReturnValue(new Promise(() => {}));
+    fireEvent.change(limit, { target: { value: "5" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo liên kết" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1/invite-links",
+        expect.objectContaining({ body: expect.objectContaining({ access_mode: "AUTO_ADMIT", max_uses: 5, name: "Agency Ánh Dương" }) }),
+      ),
+    );
   });
 
   it("names both selects through their visible labels", () => {

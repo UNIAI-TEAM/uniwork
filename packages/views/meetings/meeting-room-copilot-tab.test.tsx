@@ -445,7 +445,7 @@ describe("MeetingRoomCopilotTab transcript and notes", () => {
   it("does not ask for captions while the AI scribe is already transcribing", async () => {
     const { unmount } = render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk scribeOn />));
     fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
-    expect(await screen.findByText(/Thư ký AI đang nghe/)).toBeInTheDocument();
+    expect(await screen.findByText(/Thư ký UNI đang nghe/)).toBeInTheDocument();
     expect(screen.queryByText(/Bật phụ đề/)).not.toBeInTheDocument();
     unmount();
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));

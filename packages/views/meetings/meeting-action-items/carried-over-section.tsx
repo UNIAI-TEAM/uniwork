@@ -7,15 +7,12 @@ import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
-import { PanelCard } from "../../common/panel-card";
-import { MODULE_ICONS } from "../../layout/module-icons";
-import { moduleTone } from "../../layout/module-tones";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meeting-datetime";
 import { MeetingSectionError } from "../meeting-section-state";
 import { useMemberIndex } from "../use-member-index";
-import { ConvertedRow, LIST_CLASS, type ActionItemsVariant } from "./action-item-rows";
+import { ConvertedRow, LIST_CLASS } from "./action-item-rows";
 
 interface SourceGroup {
   meeting: MeetingCarriedOverItem["meeting"];
@@ -33,15 +30,7 @@ function groupBySource(items: readonly MeetingCarriedOverItem[]): SourceGroup[] 
   return [...groups.values()];
 }
 
-function CarriedOverGroups({
-  workspaceId,
-  items,
-  variant,
-}: {
-  workspaceId: string;
-  items: readonly MeetingCarriedOverItem[];
-  variant: ActionItemsVariant;
-}) {
+function CarriedOverGroups({ workspaceId, items }: { workspaceId: string; items: readonly MeetingCarriedOverItem[] }) {
   const { t, i18n } = useTranslation();
   const { memberOf } = useMemberIndex(workspaceId);
   const workspace = useOptionalWorkspace()?.workspace;
@@ -63,12 +52,12 @@ function CarriedOverGroups({
               )}
               {date ? <span className="text-caption text-muted-foreground">{date}</span> : null}
             </h3>
-            <ul className={LIST_CLASS[variant]}>
+            <ul className={LIST_CLASS.compact}>
               {group.map((item) => (
                 <ConvertedRow
                   key={item.action_item_id}
                   item={{ title: item.task.title ?? "", task: item.task }}
-                  variant={variant}
+                  variant="compact"
                   taskHref={wsPaths ? wsPaths.task(item.task.id) : null}
                   assigneeName={memberOf(item.task.assignee_id)?.display_name}
                 />
@@ -82,22 +71,22 @@ function CarriedOverGroups({
 }
 
 /**
- * "Carried over from earlier meetings" (spec meeting follow-through D8,
- * §9.2 item 2, §9.3, follow-4): the open tasks the earlier ended meetings of
- * the same project or series handed out over the last 90 days, grouped by the
- * meeting that did, and how many more lie beyond the page. Nothing renders
- * until there is something to carry — a meeting with neither never has any —
- * so a meeting with none never flashes a skeleton; a failed load says so with
- * a retry instead of vanishing. `compact` is the in-room Copilot's folded group.
+ * "Carried over from earlier meetings" for the in-room Copilot (spec meeting
+ * follow-through D8, §9.2 item 2, follow-4): the open tasks the earlier ended
+ * meetings of the same project or series handed out over the last 90 days,
+ * folded into one group until opened, grouped by the meeting that did, and
+ * how many more lie beyond the page. Nothing renders until there is something
+ * to carry, and a failed load says so with a retry instead of vanishing. The
+ * detail page draws the same query as `meeting-detail/scheduled/carried-over-brief`.
  */
 export function MeetingCarriedOverSection({
   workspaceId,
   meetingId,
-  variant = "panel",
 }: {
   workspaceId: string;
   meetingId: string;
-  variant?: ActionItemsVariant;
+  /** The room still names the variant; the Copilot's folded group is the only one left. */
+  variant?: "compact";
 }) {
   const { t } = useTranslation();
   const query = useMeetingCarriedOverItems(meetingId);
@@ -106,49 +95,25 @@ export function MeetingCarriedOverSection({
   const total = query.data?.total ?? items.length;
   const more = total - items.length;
   if (query.isError && !query.data) {
-    const error = (
-      <MeetingSectionError message={t("meetings.carriedOver.loadFailed")} onRetry={() => void query.refetch()} />
-    );
-    if (variant === "compact") return error;
-    return (
-      <PanelCard id="carried-over-heading" icon={MODULE_ICONS.tasks} iconTone={moduleTone("tasks")} title={t("meetings.carriedOver.title")}>
-        {error}
-      </PanelCard>
-    );
+    return <MeetingSectionError message={t("meetings.carriedOver.loadFailed")} onRetry={() => void query.refetch()} />;
   }
   if (items.length === 0) return null;
-
-  if (variant === "compact") {
-    return (
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger
-          render={
-            <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-              {t("meetings.carriedOver.compactToggle", { count: total })}
-              <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
-            </Button>
-          }
-        />
-        <CollapsibleContent>
-          <div className="mt-2">
-            <CarriedOverGroups workspaceId={workspaceId} items={items} variant="compact" />
-            {more > 0 ? <p className="mt-2 text-caption text-muted-foreground">{t("meetings.carriedOver.more", { count: more })}</p> : null}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    );
-  }
   return (
-    <PanelCard
-      id="carried-over-heading"
-      // Open work, not an alarm: the tasks glyph and tint; overdue rows carry their own red.
-      icon={MODULE_ICONS.tasks}
-      iconTone={moduleTone("tasks")}
-      title={t("meetings.carriedOver.title")}
-      description={t("meetings.carriedOver.description", { count: total })}
-    >
-      <CarriedOverGroups workspaceId={workspaceId} items={items} variant="panel" />
-      {more > 0 ? <p className="mt-3 text-caption text-muted-foreground">{t("meetings.carriedOver.more", { count: more })}</p> : null}
-    </PanelCard>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger
+        render={
+          <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
+            {t("meetings.carriedOver.compactToggle", { count: total })}
+            <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
+          </Button>
+        }
+      />
+      <CollapsibleContent>
+        <div className="mt-2">
+          <CarriedOverGroups workspaceId={workspaceId} items={items} />
+          {more > 0 ? <p className="mt-2 text-caption text-muted-foreground">{t("meetings.carriedOver.more", { count: more })}</p> : null}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

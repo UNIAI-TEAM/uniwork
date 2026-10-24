@@ -58,4 +58,5 @@ def test_the_shipped_notice_is_vietnamese_16_bit_pcm_of_a_few_seconds():
     seconds = len(pcm) / (rate * channels * 2)
     assert rate in (16000, 48000) and channels == 1
     assert 3 <= seconds <= 20, seconds
-    assert "Thư ký AI" in NOTICE_TEXT_VI and "ngoài Việt Nam" in NOTICE_TEXT_VI
+    # Where the audio is processed is said in the organization's settings only.
+    assert "Thư ký UNI, trợ lý AI" in NOTICE_TEXT_VI and "Việt Nam" not in NOTICE_TEXT_VI

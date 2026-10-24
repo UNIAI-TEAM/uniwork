@@ -105,32 +105,6 @@ export function useMeeting(meetingId: string, opts?: { enabled?: boolean }) {
   });
 }
 
-/**
- * Schedules a meeting. `scribe` is the form's "Thư ký AI" switch: when the
- * created meeting starts otherwise (the organization's policy decides), the
- * existing PUT /scribe sets it. That second call failing leaves the meeting
- * created as the server made it - the answer then still says so, and the form
- * tells the person instead of letting a retry create the meeting twice.
- */
-export function useCreateMeeting(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ scribe, ...body }: meetings.CreateMeetingBody & { scribe?: boolean }) => {
-      const created = await meetings.createMeeting(workspaceId, body);
-      if (!created || scribe === undefined || (created.scribe_enabled !== false) === scribe) return created;
-      try {
-        return (await meetings.setMeetingScribe(created.id, scribe)) ?? created;
-      } catch {
-        return created;
-      }
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.stats(workspaceId) });
-    },
-  });
-}
-
 export function useUpdateMeeting(workspaceId: string, meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -301,17 +275,6 @@ export function useCancelJoinRequest(meetingId: string) {
   return useMutation({
     mutationFn: (requestId: string) => meetings.cancelJoinRequest(requestId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.joinRequests(meetingId) }),
-  });
-}
-
-export function useCreateInstantMeeting(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (title?: string) => meetings.createInstantMeeting(workspaceId, title),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.stats(workspaceId) });
-    },
   });
 }
 

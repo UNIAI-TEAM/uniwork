@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState, type ReactNode } from "react";
-import { Circle, CircleCheck, RotateCcw, Sparkles } from "lucide-react";
+import { Circle, CircleCheck, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { actionItemTaskDefaults } from "@uniwork/core/meetings/summary-task-items";
@@ -14,6 +14,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { formatMeetingClock, formatMeetingDay, meetingLocale } from "../meeting-datetime";
+import { ScribeSign } from "../scribe-sign";
 
 export type ActionItemsVariant = "panel" | "compact";
 
@@ -56,7 +57,7 @@ function openStateKey(status: string | null | undefined): string {
 
 /**
  * Where an item came from: typed by a clerk, drawn from the AI summary, or
- * heard by the AI scribe during the meeting (with when). An unknown source
+ * heard by Thư ký UNI during the meeting (with when). An unknown source
  * shows nothing rather than a guess.
  */
 function SourceBadge({ source, createdAt }: { source?: string | null; createdAt?: string | null }) {
@@ -66,7 +67,7 @@ function SourceBadge({ source, createdAt }: { source?: string | null; createdAt?
   const time = source === "LIVE" && Number.isFinite(createdMs) ? formatMeetingClock(createdMs, meetingLocale(i18n.language)) : null;
   return (
     <Badge variant="outline" className="ml-1.5 align-middle">
-      {source === "MANUAL" ? null : <Sparkles aria-hidden />}
+      {source === "MANUAL" ? null : <ScribeSign className="mr-0" />}
       {source === "MANUAL"
         ? t("meetings.actionItemsSection.sourceManual")
         : source === "AI"

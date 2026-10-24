@@ -14,7 +14,7 @@ import { InstantMeetingDialog } from "./instant-meeting-dialog";
 import { MEETING_FILTERS, MeetingFilters } from "./meeting-filters";
 import { MeetingList, MeetingListSkeleton } from "./meeting-list";
 import { browserTimeZone } from "./meeting-schedule-fields";
-import { NewMeetingDialog } from "./new-meeting-dialog";
+import { MeetingSheet } from "./meeting-sheet";
 
 const PAGE_SIZE = 20;
 
@@ -138,9 +138,10 @@ export function MeetingsPageView({
               onStarted={onOpenRoom}
               trigger={<CollectionPageHeaderAction icon={Zap} label={t("meetings.instant")} />}
             />
-            <NewMeetingDialog
+            <MeetingSheet
+              mode="create"
               workspaceId={workspaceId}
-              onCreated={onOpen}
+              onDone={onOpen}
               trigger={<CollectionPageHeaderAction icon={Plus} label={t("meetings.new")} variant="default" />}
             />
           </>
@@ -153,7 +154,7 @@ export function MeetingsPageView({
           title={t("meetings.empty_title")}
           description={t("meetings.empty_description")}
           actions={
-            <NewMeetingDialog workspaceId={workspaceId} onCreated={onOpen} trigger={<Button size="sm">{t("meetings.new")}</Button>} />
+            <MeetingSheet mode="create" workspaceId={workspaceId} onDone={onOpen} trigger={<Button size="sm">{t("meetings.new")}</Button>} />
           }
         />
       ) : (

@@ -110,6 +110,29 @@ describe("MeetingRecordHeldButton", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Tải tệp ghi âm" })).toHaveFocus());
   });
 
+  it("lands focus on the page title when the transcript tab is not mounted (Tổng quan)", async () => {
+    const held = meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z");
+    let ended = false;
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === HELD) ended = true;
+      return { meeting: { ...held, status: ended ? "ENDED" : "SCHEDULED" } };
+    });
+    function Page() {
+      const m = useMeeting("m1").data ?? held;
+      return (
+        <div data-testid="meeting-detail-content">
+          <h1>Họp chi bộ</h1>
+          {m.status === "ENDED" ? null : <MeetingRecordHeldButton workspaceId="w1" meeting={m} />}
+        </div>
+      );
+    }
+    render(wrap(<Page />));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận đã họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
+  });
+
   it("names the meeting's zone under the times when it is not the viewer's", async () => {
     render(
       wrap(

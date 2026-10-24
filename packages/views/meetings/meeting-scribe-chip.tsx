@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { CircleAlert, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSetMeetingScribe } from "@uniwork/core/meetings";
+import { ScribeMark, type ScribeMarkState } from "@uniwork/ui/brand/scribe-mark";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -33,6 +33,15 @@ const LABEL_KEY: Record<ScribeChipState, string> = {
   joining: "meetings.scribe.chipJoining",
   failed: "meetings.scribe.chipFailed",
   off: "meetings.scribe.chipOff",
+};
+
+/** The mark moves while the scribe transcribes or joins; paused fades, failed greys, off is the outline. */
+const MARK_STATE: Record<ScribeChipState, ScribeMarkState> = {
+  on: "live",
+  paused: "paused",
+  joining: "joining",
+  failed: "failed",
+  off: "off",
 };
 
 const EXPLAIN_KEY: Record<ScribeChipState, string> = {
@@ -77,7 +86,6 @@ export function MeetingScribeChip({
   const failed = state === "failed";
   // Paused reads as a warning too: the room is not being transcribed right now.
   const warn = failed || state === "paused";
-  const Icon = warn ? CircleAlert : Sparkles;
   const switchTo = (enabled: boolean) => {
     set.mutate(enabled, {
       onSuccess: () => setOpen(false),
@@ -102,7 +110,7 @@ export function MeetingScribeChip({
           />
         }
       >
-        <Icon aria-hidden className="size-4" />
+        <ScribeMark state={MARK_STATE[state]} className="size-4" />
         {/* A narrow header keeps a short name, so the privacy signal is never an icon alone; a failure has its own. */}
         <span aria-hidden className="@4xl/stagehead:hidden">
           {t(

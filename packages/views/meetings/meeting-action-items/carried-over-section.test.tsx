@@ -57,12 +57,12 @@ function respond(carried: unknown) {
   });
 }
 
-function renderSection(variant?: "panel" | "compact") {
+function renderSection() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <div data-testid="host">
-          <MeetingCarriedOverSection workspaceId="w1" meetingId="m1" variant={variant} />
+          <MeetingCarriedOverSection workspaceId="w1" meetingId="m1" variant="compact" />
         </div>
       </WorkspaceProvider>,
     ),
@@ -73,10 +73,9 @@ describe("MeetingCarriedOverSection", () => {
   it("groups the open tasks by the meeting that assigned them, each linked", async () => {
     respond({ items });
     renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Việc còn tồn (3)" }));
     const older = await screen.findByRole("region", { name: "Từ cuộc họp Giao ban tuần 40" });
     const newer = screen.getByRole("region", { name: "Từ cuộc họp Giao ban tuần 41" });
-    expect(screen.getByText("Việc còn tồn từ các cuộc họp trước")).toBeInTheDocument();
-    expect(screen.getByText("3 việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.")).toBeInTheDocument();
     expect(screen.queryByText(/chưa hiện ở đây/)).not.toBeInTheDocument();
     // The group whose task is due first heads the list.
     expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -92,7 +91,7 @@ describe("MeetingCarriedOverSection", () => {
   it("counts the tasks beyond the page and says how many more there are", async () => {
     respond({ items, total: 105 });
     renderSection();
-    expect(await screen.findByText("105 việc chưa xong, giao trong 90 ngày qua ở các cuộc họp cùng dự án hoặc cùng chuỗi.")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Việc còn tồn (105)" }));
     expect(screen.getByText("Còn 102 việc nữa chưa hiện ở đây.")).toBeInTheDocument();
   });
 
@@ -122,12 +121,12 @@ describe("MeetingCarriedOverSection", () => {
     expect(await screen.findByText("Chưa tải được việc còn tồn từ các cuộc họp trước.")).toBeInTheDocument();
     fail = false;
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Việc còn tồn (3)" })).toBeInTheDocument();
   });
 
   it("folds into one group in the Copilot until opened", async () => {
     respond({ items });
-    renderSection("compact");
+    renderSection();
     const toggle = await screen.findByRole("button", { name: "Việc còn tồn (3)" });
     expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
     await userEvent.click(toggle);

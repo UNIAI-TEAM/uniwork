@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { type CaptionLanguage, useSetCaptionLanguage } from "@uniwork/core/meetings/captions";
+import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -280,6 +281,7 @@ export function MeetingScribeCaptions({
       <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <p aria-hidden className="text-caption text-meeting-bar-muted-foreground" data-testid="meeting-caption-label">
+            <ScribeMark className="mr-1.5 inline-block size-3.5 align-[-3px]" />
             {t("meetings.scribe.captionsLabel")}
             {state === "translating" ? (
               <span className="ml-2">{t("meetings.scribe.captionTranslating")}</span>

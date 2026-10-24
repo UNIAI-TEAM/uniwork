@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useOptionalNavigation } from "../navigation";
+import { SECTION_TAB } from "./meeting-detail/use-detail-tab";
 
 const SECTION_PARAM = "section";
 /** Section name in the URL → id of the heading the page scrolls to. */
@@ -18,7 +19,8 @@ export function scrollSectionIntoView(el: Element): void {
  * to that panel once the meeting has loaded (the panel is data-driven, inside an inner
  * scroller, so a native #hash cannot do it), and focus lands on its heading
  * so the keyboard and a screen reader start there too. The param is dropped once used,
- * so a reload does not jump again. Where a notification lands (C-11 §9.1 V1).
+ * so a reload does not jump again; a section on another tab than the first
+ * leaves `?tab=` behind, so the page stays on it. Where a notification lands (C-11 §9.1 V1).
  */
 export function useMeetingSectionDeepLink({ ready }: { ready: boolean }): void {
   const nav = useOptionalNavigation();
@@ -40,7 +42,9 @@ export function useMeetingSectionDeepLink({ ready }: { ready: boolean }): void {
     }
     const params = new URLSearchParams(nav.searchParams);
     params.delete(SECTION_PARAM);
-    // The transcript card reads ?segment= (a cited line) in the same pass.
+    const tab = SECTION_TAB[section];
+    if (tab && tab !== "overview" && !params.has("tab")) params.set("tab", tab);
+    // The transcript tab reads ?segment= (a cited line) in the same pass.
     params.delete("segment");
     const qs = params.toString();
     nav.replace(qs ? `${nav.pathname}?${qs}` : nav.pathname);

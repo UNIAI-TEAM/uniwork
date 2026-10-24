@@ -44,7 +44,7 @@ describe("MeetingSharedMicMenuItem", () => {
       }),
     );
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Mic của Phòng họp lớn là mic hội trường: Thư ký AI tách từng người nói"),
+      expect(toast.success).toHaveBeenCalledWith("Mic của Phòng họp lớn là mic hội trường: Thư ký UNI tách từng người nói"),
     );
   });
 

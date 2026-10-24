@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -7,7 +7,8 @@ import { CreateFromSlot } from "./create-from-slot";
 initI18n();
 
 const taskDialogProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
-const meetingDialogProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const cardProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const sheetProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("../tasks/create-task-dialog", () => ({
   CreateTaskDialog: (props: Record<string, unknown>) => {
     taskDialogProps.current = props;
@@ -15,19 +16,32 @@ vi.mock("../tasks/create-task-dialog", () => ({
   },
 }));
 
-vi.mock("../meetings/new-meeting-dialog", () => ({
-  NewMeetingDialog: (props: Record<string, unknown>) => {
-    meetingDialogProps.current = props;
-    return props.open ? <div data-testid="create-meeting-dialog" /> : null;
+vi.mock("./meeting-quick-card", () => ({
+  MeetingQuickCard: (props: Record<string, unknown>) => {
+    cardProps.current = props;
+    return <div data-testid="meeting-quick-card" />;
   },
 }));
+
+vi.mock("../meetings/meeting-sheet", () => ({
+  MeetingSheet: (props: Record<string, unknown>) => {
+    sheetProps.current = props;
+    return props.open ? <div data-testid="meeting-sheet" /> : null;
+  },
+}));
+
+const windowOf = (draft: unknown) => {
+  const d = draft as { date: string; start: string; end: string };
+  return { date: d.date, start: d.start, end: d.end };
+};
 
 describe("CreateFromSlot", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-10T09:55:00"));
     taskDialogProps.current = {};
-    meetingDialogProps.current = {};
+    cardProps.current = {};
+    sheetProps.current = {};
   });
 
   afterEach(() => {
@@ -46,6 +60,7 @@ describe("CreateFromSlot", () => {
           onOpenChange={onOpenChange}
           slot={null}
           anchor={anchor}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
@@ -54,9 +69,9 @@ describe("CreateFromSlot", () => {
     expect(screen.getByRole("menuitem", { name: /Việc mới/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Cuộc họp mới/ })).toBeInTheDocument();
     expect(screen.queryByTestId("create-task-dialog")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("create-meeting-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-quick-card")).not.toBeInTheDocument();
     expect(taskDialogProps.current).toEqual({});
-    expect(meetingDialogProps.current).toEqual({});
+    expect(cardProps.current).toEqual({});
   });
 
   it("opens task creation with a due-date prefill", () => {
@@ -73,6 +88,7 @@ describe("CreateFromSlot", () => {
             allDay: true,
           }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
@@ -94,6 +110,7 @@ describe("CreateFromSlot", () => {
           onOpenChange={() => {}}
           slot={{ start, end, allDay: false }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
@@ -107,7 +124,7 @@ describe("CreateFromSlot", () => {
     });
   });
 
-  it("opens meeting creation with the selected schedule", () => {
+  it("opens the quick card with the selected schedule, not the full sheet", () => {
     render(
       wrap(
         <CreateFromSlot
@@ -120,17 +137,43 @@ describe("CreateFromSlot", () => {
             allDay: false,
           }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
 
+    expect(screen.getByText("Thứ Năm 10/09 · 14:00–15:00")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
-    expect(screen.getByTestId("create-meeting-dialog")).toBeInTheDocument();
-    expect(meetingDialogProps.current.scheduleDefaults).toEqual({
+    expect(screen.getByTestId("meeting-quick-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-sheet")).not.toBeInTheDocument();
+    expect(windowOf(cardProps.current.initial)).toEqual({
       date: "2026-09-10",
       start: "14:00",
       end: "15:00",
     });
+  });
+
+  it("hands the card's draft to the sheet on Thêm tùy chọn and closes the card", () => {
+    const onOpenMeeting = vi.fn();
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={{ start: new Date("2026-09-10T14:00:00"), end: new Date("2026-09-10T15:00:00"), allDay: false }}
+          anchor={document.body}
+          onOpenMeeting={onOpenMeeting}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
+    expect(cardProps.current.onOpenMeeting).toBe(onOpenMeeting);
+    const draft = { ...(cardProps.current.initial as object), title: "Duyệt kịch bản" };
+    act(() => (cardProps.current.onMoreOptions as (d: unknown) => void)(draft));
+    expect(screen.queryByTestId("meeting-quick-card")).not.toBeInTheDocument();
+    expect(screen.getByTestId("meeting-sheet")).toBeInTheDocument();
+    expect(sheetProps.current).toMatchObject({ mode: "create", initialDraft: draft });
   });
 
   it("starts a meeting on today's day cell at the next quarter hour", () => {
@@ -142,12 +185,13 @@ describe("CreateFromSlot", () => {
           onOpenChange={() => {}}
           slot={{ start: new Date("2026-09-10T00:00:00"), end: null, allDay: true }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
-    expect(meetingDialogProps.current.scheduleDefaults).toEqual({
+    expect(windowOf(cardProps.current.initial)).toEqual({
       date: "2026-09-10",
       start: "10:00",
       end: "11:00",
@@ -167,6 +211,7 @@ describe("CreateFromSlot", () => {
             allDay: false,
           }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
@@ -175,7 +220,7 @@ describe("CreateFromSlot", () => {
     expect(meeting).toHaveAttribute("aria-disabled", "true");
     expect(meeting).toHaveTextContent("Không thể đặt cuộc họp vào thời gian đã qua");
     fireEvent.click(meeting);
-    expect(screen.queryByTestId("create-meeting-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-quick-card")).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Việc mới/ })).not.toHaveAttribute("aria-disabled");
   });
 
@@ -188,6 +233,7 @@ describe("CreateFromSlot", () => {
           onOpenChange={() => {}}
           slot={{ start: new Date("2026-09-09T00:00:00"), end: null, allDay: true }}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );
@@ -205,6 +251,7 @@ describe("CreateFromSlot", () => {
           onOpenChange={onOpenChange}
           slot={null}
           anchor={document.body}
+          onOpenMeeting={() => {}}
         />,
       ),
     );

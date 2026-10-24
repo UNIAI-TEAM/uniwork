@@ -49,8 +49,8 @@ describe("MeetingScribeChip", () => {
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
     await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
-    expect(await screen.findByText(/Thư ký AI nghe từng người/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tắt Thư ký AI" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Thư ký UNI là trợ lý AI của UniWork: nghe từng người/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tắt Thư ký UNI" })).not.toBeInTheDocument();
   });
 
   // UNI-1995 access (#2): a guest has no Meeting object (the room does not
@@ -61,8 +61,8 @@ describe("MeetingScribeChip", () => {
     const chip = screen.getByTestId("meeting-scribe-chip");
     expect(chip).toHaveAttribute("data-state", "on");
     await userEvent.click(chip);
-    expect(await screen.findByText(/Thư ký AI nghe từng người/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tắt Thư ký AI" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Thư ký UNI là trợ lý AI của UniWork: nghe từng người/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tắt Thư ký UNI" })).not.toBeInTheDocument();
   });
 
   it("shows a guest nothing while no scribe is in the room", () => {
@@ -85,7 +85,7 @@ describe("MeetingScribeChip", () => {
     requestMock.mockResolvedValue({ meeting: { ...meeting, scribe_enabled: false } });
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch />));
     await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
-    await userEvent.click(await screen.findByRole("button", { name: "Tắt Thư ký AI" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Tắt Thư ký UNI" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/scribe", { method: "PUT", body: { enabled: false } }),
     );
@@ -95,7 +95,7 @@ describe("MeetingScribeChip", () => {
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
     const chip = screen.getByTestId("meeting-scribe-chip");
-    expect(chip).toHaveAccessibleName("Thư ký AI đang ghi lời");
+    expect(chip).toHaveAccessibleName("Thư ký UNI đang ghi lời");
   });
 
   it("tells everyone the scribe is paused while its speech recognition fails", async () => {
@@ -104,7 +104,7 @@ describe("MeetingScribeChip", () => {
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
     const chip = screen.getByTestId("meeting-scribe-chip");
     expect(chip).toHaveAttribute("data-state", "paused");
-    expect(chip).toHaveAccessibleName("Thư ký AI tạm dừng, đang thử lại");
+    expect(chip).toHaveAccessibleName("Thư ký UNI tạm dừng, đang thử lại");
     await userEvent.click(chip);
     expect(await screen.findByText(/phụ đề dùng giọng nói trên máy/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
@@ -128,8 +128,8 @@ describe("MeetingScribeChip", () => {
     const chip = screen.getByTestId("meeting-scribe-chip");
     expect(chip.className).toMatch(/\btext-warning\b/);
     expect(chip).toHaveTextContent("Chưa ghi lời");
-    expect(chip).not.toHaveTextContent(/^Thư ký AI$/);
-    expect(chip).toHaveAccessibleName(/Thư ký AI chưa vào được phòng/);
+    expect(chip).not.toHaveTextContent(/^Thư ký UNI$/);
+    expect(chip).toHaveAccessibleName(/Thư ký UNI chưa vào được phòng/);
   });
 
   it("explains a scribe still joining as joining, not as listening", async () => {
