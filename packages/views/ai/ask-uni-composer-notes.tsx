@@ -80,15 +80,15 @@ export function AskUniComposerNotesSign({ wsId, tainted }: { wsId: string; taint
             variant="ghost"
             size="icon-xs"
             data-slot="ask-uni-composer-notes-sign"
-            // Sits on the frame's border like a badge, so it never covers what the asker types. Orange in both themes
-            // (the owner's call); the warning signal reads amber on dark and brown on light.
-            className="absolute -top-3 right-3 z-10 rounded-full bg-tint-orange text-tint-orange-foreground shadow-sm ring-1 ring-background hover:bg-tint-orange hover:text-tint-orange-foreground hover:brightness-95"
+            // Rests on the frame's top-right corner, just above the border, so it never covers what the asker types.
+            // Orange in both themes (the owner's call); the warning signal reads amber on dark and brown on light.
+            className="absolute -top-5 right-2 z-10 text-tint-orange-foreground hover:text-tint-orange-foreground"
             onClick={show}
           />
         }
         aria-label={label}
       >
-        <TriangleAlert aria-hidden className="size-3.5" />
+        <TriangleAlert aria-hidden className="size-4" />
       </TooltipTrigger>
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
