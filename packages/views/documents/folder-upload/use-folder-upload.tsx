@@ -129,6 +129,11 @@ export function useFolderUpload({
   const check = useUnreadableCheck(head, candidates);
   const headRef = useRef(head);
   headRef.current = head;
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
+  /** The live hand-off toast that still carries the install action: its id and text, so a folder dialog can take the action out. */
+  const handoffToast = useRef<{ id: string; text: string } | null>(null);
+  const handoffCount = useRef(0);
 
   const destinationNow = useCallback((): Destination => {
     const parentId = folderId ?? myFolderId;
@@ -204,20 +209,41 @@ export function useFolderUpload({
   /**
    * "Mở UniWork Office" was pressed for `staged`: the browser cannot tell an installed app from a missing one, so
    * whatever it saw the warning closes (never two dialogs) and the toast carries the way in the app. Its action
-   * opens the installer dialog alone, and only when the server has an installer to offer.
+   * opens the installer dialog alone: only when the server has an installer to offer, and never while another
+   * folder dialog is, or is about to be, showing (see the effect below).
    */
   const handedOffFor = (staged: StagedFolder | null) => (install: (() => void) | null) => {
     // A launch that outlived its dialog (Hủy while "Đang mở…") has no dialog left to close, nor a hand-off to announce.
     if (!staged || headRef.current !== staged) return;
+    // Another staged pick opens its dialog the moment this one closes.
+    const offer = install && queueRef.current.length <= 1 ? install : null;
     dismissHead();
     const { t: tr } = latest.current;
-    toast.info(tr("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode)), {
+    const id = `folder-upload-handoff-${(handoffCount.current += 1)}`;
+    const text = tr("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode));
+    handoffToast.current = offer ? { id, text } : null;
+    const release = () => {
+      if (handoffToast.current?.id === id) handoffToast.current = null;
+    };
+    toast.info(text, {
+      id,
       duration: HANDOFF_TOAST_MS,
-      action: install ? { label: tr("documents.folder_upload.unreadable.handoff_install"), onClick: install } : undefined,
+      action: offer ? { label: tr("documents.folder_upload.unreadable.handoff_install"), onClick: offer } : undefined,
       // Beside the text the action squeezes it to a few words and breaks mid-word: it wraps below instead.
-      classNames: install ? { toast: "flex-wrap", content: "min-w-56! flex-1" } : undefined,
+      classNames: offer ? { toast: "flex-wrap", content: "min-w-56! flex-1" } : undefined,
+      onDismiss: release,
+      onAutoClose: release,
     });
   };
+
+  // A pick staged while a hand-off toast is live opens a folder dialog: the installer dialog must not open over it,
+  // so the same toast loses its action and keeps its text.
+  useEffect(() => {
+    const live = handoffToast.current;
+    if (!head || !live) return;
+    handoffToast.current = null;
+    toast.info(live.text, { id: live.id, duration: HANDOFF_TOAST_MS, action: undefined, classNames: undefined });
+  }, [head]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: documentKeys.listRoot(wsId) });

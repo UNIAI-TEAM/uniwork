@@ -364,24 +364,86 @@ describe("useFolderUpload: Mở UniWork Office closes the warning whatever the o
     });
     const prompt = await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
     // Alone: the warning is already closed, nothing sits behind it.
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: /trình duyệt không đọc được/ })).toBeNull();
     fireEvent.click(within(prompt).getByRole("button", { name: "Để sau" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryAllByRole("dialog", { hidden: true })).toHaveLength(0));
     expect(home.loadInstallers).toHaveBeenCalledOnce();
   });
 
-  it("the toast action still opens the prompt when the next staged folder is already showing", async () => {
+  it("never stacks the prompt: two warned folders dropped together leave A's toast without the action", async () => {
     const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
     setup({ officeHome: home });
-    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]), entries("Hai", ["b.pdf"]));
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]), entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
     fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
     await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
-    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    // B's warning owns the screen: the install prompt has no way in.
+    expect(toast.info.mock.calls[0]?.[1]?.action).toBeUndefined();
+    expect(toast.info.mock.calls[0]?.[0]).toBe(t("documents.folder_upload.unreadable.handoff_a"));
+    await waitFor(() => expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai"));
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
+    expect(installPrompt()).toBeNull();
+  });
+
+  it("a pick staged during A's toast takes the action out of that same toast; the text stays", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    const first = toast.info.mock.calls[0];
+    expect(first?.[1]?.action).toMatchObject({ label: "Chưa cài UniWork Office?" });
+    expect(screen.queryAllByRole("dialog", { hidden: true })).toHaveLength(0);
+
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(2));
+    const second = toast.info.mock.calls[1];
+    expect(second?.[0]).toBe(first?.[0]);
+    expect(second?.[1]?.id).toBeDefined();
+    expect(second?.[1]?.id).toBe(first?.[1]?.id);
+    expect(second?.[1]?.action).toBeUndefined();
+    await heading("Có 1 tệp trình duyệt không đọc được");
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
+  });
+
+  it("does not touch a toast that already closed", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
     act(() => {
-      toast.info.mock.calls[0]?.[1].action.onClick();
+      toast.info.mock.calls[0]?.[1].onAutoClose();
     });
-    expect(await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeInTheDocument();
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    await heading("Có 1 tệp trình duyệt không đọc được");
+    expect(toast.info).toHaveBeenCalledOnce();
+  });
+
+  it("gives up waiting for a slow installer list after 1.5 s: the toast shows without the action", async () => {
+    const loadInstallers = vi.fn(() => new Promise<{ installers: OfficeInstallerOption[] }>(() => undefined));
+    setup({ officeHome: officeHome({ loadInstallers }) });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    const press = await screen.findByRole("button", { name: "Mở UniWork Office" });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(press);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_400);
+      });
+      expect(toast.info).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(toast.info).toHaveBeenCalledOnce();
+      expect(toast.info.mock.calls[0]?.[1]?.action).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+    // The load is kept for the next press, not started again.
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    expect(loadInstallers).toHaveBeenCalledOnce();
   });
 
   it("has no action when the installer list is empty, or cannot be loaded", async () => {
@@ -403,7 +465,8 @@ describe("useFolderUpload: Mở UniWork Office closes the warning whatever the o
       fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     }
-    expect(toast.info).toHaveBeenCalledTimes(2);
+    // The second pick arrived under the first toast, which was updated in place (same id): two toasts, three calls.
+    expect(new Set(toast.info.mock.calls.map(([, options]) => options?.id)).size).toBe(2);
     expect(home.loadInstallers).toHaveBeenCalledOnce();
   });
 

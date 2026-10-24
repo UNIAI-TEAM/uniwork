@@ -16,6 +16,20 @@ import { OfficeInstallPrompt } from "./install-prompt";
 /** Marks "no scope" apart from a scope that is undefined. */
 const NO_SCOPE = Symbol("no-scope");
 
+/** How long the folder-upload hand-off waits for the installer list before it shows its toast without the action. */
+const INSTALLERS_WAIT_MS = 1_500;
+
+/** The installer list never rejects (a failure reads as "none"); past `ms` the answer is "none" and the load goes on. */
+function withinCap(load: Promise<boolean>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    void load.then((found) => {
+      clearTimeout(timer);
+      resolve(found);
+    });
+  });
+}
+
 /** The way to the installer dialog, handed to the host when the server has an installer for this channel. */
 type OpenInstall = () => void;
 
@@ -141,8 +155,8 @@ export function useOfficeHomeLaunch(
     try {
       const { channel, deploymentId, apiOrigin, launch: open, loadInstallers } = props;
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
-      // Started beside the launch so the host's answer waits for the app, not for a second request.
-      const installable = launch.done ? loadInstallersOnce() : null;
+      // Started beside the launch so the host's answer waits for the app, not for a second request, and never past the cap.
+      const installable = launch.done ? withinCap(loadInstallersOnce(), INSTALLERS_WAIT_MS) : null;
       const outcome = await open(
         buildOfficeHomeLink(channel, profile),
         launch.done
