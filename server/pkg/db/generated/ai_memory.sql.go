@@ -501,7 +501,7 @@ const aiSetMemoryProposalStatus = `-- name: AiSetMemoryProposalStatus :one
 UPDATE ai_memory_proposals SET
   status = $1,
   memory_id = COALESCE($2::text, memory_id),
-  decided_at = now(),
+  decided_at = clock_timestamp(),
   updated_at = now()
 WHERE id = $3 AND organization_id = $4
 RETURNING id, organization_id, workspace_id, conversation_id, message_id, position, action, memory_id, kind, body, before_kind, before_body, status, expires_at, decided_at, created_by, created_by_kind, created_at, updated_at
@@ -514,8 +514,8 @@ type AiSetMemoryProposalStatusParams struct {
 	OrganizationID string      `json:"organization_id"`
 }
 
-// decided_at is the database clock, the one the undo guard compares with the
-// entry's updated_at.
+// decided_at is the database wall clock, the one the undo guard compares with
+// the entry's updated_at (clock_timestamp() on both sides).
 func (q *Queries) AiSetMemoryProposalStatus(ctx context.Context, arg AiSetMemoryProposalStatusParams) (AiMemoryProposal, error) {
 	row := q.db.QueryRow(ctx, aiSetMemoryProposalStatus,
 		arg.Status,
@@ -549,7 +549,7 @@ func (q *Queries) AiSetMemoryProposalStatus(ctx context.Context, arg AiSetMemory
 }
 
 const aiUpdateMemory = `-- name: AiUpdateMemory :one
-UPDATE ai_memories SET kind = $4, body = $5, updated_at = now()
+UPDATE ai_memories SET kind = $4, body = $5, updated_at = clock_timestamp()
 WHERE id = $1 AND organization_id = $2 AND user_id = $3
 RETURNING id, organization_id, user_id, kind, body, source, proposal_id, created_by, created_by_kind, created_at, updated_at
 `
@@ -562,6 +562,9 @@ type AiUpdateMemoryParams struct {
 	Body           string `json:"body"`
 }
 
+// The wall clock, not the transaction's start: an edit whose transaction
+// began before an apply but wrote after it must not read as older than the
+// proposal's decided_at (the undo guard).
 func (q *Queries) AiUpdateMemory(ctx context.Context, arg AiUpdateMemoryParams) (AiMemory, error) {
 	row := q.db.QueryRow(ctx, aiUpdateMemory,
 		arg.ID,

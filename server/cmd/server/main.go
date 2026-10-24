@@ -815,6 +815,7 @@ func main() {
 	askUNI.SetReadTools(mcpTools)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
+		aiMemorySvc.SetMetrics(reg.AIAsk)
 	}
 	// The sweep of expired attempts, tokens and abandoned clients stops with
 	// runCancel and is awaited below.

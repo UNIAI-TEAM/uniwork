@@ -245,8 +245,8 @@ func registerAI(r api, h Routes) {
 	})
 	r.Post("/ai/memory-proposals/{memoryProposalID}/reject", h.RejectAiMemoryProposal, apiOp{
 		summary: "Reject an Ask UNI memory proposal",
-		description: "Bỏ qua một đề xuất bộ nhớ pending của chính người hỏi: pending -> rejected, ghi audit ai_memory_proposal.rejected (không kèm chữ). " +
-			"Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled; 409 proposal_not_pending / proposal_expired kèm dòng trong error.fields.proposal.",
+		description: "Bỏ qua một đề xuất bộ nhớ pending của chính người hỏi, kể cả đã quá hạn: pending -> rejected, ghi audit ai_memory_proposal.rejected (không kèm chữ). " +
+			"Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled; dòng không còn pending -> 409 proposal_not_pending kèm dòng trong error.fields.proposal.",
 		tags: []string{"ai"},
 		sdo:  sdo.AiMemoryProposalDTO{},
 		auth: true,

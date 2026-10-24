@@ -157,11 +157,12 @@ func (s *AiMemoryService) ApplyProposal(ctx context.Context, userID, id string) 
 	})
 }
 
-// RejectProposal is Bỏ qua: pending → rejected, audited without the text.
+// RejectProposal is Bỏ qua: pending → rejected, audited without the text. A
+// row past its expiry may still be rejected, as P3's rejectRow allows.
 func (s *AiMemoryService) RejectProposal(ctx context.Context, userID, id string) (AskMemoryProposal, error) {
 	return s.decide(ctx, userID, id, proposalRejected, func(q *db.Queries, row db.AiMemoryProposal) (db.AiMemoryProposal, error) {
-		if err := s.pendingNow(row); err != nil {
-			return row, err
+		if row.Status != proposalPending {
+			return row, errProposalNotPending
 		}
 		rejected, err := s.settle(ctx, q, row, proposalRejected, "")
 		if err != nil {
@@ -215,8 +216,8 @@ func (s *AiMemoryService) EditProposal(ctx context.Context, userID, id string, k
 // UndoProposal is Hoàn tác, once, on an applied row: remember deletes the
 // entry it made, update writes back the entry as it was, forget creates it
 // again (a new id, through the cap and duplicate checks). An entry changed
-// since the apply (updated_at after decided_at, both the database clock) or
-// gone is undo_unavailable, and the row stays applied.
+// since the apply (updated_at after decided_at, both the database wall clock)
+// or gone is undo_unavailable, and the row stays applied.
 func (s *AiMemoryService) UndoProposal(ctx context.Context, userID, id string) (AskMemoryProposal, error) {
 	return s.decide(ctx, userID, id, proposalUndone, func(q *db.Queries, row db.AiMemoryProposal) (db.AiMemoryProposal, error) {
 		if row.Status != proposalApplied {
@@ -224,7 +225,10 @@ func (s *AiMemoryService) UndoProposal(ctx context.Context, userID, id string) (
 		}
 		vctx, org := viaProposal(ctx, row), row.OrganizationID
 		if row.Action != "forget" {
-			// The owner lock first, so an edit cannot land between the guard and the inverse.
+			// The owner lock first, so an edit cannot land between the guard
+			// and the inverse. A manual Delete or Clear takes no owner lock and
+			// still can: the inverse then finds no entry, read below as
+			// undo_unavailable too.
 			if err := q.AiLockMemoryOwner(ctx, db.AiLockMemoryOwnerParams{OrganizationID: org, UserID: userID}); err != nil {
 				return row, err
 			}
@@ -245,6 +249,9 @@ func (s *AiMemoryService) UndoProposal(ctx context.Context, userID, id string) (
 			_, err = s.updateQ(vctx, q, org, userID, row.MemoryID.String, &kind, &body)
 		case "forget":
 			_, err = s.createQ(vctx, q, org, userID, row.BeforeKind.String, row.BeforeBody.String, aiMemorySourceChat, row.ID)
+		}
+		if row.Action != "forget" && (errors.Is(err, ErrNotFound) || errors.Is(err, pgx.ErrNoRows)) {
+			return row, errAskUndoUnavailable
 		}
 		if err != nil {
 			return row, err

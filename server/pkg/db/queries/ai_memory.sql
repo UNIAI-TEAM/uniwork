@@ -21,7 +21,10 @@ INSERT INTO ai_memories (
 RETURNING *;
 
 -- name: AiUpdateMemory :one
-UPDATE ai_memories SET kind = $4, body = $5, updated_at = now()
+-- The wall clock, not the transaction's start: an edit whose transaction
+-- began before an apply but wrote after it must not read as older than the
+-- proposal's decided_at (the undo guard).
+UPDATE ai_memories SET kind = $4, body = $5, updated_at = clock_timestamp()
 WHERE id = $1 AND organization_id = $2 AND user_id = $3
 RETURNING *;
 
@@ -58,12 +61,12 @@ SELECT * FROM ai_memory_proposals WHERE id = $1;
 SELECT * FROM ai_memory_proposals WHERE id = $1 AND organization_id = $2 FOR UPDATE;
 
 -- name: AiSetMemoryProposalStatus :one
--- decided_at is the database clock, the one the undo guard compares with the
--- entry's updated_at.
+-- decided_at is the database wall clock, the one the undo guard compares with
+-- the entry's updated_at (clock_timestamp() on both sides).
 UPDATE ai_memory_proposals SET
   status = sqlc.arg(status),
   memory_id = COALESCE(sqlc.narg(memory_id)::text, memory_id),
-  decided_at = now(),
+  decided_at = clock_timestamp(),
   updated_at = now()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
 RETURNING *;

@@ -394,8 +394,46 @@ func TestRejectMemoryProposal(t *testing.T) {
 	if got := entryBodies(t, w, u); len(got) != 0 {
 		t.Fatalf("memory = %v", got)
 	}
-	if !slices.Equal(w.m.memory, []string{"rejected"}) {
+	// A row past its expiry is still rejected, as P3's reject allows.
+	old := storeMemoryProposals(t, w, w.tc, rememberDraft("fact", "Tôi dậy lúc sáu giờ"))[0]
+	if _, err := w.s.pool.Exec(ctx, `UPDATE ai_memory_proposals SET expires_at = now() - interval '1 hour' WHERE id = $1`, old.ID); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := m.RejectProposal(ctx, u, old.ID); err != nil || p.Status != "rejected" {
+		t.Fatalf("reject expired = %+v, %v", p, err)
+	}
+	if n := w.x.count(t, `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionAIMemoryProposalRejected, old.ID); n != 1 {
+		t.Fatalf("%d audit rows for the expired reject", n)
+	}
+	if !slices.Equal(w.m.memory, []string{"rejected", "rejected"}) {
 		t.Fatalf("metrics %v", w.m.memory)
+	}
+}
+
+// An asker who left the workspace no longer decides their rows: the workspace
+// gate refuses every command and the row stays as it was (R13).
+func TestMemoryProposalNeedsTheWorkspace(t *testing.T) {
+	ctx := context.Background()
+	w, m := memDecideWorld(t)
+	asker := w.x.ub
+	tc := ai.ToolContext{ActorID: asker.ID, OrganizationID: w.x.w.OrganizationID, WorkspaceID: w.x.w.ID}
+	row := storeMemoryProposals(t, w, tc, rememberDraft("fact", "Tôi ở nhóm thiết kế"))[0]
+	if _, err := w.s.pool.Exec(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, w.x.w.ID, asker.ID); err != nil {
+		t.Fatal(err)
+	}
+	text := "Tôi ở nhóm khác"
+	for name, run := range map[string]func() (AskMemoryProposal, error){
+		"apply":  func() (AskMemoryProposal, error) { return m.ApplyProposal(ctx, asker.ID, row.ID) },
+		"reject": func() (AskMemoryProposal, error) { return m.RejectProposal(ctx, asker.ID, row.ID) },
+		"undo":   func() (AskMemoryProposal, error) { return m.UndoProposal(ctx, asker.ID, row.ID) },
+		"edit":   func() (AskMemoryProposal, error) { return m.EditProposal(ctx, asker.ID, row.ID, nil, &text) },
+	} {
+		if p, err := run(); !errors.Is(err, ErrForbidden) || p.ID != "" {
+			t.Errorf("%s = %+v, %v; want forbidden and no row", name, p, err)
+		}
+	}
+	if got := memoryRow(t, w, row.ID); got.Status != "pending" || got.Body.String != "Tôi ở nhóm thiết kế" || !got.UpdatedAt.Time.Equal(row.UpdatedAt.Time) {
+		t.Fatalf("row changed: %+v", got)
 	}
 }
 
@@ -493,5 +531,51 @@ func TestUndoMemoryProposal(t *testing.T) {
 	}
 	if n := strings.Count(strings.Join(w.m.memory, ","), "undone"); n != 3 {
 		t.Fatalf("metrics %v, want three undone", w.m.memory)
+	}
+}
+
+// A manual delete, which takes no owner lock, that commits between undo's
+// guard and its inverse reads as undo_unavailable with the row.
+func TestUndoMemoryProposalLosesARaceToADelete(t *testing.T) {
+	ctx := context.Background()
+	w, m := memDecideWorld(t)
+	u := w.x.ua.ID
+	row := storeMemoryProposals(t, w, w.tc, rememberDraft("fact", "Tôi thích mưa"))[0]
+	p, err := m.ApplyProposal(ctx, u, row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An open transaction deletes the entry and holds its row lock: undo's
+	// guard still reads the entry, and its own delete waits for this commit.
+	tx, err := w.s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DELETE FROM ai_memories WHERE id = $1`, p.MemoryID); err != nil {
+		t.Fatal(err)
+	}
+	type outcome struct {
+		p   AskMemoryProposal
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		p, err := m.UndoProposal(ctx, u, row.ID)
+		done <- outcome{p, err}
+	}()
+	for start := time.Now(); w.x.count(t, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`) == 0; {
+		if time.Since(start) > 5*time.Second {
+			t.Fatal("undo never waited on the deleted entry")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	o := <-done
+	memCode(t, o.err, "undo_unavailable")
+	if o.p.ID != row.ID || o.p.Status != "applied" || memoryRow(t, w, row.ID).Status != "applied" {
+		t.Fatalf("refused undo = %+v", o.p)
 	}
 }

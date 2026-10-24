@@ -106,7 +106,12 @@ func TestMemoryProposalRoutesMapErrors(t *testing.T) {
 		t.Fatalf("undo: %d %v", s, out)
 	}
 
-	w.conflict(t, "POST", base+w.memProposal(t, "remember", "", "Tôi dậy sớm", -time.Minute)+"/apply", nil, "proposal_expired", "expired")
+	early := w.memProposal(t, "remember", "", "Tôi dậy sớm", -time.Minute)
+	w.conflict(t, "POST", base+early+"/apply", nil, "proposal_expired", "expired")
+	w.conflict(t, "PATCH", base+early, map[string]any{"text": "Tôi dậy muộn"}, "proposal_expired", "expired")
+	if s, out := w.call(t, w.owner, "POST", base+early+"/reject", nil); s != 200 || out["status"] != "rejected" {
+		t.Fatalf("reject expired: %d %v", s, out)
+	}
 	w.conflict(t, "POST", base+w.memProposal(t, "remember", "", "tôi thích  trà", time.Hour)+"/apply", nil, "ai_memory_duplicate", "pending")
 	if s, out := w.call(t, w.owner, "POST", base+w.memProposal(t, "forget", util.NewID(), "", time.Hour)+"/apply", nil); s != 404 || errCode(out) != "ai_memory_not_found" {
 		t.Fatalf("entry gone: %d %v", s, out)
