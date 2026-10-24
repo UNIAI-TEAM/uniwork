@@ -356,6 +356,8 @@ describe("useFolderUpload: Mở UniWork Office closes the warning whatever the o
     await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
     const options = toast.info.mock.calls[0]?.[1];
     expect(options).toMatchObject({ duration: 12_000, action: { label: "Chưa cài UniWork Office?" } });
+    // The action wraps below the text instead of squeezing it.
+    expect(options.classNames).toMatchObject({ toast: expect.stringContaining("flex-wrap"), content: expect.stringContaining("min-w-") });
     expect(installPrompt()).toBeNull();
     act(() => {
       options.action.onClick();

@@ -214,6 +214,8 @@ export function useFolderUpload({
     toast.info(tr("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode)), {
       duration: HANDOFF_TOAST_MS,
       action: install ? { label: tr("documents.folder_upload.unreadable.handoff_install"), onClick: install } : undefined,
+      // Beside the text the action squeezes it to a few words and breaks mid-word: it wraps below instead.
+      classNames: install ? { toast: "flex-wrap", content: "min-w-56! flex-1" } : undefined,
     });
   };
 
