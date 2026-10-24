@@ -277,7 +277,7 @@ Spec ước một câu có file đắt thêm khoảng 0,01–0,03 USD với Sonn
 UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình luận, chat) thay người hỏi. Model không chạy lệnh ghi: tool ghi chỉ lưu một dòng `agent_action_proposals`; lệnh chạy khi người hỏi bấm Áp dụng, hoặc ở chế độ Tự động với dòng mức 1 của lượt không bị nhiễm (ADR 0044, spec §6).
 
 - **Tắt khẩn cấp**: hai cách, cái nào nhanh hơn thì dùng.
-  - Override cờ `ask_uni_actions=false` ở `/admin/flags` (theo tổ chức hoặc toàn cục; thắng `FF_ASK_UNI_ACTIONS`). Agent thôi nhận tool ghi, client ẩn nút và thẻ, các route đề xuất trả 403 `ai_actions_disabled`.
+  - Override cờ `ask_uni_actions=false` ở `/admin/flags` (theo tổ chức hoặc toàn cục; thắng `FF_ASK_UNI_ACTIONS`). Agent thôi nhận tool ghi; client ẩn nút chế độ, các nút của thẻ đề xuất (Áp dụng, Sửa, Bỏ qua, Hoàn tác, Áp dụng tất cả, Duyệt kế hoạch) và mục trần ghi ở Cài đặt; thẻ đã có vẫn hiện như lịch sử, không còn nút. Các route đề xuất trả 403 `ai_actions_disabled`.
   - Trần của một tổ chức về `off`: `PUT /api/v1/orgs/{org}/ai/ask-write-policy` với `{"ceiling":"off"}` (chỉ owner/admin tổ chức). Chỉ tắt ghi của Hỏi UNI trong tổ chức đó; ghi qua MCP có công tắc riêng.
   - Dòng đã áp dụng không biến mất khi tắt: thay đổi và audit giữ nguyên; người hỏi không hoàn tác được cho tới khi ghi mở lại.
 - **Metric**: `uniwork_ai_ask_actions_total{tool,outcome}` (`outcome`: `proposed`, `auto_applied`, `applied`, `rejected`, `failed`, `undone`; tool ngoài registry gom về `other`) và `uniwork_ai_ask_taint_downgrades_total` (lượt Tự động có dòng mức 1 nhưng bị nhiễm nên phải chờ người hỏi). `failed` tăng nhanh: xem mã lỗi dưới. Downgrade tăng là bình thường trong workspace dùng chung, vì lượt đọc nội dung của người khác thì nhiễm.
