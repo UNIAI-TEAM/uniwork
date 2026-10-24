@@ -117,7 +117,9 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
         if (picked[i.key]) changes[i.key] = picked[i.key]!.id;
       } else if (values[i.key] !== i.initial) {
         const v = values[i.key] ?? "";
-        changes[i.key] = i.kind === "datetime" && v ? toInstant(v) : v;
+        // An emptied date clears the field: the tools take null for that and refuse "".
+        const isDate = i.kind === "date" || i.kind === "datetime";
+        changes[i.key] = isDate && !v ? null : i.kind === "datetime" ? toInstant(v) : v;
       }
     }
     if (Object.keys(changes).length === 0) return onDone();
@@ -130,7 +132,7 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
         const code = errorCode(err) ?? "";
         const known = code !== "invalid_args" && SAFE_CODE.test(code) ? t(`ai.proposal.error.${code}`, { defaultValue: "" }) : "";
         const text = known || apiErrorMessage(err) || t("ai.proposal.generic_error");
-        const field = items.find((i) => new RegExp(`\\b${i.key}\\b`).test(text))?.key ?? "";
+        const field = items.find((i) => new RegExp(`\\b${i.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text))?.key ?? "";
         setError({ field, text });
       },
     });

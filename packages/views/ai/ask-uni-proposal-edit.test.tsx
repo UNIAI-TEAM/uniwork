@@ -151,4 +151,29 @@ describe("AskUniProposalEdit", () => {
     await waitFor(() => expect(patches()).toHaveLength(1));
     expect((patches()[0]![1].body as { changes: { starts_at: string } }).changes.starts_at).toMatch(/^2026-10-10T\d\d:\d\d:00Z$/);
   });
+
+  it("clears a date with null", async () => {
+    edit(row(TASK));
+    fireEvent.click(screen.getByRole("button", { name: "Sửa Hạn" }));
+    fireEvent.click(await screen.findByText("Bỏ chọn ngày"));
+    await save();
+    await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { due_date: null } }));
+  });
+
+  it("clears a datetime with null", async () => {
+    const f = { field: "starts_at", type: "datetime", from: "2026-10-15T03:00:00Z", to: "2026-10-15T03:00:00Z" };
+    edit(row([f], { tool: "update_meeting", preview: { target: { kind: "meeting", id: "M", title: "H" }, fields: [f] } }));
+    fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
+    fireEvent.click(await screen.findByText("Bỏ chọn ngày"));
+    await save();
+    await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { starts_at: null } }));
+  });
+
+  it("still shows a refusal when a field key holds regex characters", async () => {
+    requestMock.mockImplementation((path: string) => (path === "/api/v1/ai/proposals/p1" ? Promise.reject(new ApiError("a(b is not valid", "invalid_args", 400)) : composerRoutes(path)));
+    edit(row([{ field: "a(b", type: "text", from: "x", to: "x" }]));
+    fireEvent.change(screen.getByRole("textbox", { name: "Sửa a(b" }), { target: { value: "y" } });
+    await save();
+    expect(await screen.findByRole("alert")).toHaveTextContent("a(b is not valid");
+  });
 });
