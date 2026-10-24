@@ -6200,6 +6200,11 @@
     "placeholder_project": "Ask about this project…",
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
+    "notes": {
+      "hide": "Fold these notes for a day",
+      "show_one": "Show {{count}} note",
+      "show_other": "Show {{count}} notes"
+    },
     "mode": {
       "ask": "Ask first",
       "plan": "Plan",

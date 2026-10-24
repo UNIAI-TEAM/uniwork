@@ -12,7 +12,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
-import { AskUniComposerNotes } from "./ask-uni-composer-notes";
+import { AskUniComposerNotes, AskUniComposerNotesSign } from "./ask-uni-composer-notes";
 import { AskUniModeButton, useAskUniMode } from "./ask-uni-mode-button";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
@@ -170,6 +170,7 @@ export function AskUniComposer({
         data-slot="ask-uni-composer-frame"
         className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30"
       >
+        <AskUniComposerNotesSign wsId={workspace.id} tainted={tainted} />
         {focus ? (
           <div className="flex flex-wrap gap-1.5">
             <Chip

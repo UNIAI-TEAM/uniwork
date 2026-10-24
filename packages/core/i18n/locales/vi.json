@@ -6151,6 +6151,10 @@
     "placeholder_project": "Hỏi về dự án này…",
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
+    "notes": {
+      "hide": "Thu gọn lưu ý trong 1 ngày",
+      "show_other": "Xem {{count}} lưu ý"
+    },
     "mode": {
       "ask": "Hỏi trước",
       "plan": "Kế hoạch",
