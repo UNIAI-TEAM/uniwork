@@ -93,7 +93,6 @@ type CreateChatVoiceCallSessionParams struct {
 	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
 }
 
-// tenant: parent room_id
 func (q *Queries) CreateChatVoiceCallSession(ctx context.Context, arg CreateChatVoiceCallSessionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createChatVoiceCallSession,
 		arg.ID,
@@ -183,7 +182,6 @@ type ListOutgoingChatVoiceCallSessionsParams struct {
 	InvitedAt      pgtype.Timestamptz `json:"invited_at"`
 }
 
-// tenant: by-id
 func (q *Queries) ListOutgoingChatVoiceCallSessions(ctx context.Context, arg ListOutgoingChatVoiceCallSessionsParams) ([]ChatVoiceCallSession, error) {
 	rows, err := q.db.Query(ctx, listOutgoingChatVoiceCallSessions, arg.OrganizationID, arg.CallerID, arg.InvitedAt)
 	if err != nil {
@@ -233,7 +231,6 @@ type ListPendingChatVoiceCallSessionsParams struct {
 	CallerID       string             `json:"caller_id"`
 }
 
-// tenant: by-id
 func (q *Queries) ListPendingChatVoiceCallSessions(ctx context.Context, arg ListPendingChatVoiceCallSessionsParams) ([]ChatVoiceCallSession, error) {
 	rows, err := q.db.Query(ctx, listPendingChatVoiceCallSessions, arg.OrganizationID, arg.InvitedAt, arg.CallerID)
 	if err != nil {

@@ -1,5 +1,4 @@
 -- name: CreateChatVoiceCallSession :execrows
--- tenant: parent room_id
 INSERT INTO chat_voice_call_sessions (
   id, organization_id, room_id, call_id, caller_id, caller_name, call_kind, room_name, video,
   invited_at, accepted_at, participant_ids, invitee_ids, declined_ids
@@ -58,7 +57,6 @@ WHERE room_id = $1 AND call_id = $2
 RETURNING *;
 
 -- name: ListPendingChatVoiceCallSessions :many
--- tenant: by-id
 SELECT * FROM chat_voice_call_sessions
 WHERE organization_id = $1
   AND accepted_at IS NULL
@@ -66,7 +64,6 @@ WHERE organization_id = $1
   AND caller_id <> $3;
 
 -- name: ListOutgoingChatVoiceCallSessions :many
--- tenant: by-id
 SELECT * FROM chat_voice_call_sessions
 WHERE organization_id = $1
   AND caller_id = $2
