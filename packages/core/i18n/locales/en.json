@@ -6090,7 +6090,9 @@
       "note_label": "Note (optional)",
       "note_placeholder": "Tell UNI more…",
       "note_count": "{{count}}/{{max}}",
-      "send_feedback": "Send feedback"
+      "send_feedback": "Send feedback",
+      "create_task": "Create task",
+      "create_document": "Create document"
     },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",

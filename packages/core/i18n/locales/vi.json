@@ -6042,7 +6042,9 @@
       "note_label": "Ghi chú (không bắt buộc)",
       "note_placeholder": "Cho UNI biết thêm…",
       "note_count": "{{count}}/{{max}}",
-      "send_feedback": "Gửi phản hồi"
+      "send_feedback": "Gửi phản hồi",
+      "create_task": "Tạo công việc",
+      "create_document": "Tạo tài liệu"
     },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",

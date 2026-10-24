@@ -3,17 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AiCitation } from "@uniwork/core/types";
-import { useClearAiFeedback, useSetAiFeedback } from "@uniwork/core/ai";
+import type { AiCitation, AiProposal } from "@uniwork/core/types";
+import { useAiCapabilities, useAiConversations, useClearAiFeedback, useSetAiFeedback } from "@uniwork/core/ai";
+import { useSaveAiAnswerAsDocument } from "@uniwork/core/ai/proposals";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { CreateTaskDialog } from "../tasks/create-task-dialog";
 import { answerPlainText } from "./ask-uni-text";
 
 const REASONS = ["wrong_facts", "missing_sources", "not_helpful", "other"] as const;
 const NOTE_MAX = 500;
+const TITLE_MAX = 80;
+const TaskIcon = MODULE_ICONS.tasks;
+const DocumentIcon = MODULE_ICONS.documents;
 
 function ActionButton({ label, pressed, disabled, onClick, children }: {
   label: string;
@@ -95,20 +101,27 @@ function DownFeedback({ active, onSend }: { active: boolean; onSend: (reason: st
 }
 
 /** Copy, regenerate (last answer only) and feedback under one finished answer. */
-export function AskUniActions({ conversationId, messageId, content, sources, onRegenerate, regenerateDisabled }: {
+export function AskUniActions({ conversationId, messageId, wsId, content, proposals = [], sources, onRegenerate, regenerateDisabled }: {
   conversationId: string;
   messageId: string;
+  wsId: string;
   content: string;
+  proposals?: AiProposal[];
   sources: Map<string, AiCitation>;
   onRegenerate?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.actions" });
+  const { t: tp } = useTranslation(undefined, { keyPrefix: "ai.proposal" });
   const [copied, setCopied] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
   const [rating, setRating] = useState<"up" | "down" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const set = useSetAiFeedback();
   const clear = useClearAiFeedback();
+  const saveDoc = useSaveAiAnswerAsDocument(conversationId);
+  const writes = useAiCapabilities(wsId).data?.actions?.enabled === true;
+  const convTitle = useAiConversations(wsId, writes).data?.find((c) => c.id === conversationId)?.title ?? "";
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   const copy = async () => {
@@ -145,8 +158,11 @@ export function AskUniActions({ conversationId, messageId, content, sources, onR
   // An answer with no text has nothing to copy or rate; regenerate stays.
   const hasText = content !== "";
   if (!hasText && !onRegenerate) return null;
+  const canCreate = writes && hasText;
+  // The server returns an existing row unchanged unless it failed or expired, and the card already shows it.
+  const hasDocRow = proposals.some((p) => p.position === 0 && p.tool === "create_document" && p.status !== "failed" && p.status !== "expired");
   return (
-    <div className="mt-1 flex items-center gap-0.5">
+    <div className="mt-1 flex flex-wrap items-center gap-0.5">
       {hasText ? (
         <ActionButton label={copied ? t("copied") : t("copy")} onClick={() => void copy()}>
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
@@ -157,6 +173,18 @@ export function AskUniActions({ conversationId, messageId, content, sources, onR
           <RefreshCw aria-hidden />
         </ActionButton>
       ) : null}
+      {canCreate ? (
+        <>
+          <ActionButton label={t("create_task")} onClick={() => setTaskOpen(true)}>
+            <TaskIcon aria-hidden />
+          </ActionButton>
+          {hasDocRow ? null : (
+            <ActionButton label={t("create_document")} disabled={saveDoc.isPending} onClick={() => saveDoc.mutate(messageId)}>
+              <DocumentIcon aria-hidden />
+            </ActionButton>
+          )}
+        </>
+      ) : null}
       {hasText ? (
         <>
           <ActionButton label={t("helpful")} pressed={rating === "up"} onClick={up}>
@@ -164,6 +192,20 @@ export function AskUniActions({ conversationId, messageId, content, sources, onR
           </ActionButton>
           <DownFeedback active={rating === "down"} onSend={down} />
         </>
+      ) : null}
+      {saveDoc.isError ? (
+        <p role="alert" className="basis-full text-caption text-destructive">
+          {tp("generic_error")}
+        </p>
+      ) : null}
+      {taskOpen ? (
+        <CreateTaskDialog
+          workspaceId={wsId}
+          open
+          onOpenChange={setTaskOpen}
+          showTrigger={false}
+          defaults={{ title: Array.from(convTitle).slice(0, TITLE_MAX).join(""), description: answerPlainText(content, sources) }}
+        />
       ) : null}
     </div>
   );

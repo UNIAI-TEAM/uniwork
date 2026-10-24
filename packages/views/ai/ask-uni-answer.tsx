@@ -135,7 +135,9 @@ export function AskUniMessageTurn({
           <AskUniActions
             conversationId={conversationId}
             messageId={message.id}
+            wsId={wsId}
             content={message.content}
+            proposals={message.proposals}
             sources={byId}
             onRegenerate={onRegenerate}
             regenerateDisabled={regenerateDisabled}
