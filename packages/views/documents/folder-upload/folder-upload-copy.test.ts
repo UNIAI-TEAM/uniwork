@@ -239,7 +239,7 @@ describe("refusalMessage", () => {
 // ADDENDUM 2 A7: a files-mode run has no folder, so no sentence may tell the
 // person to upload "the folder" again; the folder mode keeps its sentences.
 describe("files-mode copy", () => {
-  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target", "file_unreadable"];
+  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target"];
   const RUN = [
     "folder_upload_target_signed",
     "idempotency_payload_mismatch",
@@ -263,6 +263,21 @@ describe("files-mode copy", () => {
     }
     expect(failureReasonMessage(t, "unsupported_media", "zip_unreadable", "files")).toContain("tải lại tệp");
     expect(failureReasonMessage(en, "unsupported_media", "zip_unreadable", "files")).not.toMatch(/folder/i);
+  });
+
+  // UNI-2152: the report is where a person who kept going without the unreadable file learns what to do about it.
+  it("tells the person the path is too long and points at UniWork Office, in both modes and both languages", () => {
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "folder")).toBe(
+      "Trình duyệt không đọc được tệp này vì đường dẫn trên máy quá dài. Mở UniWork Office để tải thư mục này, hoặc chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
+    );
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "files")).toBe(
+      "Trình duyệt không đọc được tệp này vì đường dẫn trên máy quá dài. Mở UniWork Office để tải các tệp này, hoặc chép tệp vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
+    );
+    expect(failureReasonMessage(en, "file_unreadable", undefined, "folder")).toBe(
+      "The browser could not read this file because its path on this computer is too long. Open UniWork Office to upload this folder, or copy the folder to a shorter path and upload it again.",
+    );
+    expect(failureReasonMessage(en, "file_unreadable", undefined, "files")).not.toMatch(/folder/i);
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "files")).not.toContain("thư mục");
   });
 
   it("never asks for the folder again in a files-mode run error", () => {

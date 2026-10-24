@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { CircleAlert, FolderUp } from "lucide-react";
+import { CircleAlert, FolderUp, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
@@ -16,8 +16,11 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import type { OfficeHomeLaunchProps } from "../../office/office-home-launch";
+import { useOfficeHomeLaunch } from "../../office/use-office-home-launch";
 import { formatBytes } from "../doclist/format";
 import { groupSkipped, modeContext, refusalMessage, skipReasonLabel } from "./folder-upload-copy";
+import { FolderUploadUnreadableList, FolderUploadUnreadableSuggestion } from "./folder-upload-unreadable";
 
 const MIB = 1024 * 1024;
 
@@ -42,6 +45,14 @@ export interface FolderUploadDialogProps {
   /** The server said it is busy and the run is waiting out Retry-After once. */
   waiting?: boolean;
   error?: string | null;
+  /** Planned paths (root first) of the files the browser cannot read; any turns the dialog into the warning. */
+  unreadable?: readonly string[];
+  /** The probe for them is still running. */
+  checking?: boolean;
+  /** Host wiring of "Open UniWork Office"; without it (or on a device with no app) the warning suggests a shorter path. */
+  officeHome?: OfficeHomeLaunchProps;
+  /** The app opened: the folder is its to upload now, nothing was written here. */
+  onLaunched?: () => void;
   onSubmit: (options: { shareWithWorkspace: boolean }) => void;
 }
 
@@ -60,22 +71,37 @@ export function FolderUploadDialog({
   pending = false,
   waiting = false,
   error,
+  unreadable = [],
+  checking = false,
+  officeHome,
+  onLaunched,
   onSubmit,
 }: FolderUploadDialogProps) {
   const { t, i18n } = useTranslation();
   const [share, setShare] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [showAllUnreadable, setShowAllUnreadable] = useState(false);
   const shareHintId = useId();
   const popupRef = useRef<HTMLDivElement | null>(null);
-  const submitRef = useRef<HTMLButtonElement | null>(null);
+  const primaryRef = useRef<HTMLButtonElement | null>(null);
 
   // Each staged folder starts from the safe defaults: private, lists collapsed.
   useEffect(() => {
     setShare(false);
     setExpanded(new Set());
+    setShowAllUnreadable(false);
   }, [plan]);
 
   const refusal = plan?.refusal ?? null;
+  // Files the browser cannot read (UNI-2152): the dialog is the warning, with the app as its way out.
+  const warn = unreadable.length > 0 && refusal === null;
+  const launcher = useOfficeHomeLaunch(officeHome, { enabled: open && warn, onLaunched });
+  const appAvailable = launcher.status !== "unavailable";
+  const left = plan ? Math.max(0, plan.totals.files - unreadable.length) : 0;
+  // The device has no app to open: the primary action moves to the upload of the rest.
+  useEffect(() => {
+    if (warn && !appAvailable) primaryRef.current?.focus();
+  }, [warn, appAvailable]);
   // A plan with no root is a files-mode run (ADDENDUM 2): the files land in the destination itself.
   const mode = plan !== null && plan.rootName === null ? "files" : "folder";
   const ctx = modeContext(mode);
@@ -99,19 +125,27 @@ export function FolderUploadDialog({
       <DialogContent
         ref={popupRef}
         // Start on the primary action; a refused plan has none, so the dialog itself takes the focus.
-        initialFocus={() => (refusal || pending ? popupRef.current : submitRef.current) ?? true}
+        initialFocus={() => (refusal || pending ? popupRef.current : primaryRef.current) ?? true}
         className="sm:max-w-lg"
         closeLabel={t("common.close")} data-testid="folder-upload-dialog" data-mode={mode}>
         <DialogHeader>
-          <DialogTitle>{t("documents.folder_upload.dialog.title", ctx)}</DialogTitle>
-          <DialogDescription>{t("documents.folder_upload.dialog.description")}</DialogDescription>
+          <DialogTitle>
+            {warn
+              ? t("documents.folder_upload.unreadable.title", { count: unreadable.length })
+              : t("documents.folder_upload.dialog.title", ctx)}
+          </DialogTitle>
+          <DialogDescription>
+            {warn
+              ? t(`documents.folder_upload.unreadable.${unreadable.length === 1 ? "why_single" : "why_multiple"}`)
+              : t("documents.folder_upload.dialog.description")}
+          </DialogDescription>
         </DialogHeader>
         {plan ? (
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault();
-              if (refusal || pending) return;
+              if (refusal || pending || checking || launcher.launching || (warn && left === 0)) return;
               onSubmit({ shareWithWorkspace: !parentShared && share });
             }}
           >
@@ -155,6 +189,24 @@ export function FolderUploadDialog({
                 })}
               </p>
             )}
+            {checking ? (
+              <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
+                <Spinner aria-hidden role="presentation" />
+                {t("documents.folder_upload.unreadable.checking", ctx)}
+              </p>
+            ) : null}
+            {warn ? (
+              <>
+                <FolderUploadUnreadableList
+                  paths={unreadable}
+                  mode={mode}
+                  showAll={showAllUnreadable}
+                  onToggle={() => setShowAllUnreadable((value) => !value)}
+                  listId={`${shareHintId}-unreadable`}
+                />
+                <FolderUploadUnreadableSuggestion mode={mode} appAvailable={appAvailable} />
+              </>
+            ) : null}
             {plan.skipped.length > 0 ? (
               <section aria-label={t("documents.folder_upload.dialog.skipped_title", { count: plan.skipped.length })} className="flex flex-col gap-1.5">
                 <h3 className="text-caption font-medium text-foreground">
@@ -232,23 +284,74 @@ export function FolderUploadDialog({
                 {error}
               </p>
             ) : null}
-            <DialogFooter className="px-0 pb-0">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {/* -mx-4 / -mb-4: the band runs to the dialog's edges, past the content padding. */}
+            <DialogFooter className="-mx-4 -mb-4">
+              <Button type="button" variant={warn ? "ghost" : "outline"} onClick={() => onOpenChange(false)}>
                 {t("documents.folder_upload.dialog.cancel")}
               </Button>
-              <Button ref={submitRef} type="submit" aria-disabled={refusal !== null || pending || undefined} aria-busy={pending || undefined}>
-                {pending ? (
-                  <>
-                    <Spinner aria-hidden role="presentation" />
-                    {t("documents.folder_upload.dialog.submitting")}
-                  </>
-                ) : (
-                  t("documents.folder_upload.dialog.submit")
-                )}
-              </Button>
+              {warn ? (
+                <>
+                  {left > 0 ? (
+                    <Button
+                      ref={appAvailable ? undefined : primaryRef}
+                      type="submit"
+                      variant={appAvailable ? "outline" : "default"}
+                      aria-disabled={pending || launcher.launching || undefined}
+                      aria-busy={pending || undefined}
+                    >
+                      {pending ? (
+                        <>
+                          <Spinner aria-hidden role="presentation" />
+                          {t("documents.folder_upload.dialog.submitting")}
+                        </>
+                      ) : (
+                        t("documents.folder_upload.unreadable.rest", { count: left })
+                      )}
+                    </Button>
+                  ) : null}
+                  {appAvailable ? (
+                    <Button
+                      ref={primaryRef}
+                      type="button"
+                      aria-disabled={pending || launcher.launching || undefined}
+                      aria-busy={launcher.launching || undefined}
+                      onClick={() => void launcher.run()}
+                    >
+                      {launcher.launching ? (
+                        <>
+                          <Spinner aria-hidden role="presentation" />
+                          {t("documents.folder_upload.unreadable.opening")}
+                        </>
+                      ) : (
+                        <>
+                          <MonitorUp aria-hidden />
+                          {t("documents.home.open_office")}
+                        </>
+                      )}
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <Button
+                  ref={primaryRef}
+                  type="submit"
+                  aria-disabled={refusal !== null || pending || checking || undefined}
+                  aria-busy={pending || undefined}
+                >
+                  {pending ? (
+                    <>
+                      <Spinner aria-hidden role="presentation" />
+                      {t("documents.folder_upload.dialog.submitting")}
+                    </>
+                  ) : (
+                    t("documents.folder_upload.dialog.submit")
+                  )}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         ) : null}
+        {launcher.prompt}
       </DialogContent>
     </Dialog>
   );

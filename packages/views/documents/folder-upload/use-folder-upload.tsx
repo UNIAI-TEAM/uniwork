@@ -20,76 +20,16 @@ import {
 } from "@uniwork/core/documents/folder-upload";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { nodeLevel, siblingsOf } from "../document-tree-model";
-import { runErrorMessage, type FolderUploadMode } from "./folder-upload-copy";
+import type { OfficeHomeLaunchProps } from "../../office/office-home-launch";
+import { modeContext, runErrorMessage } from "./folder-upload-copy";
 import { FolderUploadDialog } from "./folder-upload-dialog";
 import { FolderUploadReportDialog } from "./folder-upload-report-dialog";
+import { abandon, newIdempotencyKey, type Destination, type ReportView, type RunChannel, type StagedFolder } from "./folder-upload-session";
 import { createFolderUploadToast, type FolderUploadToast } from "./folder-upload-toast";
+import { useUnreadableCheck } from "./use-unreadable-check";
 
-/** Where a staged folder lands, captured when it is picked or dropped so navigating away does not retarget it. */
-interface Destination {
-  /** The open folder; null at the workspace root, where the upload goes to My Folder. */
-  parentId: string | null;
-  name: string;
-  /** Tree level of the destination for the depth check: workspace root 0, My Folder 1. */
-  level: number;
-  siblingNames: string[];
-  shared: boolean;
-}
-
-interface StagedFolder {
-  /** One folder, or loose files that go straight into the destination (ADDENDUM 2). */
-  mode: FolderUploadMode;
-  entries: FolderUploadEntry<File>[];
-  destination: Destination;
-  /**
-   * Minted when the folder is staged, so a plan lost on the network is sent
-   * again under the same key (no second tree, no second open batch). Mutable:
-   * `share` is the flag the key was last sent with, null before the first try.
-   */
-  idempotency: { key: string; share: boolean | null };
-}
-
-function newIdempotencyKey(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `fu-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-/** One run's link from the runner's progress to the toast that shows it. */
-interface RunChannel {
-  handle: FolderUploadHandle | null;
-  mode: FolderUploadMode;
-  /** The folder "Mở thư mục" opens in files mode: the destination, once resolved. Folder mode opens the root. */
-  destinationId: string | null;
-  /** The first run's toast has its end state: later progress belongs to a retry. */
-  settled: boolean;
-  /** The toast of the retry under way, if any. */
-  retryToast: FolderUploadToast | null;
-  /** The toast showing the run's latest end state (the first run's, then each retry's). */
-  shownToast: FolderUploadToast | null;
-  /** The latest end state left failures in a batch that is still open. */
-  failuresLeft: boolean;
-  /** The batch was given up (report dismissed, or nothing left to retry) and canceled once. */
-  abandoned: boolean;
-  /** The user left the dialog while the plan was pending: the run cleans up in the background and owns no dialog. */
-  left: boolean;
-}
-
-/**
- * Give up a batch that is done with: a batch with pending files stays open,
- * and counts against the user's 2 open batches, until it is canceled or
- * expires (24 h). The landed files stay. Never while a retry runs: closing
- * the old report then must not cancel it (R2-1).
- */
-function abandon(channel: RunChannel): void {
-  if (channel.abandoned || channel.retryToast) return;
-  channel.abandoned = true;
-  channel.handle?.cancel();
-}
-
-interface ReportView {
-  name: string;
-  report: FolderUploadReport;
-  channel: RunChannel;
-}
+/** The hand-off toast holds long enough to read where to click in the app. */
+const HANDOFF_TOAST_MS = 12_000;
 
 export interface UseFolderUploadOptions {
   wsId: string;
@@ -108,6 +48,8 @@ export interface UseFolderUploadOptions {
   parentShared: boolean;
   /** Opens a folder of the library: "Mở thư mục" on the finished toast. */
   onOpenFolder: (folderId: string) => void;
+  /** Host wiring of "Open UniWork Office": the way out when the browser cannot read some of a pick (UNI-2152). */
+  officeHome?: OfficeHomeLaunchProps;
   /** Injected by tests; the page uses the HTTP transport of `wsId`. */
   transport?: FolderUploadTransport;
 }
@@ -129,6 +71,7 @@ export function useFolderUpload({
   resolveRootParent,
   parentShared,
   onOpenFolder,
+  officeHome,
   transport,
 }: UseFolderUploadOptions) {
   const { t, i18n } = useTranslation();
@@ -171,6 +114,21 @@ export function useFolderUpload({
       ? planFileUpload(head.entries, { limits: runLimits, parentLevel })
       : planFolderUpload(head.entries, { limits: runLimits, parentLevel, siblingNames: head.destination.siblingNames });
   }, [head, runLimits]);
+
+  // The dialog opens once the browser's read of the planned files is known: the ones it cannot open are the warning.
+  const candidates = useMemo(
+    () =>
+      head && plan
+        ? plan.files.flatMap((planned) => {
+            const file = head.entries[planned.index]?.file;
+            return file ? [{ path: planned.path, file }] : [];
+          })
+        : [],
+    [head, plan],
+  );
+  const check = useUnreadableCheck(head, candidates);
+  const headRef = useRef(head);
+  headRef.current = head;
 
   const destinationNow = useCallback((): Destination => {
     const parentId = folderId ?? myFolderId;
@@ -241,6 +199,14 @@ export function useFolderUpload({
     setPending(false);
     setWaiting(false);
     setError(null);
+  };
+
+  /** The app opened for `staged`: it is the app's to upload now, so the dialog goes without writing anything. */
+  const launchedFor = (staged: StagedFolder | null) => () => {
+    // A launch that outlived its dialog (Hủy while "Đang mở…") has no dialog left to close, nor a hand-off to announce.
+    if (!staged || headRef.current !== staged) return;
+    dismissHead();
+    toast.info(latest.current.t("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode)), { duration: HANDOFF_TOAST_MS });
   };
 
   const invalidate = () => {
@@ -450,7 +416,7 @@ export function useFolderUpload({
             }}
           />
           <FolderUploadDialog
-            open={head !== null}
+            open={head !== null && check.ready}
             onOpenChange={(open) => {
               if (open) return;
               if (pending) cancelPending();
@@ -463,6 +429,10 @@ export function useFolderUpload({
             pending={pending}
             waiting={waiting}
             error={error}
+            unreadable={check.unreadable}
+            checking={check.checking}
+            officeHome={officeHome}
+            onLaunched={launchedFor(head)}
             onSubmit={(options) => void confirm(options)}
           />
         </>
