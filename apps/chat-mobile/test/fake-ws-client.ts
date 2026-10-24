@@ -57,6 +57,10 @@ export class FakeWSClient {
   isAuthenticated(): boolean {
     return this.authenticated;
   }
+  /** Default null → HTTP fallback in use-chat-realtime tests. */
+  sendPresenceBeat(_visible: boolean): Promise<string[] | null> {
+    return Promise.resolve(null);
+  }
   getConnectionState(): ConnectionState {
     return this.connection;
   }

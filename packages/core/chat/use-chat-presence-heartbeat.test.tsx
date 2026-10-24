@@ -4,6 +4,10 @@ import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { usePresenceStore } from "./presence-store";
 import { useHostFocus } from "../platform/host-focus";
+import {
+  CHAT_PRESENCE_HEARTBEAT_MS,
+  resetPresenceHeartbeatCoordinatorForTests,
+} from "./presence-heartbeat-coordinator";
 import { useChatPresenceHeartbeat } from "./use-chat-presence-heartbeat";
 
 const beatChatPresence = vi.fn<(workspaceId: string, visible: boolean) => Promise<string[] | null>>();
@@ -39,17 +43,19 @@ describe("useChatPresenceHeartbeat", () => {
     vi.useFakeTimers();
     setSessionUser(me);
     usePresenceStore.getState().clearAll();
+    resetPresenceHeartbeatCoordinatorForTests();
     beatChatPresence.mockReset();
     signalChatPresence.mockReset().mockResolvedValue(true);
   });
 
   afterEach(() => {
+    resetPresenceHeartbeatCoordinatorForTests();
     usePresenceStore.getState().clearAll();
     resetAuthStoreForTests();
     vi.useRealTimers();
   });
 
-  it("beats on mount and every 15s, and takes each snapshot minus self", async () => {
+  it("beats on mount and every heartbeat interval, and takes each snapshot minus self", async () => {
     beatChatPresence
       .mockResolvedValueOnce(["USER_A", "USER_B"])
       .mockResolvedValueOnce(["USER_A", "USER_C"]);
@@ -59,7 +65,7 @@ describe("useChatPresenceHeartbeat", () => {
     expect(online()).toEqual({ USER_B: true });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(CHAT_PRESENCE_HEARTBEAT_MS);
     });
     expect(beatChatPresence).toHaveBeenCalledTimes(2);
     expect(online()).toEqual({ USER_C: true });
@@ -89,7 +95,13 @@ describe("useChatPresenceHeartbeat", () => {
       }),
     );
     const { unmount } = renderHook(() => useChatPresenceHeartbeat("ws1"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
     unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
     expect(signalChatPresence).toHaveBeenCalledWith("ws1", "offline", undefined);
     await act(async () => {
       resolve(["USER_B"]);
