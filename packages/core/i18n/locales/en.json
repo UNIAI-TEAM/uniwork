@@ -269,6 +269,18 @@
           "c59253aa471b10dfba393387e89f84323c95f6590": "On the website, the task demos on phones show a grouped list so task details fit the screen instead of being cut off sideways.",
           "cff18730616d298ece7119b09d7576642209166ce": "Chat fixes: when someone replies to your thread, the thread shows as unread until you open it, and its read state no longer moves back; follow-up reminder notices are marked read when you complete or delete the reminder; @ suggestions show up to 20 people, and typing more letters narrows them; a task can be linked to only one thread; day labels in the room list follow the message's day correctly."
         }
+      },
+      "v1_8_1": {
+        "title": "More reliable folder upload, cleaner statuses in Ask UNI and sturdier Chat calls",
+        "summary": "Folder upload in Documents accepts older-format Office files and says clearly when the browser cannot read a file. Ask UNI answers no longer include internal status codes, and Chat calls carry on when the server restarts.",
+        "note": "If folder upload says a file cannot be read on Windows, copy the folder to a shorter path and upload it again.",
+        "improvements": {
+          "c5a748062298e681c7f210d9fe482b678f356dad1": "Chat calls are now saved on the server: if the server restarts mid-call, a call that is ringing or in progress can still be answered, joined and ended as usual, and the call log message still records the right outcome."
+        },
+        "fixes": {
+          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1": "Folder upload in Documents: valid Word, Excel and PowerPoint files in the older formats (.doc, .xls, .ppt) are no longer reported as having the wrong format. A file the browser cannot read, usually because its Windows path is too long, is now reported clearly with a tip to copy the folder to a shorter path, instead of showing a dropped connection and retrying in vain; the error dialog shows the file name first and its folder on the line below.",
+          "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Ask UNI answers show only the status name you see on screen, without an internal status code in brackets such as \"To do (todo)\". Asking for tasks by a status name your team created, such as \"Waiting for QA\", also finds the right tasks."
+        }
       }
     }
   },

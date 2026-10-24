@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "version": "1.8.1",
+  "date": "2026-10-24",
+  "ready": true,
+  "sourceRef": "36584068134099499bc3db4023eaa46ede9f8de9",
+  "previousSourceRef": "5cf0f16ee952a903e7d10fd98356580534c58c66",
+  "title": {
+    "vi": "Tải thư mục ổn định hơn, Hỏi UNI ghi trạng thái gọn hơn và cuộc gọi Chat bền hơn",
+    "en": "More reliable folder upload, cleaner statuses in Ask UNI and sturdier Chat calls"
+  },
+  "summary": {
+    "vi": "Tải thư mục lên Tài liệu nhận đúng tệp Office định dạng cũ và báo rõ khi trình duyệt không đọc được tệp. Câu trả lời của Hỏi UNI không còn kèm mã trạng thái nội bộ, và cuộc gọi trong Chat vẫn tiếp tục được khi máy chủ khởi động lại.",
+    "en": "Folder upload in Documents accepts older-format Office files and says clearly when the browser cannot read a file. Ask UNI answers no longer include internal status codes, and Chat calls carry on when the server restarts."
+  },
+  "note": {
+    "vi": "Khi tải thư mục báo không đọc được tệp trên Windows, hãy chép thư mục vào một đường dẫn ngắn hơn rồi tải lại.",
+    "en": "If folder upload says a file cannot be read on Windows, copy the folder to a shorter path and upload it again."
+  },
+  "changes": [
+    {
+      "commit": "076b81c07ae73a3de42fc3559119ff60e2d228ee",
+      "subject": "UNI-2142: Sửa develop — test realtime mobile theo quy tắc echo mới của core (#420)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #420 (mô tả PR): sửa lỗi typecheck trên develop, hành vi không đổi; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/420"
+      }
+    },
+    {
+      "commit": "f1748028513fee5ea563749934495211d8fb4df2",
+      "subject": "chore(server): bớt log presence, typing và OPTIONS",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng không có PR; diff chỉ bớt access log 2xx cho preflight CORS, presence, typing và cache preflight (router.go, request_logger.go); vận hành máy chủ, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/handler/router/router.go",
+          "server/internal/middleware/request_logger.go",
+          "server/internal/middleware/request_logger_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "30167c4cd59702adf019e52cd77c6e8c7ed1c779",
+      "subject": "(fix): smtp",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng không có PR; diff kiểm tra cấu hình SMTP_EHLO_NAME khi khởi động máy chủ và ghi chú .env.example; cấu hình vận hành, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/mail/smtp.go",
+          "server/internal/mail/smtp_test.go",
+          ".env.example"
+        ]
+      }
+    },
+    {
+      "commit": "20ed114899a7f0d31d6b49fa58f71cc09c9c6706",
+      "subject": "UNI-2057: Changelog v1.8.0 — duyệt nội dung Việt/Anh (#395)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR công bố Changelog v1.8.0 (#395), chỉ đổi các file Changelog, không phải thay đổi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/395"
+      }
+    },
+    {
+      "commit": "04702cc25d256abc885596bc1f87a9dffa37a9e8",
+      "subject": "fix(ui): tắt cảnh báo script next-themes trên React 19",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng không có PR; diff khởi tạo theme sáng/tối sớm để next-themes không còn cảnh báo script trên React 19 (theme-boot.ts, theme-provider.tsx); chỉ bỏ cảnh báo kỹ thuật, không có thay đổi công khai rõ ràng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/ui/lib/theme-boot.ts",
+          "packages/ui/components/common/theme-provider.tsx",
+          "apps/web/app/layout.tsx",
+          "packages/ui/lib/theme-boot.test.ts"
+        ]
+      }
+    },
+    {
+      "commit": "a53b07c8f8630c90c052a4713e914607941c6e23",
+      "subject": "UNI-2142: Sửa develop — test mobile mở lại phòng theo cửa sổ tươi 5 giây của core (#423)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #423 (mô tả PR): cherry-pick sửa test mobile; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/423"
+      }
+    },
+    {
+      "commit": "0774622c54708659d3ee2f16a597992c8d62574f",
+      "subject": "test(governance): pin 30167c4cd \"(fix): smtp\" as a historical commit (#426)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #426 (mô tả PR): pin commit lịch sử trong test governance; chỉ là quy tắc repo.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/426"
+      }
+    },
+    {
+      "commit": "273d23748bd744b988c985532817b44fa2b654dc",
+      "subject": "UNI-2119: F-09 · Hỏi UNI v2 — gắn file vào câu hỏi (tải lên từ menu +, đọc vừa đủ) (#424)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #424 (mô tả PR): Hỏi UNI gắn file nằm sau cờ ask_uni_attachments mặc định tắt và chưa public; chưa đến tay người dùng nên chưa công bố. Người duyệt xác nhận nếu cờ đã được bật cho mọi người.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/424"
+      }
+    },
+    {
+      "commit": "d8bb3a1eea6ee3af8238a78e16cb906057a38ca1",
+      "subject": "UNI-2143: Tải thư mục: tệp .doc/.xls/.ppt bị từ chối qua presigned PUT, tệp không đọc được báo nhầm mất kết nối (#425)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tải thư mục lên Tài liệu: tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) hợp lệ không còn bị báo sai định dạng. Tệp mà trình duyệt không đọc được, thường do đường dẫn trên Windows quá dài, nay được báo rõ kèm gợi ý chép thư mục vào đường dẫn ngắn hơn, thay vì báo mất kết nối và thử lại vô ích; hộp thoại lỗi hiện tên tệp trước, thư mục ở dòng dưới.",
+        "en": "Folder upload in Documents: valid Word, Excel and PowerPoint files in the older formats (.doc, .xls, .ppt) are no longer reported as having the wrong format. A file the browser cannot read, usually because its Windows path is too long, is now reported clearly with a tip to copy the folder to a shorter path, instead of showing a dropped connection and retrying in vain; the error dialog shows the file name first and its folder on the line below."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/425"
+      }
+    },
+    {
+      "commit": "46cf0edb1c696d1d2e49c19fec071444856c630e",
+      "subject": "test(views): realign three chat tests with develop's intended changes (#431)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #431 (mô tả PR): cập nhật test chat của views, không đổi code sản phẩm.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/431"
+      }
+    },
+    {
+      "commit": "fc4f1ddab4294793bf81ed94ef63684a2afb1aa0",
+      "subject": "chore(ci): list the UNI-2141 PushKit test tokens in .gitleaksignore (#433)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #433 (mô tả PR): cấu hình .gitleaksignore cho token giả trong test; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/433"
+      }
+    },
+    {
+      "commit": "c5d922206823d0646337659794bedba295929f56",
+      "subject": "test(chat-mobile): people pickers wait for their rows, not for 50 ms (#429)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #429 (mô tả PR): sửa test chập chờn của app mobile; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/429"
+      }
+    },
+    {
+      "commit": "c6f478d6696a1829634d45575b8b7a736f16f0fb",
+      "subject": "UNI-2141: UniChat mobile đợt 2 — TLS pinning, Sign in with Apple, cuộc gọi iPhone (PushKit + CallKit) (#432)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #432 (mô tả PR): UniChat mobile đợt 2 (ghim TLS, Sign in with Apple, cuộc gọi iPhone qua PushKit/CallKit, push theo phòng) cho app mobile chưa phát hành; cuộc gọi iPhone sau cờ unichat_mobile_calls_ios mặc định tắt và cần bản store mới. Chưa công bố cho người dùng web.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/432"
+      }
+    },
+    {
+      "commit": "20852e835b1f884baca6c9e576c7a7fcb56fb60e",
+      "subject": "docs: record the first live eval of Ask UNI's file prompt (copilot_answer@5) (#435)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #435 (mô tả PR): ghi kết quả eval vào tài liệu vận hành; chỉ là tài liệu.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/435"
+      }
+    },
+    {
+      "commit": "c1def6d37a298966b36f85f4dbaaac952240b6ab",
+      "subject": "fix(askuni): read tools show a status by its label alone (#436)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Câu trả lời của Hỏi UNI chỉ ghi tên trạng thái như trên màn hình, không còn kèm mã trạng thái nội bộ trong ngoặc như \"Cần làm (todo)\". Hỏi công việc theo tên trạng thái mà nhóm tự đặt, ví dụ \"Chờ QA\", cũng tìm đúng công việc.",
+        "en": "Ask UNI answers show only the status name you see on screen, without an internal status code in brackets such as \"To do (todo)\". Asking for tasks by a status name your team created, such as \"Waiting for QA\", also finds the right tasks."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/436"
+      }
+    },
+    {
+      "commit": "818b5b78ad48f92b757a2e5aa7e0b1ffe428664d",
+      "subject": "test(server): PushKit test tokens are one-digit runs, so gitleaks stops flagging them (#438)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #438 (mô tả PR): đổi token giả trong test và .gitleaksignore; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/438"
+      }
+    },
+    {
+      "commit": "55717b09e07d4bfd5171a7b34cef5ca3f8a196d4",
+      "subject": "test(chat-mobile): the inbox-not-loaded case waits for the newest page before reading it (#440)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #440 (mô tả PR): sửa test chập chờn của app mobile; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/440"
+      }
+    },
+    {
+      "commit": "8c1fbe2c490eaa8d55a432fdbfa1220adf6884a4",
+      "subject": "UNI-2142: sửa hai lỗi chập chờn của CI native mobile (thông báo cuộc gọi Android, XCTest runner iOS) (#437)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #437 (mô tả PR): sửa lỗi chập chờn của CI native mobile; hạ tầng test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/437"
+      }
+    },
+    {
+      "commit": "86eaebcee7920e7f7d469b0b15c98e348e9edaca",
+      "subject": "UNI-2142: kiểm source map trên Sentry theo debug ID của đúng bản build (#434)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #434 (mô tả PR): kiểm source map trên Sentry trong workflow build mobile; hạ tầng phát hành.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/434"
+      }
+    },
+    {
+      "commit": "4919e2ddfb1dc9297ef8cb198ce0f6c36625ab24",
+      "subject": "UNI-2142: emulator Android rơi adb khi Maestro mở app — kết nối adb đứt dưới nửa giây, Maestro 2.11.0 không chịu được (#442)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #442 (mô tả PR): ổn định emulator Android trong CI; hạ tầng test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/442"
+      }
+    },
+    {
+      "commit": "deab97f9af6b03e8d2f0ff3841a5c5793341de4e",
+      "subject": "UNI-2119: Ghi bản sao PDF vào một bộ đệm cỡ file — sửa TestReadPDFOpensAScannedFileNearTheCap đỏ dưới -race và thiếu heap với PDF có mật khẩu chủ (#444)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #444 (mô tả PR): tối ưu bộ nhớ khi đọc PDF cho tính năng Hỏi UNI gắn file đang sau cờ mặc định tắt (#424); chưa công bố.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/444"
+      }
+    },
+    {
+      "commit": "003a784ec064e04962f12035e204d0da270fa24d",
+      "subject": "UNI-2142: vá zod 4.6.7 và electron 43.8.3 (pnpm audit high chặn mọi PR) (#446)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #446 (mô tả PR): nâng phiên bản thư viện zod và electron để qua kiểm tra pnpm audit; cập nhật phụ thuộc, không có thay đổi công khai được mô tả.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/446"
+      }
+    },
+    {
+      "commit": "1d0f2d809a5851c8a64973c5629a8c3d83294a5b",
+      "subject": "UNI-2142: tách native-chat-message-panel dưới 500 dòng (lint chặn PR lên main) (#445)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #445 (mô tả PR): tách file để qua lint max-lines; refactor thuần kỹ thuật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/445"
+      }
+    },
+    {
+      "commit": "1a82753c5a26f722cd9a8835251a23fcc598fde7",
+      "subject": "feat(chat): beat presence over WebSocket with HTTP fallback",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #447 chỉ có template chưa điền; diff chuyển nhịp presence của Chat sang WebSocket có dự phòng HTTP và gộp nhịp để giảm request (presence-heartbeat-coordinator.ts, hub.go); tối ưu kỹ thuật, trạng thái trực tuyến hiển thị như trước.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/chat/presence-heartbeat-coordinator.ts",
+          "packages/core/api/ws-client.ts",
+          "server/internal/realtime/hub.go",
+          "server/internal/handler/chat_presence_signaler.go",
+          "server/internal/realtime/hub_presence_beat_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "a785211e51185316857fb3905e17fbd06195b73f",
+      "subject": "fix(core): probe a zero-size picked file by reading it, not a slice (#448)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #448 (mô tả PR): bản vá tiếp theo của #425 để nhận diện tệp đường dẫn dài có cỡ 0; nội dung đã gộp vào mục tải thư mục (d8bb3a1ee).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/448"
+      }
+    },
+    {
+      "commit": "1f9799ebb88927d92f6b13b4b9aa7d9d7ddf5b69",
+      "subject": "fix(core): type the presence heartbeat timers as the window timer ids (#449)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #449 (mô tả PR): sửa kiểu timer để web build qua typecheck, hành vi không đổi.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/449"
+      }
+    },
+    {
+      "commit": "5a748062298e681c7f210d9fe482b678f356dad1",
+      "subject": "feat(chat): luu session cuoc goi tren Postgres (UNI-1737)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cuộc gọi trong Chat được lưu trên máy chủ: nếu máy chủ khởi động lại giữa chừng, cuộc gọi đang đổ chuông hoặc đang diễn ra vẫn nhận, vào và kết thúc được như bình thường, và tin nhắn nhật ký cuộc gọi vẫn ghi đúng kết quả.",
+        "en": "Chat calls are now saved on the server: if the server restarts mid-call, a call that is ringing or in progress can still be answered, joined and ended as usual, and the call log message still records the right outcome."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_voice.go",
+          "server/internal/service/chat_voice_session_db.go",
+          "server/pkg/db/queries/chat_voice_call_session.sql",
+          "server/internal/service/chat_voice_session_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "9dd5b627f5372f97e86afd2ce08712644b69d992",
+      "subject": "fix(chat): drop redundant tenant comments on voice session sqlc (UNI-1737)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #451 chỉ có template chưa điền; diff bỏ chú thích tenant thừa trong truy vấn sqlc của phiên cuộc gọi; gộp vào mục lưu cuộc gọi (5a7480622).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/pkg/db/queries/chat_voice_call_session.sql"
+        ]
+      }
+    },
+    {
+      "commit": "f1d66a0e3a6af1c48e3a14a34956eb1f5e200f5e",
+      "subject": "fix(chat): voice session lists and Postgres accept persist (UNI-1737)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #451 chỉ có template chưa điền; diff hoàn thiện danh sách cuộc gọi chờ/đang gọi và ghi trạng thái nhận cuộc gọi vào Postgres; gộp vào mục lưu cuộc gọi (5a7480622).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_voice.go",
+          "server/internal/service/chat_voice_session_db.go",
+          "server/internal/service/tenant_export_tables.go"
+        ]
+      }
+    }
+  ]
+}

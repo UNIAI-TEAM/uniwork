@@ -269,6 +269,18 @@
           "c59253aa471b10dfba393387e89f84323c95f6590": "Trên trang giới thiệu, bản minh họa công việc trên điện thoại hiện dạng danh sách theo nhóm để thông tin công việc vừa màn hình, không bị cắt ngang.",
           "cff18730616d298ece7119b09d7576642209166ce": "Sửa lỗi Chat: khi có người trả lời chủ đề của bạn, chủ đề hiện là chưa đọc cho tới khi bạn mở nó, và trạng thái đã đọc không bị lùi lại; thông báo nhắc theo dõi được đánh dấu đã đọc khi bạn hoàn tất hoặc xóa nhắc đó; gợi ý khi gõ @ hiện tối đa 20 người, gõ thêm chữ để lọc; một công việc chỉ nối được với một chủ đề; nhãn ngày ở danh sách phòng tính đúng theo ngày của tin nhắn."
         }
+      },
+      "v1_8_1": {
+        "title": "Tải thư mục ổn định hơn, Hỏi UNI ghi trạng thái gọn hơn và cuộc gọi Chat bền hơn",
+        "summary": "Tải thư mục lên Tài liệu nhận đúng tệp Office định dạng cũ và báo rõ khi trình duyệt không đọc được tệp. Câu trả lời của Hỏi UNI không còn kèm mã trạng thái nội bộ, và cuộc gọi trong Chat vẫn tiếp tục được khi máy chủ khởi động lại.",
+        "note": "Khi tải thư mục báo không đọc được tệp trên Windows, hãy chép thư mục vào một đường dẫn ngắn hơn rồi tải lại.",
+        "improvements": {
+          "c5a748062298e681c7f210d9fe482b678f356dad1": "Cuộc gọi trong Chat được lưu trên máy chủ: nếu máy chủ khởi động lại giữa chừng, cuộc gọi đang đổ chuông hoặc đang diễn ra vẫn nhận, vào và kết thúc được như bình thường, và tin nhắn nhật ký cuộc gọi vẫn ghi đúng kết quả."
+        },
+        "fixes": {
+          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1": "Tải thư mục lên Tài liệu: tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) hợp lệ không còn bị báo sai định dạng. Tệp mà trình duyệt không đọc được, thường do đường dẫn trên Windows quá dài, nay được báo rõ kèm gợi ý chép thư mục vào đường dẫn ngắn hơn, thay vì báo mất kết nối và thử lại vô ích; hộp thoại lỗi hiện tên tệp trước, thư mục ở dòng dưới.",
+          "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Câu trả lời của Hỏi UNI chỉ ghi tên trạng thái như trên màn hình, không còn kèm mã trạng thái nội bộ trong ngoặc như \"Cần làm (todo)\". Hỏi công việc theo tên trạng thái mà nhóm tự đặt, ví dụ \"Chờ QA\", cũng tìm đúng công việc."
+        }
       }
     }
   },
