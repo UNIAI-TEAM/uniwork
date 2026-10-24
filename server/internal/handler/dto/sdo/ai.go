@@ -301,11 +301,12 @@ type AiProposalAudienceDTO struct {
 
 // AiProposalPreviewDTO is what the card shows before anything is written.
 type AiProposalPreviewDTO struct {
-	Target   AiContextRefDTO       `json:"target" description:"Đối tượng bị đổi; id rỗng khi tạo mới"`
-	Fields   []AiProposalFieldDTO  `json:"fields"`
-	Body     string                `json:"body" description:"Chữ nguyên văn sẽ đăng (bình luận, tin chat) hoặc nội dung trang sẽ tạo; hiện bằng chữ thuần"`
-	Audience AiProposalAudienceDTO `json:"audience"`
-	Refs     []int                 `json:"refs" description:"position của các dòng mà dòng này trỏ tới qua {{row:N.id}}"`
+	Target        AiContextRefDTO       `json:"target" description:"Đối tượng bị đổi; id rỗng khi tạo mới"`
+	Fields        []AiProposalFieldDTO  `json:"fields"`
+	Body          string                `json:"body" description:"Chữ nguyên văn sẽ đăng (bình luận, tin chat) hoặc nội dung trang sẽ tạo; hiện bằng chữ thuần"`
+	BodyTruncated bool                  `json:"body_truncated" description:"true khi body chỉ là phần đầu của nội dung (trang dài hơn thẻ hiện được); khi đó không sửa body từ thẻ" example:"false"`
+	Audience      AiProposalAudienceDTO `json:"audience"`
+	Refs          []int                 `json:"refs" description:"position của các dòng mà dòng này trỏ tới qua {{row:N.id}}"`
 }
 
 // AiProposalDTO is one row of a proposal card. A failed apply is answered

@@ -157,3 +157,33 @@ func TestAskWriteGateBudget(t *testing.T) {
 		t.Fatalf("a closed gate spent the budget: %q", why)
 	}
 }
+
+// agentActionsFlags turns ask_uni_actions on and the agent on or off.
+type agentActionsFlags struct{ agent bool }
+
+func (f agentActionsFlags) IsEnabled(_ context.Context, key string, def bool) bool {
+	switch key {
+	case askActionsFlag:
+		return true
+	case askAgentFlag:
+		return f.agent
+	}
+	return def
+}
+
+// Writes are offered only where the turn runs the agent, as attachments are:
+// with the actions flag on and the agent off, no turn is offered a write tool.
+func TestCapabilitiesOfferActionsOnlyWhereTheAgentRuns(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	s.SetReadTools(NewMcpToolService(s.q, s, NewHomeService(s.q, s.ws), s.ws, "https://app.example.test"))
+	for _, c := range []struct{ agent, want bool }{{true, true}, {false, false}} {
+		s.SetFlags(agentActionsFlags{agent: c.agent})
+		caps, err := s.Capabilities(context.Background(), ua.ID, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if caps.Actions.Enabled != c.want {
+			t.Errorf("agent %v: Actions.Enabled = %v, want %v", c.agent, caps.Actions.Enabled, c.want)
+		}
+	}
+}

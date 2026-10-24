@@ -45,7 +45,7 @@ func toAiProposalDTO(p service.AskProposal) sdo.AiProposalDTO {
 		Status: p.Status, Decision: p.Decision, CanUndo: p.CanUndo, ErrorCode: p.ErrorCode, Tainted: p.Tainted,
 		ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
 		Preview: sdo.AiProposalPreviewDTO{
-			Target: contextRefDTO(p.Preview.Target), Fields: fields, Body: p.Preview.Body, Refs: refs,
+			Target: contextRefDTO(p.Preview.Target), Fields: fields, Body: p.Preview.Body, BodyTruncated: p.Preview.BodyTruncated, Refs: refs,
 			Audience: sdo.AiProposalAudienceDTO{
 				Visibility: p.Preview.Audience.Visibility, RoomMembers: p.Preview.Audience.RoomMembers,
 				Notifies: notifies, NotifiesMore: p.Preview.Audience.NotifiesMore,
@@ -166,9 +166,9 @@ func (h *handlers) refuseAskActionsOff(w http.ResponseWriter, r *http.Request, o
 }
 
 func (h *handlers) setAskUniMode(w http.ResponseWriter, r *http.Request) {
-	// User-scoped on purpose: the mode names no organization, and it is
-	// clamped to the organization's ceiling when a question is asked or a row
-	// applied, so an organization override of the flag still governs those.
+	// The mode names no organization: the service reads the flag for the
+	// person's own. It is clamped to the organization's ceiling when a question
+	// is asked or a row applied, so an organization override still governs those.
 	if h.refuseAskActionsOff(w, r, "") {
 		return
 	}

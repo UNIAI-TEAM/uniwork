@@ -233,8 +233,6 @@ func TestApplyProposalRefusals(t *testing.T) {
 	}
 }
 
-// A plan runs its rows in order and stops at the first that fails; in plan
-// mode the rows left out are rejected in the same call (R13).
 // proposePlan stores a plan-mode answer: row 1 creates the project, row 2 a
 // task in it ({{row:1.id}}), row 3 a task of its own.
 func proposePlan(t *testing.T, s *AskUNIService, tc ai.ToolContext, project string) (string, string, []db.AgentActionProposal) {
@@ -254,6 +252,8 @@ func statuses(ps []AskProposal) string {
 	return strings.Join(out, " ")
 }
 
+// A plan runs its rows in order and stops at the first that fails; in plan
+// mode the rows left out are rejected in the same call (R13).
 func TestApplyPlanStopsAtTheFirstFailure(t *testing.T) {
 	x, s, tc := proposalWorld(t)
 	ctx := context.Background()
@@ -359,11 +359,11 @@ func TestEditProposalRevalidates(t *testing.T) {
 	if _, err := s.orgs.Create(ctx, uc.ID, "Org C", "org-edit-c"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{"assignee_id": rawJSON(uc.ID)}); !errors.As(err, new(McpInvalidArgs)) {
-		t.Fatalf("assignee from another organization: %v, want McpInvalidArgs", err)
+	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{"assignee_id": rawJSON(uc.ID)}); codeOf(err) != "invalid_args" {
+		t.Fatalf("assignee from another organization: %v, want invalid_args", err)
 	}
-	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{"bogus": rawJSON(1)}); !errors.As(err, new(McpInvalidArgs)) {
-		t.Fatalf("unknown field: %v, want McpInvalidArgs", err)
+	if _, err := s.EditProposal(ctx, x.ua.ID, row.ID, map[string]json.RawMessage{"bogus": rawJSON(1)}); codeOf(err) != "invalid_args" {
+		t.Fatalf("unknown field: %v, want invalid_args", err)
 	}
 	if _, err := s.EditProposal(ctx, x.ub.ID, row.ID, map[string]json.RawMessage{"title": rawJSON("của B")}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("someone else's edit: %v, want ErrNotFound", err)

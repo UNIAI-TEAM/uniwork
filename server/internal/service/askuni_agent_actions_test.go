@@ -594,7 +594,7 @@ func TestEditProposalRefusesASecondRowOnOneObject(t *testing.T) {
 		askPrepare(t, s, tc, "update_task", fmt.Sprintf(`{"task_id":%q,"priority":"high"}`, other.ID)),
 		askPrepare(t, s, tc, "add_comment", fmt.Sprintf(`{"task_id":%q,"body":"Ghi chú"}`, other.ID)))
 	retarget := map[string]json.RawMessage{"task_id": rawJSON(x.taskID)}
-	if _, err := s.EditProposal(ctx, x.ua.ID, rows[1].ID, retarget); !errors.As(err, new(McpInvalidArgs)) {
+	if _, err := s.EditProposal(ctx, x.ua.ID, rows[1].ID, retarget); codeOf(err) != "invalid_args" {
 		t.Fatalf("second update of one task: err %v", err)
 	}
 	if got := proposalRow(t, s, rows[1].ID); got.TargetID.String != other.ID || got.UpdatedAt != rows[1].UpdatedAt {

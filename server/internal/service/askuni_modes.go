@@ -85,10 +85,28 @@ func (s *AskUNIService) askActionsFlag(ctx context.Context, tc ai.ToolContext) b
 }
 
 // AskActionsEnabled is the kill switch (R2) for the routes that name no
-// proposal: the person's mode and the organization's ceiling. orgID may be
-// empty (the mode route names no organization).
+// proposal: the person's mode and the organization's ceiling. The mode route
+// names no organization (orgID empty), so the flag is read for the person's
+// own, as capabilities read it: one per account (ADR 0032), and any of them on
+// an account from before that rule. The mode is clamped by the organization
+// wherever it is used, so on in one of them is enough.
 func (s *AskUNIService) AskActionsEnabled(ctx context.Context, userID, orgID string) bool {
-	return s.askActionsFlag(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID})
+	if orgID != "" {
+		return s.askActionsFlag(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID})
+	}
+	orgs, err := activeOrganizations(ctx, s.q, userID)
+	if err != nil {
+		return false
+	}
+	if len(orgs) == 0 {
+		return s.askActionsFlag(ctx, ai.ToolContext{ActorID: userID})
+	}
+	for _, o := range orgs {
+		if s.askActionsFlag(ctx, ai.ToolContext{ActorID: userID, OrganizationID: o.ID}) {
+			return true
+		}
+	}
+	return false
 }
 
 // askActions reads the flag, the ceiling and the saved mode; requested wins

@@ -324,6 +324,22 @@ func askFailureCode(err error) string {
 	return askApplyFailed
 }
 
+// askRefusal is a tool's refusal as the proposal routes answer it, for the
+// calls that run prepare or an inverse (Sửa, Tạo tài liệu, Hoàn tác): invalid
+// arguments are 400 invalid_args, a tool's own refusal is 409 with its code,
+// and anything else passes as it is, so no handler learns MCP types.
+func askRefusal(err error) error {
+	var invalid McpInvalidArgs
+	var refusal McpToolError
+	switch {
+	case errors.As(err, &invalid):
+		return CodedError{Code: "invalid_args", Status: http.StatusBadRequest, Msg: invalid.Msg}
+	case errors.As(err, &refusal):
+		return CodedError{Code: refusal.Code, Status: http.StatusConflict, Msg: refusal.Msg}
+	}
+	return err
+}
+
 // proposalEntry is the audit row of a decision on row. It names what the row
 // made or changed the way the repo audits it: a comment under its task or page
 // with comment_id in the metadata; a sent chat message, which has no business

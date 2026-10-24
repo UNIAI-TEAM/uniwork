@@ -42,11 +42,13 @@ type AskAudience struct {
 
 // AskProposalPreview is what the card shows before anything is written (R7).
 type AskProposalPreview struct {
-	Target   AskContextRef      `json:"target"`
-	Fields   []AskProposalField `json:"fields"`
-	Body     string             `json:"body"`
-	Audience AskAudience        `json:"audience"`
-	Refs     []int              `json:"refs"`
+	Target AskContextRef      `json:"target"`
+	Fields []AskProposalField `json:"fields"`
+	Body   string             `json:"body"`
+	// BodyTruncated is a Body cut to fit the card: Sửa cannot edit it.
+	BodyTruncated bool        `json:"body_truncated,omitempty"`
+	Audience      AskAudience `json:"audience"`
+	Refs          []int       `json:"refs"`
 }
 
 // AskProposalResult is what a tool's apply reports back.

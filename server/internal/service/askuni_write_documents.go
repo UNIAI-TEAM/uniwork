@@ -184,7 +184,8 @@ func (s *AskUNIService) prepareCreateDocument(ctx context.Context, tc ai.ToolCon
 		Tool: "create_document", Args: stored, TargetKind: "document", Level: level, Read: read,
 		Preview: AskProposalPreview{
 			Target: AskContextRef{Kind: "document", Title: title}, Fields: fields, Body: askDocBody(in.Content), Refs: refs,
-			Audience: AskAudience{Visibility: visibility, Notifies: []AskContextRef{}},
+			BodyTruncated: utf8.RuneCountInString(in.Content) > mcpMaxItemRunes,
+			Audience:      AskAudience{Visibility: visibility, Notifies: []AskContextRef{}},
 		},
 	}, nil
 }

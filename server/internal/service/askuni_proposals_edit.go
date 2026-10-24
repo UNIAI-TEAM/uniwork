@@ -59,10 +59,10 @@ func (s *AskUNIService) EditProposal(ctx context.Context, userID, proposalID str
 	}
 	d, err := tool.prepare(ctx, proposalContext(row), merged, earlier)
 	if err != nil {
-		return AskProposal{}, err
+		return AskProposal{}, askRefusal(err)
 	}
 	if err := s.askEditClash(ctx, row, d); err != nil {
-		return AskProposal{}, err
+		return AskProposal{}, askRefusal(err)
 	}
 	preview, err := json.Marshal(d.Preview)
 	if err != nil {
@@ -158,7 +158,7 @@ func (s *AskUNIService) finishUndo(ctx context.Context, userID string, row db.Ag
 		if guarded {
 			return askProposalOf(back, s.now()), errAskUndoUnavailable
 		}
-		return askProposalOf(back, s.now()), runErr
+		return askProposalOf(back, s.now()), askRefusal(runErr)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

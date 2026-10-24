@@ -151,5 +151,6 @@ func (s *AskUNIService) answerDocumentDraft(ctx context.Context, tc ai.ToolConte
 	if err != nil {
 		return askDraftRow{}, err
 	}
-	return tool.prepare(ctx, tc, args, nil)
+	d, err := tool.prepare(ctx, tc, args, nil)
+	return d, askRefusal(err)
 }

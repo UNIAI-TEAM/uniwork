@@ -20,6 +20,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // Ask UNI's proposal routes over the real router (ADR 0044, R17). The model is
@@ -42,6 +43,7 @@ func (f propFlags) IsEnabled(_ context.Context, key string, def bool) bool {
 
 type propWorld struct {
 	srv               *httptest.Server
+	ask               *service.AskUNIService
 	pool              *pgxpool.Pool
 	q                 *db.Queries
 	fake              *provider.Fake
@@ -87,7 +89,7 @@ func newPropWorld(t *testing.T) *propWorld {
 	d.AskUNI.SetReadTools(service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin))
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
-	w := &propWorld{srv: srv, pool: pool, q: q, fake: fake, actions: actions}
+	w := &propWorld{srv: srv, ask: d.AskUNI, pool: pool, q: q, fake: fake, actions: actions}
 	var wsID string
 	w.owner, wsID = registerOrgWorkspace(t, srv, "askprop-owner@example.com", "Owner", "askprop")
 	w.wsID = wsID
@@ -528,4 +530,86 @@ func TestApplyAllReportsTheRowThatStoppedTheRun(t *testing.T) {
 	if f := out["error"].(map[string]any)["fields"]; f != nil {
 		t.Errorf("a refusal carries fields %v, want none", f)
 	}
+}
+
+// A refused edit is the asker's to fix: invalid arguments are 400
+// invalid_args and a tool's refusal is 409 with its own code, never a 500, and
+// the row is left as it was.
+func TestAskUniRefusedEditIsTheCallersToFix(t *testing.T) {
+	w := newPropWorld(t)
+	row := w.createRow(t, 1, "Việc một")
+	path := "/api/v1/ai/proposals/" + row.ID
+	for _, changes := range []map[string]any{{"title": ""}, {"nope": 1}} {
+		res, out := w.call(t, w.owner, "PATCH", path, map[string]any{"changes": changes})
+		wantError(t, fmt.Sprintf("an edit with %v", changes), res, out, http.StatusBadRequest, "invalid_args")
+	}
+	if res, out := w.call(t, w.owner, "POST", "/api/v1/workspaces/"+w.wsID+"/projects", map[string]any{"title": "Website"}); res.StatusCode != http.StatusCreated && res.StatusCode != http.StatusOK {
+		t.Fatalf("project: %d %v", res.StatusCode, out)
+	}
+	project := w.seed(t, 2, "create_project", `{"title":"Khác"}`, "pending", "", nil)
+	res, out := w.call(t, w.owner, "PATCH", "/api/v1/ai/proposals/"+project.ID, map[string]any{"changes": map[string]any{"title": "Website"}})
+	wantError(t, "an edit to a title another project has", res, out, http.StatusConflict, "duplicate_project_title")
+	for _, r := range []db.AgentActionProposal{row, project} {
+		var payload, status string
+		if err := w.pool.QueryRow(context.Background(), `SELECT payload, status FROM agent_action_proposals WHERE id = $1`, r.ID).Scan(&payload, &status); err != nil {
+			t.Fatal(err)
+		}
+		if payload != r.Payload || status != "pending" {
+			t.Errorf("a refused edit changed the row: %s %s, want %s pending", payload, status, r.Payload)
+		}
+	}
+}
+
+// Sửa on a page UNI drafts changes its content under the tool's own
+// argument, and the preview says when it holds only the start of the page.
+func TestAskUniEditsTheContentOfADraftedPage(t *testing.T) {
+	w := newPropWorld(t)
+	row := w.seed(t, 1, "create_document", `{"title":"Trang","content":"Cũ"}`, "pending", "", nil)
+	res, out := w.call(t, w.owner, "PATCH", "/api/v1/ai/proposals/"+row.ID, map[string]any{"changes": map[string]any{"content": "Mới"}})
+	if res.StatusCode != 200 {
+		t.Fatalf("edit content: %d %v", res.StatusCode, out)
+	}
+	preview := out["preview"].(map[string]any)
+	if preview["body"] != "Mới" || preview["body_truncated"] != false {
+		t.Errorf("preview = %v, want body Mới, not truncated", preview)
+	}
+	long := strings.Repeat("a", 16001)
+	res, out = w.call(t, w.owner, "PATCH", "/api/v1/ai/proposals/"+row.ID, map[string]any{"changes": map[string]any{"content": long}})
+	if res.StatusCode != 200 {
+		t.Fatalf("edit long content: %d %v", res.StatusCode, out)
+	}
+	if preview := out["preview"].(map[string]any); preview["body_truncated"] != true || len(preview["body"].(string)) >= len(long) {
+		t.Errorf("a page longer than the preview: body_truncated = %v, body %d chars", preview["body_truncated"], len(preview["body"].(string)))
+	}
+}
+
+// orgActionsFlags turns the agent on, and ask_uni_actions on for one
+// organization only: the override an operator sets in /admin/flags.
+type orgActionsFlags struct{ org string }
+
+func (f orgActionsFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
+	switch key {
+	case "ask_uni_agent":
+		return true
+	case "ask_uni_actions":
+		return featureflag.EvalContextFrom(ctx).OrganizationID == f.org
+	}
+	return def
+}
+
+// The mode route names no organization, so the kill switch is read for the
+// person's own: on for that organization alone still lets the mode save.
+func TestAskUniModeSavesUnderAnOrganizationOverride(t *testing.T) {
+	w := newPropWorld(t)
+	w.ask.SetFlags(orgActionsFlags{org: w.orgID})
+	if _, caps := w.call(t, w.owner, "GET", "/api/v1/workspaces/"+w.wsID+"/ai/capabilities", nil); caps["actions"].(map[string]any)["enabled"] != true {
+		t.Fatalf("capabilities.actions = %v, want enabled", caps["actions"])
+	}
+	res, out := w.call(t, w.owner, "PUT", "/api/v1/me/ask-uni-mode", map[string]any{"mode": "plan"})
+	if res.StatusCode != 200 || out["mode"] != "plan" {
+		t.Fatalf("mode with the flag on for the organization: %d %v", res.StatusCode, out)
+	}
+	w.ask.SetFlags(orgActionsFlags{org: "another-organization"})
+	res, out = w.call(t, w.owner, "PUT", "/api/v1/me/ask-uni-mode", map[string]any{"mode": "ask"})
+	wantError(t, "mode with the flag on elsewhere only", res, out, http.StatusForbidden, "ai_actions_disabled")
 }

@@ -227,7 +227,10 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	}
 	out.AskUni = true
 	out.Attachments = s.attachmentsEnabled(ctx, userID, w)
-	out.Actions = s.askActions(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, "")
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	out.Actions = s.askActions(ctx, tc, "")
+	// Write tools reach only an agent turn (agentOn), as files do.
+	out.Actions.Enabled = out.Actions.Enabled && s.agentOn(ctx, tc)
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
