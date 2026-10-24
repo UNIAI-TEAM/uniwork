@@ -87,6 +87,13 @@ describe("AskUniProposalCard", () => {
     expect(init.body).toEqual({ proposal_ids: ["p1", "p3"] });
   });
 
+  it("stops asking to pick steps once no step of the plan waits", () => {
+    const done = { status: "applied", can_undo: true, result: { object_id: "T1", href: "/acme/team/tasks/T1", revision: 2, changes: [], note: "" } };
+    mount([row({ id: "p1", mode: "plan", ...done }), row({ id: "p2", position: 2, mode: "plan", status: "rejected" })]);
+    expect(screen.queryByText(/chọn bước cần làm/)).toBeNull();
+    expect(screen.getByRole("region", { name: "Đề xuất của UNI" })).toBeInTheDocument();
+  });
+
   it("shows a comment body verbatim", () => {
     const body = "Dòng 1\n**đậm** <b>x</b> https://a.b";
     const { container } = mount([

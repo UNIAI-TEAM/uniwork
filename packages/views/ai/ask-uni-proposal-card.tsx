@@ -53,7 +53,7 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
     applyMany.mutate({ messageId: message.id, ids }, { onError: (err) => setCardError(errorCode(err) ?? "default") });
   };
 
-  const header = plan ? "header_plan" : pending.length > 0 && !readOnly ? "header_ask" : "header_done";
+  const header = plan && steps.length > 0 ? "header_plan" : pending.length > 0 && !readOnly ? "header_ask" : "header_done";
   return (
     <section aria-label={t(`ai.proposal.${header}`)} className="mt-3 flex flex-col gap-2">
       <h3 className="text-caption font-medium text-muted-foreground">{t(`ai.proposal.${header}`)}</h3>
