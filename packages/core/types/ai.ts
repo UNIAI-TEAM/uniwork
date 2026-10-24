@@ -28,6 +28,10 @@ export const AiCapabilitiesSchema = z.object({
   auto_model: z.string().catch(""),
   // A malformed flag hides the upload entry; it never turns AI off.
   attachments: z.boolean().catch(false),
+  // Ask UNI's write state; a malformed block reads as writes off, never as AI off.
+  actions: z
+    .object({ enabled: z.boolean().catch(false), ceiling: z.string().catch("off"), mode: z.string().catch("") })
+    .catch({ enabled: false, ceiling: "off", mode: "" }),
 });
 export type AiCapabilities = z.infer<typeof AiCapabilitiesSchema>;
 
@@ -83,6 +87,76 @@ export const AskUploadedFileSchema = z.object({
 });
 export type AskUploadedFile = z.infer<typeof AskUploadedFileSchema>;
 
+const ProposalRefSchema = z.object({ kind: z.string().catch(""), id: z.string().catch(""), title: z.string().catch("") });
+
+const EMPTY_PREVIEW = {
+  target: { kind: "", id: "", title: "" },
+  fields: [],
+  body: "",
+  audience: { visibility: "", room_members: 0, notifies: [], notifies_more: false },
+  refs: [],
+};
+const EMPTY_RESULT = { object_id: "", href: "", revision: 0, changes: [], note: "" };
+
+/**
+ * One row of a proposal card (server AiProposalDTO). Every field degrades on
+ * its own; `status` and the other enums stay strings so a value a newer server
+ * adds still parses. `from`/`to` are readable values of any shape.
+ */
+export const AiProposalSchema = z.object({
+  id: z.string().catch(""),
+  message_id: z.string().catch(""),
+  position: z.number().catch(0),
+  tool: z.string().catch(""),
+  level: z.string().catch(""),
+  mode: z.string().catch(""),
+  status: z.string().catch("unknown"),
+  decision: z.string().catch(""),
+  preview: z
+    .object({
+      target: ProposalRefSchema.catch(EMPTY_PREVIEW.target),
+      fields: z
+        .array(
+          z.object({
+            field: z.string().catch(""),
+            type: z.string().catch(""),
+            from: z.unknown(),
+            to: z.unknown(),
+            options: z.array(z.string()).catch([]),
+          }),
+        )
+        .catch([]),
+      body: z.string().catch(""),
+      audience: z
+        .object({
+          visibility: z.string().catch(""),
+          room_members: z.number().catch(0),
+          notifies: z.array(ProposalRefSchema).catch([]),
+          notifies_more: z.boolean().catch(false),
+        })
+        .catch(EMPTY_PREVIEW.audience),
+      refs: z.array(z.number()).catch([]),
+    })
+    .catch(EMPTY_PREVIEW),
+  result: z
+    .object({
+      object_id: z.string().catch(""),
+      href: z.string().catch(""),
+      revision: z.number().catch(0),
+      changes: z.array(z.object({ field: z.string().catch(""), from: z.unknown(), to: z.unknown() })).catch([]),
+      note: z.string().catch(""),
+    })
+    .catch(EMPTY_RESULT),
+  can_undo: z.boolean().catch(false),
+  error_code: z.string().catch(""),
+  tainted: z.boolean().catch(false),
+  expires_at: z.string().catch(""),
+});
+/** `expired` and `unknown` are computed by the server at read time; any other string is a status this client does not know. */
+export type AiProposal = Omit<z.infer<typeof AiProposalSchema>, "status"> & {
+  status: "pending" | "applying" | "applied" | "rejected" | "failed" | "undoing" | "undone" | "expired" | "unknown" | (string & {});
+};
+
 export const AiMessageSchema = z.object({
   id: z.string(),
   role: z.string(),
@@ -101,6 +175,8 @@ export const AiMessageSchema = z.object({
   attachments: z.array(AiAttachmentSchema).catch([]),
   // On an answer: the files UNI read only in part. Same rule.
   file_notes: z.array(AiFileNoteSchema).catch([]),
+  // On an answer: the rows UNI proposes, by position; a malformed list never drops the answer.
+  proposals: z.array(AiProposalSchema).catch([]),
   created_at: z.string().optional().default(""),
 });
 export type AiMessage = Omit<z.infer<typeof AiMessageSchema>, "role"> & { role: "user" | "assistant" | (string & {}) };
@@ -110,6 +186,8 @@ export const AiConversationSchema = z.object({
   title: z.string().optional().default(""),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
+  // The conversation read something that is not the asker's own words, so UNI applies nothing by itself.
+  tainted: z.boolean().catch(false),
 });
 export type AiConversation = z.infer<typeof AiConversationSchema>;
 
@@ -165,6 +243,8 @@ export interface AskUniInput {
   regenerate_message_id?: string;
   /** Up to 5 `file_id`s from the upload route, in attach order; the server refuses them together with `regenerate_message_id`. */
   attachment_ids?: string[];
+  /** "ask" | "plan" | "auto"; sent only when set, absent = the asker's saved mode. */
+  mode?: string;
 }
 
 export const AskModelsSchema = z.object({ models: z.array(z.string()) });

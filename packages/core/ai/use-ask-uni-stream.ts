@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askUniStream, type AskUniStreamEvent } from "../api/endpoints/ai-stream";
 import { errorCode } from "../api/http";
-import type { AiAttachment, AiCitation, AiMessage, AiStep, AskUniInput } from "../types/ai";
+import type { AiAttachment, AiCitation, AiMessage, AiProposal, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
 import { useAiPanelStore } from "./store";
 
@@ -22,6 +22,8 @@ export interface AskStreamState {
   /** Sources found so far, by source_id. */
   sources: Record<string, AiCitation>;
   followups: string[];
+  /** The rows UNI proposes in this turn, as the last `proposal` event told them (an auto-applied row arrives applied). */
+  proposals: AiProposal[];
   /** The answer being regenerated, or null for a fresh question. */
   regenerateOf: string | null;
   /** The model key the turn asked for; "" for Auto. The stored answer's own `model` replaces it on done. */
@@ -49,6 +51,7 @@ const IDLE: AskStreamState = {
   steps: [],
   sources: {},
   followups: [],
+  proposals: [],
   regenerateOf: null,
   model: "",
   attachments: [],
@@ -111,6 +114,7 @@ export function useAskUniStream(wsId: string) {
       const attachments = display?.attachments ?? [];
       setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "", attachments });
       let finished = false;
+      let proposals: AiProposal[] = [];
       const current = () => seq.current === mySeq && !controller.signal.aborted;
       let settle: (o: AskOutcome) => void = () => undefined;
       const outcome = new Promise<AskOutcome>((resolve) => {
@@ -138,6 +142,10 @@ export function useAskUniStream(wsId: string) {
           case "sources":
             setState((s) => ({ ...s, sources: { ...s.sources, ...Object.fromEntries(e.sources.map((x) => [x.source_id, x])) } }));
             break;
+          case "proposal":
+            proposals = e.proposals;
+            setState((s) => ({ ...s, proposals: e.proposals }));
+            break;
           case "followups":
             setState((s) => ({ ...s, followups: e.followups }));
             break;
@@ -154,11 +162,13 @@ export function useAskUniStream(wsId: string) {
           case "done": {
             finished = true;
             settle({ accepted: true });
+            // The done frame carries the answer without its rows; the stored answer keeps the ones the turn announced.
+            const message: AiMessage = proposals.length > 0 ? { ...e.message, proposals } : e.message;
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
             if (conversationId && regenerateOf) {
               // The question is already stored; the new answer takes the old one's place.
               qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) =>
-                old?.map((m) => (m.id === regenerateOf ? e.message : m)),
+                old?.map((m) => (m.id === regenerateOf ? message : m)),
               );
               void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
             } else if (conversationId) {
@@ -177,15 +187,16 @@ export function useAskUniStream(wsId: string) {
                 // their ids are upload file_ids until the refetch below swaps in the stored question and its attachment row ids.
                 attachments,
                 file_notes: [],
+                proposals: [],
                 created_at: e.message.created_at,
               };
-              qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, e.message]);
+              qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, message]);
               void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
             }
             void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
             void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
             void qc.invalidateQueries({ queryKey: aiKeys.usages() });
-            setState((s) => ({ ...s, status: e.message.notice === "stopped" ? "stopped" : "done", message: e.message }));
+            setState((s) => ({ ...s, status: e.message.notice === "stopped" ? "stopped" : "done", message }));
             break;
           }
           case "error":

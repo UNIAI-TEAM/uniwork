@@ -172,4 +172,27 @@ describe("askUniStream", () => {
     expect((err as DOMException).name).toBe("AbortError");
     expect(events).toHaveLength(1);
   });
+
+  it("a valid proposal frame becomes an event; a malformed one is dropped and the stream goes on", async () => {
+    const row = { id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "applied" };
+    const events = await collect(
+      sse([
+        frame("proposal", { proposals: [row] }),
+        frame("proposal", { proposals: "nope" }),
+        "event: proposal\ndata: {oops\n\n",
+        frame("delta", { text: "x" }),
+      ]),
+    );
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({ type: "proposal", proposals: [{ id: "p1", status: "applied", preview: { body: "", fields: [] } }] });
+    expect(events[1]).toEqual({ type: "delta", text: "x" });
+  });
+
+  it("sends mode only when set", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(sse([])).mockResolvedValueOnce(sse([]));
+    await askUniStream("ws1", { question: "q", mode: "plan" }, { onEvent: () => undefined });
+    await askUniStream("ws1", { question: "q" }, { onEvent: () => undefined });
+    expect(JSON.parse((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).body as string)).toEqual({ question: "q", mode: "plan" });
+    expect(JSON.parse((vi.mocked(fetch).mock.calls[1]![1] as RequestInit).body as string)).toEqual({ question: "q" });
+  });
 });

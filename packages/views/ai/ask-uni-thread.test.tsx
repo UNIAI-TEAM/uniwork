@@ -14,7 +14,7 @@ initI18n();
 
 // Long enough to be shown while it streams; a call's short lead-in is held back.
 const LONG = "Có 3 việc quá hạn. ".repeat(10);
-const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
+const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", steps: [], sources: {}, followups: [], proposals: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
 const history = [
   { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
   { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "" },
@@ -89,7 +89,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished turn once and keeps its steps line", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Xong rồi.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], created_at: "" };
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/api/v1/ai/conversations/c1/messages"
@@ -132,7 +132,7 @@ describe("AskUniThread", () => {
   });
 
   it("shows the finished answer from the stream until the cache has it", async () => {
-    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], created_at: "" };
+    const answer = { id: "a2", role: "assistant", content: "Chưa có trong cache.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], created_at: "" };
     mount(stream({ status: "done", question: "Hỏi mới?", message: answer }));
     expect(await screen.findByText("Chưa có trong cache.")).toBeInTheDocument();
     expect(screen.getByText("Hỏi mới?")).toBeInTheDocument();

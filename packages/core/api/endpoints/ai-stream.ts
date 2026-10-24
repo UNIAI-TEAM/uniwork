@@ -2,9 +2,11 @@ import { z } from "zod";
 import {
   AiCitationSchema,
   AiMessageSchema,
+  AiProposalSchema,
   AskUniStreamUsageSchema,
   type AiCitation,
   type AiMessage,
+  type AiProposal,
   type AiStreamUsage,
   type AskUniInput,
 } from "../../types/ai";
@@ -15,6 +17,7 @@ export type AskUniStreamEvent =
   | { type: "run"; runId: string; conversationId: string }
   | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number> }
   | { type: "delta"; text: string }
+  | { type: "proposal"; proposals: AiProposal[] }
   | { type: "citations"; citations: AiCitation[] }
   | { type: "sources"; sources: AiCitation[] }
   | { type: "followups"; followups: string[] }
@@ -44,6 +47,11 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
     const s = z.object({ text: z.string() });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:delta" });
     return r && { type: "delta", text: r.text };
+  },
+  proposal: (raw) => {
+    const s = z.object({ proposals: z.array(AiProposalSchema) });
+    const r = parseWithFallback<{ proposals: AiProposal[] } | null>(raw, s, null, { endpoint: "ai.askStream:proposal" });
+    return r && { type: "proposal", proposals: r.proposals };
   },
   citations: (raw) => {
     const s = z.object({ citations: z.array(AiCitationSchema) });

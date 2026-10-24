@@ -28,6 +28,7 @@ const msg = (over: Record<string, unknown> = {}) => ({
   model: "",
   attachments: [],
   file_notes: [],
+  proposals: [],
   created_at: "t",
   ...over,
 });
@@ -404,5 +405,28 @@ describe("useAskModelChoice", () => {
     localStorage.setItem("uniwork_ask_uni_model", JSON.stringify({ ...stored, version: 1 }));
     await useAskModelChoice.persist.rehydrate();
     expect(useAskModelChoice.getState()).toMatchObject({ model: "claude-opus", effort: "high" });
+  });
+
+  const proposal = { id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending" } as never;
+  const usage0 = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
+
+  it("a proposal event attaches to the running turn and done keeps the rows in the stored answer", () => {
+    const { result, qc } = setup();
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "proposal", proposals: [proposal] });
+    expect(result.current.state.proposals).toEqual([proposal]);
+    emit({ type: "done", message: msg(), usage: usage0 });
+    expect(result.current.state.proposals).toEqual([proposal]);
+    const stored = qc.getQueryData<{ id: string; proposals: unknown[] }[]>(aiKeys.messages("c1"));
+    expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([proposal]);
+  });
+
+  it("a later proposal event replaces the rows (they carry their own state)", () => {
+    const { result } = setup();
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "proposal", proposals: [proposal] });
+    const applied = { ...(proposal as object), status: "applied" } as never;
+    emit({ type: "proposal", proposals: [applied] });
+    expect(result.current.state.proposals).toEqual([applied]);
   });
 });
