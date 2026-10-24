@@ -366,3 +366,20 @@ func (s *MeetingService) publishAttendanceChanged(ctx context.Context, meetingID
 	}
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "attendance.updated", Payload: map[string]string{"meeting_id": meetingID}})
 }
+
+// SeriesNeighbors returns the ids of the uncanceled meetings right before and
+// after m in its series, "" where there is none (UNI-2153). m was already
+// authorized by the caller; the query stays in m's workspace.
+func (s *MeetingService) SeriesNeighbors(ctx context.Context, m db.Meeting) (previous, next string) {
+	key := m.ID
+	if m.SeriesID.Valid && m.SeriesID.String != "" {
+		key = m.SeriesID.String
+	}
+	r, err := s.q.GetMeetingSeriesNeighbors(ctx, db.GetMeetingSeriesNeighborsParams{
+		WorkspaceID: m.WorkspaceID, SeriesKey: pgtype.Text{String: key, Valid: true}, StartsAt: m.StartsAt, ID: m.ID,
+	})
+	if err != nil {
+		return "", ""
+	}
+	return r.PreviousID, r.NextID
+}

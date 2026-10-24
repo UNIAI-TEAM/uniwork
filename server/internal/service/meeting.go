@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -275,6 +277,33 @@ type CreateMeetingInput struct {
 	// new meeting joins that meeting's series. A meeting of another
 	// workspace, or none, is not found.
 	FollowUpOf string
+	// IdempotencyKey (the Idempotency-Key header, UNI-2153): a retry with the
+	// same key replays the meeting the first call made. Empty skips the claim.
+	IdempotencyKey string
+}
+
+// Idempotency scopes of the two create routes; a key is scoped by
+// organization, workspace, scope and actor.
+const (
+	idempotencyScopeMeetingCreate        = "meetings.create"
+	idempotencyScopeMeetingCreateInstant = "meetings.create_instant"
+)
+
+// replayedMeeting decodes the meeting a completed Idempotency-Key claim stored.
+func replayedMeeting(replay *StoredResponse) (db.Meeting, error) {
+	var m db.Meeting
+	err := json.Unmarshal(replay.Body, &m)
+	return m, err
+}
+
+// completeMeetingClaim stores the created meeting under the claim, inside the
+// create's transaction, so a replay returns it byte for byte.
+func completeMeetingClaim(commit func(int, []byte) error, m db.Meeting) error {
+	body, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	return commit(http.StatusOK, body)
 }
 
 func (s *MeetingService) Create(ctx context.Context, userID, workspaceID string, in CreateMeetingInput) (db.Meeting, error) {
@@ -317,6 +346,13 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreate, in.IdempotencyKey, userID, IdempotencyOptions{})
+	if err != nil {
+		return db.Meeting{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return replayedMeeting(replay)
+	}
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
 		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID,
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
@@ -352,6 +388,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		created["series_id"] = series
 	}
 	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, created))
+	if err := completeMeetingClaim(commit, m); err != nil {
+		return db.Meeting{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
@@ -418,9 +457,24 @@ func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body st
 	if strings.TrimSpace(body) == "" {
 		return db.MeetingNote{}, Invalid("nội dung không được để trống")
 	}
-	return s.q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	n, err := q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, AuthorID: userID, Body: body,
 	})
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	// Ids only: open panels refetch the notes, so the body never rides the frame.
+	s.recordResource(ctx, q, m, audit.User(userID), "note.created", meetingRelatedPayload(m, map[string]string{"note_id": n.ID}), nil, "meeting_note", n.ID)
+	if err := tx.Commit(ctx); err != nil {
+		return db.MeetingNote{}, err
+	}
+	return n, nil
 }
 
 // SetFiles attaches the shared FileService for both avatar URL emission and
@@ -475,6 +529,7 @@ var meetingActionFor = map[string]string{
 	"invite_link.revoked":   "meeting.invite_link_revoked",
 	"scribe.updated":        audit.ActionMeetingScribeToggled,
 	"speaker_label.updated": audit.ActionMeetingSpeakerLabelAssigned,
+	"note.created":          audit.ActionMeetingNoteAdded,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on

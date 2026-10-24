@@ -17,7 +17,8 @@ func toActionItemDTO(v service.ActionItemView) sdo.MeetingActionItemDTO {
 		ID: it.ID, Source: it.Source, Position: int(it.Position), Title: it.Title,
 		OwnerText: it.OwnerText, DueText: it.DueText, Description: it.Description, SuggestedPriority: it.SuggestedPriority,
 		SuggestedAssigneeID: v.SuggestedAssigneeID, SuggestedDueDate: v.SuggestedDueDate,
-		Status: v.Status, DismissReason: it.DismissReason, DismissedBy: textPtr(it.DismissedBy),
+		SuggestedDueGuessed: v.SuggestedDueGuessed,
+		Status:              v.Status, DismissReason: it.DismissReason, DismissedBy: textPtr(it.DismissedBy),
 		Evidence: toEvidenceRefsDTO(v.Evidence), SummaryID: textPtr(it.SummaryID), CreatedAt: rfc3339(it.CreatedAt),
 	}
 	if it.DismissedAt.Valid {

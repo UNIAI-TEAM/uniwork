@@ -16,6 +16,14 @@ import (
 )
 
 func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID string, title string) (db.Meeting, error) {
+	return s.CreateInstantKeyed(ctx, userID, workspaceID, title, "")
+}
+
+// CreateInstantKeyed is CreateInstant under an Idempotency-Key (UNI-2153): a
+// retry with the same key replays the started meeting and skips the room,
+// scribe and dial-in ensures, which the first call already ran (the outbox
+// provider.ensure_session row covers the room). An empty key skips the claim.
+func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspaceID, title, idempotencyKey string) (db.Meeting, error) {
 	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return db.Meeting{}, err
@@ -35,6 +43,13 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, idempotencyKey, userID, IdempotencyOptions{})
+	if err != nil {
+		return db.Meeting{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return replayedMeeting(replay)
+	}
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
 		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID, Title: title, Description: "",
 		StartsAt: pgtype.Timestamptz{Time: now, Valid: true},
@@ -81,6 +96,9 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeInstant, "title": m.Title}))
 	s.record(ctx, q, started, audit.User(userID), "meeting.started", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingInProgress}))
+	if err := completeMeetingClaim(commit, started); err != nil {
+		return db.Meeting{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}

@@ -31,11 +31,13 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/workspaces/{workspaceID}/meetings", h.CreateMeeting, apiOp{
 		summary: "Create scheduled meeting", tags: []string{"meetings"},
-		sdi: sdi.CreateMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng cuộc họp đã tạo, không tạo thêm; người khác dùng cùng khóa -> 409 idempotency_key_reuse.",
+		sdi:         sdi.CreateMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Post("/workspaces/{workspaceID}/meetings/instant", h.CreateInstantMeeting, apiOp{
 		summary: "Create instant meeting", tags: []string{"meetings"},
-		sdi: sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng phòng đã mở, không mở phòng thứ hai; người khác dùng cùng khóa -> 409 idempotency_key_reuse.",
+		sdi:         sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}", h.GetMeeting, apiOp{
 		summary: "Get meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -74,6 +76,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/notes", h.CreateNote, apiOp{
 		summary: "Add note", tags: []string{"meetings"}, sdi: sdi.CreateNoteSDI{}, sdo: sdo.NoteSDO{}, auth: true,
+		description: "Thành viên workspace. Ghi audit meeting.note_added, phát note.created (chỉ id) tới người đang mở cuộc họp.",
 	})
 	r.Post("/meetings/{meetingID}/token", h.MeetingToken, apiOp{
 		summary: "Mint LiveKit token (deprecated; uses admission)", tags: []string{"meetings"},
@@ -81,7 +84,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/invitations", h.InviteParticipant, apiOp{
 		summary: "Invite a workspace member", tags: []string{"meetings"},
-		sdi: sdi.InviteParticipantSDI{}, sdo: sdo.ParticipantListSDO{}, auth: true,
+		sdi: sdi.InviteParticipantSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/invitations", h.ListInvitations, apiOp{
 		summary: "List invitations", tags: []string{"meetings"}, sdo: sdo.InvitationListSDO{}, auth: true,
@@ -145,6 +148,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
+		description: "Chủ trì hoặc quản trị. secret có ở liên kết còn hiệu lực (chưa thu hồi, chưa hết hạn) được tạo từ khi mã suy ra từ id liên kết, để sao chép lại; liên kết cũ chỉ hiện mã lúc tạo.",
 	})
 	r.Post("/meetings/{meetingID}/invite-links", h.CreateInviteLink, apiOp{
 		summary: "Create invite link", tags: []string{"meetings"},

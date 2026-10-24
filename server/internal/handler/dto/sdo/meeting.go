@@ -42,6 +42,10 @@ type MeetingDTO struct {
 	// AIContentReadable is per caller, so only the detail GET and the
 	// sharing switch carry it.
 	AIContentReadable *bool `json:"ai_content_readable,omitempty" description:"Chỉ có ở GET chi tiết và PUT ai-sharing: người gọi đọc được nội dung AI của cuộc họp (chủ trì, thư ký, người được mời/được nhận vào chưa bị gỡ, quản trị workspace; hoặc cuộc họp đã chia sẻ)"`
+	// The series neighbours are read only by the detail GET (UNI-2153).
+	SeriesID          string `json:"series_id,omitempty" description:"Chỉ có ở GET chi tiết: id cuộc họp gốc của chuỗi, khi cuộc họp này là cuộc tiếp nối" example:"01J8X4MTGN1P2Q3R4S5T6U7A"`
+	PreviousMeetingID string `json:"previous_meeting_id,omitempty" description:"Chỉ có ở GET chi tiết: cuộc họp chưa hủy gần nhất của cùng chuỗi, bắt đầu trước cuộc này" example:"01J8X4MTGN1P2Q3R4S5T6U7A"`
+	NextMeetingID     string `json:"next_meeting_id,omitempty" description:"Chỉ có ở GET chi tiết: cuộc họp chưa hủy sớm nhất của cùng chuỗi, bắt đầu sau cuộc này" example:"01J8X4MTGN1P2Q3R4S5T6U7C"`
 }
 
 type NoteDTO struct {
@@ -119,7 +123,7 @@ type InviteLinkDTO struct {
 	UsedCount  int32  `json:"used_count"`
 	RevokedAt  string `json:"revoked_at,omitempty"`
 	CreatedAt  string `json:"created_at,omitempty"`
-	Secret     string `json:"secret,omitempty"`
+	Secret     string `json:"secret,omitempty" description:"Mã bí mật của liên kết: luôn có lúc tạo; ở GET danh sách chỉ có với liên kết còn hiệu lực có mã suy ra từ id" example:"q8Jd0xZ3c1v7bN2mK5pR9tW4yA6eH0uL3sF8gD1jC2o"`
 }
 
 type InviteLinkSDO struct {
@@ -374,6 +378,7 @@ type MeetingActionItemDTO struct {
 	SuggestedPriority   string                    `json:"suggested_priority" description:"Mức độ AI gợi ý khi cuộc họp nêu rõ: low, medium, high hoặc urgent; rỗng khi không có" example:"high"`
 	SuggestedAssigneeID *string                   `json:"suggested_assignee_id" description:"Thành viên duy nhất khớp tên được nhắc; chỉ với việc chờ xử lý" example:"01JABC1234567890ABCDEFGH"`
 	SuggestedDueDate    *string                   `json:"suggested_due_date" description:"Hạn được nhắc đọc theo ngày họp (YYYY-MM-DD); chỉ với việc chờ xử lý" example:"2026-10-30"`
+	SuggestedDueGuessed bool                      `json:"suggested_due_guessed" description:"true khi suggested_due_date được đoán từ lời nói lỏng (\"thứ Hai\", \"tuần sau\"), không phải ngày viết rõ" example:"true"`
 	Status              string                    `json:"status" enum:"PENDING,CONVERTED,DISMISSED" example:"PENDING"`
 	DismissReason       string                    `json:"dismiss_reason" example:""`
 	DismissedBy         *string                   `json:"dismissed_by" example:"01JABC1234567890ABCDEFGH"`

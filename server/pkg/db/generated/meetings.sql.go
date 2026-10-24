@@ -398,6 +398,55 @@ func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 	return i, err
 }
 
+const getMeetingSeriesNeighbors = `-- name: GetMeetingSeriesNeighbors :one
+SELECT
+  COALESCE((
+    SELECT p.id FROM meetings p
+    WHERE p.workspace_id = $1
+      AND (p.series_id = $2 OR p.id = $2)
+      AND p.status <> 'CANCELED'
+      AND (p.starts_at, p.id) < ($3::timestamptz, $4::text)
+    ORDER BY p.starts_at DESC, p.id DESC
+    LIMIT 1
+  ), '')::text AS previous_id,
+  COALESCE((
+    SELECT n.id FROM meetings n
+    WHERE n.workspace_id = $1
+      AND (n.series_id = $2 OR n.id = $2)
+      AND n.status <> 'CANCELED'
+      AND (n.starts_at, n.id) > ($3::timestamptz, $4::text)
+    ORDER BY n.starts_at ASC, n.id ASC
+    LIMIT 1
+  ), '')::text AS next_id
+`
+
+type GetMeetingSeriesNeighborsParams struct {
+	WorkspaceID string             `json:"workspace_id"`
+	SeriesKey   pgtype.Text        `json:"series_key"`
+	StartsAt    pgtype.Timestamptz `json:"starts_at"`
+	ID          string             `json:"id"`
+}
+
+type GetMeetingSeriesNeighborsRow struct {
+	PreviousID string `json:"previous_id"`
+	NextID     string `json:"next_id"`
+}
+
+// The uncanceled meetings right before and after one in its series (UNI-2153).
+// series_key is COALESCE(series_id, id): the root keeps series_id NULL and its
+// followers carry the root's id. Ties on starts_at break on id.
+func (q *Queries) GetMeetingSeriesNeighbors(ctx context.Context, arg GetMeetingSeriesNeighborsParams) (GetMeetingSeriesNeighborsRow, error) {
+	row := q.db.QueryRow(ctx, getMeetingSeriesNeighbors,
+		arg.WorkspaceID,
+		arg.SeriesKey,
+		arg.StartsAt,
+		arg.ID,
+	)
+	var i GetMeetingSeriesNeighborsRow
+	err := row.Scan(&i.PreviousID, &i.NextID)
+	return i, err
+}
+
 const listMeetingNotes = `-- name: ListMeetingNotes :many
 SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id

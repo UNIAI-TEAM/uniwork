@@ -140,7 +140,7 @@ func (h *handlers) listInviteLinks(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.InviteLinkDTO, 0, len(ls))
 	for _, l := range ls {
-		out = append(out, toLinkDTO(l, ""))
+		out = append(out, toLinkDTO(l.Link, l.Secret))
 	}
 	respondJSON(w, 200, map[string]any{"invite_links": out})
 }

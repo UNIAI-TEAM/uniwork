@@ -85,6 +85,9 @@ type ActionItemView struct {
 	Status              string
 	SuggestedAssigneeID *string
 	SuggestedDueDate    *string
+	// SuggestedDueGuessed: SuggestedDueDate came from a loose phrase ("thứ
+	// Hai", "tuần sau"), not a written date, so the client marks it "~".
+	SuggestedDueGuessed bool
 	Task                *ActionItemTask
 	// Evidence is what an AI item rests on (UNI-2002); empty for the others.
 	Evidence []EvidenceRef
@@ -146,6 +149,10 @@ func (s *MeetingService) describeActionItems(ctx context.Context, m db.Meeting, 
 			}
 			if strings.TrimSpace(v.Item.DueText) != "" {
 				v.SuggestedDueDate = parseMeetingDueSpoken(v.Item.DueText, anchor)
+				if v.SuggestedDueDate != nil {
+					_, written := parseExplicitDate(strings.ToLower(strings.TrimSpace(v.Item.DueText)), civilDay(anchor))
+					v.SuggestedDueGuessed = !written
+				}
 			}
 		case ActionItemDismissed:
 			out.Counts.Dismissed++

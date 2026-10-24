@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -32,6 +33,16 @@ func newInviteSecret() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// inviteSecretFor derives a link's secret from its id with the server key, so
+// the host can copy a link after creating it (UNI-2153): only the hash is
+// stored, and List re-derives the secret instead of keeping it anywhere.
+// Holding HMACKey already lets one sign guest sessions, so this widens nothing.
+func (s *MeetingService) inviteSecretFor(linkID string) string {
+	mac := hmac.New(sha256.New, s.rt.HMACKey)
+	mac.Write([]byte("uw-invite-link:" + linkID))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
 type CreatedInviteLink struct {
 	Link      db.MeetingInviteLink
 	RawSecret string
@@ -51,16 +62,20 @@ func (s *MeetingService) CreateInviteLink(ctx context.Context, userID, meetingID
 	if !expiresAt.After(time.Now()) {
 		return CreatedInviteLink{}, Invalid("invite link phải còn hạn")
 	}
-	raw, err := newInviteSecret()
-	if err != nil {
-		return CreatedInviteLink{}, err
+	id := util.NewID()
+	raw := s.inviteSecretFor(id)
+	if len(s.rt.HMACKey) == 0 {
+		// No server key to derive from: a random secret, shown once and never copyable.
+		if raw, err = newInviteSecret(); err != nil {
+			return CreatedInviteLink{}, err
+		}
 	}
 	var max pgtype.Int4
 	if maxUses != nil {
 		max = pgtype.Int4{Int32: *maxUses, Valid: true}
 	}
 	link, err := s.q.CreateInviteLink(ctx, db.CreateInviteLinkParams{
-		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Name: name, SecretHash: hashInviteSecret(raw),
+		ID: id, MeetingID: m.ID, OrganizationID: m.OrganizationID, Name: name, SecretHash: hashInviteSecret(raw),
 		AccessMode: mode, ExpiresAt: pgtype.Timestamptz{Time: expiresAt.UTC(), Valid: true},
 		MaxUses: max, CreatedBy: userID,
 	})
@@ -71,11 +86,35 @@ func (s *MeetingService) CreateInviteLink(ctx context.Context, userID, meetingID
 	return CreatedInviteLink{Link: link, RawSecret: raw}, nil
 }
 
-func (s *MeetingService) ListInviteLinks(ctx context.Context, userID, meetingID string) ([]db.MeetingInviteLink, error) {
+// ListedInviteLink is a link as its host sees it. Secret is set only for a
+// link that still admits (not revoked, not expired) and whose secret was
+// derived from its id; a link made with a random secret has none to copy.
+type ListedInviteLink struct {
+	Link   db.MeetingInviteLink
+	Secret string
+}
+
+func (s *MeetingService) ListInviteLinks(ctx context.Context, userID, meetingID string) ([]ListedInviteLink, error) {
 	if _, err := s.requireHostOrAdmin(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
-	return s.q.ListInviteLinks(ctx, meetingID)
+	links, err := s.q.ListInviteLinks(ctx, meetingID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	out := make([]ListedInviteLink, 0, len(links))
+	for _, l := range links {
+		item := ListedInviteLink{Link: l}
+		if len(s.rt.HMACKey) > 0 && !l.RevokedAt.Valid && l.ExpiresAt.Time.After(now) {
+			raw := s.inviteSecretFor(l.ID)
+			if subtle.ConstantTimeCompare([]byte(hashInviteSecret(raw)), []byte(l.SecretHash)) == 1 {
+				item.Secret = raw
+			}
+		}
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID, linkID string) error {

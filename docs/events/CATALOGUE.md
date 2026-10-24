@@ -218,6 +218,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `motion.opened` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `note.created` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |

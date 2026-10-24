@@ -391,6 +391,10 @@ const (
 	// cleared it (MeetingService.AssignSpeakerLabel, UNI-2024).
 	ActionMeetingSpeakerLabelAssigned = "meeting.speaker_label_assigned"
 
+	// A workspace member added a shared note to a meeting (MeetingService.AddNote,
+	// UNI-2153); the body stays out of the row, which names the note by id.
+	ActionMeetingNoteAdded = "meeting.note_added"
+
 	// A host or admin recorded that a meeting was held without a room:
 	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,
 	// UNI-2001).

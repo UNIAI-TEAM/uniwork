@@ -94,6 +94,7 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
 			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID,
+			IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -107,7 +108,8 @@ func (h *handlers) createInstantMeeting(w http.ResponseWriter, r *http.Request) 
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	m, err := h.Meetings.CreateInstant(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title)
+	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title,
+		r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -125,6 +127,10 @@ func (h *handlers) getMeeting(w http.ResponseWriter, r *http.Request) {
 	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
 	readable := h.Meetings.CanReadAIContent(r.Context(), middleware.UserID(r.Context()), m)
 	d.AIContentReadable = &readable
+	if m.SeriesID.Valid {
+		d.SeriesID = m.SeriesID.String
+	}
+	d.PreviousMeetingID, d.NextMeetingID = h.Meetings.SeriesNeighbors(r.Context(), m)
 	respondJSON(w, 200, map[string]any{"meeting": d})
 }
 

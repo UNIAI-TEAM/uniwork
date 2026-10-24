@@ -112,6 +112,7 @@ export const WS_EVENT_TYPES = [
   "member.reactivated",
   "member.removed",
   "member.role_changed",
+  "note.created",
   "notification.created",
   "office_lease.granted",
   "office_lease.released",
