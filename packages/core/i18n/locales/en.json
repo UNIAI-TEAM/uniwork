@@ -1732,7 +1732,22 @@
       "askModelsDescription": "Choose which models members may use when asking UNI. A model that is off does not appear in the model picker.",
       "askModelsAuto": "Auto",
       "askModelsAutoNote": "Always on: UNI picks a suitable model.",
-      "askModelsSaveFailed": "Could not save the change. Try again."
+      "askModelsSaveFailed": "Could not save the change. Try again.",
+      "askWriteTitle": "Ask UNI changes",
+      "askWriteDescription": "The most Ask UNI may decide on its own in this organization. Each member picks a mode, never above this one.",
+      "askWriteCeiling": {
+        "off": "Off",
+        "ask": "Ask first only",
+        "plan": "Ask first and Plan (default)",
+        "auto": "Including Auto"
+      },
+      "askWriteCeilingNote": {
+        "off": "UNI only answers and proposes no changes.",
+        "ask": "Every change waits for someone to apply it.",
+        "plan": "Changes wait one by one, or as a whole plan.",
+        "auto": "Small, easily undone changes may apply on their own."
+      },
+      "askWriteReadOnly": "Only owners and admins can change this."
     },
     "state": {
       "load_error": "Couldn't load this section.",
@@ -6178,6 +6193,13 @@
     "placeholder_project": "Ask about this project…",
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
+    "mode": {
+      "ask": "Ask first",
+      "plan": "Plan",
+      "auto": "Auto",
+      "label_with": "Mode: {{mode}}",
+      "tainted_note": "This conversation has read content someone else wrote, so every change will still ask you first, even in Auto mode."
+    },
     "model": {
       "label": "Choose a model",
       "auto": "Auto",

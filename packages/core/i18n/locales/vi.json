@@ -1731,7 +1731,22 @@
       "askModelsDescription": "Chọn model mà thành viên được dùng khi hỏi UNI. Model tắt sẽ không hiện trong menu chọn model.",
       "askModelsAuto": "Tự động",
       "askModelsAutoNote": "Luôn bật: UNI tự chọn model phù hợp.",
-      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại."
+      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại.",
+      "askWriteTitle": "Quyền thay đổi của Hỏi UNI",
+      "askWriteDescription": "Mức tự quyết cao nhất của Hỏi UNI trong tổ chức. Mỗi thành viên chọn chế độ của mình, nhưng không vượt mức này.",
+      "askWriteCeiling": {
+        "off": "Tắt",
+        "ask": "Chỉ Hỏi trước",
+        "plan": "Hỏi trước và Kế hoạch (mặc định)",
+        "auto": "Cả Tự động"
+      },
+      "askWriteCeilingNote": {
+        "off": "UNI chỉ trả lời, không đề xuất thay đổi.",
+        "ask": "Mọi thay đổi đều chờ người dùng áp dụng.",
+        "plan": "Thay đổi chờ áp dụng từng cái, hoặc cả kế hoạch cùng lúc.",
+        "auto": "Thay đổi nhỏ, dễ hoàn tác có thể tự áp dụng."
+      },
+      "askWriteReadOnly": "Chỉ chủ sở hữu và quản trị viên đổi được mức này."
     },
     "state": {
       "load_error": "Không tải được phần này.",
@@ -6129,6 +6144,13 @@
     "placeholder_project": "Hỏi về dự án này…",
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
+    "mode": {
+      "ask": "Hỏi trước",
+      "plan": "Kế hoạch",
+      "auto": "Tự động",
+      "label_with": "Chế độ: {{mode}}",
+      "tainted_note": "Hội thoại này đã đọc nội dung do người khác viết, nên mọi thay đổi vẫn hỏi bạn trước dù đang ở chế độ Tự động."
+    },
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",

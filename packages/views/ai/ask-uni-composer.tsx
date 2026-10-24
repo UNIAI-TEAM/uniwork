@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiPanelStore } from "@uniwork/core/ai";
+import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import { askDisplayAttachments, type StagedAskFile } from "@uniwork/core/ai/attachments";
 import type { AskOutcome } from "@uniwork/core/ai/stream";
 import type { AiAttachment, AskUniInput } from "@uniwork/core/types";
@@ -12,6 +12,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
+import { AskUniModeButton, useAskUniMode } from "./ask-uni-mode-button";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
@@ -72,6 +73,8 @@ export function AskUniComposer({
   const sent = useEffectiveFocus();
   const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
+  const askMode = useAskUniMode(workspace.id)?.mode;
+  const tainted = useAiConversations(workspace.id).data?.find((c) => c.id === conversationId)?.tainted ?? false;
 
   const box = useRef<AskUniEditorHandle>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -137,6 +140,7 @@ export function AskUniComposer({
         attachment_ids: ids.length > 0 ? ids : undefined,
         model,
         effort,
+        ...(askMode ? { mode: askMode } : {}),
         locale: i18n.language,
       },
       ids.length > 0 ? { attachments: askDisplayAttachments(attachments?.files ?? []) } : undefined,
@@ -217,6 +221,7 @@ export function AskUniComposer({
             onFiles={attachments?.attach}
           />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <AskUniModeButton wsId={workspace.id} conversationTainted={tainted} />
             <AskUniModelPicker />
             {streaming ? (
               <Button type="button" size="icon-sm" aria-label={t("stop")} onClick={onStop}>

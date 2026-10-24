@@ -13,6 +13,7 @@ import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
 import { AiAskModelsSection } from "./ai-ask-models-section";
+import { AiAskWritePolicySection } from "./ai-ask-write-policy-section";
 import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
@@ -162,6 +163,7 @@ export function AiAccessTab() {
       ) : null}
 
       <AiAskModelsSection orgSlug={org} />
+      <AiAskWritePolicySection orgSlug={org} />
 
       <SettingsSection title={t("grantsTitle")}>
         {grants.isPending ? (
