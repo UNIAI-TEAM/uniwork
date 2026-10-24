@@ -42,7 +42,6 @@ const (
 
 var (
 	errAiMemoryDisabled  = CodedError{Code: "ai_memory_disabled", Status: http.StatusForbidden}
-	errAiMemoryOff       = CodedError{Code: "ai_memory_off", Status: http.StatusConflict}
 	errAiMemoryFull      = CodedError{Code: "ai_memory_full", Status: http.StatusConflict}
 	errAiMemoryDuplicate = CodedError{Code: "ai_memory_duplicate", Status: http.StatusConflict}
 )
