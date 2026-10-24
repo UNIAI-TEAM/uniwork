@@ -195,7 +195,7 @@ func registerAI(r api, h Routes) {
 	})
 	r.Get("/orgs/{org}/ai/memory", h.ListAiMemory, apiOp{
 		summary: "My Ask UNI memory",
-		description: "Các mục bộ nhớ của người gọi trong tổ chức (riêng từng người, không ai khác đọc được), cách trả lời trước rồi mới nhất trước, kèm công tắc, trần 50 và số chỗ còn lại. " +
+		description: "Các mục bộ nhớ của người gọi trong tổ chức (riêng từng người, không ai khác đọc được), cách trả lời trước, rồi theo thứ tự thêm (cũ trước), kèm công tắc, trần 50 và số chỗ còn lại. " +
 			"Thành viên tổ chức; cờ ask_uni_memory tắt -> 403 ai_memory_disabled.",
 		tags: []string{"ai"},
 		sdo:  sdo.AiMemoryListSDO{},

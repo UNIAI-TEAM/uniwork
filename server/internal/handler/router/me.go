@@ -27,6 +27,7 @@ import (
 //	PUT   /api/v1/me/ai-consent
 //	DELETE /api/v1/me/ai-consent
 //	PUT   /api/v1/me/ask-uni-mode
+//	PUT   /api/v1/me/ask-uni-memory
 func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",

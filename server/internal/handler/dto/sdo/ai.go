@@ -366,17 +366,17 @@ type AiMemoryCapsDTO struct {
 
 // AiMemoryDTO is one entry of the caller's memory.
 type AiMemoryDTO struct {
-	ID        string `json:"id" example:"01K4AIMEM0000000000000001"`
+	ID        string `json:"id" description:"Mã mục bộ nhớ" example:"01K4AIMEM0000000000000001"`
 	Kind      string `json:"kind" description:"preference (cách UNI trả lời) hoặc fact (về bạn)" example:"fact"`
 	Text      string `json:"text" description:"Một dòng, 1–300 ký tự" example:"Tôi làm ở phòng kinh doanh"`
 	Source    string `json:"source" description:"manual, chat hoặc import" example:"manual"`
-	CreatedAt string `json:"created_at" example:"2026-10-24T09:00:00Z"`
-	UpdatedAt string `json:"updated_at" example:"2026-10-24T09:00:00Z"`
+	CreatedAt string `json:"created_at" description:"Thời điểm thêm (RFC 3339)" example:"2026-10-24T09:00:00Z"`
+	UpdatedAt string `json:"updated_at" description:"Thời điểm sửa gần nhất (RFC 3339)" example:"2026-10-24T09:00:00Z"`
 }
 
 // AiMemoryListSDO is GET /api/v1/orgs/{org}/ai/memory.
 type AiMemoryListSDO struct {
-	Entries   []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức, cách trả lời trước, rồi mới nhất trước"`
+	Entries   []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức, cách trả lời trước, rồi theo thứ tự thêm (cũ trước)"`
 	On        bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
 	Limit     int           `json:"limit" description:"Số mục tối đa" example:"50"`
 	Remaining int           `json:"remaining" description:"Số mục còn thêm được" example:"49"`

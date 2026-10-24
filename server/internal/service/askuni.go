@@ -244,6 +244,7 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	out.Actions.Enabled = out.Actions.Enabled && agent
 	if s.memory != nil {
 		out.Memory.Enabled = agent && s.memory.AskMemoryEnabled(ctx, userID, w.OrganizationID)
+		// A failed read reports on, deliberately: the turn path re-reads the switch, so this never feeds memory into a turn by itself.
 		out.Memory.On = true
 		if off, err := s.q.GetUserAskUniMemoryOff(ctx, userID); err == nil {
 			out.Memory.On = !off

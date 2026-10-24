@@ -82,6 +82,9 @@ func TestAiMemoryRoutesMapErrors(t *testing.T) {
 	if s, out := w.call(t, w.owner, "GET", base, nil); s != 403 || errCode(out) != "ai_memory_disabled" {
 		t.Fatalf("flag off list: %d %v", s, out)
 	}
+	if s, out := w.call(t, w.owner, "POST", base, map[string]any{"kind": "fact", "text": "x"}); s != 403 || errCode(out) != "ai_memory_disabled" {
+		t.Fatalf("flag off create: %d %v", s, out)
+	}
 	w.flag(t, "ask_uni_memory", featureflags.ScopeGlobal, "", true)
 
 	s, out := w.call(t, w.owner, "POST", base, map[string]any{"kind": "fact", "text": "Tôi làm ở phòng kinh doanh"})
@@ -194,5 +197,11 @@ func TestSetAskUniMemoryReadsAnyOrganizationFlag(t *testing.T) {
 	w.flag(t, "ask_uni_memory", featureflags.ScopeOrganization, w.orgID, true)
 	if s, out := put(); s != 204 {
 		t.Fatalf("organization override: %d %v", s, out)
+	}
+	// An override for an organization the caller does not belong to must not count.
+	w.flag(t, "ask_uni_memory", featureflags.ScopeOrganization, w.orgID, false)
+	w.flag(t, "ask_uni_memory", featureflags.ScopeOrganization, util.NewID(), true)
+	if s, out := put(); s != 403 || errCode(out) != "ai_memory_disabled" {
+		t.Fatalf("foreign organization override: %d %v", s, out)
 	}
 }
