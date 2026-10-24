@@ -26,6 +26,8 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   document_edit_requested: "mentions",
   chat_mentioned: "mentions",
   chat_dm: "mentions",
+  // Nobody asked anything of the person: the room moved on (UNI-2141).
+  chat_message: "updates",
   chat_thread_replied: "mentions",
   chat_call_incoming: "mentions",
   document_access_requested: "mentions",

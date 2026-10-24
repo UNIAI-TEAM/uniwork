@@ -165,7 +165,7 @@ pipeline {
         stage('Build Meeting Agent') {
           steps {
             script {
-              // The AI scribe worker (apps/meeting-agent, ADR 0038); its directory is the context.
+              // The AI scribe worker (apps/meeting-agent, ADR 0045); its directory is the context.
               // .github/workflows/meeting-agent-verify.yml builds and pip-audits it on every PR.
               def serviceTag = 'uniwork-meeting-agent'
               def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"

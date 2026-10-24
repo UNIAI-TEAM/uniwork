@@ -5,7 +5,7 @@
 Phạm vi: thư ký AI (ghi lời trực tiếp, phụ đề, việc rút trong họp, phụ đề dịch, tóm tắt phần đã
 lỡ), ghi lời file ghi âm tải lên, tóm tắt và biên bản sau họp. Nền: spec
 `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §7.5, spec thư ký AI §4.6,
-ADR 0038 (mục "Bổ sung 2026-10-23"). Tài liệu này không phải ý kiến pháp lý: mọi dòng có
+ADR 0045 (mục "Bổ sung 2026-10-23"). Tài liệu này không phải ý kiến pháp lý: mọi dòng có
 **(pháp chế xác nhận)** phải được người có chuyên môn kiểm trước khi dùng với khách.
 
 ## 1. Cơ sở pháp lý
@@ -53,7 +53,7 @@ Kubernetes và vị trí trung tâm dữ liệu: **ops điền**.
 Không nhà cung cấp STT hay LLM nào ở mục 2 xử lý tại Việt Nam, nên **mọi cuộc họp có thư ký AI
 hoặc tóm tắt AI đều chuyển dữ liệu cá nhân ra nước ngoài**. Trước khi bật cho khách:
 
-1. **Chọn một vùng cho cả hai đường STT** và ghi vào ADR 0038: file
+1. **Chọn một vùng cho cả hai đường STT** và ghi vào ADR 0045: file
    (`AI_MEETING_TRANSCRIBE_BASE_URL`) và trực tiếp (`SCRIBE_STT_BASE_URL` của agent, mặc định
    theo vùng của file; biến này do luồng sửa của agent thêm, xem `MEETINGS_AI_GO_LIVE.md`). Hai
    đường khác vùng là hai hồ sơ.
@@ -71,10 +71,10 @@ hoặc tóm tắt AI đều chuyển dữ liệu cá nhân ra nước ngoài**. 
 
 ## 4. Biện pháp kỹ thuật đã có
 
-- Agent không log lời nói, chỉ id và độ dài (ADR 0038 quyết định 5); server log người bằng id
+- Agent không log lời nói, chỉ id và độ dài (ADR 0045 quyết định 5); server log người bằng id
   (`scripts/no-pii-log.test.mjs`).
 - Agent chỉ gọi `/api/v1/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không có
-  DB/Redis; không giữ khóa LLM (ADR 0038).
+  DB/Redis; không giữ khóa LLM (ADR 0045).
 - Bản ghi lời file bị xóa ở AssemblyAI ngay khi server lưu xong (spec cha §7.5).
 - Cách ly tenant ở tầng service và kiểm bằng `TestIsolationMatrix` (ADR 0008).
 - Chưa có: sửa/xóa transcript, lịch giữ dữ liệu (issue #5), quyền đọc transcript hẹp hơn thành

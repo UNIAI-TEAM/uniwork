@@ -24,7 +24,7 @@ Mỗi dòng ghi bằng chứng (link hợp đồng, PR, ảnh chụp dashboard, 
 
 | # | Việc | Ai | Bằng chứng | Xong |
 |---|---|---|---|---|
-| 2.1 | Vùng đã chọn (Mỹ hoặc EU) và ghi vào ADR 0038 mục "Bổ sung 2026-10-23" | chủ sản phẩm | | [ ] |
+| 2.1 | Vùng đã chọn (Mỹ hoặc EU) và ghi vào ADR 0045 mục "Bổ sung 2026-10-23" | chủ sản phẩm | | [ ] |
 | 2.2 | `AI_MEETING_TRANSCRIBE_BASE_URL` của BE trỏ vùng đó (`deploy/app/env/uniwork-be.env`) | ops | | [ ] |
 | 2.3 | Agent ghi lời trực tiếp cũng dùng vùng đó (`SCRIBE_STT_BASE_URL` trong Helm `meetingAgent`, issue #15; trước khi biến này có, agent luôn dùng endpoint Mỹ: chỉ chọn được vùng Mỹ) | ops | | [ ] |
 | 2.4 | Model `universal-3-6-pro` có ở endpoint streaming của vùng đã chọn (một phiên thử thật, ghi vào S0 results) | ops | | [ ] |

@@ -359,9 +359,12 @@ const (
 	agentReminder   = "Your last reply was empty, cut off, or asked for tools after the budget. Reply now in Markdown, citing [S#], without calling tools."
 )
 
-// agentMetricsFake records what a run reports, as "outcome/rounds" and
-// "tool/status".
-type agentMetricsFake struct{ runs, tools []string }
+// agentMetricsFake records what a run reports, as "outcome/rounds",
+// "tool/status" and, for proposals, "tool/outcome".
+type agentMetricsFake struct {
+	runs, tools, actions []string
+	downgrades           int
+}
 
 func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) {
 	m.runs = append(m.runs, fmt.Sprintf("%s/%d", outcome, rounds))
@@ -370,6 +373,12 @@ func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) 
 func (m *agentMetricsFake) ObserveAskTool(tool, status string, _ float64) {
 	m.tools = append(m.tools, tool+"/"+status)
 }
+
+func (m *agentMetricsFake) ObserveAskAction(tool, outcome string) {
+	m.actions = append(m.actions, tool+"/"+outcome)
+}
+
+func (m *agentMetricsFake) ObserveAskTaintDowngrade() { m.downgrades++ }
 
 func searchCall(id string) provider.ToolCall {
 	return provider.ToolCall{ID: id, Name: "search", Input: json.RawMessage(`{"query":"banner"}`)}
@@ -591,11 +600,11 @@ func TestAgentToolCallCountsASourceOncePerRun(t *testing.T) {
 	}}}
 	b := newSourceBook(nil)
 	call := provider.ToolCall{ID: "c", Name: "find", Input: json.RawMessage(`{}`)}
-	_, first, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	_, first, _, err := s.agentToolCall(context.Background(), tools, nil, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, second, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	_, second, _, err := s.agentToolCall(context.Background(), tools, nil, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -959,7 +968,7 @@ func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
-	_, _, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
+	_, _, _, err := s.agentToolCall(ctx, s.agentTools(), nil, tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
 	if !errors.Is(err, ai.ErrProviderTimeout) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}

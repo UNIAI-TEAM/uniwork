@@ -67,6 +67,9 @@ export class WSClient {
   private connectionState: WSConnectionState = "disconnected";
   private connectionStateListeners = new Set<(state: WSConnectionState) => void>();
   private anyHandlers = new Set<(msg: WSMessage) => void>();
+  private presenceBeatWaiter:
+    | { resolve: (ids: string[] | null) => void; timer: ReturnType<typeof setTimeout> }
+    | null = null;
   /** Explicit scope subscriptions replayed after reconnect (workspace/user are server-side). */
   private scopeSubscriptions = new Map<string, Set<string>>();
   private logger: Logger;
@@ -178,8 +181,12 @@ export class WSClient {
         }
         return;
       }
-      if ((msg as any).type === "auth_ack") {
+      if ((msg as { type: string }).type === "auth_ack") {
         this.onAuthenticated();
+        return;
+      }
+      if ((msg as { type: string }).type === "presence.ack") {
+        this.resolvePresenceBeat(msg.payload);
         return;
       }
       this.logger.debug("received", msg.type);
@@ -361,6 +368,36 @@ export class WSClient {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
+  }
+
+  /**
+   * Chat presence heartbeat over the workspace socket (falls back to HTTP when
+   * the coordinator has no WS transport). Returns online user ids or null.
+   */
+  sendPresenceBeat(visible: boolean): Promise<string[] | null> {
+    if (!this.isAuthenticated()) return Promise.resolve(null);
+    if (this.presenceBeatWaiter) {
+      clearTimeout(this.presenceBeatWaiter.timer);
+      this.presenceBeatWaiter.resolve(null);
+      this.presenceBeatWaiter = null;
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.presenceBeatWaiter) this.presenceBeatWaiter = null;
+        resolve(null);
+      }, 10_000);
+      this.presenceBeatWaiter = { resolve, timer };
+      this.send({ type: "presence.beat", payload: { state: "online", visible } });
+    });
+  }
+
+  private resolvePresenceBeat(payload: unknown): void {
+    const waiter = this.presenceBeatWaiter;
+    if (!waiter) return;
+    clearTimeout(waiter.timer);
+    this.presenceBeatWaiter = null;
+    const ids = (payload as { online_user_ids?: string[] | null } | null)?.online_user_ids;
+    waiter.resolve(Array.isArray(ids) ? ids : null);
   }
 
   /** Subscribe to a scoped realtime room (e.g. chat:{roomId}). */

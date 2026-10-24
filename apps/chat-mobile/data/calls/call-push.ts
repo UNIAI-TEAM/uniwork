@@ -1,4 +1,4 @@
-// What a call push does on the phone (docs/adr/drafts/0038). On Android it
+// What a call push does on the phone (docs/adr/0038). On Android it
 // arrives data-only, through the background notification task
 // (data/calls/call-wiring.ts), whether UniChat is closed, in the background or
 // on screen. A ring becomes the app's own incoming-call notification —

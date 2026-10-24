@@ -37,7 +37,10 @@ type Deps struct {
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
-	Google              GoogleExchanger
+	Google GoogleExchanger
+	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
+	// with Apple route answers 503 and /auth/providers reports apple=false.
+	AppleAuth           *service.AppleAuthService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
 	People              *service.PeopleService
@@ -305,6 +308,7 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		AppleSignIn:           h.appleSignIn,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,
 		DesktopConsentCommand: h.desktopConsentCommand,
@@ -525,23 +529,32 @@ func New(d Deps) http.Handler {
 		SubscribePush:              h.subscribePush,
 		UnsubscribePush:            h.unsubscribePush,
 
-		AiCapabilities:       h.aiCapabilities,
-		UploadAiAttachment:   h.uploadAskAttachment,
-		CancelAiAttachment:   h.cancelAskAttachment,
-		DownloadAiAttachment: h.downloadAskAttachment,
-		GetOrgAskModels:      h.getOrgAskModels,
-		SetOrgAskModels:      h.setOrgAskModels,
-		AskUni:               h.askUni,
-		AskUniStream:         h.askUniStream,
-		ChatCatchUp:          h.chatCatchUp,
-		ListAiConversations:  h.listAiConversations,
-		ListAiMessages:       h.listAiMessages,
-		DeleteAiConversation: h.deleteAiConversation,
-		RenameAiConversation: h.renameAiConversation,
-		SetAiFeedback:        h.setAiFeedback,
-		ClearAiFeedback:      h.clearAiFeedback,
-		WorkspaceAiUsage:     h.workspaceAiUsage,
-		OrganizationAiUsage:  h.organizationAiUsage,
+		AiCapabilities:          h.aiCapabilities,
+		UploadAiAttachment:      h.uploadAskAttachment,
+		CancelAiAttachment:      h.cancelAskAttachment,
+		DownloadAiAttachment:    h.downloadAskAttachment,
+		GetOrgAskModels:         h.getOrgAskModels,
+		SetOrgAskModels:         h.setOrgAskModels,
+		GetOrgAskWritePolicy:    h.getOrgAskWritePolicy,
+		SetOrgAskWritePolicy:    h.setOrgAskWritePolicy,
+		SetAskUniMode:           h.setAskUniMode,
+		ApplyAiProposal:         h.applyAiProposal,
+		RejectAiProposal:        h.rejectAiProposal,
+		UndoAiProposal:          h.undoAiProposal,
+		EditAiProposal:          h.editAiProposal,
+		ApplyAiMessageProposals: h.applyAiMessageProposals,
+		SaveAiAnswerDocument:    h.saveAiAnswerAsDocument,
+		AskUni:                  h.askUni,
+		AskUniStream:            h.askUniStream,
+		ChatCatchUp:             h.chatCatchUp,
+		ListAiConversations:     h.listAiConversations,
+		ListAiMessages:          h.listAiMessages,
+		DeleteAiConversation:    h.deleteAiConversation,
+		RenameAiConversation:    h.renameAiConversation,
+		SetAiFeedback:           h.setAiFeedback,
+		ClearAiFeedback:         h.clearAiFeedback,
+		WorkspaceAiUsage:        h.workspaceAiUsage,
+		OrganizationAiUsage:     h.organizationAiUsage,
 
 		AiByokChatCompletions: aiMount.ByokChatCompletions,
 		AiByokMessages:        aiMount.ByokMessages,

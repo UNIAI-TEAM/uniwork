@@ -1,4 +1,4 @@
-// UniChat's native call support on Android (docs/adr/drafts/0038): the
+// UniChat's native call support on Android (docs/adr/0038): the
 // incoming-call notification, the in-call foreground service, the ringer and
 // the decline / hang-up actions. Built by the app's Gradle like any Expo module.
 plugins {

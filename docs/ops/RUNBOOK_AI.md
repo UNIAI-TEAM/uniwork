@@ -237,7 +237,7 @@ Người hỏi gắn tối đa 5 file vào một câu hỏi; UNI đọc chúng �
 | Phần token dành cho file | 30.000 mỗi lượt, chia theo thứ tự gắn (`askFileTokenShare`); ước lượng PDF 2.000 token một trang, ảnh 4.800 token, chữ `ceil(số rune / 3)` |
 | Ngân sách đầu vào của lượt | 60.000 token như cũ; riêng lượt có file, token đọc từ cache chỉ tính 1/10 vì file gửi lại ở mọi vòng |
 | Lượt có file cùng lúc | 2 mỗi tiến trình, giữ suốt lượt; mở và đọc file thì 1 lúc một (xem dưới) |
-| Một lần mở PDF | tối đa 131.072 object, 4 MiB một object, 10.000 object một object stream, 16 MiB một stream giải nén; heap sống tăng quá 48 MiB cộng ba lần cỡ file (chừng 108 MiB với file 20 MB, vì pdfcpu giữ bản sao mọi stream) thì dừng và coi là `ai_attachment_unreadable`; mức nền đo sau một lần dọn rác. Một PDF chỉ mở một lần, PDF có mật khẩu chủ luôn được ghi lại không mã hóa trước khi gửi |
+| Một lần mở PDF | tối đa 131.072 object, 4 MiB một object, 10.000 object một object stream, 16 MiB một stream giải nén; heap sống tăng quá 48 MiB cộng ba lần cỡ file (chừng 108 MiB với file 20 MB: pdfcpu giữ bản sao mọi stream, bản cắt hay bản bỏ mã hóa ghi vào một bộ đệm cấp một lần bằng cỡ file, nên PDF scan cần chừng hai lần cỡ file; phần còn lại chừa cho object đã phân tích và lời gọi model của lượt kia) thì dừng và coi là `ai_attachment_unreadable`; mức nền đo sau một lần dọn rác. Một PDF chỉ mở một lần, PDF có mật khẩu chủ luôn được ghi lại không mã hóa trước khi gửi |
 | Một lần đọc file Office hay văn bản | giữ tối đa 4 MiB chữ (phần token chỉ dùng được chừng 90.000 ký tự); phần sau chỉ được đếm, không giữ, nên file lớn được đọc phần đầu chứ không bị từ chối. Mỗi sheet của Excel giữ các dòng đầu trong phần của nó. Giải nén tối đa 64 MiB (zip bomb thì từ chối), bảng chuỗi dùng chung, danh sách sheet và quan hệ tối đa 16 MiB, thư mục zip tối đa 1 MiB; một dòng văn bản đọc theo từng đoạn và cắt ở 1 MiB |
 
 File vượt phần token thì UNI đọc phần đầu (N trang đầu của PDF; với Excel, phần token chia đều cho các sheet và mỗi sheet giữ các dòng đầu, phần sheet nào dùng không hết chuyển cho sheet sau) và ghi lại trong `ai_messages.file_notes` của câu trả lời; client hiện dòng "UNI đã đọc … trên …" lấy từ đó và từ sự kiện `done`, không phụ thuộc model có tự nói hay không.
@@ -271,6 +271,38 @@ GROUP BY prompt_id;
 Spec ước một câu có file đắt thêm khoảng 0,01–0,03 USD với Sonnet 5.5 (file được tính đủ ở vòng đầu rồi 1/10 ở các vòng sau); đó là ước lượng, chưa đo bằng eval thật. Khi chi phí tăng bất thường, làm như mục "Hỏi UNI agent (P1)" và tắt `ask_uni_attachments` trước khi tắt `ask_uni_agent`.
 
 **Khi lùi migration.** Tắt cờ trước, rồi lùi theo thứ tự ngược: `9991792710000300_ai_messages_file_notes` bỏ cột `file_notes`; `9991792710000203_ai_attachments_file_idx`, `…202_ai_attachments_message_idx` và `…201_ai_attachments_conversation_idx` bỏ ba index của bảng (mỗi file một câu `DROP INDEX CONCURRENTLY`); `9991792710000200_ai_attachments` bỏ bảng `ai_attachments` (file đã gắn vẫn nằm trong kho, không còn dòng nào trỏ tới); `9991792710000100_file_purpose_ai_attachment` xóa các phiên tải lên mục đích `ai_attachment` trước khi thu hẹp CHECK.
+
+## Hỏi UNI: hành động ghi (UNI-2148, P3)
+
+UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình luận, chat) thay người hỏi. Model không chạy lệnh ghi: tool ghi chỉ lưu một dòng `agent_action_proposals`; lệnh chạy khi người hỏi bấm Áp dụng, hoặc ở chế độ Tự động với dòng mức 1 của lượt không bị nhiễm (ADR 0044, spec §6).
+
+- **Tắt khẩn cấp**: hai cách, cái nào nhanh hơn thì dùng.
+  - Override cờ `ask_uni_actions=false` ở `/admin/flags` (theo tổ chức hoặc toàn cục; thắng `FF_ASK_UNI_ACTIONS`). Agent thôi nhận tool ghi; client ẩn nút chế độ, các nút của thẻ đề xuất (Áp dụng, Sửa, Bỏ qua, Hoàn tác, Áp dụng tất cả, Duyệt kế hoạch) và mục trần ghi ở Cài đặt; thẻ đã có vẫn hiện như lịch sử, không còn nút. Các route đề xuất trả 403 `ai_actions_disabled`.
+  - Trần của một tổ chức về `off`: `PUT /api/v1/orgs/{org}/ai/ask-write-policy` với `{"ceiling":"off"}` (chỉ owner/admin tổ chức). Chỉ tắt ghi của Hỏi UNI trong tổ chức đó; ghi qua MCP có công tắc riêng.
+  - Dòng đã áp dụng không biến mất khi tắt: thay đổi và audit giữ nguyên; người hỏi không hoàn tác được cho tới khi ghi mở lại.
+- **Metric**: `uniwork_ai_ask_actions_total{tool,outcome}` (`outcome`: `proposed`, `auto_applied`, `applied`, `rejected`, `failed`, `undone`; tool ngoài registry gom về `other`) và `uniwork_ai_ask_taint_downgrades_total` (lượt Tự động có dòng mức 1 nhưng bị nhiễm nên phải chờ người hỏi). `failed` tăng nhanh: xem mã lỗi dưới. Downgrade tăng là bình thường trong workspace dùng chung, vì lượt đọc nội dung của người khác thì nhiễm.
+- **Ngân sách**: 30 dòng áp dụng mỗi phút mỗi người (`uw:ai:ask:write:<user>`); chỉ bị tiêu khi lệnh sẽ chạy. Không có Redis thì đếm trong bộ nhớ từng tiến trình; Redis lỗi thì cho qua, như mọi limiter.
+- **Hết hạn**: dòng `pending` sống 24 giờ; sau đó `proposal_expired`.
+
+| Mã lỗi | HTTP | Nghĩa | Việc cần làm |
+| --- | --- | --- | --- |
+| `ai_actions_disabled` | 403 | Cờ `ask_uni_actions` tắt, trần tổ chức là `off`, hoặc chế độ của người dùng bị kẹp về rỗng | Không phải sự cố nếu cố ý tắt; nếu không, bật lại cờ hoặc trần |
+| `ai_write_rate_limited` | 429 | Quá 30 dòng áp dụng trong một phút | Đợi một phút; nếu lặp lại, tìm client gọi Áp dụng liên tục |
+| `proposal_expired` | 409 | Dòng quá 24 giờ | Hỏi lại UNI |
+| `proposal_not_pending` | 409 | Dòng đã được áp dụng, bỏ qua hoặc đang chạy (bấm đúp, hai tab) | Không cần làm; thẻ vẽ lại theo trạng thái thật |
+| `proposal_ref_pending` | 409 | Dòng dùng `{{row:N.id}}` của một dòng chưa áp dụng | Áp dụng dòng N trước (duyệt kế hoạch làm theo thứ tự) |
+| `revision_conflict` | 409 | Đối tượng đã đổi `revision` sau khi UNI đề xuất | Hỏi lại UNI để lấy đề xuất mới |
+| `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
+| `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
+
+Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
+
+### Suy nghĩ và lời dẫn của UNI (`ask_uni_thinking`)
+
+- **Cờ `ask_uni_thinking`** (`server/internal/featureflags/keys.go`, mặc định tắt, không Public, `review_at` 2027-04-30): bật thì lượt stream của agent bật adaptive thinking (bản tóm tắt) với model nhận được (họ Claude 5, Opus 4.6–4.8, Sonnet 4.6) và dùng prompt `copilot_answer@8`–`@11` (@4–@7 thêm lời dẫn). Panel hiện, dưới mỗi bước, câu model viết trước khi gọi tool và tóm tắt suy nghĩ; suy nghĩ trước câu trả lời lưu thành bước `kind: "think"`. Không cần migration: các trường mới nằm trong JSON `ai_messages.steps`.
+- **Chi phí**: suy nghĩ tính như token output; khi bật, ngân sách output của lượt lên 16.000 và mỗi lần gọi ít nhất 16.384 `max_tokens`. Model tự quyết có suy nghĩ hay không: Sonnet 5.5 ở mức `medium` (mặc định của Tự động) thường không suy nghĩ, Opus và mức cao thì có. Tóm tắt suy nghĩ do API viết bằng tiếng Anh; prompt chỉ dặn gọi đối tượng bằng tên, không bằng số nguồn.
+- **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`) với @8–@11, vì lời dẫn thêm chữ vào mỗi vòng tool.
+- **Tắt**: override `ask_uni_thinking=false` (hoặc `FF_ASK_UNI_THINKING`). Lượt sau quay về @4–@7, không gửi thinking; lượt đã lưu vẫn hiện lời dẫn và suy nghĩ của nó.
 
 ## Không bao giờ
 

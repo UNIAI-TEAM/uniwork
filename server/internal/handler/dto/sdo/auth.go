@@ -49,6 +49,7 @@ type MobileSecurityPolicySDO struct {
 // AuthProvidersSDO is GET /api/v1/auth/providers.
 type AuthProvidersSDO struct {
 	Google bool `json:"google" description:"true khi Google sign-in được cấu hình trên server" example:"true"`
+	Apple  bool `json:"apple" description:"true khi Sign in with Apple native (app iPhone) được cấu hình trên server" example:"true"`
 }
 
 // MFAChallengeSDO replaces SessionSDO on login when the account has MFA on.

@@ -3,7 +3,7 @@
 // line is given back — the microphone only if it was on, and never on a room already gone.
 import { act, renderHook } from "@testing-library/react-native";
 import type { Room } from "livekit-client";
-import { nativeCalls } from "@/data/calls/native-calls";
+import { nativeCallSession } from "@/data/calls/native-call-session";
 import { useCellularHold } from "./use-cellular-hold";
 
 jest.mock("livekit-client", () => ({
@@ -11,13 +11,13 @@ jest.mock("livekit-client", () => ({
   RoomEvent: { ParticipantConnected: "participantConnected" },
 }));
 
-let mockHeldListener: (held: boolean) => void = () => undefined;
+let mockListener: (event: { type: string; callId?: string; held?: boolean; muted?: boolean }) => void = () => undefined;
 const mockUnsubscribe = jest.fn();
-jest.mock("@/data/calls/native-calls", () => ({
-  nativeCalls: {
-    isCallHeld: jest.fn(() => false),
-    onCallHeld: jest.fn((listener: (held: boolean) => void) => {
-      mockHeldListener = listener;
+jest.mock("@/data/calls/native-call-session", () => ({
+  nativeCallSession: {
+    isHeld: jest.fn(() => false),
+    subscribe: jest.fn((listener: typeof mockListener) => {
+      mockListener = listener;
       return mockUnsubscribe;
     }),
   },
@@ -47,11 +47,16 @@ function fakeRoom(micOn = true) {
   return { room, peer, late, handlers, join, asRoom: room as unknown as Room };
 }
 
-const hold = (held: boolean) => act(() => mockHeldListener(held));
+// The session's other events (CallKit's mute) leave the hold alone.
+const hold = (held: boolean) =>
+  act(() => {
+    mockListener({ type: "muted", callId: "c-1", muted: true });
+    mockListener({ type: "held", callId: "", held });
+  });
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(nativeCalls.isCallHeld).mockReturnValue(false);
+  jest.mocked(nativeCallSession.isHeld).mockReturnValue(false);
 });
 
 describe("useCellularHold", () => {
@@ -87,7 +92,7 @@ describe("useCellularHold", () => {
   });
 
   it("holds from the start when the phone's call already had the line, and waits for the room to connect", async () => {
-    jest.mocked(nativeCalls.isCallHeld).mockReturnValue(true);
+    jest.mocked(nativeCallSession.isHeld).mockReturnValue(true);
     const f = fakeRoom();
     const view = await renderHook(({ connected }: { connected: boolean }) => useCellularHold(f.asRoom, connected), { initialProps: { connected: false } });
     expect(view.result.current).toBe(true);

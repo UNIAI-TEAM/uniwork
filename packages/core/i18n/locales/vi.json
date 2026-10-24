@@ -726,6 +726,7 @@
         "document_break_glass": "Truy cập khẩn cấp vào tài liệu",
         "chat_mentioned": "Được nhắc đến trong chat",
         "chat_dm": "Tin nhắn riêng",
+        "chat_message": "Tin nhắn trong nhóm và kênh",
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi",
         "chat_call_incoming": "Cuộc gọi đến",
         "document_access_requested": "Yêu cầu truy cập tài liệu",
@@ -1244,6 +1245,10 @@
         "workspace_agent.added": "Thêm agent vào workspace",
         "agent.created": "Tạo agent",
         "agent.updated": "Cập nhật agent",
+        "ai_proposal.applied": "Áp dụng đề xuất của UNI",
+        "ai_proposal.rejected": "Bỏ qua đề xuất của UNI",
+        "ai_proposal.undone": "Hoàn tác đề xuất của UNI",
+        "organization.ask_uni_write_policy_changed": "Đổi quyền thay đổi của Hỏi UNI",
         "task.created": "Tạo việc",
         "task.updated": "Cập nhật việc",
         "task.deleted": "Xóa việc",
@@ -1284,6 +1289,7 @@
         "priority": "Độ ưu tiên",
         "assignee_id": "Người phụ trách",
         "assignee_kind": "Loại người phụ trách",
+        "ask_uni_write_ceiling": "Quyền thay đổi của Hỏi UNI",
         "due_date": "Hạn",
         "start_date": "Ngày bắt đầu",
         "start_at": "Giờ bắt đầu",
@@ -1786,7 +1792,22 @@
       "askModelsDescription": "Chọn model mà thành viên được dùng khi hỏi UNI. Model tắt sẽ không hiện trong menu chọn model.",
       "askModelsAuto": "Tự động",
       "askModelsAutoNote": "Luôn bật: UNI tự chọn model phù hợp.",
-      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại."
+      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại.",
+      "askWriteTitle": "Quyền thay đổi của Hỏi UNI",
+      "askWriteDescription": "Mức tự quyết cao nhất của Hỏi UNI trong tổ chức. Mỗi thành viên chọn chế độ của mình, nhưng không vượt mức này.",
+      "askWriteCeiling": {
+        "off": "Tắt",
+        "ask": "Chỉ Hỏi trước",
+        "plan": "Hỏi trước và Kế hoạch (mặc định)",
+        "auto": "Cả Tự động"
+      },
+      "askWriteCeilingNote": {
+        "off": "UNI chỉ trả lời, không đề xuất thay đổi.",
+        "ask": "Mọi thay đổi đều chờ người dùng áp dụng.",
+        "plan": "Thay đổi chờ áp dụng từng cái, hoặc cả kế hoạch cùng lúc.",
+        "auto": "Thay đổi nhỏ, dễ hoàn tác có thể tự áp dụng."
+      },
+      "askWriteReadOnly": "Chỉ chủ sở hữu và quản trị viên đổi được mức này."
     },
     "state": {
       "load_error": "Không tải được phần này.",
@@ -6971,6 +6992,7 @@
       "document_break_glass_untitled": "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.",
       "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
       "chat_dm": "{{actor}} đã nhắn tin cho bạn",
+      "chat_message": "{{actor}} đã nhắn trong {{room}}",
       "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}",
       "chat_call_incoming": "{{actor}} đang gọi",
       "document_access_requested": "{{actor}} xin quyền truy cập tài liệu \"{{document}}\".",
@@ -7161,7 +7183,8 @@
       "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
       "default": "Đã xử lý",
       "retry": "Đã kiểm tra lại câu trả lời",
-      "summary_other": "Xong sau {{count}} bước"
+      "summary_other": "Xong sau {{count}} bước",
+      "thought_only": "Đã suy nghĩ"
     },
     "cite": {
       "label": "Nguồn {{n}}",
@@ -7203,7 +7226,9 @@
       "note_label": "Ghi chú (không bắt buộc)",
       "note_placeholder": "Cho UNI biết thêm…",
       "note_count": "{{count}}/{{max}}",
-      "send_feedback": "Gửi phản hồi"
+      "send_feedback": "Gửi phản hồi",
+      "create_task": "Tạo công việc",
+      "create_document": "Tạo tài liệu"
     },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã dùng hết hạn mức token AI của tháng. Báo quản trị viên nếu cần thêm.",
@@ -7305,6 +7330,28 @@
     "placeholder_project": "Hỏi về dự án này…",
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
+    "source_bar": {
+      "app_soon": "{{name}} · Sắp có",
+      "title": "Ứng dụng kết nối",
+      "more": "Kết nối thêm ứng dụng · Sắp có",
+      "hide": "Ẩn thanh nguồn"
+    },
+    "notes": {
+      "hide": "Thu gọn lưu ý trong 1 ngày",
+      "show_other": "Xem {{count}} lưu ý"
+    },
+    "mode": {
+      "ask": "Hỏi trước",
+      "plan": "Kế hoạch",
+      "auto": "Tự động",
+      "ask_hint": "Hỏi bạn trước từng thay đổi",
+      "plan_hint": "Gom thành kế hoạch để bạn duyệt một lần",
+      "auto_hint": "Tự làm thay đổi nhỏ, việc lớn vẫn hỏi bạn",
+      "menu_title": "Khi UNI muốn thay đổi dữ liệu",
+      "label_with": "Chế độ: {{mode}}",
+      "save_failed": "Không lưu được chế độ. Thử lại.",
+      "tainted_note": "Hội thoại đã đọc nội dung không do bạn viết, nên mọi thay đổi vẫn hỏi bạn trước."
+    },
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",
@@ -7381,6 +7428,110 @@
         "3": "Tuần tới có những cuộc họp nào?",
         "4": "Việc ưu tiên cao nào còn đang mở?"
       }
+    },
+    "proposal": {
+      "header_ask": "UNI đề xuất · cần bạn xác nhận",
+      "header_plan": "Kế hoạch của UNI · chọn bước cần làm",
+      "header_done": "Đề xuất của UNI",
+      "apply": "Áp dụng",
+      "edit": "Sửa",
+      "reject": "Bỏ qua",
+      "apply_all": "Áp dụng tất cả",
+      "undo": "Hoàn tác",
+      "open": "Mở",
+      "approve_plan_other": "Duyệt kế hoạch ({{count}} bước)",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "edit_field": "Sửa {{field}}",
+      "edit_invalid": "Thay đổi này không hợp lệ. Sửa lại rồi lưu.",
+      "edit_invalid_field": "{{field}} không hợp lệ. Sửa lại rồi lưu.",
+      "picked": "Đã chọn: {{name}}",
+      "select_step": "Chọn bước {{n}}",
+      "step_n": "Bước {{n}}",
+      "uses_step": "dùng kết quả của bước {{n}}",
+      "empty_value": "(trống)",
+      "unreadable_value": "(không đọc được)",
+      "generic_error": "Không thực hiện được. Thử lại.",
+      "applying": "Đang áp dụng…",
+      "undoing": "Đang hoàn tác…",
+      "unknown": "Chưa rõ kết quả. Mở đối tượng để kiểm tra.",
+      "unknown_status": "Trạng thái chưa rõ.",
+      "status": {
+        "applied": "Đã áp dụng",
+        "rejected": "Đã bỏ qua",
+        "undone": "Đã hoàn tác",
+        "expired": "Đã hết hạn"
+      },
+      "audience_title": "Ai sẽ thấy",
+      "audience": {
+        "workspace": "Cả workspace",
+        "private": "Chỉ bạn",
+        "task": "Người xem được công việc này",
+        "document": "Người xem được tài liệu này",
+        "meeting": "Người trong cuộc họp",
+        "room": "{{count}} người trong phòng chat"
+      },
+      "notifies": "Báo cho {{names}}",
+      "notifies_more": "Báo cho {{names}} và người khác",
+      "notifies_others": "Báo cho người khác",
+      "error": {
+        "revision_conflict": "Đối tượng đã đổi sau khi UNI đề xuất. Hỏi lại UNI để lấy đề xuất mới.",
+        "not_found": "Không tìm thấy đối tượng này. Có thể nó đã bị xóa hoặc bạn không còn quyền xem.",
+        "invalid_args": "Đề xuất này không hợp lệ. Sửa nội dung hoặc hỏi lại UNI.",
+        "proposal_expired": "Đề xuất đã hết hạn. Hỏi lại UNI.",
+        "proposal_ref_pending": "Bước này dùng kết quả của một bước trước chưa được áp dụng. Áp dụng bước đó trước.",
+        "proposal_not_pending": "Đề xuất này đã được xử lý, có thể ở một tab khác.",
+        "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
+        "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
+        "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
+        "default": "Không áp dụng được. Hỏi lại UNI."
+      },
+      "tool": {
+        "create_task": "Tạo công việc",
+        "update_task": "Sửa công việc",
+        "add_comment": "Bình luận vào công việc",
+        "create_project": "Tạo dự án",
+        "update_project": "Sửa dự án",
+        "schedule_meeting": "Đặt cuộc họp",
+        "update_meeting": "Sửa cuộc họp",
+        "invite_to_meeting": "Mời vào cuộc họp",
+        "cancel_meeting": "Hủy cuộc họp",
+        "restore_meeting": "Khôi phục cuộc họp",
+        "create_document": "Tạo tài liệu",
+        "update_document": "Sửa tài liệu",
+        "add_document_comment": "Bình luận vào tài liệu",
+        "send_chat_message": "Gửi tin nhắn",
+        "other": "Thay đổi"
+      },
+      "field": {
+        "title": "Tiêu đề",
+        "description": "Mô tả",
+        "content": "Nội dung",
+        "body": "Nội dung",
+        "reason": "Lý do",
+        "status": "Trạng thái",
+        "priority": "Độ ưu tiên",
+        "assignee_id": "Người phụ trách",
+        "lead_id": "Người dẫn dắt",
+        "start_date": "Ngày bắt đầu",
+        "due_date": "Hạn",
+        "starts_at": "Bắt đầu",
+        "ends_at": "Kết thúc",
+        "timezone": "Múi giờ",
+        "project_id": "Dự án",
+        "parent_task_id": "Công việc cha",
+        "parent_id": "Nằm trong",
+        "labels": "Nhãn",
+        "attendee_ids": "Người tham dự",
+        "user_ids": "Người được mời",
+        "mode": "Nội dung"
+      },
+      "content_mode": {
+        "append": "Thêm vào cuối tài liệu",
+        "replace": "Thay toàn bộ tài liệu"
+      },
+      "details": "Xem chi tiết",
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
     }
   },
   "admin": {
@@ -11755,6 +11906,28 @@
         "queue_more": "Còn {{count}} lượt tải lên đang chờ.",
         "waiting": "Máy chủ đang bận, sẽ tự thử lại sau ít giây…"
       },
+      "unreadable": {
+        "checking": "Đang kiểm tra thư mục…",
+        "checking_files": "Đang kiểm tra các tệp…",
+        "title": "Có {{count}} tệp trình duyệt không đọc được",
+        "why_single": "Đường dẫn tệp này trên máy quá dài, trình duyệt không mở được.",
+        "why_multiple": "Đường dẫn các tệp này trên máy quá dài, trình duyệt không mở được.",
+        "affected": "Tệp bị ảnh hưởng · {{count}}",
+        "list_label": "Các tệp trình duyệt không đọc được",
+        "more": "+ {{count}} tệp khác",
+        "less": "Thu gọn",
+        "suggest_lead": "UniWork Office tải được thư mục này.",
+        "suggest_lead_files": "UniWork Office tải được các tệp này.",
+        "suggest_steps": "Mở ứng dụng rồi chọn lại thư mục này. Trong ứng dụng, bấm Tải lên › Tải lên thư mục.",
+        "suggest_steps_files": "Mở ứng dụng rồi chọn lại các tệp này. Trong ứng dụng, bấm Tải lên › Tải lên tệp.",
+        "suggest_no_app": "Chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại thư mục.",
+        "suggest_no_app_files": "Chép các tệp vào chỗ có đường dẫn ngắn hơn rồi tải lại các tệp.",
+        "opening": "Đang mở…",
+        "rest": "Tải {{count}} tệp còn lại",
+        "handoff_a": "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên thư mục rồi chọn lại thư mục này.",
+        "handoff_a_files": "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên tệp rồi chọn lại các tệp này.",
+        "handoff_install": "Chưa cài UniWork Office?"
+      },
       "skip_reason": {
         "hidden": "Tệp ẩn hoặc tệp hệ thống",
         "unsupported_format": "Định dạng chưa được hỗ trợ",
@@ -11820,6 +11993,8 @@
           "missing_part_url": "Thiếu địa chỉ tải lên cho một phần của tệp lớn. Thử lại các tệp lỗi.",
           "untrusted_target": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại thư mục; nếu vẫn lỗi, báo quản trị viên.",
           "untrusted_target_files": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại tệp; nếu vẫn lỗi, báo quản trị viên.",
+          "file_unreadable": "Trình duyệt không đọc được tệp này, thường do đường dẫn trên máy quá dài. Mở UniWork Office để tải thư mục này, hoặc chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
+          "file_unreadable_files": "Trình duyệt không đọc được tệp này, thường do đường dẫn trên máy quá dài. Mở UniWork Office để tải các tệp này, hoặc chép tệp vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
           "aborted": "Lượt tải tệp này đã bị dừng. Thử lại các tệp lỗi.",
           "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp này. Thử lại các tệp lỗi.",
           "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại các tệp lỗi.",

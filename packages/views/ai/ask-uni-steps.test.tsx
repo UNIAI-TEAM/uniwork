@@ -6,7 +6,7 @@ import { AskUniProgress } from "./ask-uni-steps";
 
 initI18n();
 
-const step = (tool: string, label = ""): AiStep => ({ tool, label, counts: {} });
+const step = (tool: string, label = "", over: Partial<AiStep> = {}): AiStep => ({ tool, label, counts: {}, note: "", thought: "", kind: "", ...over });
 
 describe("AskUniProgress", () => {
   it("says what the last step is doing, with its label", () => {
@@ -58,6 +58,58 @@ describe("AskUniProgress", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByText("Đã tìm “quá hạn”")).toBeInTheDocument();
     expect(screen.getByText("Đã kiểm tra lại câu trả lời")).toBeInTheDocument();
+  });
+
+  it("shows each step's thinking and note under it while running, then the thinking still being written", () => {
+    render(
+      <AskUniProgress
+        steps={[step("search", "quá hạn", { thought: "Cần **việc quá hạn** trước.", note: "Mình tìm việc quá hạn." })]}
+        running
+        writing={false}
+        thinking="Giờ xem ai đang giữ"
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("UNI đang suy nghĩ…");
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Cần việc quá hạn trước.");
+    expect(items[0]?.querySelector("strong")).toHaveTextContent("việc quá hạn");
+    expect(items[0]).toHaveTextContent("Đã tìm “quá hạn”");
+    expect(items[0]).toHaveTextContent("Mình tìm việc quá hạn.");
+    expect(items[1]).toHaveTextContent("Giờ xem ai đang giữ");
+  });
+
+  it("does not say the step the status line names twice while it runs", () => {
+    render(<AskUniProgress steps={[step("search", "a", { note: "Tìm a." }), step("get_task", "Việc A", { note: "Mở việc A." })]} running writing={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Việc A");
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Đã tìm “a”");
+    expect(items[1]).toHaveTextContent(/^Mở việc A\.$/);
+  });
+
+  it("folds the timeline away once the answer is being written", () => {
+    render(<AskUniProgress steps={[step("search", "a", { note: "Tìm a." })]} running writing thinking="" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Đang viết câu trả lời…");
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("keeps the timeline hidden while running when there is nothing but the steps' names", () => {
+    render(<AskUniProgress steps={[step("search", "a")]} running writing={false} />);
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("counts only tool steps when done, and shows the closing thought without a step sentence", () => {
+    render(<AskUniProgress steps={[step("search", "a", { note: "Tìm a." }), step("", "", { kind: "think", thought: "Đủ rồi." })]} running={false} writing={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Xong sau 1 bước" }));
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[1]).toHaveTextContent(/^Đủ rồi\.$/);
+  });
+
+  it("says it thought it over when the answer took thinking but no tool", () => {
+    render(<AskUniProgress steps={[step("", "", { kind: "think", thought: "Câu dễ." })]} running={false} writing={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Đã suy nghĩ" }));
+    expect(screen.getByText("Câu dễ.")).toBeInTheDocument();
   });
 
   it("renders nothing when done with no steps", () => {

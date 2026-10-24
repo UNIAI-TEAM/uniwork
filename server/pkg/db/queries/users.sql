@@ -64,6 +64,31 @@ RETURNING *;
 -- name: GetUserByGoogleID :one
 SELECT * FROM users WHERE google_id = $1;
 
+-- name: CreateAppleUser :one
+-- Sign in with Apple (ADR 0041): Apple vouches for the address, so it starts
+-- verified; no password, onboarding still ahead (onboarded_at stays NULL).
+INSERT INTO users (id, email, display_name, apple_id, email_verified_at, locale)
+VALUES ($1, $2, $3, $4, now(), $5)
+RETURNING *;
+
+-- name: GetUserByAppleID :one
+SELECT * FROM users WHERE apple_id = $1;
+
+-- name: LinkAppleAccount :one
+-- Only an account not linked to another Apple subject takes the link.
+UPDATE users SET
+  apple_id = sqlc.arg('apple_id'),
+  email_verified_at = COALESCE(email_verified_at, now()),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND (apple_id IS NULL OR apple_id = sqlc.arg('apple_id'))
+RETURNING *;
+
+-- name: SetAppleRefreshToken :exec
+-- The sealed refresh token of the account's Apple consent and the bundle id it
+-- was issued to: account deletion revokes it with that client id.
+UPDATE users SET apple_client_id = $2, apple_refresh_token_enc = $3, updated_at = now()
+WHERE id = $1 AND apple_id IS NOT NULL;
+
 -- name: LinkGoogleAccount :one
 UPDATE users SET
   google_id = $2,
@@ -162,7 +187,7 @@ WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
 -- Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
 UPDATE users SET
   email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
-  google_id = NULL,
+  google_id = NULL, apple_id = NULL, apple_client_id = NULL, apple_refresh_token_enc = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
   ai_consent_version = NULL, ai_consent_at = NULL,
@@ -186,3 +211,9 @@ WHERE user_id = $1;
 
 -- name: RevokeAllPushSubscriptionsForUser :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
+
+-- name: GetUserAskUniMode :one
+SELECT ask_uni_mode FROM users WHERE id = $1;
+
+-- name: SetUserAskUniMode :exec
+UPDATE users SET ask_uni_mode = sqlc.narg(mode)::text, updated_at = now() WHERE id = sqlc.arg(id);

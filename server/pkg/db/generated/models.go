@@ -41,6 +41,42 @@ type Agent struct {
 	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
 }
 
+type AgentActionProposal struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Source         string             `json:"source"`
+	RunID          string             `json:"run_id"`
+	AgentID        pgtype.Text        `json:"agent_id"`
+	ConversationID pgtype.Text        `json:"conversation_id"`
+	MessageID      pgtype.Text        `json:"message_id"`
+	Position       int32              `json:"position"`
+	ActionType     string             `json:"action_type"`
+	TargetKind     string             `json:"target_kind"`
+	TargetID       pgtype.Text        `json:"target_id"`
+	Payload        string             `json:"payload"`
+	Preview        string             `json:"preview"`
+	RiskLevel      string             `json:"risk_level"`
+	Mode           string             `json:"mode"`
+	Tainted        bool               `json:"tainted"`
+	TargetRevision pgtype.Int8        `json:"target_revision"`
+	Status         string             `json:"status"`
+	Decision       pgtype.Text        `json:"decision"`
+	Result         string             `json:"result"`
+	Undo           pgtype.Text        `json:"undo"`
+	Error          pgtype.Text        `json:"error"`
+	DecidedBy      pgtype.Text        `json:"decided_by"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	AppliedAt      pgtype.Timestamptz `json:"applied_at"`
+	UndoneBy       pgtype.Text        `json:"undone_by"`
+	UndoneAt       pgtype.Timestamptz `json:"undone_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AiAttachment struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -65,6 +101,8 @@ type AiConversation struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	TitleSource    string             `json:"title_source"`
+	TaintedAt      pgtype.Timestamptz `json:"tainted_at"`
+	TaintTracked   bool               `json:"taint_tracked"`
 }
 
 type AiMessage struct {
@@ -520,6 +558,23 @@ type ChatUserNickname struct {
 	Nickname       string             `json:"nickname"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChatVoiceCallSession struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	RoomID         string             `json:"room_id"`
+	CallID         string             `json:"call_id"`
+	CallerID       string             `json:"caller_id"`
+	CallerName     string             `json:"caller_name"`
+	CallKind       string             `json:"call_kind"`
+	RoomName       string             `json:"room_name"`
+	Video          bool               `json:"video"`
+	InvitedAt      pgtype.Timestamptz `json:"invited_at"`
+	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
+	ParticipantIds []string           `json:"participant_ids"`
+	InviteeIds     []string           `json:"invitee_ids"`
+	DeclinedIds    []string           `json:"declined_ids"`
 }
 
 type ChatVoiceRecording struct {
@@ -2083,27 +2138,30 @@ type MeetingTranscription struct {
 }
 
 type Notification struct {
-	ID             string             `json:"id"`
-	UserID         string             `json:"user_id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	Kind           string             `json:"kind"`
-	GroupKey       string             `json:"group_key"`
-	ResourceType   string             `json:"resource_type"`
-	ResourceID     string             `json:"resource_id"`
-	ActorKind      string             `json:"actor_kind"`
-	ActorID        string             `json:"actor_id"`
-	TitleKey       string             `json:"title_key"`
-	Params         string             `json:"params"`
-	Count          int32              `json:"count"`
-	CorrelationID  pgtype.Text        `json:"correlation_id"`
-	ReadAt         pgtype.Timestamptz `json:"read_at"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	PushedAt       pgtype.Timestamptz `json:"pushed_at"`
-	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	PhonePushedAt  pgtype.Timestamptz `json:"phone_pushed_at"`
+	ID                  string             `json:"id"`
+	UserID              string             `json:"user_id"`
+	OrganizationID      string             `json:"organization_id"`
+	WorkspaceID         pgtype.Text        `json:"workspace_id"`
+	Kind                string             `json:"kind"`
+	GroupKey            string             `json:"group_key"`
+	ResourceType        string             `json:"resource_type"`
+	ResourceID          string             `json:"resource_id"`
+	ActorKind           string             `json:"actor_kind"`
+	ActorID             string             `json:"actor_id"`
+	TitleKey            string             `json:"title_key"`
+	Params              string             `json:"params"`
+	Count               int32              `json:"count"`
+	CorrelationID       pgtype.Text        `json:"correlation_id"`
+	ReadAt              pgtype.Timestamptz `json:"read_at"`
+	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
+	PushedAt            pgtype.Timestamptz `json:"pushed_at"`
+	DigestedAt          pgtype.Timestamptz `json:"digested_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	PhonePushedAt       pgtype.Timestamptz `json:"phone_pushed_at"`
+	PushedMessageID     pgtype.Text        `json:"pushed_message_id"`
+	PushedMessageAt     pgtype.Timestamptz `json:"pushed_message_at"`
+	VoipSubscriptionIds []string           `json:"voip_subscription_ids"`
 }
 
 type NotificationDelivery struct {
@@ -2236,6 +2294,9 @@ type Organization struct {
 	MobileAppLockRequiredBy      pgtype.Text        `json:"mobile_app_lock_required_by"`
 	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
 	MobileScreenCaptureBlockedBy pgtype.Text        `json:"mobile_screen_capture_blocked_by"`
+	AskUniWriteCeiling           pgtype.Text        `json:"ask_uni_write_ceiling"`
+	AskUniWriteCeilingUpdatedBy  pgtype.Text        `json:"ask_uni_write_ceiling_updated_by"`
+	AskUniWriteCeilingUpdatedAt  pgtype.Timestamptz `json:"ask_uni_write_ceiling_updated_at"`
 }
 
 type OrganizationMember struct {
@@ -2358,16 +2419,19 @@ type ProjectResource struct {
 }
 
 type PushSubscription struct {
-	ID         string             `json:"id"`
-	UserID     string             `json:"user_id"`
-	Endpoint   string             `json:"endpoint"`
-	P256dh     string             `json:"p256dh"`
-	Auth       string             `json:"auth"`
-	UserAgent  pgtype.Text        `json:"user_agent"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	SessionID  pgtype.Text        `json:"session_id"`
+	ID              string             `json:"id"`
+	UserID          string             `json:"user_id"`
+	Endpoint        string             `json:"endpoint"`
+	P256dh          string             `json:"p256dh"`
+	Auth            string             `json:"auth"`
+	UserAgent       pgtype.Text        `json:"user_agent"`
+	LastUsedAt      pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	SessionID       pgtype.Text        `json:"session_id"`
+	Transport       pgtype.Text        `json:"transport"`
+	ApnsEnvironment pgtype.Text        `json:"apns_environment"`
+	ApnsBundleID    pgtype.Text        `json:"apns_bundle_id"`
 }
 
 type RefreshToken struct {
@@ -2678,6 +2742,10 @@ type User struct {
 	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
 	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
 	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
+	AppleID              pgtype.Text        `json:"apple_id"`
+	AppleClientID        pgtype.Text        `json:"apple_client_id"`
+	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
+	AskUniMode           pgtype.Text        `json:"ask_uni_mode"`
 }
 
 type WebhookInbox struct {

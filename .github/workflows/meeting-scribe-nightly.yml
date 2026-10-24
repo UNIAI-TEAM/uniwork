@@ -1,4 +1,4 @@
-# Nightly end-to-end run of the AI scribe (UNI-1995, ADR 0038; spec
+# Nightly end-to-end run of the AI scribe (UNI-1995, ADR 0045; spec
 # 2026-10-20-meeting-scribe-agent-design §12.1): e2e/meeting-scribe.spec.ts
 # against a real LiveKit server (the same livekit-server image and config as
 # local development, scripts/ensure-livekit.sh), the server binary with the

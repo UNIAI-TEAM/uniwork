@@ -302,6 +302,7 @@ func main() {
 	// Presence lives in Redis when there is one, so every replica sees the same
 	// online set and a transition is announced once; nil keeps it in process.
 	chatSvc.SetPresenceStore(rdb)
+	hub.SetPresenceSignaler(handler.ChatPresenceSignaler(chatSvc))
 	// Call sessions are journaled in Redis when there is one, so a restart or a
 	// deploy keeps the calls ringing and under way (chat_voice_journal.go).
 	chatSvc.SetVoiceCallJournal(rdb)
@@ -558,7 +559,24 @@ func main() {
 		log.Error("EXPO_ACCESS_TOKEN is not set in production: mobile pushes are sent unauthenticated and Expo refuses them once enhanced push security is on (docs/runbooks/unichat-mobile-release.md)")
 	}
 	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
-	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
+	// iPhone calls ring through CallKit: VoIP pushes straight to APNs (ADR
+	// 0038). No key, or a broken one, leaves VoIP off and iPhones on the Expo
+	// call push; a broken key is loud, never a boot error.
+	var voipSender notification.PushSender
+	apns, err := notification.NewAPNsVoIPSender(notification.APNsConfig{
+		KeyID: cfg.APNSKeyID, TeamID: cfg.APNSTeamID, PrivateKey: cfg.APNSPrivateKey, Topic: cfg.APNSVoIPTopic,
+	})
+	switch {
+	case err != nil:
+		log.Error("APNs VoIP push disabled: the key is incomplete or unreadable", "error", err)
+	case apns != nil:
+		if reg != nil {
+			apns.SetMetrics(reg.Notifications)
+		}
+		voipSender = apns
+		log.Info("APNs VoIP push enabled", "key_id", cfg.APNSKeyID)
+	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender, voipSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
 	pushConsumer.SetBadges(chatSvc)
@@ -695,6 +713,30 @@ func main() {
 			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
 		}
 	}
+	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
+	// identity tokens may name. The key that signs Apple client secrets is
+	// what lets a sign-in keep a refresh token and account deletion revoke
+	// it, which Apple requires; without it sign-in still works and the
+	// missing revoke is logged here.
+	var appleAuth *service.AppleAuthService
+	if cfg.AppleSignInEnabled() {
+		var appleClient service.AppleTokenClient
+		if cfg.AppleRevokeConfigured() {
+			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
+			if err != nil {
+				log.Error("sign in with apple: token revoke disabled", "err", err)
+			} else {
+				appleClient = c
+			}
+		} else {
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+		}
+		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		appleAuth.SetMail(renderer, mailOutbox)
+		authSvc.SetApple(appleAuth)
+		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
@@ -796,6 +838,7 @@ func main() {
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
+		AppleAuth:           appleAuth,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),

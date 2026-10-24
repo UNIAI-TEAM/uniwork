@@ -64,6 +64,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_break_glass: ShieldAlert,
   chat_mentioned: AtSign,
   chat_dm: MODULE_ICONS.chat,
+  chat_message: MODULE_ICONS.chat,
   chat_thread_replied: MessageSquare,
   chat_call_incoming: Phone,
   document_access_requested: KeyRound,

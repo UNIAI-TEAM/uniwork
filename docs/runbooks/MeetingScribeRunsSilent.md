@@ -1,6 +1,6 @@
 # MeetingScribeRunsSilent — thư ký AI trong phòng mà không có lời thoại
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` · **Nền:** spec `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §4.1, §6.1; ADR 0038; benchmark UNI-1995 #1
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** `deploy/alerts.yml` · **Nền:** spec `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §4.1, §6.1; ADR 0045; benchmark UNI-1995 #1
 
 ## Triệu chứng
 

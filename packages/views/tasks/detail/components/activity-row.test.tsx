@@ -196,6 +196,24 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("Lan");
   });
 
+  it("nói thay đổi đến từ một đề xuất của Hỏi UNI", () => {
+    row({ action: "task.created", metadata: { via: { kind: "ask_uni", proposal_id: "p1" } } }, "Lan");
+    expect(screen.getByText("qua Hỏi UNI")).toBeInTheDocument();
+  });
+
+  it("gọi tên các bước của một đề xuất UNI thay vì mã thô", () => {
+    for (const [action, label] of [
+      ["ai_proposal.applied", "Áp dụng đề xuất của UNI"],
+      ["ai_proposal.rejected", "Bỏ qua đề xuất của UNI"],
+      ["ai_proposal.undone", "Hoàn tác đề xuất của UNI"],
+    ] as const) {
+      const { unmount } = render(<TaskActivityRow event={{ ...base, action }} actorName="Lan" />);
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.queryByText(action)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it("bỏ qua via mà máy chủ gửi sai dạng", () => {
     for (const via of ["Claude", null, 7, [], {}, { client_name: 3 }]) {
       const { unmount } = render(

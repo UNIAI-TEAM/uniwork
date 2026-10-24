@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -60,6 +61,18 @@ type PresenceChecker interface {
 // message in the first two minutes after a phone was put away went
 // unnotified (audit "Calls, push & background", chat-push-swallowed).
 const pushActiveWindow = 45 * time.Second
+
+// chatAlertWindow: every chat message pushes (UNI-2141), but a burst in one
+// room (or thread) alerts once. A push that follows, within this long, the
+// last one a phone alerted for in the same open row shows quietly — no sound,
+// no vibration — and the next one after it alerts again, so a long exchange
+// still sounds about twice a minute rather than going silent. 30 seconds
+// holds the burst of one person typing several lines (a few seconds apart)
+// to one alert, while a reply that comes after a pause — someone answering
+// a question — sounds. It is shorter than pushActiveWindow, so a person who
+// put the phone away mid-conversation is not left silent for long, and a read
+// closes the row, so the first message after reading always alerts.
+const chatAlertWindow = 30 * time.Second
 
 // readingRoom says whether the recipient has a visible page that beat within
 // pushActiveWindow somewhere this room's messages show. A channel shows in its
@@ -176,8 +189,19 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if err != nil {
 		return err
 	}
-	if n.PushedAt.Valid || n.ReadAt.Valid {
-		return nil // already delivered, or read on another device before the push went out
+	// A chat push names its message (Consumer.write): each message of an open
+	// row pushes once, newest wins, decided by claimChatPush right before the
+	// send. A row without one was written before pushes went per message and
+	// keeps the once-per-row rule.
+	messageID := ""
+	if isChatPushKind(n.Kind) {
+		messageID = p["message_id"]
+	}
+	switch {
+	case n.ReadAt.Valid:
+		return nil // read on another device before the push went out
+	case messageID == "" && n.PushedAt.Valid:
+		return nil // already delivered
 	}
 	// A ring the lane reaches after it stopped ringing is not worth a phone
 	// call, and its row is closed so the inbox does not keep "đang gọi".
@@ -201,7 +225,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if isChatPushKind(n.Kind) {
 		// The preview is read at delivery, so a message deleted in the
 		// meantime sends nothing.
-		chatMsg, err = c.q.GetChatMessageByID(ctx, n.ResourceID)
+		id := n.ResourceID
+		if messageID != "" {
+			id = messageID
+		}
+		chatMsg, err = c.q.GetChatMessageByID(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.q.MarkNotificationPushed(ctx, n.ID)
 		}
@@ -236,6 +264,10 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if n.Kind == KindChatDM && chatMsg.Kind == "voice_call_log" {
 			// Only an unanswered DM call notifies its log (ChatService.finalizeVoiceCall).
 			c.missedCall(&msg, user.Locale, params, n, chatMsg)
+		} else if messageID != "" {
+			if n.Count > 1 {
+				msg.Chat.Unread, msg.Chat.Summary = int(n.Count), chatUnreadSummary(user.Locale, int(n.Count))
+			}
 		}
 		// The row is in hand, so the link is built here instead of letting
 		// ResourceURL read it a second time.
@@ -280,9 +312,46 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	iPhonesRing := n.Kind == KindChatCallIncoming && (c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, n.UserID, n.OrganizationID))
+	// An iPhone with a PushKit token rings through CallKit (ADR 0038): the VoIP
+	// push goes first, and the Expo token of each device session it reached
+	// gets no "đang gọi" banner on top. One it did not reach (no APNs key on
+	// the server, a dead or failing token) keeps today's visible push, and a
+	// failing token does not retry the row: the ring lasts a minute, the
+	// banner already reached that iPhone, and a retry would ring every other
+	// device again.
+	var rang voipResult
+	if iPhonesRing {
+		if rang, err = c.sendVoIP(ctx, subs, msg); err != nil {
+			return err
+		}
+		if rang.failed != nil {
+			slog.WarnContext(ctx, "push: VoIP ring failed, the iPhone gets the visible push", "user_id", n.UserID, "error", rang.failed)
+		}
+		// The ring's end goes to the tokens recorded here and nowhere else
+		// (endCallKitRings). Unrecorded, the iPhone rings out its window, which
+		// beats retrying the row and ringing every device again.
+		if len(rang.subscriptions) > 0 {
+			if err := c.q.AddCallRingVoIPSubscriptions(ctx, db.AddCallRingVoIPSubscriptionsParams{ID: n.ID, SubscriptionIds: rang.subscriptions}); err != nil {
+				slog.WarnContext(ctx, "push: VoIP ring not recorded, its end will not reach the iPhone", "user_id", n.UserID, "error", err)
+			}
+		}
+	}
+	var claim db.ClaimChatNotificationPushRow
+	if messageID != "" {
+		var claimed bool
+		claim, claimed, err = c.claimChatPush(ctx, n, chatMsg, subs, msg.Call.Type == CallPushMissed)
+		if err != nil || !claimed {
+			return err
+		}
+		msg.Quiet = !claim.Alerted
+	}
 	var failed error
-	phoneSent := false
+	phoneSent := rang.sent
 	for _, sub := range subs {
+		// A PushKit token takes a ring and its end only, sent above.
+		if isVoIPSubscription(sub) {
+			continue
+		}
 		// Call invites are the phone's background path (spec M3 §2): open
 		// desktops ring through realtime; web push subscriptions are skipped.
 		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
@@ -291,6 +360,9 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if n.Kind == KindChatCallIncoming && !iPhonesRing && expoPlatform(sub) == "ios" {
 			c.count("skipped")
 			continue
+		}
+		if n.Kind == KindChatCallIncoming && expoPlatform(sub) == "ios" && sub.SessionID.Valid && rang.sessions[sub.SessionID.String] {
+			continue // this iPhone rings through CallKit
 		}
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
@@ -308,12 +380,76 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	if failed != nil {
+		if messageID != "" {
+			return errors.Join(failed, c.releaseChatPush(ctx, n, messageID, claim))
+		}
 		return failed
+	}
+	if messageID != "" {
+		return c.afterChatPush(ctx, n, chatMsg, subs, phoneSent)
 	}
 	if !phoneSent {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
 	return c.markPhonePushed(ctx, n, chatMsg, subs)
+}
+
+// claimChatPush claims chatMsg's push of the chat row n before it is sent
+// (ClaimChatNotificationPush): false when the row was read or a message after
+// this one, in the room's order, was claimed meanwhile, so nothing goes out.
+// The claim says whether this push alerts: it does unless a phone alerted for
+// the row less than chatAlertWindow ago, and a missed call always does. Only
+// a push that reaches a phone moves the row's alert window.
+func (c *PushConsumer) claimChatPush(
+	ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, alwaysAlert bool,
+) (db.ClaimChatNotificationPushRow, bool, error) {
+	window := chatAlertWindow
+	if alwaysAlert {
+		window = 0
+	}
+	phone := false
+	for _, sub := range subs {
+		phone = phone || isExpoPushToken(sub.Endpoint)
+	}
+	claim, err := c.q.ClaimChatNotificationPush(ctx, db.ClaimChatNotificationPushParams{
+		ID: n.ID, MessageID: chatMsg.ID, MessageAt: chatMsg.CreatedAt, Phone: phone, AlertWindowSeconds: window.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return claim, false, nil
+	}
+	if err != nil {
+		return claim, false, err
+	}
+	if !phone {
+		// No phone to alert or quiet: a browser replaces the room's notification by its tag.
+		claim.Alerted = true
+	}
+	return claim, true, nil
+}
+
+// releaseChatPush gives back the claim of a push that failed, so the lane's
+// retry of the row sends it as this try would have.
+func (c *PushConsumer) releaseChatPush(ctx context.Context, n db.Notification, messageID string, claim db.ClaimChatNotificationPushRow) error {
+	return c.q.ReleaseChatNotificationPush(ctx, db.ReleaseChatNotificationPushParams{
+		ID: n.ID, MessageID: messageID,
+		PrevPushedAt: claim.PrevPushedAt, PrevMessageID: claim.PrevMessageID,
+		PrevMessageAt: claim.PrevMessageAt, PrevPhonePushedAt: claim.PrevPhonePushedAt,
+	})
+}
+
+// afterChatPush answers a read that closed the row while this push was on
+// its way, as markPhonePushed does: the room's notifications come out of the
+// Android tray again, since this one may have landed after the read's own
+// room_read push.
+func (c *PushConsumer) afterChatPush(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription, phoneSent bool) error {
+	if !phoneSent || !closedByRoomRead(n.Kind) {
+		return nil // a thread reply is not closed by reading the room
+	}
+	read, err := c.q.IsNotificationRead(ctx, n.ID)
+	if err != nil || !read {
+		return err
+	}
+	return c.clearRoomTray(ctx, n, chatMsg, subs)
 }
 
 // markPhonePushed records that a phone was shown n, the mark a room read looks
@@ -325,9 +461,21 @@ func (c *PushConsumer) markPhonePushed(ctx context.Context, n db.Notification, c
 	if err != nil {
 		return err
 	}
-	if !read || (n.Kind != KindChatDM && n.Kind != KindChatMentioned) {
+	if !read || !closedByRoomRead(n.Kind) {
 		return nil // a thread reply or a call is not closed by reading the room
 	}
+	return c.clearRoomTray(ctx, n, chatMsg, subs)
+}
+
+// closedByRoomRead: the chat kinds a room read closes (ChatService
+// closeRoomNotifications); a thread reply and a call are not.
+func closedByRoomRead(kind string) bool {
+	return kind == KindChatDM || kind == KindChatMentioned || kind == KindChatMessage
+}
+
+// clearRoomTray sends the room_read push for chatMsg's room to the person's
+// Android phones with the call UI.
+func (c *PushConsumer) clearRoomTray(ctx context.Context, n db.Notification, chatMsg db.ChatMessage, subs []db.PushSubscription) error {
 	msg := PushMessage{TTL: roomClearedTTL, Cleared: RoomCleared{RoomID: chatMsg.RoomID, WorkspaceID: chatMsg.WorkspaceID}}
 	if c.badges != nil {
 		msg.Badge = c.unreadBadge(ctx, n.UserID)
@@ -394,12 +542,14 @@ func (c *PushConsumer) missedCall(msg *PushMessage, locale string, params map[st
 const callEndTTL = int(callRingWindow / time.Second)
 
 // handleRingClosed tells a person's Android phones (the builds with the call
-// UI) that a call no longer
-// rings for them: they answered it on one device, declined it, or it ended.
-// A data-only push; the app removes its ringing screen and notification.
-// iPhones keep today's visible push, which this cannot recall. Nothing is
-// sent when the calls switch is off for the person: their phone was never
-// rung, and a ring that outlives a switch flipped mid-call times out alone.
+// UI) that a call no longer rings for them: they answered it on one device,
+// declined it, or it ended. A data-only push; the app removes its ringing
+// screen and notification. The iPhones the ring reached through CallKit get
+// it as a VoIP push while unichat_mobile_calls_ios is on (endCallKitRings);
+// an iPhone without a PushKit token keeps today's visible push, which this
+// cannot recall. Nothing is sent when the calls switch is off for the person:
+// their phone was never rung, and a ring that outlives a switch flipped
+// mid-call times out alone. Only the Android sends can fail the row.
 func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) error {
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
@@ -417,7 +567,119 @@ func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) erro
 		return err
 	}
 	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
+	if c.mobileCallsIOS == nil || c.mobileCallsIOS(ctx, userID, ev.OrganizationID.String) {
+		if err := c.endCallKitRings(ctx, userID, p, subs, msg); err != nil {
+			return err
+		}
+	}
 	return c.sendToCallUI(ctx, subs, msg)
+}
+
+// endCallKitRings sends a ring's end as a VoIP push, saying why it stopped,
+// only where it can take a CallKit screen down: iOS makes the app report a
+// call for every VoIP push, so an end anywhere else shows a call that is not
+// ringing and ends it at once. It goes to the PushKit tokens the ring reached
+// (recorded on its ring row), once (the record is taken as it is read), while
+// the ring is within its window, and not to the device session that answered
+// or declined (the payload's session_id): that iPhone knows, and an end there
+// would hang up the call it just answered. Once the record is taken nothing
+// fails the row: a retry would end the other phones again, and a ring the end
+// misses stops at the end of its window. The error is reading the record.
+func (c *PushConsumer) endCallKitRings(ctx context.Context, userID string, p map[string]string, subs []db.PushSubscription, msg PushMessage) error {
+	if !slices.ContainsFunc(subs, isVoIPSubscription) {
+		return nil
+	}
+	ring, err := c.q.TakeCallRingVoIPSubscriptions(ctx, db.TakeCallRingVoIPSubscriptionsParams{
+		UserID: userID, GroupKey: service.ChatCallNotifyGroup(p["room_id"]), CallID: p["call_id"],
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // no iPhone rang through CallKit
+	}
+	if err != nil {
+		return err
+	}
+	if c.now().Sub(ring.CreatedAt.Time) > callRingWindow {
+		return nil // the ring already stopped on the phone
+	}
+	closer := p["session_id"]
+	targets := slices.DeleteFunc(slices.Clone(subs), func(sub db.PushSubscription) bool {
+		return !isVoIPSubscription(sub) || !slices.Contains(ring.SubscriptionIds, sub.ID) ||
+			(closer != "" && sub.SessionID.Valid && sub.SessionID.String == closer)
+	})
+	msg.Call.EndReason = ringClosedReason(p["reason"])
+	ended, err := c.sendVoIP(ctx, targets, msg)
+	if err == nil {
+		err = ended.failed
+	}
+	if err != nil {
+		slog.WarnContext(ctx, "push: VoIP end failed, the iPhone rings out its window", "user_id", userID, "error", err)
+	}
+	return nil
+}
+
+// ringClosedReason keeps the payload's reason within its closed set; a row
+// written before it carried one reads as ended.
+func ringClosedReason(reason string) string {
+	switch reason {
+	case service.RingClosedAnswered, service.RingClosedDeclined:
+		return reason
+	}
+	return service.RingClosedEnded
+}
+
+// voipResult is what sendVoIP did: whether any PushKit token took the push,
+// which ones (push_subscriptions ids), the device sessions they were
+// registered from, and the last failure.
+type voipResult struct {
+	sent          bool
+	subscriptions []string
+	sessions      map[string]bool
+	failed        error
+}
+
+// sendVoIP sends a ring or its end to the PushKit tokens among subs, naming
+// the call's organization and workspace by slug: the app opens the call by its
+// path. A dead token is revoked; a token the sender skips (no APNs key) is
+// counted and left for the Expo path. The error is only the slug lookup's.
+func (c *PushConsumer) sendVoIP(ctx context.Context, subs []db.PushSubscription, msg PushMessage) (voipResult, error) {
+	var out voipResult
+	if !slices.ContainsFunc(subs, isVoIPSubscription) {
+		return out, nil
+	}
+	if msg.Call.WorkspaceID != "" {
+		ws, err := c.q.GetWorkspaceWithOrg(ctx, msg.Call.WorkspaceID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return out, err
+		}
+		msg.Call.OrgSlug, msg.Call.WorkspaceSlug = ws.OrganizationSlug, ws.Slug
+	}
+	for _, sub := range subs {
+		if !isVoIPSubscription(sub) {
+			continue
+		}
+		err := c.sender.Send(ctx, sub, msg)
+		switch {
+		case err == nil:
+			c.count("sent")
+			out.sent = true
+			out.subscriptions = append(out.subscriptions, sub.ID)
+			if sub.SessionID.Valid {
+				if out.sessions == nil {
+					out.sessions = map[string]bool{}
+				}
+				out.sessions[sub.SessionID.String] = true
+			}
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
+		case errors.Is(err, ErrSubscriptionGone):
+			c.count("gone")
+			_ = c.q.RevokePushSubscription(ctx, sub.ID)
+		default:
+			c.count("failed")
+			out.failed = err
+		}
+	}
+	return out, nil
 }
 
 // roomClearedTTL: a tray cleanup that reaches a phone a day late finds

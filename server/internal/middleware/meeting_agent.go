@@ -18,7 +18,7 @@ import (
 type meetingAgentKey struct{}
 
 // RequireMeetingAgentToken guards the scribe agent's routes (spec
-// 2026-10-20-meeting-scribe-agent-design §7.1, ADR 0038). No uwma_ bearer —
+// 2026-10-20-meeting-scribe-agent-design §7.1, ADR 0045). No uwma_ bearer —
 // a session JWT included — is 401. A uwma_ token with a bad signature, past
 // its expiry, or naming another meeting than {meetingID} is 404, the answer
 // for any id the caller may not see. The verified claims ride the context;

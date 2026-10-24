@@ -60,6 +60,16 @@ be:
     # Expo access token for UniChat mobile push (enhanced push security). Optional:
     # create the Secret before turning enhanced push security on in the Expo project.
     expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
+    # Apple keys of UniChat on the iPhone, one Secret (deploy/app/env/README.md › Apple).
+    # Optional: without the Secret the pod still starts with VoIP and Apple revoke off.
+    # The team id is not secret and lives in uniwork-be.env (APNS_TEAM_ID, APPLE_SIWA_TEAM_ID).
+    # apns: the APNs token-auth key for iPhone VoIP call pushes (ADR 0038); without it
+    # iPhones keep the Expo call push. privateKey is the .p8 file's PEM.
+    apns: { name: uniwork-apple, keyID: APNS_KEY_ID, privateKey: APNS_PRIVATE_KEY }
+    # siwa: the Sign in with Apple key (ADR 0041) that signs the client secret of Apple's
+    # token and revoke endpoints; without it sign-in works and account deletion cannot
+    # revoke the Apple grant. Sign-in itself turns on with APPLE_SIWA_AUDIENCES.
+    siwa: { name: uniwork-apple, keyID: APPLE_SIWA_KEY_ID, privateKey: APPLE_SIWA_PRIVATE_KEY }
     # Office engine credentials (same Secret as officeEngine.secrets). Optional:
     # without them the BE has no engine and refuses office jobs.
     officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
@@ -146,7 +156,7 @@ officeEngine:
     # Grant signing key; >= 32 chars and DIFFERENT from the service token.
     grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
 
-# AI scribe agent (apps/meeting-agent, ADR 0038; spec 2026-10-20-meeting-scribe-agent-design
+# AI scribe agent (apps/meeting-agent, ADR 0045; spec 2026-10-20-meeting-scribe-agent-design
 # §4.6). Off until the STT vendor's data-processing agreement is signed (parent
 # spec §7.5) and ops confirm the shared LiveKit is >= v1.9.12 (S0 results §1).
 # Turn on together with MEETING_SCRIBE_ENABLED=true in uniwork-be.env.

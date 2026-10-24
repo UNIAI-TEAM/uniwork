@@ -1,5 +1,5 @@
 # Answer an incoming call from Android's own ringing notification
-# (docs/adr/drafts/0038). The nightly runs it twice on a Google APIs emulator
+# (docs/adr/0038). The nightly runs it twice on a Google APIs emulator
 # whose build carries google-services.json, so the data-only FCM push really
 # arrives (chat-mobile-verify.yml › android, "Incoming calls"): once with
 # UniChat in the background (APP_STATE=background, the default) and once with

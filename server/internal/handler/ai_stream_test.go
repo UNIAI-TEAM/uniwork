@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -400,6 +401,31 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 	}
 	if !strings.Contains(done, `"steps":[{"tool":"search","label":"owner"`) {
 		t.Fatalf("done %s", done)
+	}
+}
+
+// A reasoning delta is its own frame, and a step names the model's note.
+func TestWriteAskEventSendsReasoningAndTheStepNote(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "reasoning", Delta: "Cần xem."})
+	writeAskEvent(sw, service.AskEvent{Name: "step", Step: &service.AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Note: "Mình tìm."}})
+	sw.close()
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: reasoning\ndata: {\"text\":\"Cần xem.\"}\n\n") || !strings.Contains(body, `"note":"Mình tìm."`) {
+		t.Fatalf("frames:\n%s", body)
+	}
+}
+
+// A stored step keeps the model's note, its thought and its kind.
+func TestToAiMessageDTOStepsKeepNoteThoughtAndKind(t *testing.T) {
+	out := toAiMessageDTO(db.AiMessage{Citations: "[]", Steps: `[{"tool":"search","label":"x","counts":{},"note":"Mình tìm.","thought":"Cần xem."},{"tool":"","label":"","counts":{},"kind":"think","thought":"Đủ rồi."}]`})
+	want := []sdo.AiStepDTO{
+		{Tool: "search", Label: "x", Counts: map[string]int{}, Note: "Mình tìm.", Thought: "Cần xem."},
+		{Counts: map[string]int{}, Kind: "think", Thought: "Đủ rồi."},
+	}
+	if !reflect.DeepEqual(out.Steps, want) {
+		t.Fatalf("steps %+v, want %+v", out.Steps, want)
 	}
 }
 

@@ -1,5 +1,5 @@
 # Pinned per docs/superpowers/specs/2026-10-20-meeting-scribe-agent-s0-results.md §2.1.
-# No LLM SDK, ever (ADR 0038; scripts/governance.test.mjs fails on one): every
+# No LLM SDK, ever (ADR 0045; scripts/governance.test.mjs fails on one): every
 # model call is a request to the UniWork server, which goes through ai.Gateway.
 livekit-agents==1.8.8
 livekit-plugins-silero==1.8.8

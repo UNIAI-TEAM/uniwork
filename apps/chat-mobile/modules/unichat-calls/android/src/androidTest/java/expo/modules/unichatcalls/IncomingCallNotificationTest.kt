@@ -2,7 +2,7 @@ package expo.modules.unichatcalls
 
 import android.Manifest
 import android.app.Notification
-import android.app.NotificationManager
+import android.service.notification.StatusBarNotification
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
@@ -58,8 +58,9 @@ class IncomingCallNotificationTest {
     )
     assertTrue("CallNotifications posted the ring", posted)
 
-    val active = context.getSystemService(NotificationManager::class.java).activeNotifications
-      .single { it.notification.category == Notification.CATEGORY_CALL }
+    // notify() returns before the notification service lists the record (ShadeProbe): wait for it, then hold it to one.
+    val isCall = { n: StatusBarNotification -> n.notification.category == Notification.CATEGORY_CALL }
+    val active = shade.awaitActive(TIMEOUT_MS, "the ring reaches the notification service", isCall).single()
     assertEquals(CallNotifications.CHANNEL_CALLS, active.notification.channelId)
     assertNotNull("the full-screen intent survives the system's checks", active.notification.fullScreenIntent)
 
@@ -69,6 +70,7 @@ class IncomingCallNotificationTest {
 
     CallNotifications.cancelIncoming(context, CALL_ID)
     shade.assertGone(By.text(CALLER), TIMEOUT_MS, "cancelling the ring takes it out of the shade")
+    shade.awaitNotActive(TIMEOUT_MS, "cancelling the ring takes it out of the notification service", isCall)
   }
 
   private companion object {

@@ -134,7 +134,7 @@ describe("useChatRealtime", () => {
     expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
     await act(async () => undefined);
     expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U2"], "ME", expect.any(Number));
-    await act(async () => jest.advanceTimersByTime(15_000));
+    await act(async () => jest.advanceTimersByTime(30_000));
     expect(chatApi.beatPresence).toHaveBeenCalledTimes(2);
 
     // Background: the beat stops and the phone leaves presence; back in front it beats again.

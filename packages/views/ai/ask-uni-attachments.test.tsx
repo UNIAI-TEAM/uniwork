@@ -169,7 +169,8 @@ describe("attaching files to an Ask UNI question", () => {
     expect(fireEvent.drop(panel, drag)).toBe(true);
     paste({ files: [f("a.png", "image/png")] });
     expect(uploads).toHaveLength(0);
-    expect(screen.queryByRole("list")).toBeNull();
+    // The only list left is the header's sources bar: no file list.
+    expect(screen.getAllByRole("list").map((l) => l.getAttribute("aria-label"))).toEqual(["Ứng dụng kết nối"]);
   });
 
   it("shows a chip with progress for a picked file and sends its id", async () => {

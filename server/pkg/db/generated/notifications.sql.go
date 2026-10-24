@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addCallRingVoIPSubscriptions = `-- name: AddCallRingVoIPSubscriptions :exec
+UPDATE notifications SET voip_subscription_ids = ARRAY(
+  SELECT DISTINCT s FROM unnest(COALESCE(voip_subscription_ids, '{}'::text[]) || $1::text[]) AS s
+)
+WHERE id = $2
+`
+
+type AddCallRingVoIPSubscriptionsParams struct {
+	SubscriptionIds []string `json:"subscription_ids"`
+	ID              string   `json:"id"`
+}
+
+// tenant: system
+// Records on a call's ring row the PushKit tokens its VoIP push reached
+// (ADR 0038), so the ring's end goes to them (TakeCallRingVoIPSubscriptions).
+// A retried ring adds to the list.
+func (q *Queries) AddCallRingVoIPSubscriptions(ctx context.Context, arg AddCallRingVoIPSubscriptionsParams) error {
+	_, err := q.db.Exec(ctx, addCallRingVoIPSubscriptions, arg.SubscriptionIds, arg.ID)
+	return err
+}
+
 const archiveNotifications = `-- name: ArchiveNotifications :execrows
 UPDATE notifications SET archived_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY($2::text[]) AND archived_at IS NULL
@@ -28,6 +49,86 @@ func (q *Queries) ArchiveNotifications(ctx context.Context, arg ArchiveNotificat
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const claimChatNotificationPush = `-- name: ClaimChatNotificationPush :one
+WITH old AS (
+  SELECT cur.id, cur.pushed_at, cur.pushed_message_id, cur.pushed_message_at, cur.phone_pushed_at, cur.read_at
+  FROM notifications AS cur WHERE cur.id = $5
+  FOR UPDATE
+)
+UPDATE notifications AS n SET
+  pushed_at = COALESCE(old.pushed_at, now()),
+  pushed_message_id = $1::text,
+  pushed_message_at = $2::timestamptz,
+  phone_pushed_at = CASE
+    WHEN $3::bool AND (
+      old.phone_pushed_at IS NULL
+      OR old.phone_pushed_at <= now() - make_interval(secs => $4::float8)
+    ) THEN now()
+    ELSE old.phone_pushed_at
+  END
+FROM old
+WHERE n.id = old.id
+  AND old.read_at IS NULL
+  AND (
+    old.pushed_message_at IS NULL
+    OR (old.pushed_message_at, COALESCE(old.pushed_message_id, ''))
+      < ($2::timestamptz, $1::text)
+  )
+RETURNING
+  old.pushed_at AS prev_pushed_at,
+  old.pushed_message_id AS prev_message_id,
+  old.pushed_message_at AS prev_message_at,
+  old.phone_pushed_at AS prev_phone_pushed_at,
+  (n.phone_pushed_at IS DISTINCT FROM old.phone_pushed_at)::bool AS alerted
+`
+
+type ClaimChatNotificationPushParams struct {
+	MessageID          string             `json:"message_id"`
+	MessageAt          pgtype.Timestamptz `json:"message_at"`
+	Phone              bool               `json:"phone"`
+	AlertWindowSeconds float64            `json:"alert_window_seconds"`
+	ID                 string             `json:"id"`
+}
+
+type ClaimChatNotificationPushRow struct {
+	PrevPushedAt      pgtype.Timestamptz `json:"prev_pushed_at"`
+	PrevMessageID     pgtype.Text        `json:"prev_message_id"`
+	PrevMessageAt     pgtype.Timestamptz `json:"prev_message_at"`
+	PrevPhonePushedAt pgtype.Timestamptz `json:"prev_phone_pushed_at"`
+	Alerted           bool               `json:"alerted"`
+}
+
+// tenant: system
+// Claims one message's push of a chat row before it is sent (UNI-2141): every
+// message of a room pushes, and the push lane runs several workers on several
+// nodes, so the claim is one statement under the row's lock. It succeeds only
+// while the row is unread and the message comes after the last one claimed, in
+// the room's order (created_at, then id: ids are minted on each node's clock,
+// created_at on the database's); no row back means send nothing. With a phone
+// among the person's devices, phone_pushed_at is when a phone last ALERTED for
+// the row: the claim moves it, and answers alerted, only when the last alert is
+// alert_window_seconds old, so a burst alerts once and the window runs on the
+// database's clock. The prev_ columns are the row before the claim, for
+// ReleaseChatNotificationPush.
+func (q *Queries) ClaimChatNotificationPush(ctx context.Context, arg ClaimChatNotificationPushParams) (ClaimChatNotificationPushRow, error) {
+	row := q.db.QueryRow(ctx, claimChatNotificationPush,
+		arg.MessageID,
+		arg.MessageAt,
+		arg.Phone,
+		arg.AlertWindowSeconds,
+		arg.ID,
+	)
+	var i ClaimChatNotificationPushRow
+	err := row.Scan(
+		&i.PrevPushedAt,
+		&i.PrevMessageID,
+		&i.PrevMessageAt,
+		&i.PrevPhonePushedAt,
+		&i.Alerted,
+	)
+	return i, err
 }
 
 const claimMeetingReminder = `-- name: ClaimMeetingReminder :execrows
@@ -163,7 +264,7 @@ func (q *Queries) CountUnreadNotificationsByWorkspace(ctx context.Context, userI
 }
 
 const getNotification = `-- name: GetNotification :one
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications WHERE id = $1
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at, voip_subscription_ids FROM notifications WHERE id = $1
 `
 
 // tenant: system
@@ -192,6 +293,9 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
+		&i.PushedMessageID,
+		&i.PushedMessageAt,
+		&i.VoipSubscriptionIds,
 	)
 	return i, err
 }
@@ -276,8 +380,20 @@ func (q *Queries) InsertNotificationDelivery(ctx context.Context, arg InsertNoti
 	return result.RowsAffected(), nil
 }
 
+const isNotificationRead = `-- name: IsNotificationRead :one
+SELECT (read_at IS NOT NULL)::bool AS read FROM notifications WHERE id = $1
+`
+
+// tenant: system
+func (q *Queries) IsNotificationRead(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, isNotificationRead, id)
+	var read bool
+	err := row.Scan(&read)
+	return read, err
+}
+
 const listActivePushSubscriptions = `-- name: ListActivePushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id, transport, apns_environment, apns_bundle_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
@@ -300,6 +416,9 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 			&i.RevokedAt,
 			&i.CreatedAt,
 			&i.SessionID,
+			&i.Transport,
+			&i.ApnsEnvironment,
+			&i.ApnsBundleID,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +461,7 @@ func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]Lis
 }
 
 const listDeliverablePushSubscriptions = `-- name: ListDeliverablePushSubscriptions :many
-SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth, p.user_agent, p.last_used_at, p.revoked_at, p.created_at, p.session_id FROM push_subscriptions p
+SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth, p.user_agent, p.last_used_at, p.revoked_at, p.created_at, p.session_id, p.transport, p.apns_environment, p.apns_bundle_id FROM push_subscriptions p
 WHERE p.user_id = $1 AND p.revoked_at IS NULL
   AND (
     p.session_id IS NULL
@@ -381,6 +500,9 @@ func (q *Queries) ListDeliverablePushSubscriptions(ctx context.Context, userID s
 			&i.RevokedAt,
 			&i.CreatedAt,
 			&i.SessionID,
+			&i.Transport,
+			&i.ApnsEnvironment,
+			&i.ApnsBundleID,
 		); err != nil {
 			return nil, err
 		}
@@ -807,7 +929,7 @@ func (q *Queries) ListNotificationPreferencesByUsers(ctx context.Context, userId
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at, voip_subscription_ids FROM notifications
 WHERE user_id = $1
   AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
@@ -864,6 +986,9 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
+			&i.PushedMessageAt,
+			&i.VoipSubscriptionIds,
 		); err != nil {
 			return nil, err
 		}
@@ -876,7 +1001,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 }
 
 const listUndigestedNotifications = `-- name: ListUndigestedNotifications :many
-SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at FROM notifications
+SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at, voip_subscription_ids FROM notifications
 WHERE user_id = $1 AND digested_at IS NULL AND read_at IS NULL AND archived_at IS NULL AND created_at > $2
 ORDER BY workspace_id NULLS FIRST, kind, created_at DESC
 `
@@ -918,6 +1043,9 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
+			&i.PushedMessageAt,
+			&i.VoipSubscriptionIds,
 		); err != nil {
 			return nil, err
 		}
@@ -1063,6 +1191,40 @@ func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificat
 	return result.RowsAffected(), nil
 }
 
+const releaseChatNotificationPush = `-- name: ReleaseChatNotificationPush :exec
+UPDATE notifications SET
+  pushed_at = $1::timestamptz,
+  pushed_message_id = $2::text,
+  pushed_message_at = $3::timestamptz,
+  phone_pushed_at = $4::timestamptz
+WHERE id = $5 AND pushed_message_id = $6::text
+`
+
+type ReleaseChatNotificationPushParams struct {
+	PrevPushedAt      pgtype.Timestamptz `json:"prev_pushed_at"`
+	PrevMessageID     pgtype.Text        `json:"prev_message_id"`
+	PrevMessageAt     pgtype.Timestamptz `json:"prev_message_at"`
+	PrevPhonePushedAt pgtype.Timestamptz `json:"prev_phone_pushed_at"`
+	ID                string             `json:"id"`
+	MessageID         string             `json:"message_id"`
+}
+
+// tenant: system
+// Gives a claim back when its push failed, so the lane's retry of the row
+// sends it (and alerts) as the first try would have. Only while the claim is
+// still the row's: a newer message claimed since is left as it is.
+func (q *Queries) ReleaseChatNotificationPush(ctx context.Context, arg ReleaseChatNotificationPushParams) error {
+	_, err := q.db.Exec(ctx, releaseChatNotificationPush,
+		arg.PrevPushedAt,
+		arg.PrevMessageID,
+		arg.PrevMessageAt,
+		arg.PrevPhonePushedAt,
+		arg.ID,
+		arg.MessageID,
+	)
+	return err
+}
+
 const revokeDevicePushSubscriptionsForUser = `-- name: RevokeDevicePushSubscriptionsForUser :exec
 UPDATE push_subscriptions p SET revoked_at = now()
 WHERE p.user_id = $1 AND p.revoked_at IS NULL
@@ -1119,6 +1281,46 @@ func (q *Queries) RevokePushSubscriptionsForSession(ctx context.Context, arg Rev
 	return err
 }
 
+const takeCallRingVoIPSubscriptions = `-- name: TakeCallRingVoIPSubscriptions :one
+WITH cur AS (
+  SELECT r.id, r.voip_subscription_ids, r.created_at FROM notifications r
+  WHERE r.user_id = $1 AND r.group_key = $2
+    AND r.voip_subscription_ids IS NOT NULL
+    AND r.params::jsonb ->> 'call_id' = $3::text
+  ORDER BY r.created_at DESC
+  LIMIT 1
+  FOR UPDATE
+)
+UPDATE notifications n SET voip_subscription_ids = NULL
+FROM cur
+WHERE n.id = cur.id
+RETURNING cur.voip_subscription_ids::text[] AS subscription_ids, cur.created_at
+`
+
+type TakeCallRingVoIPSubscriptionsParams struct {
+	UserID   string `json:"user_id"`
+	GroupKey string `json:"group_key"`
+	CallID   string `json:"call_id"`
+}
+
+type TakeCallRingVoIPSubscriptionsRow struct {
+	SubscriptionIds []string           `json:"subscription_ids"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// tenant: self
+// Takes, once, the PushKit tokens the ring of call_id reached (its newest ring
+// row in the room's call group): the list is cleared in the same statement,
+// so a retried ring_closed row or the call's own end later finds nothing and
+// sends no second end. created_at says whether the ring is still within its
+// window. No row back means no iPhone rang through CallKit.
+func (q *Queries) TakeCallRingVoIPSubscriptions(ctx context.Context, arg TakeCallRingVoIPSubscriptionsParams) (TakeCallRingVoIPSubscriptionsRow, error) {
+	row := q.db.QueryRow(ctx, takeCallRingVoIPSubscriptions, arg.UserID, arg.GroupKey, arg.CallID)
+	var i TakeCallRingVoIPSubscriptionsRow
+	err := row.Scan(&i.SubscriptionIds, &i.CreatedAt)
+	return i, err
+}
+
 const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
 UPDATE notifications n SET archived_at = NULL, updated_at = now(),
   read_at = CASE WHEN n.read_at IS NULL AND EXISTS (
@@ -1162,7 +1364,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at, voip_subscription_ids
 `
 
 type UpsertNotificationParams struct {
@@ -1226,6 +1428,9 @@ func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PhonePushedAt,
+		&i.PushedMessageID,
+		&i.PushedMessageAt,
+		&i.VoipSubscriptionIds,
 	)
 	return i, err
 }
@@ -1275,7 +1480,7 @@ DO UPDATE SET
   actor_id = EXCLUDED.actor_id,
   correlation_id = EXCLUDED.correlation_id,
   updated_at = now()
-RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at
+RETURNING id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at, phone_pushed_at, pushed_message_id, pushed_message_at, voip_subscription_ids
 `
 
 type UpsertNotificationsForUsersParams struct {
@@ -1343,6 +1548,9 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PhonePushedAt,
+			&i.PushedMessageID,
+			&i.PushedMessageAt,
+			&i.VoipSubscriptionIds,
 		); err != nil {
 			return nil, err
 		}
@@ -1355,24 +1563,31 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 }
 
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, transport, apns_environment, apns_bundle_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
-RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id,
+  transport = EXCLUDED.transport, apns_environment = EXCLUDED.apns_environment,
+  apns_bundle_id = EXCLUDED.apns_bundle_id, last_used_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id, transport, apns_environment, apns_bundle_id
 `
 
 type UpsertPushSubscriptionParams struct {
-	ID        string      `json:"id"`
-	UserID    string      `json:"user_id"`
-	Endpoint  string      `json:"endpoint"`
-	P256dh    string      `json:"p256dh"`
-	Auth      string      `json:"auth"`
-	UserAgent pgtype.Text `json:"user_agent"`
-	SessionID pgtype.Text `json:"session_id"`
+	ID              string      `json:"id"`
+	UserID          string      `json:"user_id"`
+	Endpoint        string      `json:"endpoint"`
+	P256dh          string      `json:"p256dh"`
+	Auth            string      `json:"auth"`
+	UserAgent       pgtype.Text `json:"user_agent"`
+	SessionID       pgtype.Text `json:"session_id"`
+	Transport       pgtype.Text `json:"transport"`
+	ApnsEnvironment pgtype.Text `json:"apns_environment"`
+	ApnsBundleID    pgtype.Text `json:"apns_bundle_id"`
 }
 
+// transport, apns_environment and apns_bundle_id are set only for an iPhone's
+// PushKit token ('apns_voip'); a browser or an Expo token leaves them NULL.
 func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
 	row := q.db.QueryRow(ctx, upsertPushSubscription,
 		arg.ID,
@@ -1382,6 +1597,9 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		arg.Auth,
 		arg.UserAgent,
 		arg.SessionID,
+		arg.Transport,
+		arg.ApnsEnvironment,
+		arg.ApnsBundleID,
 	)
 	var i PushSubscription
 	err := row.Scan(
@@ -1395,6 +1613,9 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		&i.RevokedAt,
 		&i.CreatedAt,
 		&i.SessionID,
+		&i.Transport,
+		&i.ApnsEnvironment,
+		&i.ApnsBundleID,
 	)
 	return i, err
 }

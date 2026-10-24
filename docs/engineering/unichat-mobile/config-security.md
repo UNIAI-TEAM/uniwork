@@ -16,8 +16,8 @@
   `SENTRY_DSN` (→ `extra.sentryDsn`; thiếu thì không khởi động Sentry), `UNICHAT_IOS_CALLS` (`1` thì bản iPhone
   khai `UIBackgroundModes: audio` và hiện giao diện gọi; thiếu thì iPhone không bao giờ hiện gọi, dù flag
   `unichat_mobile_calls_ios` bật; `app.config.ts › iosCallsBuilt` từ chối `1` khi `modules/unichat-calls` chưa có phần
-  iOS), `UNICHAT_CRITICAL_UPDATE` (chỉ workflow OTA đặt, xem `release.md`), `UNICHAT_PERF_MARKS`, `UNICHAT_TLS_PIN*`
-  (dưới), `EXPO_BUNDLE_IDENTIFIER_*`/`EXPO_APPLE_TEAM_ID` (ghi đè, hiếm dùng); mọi biến ấy có dòng trong khối "UniChat
+  iOS), `UNICHAT_CRITICAL_UPDATE` (chỉ workflow OTA đặt, xem `release.md`), `UNICHAT_PERF_MARKS`,
+  `EXPO_BUNDLE_IDENTIFIER_*`/`EXPO_APPLE_TEAM_ID` (ghi đè, hiếm dùng); mọi biến ấy có dòng trong khối "UniChat
   mobile (build-time)" của `.env.example` (`app.config.test.ts › the build variables app.config.ts reads`);
   kết quả nằm ở `extra` (`apiUrl`,
   `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
@@ -35,12 +35,18 @@
   `app.config.test.ts` giữ nó là chứng chỉ code-signing thật còn ≥ 2 năm), mọi biến thể nhúng nó; bản staging hay
   production trên máy build EAS thiếu nó thì ném lỗi (binary không ký OTA không bao giờ được build lại). Android: `allowBackup: false` + `plugins/with-android-backup-rules.js`
   (data extraction rules loại mọi vùng khỏi sao lưu đám mây và chuyển máy, Android 12+), `READ_/WRITE_EXTERNAL_STORAGE`
-  bị chặn; `android-manifest.test.ts` giữ thuộc tính `application` (không cleartext, không network security config).
-  Ghim khoá TLS sẵn sàng nhưng tắt: `UNICHAT_TLS_PINS` (≥ 2 SPKI SHA-256 base64: CA hiện tại + dự phòng) và
-  `UNICHAT_TLS_PIN_EXPIRES` (YYYY-MM-DD, tương lai) trong môi trường EAS bật `plugins/with-tls-pins.js` cho host của
-  API và web, cộng các host `UNICHAT_TLS_PIN_HOSTS` kê (hostname trần, phẩy ngăn: host signalling LiveKit, nơi token
-  vào cuộc gọi đi qua; chuỗi chứng chỉ của nó phải kết thúc ở một trong các pin) (Android `pin-set` có hạn, iOS
-  `NSPinnedDomains` không hạn); host sai dạng thì config ném lỗi; thiếu một nửa, một pin, pin sai dạng hay ngày
-  đã qua thì config ném lỗi; không bao giờ cho dev (`app.config.ts › tlsPinning`, runbook › Khắc phục 19). Baseline
+  bị chặn; `android-manifest.test.ts` giữ thuộc tính `application` (không cleartext, network security config của pin).
+  Ghim khoá TLS bật cho mọi bản staging và production, từ tệp đã commit `tls-pins.json` (không phải biến môi trường:
+  pin đi qua review và lịch sử git, và thuộc fingerprint nên OTA và máy build tính cùng một runtime): host của từng
+  biến thể (API, web, host signalling LiveKit nơi token vào cuộc gọi đi qua; `host:port` — cổng chỉ cho job kiểm), các
+  SPKI SHA-256 của khoá CA gốc (≥ 2 khoá của ≥ 2 nhà CA: Let's Encrypt đang dùng và Google Trust Services dự phòng,
+  chứng chỉ nằm cạnh ở `certs/tls-pins/`) và `expires` (Android `pin-set` hết hiệu lực sau ngày đó, iOS
+  `NSPinnedDomains` không hạn). `app.config.ts › tlsPinning` từ chối tệp sai dạng ở mọi nơi đọc config, và trên máy
+  build EAS từ chối thêm ngày đã qua hay host của `UNICHAT_API_URL`/`UNICHAT_APP_URL` không có trong tệp; không bao
+  giờ cho dev. `scripts/mobile-tls-pins.mjs` (workflow `chat-mobile-tls-pins.yml`, hằng ngày và mỗi PR chạm pin) nối
+  tới từng host và đỏ khi chuỗi không có khoá nào đã ghim — của HEAD hay của bất kỳ bản đã phát nào (tag
+  `chat-mobile-v*` từ mức tối thiểu server phục vụ trở lên), và test của nó đỏ khi `deploy/` cho cert-manager cấp chứng
+  chỉ của host đã ghim từ issuer không phải ACME của một nhà CA đã ghim; `scripts/mobile-apk-scan.mjs` đỏ khi APK/AAB release không
+  mang network security config. Đổi pin, xoay vòng, sự cố: runbook `docs/runbooks/unichat-tls-pins.md`. Baseline
   OWASP MASVS L1 và cái giữ từng kiểm soát: `docs/engineering/unichat-mobile-masvs.md` — đổi một kiểm soát thì sửa dòng
   của nó cùng PR.

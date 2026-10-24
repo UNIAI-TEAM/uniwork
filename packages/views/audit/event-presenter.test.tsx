@@ -78,6 +78,13 @@ describe("event presenter", () => {
     expect(screen.getByText("auditor")).toBeInTheDocument();
   });
 
+  it("names the Ask UNI ceiling and its levels as Settings does", () => {
+    render(<ChangeSummary event={{ resource_type: "organization", changes: { ask_uni_write_ceiling: { from: "plan", to: "off" } } }} empty="—" />);
+    expect(screen.getByText("Quyền thay đổi của Hỏi UNI")).toBeInTheDocument();
+    expect(screen.getByText("Hỏi trước và Kế hoạch (mặc định)")).toBeInTheDocument();
+    expect(screen.getByText("Tắt")).toBeInTheDocument();
+  });
+
   it("translates agent as a role and a task priority", () => {
     render(<ChangeSummary event={{ resource_type: "task", changes: { role: "agent", priority: "urgent" } }} empty="—" />);
     expect(screen.getByText("Agent")).toBeInTheDocument();

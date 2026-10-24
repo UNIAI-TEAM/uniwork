@@ -54,7 +54,9 @@
   `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi;
   `unichat_mobile_media_upload` / `unichat_mobile_voice_messages`: ô soạn tin bỏ ảnh/tệp khỏi menu đính kèm / bỏ nút ghi
   âm; `unichat_mobile_ai_catch_up`: `CatchUpBanner` không hiện; `unichat_mobile_outbox_flush`: `flushOwed` không tự gửi
-  lại gì, gửi từ ô soạn tin và Thử lại vẫn chạy; `unichat_mobile_chat_sync`: reconnect và tick yên lặng không đọc
+  lại gì, gửi từ ô soạn tin và Thử lại vẫn chạy; `unichat_mobile_background_send` (và công tắc trên): không gửi tiếp khi
+  app đã rời màn hình — iOS không xin thời gian, bỏ task theo lịch; Android huỷ job WorkManager, job đang chờ chạy thì
+  xong ngay (`data/outbox-drain/`); `unichat_mobile_chat_sync`: reconnect và tick yên lặng không đọc
   `GET …/chat/sync`, đi đường refetch cũ; `unichat_mobile_timeline_recycled`, mặc định tắt: bật thì phòng mở sau đó
   vẽ danh sách tin trên FlashList 2, tag `timeline_list` của Sentry ghi danh sách nào). Công tắc mới: thêm vào `MOBILE_FLAG_DEFAULTS` và vào catalogue
   `server/internal/featureflags/keys.go` với `Mobile: true`, cùng `Default` và `ReviewAt` (`data/server-contract.test.ts`

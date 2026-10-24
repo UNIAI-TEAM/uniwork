@@ -43,6 +43,9 @@ type AuthService struct {
 	// emailHub is optional: wired, DeleteAccount revokes the OAuth grants of
 	// the mailboxes it disconnects (spec §5.5).
 	emailHub *EmailHubService
+	// apple is optional: wired, DeleteAccount revokes the Sign in with Apple
+	// token the account kept (ADR 0041).
+	apple *AppleAuthService
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -58,6 +61,10 @@ func (s *AuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 // SetEmailHub lets DeleteAccount revoke the refresh tokens it removes; main
 // wires it once EmailHubService exists.
 func (s *AuthService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
+
+// SetApple lets DeleteAccount revoke the account's Sign in with Apple token;
+// main wires it when Sign in with Apple is configured.
+func (s *AuthService) SetApple(a *AppleAuthService) { s.apple = a }
 
 // SessionMeta is what a session remembers about the client that opened it.
 // The handler puts it on the context; every path that mints a session

@@ -200,6 +200,7 @@ var rules = map[string]rule{
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
+	"chat.message.received":      chatMessageRule(KindChatMessage),
 	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
 	"chat.voice.invite_received": ruleChatVoiceInviteReceived,
 }

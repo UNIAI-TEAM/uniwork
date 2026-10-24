@@ -14,7 +14,8 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func codeOf(err error) string {
+// codeOrInvalid is codeOf plus "invalid_input" for a ValidationError.
+func codeOrInvalid(err error) string {
 	var ce CodedError
 	var ve ValidationError
 	switch {
@@ -35,7 +36,7 @@ func TestSetSharedMicIsTheClerksAndTheServerSetsTheAttribute(t *testing.T) {
 	fake := s.provider.(*meetings.FakeProvider)
 	identity := meetings.IdentityForParticipant(pid)
 
-	if _, err := s.SetSharedMic(ctx, ub.ID, m.ID, pid, true); codeOf(err) != "not_meeting_clerk" {
+	if _, err := s.SetSharedMic(ctx, ub.ID, m.ID, pid, true); codeOrInvalid(err) != "not_meeting_clerk" {
 		t.Fatalf("a plain participant marked the shared mic: %v", err)
 	}
 	if n := len(fake.AttributeCalls()); n != 0 {
@@ -132,7 +133,7 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	a2.SpeakerLabel = identity + ":AJ1-TR1-2:A" // the next STT session's "A"
 	bad := agentSeg("TR1-9", identity, at, 1000)
 	bad.SpeakerLabel = "uw_participant_other:AJ1-TR1-1:B"
-	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{bad}); codeOf(err) != "invalid_input" {
+	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{bad}); codeOrInvalid(err) != "invalid_input" {
 		t.Fatalf("a label of another participant: %v", err)
 	}
 	if n, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{a1, unknown, plain}); err != nil || n != 3 {
@@ -172,16 +173,16 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	}
 
 	outsider := mustUserID(t, s, "b@example.com")
-	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &outsider, nil); codeOf(err) != "assignee_not_member" {
+	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &outsider, nil); codeOrInvalid(err) != "assignee_not_member" {
 		t.Fatalf("a non-member was assigned: %v", err)
 	}
-	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &ua.ID, ptr("Chị Lan")); codeOf(err) != "invalid_input" {
+	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &ua.ID, ptr("Chị Lan")); codeOrInvalid(err) != "invalid_input" {
 		t.Fatalf("both user and name: %v", err)
 	}
 	// A plain participant may read labels but not assign them; a member
 	// outside the meeting may not even read them (UNI-1995 access).
 	addMember(t, s, m.WorkspaceID, outsider)
-	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); codeOf(err) != "meeting_ai_restricted" {
+	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); codeOrInvalid(err) != "meeting_ai_restricted" {
 		t.Fatalf("uninvited member reads labels: %v", err)
 	}
 	if _, err := s.Invite(ctx, ua.ID, m.ID, outsider); err != nil {
@@ -190,7 +191,7 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); err != nil {
 		t.Fatalf("member reads labels: %v", err)
 	}
-	if _, err := s.AssignSpeakerLabel(ctx, outsider, m.ID, l.ID, nil, ptr("Chị Lan")); codeOf(err) != "not_meeting_clerk" {
+	if _, err := s.AssignSpeakerLabel(ctx, outsider, m.ID, l.ID, nil, ptr("Chị Lan")); codeOrInvalid(err) != "not_meeting_clerk" {
 		t.Fatalf("a non-clerk assigned: %v", err)
 	}
 	// A label of the meeting is not reachable through another real meeting.

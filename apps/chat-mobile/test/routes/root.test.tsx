@@ -9,7 +9,7 @@ import { configureRuntime } from "@uniwork/core/runtime-config";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
-import { Text } from "react-native";
+import { AppState, Platform, Text } from "react-native";
 import RootLayout, { ErrorBoundary } from "@/app/_layout";
 import AuthLayout from "@/app/(auth)/_layout";
 import Index from "@/app/index";
@@ -17,6 +17,7 @@ import { api } from "@/data/api";
 import { trackFirstScreen } from "@/data/app-startup";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
+import { runChatNotificationAction } from "@/data/chat-notification-actions";
 import { queryClient } from "@/data/query-client";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { takePendingDeepLink } from "@/lib/deep-link";
@@ -32,6 +33,11 @@ jest.mock("@/data/sentry", () => ({ sentryNavigation: { registerNavigationContai
 // Started at import; each has its own test.
 jest.mock("@/data/boot", () => ({ bootRuntime: jest.fn() }));
 jest.mock("@/data/calls/call-wiring", () => ({ startNativeCalls: jest.fn() }));
+// The system's call UI (CallKit): the root layout hands it the URL opener an answered call's room goes through.
+jest.mock("@/data/calls/call-session", () => {
+  const started: { open: ((url: string) => void) | null } = { open: null };
+  return { started, startNativeCallSession: (open: (url: string) => void) => void (started.open = open) };
+});
 jest.mock("@/data/storage/native-device-store", () => ({ openNativeDeviceStore: jest.fn() }));
 jest.mock("@/data/query-persister", () => ({ installAccountCache: jest.fn(), createDevicePersister: jest.fn() }));
 jest.mock("@/data/app-startup", () => ({ startAppServices: jest.fn(), trackFirstScreen: jest.fn(), trackPushOpen: jest.fn() }));
@@ -39,7 +45,7 @@ jest.mock("@/data/app-startup", () => ({ startAppServices: jest.fn(), trackFirst
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("expo-splash-screen", () => ({ preventAutoHideAsync: jest.fn(async () => true), hide: jest.fn() }));
 jest.mock("@/data/notification-channels", () => ({ ensureNotificationChannels: jest.fn(async () => undefined) }));
-jest.mock("@/data/chat-notification-actions", () => ({ registerChatMessageCategory: jest.fn(async () => undefined), runChatNotificationAction: jest.fn() }));
+jest.mock("@/data/chat-notification-actions", () => ({ registerChatMessageCategory: jest.fn(async () => undefined), runChatNotificationAction: jest.fn(async () => "read") }));
 jest.mock("expo-notifications", () => ({
   ...jest.requireActual("expo-notifications"),
   addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -152,6 +158,14 @@ describe("the root layout", () => {
     expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1" });
   });
 
+  it("keeps the room of a call answered on CallKit's screen for after sign-in, as a notification tap's", async () => {
+    const { started } = jest.requireMock<{ started: { open: ((url: string) => void) | null } }>("@/data/calls/call-session");
+    await renderRoutes(ROUTES, "/");
+    await screen.findByTestId("login");
+    await act(async () => started.open?.(`${authConfig.scheme}://open?url=${encodeURIComponent("/acme/hq/chat?room=r1&call=c1")}`));
+    expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c1" });
+  });
+
   it("opens the room a notification tap names for a signed-in person", async () => {
     useAuthStore.setState({ user: user as never });
     let tap: (response: Notifications.NotificationResponse) => void = () => undefined;
@@ -165,6 +179,59 @@ describe("the root layout", () => {
     // The chat tab with ?room= opens the room itself (test/routes/workspace.test.tsx).
     expect(await screen.findByTestId("chat")).toBeOnTheScreen();
     expect(routes.pathname()).toBe("/acme/hq/chat");
+  });
+
+  it("opens the room of a reply the app lock refused, behind the lock", async () => {
+    jest.mocked(runChatNotificationAction).mockResolvedValueOnce("locked");
+    useAuthStore.setState({ user: user as never });
+    let tap: (response: Notifications.NotificationResponse) => void = () => undefined;
+    jest.mocked(Notifications.addNotificationResponseReceivedListener).mockImplementation((cb) => {
+      tap = cb;
+      return { remove: jest.fn() } as never;
+    });
+    const routes = await renderRoutes(ROUTES, "/");
+    expect(await screen.findByTestId("picker")).toBeOnTheScreen();
+    const data = { url: `${APP_URL}/acme/hq/chat?room=r1`, workspace_id: "w1", room_id: "r1", message_id: "m1" };
+    const reply = { actionIdentifier: "reply", userText: "hi", notification: { request: { identifier: "n-locked", content: { data } } } };
+    await act(async () => tap(reply as unknown as Notifications.NotificationResponse));
+    expect(runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "hi" }));
+    expect(await screen.findByTestId("chat")).toBeOnTheScreen();
+    expect(routes.pathname()).toBe("/acme/hq/chat");
+  });
+
+  it("on Android, opens a refused reply's room only in an app in front: a hidden one would read the room for nobody", async () => {
+    // Android's Reply does not bring the app forward, yet a live app's listener hears it too
+    // (ExpoHandlingDelegate.handleNotificationResponse): opening the room there would mark it read and clear its
+    // notifications behind the person's back.
+    const os = Platform.OS;
+    const state = Object.getOwnPropertyDescriptor(AppState, "currentState");
+    Platform.OS = "android";
+    Object.defineProperty(AppState, "currentState", { value: "background", configurable: true, writable: true });
+    try {
+      jest.mocked(runChatNotificationAction).mockResolvedValue("locked");
+      useAuthStore.setState({ user: user as never });
+      let tap: (response: Notifications.NotificationResponse) => void = () => undefined;
+      jest.mocked(Notifications.addNotificationResponseReceivedListener).mockImplementation((cb) => {
+        tap = cb;
+        return { remove: jest.fn() } as never;
+      });
+      const routes = await renderRoutes(ROUTES, "/");
+      expect(await screen.findByTestId("picker")).toBeOnTheScreen();
+      const data = { url: `${APP_URL}/acme/hq/chat?room=r1`, workspace_id: "w1", room_id: "r1", message_id: "m1" };
+      const reply = (id: string) => ({ actionIdentifier: "reply", userText: "hi", notification: { request: { identifier: id, content: { data } } } });
+      await act(async () => tap(reply("n-hidden") as unknown as Notifications.NotificationResponse));
+      expect(runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "hi" }));
+      expect(screen.queryByTestId("chat")).toBeNull();
+      expect(routes.pathname()).toBe("/select-workspace");
+      // The same refusal with the app in front (Reply from a heads-up notification over it) opens the room.
+      Object.defineProperty(AppState, "currentState", { value: "active", configurable: true, writable: true });
+      await act(async () => tap(reply("n-front") as unknown as Notifications.NotificationResponse));
+      expect(await screen.findByTestId("chat")).toBeOnTheScreen();
+    } finally {
+      jest.mocked(runChatNotificationAction).mockResolvedValue("read");
+      Platform.OS = os;
+      if (state) Object.defineProperty(AppState, "currentState", state);
+    }
   });
 
   it("signs out once when several requests answer 401 together, and lands on sign-in", async () => {

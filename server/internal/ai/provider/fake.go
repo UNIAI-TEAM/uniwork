@@ -21,8 +21,11 @@ type Fake struct {
 	// waits between deltas and ends early with the context.
 	StreamChunk int
 	StreamDelay time.Duration
-	Calls       int
-	Last        CompletionRequest
+	// Thinking, on a streamed call that asks to think, goes to OnThinking
+	// before any text.
+	Thinking string
+	Calls    int
+	Last     CompletionRequest
 }
 
 func (f *Fake) Name() string { return "fake" }
@@ -85,6 +88,9 @@ func (f *Fake) Stream(ctx context.Context, req CompletionRequest, onDelta func(s
 	resp, err := f.Complete(ctx, req)
 	if err != nil && resp.Text == "" {
 		return resp, err
+	}
+	if f.Thinking != "" && req.Thinking && req.OnThinking != nil {
+		req.OnThinking(f.Thinking)
 	}
 	n := f.StreamChunk
 	if n <= 0 {

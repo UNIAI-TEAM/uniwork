@@ -118,6 +118,7 @@ const FAILURE_CODES = [
   "folder_upload_file_settled",
   "folder_upload_target_signed",
   "upload_session_busy",
+  "file_unreadable",
 ] as const;
 
 // Sentences that end in "Thử lại các tệp lỗi": a report that cannot retry reads their `reason_no_retry` form (R2-3).
@@ -144,6 +145,7 @@ const SELF_HINTED_FINAL = new Set([
   "storage_quota_exceeded",
   "not_found",
   "untrusted_target",
+  "file_unreadable",
 ]);
 
 /** The `report.reason.*` key of a failure; a code the client does not know is `unknown`, any `http_5nn` is `http_5xx`. */

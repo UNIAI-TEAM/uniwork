@@ -1,6 +1,6 @@
 # MeetingScribeCapacityHigh — worker thư ký AI gần hết sức chứa
 
-> **Trạng thái:** shipped · **Sev:** 2 · **Rule:** `deploy/alerts.yml` · **Nền:** spec `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §4.1, §4.6; ADR 0038; dashboard *UniWork · Meetings AI*
+> **Trạng thái:** shipped · **Sev:** 2 · **Rule:** `deploy/alerts.yml` · **Nền:** spec `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §4.1, §4.6; ADR 0045; dashboard *UniWork · Meetings AI*
 
 ## Triệu chứng
 

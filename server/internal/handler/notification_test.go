@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/notification"
@@ -182,6 +183,56 @@ func TestNotificationEndpoints(t *testing.T) {
 		"endpoint": "ExponentPushToken[abc]", "keys": map[string]string{}})
 	if res.StatusCode != 400 {
 		t.Fatalf("subscribe expo without platform: %d", res.StatusCode)
+	}
+	// An Android build says what it can do; the marks land on the subscription.
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, map[string]any{
+		"endpoint": "ExponentPushToken[droid]", "keys": map[string]string{}, "platform": "android", "call_ui": true, "chat_quiet": true})
+	if res.StatusCode != 200 {
+		t.Fatalf("subscribe android with its marks: %d", res.StatusCode)
+	}
+	subs, err := q.ListActivePushSubscriptions(ctx, memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := false
+	for _, s := range subs {
+		marked = marked || (s.Endpoint == "ExponentPushToken[droid]" && s.UserAgent.String == "expo/android; call-ui; chat-quiet")
+	}
+	if !marked {
+		t.Fatalf("android subscription lost its marks: %+v", subs)
+	}
+	// An iPhone's PushKit token (ADR 0038) registers through the same route
+	// with its transport, APNs environment and bundle id; "kind" and
+	// "bundle_id" are accepted for transport and apns_bundle_id. A wrong environment or an unknown transport is a 400.
+	voipToken := strings.Repeat("ab", 32)
+	for _, body := range []map[string]any{
+		{"endpoint": voipToken, "transport": "apns_voip", "apns_environment": "production", "apns_bundle_id": "com.uniworkos.chat", "platform": "ios"},
+		{"endpoint": voipToken, "kind": "apns_voip", "apns_environment": "sandbox", "bundle_id": "com.uniworkos.chat.staging"},
+	} {
+		if res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, body); res.StatusCode != 200 {
+			t.Fatalf("subscribe PushKit token %v: %d", body, res.StatusCode)
+		}
+	}
+	for _, body := range []map[string]any{
+		{"endpoint": voipToken, "transport": "apns_voip", "apns_environment": "development", "bundle_id": "com.uniworkos.chat"},
+		{"endpoint": voipToken, "transport": "fcm", "apns_environment": "production", "bundle_id": "com.uniworkos.chat"},
+	} {
+		if res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, body); res.StatusCode != 400 {
+			t.Fatalf("subscribe %v: %d, want 400", body, res.StatusCode)
+		}
+	}
+	subs, err = q.ListActivePushSubscriptions(ctx, memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	voip := 0
+	for _, s := range subs {
+		if s.Endpoint == voipToken && s.Transport.String == "apns_voip" && s.ApnsEnvironment.String == "sandbox" && s.ApnsBundleID.String == "com.uniworkos.chat.staging" {
+			voip++
+		}
+	}
+	if voip != 1 {
+		t.Fatalf("PushKit subscription not stored once with its last environment and bundle: %+v", subs)
 	}
 
 	// Timezone rides on PATCH /me and is validated as an IANA name.

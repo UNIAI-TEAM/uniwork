@@ -5,6 +5,7 @@ import {
   RELOCK_AFTER_MS,
   coversWhenAway,
   floorFromPolicy,
+  notificationActionsLocked,
   parsePrivacyFloor,
   parsePrivacySettings,
   relockFromValue,
@@ -99,5 +100,17 @@ describe("the organization's floor", () => {
     expect(floorFromPolicy({ require_app_lock: true, block_screen_capture: false })).toEqual({ appLock: true, screenSecurity: false });
     expect(sameFloor({ appLock: true, screenSecurity: false }, { appLock: true, screenSecurity: false })).toBe(true);
     expect(sameFloor(NO_PRIVACY_FLOOR, { appLock: false, screenSecurity: true })).toBe(false);
+  });
+});
+
+describe("notificationActionsLocked", () => {
+  it("is unknown until the saved choices are read, locked when they could not be, and the lock as carried out after", () => {
+    const settings = DEFAULT_PRIVACY_SETTINGS;
+    expect(notificationActionsLocked({ loaded: false, restored: false, settings })).toBeNull();
+    // A Keychain that did not answer in time leaves the lock unknown: locked, as a cold start is.
+    expect(notificationActionsLocked({ loaded: true, restored: false, settings })).toBe(true);
+    expect(notificationActionsLocked({ loaded: true, restored: true, settings })).toBe(false);
+    expect(notificationActionsLocked({ loaded: true, restored: true, settings: withFloor(settings, { appLock: true, screenSecurity: false }) })).toBe(true);
+    expect(notificationActionsLocked({ loaded: true, restored: true, settings: { ...settings, screenSecurity: true } })).toBe(false);
   });
 });

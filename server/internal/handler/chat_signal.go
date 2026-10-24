@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 func (h *handlers) signalChatVoiceInvite(w http.ResponseWriter, r *http.Request) {
@@ -27,13 +29,20 @@ func (h *handlers) signalChatVoiceInvite(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
 
+// voiceSignalContext names the device session answering, declining or
+// hanging up, so the ring's end skips the device that already knows
+// (service.WithDeviceSession).
+func voiceSignalContext(r *http.Request) context.Context {
+	return service.WithDeviceSession(r.Context(), middleware.SessionID(r.Context()))
+}
+
 func (h *handlers) signalChatVoiceAccept(w http.ResponseWriter, r *http.Request) {
 	var in sdi.VoiceSignalSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	err := h.Chat.SignalVoiceAccept(
-		r.Context(), middleware.UserID(r.Context()),
+		voiceSignalContext(r), middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
 	)
 	if err != nil {
@@ -49,7 +58,7 @@ func (h *handlers) signalChatVoiceHangup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	err := h.Chat.SignalVoiceHangup(
-		r.Context(), middleware.UserID(r.Context()),
+		voiceSignalContext(r), middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
 	)
 	if err != nil {
@@ -65,7 +74,7 @@ func (h *handlers) signalChatVoiceDecline(w http.ResponseWriter, r *http.Request
 		return
 	}
 	err := h.Chat.SignalVoiceDecline(
-		r.Context(), middleware.UserID(r.Context()),
+		voiceSignalContext(r), middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), in.CallID,
 	)
 	if err != nil {

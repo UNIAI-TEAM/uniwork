@@ -1,4 +1,4 @@
-# 0038 — Agent thư ký AI gọi STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent không ghi bảng nghiệp vụ
+# 0045 — Agent thư ký AI gọi STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent không ghi bảng nghiệp vụ
 
 **Trạng thái:** accepted (2026-10-20) — chủ sản phẩm (quangpd) duyệt cùng spec thư ký AI (D5, D13).
 **Issue:** UNI-2023 · **Parent:** UNI-1995 · **Liên quan:** [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) (AI chỉ đề xuất, mọi LLM qua `ai.Gateway`), [0008](0008-cach-ly-tenant-o-tang-service.md) (tenant), [0009](0009-audit-va-outbox-cung-transaction.md) (audit + outbox).

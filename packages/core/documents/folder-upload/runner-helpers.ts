@@ -32,6 +32,24 @@ export function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * Whether the browser can still read a picked file. fetch rejects with the
+ * same TypeError when the network drops and when it cannot open the file on
+ * disk (a Windows path past MAX_PATH, a file moved or locked since it was
+ * picked: Chromium's net::ERR_FILE_NOT_FOUND); reading one byte tells them apart.
+ * A path Chromium cannot stat reports size 0, and slicing a 0-size blob opens
+ * nothing, so such a blob is read whole: an empty file still reads, an
+ * unopenable one rejects with NotFoundError.
+ */
+export async function isReadable(blob: Blob): Promise<boolean> {
+  try {
+    await (blob.size === 0 ? blob : blob.slice(0, 1)).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Strip the root segment: the wire paths are under the root, which is "". */
 function underRoot(path: string): string {
   const slash = path.indexOf("/");

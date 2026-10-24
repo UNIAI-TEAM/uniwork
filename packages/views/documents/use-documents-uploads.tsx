@@ -6,6 +6,7 @@ import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import type { FolderUploadTransport } from "@uniwork/core/documents/folder-upload";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
+import type { OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { useFolderUpload } from "./folder-upload/use-folder-upload";
 import { useDocumentFileUpload } from "./use-document-file-upload";
@@ -29,6 +30,7 @@ export function useDocumentsUploads({
   parentShared,
   onOpen,
   onOpenFolder,
+  officeHome,
   folderTransport,
 }: {
   wsId: string;
@@ -46,6 +48,8 @@ export function useDocumentsUploads({
   parentShared: boolean;
   onOpen: (documentId: string) => void;
   onOpenFolder: (folderId: string) => void;
+  /** Host wiring of "Open UniWork Office": the folder-upload warning offers it for files the browser cannot read. */
+  officeHome?: OfficeHomeLaunchProps;
   /** Injected by tests. */
   folderTransport?: FolderUploadTransport;
 }): {
@@ -79,6 +83,7 @@ export function useDocumentsUploads({
     resolveRootParent,
     parentShared,
     onOpenFolder,
+    officeHome,
     transport: folderTransport,
   });
   // The limits above are the defaults until GET /config answers; a folder

@@ -12,7 +12,7 @@ import type { GuideContent } from "./guide-content";
  */
 const vi: GuideContent = {
   introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào.",
-  effective: { dateTime: "2026-10-22", text: "22/10/2026" },
+  effective: { dateTime: "2026-10-23", text: "23/10/2026" },
   sections: [
     { title: "Ai chịu trách nhiệm về dữ liệu", paragraphs: [
       `UniWork, UniOffice và UniChat do ${legalEntity.nameVi} (mã số doanh nghiệp ${legalEntity.enterpriseCode}, trụ sở: ${legalEntity.addressVi}) vận hành. Liên hệ về dữ liệu cá nhân: ${legalEntity.email}.`,
@@ -21,7 +21,7 @@ const vi: GuideContent = {
     { title: "Dữ liệu chúng tôi thu thập", paragraphs: [
       "Chúng tôi chỉ thu thập dữ liệu cần để bạn đăng nhập, làm việc và trò chuyện với đồng nghiệp. Ứng dụng không đọc danh bạ, vị trí hay tin nhắn SMS của bạn.",
     ], table: { caption: "Loại dữ liệu và mục đích", columns: ["Loại dữ liệu", "Gồm những gì", "Để làm gì"], rows: [
-      ["Tài khoản", "Email, tên hiển thị, ảnh đại diện, mật khẩu (chỉ lưu dạng băm), mã tài khoản Google nếu bạn đăng nhập bằng Google, ngôn ngữ, múi giờ, cài đặt xác thực hai lớp", "Đăng nhập, nhận diện bạn và bảo vệ tài khoản"],
+      ["Tài khoản", "Email, tên hiển thị, ảnh đại diện, mật khẩu (chỉ lưu dạng băm), mã tài khoản Google nếu bạn đăng nhập bằng Google, mã tài khoản Apple nếu bạn đăng nhập bằng Apple, ngôn ngữ, múi giờ, cài đặt xác thực hai lớp", "Đăng nhập, nhận diện bạn và bảo vệ tài khoản"],
       ["Hồ sơ trong tổ chức", "Chức danh, mã nhân viên, số điện thoại (mặc định ẩn), nơi làm việc, giới thiệu — do bạn hoặc quản trị viên nhập", "Giúp đồng nghiệp biết bạn là ai"],
       ["Nội dung", "Tin nhắn, ảnh, tệp, tin thoại, công việc, tài liệu và các phiên bản của chúng, nội dung và phụ đề cuộc họp, email khi tổ chức kết nối hộp thư", "Cung cấp chính tính năng bạn dùng"],
       ["Cuộc gọi", "Âm thanh và video được truyền trực tiếp giữa người tham gia qua máy chủ cuộc gọi; chỉ được ghi lại khi một người trong cuộc gọi chủ động bật ghi", "Gọi thoại và gọi video"],
@@ -68,11 +68,12 @@ const vi: GuideContent = {
       ["Sentry (Functional Software)", "Nhận báo cáo lỗi và số đo hiệu năng của ứng dụng UniChat cho Android và iPhone", "Hoa Kỳ"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Đưa thông báo đẩy tới máy Android và iPhone", "Theo hạ tầng của Google và Apple"],
       ["Google", "Đăng nhập bằng Google (khi bạn chọn); gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
+      ["Apple", "Đăng nhập bằng Apple trên iPhone (khi bạn chọn): Apple cho chúng tôi biết mã tài khoản Apple, email (có thể là địa chỉ chuyển tiếp của Apple nếu bạn chọn ẩn email) và tên ở lần đầu nếu bạn chia sẻ", "Theo hạ tầng của Apple"],
       ["GitHub", "Lưu bản cài và bản cập nhật UniChat, UniOffice cho máy tính", "Theo hạ tầng của GitHub"],
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Lưu giữ và xóa dữ liệu", paragraphs: [
       "Nội dung được giữ khi tổ chức còn dùng dịch vụ. Tin nhắn bạn xóa bị ẩn với mọi người ngay; tài liệu bị xóa nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn; mỗi tài liệu giữ tối đa 500 phiên bản; tệp không còn được dùng ở đâu bị xóa khỏi kho lưu trữ trong lần dọn dẹp hằng ngày.",
-      "Xóa tài khoản: trong ứng dụng UniChat vào Cài đặt → Xóa tài khoản (khi bạn chưa ở workspace nào, Cài đặt nằm ở màn chọn workspace), hoặc đăng nhập UniWork trên web và vào Cài đặt → Bảo mật → Xóa tài khoản; sau đó xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức còn thành viên khác, hãy chuyển quyền sở hữu trước; nếu bạn là thành viên duy nhất, bạn có thể đóng tổ chức cùng lúc với việc xóa tài khoản, ngay trong ứng dụng.",
+      "Xóa tài khoản: trong ứng dụng UniChat vào Cài đặt → Xóa tài khoản (khi bạn chưa ở workspace nào, Cài đặt nằm ở màn chọn workspace), hoặc đăng nhập UniWork trên web và vào Cài đặt → Bảo mật → Xóa tài khoản; sau đó xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google và Apple, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi, và nếu bạn đã đăng nhập bằng Apple, chúng tôi báo Apple thu hồi quyền đăng nhập bằng Apple của ứng dụng. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức còn thành viên khác, hãy chuyển quyền sở hữu trước; nếu bạn là thành viên duy nhất, bạn có thể đóng tổ chức cùng lúc với việc xóa tài khoản, ngay trong ứng dụng.",
       "Xóa tổ chức: chủ tổ chức vào Cài đặt → Dữ liệu tổ chức để tải bản xuất dữ liệu hoặc yêu cầu xóa. Nội dung của tổ chức bị xóa vĩnh viễn sau 5 ngày và có thể hủy trong thời gian đó. Hóa đơn, chứng từ thanh toán và nhật ký hoạt động được giữ lại theo nghĩa vụ kế toán và bảo mật.",
       `Nếu không đăng nhập được, gửi yêu cầu xóa tới ${legalEntity.email} từ email của tài khoản.`,
     ] },
@@ -96,7 +97,7 @@ const vi: GuideContent = {
 
 const en: GuideContent = {
   introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it.",
-  effective: { dateTime: "2026-10-22", text: "22 October 2026" },
+  effective: { dateTime: "2026-10-23", text: "23 October 2026" },
   sections: [
     { title: "Who is responsible for your data", paragraphs: [
       `UniWork, UniOffice and UniChat are operated by ${legalEntity.nameEn} (enterprise code ${legalEntity.enterpriseCode}, registered office: ${legalEntity.addressEn}). Personal data contact: ${legalEntity.email}.`,
@@ -105,7 +106,7 @@ const en: GuideContent = {
     { title: "Data we collect", paragraphs: [
       "We collect only what is needed for you to sign in, work and talk with colleagues. The apps do not read your contacts, location or SMS messages.",
     ], table: { caption: "Data types and purposes", columns: ["Data type", "What it includes", "Why"], rows: [
-      ["Account", "Email, display name, profile photo, password (stored only as a hash), Google account id if you sign in with Google, language, time zone, two-factor settings", "Sign-in, identifying you and protecting your account"],
+      ["Account", "Email, display name, profile photo, password (stored only as a hash), Google account id if you sign in with Google, Apple account id if you sign in with Apple, language, time zone, two-factor settings", "Sign-in, identifying you and protecting your account"],
       ["Organization profile", "Job title, employee code, phone number (hidden by default), location, bio — entered by you or an administrator", "Letting colleagues know who you are"],
       ["Content", "Messages, photos, files, voice messages, tasks, documents and their versions, meeting content and captions, email when the organization connects a mailbox", "Providing the feature you use"],
       ["Calls", "Audio and video relayed live between participants through the call server; recorded only when a participant explicitly starts a recording", "Voice and video calls"],
@@ -152,11 +153,12 @@ const en: GuideContent = {
       ["Sentry (Functional Software)", "Receiving error reports and performance measurements from the UniChat apps for Android and iPhone", "United States"],
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Delivering push notifications to Android phones and iPhones", "Google's and Apple's infrastructure"],
       ["Google", "Sign in with Google (when you choose it); sending system email such as verification codes", "Google's infrastructure"],
+      ["Apple", "Sign in with Apple on iPhone (when you choose it): Apple tells us your Apple account id, your email (which may be an Apple relay address if you choose to hide yours) and, the first time, your name if you share it", "Apple's infrastructure"],
       ["GitHub", "Hosting UniChat and UniOffice desktop installers and updates", "GitHub's infrastructure"],
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Retention and deletion", paragraphs: [
       "Content is kept while the organization uses the service. A message you delete is hidden from everyone immediately; a deleted document stays in the trash for 30 days and is then permanently deleted; each document keeps up to 500 versions; files no longer used anywhere are removed from storage by a daily clean-up.",
-      "Deleting your account: in the UniChat app open Settings → Delete account (when you are not in any workspace, Settings is on the workspace picker), or sign in to UniWork on the web and open Settings → Security → Delete account; then confirm your identity. Your email, name, profile photo, password, Google link, phone number and profile details are removed, and every session and notification token is revoked. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization that has other members, transfer ownership first; if you are its only member, you can close the organization as you delete your account, right in the app.",
+      "Deleting your account: in the UniChat app open Settings → Delete account (when you are not in any workspace, Settings is on the workspace picker), or sign in to UniWork on the web and open Settings → Security → Delete account; then confirm your identity. Your email, name, profile photo, password, Google and Apple links, phone number and profile details are removed, and every session and notification token is revoked; if you signed in with Apple, we also ask Apple to revoke the app's Sign in with Apple authorization. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization that has other members, transfer ownership first; if you are its only member, you can close the organization as you delete your account, right in the app.",
       "Deleting an organization: the owner opens Settings → Organization data to download a data export or request deletion. The organization's content is permanently deleted after 5 days and the request can be cancelled until then. Invoices, payment records and the activity log are kept for accounting and security obligations.",
       `If you cannot sign in, email a deletion request to ${legalEntity.email} from the account's email address.`,
     ] },

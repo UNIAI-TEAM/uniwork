@@ -554,7 +554,7 @@ hồ sơ chuyển dữ liệu ra nước ngoài**. **Trước khi bật cờ `me
 xác nhận vùng xử lý và thời gian AssemblyAI giữ file và bản ghi lời, và hoàn tất nghĩa vụ
 chuyển dữ liệu cá nhân ra nước ngoài (hồ sơ đánh giá tác động theo Luật 91/2025/QH15). Ghi lời
 trực tiếp và ghi lời file dùng **cùng một vùng** (`SCRIBE_STT_BASE_URL` của agent theo
-`AI_MEETING_TRANSCRIBE_BASE_URL` của server; ADR 0038 mục "Bổ sung 2026-10-23"). Việc này không
+`AI_MEETING_TRANSCRIBE_BASE_URL` của server; ADR 0045 mục "Bổ sung 2026-10-23"). Việc này không
 chặn code; nó chặn việc bật cờ ngoài nội bộ: bên xử lý phụ và hồ sơ ở
 `docs/ops/MEETINGS_AI_COMPLIANCE.md`, cổng bật cờ là checklist `docs/ops/MEETINGS_AI_GO_LIVE.md`
 (gồm cả bộ đánh giá chất lượng STT `apps/meeting-agent/eval/`).

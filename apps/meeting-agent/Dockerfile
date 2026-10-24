@@ -1,4 +1,4 @@
-# uniwork-scribe (apps/meeting-agent, ADR 0038). Build from this directory:
+# uniwork-scribe (apps/meeting-agent, ADR 0045). Build from this directory:
 #   docker build -t uniwork-meeting-agent apps/meeting-agent
 FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

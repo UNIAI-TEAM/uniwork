@@ -244,6 +244,11 @@ var isoReferences = []isoReference{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// A's proposal named in B's apply-all: B's conversation holds no such row
+	// under that answer, so it is the same not found as an id that names
+	// nothing, and A's row stays as seeded. The control applies B's own pending row.
+	{method: "POST", pattern: "/api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply", what: "proposal", body: map[string]any{
+		"proposal_ids": []any{isoRef("aiProposalPending")}}, covers: []string{"AiApplyProposalsSDI.proposal_ids"}},
 	// A's unsent upload named in B's question: B did not upload it, so it is
 	// the same not found as an id that names nothing, A's file stays unsent and
 	// the question stores nothing of B's either. The control sends B's own.
@@ -632,6 +637,8 @@ var isoRefFieldExempt = map[string]string{
 	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
 	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"PushSubscribeSDI.apns_bundle_id":             "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
+	"PushSubscribeSDI.bundle_id":                  "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
 	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
 	"AgentSegmentSDI.segment_id":                  "the scribe agent's idempotency key for one segment, not a row; the route is reachable only with the meeting's own uwma_ token",
 	"CaptionSegmentSDI.segment_id":                "the scribe agent's own caption id, echoed back with its translation and never stored; the route is reachable only with the meeting's own uwma_ token",
@@ -655,6 +662,8 @@ var isoRefFieldExempt = map[string]string{
 	"ExchangeOfficeLaunchSessionSDI.deployment_id":   "a configured deployment profile (allowlist), not a row",
 	"DesktopExchangeSDI.client_id":                   "the configured desktop client id (allowlist), not a row; the one-time code with its PKCE verifier is the credential",
 	"DesktopExchangeSDI.deployment_id":               "a configured deployment profile (allowlist), not a row",
+	"AppleSignInSDI.client_id":                       "the configured native client id (allowlist), not a row; Apple's identity token with its nonce is the credential",
+	"AppleSignInSDI.deployment_id":                   "a configured deployment profile (allowlist), not a row",
 	"DesktopLogoutSDI.deployment_id":                 "a configured deployment profile (allowlist); the device row must also carry it, and the device id is attacked by its own case",
 	"DesktopRefreshSDI.deployment_id":                "a configured deployment profile (allowlist); the device row must also carry it",
 	"DesktopRefreshSDI.device_session_id":            "public route: the rotating refresh token is the credential; a wrong token for a device id reaches replay detection, which revokes that device by design",

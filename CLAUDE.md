@@ -39,7 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
-- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0038): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0045): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -358,9 +358,15 @@ Every command that changes business state writes an `audit_events` row and its
   a connection to a model host; `internal/ai` never imports `internal/service`
   and only calls sqlc queries named `Ai*`, so the model side of the house
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
-  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
-  `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
-- The meeting scribe agent (`apps/meeting-agent`, ADR 0038) is the one
+  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it.
+  Ask UNI's write tools never run a command in the agent loop: each records an
+  `agent_action_proposals` row, and only the asker's Apply (or Auto mode, for an
+  untainted level-1 row) runs the service command, as `service.Human(asker)`
+  through one shared gate (ADR 0044; ADR 0010 still holds for the agent runtime).
+  `TestAskUniWriteToolsDeclareLevelAndUndo`, `TestAskUniLoopNeverRunsAWriteCommand`,
+  `TestAskUniTaintedTurnNeverAutoApplies`, `TestAskUniModeIsClampedToTheCeiling`,
+  `TestAskUniOnlyTheAskerDecidesAProposal` and `TestAIWriteGateIsShared` hold it.
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0045) is the one
   exception: it opens its STT vendor connection itself, holds no LLM key, and
   reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
   per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything
@@ -386,6 +392,18 @@ Every command that changes business state writes an `audit_events` row and its
   (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
   `metadata.via` (`TestMcpCallCarriesTheVia`,
   `TestRecordWritesTheViaOfTheRequest`).
+- iPhone calls ring through CallKit from VoIP pushes the server sends straight
+  to APNs (ADR 0038): an iPhone's PushKit token is a `push_subscriptions` row
+  with `transport = 'apns_voip'`, and only `server/internal/notification/push_apns.go`
+  sends to it — a ring still within its window or its end, never a chat,
+  missed-call or tray push, since iOS stops waking an app whose VoIP push does
+  not ring CallKit. An end goes once, only to the tokens that ring reached
+  while it is in its window, never to the device session that answered or
+  declined, and never retries the row: iOS shows a call for every VoIP push.
+  `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`,
+  `TestChatPushNeverReachesAPushKitToken`,
+  `TestCallRingClosedEndsTheCallKitRing` and
+  `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
 
 ## Platform Admin and Observability
 
@@ -515,6 +533,13 @@ database and never reveal whether an id exists to a non-member.
   MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
   (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
   native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
+- Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
+  Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
+  the SHA-256 of the raw nonce the app sent. An Apple identity links by `users.apple_id`, by email only when Apple's
+  address is not a private relay and the account's address is verified, never to an MFA account; account deletion
+  revokes the Apple token the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
+  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking` and `TestDeleteAccountRevokesTheAppleToken` hold it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

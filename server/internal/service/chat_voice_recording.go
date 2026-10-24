@@ -66,7 +66,7 @@ func (s *ChatService) StartVoiceRecording(
 		return db.ChatVoiceRecording{}, coded(http.StatusServiceUnavailable, "recording_not_configured",
 			"ghi âm cuộc gọi chưa được cấu hình trên server")
 	}
-	if err := s.requireAcceptedVoiceCall(roomID, callID); err != nil {
+	if err := s.requireAcceptedVoiceCall(ctx, roomID, callID); err != nil {
 		return db.ChatVoiceRecording{}, err
 	}
 	if active, err := s.q.GetActiveChatVoiceRecording(ctx, db.GetActiveChatVoiceRecordingParams{
@@ -77,7 +77,7 @@ func (s *ChatService) StartVoiceRecording(
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.ChatVoiceRecording{}, err
 	}
-	liveKitRoom, err := liveKitRoomForActiveVoiceCall(room, callID)
+	liveKitRoom, err := s.liveKitRoomForActiveVoiceCall(ctx, room, callID)
 	if err != nil {
 		return db.ChatVoiceRecording{}, err
 	}
@@ -304,8 +304,8 @@ func (s *ChatService) finishVoiceRecordingFileClaim(ctx context.Context, f files
 	s.patchVoiceCallLogRecording(ctx, updated)
 }
 
-func (s *ChatService) requireAcceptedVoiceCall(roomID, callID string) error {
-	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+func (s *ChatService) requireAcceptedVoiceCall(ctx context.Context, roomID, callID string) error {
+	sess, ok := s.loadVoiceCallSession(ctx, roomID, callID)
 	if !ok {
 		return ErrForbidden
 	}

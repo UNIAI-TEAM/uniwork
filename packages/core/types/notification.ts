@@ -35,6 +35,7 @@ export const NOTIFICATION_KINDS = [
   "document_break_glass",
   "chat_mentioned",
   "chat_dm",
+  "chat_message",
   "chat_thread_replied",
   "chat_call_incoming",
   "document_access_requested",
