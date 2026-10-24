@@ -706,6 +706,32 @@ func TestHistoryListsEarlierProposals(t *testing.T) {
 	}
 }
 
+// A person's edit reaches the next turn: each row's line carries its fields as
+// they stand, not as UNI drafted them, so the model does not repeat the draft.
+func TestHistoryCarriesTheEditedValues(t *testing.T) {
+	w := newActWorld(t, "")
+	ctx := context.Background()
+	scriptCalls(w.fake, "Hạn là thứ Sáu.", []provider.ToolCall{toolCall("c1", "create_task", `{"title":"Chuẩn bị demo","due_date":"2026-10-30"}`)})
+	first := w.ask(t, ctx, AskInput{Mode: AskModeAsk}, nil)
+	if _, err := w.s.EditProposal(ctx, w.x.ua.ID, first.Proposals[0].ID, map[string]json.RawMessage{"due_date": rawJSON("2026-10-29")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.s.ApplyProposal(ctx, w.x.ua.ID, first.Proposals[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	reqs := scriptCalls(w.fake, "Hạn thứ Năm.")
+	w.ask(t, ctx, AskInput{ConversationID: first.ConversationID, Question: "Hạn là ngày nào?"}, nil)
+	var prior string
+	for _, m := range (*reqs)[0].Messages {
+		if m.Role == "assistant" {
+			prior = m.Content
+		}
+	}
+	if !strings.Contains(prior, `due_date "2026-10-29"`) || strings.Contains(prior, "2026-10-30") {
+		t.Fatalf("prior answer in history:\n%s", prior)
+	}
+}
+
 // Deleting a conversation deletes its proposals; what they changed stays (R20).
 func TestDeleteConversationDeletesItsProposals(t *testing.T) {
 	w := newActWorld(t, "")

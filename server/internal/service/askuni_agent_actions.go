@@ -299,8 +299,36 @@ func (s *AskUNIService) autoApply(ctx context.Context, userID string, rows []db.
 	return true
 }
 
+// askPriorValueRunes caps each field value a history line repeats, so a long
+// body costs the next turn little.
+const askPriorValueRunes = 120
+
+// askFieldValues is a row's fields as they stand now, after any edit the
+// person made: `; due_date "2026-10-29", title "…"`. The answer text above
+// still holds UNI's draft, so these are what the next turn must trust.
+func askFieldValues(fs []AskProposalField) string {
+	if len(fs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(fs))
+	for i, f := range fs {
+		v := ""
+		switch x := f.To.(type) {
+		case nil:
+		case string:
+			v = x
+		default:
+			b, _ := json.Marshal(x)
+			v = string(b)
+		}
+		parts[i] = fmt.Sprintf(`%s "%s"`, askQuoted(f.Field), askQuoted(capRunes(v, askPriorValueRunes, "…")))
+	}
+	return "; " + strings.Join(parts, ", ")
+}
+
 // historyProposals adds to each earlier answer in hist what its proposals
-// became, one line a row (R11): Proposals: row 1 create_task "…" — applied.
+// became, one line a row (R11): Proposals: row 1 create_task "…" — applied;
+// title "…", due_date "…".
 // hist is history(rows, …), which replays historyWindow(rows) one for one.
 func (s *AskUNIService) historyProposals(ctx context.Context, orgID string, rows []db.AiMessage, hist []provider.Message) error {
 	kept := historyWindow(rows)
@@ -321,7 +349,7 @@ func (s *AskUNIService) historyProposals(ctx context.Context, orgID string, rows
 		}
 		lines := make([]string, len(ps))
 		for j, p := range ps {
-			lines[j] = fmt.Sprintf(`Proposals: row %d %s "%s" — %s`, p.Position, p.Tool, askQuoted(p.Preview.Target.Title), p.Status)
+			lines[j] = fmt.Sprintf(`Proposals: row %d %s "%s" — %s%s`, p.Position, p.Tool, askQuoted(p.Preview.Target.Title), p.Status, askFieldValues(p.Preview.Fields))
 		}
 		hist[i].Content += "\n" + ai.WrapUntrusted("prior_proposals", strings.Join(lines, "\n"))
 	}
