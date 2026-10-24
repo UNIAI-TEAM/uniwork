@@ -121,7 +121,7 @@ describe("WSClient presence beat", () => {
     const socket = MockWebSocket.instances[0]!;
     socket.open();
     await expect(client.sendPresenceBeat(true)).resolves.toBeNull();
-    expect(socket.frames().some((f) => f.type === "presence.beat")).toBe(false);
+    expect(socket.frames().some((f) => (f as { type: string }).type === "presence.beat")).toBe(false);
     client.disconnect();
   });
 
