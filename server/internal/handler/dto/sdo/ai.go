@@ -269,8 +269,8 @@ type ChatCatchUpSDO struct {
 // AiProposalChangeDTO is one field a proposal changed, as an applied row reports it.
 type AiProposalChangeDTO struct {
 	Field string `json:"field" description:"Tên trường đã đổi" example:"status"`
-	From  any    `json:"from" description:"Giá trị trước, dạng đọc được" example:"todo"`
-	To    any    `json:"to" description:"Giá trị sau, dạng đọc được" example:"done"`
+	From  any    `json:"from" description:"Giá trị trước, dạng đọc được" example:"\"todo\""`
+	To    any    `json:"to" description:"Giá trị sau, dạng đọc được" example:"\"done\""`
 }
 
 // AiProposalResultDTO is what an applied row did; zero values on a row not applied.
@@ -286,8 +286,8 @@ type AiProposalResultDTO struct {
 type AiProposalFieldDTO struct {
 	Field   string   `json:"field" description:"Client dịch nhãn theo ai.proposal.field.<field>" example:"status"`
 	Type    string   `json:"type" description:"text, markdown, date, datetime, enum, person, project hoặc labels" example:"enum"`
-	From    any      `json:"from" description:"Giá trị trước, dạng đọc được (tên người, dự án, nhãn, trạng thái), không phải mã" example:"Cần làm"`
-	To      any      `json:"to" description:"Giá trị sau, dạng đọc được" example:"Hoàn thành"`
+	From    any      `json:"from" description:"Giá trị trước, dạng đọc được (tên người, dự án, nhãn, trạng thái), không phải mã" example:"\"Cần làm\""`
+	To      any      `json:"to" description:"Giá trị sau, dạng đọc được" example:"\"Hoàn thành\""`
 	Options []string `json:"options,omitempty" description:"Các giá trị chọn được khi type là enum"`
 }
 
