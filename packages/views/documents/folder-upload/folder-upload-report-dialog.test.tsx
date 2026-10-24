@@ -123,4 +123,27 @@ describe("FolderUploadReportDialog", () => {
     renderReport({ canRetry: true, failures: [{ path: "Báo cáo/b.pdf", code: "network", retryable: true }] });
     expect(screen.queryByText(FINAL_HINT)).toBeNull();
   });
+
+  // Layout classes only: the geometry itself is proven in the browser shots (web-fix3).
+  it("runs the footer band to the dialog's edges, in one shrinkable column", () => {
+    renderReport();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("grid-cols-[minmax(0,1fr)]");
+    const footer = dialog.querySelector("[data-slot=dialog-footer]") as HTMLElement;
+    // The content's padding is p-4: the band pulls out by exactly that, and keeps its own padding.
+    expect(footer.className).toContain("-mx-4");
+    expect(footer.className).toContain("-mb-4");
+    expect(footer.className).not.toMatch(/(^|\s)px-0(\s|$)/);
+    expect(footer.className).not.toMatch(/(^|\s)pb-0(\s|$)/);
+  });
+
+  it("writes the file name and its folder in the body font, the folder in the muted caption", () => {
+    renderReport();
+    const name = screen.getByText("a.docx");
+    const folder = screen.getByText("Báo cáo/2026");
+    for (const row of [name, folder]) expect(row.className).not.toContain("font-mono");
+    expect(name.className).toContain("text-foreground");
+    expect(folder.className).toContain("text-caption");
+    expect(folder.className).toContain("text-muted-foreground");
+  });
 });
