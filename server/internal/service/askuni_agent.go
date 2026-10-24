@@ -529,6 +529,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if err := s.historyProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
 		return AskResult{}, err
 	}
+	if err := s.historyMemoryProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
+		return AskResult{}, err
+	}
 	// The rendered question as the gateway sends it on the first call, with
 	// the files; later calls replay it byte for byte, so the cached prefix
 	// holds, and send the files again on it (a tool-result turn or a
@@ -540,10 +543,14 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if model != "" {
 		base.Model = in.Model
 	}
+	registry := agentToolRegistry(tools, writes.offered())
+	if memory != nil { // last, at a fixed place in the cache prefix (R10)
+		registry = append(registry, askProposeMemoryTool)
+	}
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
-		Tools: agentToolRegistry(tools, writes.offered()), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
+		Tools: registry, FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 		Attachments: plan.Parts,
 	}
 	// Every call streams its text to the asker as it arrives (R2); without a
@@ -699,7 +706,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		note, thought := askStepNote(resp.Text), draft.takeThought()
 		for i, c := range resp.ToolCalls {
 			before := book.next
-			content, step, items, err := s.agentToolCall(runCtx, tools, writes, tc, c, book, i, room)
+			content, step, items, err := s.agentToolCall(runCtx, tools, writes, memory, tc, c, book, i, room)
 			if err != nil {
 				if n := askStopNotice(ctx, runCtx, err); n != "" {
 					return stop(n, err)
@@ -761,6 +768,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		var refs []string
 		answer, refs = splitMemoryUsed(answer)
 		memoryIDs = memory.usedIDs(refs)
+		base.MemoryProposals = memory.drafts // only an answered turn stores its memory rows
 	}
 	if splitOff {
 		answer, followups = splitFollowups(answer)
@@ -793,11 +801,11 @@ func namedSources(answer string, b *sourceBook) string {
 }
 
 // finishAgent stores the turn with the last call's usage row, and with the
-// rows writes recorded (nil on every turn that did not answer). Its text
-// already streamed, so it ends with any proposals, citations, any follow-ups
-// and done.
+// rows writes and base.MemoryProposals recorded (none on every turn that did
+// not answer). Its text already streamed, so it ends with any proposals, any
+// memory proposals, citations, any follow-ups and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups, memoryIDs []string, writes *askWrites) (AskResult, error) {
-	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, MemoryIDs: memoryIDs, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes}
+	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, MemoryIDs: memoryIDs, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes, MemoryProposals: base.MemoryProposals}
 	if writes != nil {
 		turn.Proposals, turn.Mode, turn.Tainted, turn.RunID = writes.rows, writes.mode, writes.tainted, res.RunID
 	}
@@ -814,23 +822,31 @@ func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskRe
 			emit.emit(AskEvent{Name: "proposal", Proposals: res.Proposals})
 		}
 	}
+	if n := len(turn.MemoryProposals); n > 0 {
+		if res.MemoryProposals = s.turnMemoryProposals(ctx, w.OrganizationID, msg.ID, n); len(res.MemoryProposals) > 0 {
+			emit.emit(AskEvent{Name: "memory_proposals", MemoryProposals: res.MemoryProposals})
+		}
+	}
 	emit.emitDone(res, followups)
 	return res, nil
 }
 
 // agentToolCall answers the i-th tool call of a reply: past
 // askAgentMaxCallsPerRound it is refused unrun, a tool the agent lacks is
-// answered unrun, a write tool records a proposal row (agentWriteCall), and
-// any other call runs and is rendered within limit bytes. The step reports
+// answered unrun, propose_memory on a memory turn drafts a memory row
+// (askMemoryTurn.propose, which reads nothing that taints), a write tool
+// records a proposal row (agentWriteCall), and any other call runs and is
+// rendered within limit bytes. The step reports
 // it, counting the sources it found by kind (errors and notes carry no Key).
 // It returns the items the tool found or read, for the taint rules. A Go
 // error is the server's and ends the run.
-func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, writes *askWrites, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, []agentItem, error) {
+func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, writes *askWrites, memory *askMemoryTurn, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, AskStepEvent, []agentItem, error) {
 	started := s.now()
 	j := slices.IndexFunc(tools, func(t agentTool) bool { return t.Name == c.Name })
 	wt, isWrite := writes.tool(c.Name)
+	isMemory := memory != nil && c.Name == askProposeMemoryTool.Name
 	name := "unknown" // the model's own name would be an unbounded metric label
-	if j >= 0 || isWrite {
+	if j >= 0 || isWrite || isMemory {
 		name = c.Name
 	}
 	content, status := "error: too_many_calls", "error"
@@ -839,6 +855,8 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, wr
 	var items []agentItem
 	switch {
 	case i >= askAgentMaxCallsPerRound:
+	case isMemory:
+		content, status = memory.propose(c.Input)
 	case isWrite:
 		content, status, step.Label, items, err = s.agentWriteCall(ctx, writes, wt, tc, c.Input)
 	case j < 0:

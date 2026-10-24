@@ -21,7 +21,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions, out.Attachments = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}, []sdo.AiAttachmentDTO{}
-	out.Proposals = []sdo.AiProposalDTO{}
+	out.Proposals, out.MemoryProposals = []sdo.AiProposalDTO{}, []sdo.AiMemoryProposalDTO{}
 	out.FileNotes = decodeList[sdo.AiFileNoteDTO](m.FileNotes) // stored in the DTO's own shape
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
@@ -39,6 +39,18 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var focus service.AskContextRef
 	if m.Focus.Valid && json.Unmarshal([]byte(m.Focus.String), &focus) == nil && focus.ID != "" {
 		out.Focus = &sdo.AiContextRefDTO{Kind: focus.Kind, ID: focus.ID, Title: focus.Title}
+	}
+	return out
+}
+
+// aiMemoryProposalDTOs is ps as the API names them; never nil.
+func aiMemoryProposalDTOs(ps []service.AskMemoryProposal) []sdo.AiMemoryProposalDTO {
+	out := make([]sdo.AiMemoryProposalDTO, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, sdo.AiMemoryProposalDTO{
+			ID: p.ID, MessageID: p.MessageID, Position: p.Position, Action: p.Action, MemoryID: p.MemoryID, Kind: p.Kind, Text: p.Text,
+			BeforeKind: p.BeforeKind, BeforeText: p.BeforeText, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
+		})
 	}
 	return out
 }
@@ -228,9 +240,14 @@ func (h *handlers) listAiMessages(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	memory, err := h.AskUNI.MessageMemoryProposals(r.Context(), orgID, answers)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	for _, m := range rows {
 		dto := toAiMessageDTO(m.AiMessage)
-		dto.Proposals = aiProposalDTOs(proposals[m.ID])
+		dto.Proposals, dto.MemoryProposals = aiProposalDTOs(proposals[m.ID]), aiMemoryProposalDTOs(memory[m.ID])
 		for _, a := range m.Attachments {
 			dto.Attachments = append(dto.Attachments, sdo.AiAttachmentDTO{ID: a.ID, Name: a.Name, MIME: a.MIME, Size: a.Size, Kind: a.Kind})
 		}

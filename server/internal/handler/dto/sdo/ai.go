@@ -121,7 +121,26 @@ type AiMessageDTO struct {
 	// done event's message carries none.
 	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
 	MemoryIDs []string        `json:"memory_ids" description:"Trên câu trả lời: id các mục bộ nhớ của người hỏi mà UNI đã dùng; rỗng ở mọi tin khác" example:"[\"01K4AIMEM0000000000000001\"]"`
-	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	// MemoryProposals is filled by the list of messages and the
+	// memory_proposals event; the done event's message carries none.
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Các đề xuất nhớ, sửa, quên mục bộ nhớ UNI đưa ra trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
+	CreatedAt       string                `json:"created_at" example:"2026-09-06T08:00:00Z"`
+}
+
+// AiMemoryProposalDTO is one card "Nhớ điều này?" under an answer. It is the
+// asker's own memory, never work data, and only the asker decides it.
+type AiMemoryProposalDTO struct {
+	ID         string `json:"id" example:"01K4AIMPR0000000000000001"`
+	MessageID  string `json:"message_id" example:"01K4AIMSG0000000000000001"`
+	Position   int    `json:"position" description:"Thứ tự trong câu trả lời, từ 1 tới 3" example:"1"`
+	Action     string `json:"action" description:"remember, update hoặc forget" example:"remember"`
+	MemoryID   string `json:"memory_id" description:"Mục bộ nhớ mà update/forget nhắm tới; với remember là mục được tạo khi áp dụng; rỗng khi chưa có" example:""`
+	Kind       string `json:"kind" description:"preference hoặc fact sẽ lưu (remember, update); rỗng với forget" example:"preference"`
+	Text       string `json:"text" description:"Chữ sẽ lưu (remember, update); rỗng với forget" example:"Gọi tôi là anh Vinh"`
+	BeforeKind string `json:"before_kind" description:"Loại của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	BeforeText string `json:"before_text" description:"Chữ của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	Status     string `json:"status" description:"pending, applied, rejected, undone; thêm expired (pending quá hạn 24 giờ) tính lúc đọc" example:"pending"`
+	ExpiresAt  string `json:"expires_at" example:"2026-09-07T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.
@@ -213,6 +232,12 @@ type AskStreamDoneDTO struct {
 // store and any auto-applied ones, before citations.
 type AskStreamProposalDTO struct {
 	Proposals []AiProposalDTO `json:"proposals" description:"Mỗi dòng mang trạng thái của nó; dòng tự áp dụng đến với status applied"`
+}
+
+// AskStreamMemoryProposalsDTO is the data of event memory_proposals: the
+// turn's memory rows after the store, after proposal and before citations.
+type AskStreamMemoryProposalsDTO struct {
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Mỗi dòng ở trạng thái pending; người hỏi quyết từng dòng"`
 }
 
 // AskStreamErrorDTO is the data of event error: a code, never text.

@@ -467,6 +467,25 @@ func TestMemoryIDsInTheMessageDTOAndTheStream(t *testing.T) {
 	}
 }
 
+// memory_proposals is always a list in the message DTO, and the frame carries
+// each row in the DTO's shape.
+func TestMemoryProposalsInTheMessageDTOAndTheStream(t *testing.T) {
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.MemoryProposals == nil || len(out.MemoryProposals) != 0 {
+		t.Fatalf("memory proposals %v, want []", out.MemoryProposals)
+	}
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "memory_proposals", MemoryProposals: []service.AskMemoryProposal{{
+		ID: "p1", MessageID: "m1", Position: 1, Action: "remember", Kind: "fact", Text: "Tôi ở Hà Nội", Status: "pending",
+		ExpiresAt: time.Date(2026, 10, 26, 8, 0, 0, 0, time.UTC),
+	}}})
+	sw.close()
+	want := `event: memory_proposals` + "\n" + `data: {"memory_proposals":[{"id":"p1","message_id":"m1","position":1,"action":"remember","memory_id":"","kind":"fact","text":"Tôi ở Hà Nội","before_kind":"","before_text":"","status":"pending","expires_at":"2026-10-26T08:00:00Z"}]}` + "\n\n"
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Fatalf("frames:\n%s", rec.Body.String())
+	}
+}
+
 // The stream route asks as the dock: the answer's follow-up block becomes a
 // followups frame right before done. The JSON route never does.
 func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
