@@ -120,7 +120,8 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
   const set = useSetAiFeedback();
   const clear = useClearAiFeedback();
   const saveDoc = useSaveAiAnswerAsDocument(conversationId);
-  const writes = useAiCapabilities(wsId).data?.actions?.enabled === true;
+  const actions = useAiCapabilities(wsId).data?.actions;
+  const writes = actions?.enabled === true;
   const convTitle = useAiConversations(wsId, writes).data?.find((c) => c.id === conversationId)?.title ?? "";
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
@@ -161,6 +162,8 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
   const canCreate = writes && hasText;
   // The server returns an existing row unchanged unless it failed or expired, and the card already shows it.
   const hasDocRow = proposals.some((p) => p.position === 0 && p.tool === "create_document" && p.status !== "failed" && p.status !== "expired");
+  // An off ceiling refuses the save on the server; a task made by hand is not an Ask UNI change, so it stays.
+  const canSaveDoc = !hasDocRow && actions?.ceiling !== "off";
   return (
     <div className="mt-1 flex flex-wrap items-center gap-0.5">
       {hasText ? (
@@ -178,11 +181,11 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
           <ActionButton label={t("create_task")} onClick={() => setTaskOpen(true)}>
             <TaskIcon aria-hidden />
           </ActionButton>
-          {hasDocRow ? null : (
+          {canSaveDoc ? (
             <ActionButton label={t("create_document")} disabled={saveDoc.isPending} onClick={() => saveDoc.mutate(messageId)}>
               <DocumentIcon aria-hidden />
             </ActionButton>
-          )}
+          ) : null}
         </>
       ) : null}
       {hasText ? (

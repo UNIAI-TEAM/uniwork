@@ -35,9 +35,9 @@ function docRow(over: Record<string, unknown> = {}) {
   });
 }
 
-function routes(enabled = true, title = "Họp") {
+function routes(enabled = true, title = "Họp", ceiling = "auto") {
   requestMock.mockImplementation((path: string) => {
-    if (path.endsWith("/ai/capabilities")) return Promise.resolve({ ...capabilities(), actions: { enabled, ceiling: "auto", mode: "ask" } });
+    if (path.endsWith("/ai/capabilities")) return Promise.resolve({ ...capabilities(), actions: { enabled, ceiling, mode: "ask" } });
     if (path.includes("/ai/conversations")) return Promise.resolve({ conversations: [{ id: "c1", title, created_at: "", updated_at: "", tainted: false }] });
     return Promise.resolve({});
   });
@@ -99,6 +99,15 @@ describe("Ask UNI answer actions: create", () => {
     mount(msg());
     expect(await screen.findByRole("button", { name: "Tạo công việc" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tạo tài liệu" })).toBeInTheDocument();
+  });
+
+  it("keeps Tạo tài liệu away when the organization turned UNI's changes off", async () => {
+    routes(true, "Họp", "off");
+    const { client } = mount(msg());
+    await capsLoaded(client);
+    // The server refuses the save under an off ceiling; creating a task by hand is not an Ask UNI change.
+    expect(screen.getByRole("button", { name: "Tạo công việc" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo tài liệu" })).toBeNull();
   });
 
   it("saves the answer as a document through the thread: the card shows the row and Regenerate goes", async () => {
