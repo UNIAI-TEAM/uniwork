@@ -100,7 +100,7 @@ function DownFeedback({ active, onSend }: { active: boolean; onSend: (reason: st
   );
 }
 
-/** Copy, regenerate (last answer only) and feedback under one finished answer. */
+/** Copy, create a task or a document from the answer (actions on, answer has text), regenerate (last answer only) and feedback under one finished answer. */
 export function AskUniActions({ conversationId, messageId, wsId, content, proposals = [], sources, onRegenerate, regenerateDisabled }: {
   conversationId: string;
   messageId: string;
