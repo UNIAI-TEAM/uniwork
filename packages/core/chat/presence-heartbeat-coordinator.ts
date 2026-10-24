@@ -17,12 +17,12 @@ type SnapshotHandler = (online: string[] | null, sentAt: number) => void;
 
 interface WorkspaceHeartbeat {
   refs: number;
-  timer: ReturnType<typeof setInterval> | undefined;
+  timer: number | undefined;
   handlers: Set<SnapshotHandler>;
 }
 
 const workspaces = new Map<string, WorkspaceHeartbeat>();
-const pendingLeaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingLeaveTimers = new Map<string, number>();
 const lastBeatAt = new Map<string, number>();
 const beatsInFlight = new Set<string>();
 /** Absorb React Strict Mode remounts without offline → online flapping. */
