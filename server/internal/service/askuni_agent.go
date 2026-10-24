@@ -111,6 +111,11 @@ type AskAgentMetrics interface {
 	// ObserveAskTaintDowngrade reports an Auto turn whose level-1 rows wait
 	// for the asker because the turn read someone else's words.
 	ObserveAskTaintDowngrade()
+	// ObserveAskMemory reports one memory event: outcome is proposed, applied,
+	// rejected, undone, expired, used, import_split or import_saved (R19).
+	ObserveAskMemory(outcome string)
+	// ObserveAskMemoryEntries reports how many entries a turn's memory held.
+	ObserveAskMemoryEntries(n int)
 }
 
 // SetAgentMetrics wires the agent's metrics; nil reports nothing.
@@ -501,6 +506,15 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	thinking := emit != nil && s.thinkingOn(runCtx, tc)
 	if narrated, ok := askNarrated[promptID]; ok && thinking {
 		promptID = narrated
+	}
+	// The asker's own memory rides the dock's prompt (P4, R8); it is their
+	// own words, so it does not taint the turn.
+	memory, err := s.turnMemory(runCtx, tc, in)
+	if err != nil {
+		return AskResult{}, err
+	}
+	if memory != nil {
+		promptID, vars["memory"] = askWithMemory[promptID], memory.promptEntries()
 	}
 	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows, true)

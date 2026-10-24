@@ -364,6 +364,8 @@ const (
 type agentMetricsFake struct {
 	runs, tools, actions []string
 	downgrades           int
+	memory               []string
+	memoryEntries        []int
 }
 
 func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) {
@@ -379,6 +381,12 @@ func (m *agentMetricsFake) ObserveAskAction(tool, outcome string) {
 }
 
 func (m *agentMetricsFake) ObserveAskTaintDowngrade() { m.downgrades++ }
+
+func (m *agentMetricsFake) ObserveAskMemory(outcome string) { m.memory = append(m.memory, outcome) }
+
+func (m *agentMetricsFake) ObserveAskMemoryEntries(n int) {
+	m.memoryEntries = append(m.memoryEntries, n)
+}
 
 func searchCall(id string) provider.ToolCall {
 	return provider.ToolCall{ID: id, Name: "search", Input: json.RawMessage(`{"query":"banner"}`)}
