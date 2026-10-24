@@ -34,7 +34,7 @@ export function useAskUniMode(wsId: string) {
 }
 
 /** Choose how Ask UNI's changes are approved: ask first, as one plan, or (safe ones) by themselves. */
-export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; conversationTainted: boolean }) {
+export function AskUniModeButton({ wsId }: { wsId: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.mode" });
   const state = useAskUniMode(wsId);
   const save = useSetAskUniMode(wsId);
@@ -82,11 +82,6 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
       {save.isError ? (
         <p role="alert" className="order-last basis-full text-caption text-destructive">
           {t("save_failed")}
-        </p>
-      ) : null}
-      {conversationTainted && state.mode === "auto" ? (
-        <p role="status" className="order-last basis-full text-caption text-muted-foreground">
-          {t("tainted_note")}
         </p>
       ) : null}
     </>

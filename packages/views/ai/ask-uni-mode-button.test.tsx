@@ -17,11 +17,11 @@ function serve(actions: { enabled: boolean; ceiling: string; mode: string }) {
   });
 }
 
-const mount = (tainted = false) =>
+const mount = () =>
   render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniModeButton wsId="ws1" conversationTainted={tainted} />
+        <AskUniModeButton wsId="ws1" />
       </WorkspaceProvider>,
     ),
   );
@@ -73,27 +73,5 @@ describe("AskUniModeButton", () => {
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitemradio", { name: "Kế hoạch" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Không lưu được chế độ. Thử lại.");
     expect(screen.getByRole("button", { name: /Chế độ: Hỏi trước/ })).toBeInTheDocument();
-  });
-
-  it("says every change still asks first in a tainted conversation on Tự động", async () => {
-    serve({ enabled: true, ceiling: "auto", mode: "auto" });
-    mount(true);
-    const note = await screen.findByRole("status");
-    expect(note).toHaveTextContent("mọi thay đổi vẫn hỏi bạn trước");
-    // Content UNI or an app wrote taints too, so the note does not say a person wrote it.
-    expect(note).toHaveTextContent("không do bạn viết");
-  });
-
-  it("shows no such note when the conversation is clean or the mode is not Tự động", async () => {
-    serve({ enabled: true, ceiling: "auto", mode: "auto" });
-    const clean = mount(false);
-    await screen.findByRole("button", { name: /Chế độ: Tự động/ });
-    expect(screen.queryByRole("status")).toBeNull();
-    clean.unmount();
-    requestMock.mockReset();
-    serve({ enabled: true, ceiling: "auto", mode: "plan" });
-    mount(true);
-    await screen.findByRole("button", { name: /Chế độ: Kế hoạch/ });
-    expect(screen.queryByRole("status")).toBeNull();
   });
 });

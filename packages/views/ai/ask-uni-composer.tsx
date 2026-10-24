@@ -12,6 +12,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
+import { AskUniComposerNotes } from "./ask-uni-composer-notes";
 import { AskUniModeButton, useAskUniMode } from "./ask-uni-mode-button";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
@@ -164,6 +165,7 @@ export function AskUniComposer({
   const canSend = draft.question !== "" && !filesWait;
   return (
     <div ref={root} className="bg-background p-3" data-slot="ask-uni-composer">
+      <AskUniComposerNotes wsId={workspace.id} tainted={tainted} />
       <div
         data-slot="ask-uni-composer-frame"
         className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30"
@@ -221,7 +223,7 @@ export function AskUniComposer({
             onFiles={attachments?.attach}
           />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-            <AskUniModeButton wsId={workspace.id} conversationTainted={tainted} />
+            <AskUniModeButton wsId={workspace.id} />
             <AskUniModelPicker />
             {streaming ? (
               <Button type="button" size="icon-sm" aria-label={t("stop")} onClick={onStop}>
