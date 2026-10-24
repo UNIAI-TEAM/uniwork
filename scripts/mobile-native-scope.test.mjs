@@ -62,10 +62,12 @@ test("the mobile checks run for the app, what it reads and the server contracts 
     "server/internal/handler/chat_threads.go",
     "server/internal/handler/auth.go",
     "server/internal/featureflags/keys.go",
+    // A route the app calls dropped from the router (scripts/mobile-route-catalogue.test.mjs).
+    "server/internal/handler/router/chat.go",
   ]) {
     assert.equal(touchesMobile([file], none), true, file);
   }
-  for (const file of ["apps/web/app/page.tsx", "server/internal/service/chat.go", "server/internal/handler/meeting.go", "server/internal/handler/router/chat.go", "docs/adr/README.md", ".github/workflows/ci.yml", "packages/views/chat/x.tsx", "apps/chat-desktop/package.json"]) {
+  for (const file of ["apps/web/app/page.tsx", "server/internal/service/chat.go", "server/internal/handler/meeting.go", "docs/adr/README.md", ".github/workflows/ci.yml", "packages/views/chat/x.tsx", "apps/chat-desktop/package.json"]) {
     assert.equal(touchesMobile([file], none), false, file);
   }
   assert.equal(touchesMobile([], none), false);

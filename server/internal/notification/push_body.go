@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -11,7 +12,7 @@ import (
 
 // isChatPushKind reports the kinds whose push carries a message preview.
 func isChatPushKind(kind string) bool {
-	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatThreadReplied
+	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatMessage || kind == KindChatThreadReplied
 }
 
 var pushBodyLabels = map[string]map[string]string{
@@ -28,6 +29,7 @@ var pushBodyLabels = map[string]map[string]string{
 var hiddenPushTitles = map[string]map[string]string{
 	"vi": {
 		KindChatDM:            "Tin nhắn riêng mới",
+		KindChatMessage:       "Tin nhắn mới trong một cuộc trò chuyện",
 		KindChatMentioned:     "Bạn được nhắc đến trong một cuộc trò chuyện",
 		KindChatThreadReplied: "Có trả lời mới trong một thread",
 		ChannelMissedCalls:    "Cuộc gọi nhỡ",
@@ -35,6 +37,7 @@ var hiddenPushTitles = map[string]map[string]string{
 	},
 	"en": {
 		KindChatDM:            "New direct message",
+		KindChatMessage:       "New message in a conversation",
 		KindChatMentioned:     "You were mentioned in a conversation",
 		KindChatThreadReplied: "New reply in a thread",
 		ChannelMissedCalls:    "Missed call",
@@ -56,6 +59,26 @@ func hiddenPushTitle(locale, kind, channel string) string {
 		return title
 	}
 	return titles[""]
+}
+
+// chatUnreadSummaries say how many messages a chat row holds, after the
+// title of an Android push that replaced the room's earlier ones.
+var chatUnreadSummaries = map[string]string{
+	"vi": "{{count}} tin nhắn mới",
+	"en": "{{count}} new messages",
+}
+
+// chatUnreadSummary is that line in locale (en when unknown); "" for a
+// single message.
+func chatUnreadSummary(locale string, count int) string {
+	if count < 2 {
+		return ""
+	}
+	s, ok := chatUnreadSummaries[locale]
+	if !ok {
+		s = chatUnreadSummaries["en"]
+	}
+	return strings.ReplaceAll(s, "{{count}}", strconv.Itoa(count))
 }
 
 var (

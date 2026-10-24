@@ -1,0 +1,9 @@
+{{define "preheader"}}Từ nay Đăng nhập bằng Apple mở được tài khoản UniWork của bạn{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Đã liên kết Đăng nhập bằng Apple</h1></td></tr>
+<tr><td style="padding-bottom:16px;font-size:15px;line-height:24px;color:#646464">Tài khoản UniWork của bạn vừa được đăng nhập bằng Apple ID dùng địa chỉ email này, nên từ nay Apple ID đó cũng mở được tài khoản của bạn. Điện thoại đã đăng nhập:</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Thiết bị: <strong style="color:#202020;font-weight:600">{{.Data.Device}}</strong><br>Địa chỉ IP: <strong style="color:#202020;font-weight:600">{{.Data.IP}}</strong><br>Thời điểm: <strong style="color:#202020;font-weight:600">{{.Data.At.Format "02/01/2006 15:04 MST"}}</strong></td></tr>
+<tr><td style="padding-bottom:24px">{{button .Data.SessionsURL "Xem các phiên đang mở"}}</td></tr>
+<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:20px;color:#646464">Nếu đó là bạn, không cần làm gì. Nếu không, hãy thu hồi phiên lạ trong Cài đặt → Bảo mật ngay và bảo vệ Apple ID dùng địa chỉ này.</td></tr>
+{{end}}
+{{define "footer"}}Bạn nhận email này vì Đăng nhập bằng Apple vừa được liên kết với tài khoản UniWork của bạn.{{end}}

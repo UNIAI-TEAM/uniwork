@@ -67,9 +67,11 @@ describe("useRoomTimeline", () => {
     jest.mocked(chatApi.listRooms).mockReturnValue(new Promise(() => undefined));
     const { wrapper } = setup();
     const { result } = await renderHook(() => useRoomTimeline({ wsId: "w1", roomId: "r1", userId: "ME", anchorId: null }), { wrapper });
+    // The newest page answers at once while the inbox never does: wait for the page, then the snapshot must still be
+    // absent. Reading newestId before the page lands raced the mocked answer.
+    await waitFor(() => expect(result.current.newestId).toBe("m2"));
     expect(result.current.unread).toBeNull();
     expect(result.current.otherUnread).toBe(0);
-    expect(result.current.newestId).toBeNull();
   });
 
   // Core's room-timeline cache refreshes a reopened room only once its newest page is older than

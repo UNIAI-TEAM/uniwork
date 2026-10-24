@@ -37,20 +37,11 @@ import { useChatWall } from "./use-chat-wall";
 import { toastChatError } from "./chat-error-message";
 import { useChatOlderPrefetch } from "./use-chat-older-prefetch";
 import { applyChatScrollAwayHysteresis } from "./use-chat-timeline-scroll";
-import {
-  VirtualChatMessageList,
-  useReaderScrollAt,
-  virtualChatRowEstimatePx,
-  virtualChatRowMeasureKey,
-} from "./virtual-chat-message-list";
+import { VirtualChatMessageList, useReaderScrollAt } from "./virtual-chat-message-list";
 import { toChatMessage, type NameContextEntry } from "./native-chat-message-mapping";
 import { NativeChatLiveRegion } from "./native-chat-live-region";
 import { ChatTypingBubble } from "./native-chat-typing-bubble";
-import {
-  NativeChatMessageItem,
-  layoutNativeChatMessages,
-  type NativeChatMessageContext,
-} from "./native-chat-message-item";
+import { useNativeChatMessageRows } from "./use-native-chat-message-rows";
 import { buildMainTimelineMessages, buildThreadViewMessages, countNewSince } from "./native-chat-message-timeline";
 import { ChatIntroCompactContext } from "./chat-conversation-intro";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
@@ -319,12 +310,13 @@ export function NativeChatMessagePanel({
     roomId, activeAnchorId, currentUserId, latestRefetching, clearAnchor, stickToBottomRef,
   });
 
+  const lastMessageId = messages[messages.length - 1]?.id;
   useLayoutEffect(() => {
     if (stickToBottomRef.current && !anchorMessages) {
       awayFromLatestRef.current = false;
       setAwayFromLatest(false);
     }
-  }, [anchorMessages, messages.length, messages[messages.length - 1]?.id]);
+  }, [anchorMessages, messages.length, lastMessageId]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -396,68 +388,24 @@ export function NativeChatMessagePanel({
 
   // The read pointers follow the main timeline: no "Đã xem" inside a thread.
   const receiptReadAt = threadRoot ? null : peerLastReadAt;
-  const layout = useMemo(
-    () =>
-      layoutNativeChatMessages(messages, {
-        currentUserId,
-        youLabel,
-        nameContext,
-        peerLastReadAt: receiptReadAt,
-        unreadSince,
-        threadRoot: threadRoot ? { id: threadRoot.id, replyCount: Math.max(threadRoot.replyCount ?? 0, messages.length - 1) } : null,
-      }),
-    [currentUserId, messages, nameContext, receiptReadAt, threadRoot, unreadSince, youLabel],
-  );
-  const rowContext = useMemo<NativeChatMessageContext>(
-    () => ({
-      workspaceId,
-      roomId,
-      currentUserId,
-      youLabel,
-      nameContext,
-      showSenderName,
-      inThread: Boolean(threadRoot),
-      canPinMessages,
-      canModerate,
-      actions,
-      desktopOpen,
-    }),
-    [actions, canModerate, canPinMessages, currentUserId, desktopOpen, nameContext, roomId, showSenderName, threadRoot, workspaceId, youLabel],
-  );
-
-  const getVirtualRowKey = useCallback(
-    (index: number) => virtualChatRowMeasureKey(messages[index], layout[index], index),
-    [layout, messages],
-  );
-
-  const getVirtualRowEstimate = useCallback(
-    (index: number) => virtualChatRowEstimatePx(layout[index]),
-    [layout],
-  );
-
-  const renderMessage = useCallback(
-    (index: number) => {
-      const message = messages[index];
-      const rowLayout = layout[index];
-      if (!message || !rowLayout) return null;
-      return (
-        <NativeChatMessageItem
-          key={getVirtualRowKey(index)}
-          message={message}
-          layout={rowLayout}
-          context={rowContext}
-          highlighted={message.id === highlightMessageId || message.id === openThreadRootId}
-          isTimelineTail={index === messages.length - 1}
-        />
-      );
-    },
-    [getVirtualRowKey, highlightMessageId, layout, messages, openThreadRootId, rowContext],
-  );
-
-  const senderLabelOf = useCallback(
-    (message: ChatMessage) => layout[messages.indexOf(message)]?.senderLabel ?? message.sender,
-    [layout, messages],
-  );
+  const { getVirtualRowKey, getVirtualRowEstimate, renderMessage, senderLabelOf } = useNativeChatMessageRows({
+    messages,
+    workspaceId,
+    roomId,
+    currentUserId,
+    youLabel,
+    nameContext,
+    showSenderName,
+    canPinMessages,
+    canModerate,
+    actions,
+    desktopOpen,
+    receiptReadAt,
+    unreadSince,
+    threadRoot,
+    highlightMessageId,
+    openThreadRootId,
+  });
 
   const scrollToLatest = () => {
     const el = scrollRef.current;

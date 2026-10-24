@@ -7,6 +7,7 @@ import {
   failureCode,
   fileKey,
   isExpired,
+  isReadable,
   isRetryableCode,
   isRetryableError,
   isTransient,
@@ -310,6 +311,12 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         // 415 unsupported_media: the server keeps the file pending, but the same
         // bytes never pass: a final failure, no PUT retry, and retryFailed skips it.
         if (err instanceof ApiError && err.status === 415) return fail(f, failureCode(err), undefined, false);
+        // A file the browser cannot open fails the same way on every attempt:
+        // final for this run, and the report says to move the folder.
+        if (err instanceof TypeError && !(await isReadable(blob))) {
+          if (stopped()) return;
+          return fail(f, "file_unreadable", undefined, false);
+        }
         const signedTarget = err instanceof ApiError && err.status === 409 && err.code === "folder_upload_target_signed";
         if ((signedTarget || (err instanceof ApiError && err.status === 403)) && !refreshed) {
           // A refused signature reads as expired, and a content PUT to a target the

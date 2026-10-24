@@ -11,12 +11,23 @@
 //             third-party API keys, a Play service account, UniWork's own
 //             tokens. A hit is printed as rule, file and a few characters,
 //             never the value.
-//   manifest  (an APK; an AAB's manifest is protobuf and is skipped) through
-//             `aapt2 dump xmltree`: the application is not debuggable or
-//             testOnly, allows no backup and no cleartext, and no component
+//   manifest  (an APK through `aapt2 dump xmltree`; an AAB's
+//             base/manifest/AndroidManifest.xml, aapt2's protobuf XmlNode,
+//             through parseProtoXml): the application is not debuggable or
+//             testOnly, allows no backup and no cleartext, carries the TLS
+//             pin-set (a network security config), and no component
 //             is reachable from other apps (exported, or an intent filter
 //             without an `exported` attribute) without a permission guarding
 //             it, unless the baseline names it with a reason.
+//   permissions  (the same manifest) every <uses-permission> and
+//             <uses-permission-sdk-23>, with its minSdkVersion and
+//             maxSdkVersion, is in apps/chat-mobile/android-permissions.json,
+//             the reviewed list (who adds it, why it stays, what Play asks).
+//             Gradle merges in the permissions of every Maven library
+//             (ShortcutBadger, firebase-messaging, androidx.core…), which
+//             android-manifest.test.ts cannot see: a library update that adds
+//             one fails here, and a listed one the binary stopped asking for
+//             is reported so the list can drop it.
 //   dex       (an APK or an AAB) the archive's dex files define every class in
 //             REQUIRED_DEX_CLASSES: what native code or Android finds by name,
 //             which R8 drops or renames when no keep rule covers it, and the
@@ -28,9 +39,9 @@
 // manifest's package. A finding outside it fails the run; a baseline entry
 // nothing matched any more is reported so it can be dropped.
 //
-//   node scripts/mobile-apk-scan.mjs <app.apk|app.aab> [--baseline <file>] [--aapt2 <path>]
+//   node scripts/mobile-apk-scan.mjs <app.apk|app.aab> [--baseline <file>] [--permissions <file>] [--aapt2 <path>]
 //
-// aapt2 is found from --aapt2, AAPT2, or the newest build-tools under
+// aapt2 (an APK only) is found from --aapt2, AAPT2, or the newest build-tools under
 // ANDROID_HOME / ANDROID_SDK_ROOT (GitHub's Ubuntu runners have one). Runs in
 // mobile-verify.yml › android-release on the CI release APK and in
 // chat-mobile-production.yml on the EAS-built AAB before it is submitted.
@@ -42,6 +53,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_BASELINE = path.resolve(here, "../apps/chat-mobile/apk-scan-baseline.json");
+const DEFAULT_PERMISSIONS = path.resolve(here, "../apps/chat-mobile/android-permissions.json");
+/** Where an app bundle keeps the base module's manifest, in aapt2's protobuf XML. */
+const BUNDLE_MANIFEST = "base/manifest/AndroidManifest.xml";
 
 /** Credentials that never belong in a phone app, by rule name. */
 export const SECRET_RULES = [
@@ -78,6 +92,10 @@ export const REQUIRED_DEX_CLASSES = [
   // the first stop of every FCM message.
   { descriptor: "Lexpo/modules/unichatcalls/UniChatCallsModule;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
   { descriptor: "Lexpo/modules/unichatcalls/UniChatMessagingService;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
+  // The outbox's background module, named by modules/unichat-background/expo-module.config.json, and its WorkManager
+  // worker, which WorkManager builds from the class name it stored with the job (across app updates too).
+  { descriptor: "Lexpo/modules/unichatbackground/UniChatBackgroundModule;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
+  { descriptor: "Lexpo/modules/unichatbackground/OutboxDrainWorker;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
 ];
 
 /**
@@ -178,6 +196,74 @@ export function parseXmlTree(text) {
   return root;
 }
 
+/**
+ * The fields of one protobuf message: { field, value } for a varint, { field, bytes } for a length-delimited one; the
+ * fixed-width ones are skipped. Enough of the wire format for aapt2's XML messages, which hold nothing else.
+ */
+function protoFields(bytes) {
+  const fields = [];
+  let at = 0;
+  const varint = () => {
+    let value = 0;
+    for (let scale = 1; ; scale *= 128) {
+      if (at >= bytes.length) throw new Error("a protobuf varint runs past the end");
+      if (scale > 2 ** 56) throw new Error("a protobuf varint is longer than 64 bits");
+      const byte = bytes[at++];
+      value += (byte & 0x7f) * scale;
+      if (!(byte & 0x80)) return value;
+    }
+  };
+  const skip = (count) => {
+    if (at + count > bytes.length) throw new Error("a protobuf field runs past the end");
+    at += count;
+  };
+  while (at < bytes.length) {
+    const key = varint();
+    const field = Math.floor(key / 8);
+    const wire = key % 8;
+    if (wire === 0) fields.push({ field, value: varint() });
+    else if (wire === 2) {
+      const length = varint();
+      const start = at;
+      skip(length);
+      fields.push({ field, bytes: bytes.subarray(start, at) });
+    } else if (wire === 1) skip(8);
+    else if (wire === 5) skip(4);
+    else throw new Error(`protobuf wire type ${wire} is not one aapt2 writes`);
+  }
+  return fields;
+}
+
+const MAX_XML_DEPTH = 64;
+
+/**
+ * An app bundle's manifest (aapt2's XmlNode, frameworks/base/tools/aapt2/Resources.proto) as the tree parseXmlTree
+ * builds from `aapt2 dump xmltree`: XmlNode.element (1) → XmlElement { name 3, attribute 4, child 5 } → XmlAttribute
+ * { name 2, value 3 }. The value is the attribute as written ("true", "34", ".MainActivity"), which aapt2 keeps beside
+ * the compiled item, so the manifest checks read both formats alike. Namespaces are dropped, as parseXmlTree drops them.
+ */
+export function parseProtoXml(bytes) {
+  const root = { tag: "#root", attrs: {}, children: [], depth: -1 };
+  const text = (fields, number) => fields.find((f) => f.field === number && f.bytes)?.bytes.toString("utf8") ?? "";
+  const node = (nodeBytes, parent, depth) => {
+    if (depth >= MAX_XML_DEPTH) throw new Error(`the manifest is nested deeper than ${MAX_XML_DEPTH} elements`);
+    for (const { field, bytes: elementBytes } of protoFields(nodeBytes)) {
+      if (field !== 1 || !elementBytes) continue;
+      const fields = protoFields(elementBytes);
+      const element = { tag: text(fields, 3), attrs: {}, children: [], depth };
+      for (const attribute of fields.filter((f) => f.field === 4 && f.bytes)) {
+        const attrFields = protoFields(attribute.bytes);
+        const name = text(attrFields, 2);
+        if (name) element.attrs[name] = text(attrFields, 3);
+      }
+      parent.children.push(element);
+      for (const child of fields.filter((f) => f.field === 5 && f.bytes)) node(child.bytes, element, depth + 1);
+    }
+  };
+  node(bytes, root, 0);
+  return root;
+}
+
 const COMPONENTS = new Set(["activity", "activity-alias", "service", "receiver", "provider"]);
 const findTag = (node, tag) => node.children.find((child) => child.tag === tag);
 
@@ -195,6 +281,9 @@ export function manifestFindings(tree) {
   if (attrs.testOnly === "true" || attrs.testOnly === "0xffffffff") flag("test-only", "<application android:testOnly=true>");
   if (attrs.allowBackup !== "false" && attrs.allowBackup !== "0x0") flag("allow-backup", `<application android:allowBackup=${attrs.allowBackup ?? "(default true)"}>`);
   if (attrs.usesCleartextTraffic === "true" || attrs.usesCleartextTraffic === "0xffffffff") flag("cleartext", "<application android:usesCleartextTraffic=true>");
+  // Every release binary pins its servers (apps/chat-mobile/tls-pins.json, plugins/with-tls-pins.js): the attribute
+  // is how the merged manifest points at that pin-set. Only its presence is read; an AAB's reference has no text.
+  if (!Object.hasOwn(attrs, "networkSecurityConfig")) flag("unpinned", "<application> has no android:networkSecurityConfig: the TLS pins did not reach the binary");
   for (const node of application.children) {
     if (!COMPONENTS.has(node.tag)) continue;
     const declared = node.attrs.exported;
@@ -205,6 +294,65 @@ export function manifestFindings(tree) {
     findings.push({ kind: "manifest", rule: "exported-unprotected", file: "AndroidManifest.xml", name, hint: `<${node.tag} ${name}> is reachable from any app, with no permission` });
   }
   return { packageName, findings };
+}
+
+const PERMISSION_TAGS = new Set(["uses-permission", "uses-permission-sdk-23"]);
+
+/**
+ * What the merged manifest asks Android for: { name, tag? (only for uses-permission-sdk-23), minSdkVersion?,
+ * maxSdkVersion? }. A <permission> the app declares for itself is not a request and is left out.
+ */
+export function manifestPermissions(tree) {
+  const manifest = findTag(tree, "manifest");
+  if (!manifest) return [];
+  return manifest.children
+    .filter((child) => PERMISSION_TAGS.has(child.tag))
+    .map((child) => {
+      const bound = (attr) => (child.attrs[attr] === undefined ? {} : { [attr]: Number(child.attrs[attr]) });
+      return {
+        name: child.attrs.name ?? "",
+        ...(child.tag === "uses-permission" ? {} : { tag: child.tag }),
+        ...bound("minSdkVersion"),
+        ...bound("maxSdkVersion"),
+      };
+    });
+}
+
+const describePermission = (entry) => `<${entry.tag ?? "uses-permission"} ${entry.name}>`;
+const sdkBounds = (entry) =>
+  ["minSdkVersion", "maxSdkVersion"]
+    .filter((bound) => entry[bound] !== undefined)
+    .map((bound) => `${bound}=${entry[bound]}`)
+    .join(" ") || "no bounds";
+
+/**
+ * The permissions the binary asks for against the reviewed list ({ permissions: [{ name, tag?, minSdkVersion?,
+ * maxSdkVersion?, from, reason, play }] }, `{package}` standing for the manifest's package): one it does not list, or
+ * lists under other API bounds, is a finding; one it lists that the binary does not ask for is `missing`.
+ */
+export function permissionFindings(declared, allowlist, packageName) {
+  const listed = (allowlist.permissions ?? []).map((entry) => ({ ...entry, name: String(entry.name ?? "").replaceAll("{package}", packageName) }));
+  const same = (a, b) => a.name === b.name && (a.tag ?? "uses-permission") === (b.tag ?? "uses-permission");
+  const findings = [];
+  for (const permission of declared) {
+    const entry = listed.find((candidate) => same(candidate, permission));
+    const flag = (rule, hint) => findings.push({ kind: "permission", rule, file: "AndroidManifest.xml", name: permission.name, hint });
+    if (!entry) {
+      flag(
+        "permission-unlisted",
+        `${describePermission(permission)} is not in android-permissions.json (${sdkBounds(permission)}): a library or a plugin added it. ` +
+          "Block it in app.config.ts › blockedPermissions, or list it with who adds it, why it stays and what Play asks of it",
+      );
+    } else if (sdkBounds(entry) !== sdkBounds(permission)) {
+      flag(
+        "permission-sdk-changed",
+        `${describePermission(permission)} is asked for with ${sdkBounds(permission)}; android-permissions.json lists it with ${sdkBounds(entry)}: ` +
+          "the Android versions it reaches changed, and so may what Play reviews",
+      );
+    }
+  }
+  const missing = listed.filter((entry) => !declared.some((permission) => same(entry, permission)));
+  return { findings, missing };
 }
 
 /** Findings split into the ones the baseline does not excuse and the baseline entries nothing matched. */
@@ -258,13 +406,15 @@ function main(argv) {
     return value;
   };
   const baselinePath = take("--baseline") ?? DEFAULT_BASELINE;
+  const permissionsPath = take("--permissions") ?? DEFAULT_PERMISSIONS;
   const aapt2Flag = take("--aapt2");
   const [archive] = args;
   if (!archive || !fs.existsSync(archive)) {
-    console.error("usage: node scripts/mobile-apk-scan.mjs <app.apk|app.aab> [--baseline <file>] [--aapt2 <path>]");
+    console.error("usage: node scripts/mobile-apk-scan.mjs <app.apk|app.aab> [--baseline <file>] [--permissions <file>] [--aapt2 <path>]");
     return 2;
   }
   const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
+  const allowlist = JSON.parse(fs.readFileSync(permissionsPath, "utf8"));
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "apk-scan-"));
   try {
     execFileSync("unzip", ["-qq", "-o", archive, "-d", out], { stdio: ["ignore", "ignore", "inherit"] });
@@ -279,22 +429,36 @@ function main(argv) {
     const dex = dexFindings(dexFiles.sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true })));
     findings.push(...dex);
     if (dex.length === 0) console.log(`dex: ${dexFiles.length} file(s) define all ${REQUIRED_DEX_CLASSES.length} class(es) found by name`);
-    let packageName = "";
+    let tree = null;
+    let manifestFile = "AndroidManifest.xml";
     if (archive.endsWith(".apk")) {
       const aapt2 = findAapt2(aapt2Flag);
       if (!aapt2) {
         console.error("::error::aapt2 not found: pass --aapt2, set AAPT2 or ANDROID_HOME");
         return 2;
       }
-      const tree = parseXmlTree(execFileSync(aapt2, ["dump", "xmltree", "--file", "AndroidManifest.xml", archive], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
+      tree = parseXmlTree(execFileSync(aapt2, ["dump", "xmltree", "--file", "AndroidManifest.xml", archive], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
+    } else {
+      manifestFile = BUNDLE_MANIFEST;
+      const file = path.join(out, ...BUNDLE_MANIFEST.split("/"));
+      if (fs.existsSync(file)) tree = parseProtoXml(fs.readFileSync(file));
+      else findings.push({ kind: "manifest", rule: "no-manifest", file: BUNDLE_MANIFEST, hint: "an app bundle without its base module's manifest is not one Play can install" });
+    }
+    let packageName = "";
+    let missing = [];
+    if (tree) {
       const manifest = manifestFindings(tree);
       packageName = manifest.packageName;
       findings.push(...manifest.findings);
-    } else {
-      console.log("::notice::an app bundle's manifest is protobuf: only the secret and dex scans ran (the CI release APK covers the manifest)");
+      const declared = manifestPermissions(tree);
+      const permissions = permissionFindings(declared, allowlist, packageName);
+      findings.push(...permissions.findings);
+      missing = permissions.missing;
+      if (permissions.findings.length === 0) console.log(`permissions: ${declared.length} asked for (${manifestFile}), every one reviewed in ${path.basename(permissionsPath)}`);
     }
     const { fresh, stale } = compare(findings, baseline, packageName);
     for (const entry of stale) console.log(`::notice::apk-scan-baseline.json excuses ${entry.name ?? `${entry.rule} in ${entry.file}`}, which no longer appears: drop it`);
+    for (const entry of missing) console.log(`::notice::${path.basename(permissionsPath)} lists ${describePermission(entry)}, which the binary no longer asks for: drop it`);
     for (const finding of fresh) console.log(`::error::${finding.rule} in ${finding.file}${finding.offset !== undefined ? ` at ${finding.offset}` : ""}: ${finding.hint}`);
     console.log(`apk-scan: ${findings.length} finding(s), ${fresh.length} not in the baseline (${path.basename(archive)})`);
     return fresh.length === 0 ? 0 : 1;

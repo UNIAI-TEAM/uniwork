@@ -11,6 +11,11 @@ type Translate = (key: string) => string;
 
 const log = createLogger("push");
 
+const IMPORTANCE = {
+  high: Notifications.AndroidImportance.HIGH,
+  default: Notifications.AndroidImportance.DEFAULT,
+} as const;
+
 export function callChannelNames(t: Translate): CallChannelNames {
   return {
     calls: t(CALL_CHANNEL_KEYS.calls),
@@ -28,14 +33,15 @@ export async function ensureNotificationChannels(
   try {
     env.native.ensureChannels(callChannelNames(t));
     for (const channel of NOTIFICATION_CHANNELS) {
+      const quiet = channel.silent === true;
       await Notifications.setNotificationChannelAsync(channel.id, {
         name: t(channel.nameKey),
         description: t(channel.descriptionKey),
-        importance: channel.importance === "high" ? Notifications.AndroidImportance.HIGH : Notifications.AndroidImportance.DEFAULT,
+        importance: IMPORTANCE[channel.importance],
         lockscreenVisibility:
           channel.lockscreen === "public" ? Notifications.AndroidNotificationVisibility.PUBLIC : Notifications.AndroidNotificationVisibility.PRIVATE,
-        sound: "default",
-        enableVibrate: true,
+        sound: quiet ? null : "default",
+        enableVibrate: !quiet,
         showBadge: true,
       });
     }

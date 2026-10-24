@@ -124,7 +124,9 @@ describe("ChatMessageRow", () => {
   });
 
   it("shows time on every incoming bubble in a run, not only the last", () => {
-    const ts = new Date("2026-10-23T10:19:00+07:00").getTime();
+    // Local wall-clock 10:19: the bubble prints the viewer's local time, so a
+    // fixed-offset instant would only read "10:19" on a UTC+7 host.
+    const ts = new Date(2026, 9, 23, 10, 19).getTime();
     render(
       wrap(
         <ChatMessageRow

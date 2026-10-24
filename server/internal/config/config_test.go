@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
 		t.Setenv(k, "")
 	}
 }
@@ -597,6 +597,47 @@ func TestProductionWithoutAnExpoAccessTokenLoadsAndReportsIt(t *testing.T) {
 	t.Setenv("EXPO_ACCESS_TOKEN", "")
 	if c, err = Load(); err != nil || c.UnauthenticatedMobilePush() {
 		t.Fatalf("development without a token: %v", err)
+	}
+}
+
+// The Apple settings of UniChat on the iPhone (ADR 0038, 0041) never stop the
+// server: unset, Sign in with Apple and its revoke are off; the production
+// ConfigMap alone (team ids, audiences, no uniwork-apple Secret) turns sign-in
+// on without revoke; the Secret's multi-line PEMs pass through untouched.
+func TestAppleSettingsLoadAndStayOffWhenUnset(t *testing.T) {
+	setRequired(t)
+	t.Setenv("APP_ENV", "production")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("no Apple settings must still load: %v", err)
+	}
+	if c.AppleSignInEnabled() || c.AppleRevokeConfigured() || c.APNSKeyID != "" || c.APNSTeamID != "" || c.APNSPrivateKey != "" {
+		t.Fatalf("unset Apple settings = %+v %v %v", c.AppleSignInAudiences, c.APNSKeyID, c.APNSTeamID)
+	}
+
+	t.Setenv("APPLE_SIWA_AUDIENCES", "com.uniworkos.chat, com.uniworkos.chat.staging,")
+	t.Setenv("APPLE_SIWA_TEAM_ID", "XJAM488A6D")
+	t.Setenv("APNS_TEAM_ID", "XJAM488A6D")
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(c.AppleSignInAudiences, "|"); got != "com.uniworkos.chat|com.uniworkos.chat.staging" {
+		t.Fatalf("audiences = %q", got)
+	}
+	if !c.AppleSignInEnabled() || c.AppleRevokeConfigured() {
+		t.Fatalf("ConfigMap without the Secret: sign-in %v, revoke %v; want on, off", c.AppleSignInEnabled(), c.AppleRevokeConfigured())
+	}
+
+	const pemText = "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"
+	t.Setenv("APPLE_SIWA_KEY_ID", "SIWAKEY123")
+	t.Setenv("APPLE_SIWA_PRIVATE_KEY", pemText)
+	t.Setenv("APNS_KEY_ID", "APNSKEY123")
+	t.Setenv("APNS_PRIVATE_KEY", pemText)
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.AppleRevokeConfigured() || c.AppleSignInPrivateKey != pemText || c.APNSPrivateKey != pemText || c.APNSKeyID != "APNSKEY123" {
+		t.Fatalf("with the Secret: revoke %v, keys %q %q", c.AppleRevokeConfigured(), c.AppleSignInPrivateKey, c.APNSPrivateKey)
 	}
 }
 

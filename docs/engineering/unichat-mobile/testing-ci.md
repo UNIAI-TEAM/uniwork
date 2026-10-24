@@ -29,6 +29,16 @@ Hai lớp test, không chung file (ADR 0043 — cả hai chặn ở mọi `GATE_
   `server/internal/featureflags/keys.go` (công tắc gọi). Thêm một endpoint app đọc thì thêm dòng vào bảng đó; file
   handler mới thì thêm vào `HANDLER_FILES` và `MOBILE_PATHS`. PR server đổi SDO, các file handler đó hay danh mục
   flag cũng chạy test này (`MOBILE_PATHS`).
+- `scripts/mobile-route-catalogue.test.mjs` (bước "Mobile repo contracts") giữ đường dẫn: mọi path dưới `/api/v1` app
+  gọi — mã của app (trừ test) và các file core nó chạy (`runtimeClosure`), đọc bằng TypeScript compiler, builder cục bộ
+  (`const ws = (id) => …`) được thay vào, dù gọi trong template hay đưa thẳng cho `request(msg(…))`, tham số kiểu
+  union chuỗi và `const` chỉ là chuỗi được bung ra — phải là route
+  mà router đăng ký (`server/internal/handler/router/*.go`, đọc từ `New` qua các `register*`, `Route`, `Group`,
+  `With`). So theo path, mọi method. Dạng đăng ký nó chưa hiểu (`Mount`, `Handle`, path không tính được, router không
+  lần được tới `New`) làm test đỏ thay vì bỏ sót route; phía app cũng vậy: một lời gọi `request`/`fetch`/`fetchStrict`
+  có path không đọc được (không phải chuỗi, template, builder, `const` giữ một trong số đó, hay tham số mà wrapper
+  chuyển tiếp) làm test đỏ (`unreadPhoneCalls`). Nó đã bắt được `/api/v1/healthz` (probe của iOS) nếu có từ
+  trước 92b860efd. Router nằm trong `MOBILE_PATHS`, nên PR server bỏ một route app gọi cũng chạy test này.
 - `jest.config.js` — `components/**/*.test.tsx` và hook React của lớp data
   (`data/**/*.test.tsx`, như `use-call-realtime.test.tsx`: công tắc gọi đổi giữa
   cuộc gọi không được cắt cuộc gọi), preset `jest-expo` với
@@ -96,9 +106,11 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 `scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, rồi quét bảo mật tĩnh APK đó bằng `scripts/mobile-apk-scan.mjs`: không
 credential nào trong mọi file, không debuggable/testOnly, không backup hay cleartext, không component nào app khác gọi
-được mà không có permission ngoài `apk-scan-baseline.json` (mỗi ngoại lệ một lý do), và dex định nghĩa đủ các lớp mã
+được mà không có permission ngoài `apk-scan-baseline.json` (mỗi ngoại lệ một lý do), không quyền nào (kể cả quyền thư
+viện Maven gộp vào, mà `android-manifest.test.ts` không thấy) ngoài `apps/chat-mobile/android-permissions.json` (mỗi
+quyền: ai thêm, vì sao giữ, Play hỏi gì; quyền danh sách có mà bản build hết xin thì in notice để bỏ), và dex định nghĩa đủ các lớp mã
 native hay Android tìm theo tên (`REQUIRED_DEX_CLASSES`: R8 bỏ một lớp không luật giữ là app chết khi mở); `chat-mobile-production.yml` quét
-cả AAB dựng trên EAS trước khi submit — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
+cả AAB dựng trên EAS trước khi submit, manifest và quyền đọc từ protobuf `base/manifest/AndroidManifest.xml` của bundle — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
 (ghim `KTLINT_VERSION` + checksum, kiểu ở `.editorconfig` › `[*.{kt,kts}]`; trong KDoc đừng viết `/*`, Kotlin coi là
 mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
@@ -113,7 +125,8 @@ uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop kh�
 font_scale 2.0, dark và cửa sổ 360 × 640 dp (`wm size 720x1280`, `wm density 320`), iOS ở AX5 + dark: thanh cảm xúc
 còn trên màn, cuộn được tới "Xóa", và chạm vào lề nền cạnh cột thì menu đóng mà không chạy lệnh nào — chạm theo điểm, không
 theo tên "Đóng" của nền, vì Maestro chạm tâm phần tử và tâm nền nằm dưới menu: `lib/maestro-flows.test.ts`); rồi `scripts/mobile-perf.mjs` đo kích
-thước APK và 5 lần mở lạnh — tới khung đầu, tới mốc `js-boot` và tới mốc `first-screen` — theo `perf-budget.json`
+thước APK và 10 lần mở lạnh sau một lần mở không tính giờ, mỗi lần trên CPU đã lắng — tới khung đầu (app giữ nó tới khi
+nhấc splash), tới mốc `js-boot` và tới mốc `first-screen` — theo `perf-budget.json`
 (profile `android`); `ios-release` đo 5 lần mở lạnh trên simulator (profile `ios-simulator`), chặng 2 GB của nightly
 matrix theo profile `android-2gb`; nightly đo thêm mở lạnh tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook ›
 Đo hiệu năng trên thiết bị, gồm cách `tighten` đặt trần từ 5 run). Mốc là `perfMark(name)` của

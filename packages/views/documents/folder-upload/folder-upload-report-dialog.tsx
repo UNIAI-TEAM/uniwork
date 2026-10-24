@@ -65,15 +65,19 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
           aria-label={t("documents.folder_upload.report.list_label")}
           className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-md border border-border p-2"
         >
-          {failures.map((failure, index) => (
-            // Files mode keeps same-named files (FD-D10): the path alone is not a key.
-            <li key={`${index}:${failure.path}`} className="flex flex-col gap-0.5">
-              <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
-                {failure.path}
-              </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
-            </li>
-          ))}
+          {failures.map((failure, index) => {
+            // The name leads: a long root folder would otherwise truncate every row to the same prefix.
+            const slash = failure.path.lastIndexOf("/");
+            const folder = slash < 0 ? "" : failure.path.slice(0, slash);
+            return (
+              // Files mode keeps same-named files (FD-D10): the path alone is not a key.
+              <li key={`${index}:${failure.path}`} className="flex min-w-0 flex-col gap-0.5" title={failure.path}>
+                <span className="truncate font-mono text-caption text-foreground">{failure.path.slice(slash + 1)}</span>
+                {folder ? <span className="truncate font-mono text-caption text-muted-foreground">{folder}</span> : null}
+                <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
+              </li>
+            );
+          })}
         </ul>
         {expired ? (
           <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note", ctx)}</p>
