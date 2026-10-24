@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -233,6 +234,40 @@ func TestChatVoiceRecordingGuards(t *testing.T) {
 	}
 	if _, err := s.GetVoiceRecordingForPlayback(ctx, ua.ID, w.ID, dm.ID, "missing"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing playback: %v", err)
+	}
+}
+
+func TestChatVoiceRecordingOneActivePerCall(t *testing.T) {
+	_, _, q, ua, _, w := chatVoiceRecordingFixture(t)
+	ctx := context.Background()
+	roomID := "room-rec-one-active"
+	callID := "call-rec-one-active"
+	insert := func(id, egress string) (db.ChatVoiceRecording, error) {
+		return q.InsertChatVoiceRecording(ctx, db.InsertChatVoiceRecordingParams{
+			ID:             id,
+			OrganizationID: w.OrganizationID,
+			WorkspaceID:    w.ID,
+			RoomID:         roomID,
+			CallID:         callID,
+			EgressID:       egress,
+			StartedBy:      ua.ID,
+		})
+	}
+	firstID := util.NewID()
+	secondID := util.NewID()
+	if _, err := insert(firstID, "egress-a"); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	if _, err := insert(secondID, "egress-b"); err == nil || !isUniqueViolation(err) {
+		t.Fatalf("second insert: err=%v, want unique violation", err)
+	}
+	if _, err := q.FinishChatVoiceRecording(ctx, db.FinishChatVoiceRecordingParams{
+		ID: firstID, Status: RecordingFailed,
+	}); err != nil {
+		t.Fatalf("close first active: %v", err)
+	}
+	if _, err := insert(secondID, "egress-b"); err != nil {
+		t.Fatalf("insert after first closed: %v", err)
 	}
 }
 

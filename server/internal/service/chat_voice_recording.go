@@ -134,6 +134,15 @@ func (s *ChatService) StartVoiceRecording(
 	})
 	if err != nil {
 		_ = s.conference.StopRecording(ctx, meetings.StopRecordingRequest(ref))
+		if isUniqueViolation(err) {
+			active, getErr := s.q.GetActiveChatVoiceRecording(ctx, db.GetActiveChatVoiceRecordingParams{
+				RoomID: room.ID, CallID: callID,
+			})
+			if getErr != nil {
+				return db.ChatVoiceRecording{}, err
+			}
+			return active, nil
+		}
 		return db.ChatVoiceRecording{}, err
 	}
 	_ = s.publishVoiceRoomSignal(ctx, room, userID, Event{
