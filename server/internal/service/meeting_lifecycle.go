@@ -43,7 +43,8 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, idempotencyKey, userID, IdempotencyOptions{})
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, idempotencyKey, userID,
+		IdempotencyOptions{Fingerprint: IdempotencyFingerprint(idempotencyScopeMeetingCreateInstant, title)})
 	if err != nil {
 		return db.Meeting{}, NormalizeIdempotencyError(err)
 	}

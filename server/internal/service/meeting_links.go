@@ -36,10 +36,14 @@ func newInviteSecret() (string, error) {
 // inviteSecretFor derives a link's secret from its id with the server key, so
 // the host can copy a link after creating it (UNI-2153): only the hash is
 // stored, and List re-derives the secret instead of keeping it anywhere.
-// Holding HMACKey already lets one sign guest sessions, so this widens nothing.
+// HMACKey also signs guest sessions (HMAC(key, guestID)), so the secret is
+// keyed by a subkey of its own: a MAC under HMACKey itself would hand every
+// holder of the link a valid guest session.
 func (s *MeetingService) inviteSecretFor(linkID string) string {
-	mac := hmac.New(sha256.New, s.rt.HMACKey)
-	mac.Write([]byte("uw-invite-link:" + linkID))
+	sub := hmac.New(sha256.New, s.rt.HMACKey)
+	sub.Write([]byte("uw-invite-link-key/v1"))
+	mac := hmac.New(sha256.New, sub.Sum(nil))
+	mac.Write([]byte(linkID))
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 

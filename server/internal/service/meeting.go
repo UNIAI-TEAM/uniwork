@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -346,7 +347,11 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreate, in.IdempotencyKey, userID, IdempotencyOptions{})
+	// The same key with an edited body is a mismatch, not a replay of the first meeting.
+	fp := IdempotencyFingerprint(append([]string{idempotencyScopeMeetingCreate, strings.TrimSpace(in.Title), in.Description,
+		in.StartsAt.UTC().Format(time.RFC3339Nano), in.EndsAt.UTC().Format(time.RFC3339Nano), strings.TrimSpace(in.Timezone),
+		strconv.FormatBool(allow), projectID, strings.TrimSpace(in.FollowUpOf)}, in.AttendeeUserIDs...)...)
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreate, in.IdempotencyKey, userID, IdempotencyOptions{Fingerprint: fp})
 	if err != nil {
 		return db.Meeting{}, NormalizeIdempotencyError(err)
 	}

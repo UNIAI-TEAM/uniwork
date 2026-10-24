@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -379,6 +380,7 @@ func (s *MeetingService) SeriesNeighbors(ctx context.Context, m db.Meeting) (pre
 		WorkspaceID: m.WorkspaceID, SeriesKey: pgtype.Text{String: key, Valid: true}, StartsAt: m.StartsAt, ID: m.ID,
 	})
 	if err != nil {
+		slog.Warn("meetings: series neighbours not read", "meeting", m.ID, "err", err)
 		return "", ""
 	}
 	return r.PreviousID, r.NextID

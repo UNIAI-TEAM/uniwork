@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -62,6 +65,23 @@ func TestInviteLinkListsADerivedSecretThatResolves(t *testing.T) {
 	// Only the host or an admin lists links, secrets included.
 	if _, err := s.ListInviteLinks(ctx, ub.ID, m.ID); err == nil {
 		t.Fatal("a member who does not host listed the links")
+	}
+}
+
+// A derived link secret shares the server key with guest sessions; it must not
+// double as a signed guest session that every holder of the link could send.
+func TestInviteLinkSecretIsNotAGuestSession(t *testing.T) {
+	s := &MeetingService{rt: MeetingRuntime{HMACKey: []byte("t")}}
+	linkID := util.NewID()
+	sum, err := base64.RawURLEncoding.DecodeString(s.inviteSecretFor(linkID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := hex.EncodeToString(sum)
+	for _, guestID := range []string{linkID, "uw-invite-link:" + linkID} {
+		if id, ok := meetings.VerifyGuestCookie(guestID+"."+sig, s.rt.HMACKey); ok {
+			t.Fatalf("the link secret verifies as guest session %q", id)
+		}
 	}
 }
 
@@ -182,6 +202,12 @@ func TestMeetingCreateIdempotencyKey(t *testing.T) {
 	if rows, events := count("meeting.created", first.ID); rows != 1 || events != 1 {
 		t.Fatalf("after a replay: %d meetings, %d meeting.created rows; want 1 and 1", rows, events)
 	}
+	// An edited body under the same key is refused, not answered with the old meeting.
+	edited := in
+	edited.Title = "Giao ban (sửa)"
+	if _, err := s.Create(ctx, ua.ID, w.ID, edited); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("same key, another title: %v", err)
+	}
 	if _, err := s.Create(ctx, ub.ID, w.ID, in); !codedIs(err, "idempotency_key_reuse") {
 		t.Fatalf("another member with the same key: %v", err)
 	}
@@ -206,6 +232,9 @@ func TestMeetingCreateIdempotencyKey(t *testing.T) {
 	}
 	if replayed.ID != instant.ID || replayed.Status != MeetingInProgress {
 		t.Fatalf("instant replay = %s %s, want %s IN_PROGRESS", replayed.ID, replayed.Status, instant.ID)
+	}
+	if _, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, "Họp gấp", "k-instant"); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("instant, same key, another title: %v", err)
 	}
 	var instants, ensures int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM meetings WHERE workspace_id = $1 AND title = 'Họp ngay'`, w.ID).Scan(&instants); err != nil {
