@@ -63,6 +63,8 @@ export function useOfficeHomeLaunch(
   const lateHandoff = useRef(false);
   const latest = useRef({ onLaunched });
   latest.current = { onLaunched };
+  // The callback of the render that pressed the button: a launch that outlives its caller (a dialog dismissed meanwhile) answers to the caller it began with.
+  const launchDone = useRef<(() => void) | undefined>(undefined);
   const loadPlatformHint = props?.loadPlatformHint;
 
   useEffect(() => {
@@ -86,20 +88,21 @@ export function useOfficeHomeLaunch(
   const onLateHandoff = () => {
     lateHandoff.current = true;
     setInstallOpen(false);
-    latest.current.onLaunched?.();
+    launchDone.current?.();
   };
 
   const run = async () => {
     if (!props || busy.current) return;
     busy.current = true;
     lateHandoff.current = false;
+    launchDone.current = latest.current.onLaunched;
     setLaunching(true);
     try {
       const { channel, deploymentId, apiOrigin, launch, loadInstallers } = props;
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
       const outcome = await launch(buildOfficeHomeLink(channel, profile), { onLateHandoff }).catch((): OfficeLaunchOutcome => "error");
       if (outcome === "launched") {
-        latest.current.onLaunched?.();
+        launchDone.current?.();
         return;
       }
       setReason(outcome === "not-installed" ? "not-installed" : "error");
