@@ -283,6 +283,24 @@ describe("TranscriptView (ported from the transcript panel)", () => {
     expect(list.querySelector('[data-segment-id="t6"]')).toHaveFocus();
   });
 
+  it("lands on a cited line once, so new lines do not pull focus back from the search", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t6", "câu được dẫn", 20)], older_cursor: "o2", after_cursor: "x" });
+      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", "câu t1", 10)] });
+      return Promise.resolve({});
+    });
+    view({ ...meeting, status: "IN_PROGRESS" }, false, fakeNav("/acme/team/meetings/m1?tab=transcript&segment=t6"));
+    const list = await screen.findByTestId("meeting-transcript");
+    await waitFor(() => expect(list.querySelector('[data-segment-id="t6"]')).toHaveFocus());
+    const box = screen.getByRole("searchbox", { name: "Tìm trong lời thoại" });
+    box.focus();
+    // More lines arrive while the reader types.
+    fireEvent.click(screen.getByRole("button", { name: "Tải lời thoại trước đó" }));
+    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
+    expect(box).toHaveFocus();
+  });
+
   it("loads a live meeting's earlier lines on demand", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);

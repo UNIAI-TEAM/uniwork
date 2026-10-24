@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,10 +65,12 @@ beforeEach(() => {
   serve();
 });
 
-function renderDialog(onStarted = vi.fn()) {
+function renderDialog(onStarted = vi.fn(), client?: QueryClient) {
   render(
     wrapWithNav(
       <InstantMeetingDialog workspaceId="w1" onStarted={onStarted} trigger={<button type="button">Mở</button>} />,
+      undefined,
+      client,
     ),
   );
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
@@ -159,6 +162,28 @@ describe("InstantMeetingDialog", () => {
     expect(keys[0]).toEqual(expect.any(String));
     expect(keys[1]).toBe(keys[0]);
     expect(onStarted).not.toHaveBeenCalled();
+  });
+
+  it("says the first meeting may already be running when the same key comes back with another title", async () => {
+    serve((path) =>
+      path.endsWith("/meetings/instant") ? Promise.reject(new ApiError("không khớp", "idempotency_payload_mismatch", 409)) : undefined,
+    );
+    const dialog = renderDialog(vi.fn());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/^Cuộc họp với thông tin trước có thể đã được tạo\./);
+  });
+
+  it("refreshes the meeting list, the stats and the calendar once the room opens", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const onStarted = vi.fn();
+    const dialog = renderDialog(onStarted, client);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9"));
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toEqual(
+      expect.arrayContaining([JSON.stringify(["meetings", "w1"]), JSON.stringify(["meeting-stats", "w1"]), JSON.stringify(["calendar", "w1"])]),
+    );
   });
 
   it("turns the scribe off before opening the room when the person switched it off", async () => {

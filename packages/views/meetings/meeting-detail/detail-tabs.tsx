@@ -29,14 +29,13 @@ function useTranscriptCount(enabled: boolean): number | null {
  */
 export function DetailTabs() {
   const { t } = useTranslation();
-  const { meeting, tabs, displayStatus } = useDetail();
+  // The list already leaves out Lời thoại when the scribe was off and heard nothing (MeetingDetailView).
+  const { meeting, tabs } = useDetail();
   const transcriptCount = useTranscriptCount(tabs.list.includes("transcript"));
-  // Scribe off (AfterAIStates c4): no Lời thoại tab, unless lines were heard before it was turned off.
-  const noScribe = displayStatus === "ENDED" && meeting.scribe_enabled === false && !transcriptCount;
-  const offered = noScribe ? tabs.list.filter((tab) => tab !== "transcript") : tabs.list;
-  const { data: minutes } = useMeetingMinutes(meeting.id, offered.includes("minutes"));
-  // No minutes yet (AfterAIStates c1–c3): no Biên bản tab. A clerk opens it from the rail's "Biên bản" row to create them.
-  const list = minutes || tabs.current === "minutes" ? offered : offered.filter((tab) => tab !== "minutes");
+  const { data: minutes } = useMeetingMinutes(meeting.id, tabs.list.includes("minutes"));
+  // No minutes yet (AfterAIStates c1–c3): no Biên bản tab, unless it is the open one: a clerk
+  // opens it from the rail's "Biên bản" row to create them, so the bar and the panel still agree.
+  const list = minutes || tabs.current === "minutes" ? tabs.list : tabs.list.filter((tab) => tab !== "minutes");
   const { data: notes } = useNotes(list.includes("notes") ? meeting.id : "");
   if (list.length === 0 || !tabs.current) return null;
   const badge = (tab: DetailTab) => {

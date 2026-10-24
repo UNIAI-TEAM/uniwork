@@ -1,6 +1,6 @@
 "use client";
 import { Check } from "lucide-react";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useRespondInvitation } from "@uniwork/core/meetings";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -12,7 +12,6 @@ import { meetingAvatarTint } from "../avatar-tint";
 import { useDetail } from "../detail-context";
 import { clock, dayWord, shortDay } from "../format";
 import { kitButton } from "../ui/kit-buttons";
-import { Segmented } from "../ui/segmented";
 import { StripRow } from "../ui/strip";
 import { TextButton } from "../ui/text-button";
 import { myInvitation, rsvpState, type RsvpAnswer } from "./rsvp-model";
@@ -39,6 +38,14 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
   const { meeting, participants, invitations, memberIndex, now, isPhone } = useDetail();
   const rsvp = useRespondInvitation(meeting.id);
   const [changing, setChanging] = useState(false);
+  // An answer given from the keyboard hands focus to "Đổi" once the control folds into the answered line.
+  const refocus = useRef(false);
+  const changeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!refocus.current || !changeButton.current) return;
+    changeButton.current.focus();
+    refocus.current = false;
+  });
   const invitation = myInvitation(participants, invitations, user.id);
   if (!invitation) return null;
 
@@ -63,15 +70,34 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
     );
   };
 
+  // The kit's `.seg` look as toggle buttons, not radios: an arrow on a radio would save the answer it passes,
+  // and each answer is a server write. While one saves the others refuse, focus stays put (aria-disabled).
   const control = (className: string) => (
-    <Segmented
-      legend={t("meetings.detail.scheduled.answerLegend", { name: hostName })}
-      options={ANSWERS.map((a) => ({ value: a, label: t(ANSWER_LABEL[a]) }))}
-      value={value}
-      onChange={answer}
-      disabled={rsvp.isPending}
-      className={cn("[&>label]:whitespace-nowrap", className)}
-    />
+    <div
+      role="group"
+      aria-label={t("meetings.detail.scheduled.answerLegend", { name: hostName })}
+      className={cn(
+        "inline-flex h-10 min-w-0 divide-x divide-input overflow-hidden rounded-control border border-input pointer-coarse:h-auto @max-[37.5rem]/meeting:h-auto",
+        className,
+      )}
+    >
+      {ANSWERS.map((a) => (
+        <button
+          key={a}
+          type="button"
+          aria-pressed={value === a}
+          aria-disabled={rsvp.isPending || undefined}
+          onClick={(event) => {
+            if (rsvp.isPending) return;
+            refocus.current = event.currentTarget === document.activeElement;
+            answer(a);
+          }}
+          className="inline-flex cursor-pointer items-center justify-center px-3.5 text-body font-medium whitespace-nowrap text-foreground hover:bg-surface-hover focus-visible:-outline-offset-2 aria-pressed:bg-brand-subtle aria-pressed:text-brand-subtle-foreground aria-disabled:cursor-not-allowed aria-disabled:text-muted-foreground pointer-coarse:min-h-11 @max-[37.5rem]/meeting:min-h-11"
+        >
+          {t(ANSWER_LABEL[a])}
+        </button>
+      ))}
+    </div>
   );
   const answeredLine = value ? (
     <span className="inline-flex items-center gap-1.5">
@@ -99,7 +125,7 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
             </>
           )}
         </div>
-        {control("h-11 w-full [&>label]:min-w-27.5 [&>label]:flex-1 [&>label]:px-2")}
+        {control("h-11 w-full [&>button]:min-w-27.5 [&>button]:flex-1 [&>button]:px-2")}
       </div>
     );
   }
@@ -141,7 +167,8 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
     );
   }
 
-  const asking = !value || changing;
+  // Asking until the server holds the answer, so the control (and focus in it) stays while it saves.
+  const asking = !value || changing || rsvp.isPending;
   return (
     <StripRow>
       <div className="grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 @max-[42.5rem]/meeting:grid-cols-[32px_minmax(0,1fr)]">
@@ -161,6 +188,7 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
               {answeredLine}
               <span aria-hidden>·</span>
               <TextButton
+                ref={changeButton}
                 aria-label={t("meetings.detail.scheduled.changeLabel")}
                 className="py-0 text-body"
                 onClick={() => setChanging(true)}
@@ -173,7 +201,7 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
         </div>
         {asking
           ? control(
-              "col-start-3 row-start-1 ml-3 h-9 justify-self-end @max-[42.5rem]/meeting:col-span-2 @max-[42.5rem]/meeting:col-start-1 @max-[42.5rem]/meeting:row-start-auto @max-[42.5rem]/meeting:ml-0 @max-[42.5rem]/meeting:h-11 @max-[42.5rem]/meeting:justify-self-stretch [&>label]:flex-1",
+              "col-start-3 row-start-1 ml-3 h-9 justify-self-end @max-[42.5rem]/meeting:col-span-2 @max-[42.5rem]/meeting:col-start-1 @max-[42.5rem]/meeting:row-start-auto @max-[42.5rem]/meeting:ml-0 @max-[42.5rem]/meeting:h-11 @max-[42.5rem]/meeting:justify-self-stretch [&>button]:flex-1",
             )
           : null}
         <div className="col-start-3 row-start-2 ml-3 flex items-center gap-2 justify-self-end @max-[42.5rem]/meeting:col-span-2 @max-[42.5rem]/meeting:col-start-1 @max-[42.5rem]/meeting:row-start-auto @max-[42.5rem]/meeting:ml-0">

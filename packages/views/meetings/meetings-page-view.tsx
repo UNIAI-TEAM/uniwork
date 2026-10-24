@@ -65,6 +65,9 @@ export function MeetingsPageView({
   // The last search this view put in the URL. Comparing against it, not the
   // URL, keeps a replace still in flight from being written a second time.
   const writtenQuery = useRef(params.q);
+  // One create sheet, the header's: the empty state's button opens it too, so the sheet
+  // (and its result panel) outlives the empty state its first meeting ends.
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (deferredQuery === writtenQuery.current) return;
@@ -142,6 +145,8 @@ export function MeetingsPageView({
               mode="create"
               workspaceId={workspaceId}
               onDone={onOpen}
+              open={createOpen}
+              onOpenChange={setCreateOpen}
               trigger={<CollectionPageHeaderAction icon={Plus} label={t("meetings.new")} variant="default" />}
             />
           </>
@@ -154,7 +159,9 @@ export function MeetingsPageView({
           title={t("meetings.empty_title")}
           description={t("meetings.empty_description")}
           actions={
-            <MeetingSheet mode="create" workspaceId={workspaceId} onDone={onOpen} trigger={<Button size="sm">{t("meetings.new")}</Button>} />
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              {t("meetings.new")}
+            </Button>
           }
         />
       ) : (

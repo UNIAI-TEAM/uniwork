@@ -291,15 +291,14 @@ export function startSubmitRun(plan: SubmitPlan, ctx: Omit<Context, "api" | "now
   return id;
 }
 
-/** Phase 1 again, same idempotency key: a replay returns the first meeting, never a second one. */
-export function retryPhase1(runId: string) {
-  if (runs.get(runId)?.phase1Error) void phase1(runId);
-}
-
-/** Retries the failed steps of some rows; retrying the invitations also retries the roles waiting on them. */
-export function retryRows(runId: string, keys: readonly RowKey[]): Promise<void> {
+/**
+ * Retries the failed steps of some rows; retrying the invitations also retries the roles waiting on them.
+ * `onDone` re-binds the run to the editor showing it (a panel reopened from the toast is a new editor).
+ */
+export function retryRows(runId: string, keys: readonly RowKey[], onDone?: Context["onDone"]): Promise<void> {
   const run = runs.get(runId);
   if (!run?.meetingId) return Promise.resolve();
+  if (onDone) contexts.get(runId)!.onDone = onDone;
   const wanted = new Set<string>(keys);
   const indexes = run.plan.steps.flatMap((step, i) => {
     const state = run.steps[i]!;

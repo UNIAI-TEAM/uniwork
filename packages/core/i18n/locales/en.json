@@ -4435,7 +4435,8 @@
         "tickerLast": "Last line",
         "tickerLabel": "{{key}}: {{name}} at {{time}}. Open the transcript",
         "aiListening": "Listening · {{count}} lines · summary and action items come after the meeting ends",
-        "draftJob": "Draft motion: <b>{{title}}</b>"
+        "draftJob": "Draft motion: <b>{{title}}</b>",
+        "aiListeningUncounted": "Listening · summary and action items come after the meeting ends"
       },
       "notes": {
         "title": "Notes",
@@ -5030,7 +5031,8 @@
       "liveExtend": "Need more time? Extend it on the meeting page.",
       "linkUsesOf": "<n>{{used}}/{{max}}</n> uses",
       "linkUsesPlain": "{{used}}/{{max}} uses",
-      "linkExpiresDayFirst": "expires {{day}} <time>{{clock}}</time>"
+      "linkExpiresDayFirst": "expires {{day}} <time>{{clock}}</time>",
+      "createMismatch": "A meeting with the earlier details may already exist. Check your meetings before creating it again."
     },
     "instantDialog": {
       "titlePlaceholder": "Instant meeting",

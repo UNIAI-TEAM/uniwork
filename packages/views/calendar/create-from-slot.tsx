@@ -55,6 +55,7 @@ export function CreateFromSlot({
   const [taskOpen, setTaskOpen] = useState(false);
   const [card, setCard] = useState<MeetingDraft | null>(null);
   const [sheetDraft, setSheetDraft] = useState<MeetingDraft | undefined>();
+  const [sheetKey, setSheetKey] = useState<string | undefined>();
   const [sheetOpen, setSheetOpen] = useState(false);
   const taskDefaults = useMemo(
     () => (slot ? taskDefaultsFromSlot(slot) : undefined),
@@ -146,9 +147,10 @@ export function CreateFromSlot({
           anchor={anchor}
           onClose={() => setCard(null)}
           onOpenMeeting={onOpenMeeting}
-          onMoreOptions={(draft) => {
+          onMoreOptions={(draft, key) => {
             setCard(null);
             setSheetDraft(draft);
+            setSheetKey(key);
             setSheetOpen(true);
           }}
         />
@@ -158,6 +160,7 @@ export function CreateFromSlot({
         mode="create"
         workspaceId={workspaceId}
         initialDraft={sheetDraft}
+        idempotencyKey={sheetKey}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         showTrigger={false}

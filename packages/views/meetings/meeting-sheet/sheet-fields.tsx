@@ -41,6 +41,8 @@ export type SheetFieldsProps = {
   existingLinks?: readonly MeetingInviteLink[];
   rsvp?: ReadonlyMap<string, Rsvp>;
   quorumLocked?: boolean;
+  /** Edit: people removed earlier, whom the picker no longer offers. */
+  removedUserIds?: ReadonlySet<string>;
   onManage?: () => void;
   /** Follow-up extras. */
   titleSwap?: { from: number; to: number } | null;
@@ -176,6 +178,7 @@ export function SheetFields(p: SheetFieldsProps) {
           readOnly={p.readOnly}
           edit={p.mode === "edit"}
           rsvp={p.rsvp}
+          removed={p.removedUserIds}
           previousSecretaryId={p.previousSecretaryId}
           previousWeek={p.previousWeek}
         />

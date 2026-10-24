@@ -1,6 +1,7 @@
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types/meeting";
-import { splitIsoLocal } from "../meeting-datetime";
+import { combineLocalIso, splitIsoLocal } from "../meeting-datetime";
 import { canonicalZone, type MeetingDraft } from "./draft-model";
+import { plusMinutes } from "./draft-validation";
 
 const MINUTE = 60_000;
 const WEEK_MS = 7 * 24 * 60 * MINUTE;
@@ -19,12 +20,17 @@ export function followUpWindow(
   const start = Date.parse(meeting.starts_at);
   const end = Date.parse(meeting.ends_at);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
-  const weeks = Math.max(1, Math.ceil((nowMs - start) / WEEK_MS));
-  const next = start + weeks * WEEK_MS;
-  const length = Math.ceil((end - start) / MINUTE / QUARTER_MIN) * QUARTER_MIN * MINUTE;
-  const from = splitIsoLocal(new Date(next).toISOString(), timezone);
-  const to = splitIsoLocal(new Date(next + length).toISOString(), timezone);
-  return { date: from.date, start: from.time, end: to.time };
+  // Weeks are counted on the wall date, so the clock time holds across a DST change.
+  const wall = splitIsoLocal(meeting.starts_at, timezone);
+  const [y, m, d] = wall.date.split("-").map(Number);
+  const dayAfter = (weeks: number) => new Date(Date.UTC(y!, m! - 1, d! + weeks * 7)).toISOString().slice(0, 10);
+  const slot = (weeks: number) => Date.parse(combineLocalIso(dayAfter(weeks), wall.time, timezone));
+  // The UTC estimate is off by at most the DST shift, so it starts at or below the answer.
+  let weeks = Math.max(1, Math.floor((nowMs - start) / WEEK_MS));
+  while (slot(weeks) < nowMs) weeks++;
+  const length = Math.ceil((end - start) / MINUTE / QUARTER_MIN) * QUARTER_MIN;
+  const from = splitIsoLocal(new Date(slot(weeks)).toISOString(), timezone);
+  return { date: from.date, start: from.time, end: plusMinutes(from.time, length) };
 }
 
 /** Who the next meeting invites again: the people still in this one, the host aside (they host the next). */

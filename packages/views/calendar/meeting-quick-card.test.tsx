@@ -165,6 +165,31 @@ describe("MeetingQuickCard", () => {
     expect(within(card).getByLabelText("Tiêu đề")).toHaveValue("Duyệt kịch bản");
   });
 
+  it("sends the edited draft after a lost answer, under the same key, and hands that key to the sheet", async () => {
+    let n = 0;
+    serve((path, init) => {
+      if (!(path === "/api/v1/workspaces/w1/meetings" && init.method === "POST")) return undefined;
+      return Promise.reject(n++ === 0 ? new TypeError("Failed to fetch") : new ApiError("khác", "idempotency_payload_mismatch", 409));
+    });
+    const { card, onMoreOptions } = renderCard();
+    fireEvent.change(within(card).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(card).findByRole("alert")).toHaveTextContent(/^Không rõ cuộc họp đã được tạo chưa/);
+    fireEvent.change(within(card).getByLabelText("Tiêu đề"), { target: { value: "Họp B" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() =>
+      expect(within(card).getByRole("alert")).toHaveTextContent(
+        "Cuộc họp với thông tin trước có thể đã được tạo. Hãy xem danh sách cuộc họp trước khi tạo lại.",
+      ),
+    );
+    const [first, second] = posts("/workspaces/w1/meetings").map((c) => c[1] as Init);
+    expect(second!.body).toMatchObject({ title: "Họp B" });
+    const key = first!.headers?.["Idempotency-Key"];
+    expect(second!.headers?.["Idempotency-Key"]).toBe(key);
+    fireEvent.click(within(card).getByRole("button", { name: "Thêm tùy chọn" }));
+    expect(onMoreOptions).toHaveBeenCalledWith(expect.objectContaining({ title: "Họp B" }), key);
+  });
+
   it("hands the exact draft to the full sheet", async () => {
     const { card, onMoreOptions } = renderCard();
     fireEvent.change(within(card).getByLabelText("Tiêu đề"), { target: { value: "Duyệt kịch bản" } });
@@ -172,6 +197,7 @@ describe("MeetingQuickCard", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Thêm tùy chọn" }));
     expect(onMoreOptions).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Duyệt kịch bản", date: "2026-10-26", start: "10:00", end: "11:00", people: [{ userId: "u-minh", role: "MEMBER" }] }),
+      expect.any(String),
     );
   });
 });

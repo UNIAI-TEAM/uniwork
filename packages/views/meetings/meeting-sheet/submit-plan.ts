@@ -182,8 +182,8 @@ export function buildEditPlan(
       steps.push({ row: "motions", kind: "motionUpdate", motionId: prev.id, patch: patchFields });
     }
   }
-  // Moved rows take the positions the kept rows had, in their new order.
-  const kept = draft.motions.filter((m) => old.has(m.key));
+  // Moved rows take the positions the kept rows had, in their new order; the server never moves an open or closed one.
+  const kept = draft.motions.filter((m) => old.has(m.key) && (!m.status || m.status === "DRAFT"));
   const slots = kept.map((m) => old.get(m.key)!.position ?? 0).sort((a, b) => a - b);
   kept.forEach((m, i) => {
     const prev = old.get(m.key)!;

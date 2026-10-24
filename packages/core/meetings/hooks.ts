@@ -2,6 +2,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import * as feed from "../api/endpoints/meetings-feed";
+import { calendarKeys } from "../calendar/keys";
 import type { Meeting, MeetingChatMessage, MeetingTranscriptSegment } from "../types/meeting";
 import {
   addMeetingFeedRow,
@@ -140,6 +141,19 @@ export function useSetMeetingAISharing(meetingId: string) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
+    },
+  });
+}
+
+export function useCreateInstantMeeting(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ title, idempotencyKey }: { title?: string; idempotencyKey: string }) =>
+      meetings.createInstantMeeting(workspaceId, title, { idempotencyKey }),
+    onSuccess: () => {
+      for (const key of [meetingKeys.list(workspaceId), meetingKeys.stats(workspaceId), calendarKeys.all(workspaceId)]) {
+        void qc.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }

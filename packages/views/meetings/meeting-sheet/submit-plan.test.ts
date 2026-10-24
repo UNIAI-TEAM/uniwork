@@ -6,7 +6,6 @@ import {
   getRun,
   isHttpFailure,
   linksPending,
-  retryPhase1,
   retryRows,
   runProgress,
   runRows,
@@ -79,6 +78,20 @@ describe("buildEditPlan", () => {
     const roles = plan.steps.filter((s) => s.kind === "role");
     expect(roles.map((s) => s.kind === "role" && s.userId)).toEqual(["minh", "ha"]);
     expect(plan.steps.filter((s) => s.kind === "invite" || s.kind === "remove").map((s) => s.kind)).toEqual(["invite", "remove"]);
+  });
+
+  it("never moves a motion already open or closed: the server refuses it", () => {
+    const closed = { ...newMotion(), id: "mo-a", status: "CLOSED" as const, title: "A", position: 1 };
+    const b = { ...newMotion(), id: "mo-b", status: "DRAFT" as const, title: "B", position: 2 };
+    const c = { ...newMotion(), id: "mo-c", status: "DRAFT" as const, title: "C", position: 3 };
+    const snap: MeetingDraft = { ...fullDraft(), links: [], motions: [closed, b, c] };
+    const plan = buildEditPlan({ id: "m3" }, { ...snap, motions: [b, closed, c] }, snap, { ...ctx, timeLocked: false });
+    expect(plan.steps.filter((s) => s.kind === "motionUpdate")).toEqual([]);
+    const swapped = buildEditPlan({ id: "m3" }, { ...snap, motions: [closed, c, b] }, snap, { ...ctx, timeLocked: false });
+    expect(swapped.steps.filter((s) => s.kind === "motionUpdate").map((s) => s.kind === "motionUpdate" && [s.motionId, s.patch])).toEqual([
+      ["mo-c", { position: 2 }],
+      ["mo-b", { position: 3 }],
+    ]);
   });
 });
 
@@ -163,7 +176,7 @@ describe("run-submit-plan", () => {
     expect(runRows(getRun(id)!).find((r) => r.key === "roles")?.status).toBe("ok");
   });
 
-  it("tells a server refusal from an unknown outcome and retries phase 1 with the same key", async () => {
+  it("tells a server refusal from an unknown outcome, and a resubmit sends the same key", async () => {
     const refused = await run(fakeApi({ createMeeting: vi.fn(async () => Promise.reject(new ApiError("bad", "invalid", 400))) }));
     expect(isHttpFailure(getRun(refused)!.phase1Error)).toBe(true);
     let attempts = 0;
@@ -176,8 +189,9 @@ describe("run-submit-plan", () => {
     });
     const id = await run(flaky, { ...fullDraft(), people: [], links: [], motions: [] });
     expect(isHttpFailure(getRun(id)!.phase1Error)).toBe(false);
-    retryPhase1(id);
-    await vi.waitFor(() => expect(getRun(id)!.phase).toBe("done"));
+    // The sheet resubmits as a fresh run under the sheet's one key: a replay returns the first meeting, never a second.
+    const again = await run(flaky, { ...fullDraft(), people: [], links: [], motions: [] });
+    expect(getRun(again)!.phase).toBe("done");
     expect(flaky.createMeeting).toHaveBeenLastCalledWith("w1", expect.anything(), { idempotencyKey: "k1" });
   });
 

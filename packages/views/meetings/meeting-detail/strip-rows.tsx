@@ -11,7 +11,7 @@ import { toastApiError } from "../../toast-api-error";
 import { MeetingCalendarButton } from "../meeting-calendar-button";
 import { MeetingRecordHeldButton } from "../meeting-record-held-dialog";
 import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
-import { MeetingSheet } from "../meeting-sheet";
+import { dueWords } from "./close-out/action-item-row";
 import { useDetail } from "./detail-context";
 import { clock, dayWord, shortDay, untilWords } from "./format";
 import type { StripJob } from "./next-step-jobs";
@@ -28,6 +28,8 @@ export type StripHandlers = {
   onReview: () => void;
   /** Chốt biên bản: the minutes tab with the finalize confirm open. */
   onFinalize: () => void;
+  /** Đặt lại lịch: the page's edit sheet, which outlives the missed row once the meeting is scheduled again. */
+  onEdit: () => void;
   onFollowUpCreated: (meetingId: string) => void;
   hostName: string;
   /** Who can assign (host, secretaries), for "chờ Lan Phạm hoặc Hà Vũ giao". */
@@ -36,6 +38,12 @@ export type StripHandlers = {
 };
 
 const lg = (...extra: string[]) => cn(kitButton.base, ...extra);
+
+/** "An, Bình, Chi +2": a big meeting's non-responders never fill the strip. */
+function firstNames(names: string[]): string {
+  const shown = names.slice(0, 3).join(", ");
+  return names.length > 3 ? `${shown} +${names.length - 3}` : shown;
+}
 const SOON_MS = 15 * 60_000;
 
 /** A strip sentence led by an icon in ink (kit `.notice` without a tone): missed, canceled, the outsider's lock. */
@@ -113,7 +121,7 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
         series
           ? series.caption || undefined
           : job.pendingNames.length > 0
-          ? t("meetings.detail.strip.notAnswered", { count: job.pendingNames.length, names: job.pendingNames.join(", ") })
+          ? t("meetings.detail.strip.notAnswered", { count: job.pendingNames.length, names: firstNames(job.pendingNames) })
           : undefined
       }
       actions={
@@ -214,16 +222,9 @@ function MissedRow({ job, h }: { job: Extract<StripJob, { kind: "missed" }>; h: 
           <>
             <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" className={lg(kitButton.outline, "[&>svg]:hidden")} />
             <PhonePrimary>
-              <MeetingSheet
-                mode="edit"
-                workspaceId={workspaceId}
-                meeting={meeting}
-                trigger={
-                  <Button type="button" size="lg" variant="brand" className={lg()}>
-                    {t("meetings.detail.strip.reschedule")}
-                  </Button>
-                }
-              />
+              <Button type="button" size="lg" variant="brand" className={lg()} onClick={h.onEdit}>
+                {t("meetings.detail.strip.reschedule")}
+              </Button>
             </PhonePrimary>
           </>
         ) : undefined
@@ -319,7 +320,7 @@ function CloseOutRow({ job, h }: { job: Extract<StripJob, { kind: "closeOut" }>;
         : null
       : minutes;
   const caption = [
-    job.earliestDue ? t("meetings.detail.strip.earliestDue", { date: shortDay(job.earliestDue, now, t) }) : null,
+    job.earliestDue ? t("meetings.detail.strip.earliestDue", { date: dueWords(job.earliestDue, now, t) }) : null,
     job.guessed > 0 ? t(phone ? "meetings.detail.strip.guessedShort" : "meetings.detail.strip.guessed", { count: job.guessed }) : null,
   ]
     .filter(Boolean)
@@ -389,7 +390,7 @@ function MemberItemsRow({ job, h }: { job: Extract<StripJob, { kind: "memberItem
       }
       caption={
         job.nearest
-          ? t("meetings.detail.strip.nearest", { title: job.nearest.title, date: shortDay(job.nearest.due, now, t) })
+          ? t("meetings.detail.strip.nearest", { title: job.nearest.title, date: dueWords(job.nearest.due, now, t) })
           : undefined
       }
     />

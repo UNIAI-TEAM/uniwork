@@ -25,7 +25,12 @@ export type MeetingSheetProps = {
   /** Called with the meeting's id once created (create / follow-up); omitted where the caller stays put. */
   onDone?: (meetingId: string) => void;
 } & (
-  | { mode: "create"; initialDraft?: Partial<MeetingDraft> }
+  | {
+      mode: "create";
+      initialDraft?: Partial<MeetingDraft>;
+      /** The quick card's Idempotency-Key, when it hands its draft over. */
+      idempotencyKey?: string;
+    }
   | { mode: "followUp"; previous: Meeting; previousParticipants: readonly MeetingParticipant[] }
   | { mode: "edit"; meeting: Meeting }
 );
@@ -107,17 +112,23 @@ type BodyProps = MeetingSheetProps & {
 function SheetBody(props: BodyProps) {
   if (props.mode === "edit") return <EditBody {...props} meeting={props.meeting} />;
   if (props.mode === "followUp") return <FollowUpBody {...props} previous={props.previous} previousParticipants={props.previousParticipants} />;
-  return <CreateBody {...props} initialDraft={props.initialDraft} />;
+  return <CreateBody {...props} initialDraft={props.initialDraft} idempotencyKey={props.idempotencyKey} />;
 }
 
 function editorProps(p: BodyProps) {
   return { workspaceId: p.workspaceId, guardRef: p.guardRef, onClose: p.onClose, onDone: p.onDone, initialRunId: p.resumeRun, onReopen: p.onReopen };
 }
 
-function CreateBody(p: BodyProps & { initialDraft?: Partial<MeetingDraft> }) {
+function CreateBody(p: BodyProps & { initialDraft?: Partial<MeetingDraft>; idempotencyKey?: string }) {
   const nowMs = useNow();
-  const [initial] = useState<MeetingDraft>(() => ({ ...emptyDraft(nowMs, browserTimeZone()), ...p.initialDraft }));
-  return <SheetEditor {...editorProps(p)} setup={{ mode: "create", initial }} />;
+  const [{ initial, baseline }] = useState(() => {
+    const empty = emptyDraft(nowMs, browserTimeZone());
+    const initial: MeetingDraft = { ...empty, ...p.initialDraft };
+    // The prefill's time is where the sheet starts; anything else in it (the quick card's title, people) was typed.
+    const { date, start, end, timezone } = initial;
+    return { initial, baseline: { ...empty, date, start, end, timezone } };
+  });
+  return <SheetEditor {...editorProps(p)} setup={{ mode: "create", initial, baseline, idempotencyKey: p.idempotencyKey }} />;
 }
 
 function FollowUpBody(p: BodyProps & { previous: Meeting; previousParticipants: readonly MeetingParticipant[] }) {
@@ -191,6 +202,7 @@ function EditBody(p: BodyProps & { meeting: Meeting }) {
     existingLinks: activeLinks,
     rsvp,
     quorumLocked,
+    removedUserIds: new Set((participants.data ?? []).flatMap((x) => (x.status === "REMOVED" && x.user_id ? [x.user_id] : []))),
     stale: seedRevision !== revisionOf(meeting),
     reseed: () => {
       setSeedRevision(revisionOf(meeting));

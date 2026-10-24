@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
+import { ApiError } from "@uniwork/core/api/http";
 import type { Meeting, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../../test/api-mock";
@@ -88,7 +89,7 @@ async function pickPerson(dialog: HTMLElement, name: string) {
 
 beforeEach(() => {
   requestMock.mockReset();
-  vi.mocked(toast.success).mockClear();
+  for (const fn of [toast.success, toast.error, toast.warning]) vi.mocked(fn).mockClear();
   setSessionUser(me);
   serve();
 });
@@ -181,6 +182,170 @@ describe("MeetingSheet · create", () => {
   });
 });
 
+describe("MeetingSheet · create runs", () => {
+  const isCreate = (path: string, init: Init) => path === "/api/v1/workspaces/w1/meetings" && init.method === "POST";
+  const sent = () => posts("/workspaces/w1/meetings").map((c) => c[1] as Init);
+
+  it("sends the edited draft after a refused create, under the same key", async () => {
+    let n = 0;
+    serve((path, init) => (isCreate(path, init) && n++ === 0 ? Promise.reject(new ApiError("dự án không còn", "not_found", 404)) : undefined));
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(dialog).findByText(/^Chưa tạo được cuộc họp\./)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp B" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(sent()).toHaveLength(2));
+    expect(sent()[1]!.body).toMatchObject({ title: "Họp B" });
+    expect(sent()[1]!.headers?.["Idempotency-Key"]).toBe(sent()[0]!.headers?.["Idempotency-Key"]);
+  });
+
+  it("says a meeting may exist when a lost create is sent again with other details", async () => {
+    let n = 0;
+    serve((path, init) => {
+      if (!isCreate(path, init)) return undefined;
+      return Promise.reject(n++ === 0 ? new TypeError("Failed to fetch") : new ApiError("khác", "idempotency_payload_mismatch", 409));
+    });
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(dialog).findByText(/^Không rõ cuộc họp đã được tạo chưa/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp B" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(dialog).findByText("Cuộc họp với thông tin trước có thể đã được tạo. Hãy xem danh sách cuộc họp trước khi tạo lại.")).toBeInTheDocument();
+    expect(sent()[1]!.body).toMatchObject({ title: "Họp B" });
+  });
+
+  it("creates under the quick card's key when it hands one over", async () => {
+    render(shell(<MeetingSheet mode="create" workspaceId="w1" initialDraft={DRAFT} idempotencyKey="k-card" trigger={<button type="button">Mở</button>} />));
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    expect(sent()[0]!.headers?.["Idempotency-Key"]).toBe("k-card");
+  });
+
+  it("asks before discarding what the quick card handed over, not the slot's time alone", async () => {
+    const draft = { ...DRAFT, title: "Duyệt", people: [{ userId: "u-ha", role: "MEMBER" as const }] };
+    const ui = (d: typeof DRAFT) => shell(<MeetingSheet mode="create" workspaceId="w1" initialDraft={d} trigger={<button type="button">Mở</button>} />);
+    const view = render(ui(DRAFT));
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    view.unmount();
+    render(ui(draft));
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Hủy" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("keeps the result panel, with its retrying row, while a retry runs", async () => {
+    let answer: ((v: unknown) => void) | null = null;
+    serve((path, init) => {
+      if (!(path.endsWith("/invite-links") && init.method === "POST")) return undefined;
+      if (!answer) {
+        answer = () => {};
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return new Promise((resolve) => (answer = resolve));
+    });
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Duyệt" } });
+    // The open state of Thêm tùy chọn is remembered from the test before.
+    if (!within(dialog).queryByRole("button", { name: "Thêm liên kết khách" })) fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm liên kết khách" }));
+    fireEvent.change(within(dialog).getByLabelText("Tên liên kết"), { target: { value: "Agency" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Đang thử lại…")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Tiêu đề")).toBeNull();
+    act(() => answer!({ invite_link: { id: "l1", meeting_id: "new1", name: "Agency", access_mode: "REQUEST_APPROVAL", expires_at: "2030-01-20T00:00:00Z", used_count: 0, secret: "s3" } }));
+    expect(await screen.findByRole("button", { name: "Sao chép liên kết" })).toBeInTheDocument();
+  });
+
+  it("reports by toast when the sheet goes away during phase 2", async () => {
+    let refuse: ((e: unknown) => void) | null = null;
+    serve((path, init) => (path.endsWith("/invitations") && init.method === "POST" ? new Promise((_, reject) => (refuse = reject)) : undefined));
+    const view = render(shell(<MeetingSheet mode="create" workspaceId="w1" initialDraft={DRAFT} trigger={<button type="button">Mở</button>} />));
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp" } });
+    await pickPerson(dialog, "Hà Vũ");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(refuse).not.toBeNull());
+    view.unmount();
+    refuse!(new ApiError("không mời được", "forbidden", 403));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+  });
+
+  it("reports a retry on the panel reopened from the toast, not by another toast", async () => {
+    let refuse: ((e: unknown) => void) | null = null;
+    serve((path, init) => {
+      if (!(path.endsWith("/invitations") && init.method === "POST")) return undefined;
+      if (refuse) return Promise.reject(new ApiError("không mời được", "forbidden", 403));
+      return new Promise((_, reject) => (refuse = reject));
+    });
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp" } });
+    await pickPerson(dialog, "Hà Vũ");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(refuse).not.toBeNull());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đóng" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    refuse!(new ApiError("không mời được", "forbidden", 403));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    const action = vi.mocked(toast.warning).mock.calls[0]![1]?.action as unknown as { onClick: () => void };
+    act(() => action.onClick());
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens the meeting from the panel's primary while a retry still runs", async () => {
+    let calls = 0;
+    serve((path, init) => {
+      if (!(path.endsWith("/invitations") && init.method === "POST")) return undefined;
+      return calls++ === 0 ? Promise.reject(new ApiError("không mời được", "forbidden", 403)) : new Promise(() => {});
+    });
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp" } });
+    await pickPerson(dialog, "Hà Vũ");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Đang thử lại…")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mở cuộc họp" }));
+    expect(onDone).toHaveBeenCalledWith("new1");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("holds the panel's primary, like ×, while a guest link's retry is in flight", async () => {
+    let calls = 0;
+    serve((path, init) => {
+      if (!(path.endsWith("/invite-links") && init.method === "POST")) return undefined;
+      return calls++ === 0 ? Promise.reject(new TypeError("Failed to fetch")) : new Promise(() => {});
+    });
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Duyệt" } });
+    if (!within(dialog).queryByRole("button", { name: "Thêm liên kết khách" })) fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm liên kết khách" }));
+    fireEvent.change(within(dialog).getByLabelText("Tên liên kết"), { target: { value: "Agency" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Đang thử lại…")).toBeInTheDocument();
+    const primary = screen.getByRole("button", { name: "Mở cuộc họp" });
+    expect(primary).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(primary);
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
 describe("MeetingSheet · edit", () => {
   function openEdit(m: Meeting = meeting, extra?: Route) {
     serve(extra);
@@ -223,6 +388,21 @@ describe("MeetingSheet · edit", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText(/Khách bên ngoài: 1 liên kết/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/Khách bên ngoài: 2 liên kết/)).toBeNull();
+  });
+
+  it("never offers back someone removed from the meeting earlier", async () => {
+    openEdit(meeting, (path) =>
+      path.endsWith("/participants")
+        ? { participants: [{ id: "p9", meeting_id: "m3", principal_type: "USER", user_id: "u-minh", role: "ATTENDEE", status: "REMOVED" }] }
+        : undefined,
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Thêm người" }));
+    const search = within(dialog).getByRole("combobox");
+    fireEvent.change(search, { target: { value: "Minh" } });
+    expect(await within(dialog).findByText("Không có ai khớp với tìm kiếm.")).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "Hà" } });
+    expect(await within(dialog).findByRole("option", { name: "Hà Vũ" })).toBeInTheDocument();
   });
 
   it("offers a reload when someone else saved, without overwriting the draft", async () => {

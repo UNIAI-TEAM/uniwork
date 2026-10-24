@@ -4,6 +4,7 @@ import { useDetail } from "./detail-context";
 import { meetingAvatarTint } from "./avatar-tint";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "../meeting-person";
+import { rsvpOf } from "./rail/rail-model";
 import { Section } from "./ui/section";
 
 /** "Mô tả": the agenda as written, body-lg, nothing when there is none. */
@@ -18,9 +19,13 @@ export function DescriptionSection() {
   );
 }
 
-const ANSWER: Record<string, "yes" | "no" | "wait"> = { ACCEPTED: "yes", DECLINED: "no" };
-/** The RSVP dot on a face (kit `.rsvp`), as the rail's stack draws it. */
-const DOT = { yes: "bg-success", no: "bg-destructive", wait: "bg-background inset-ring-[1.5px] inset-ring-input" } as const;
+/** The RSVP dot on a face (kit `.rsvp`), as the rail's stack draws it; "maybe" is hollow there too. */
+const DOT = {
+  yes: "bg-success",
+  no: "bg-destructive",
+  maybe: "bg-background inset-ring-[1.5px] inset-ring-input",
+  wait: "bg-background inset-ring-[1.5px] inset-ring-input",
+} as const;
 
 /**
  * The canceled page (Canceled board): what it was about and who had been
@@ -34,7 +39,7 @@ export function CanceledBody() {
     if (!p || p.user_id === meeting.host_user_id) return [];
     const member = memberIndex.memberOf(p.user_id);
     const name = p.display_name_snapshot || member?.display_name || t("meetings.formerMember");
-    const rsvp = ANSWER[inv.response_status] ?? "wait";
+    const rsvp = rsvpOf(inv.response_status);
     return [{ id: p.id, name, avatarUrl: member?.avatar_url, tint: meetingAvatarTint(p.user_id, memberIndex.members), rsvp }];
   });
   return (
@@ -50,7 +55,7 @@ export function CanceledBody() {
                   <span className={cn("absolute -right-0.75 -bottom-0.75 size-2 rounded-full ring-2 ring-background", DOT[person.rsvp])} />
                 </span>
                 <span className="text-body font-medium">{person.name}</span>
-                <span className="text-caption text-muted-foreground">{t(`meetings.detail.states.rsvp_${person.rsvp}`)}</span>
+                <span className="text-caption text-muted-foreground">{t(person.rsvp === "maybe" ? "meetings.tentative" : `meetings.detail.states.rsvp_${person.rsvp}`)}</span>
               </li>
             ))}
           </ul>

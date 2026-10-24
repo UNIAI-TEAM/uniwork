@@ -18,6 +18,7 @@ import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
 import { useMeetingMinutes, useMeetingMinutesEnabled } from "@uniwork/core/meetings/minutes";
 import { useMeetingMotions } from "@uniwork/core/meetings/motions";
 import { useMeetingSummaryRun } from "@uniwork/core/meetings/summary";
+import { useFullTranscript } from "@uniwork/core/meetings/transcript";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
@@ -106,6 +107,12 @@ export function MeetingDetailView({
   const [rollOpen, setRollOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [confirm, setConfirm] = useState<"cancel" | "end" | null>(null);
+  // The question's copy outlives a close, so its exit animation does not read as the other question.
+  const [confirmKind, setConfirmKind] = useState<"cancel" | "end">("cancel");
+  const ask = (kind: "cancel" | "end") => {
+    setConfirmKind(kind);
+    setConfirm(kind);
+  };
   // Why the last end/cancel failed, said under the header until the next try, and only
   // while the meeting stays as it was: once another host ended it, that failure is moot.
   const [closeError, setCloseError] = useState<{ text: string; status?: string } | null>(null);
@@ -113,6 +120,7 @@ export function MeetingDetailView({
 
   const status = meeting ? displayMeetingStatus(meeting, now) : "SCHEDULED";
   const activeParticipants = useMemo(() => (participants ?? []).filter((p) => p.status === "ACTIVE"), [participants]);
+  const participantById = useMemo(() => new Map(activeParticipants.map((p) => [p.id, p])), [activeParticipants]);
   const viewer = viewerRole({
     userId: user.id,
     hostUserId: meeting?.host_user_id,
@@ -120,7 +128,12 @@ export function MeetingDetailView({
     canHost: canHost.allowed,
   });
   const aiReadable = meeting?.ai_content_readable !== false;
-  const tabList = meeting ? visibleTabs(status, viewer, { aiReadable, minutes: minutesOn }) : [];
+  const offeredTabs = meeting ? visibleTabs(status, viewer, { aiReadable, minutes: minutesOn }) : [];
+  // Scribe off (AfterAIStates c4): no Lời thoại tab unless lines were heard before it was turned off.
+  // Decided here, not in the bar, so a shared ?tab=transcript resolves to a tab the bar draws.
+  const scribeOff = status === "ENDED" && meeting?.scribe_enabled === false && offeredTabs.includes("transcript");
+  const { data: heard } = useFullTranscript(meetingId, scribeOff);
+  const tabList = scribeOff && !heard?.length ? offeredTabs.filter((name) => name !== "transcript") : offeredTabs;
   const tab = useDetailTab(tabList, { urlBacked: layout === "page" });
   const ended = status === "ENDED";
   const live = status === "IN_PROGRESS" || status === "OVERTIME";
@@ -172,7 +185,7 @@ export function MeetingDetailView({
     hasInvitation: (invitations ?? []).some((inv) => inv.participant_id === myParticipant?.id),
     pendingNames: (invitations ?? [])
       .filter((inv) => inv.response_status === "PENDING")
-      .map((inv) => activeParticipants.find((p) => p.id === inv.participant_id))
+      .map((inv) => participantById.get(inv.participant_id))
       .map((p) => p?.display_name_snapshot || nameOf(p?.user_id))
       .filter(Boolean),
     liveNeed: (sections.lobby ? pendingJoins : 0) + openVotes,
@@ -184,6 +197,13 @@ export function MeetingDetailView({
     summaryRunning: summaryRun?.status === "running",
   });
 
+  const review = () => {
+    // The page's router.replace commits after the next frame, so it scrolls through the
+    // ?section= deep link once the overview is mounted; the panel's tab state commits in the click.
+    if (layout === "page") return tab.set("overview", { section: "action-items" });
+    tab.set("overview");
+    requestAnimationFrame(() => goToSection("action-items-heading"));
+  };
   const detail: DetailContextValue = {
     workspaceId,
     meeting,
@@ -199,7 +219,13 @@ export function MeetingDetailView({
     participants: activeParticipants,
     invitations: invitations ?? [],
     sections,
-    tabs: { list: tabList, current: tab.current, set: (next) => tab.set(next) },
+    tabs: {
+      list: tabList,
+      current: tab.current,
+      set: (next) => tab.set(next),
+      finalize: { open: tab.finalize, close: tab.closeFinalize },
+      review,
+    },
     roll: { open: rollOpen, setOpen: setRollOpen },
   };
 
@@ -208,13 +234,13 @@ export function MeetingDetailView({
     ...(canHost.allowed && status !== "CANCELED"
       ? [{ key: "edit", label: t("meetings.edit"), onSelect: () => setEditOpen(true) }]
       : []),
-    ...(isPhone && canHost.allowed && live ? [{ key: "end", label: t("meetings.end"), onSelect: () => setConfirm("end") }] : []),
+    ...(isPhone && canHost.allowed && live ? [{ key: "end", label: t("meetings.end"), onSelect: () => ask("end") }] : []),
     ...(isPhone && canHost.allowed && ended
       ? [{ key: "followUp", label: t("meetings.detail.header.followUp"), onSelect: () => setFollowUpOpen(true) }]
       : []),
     { key: "history", label: t("meetings.detail.header.history"), onSelect: () => setHistoryOpen(true) },
     ...(canCancel.allowed && (scheduled || status === "MISSED")
-      ? [{ key: "cancel", label: t("meetings.cancel"), destructive: true, onSelect: () => setConfirm("cancel") }]
+      ? [{ key: "cancel", label: t("meetings.cancel"), destructive: true, onSelect: () => ask("cancel") }]
       : []),
   ];
   const menuNode = <DetailMenu items={menu} className={isPhone ? "size-11" : undefined} />;
@@ -256,11 +282,9 @@ export function MeetingDetailView({
                 jobs={jobs}
                 handlers={{
                   onJoin,
-                  onEnd: () => setConfirm("end"),
-                  onReview: () => {
-                    tab.set("overview");
-                    requestAnimationFrame(() => goToSection("action-items-heading"));
-                  },
+                  onEnd: () => ask("end"),
+                  onReview: review,
+                  onEdit: () => setEditOpen(true),
                   onFinalize: () => tab.set("minutes", { finalize: "1" }),
                   onFollowUpCreated: (id) => nav?.push(wsPaths.meeting(id)),
                   hostName,
@@ -278,7 +302,7 @@ export function MeetingDetailView({
         {isPhone ? (
           <PhoneBottomBar barRef={setBar} meetingId={meeting.id} title={meeting.title} workspaceId={workspaceId} ask={sections.ai} />
         ) : null}
-        {/* The edit sheet opens from ⋯ (no trigger of its own). */}
+        {/* The edit sheet opens from ⋯ and the missed strip's "Đặt lại lịch"; it outlives that row once the meeting is scheduled again. */}
         <MeetingSheet mode="edit" workspaceId={workspaceId} meeting={meeting} open={editOpen} showTrigger={false} onOpenChange={setEditOpen} />
         {followUpOpen ? (
           <MeetingSheet
@@ -297,8 +321,8 @@ export function MeetingDetailView({
           role="alertdialog"
           open={confirm !== null}
           onOpenChange={(open) => !open && setConfirm(null)}
-          title={confirm === "end" ? t("meetings.endConfirmTitle") : t("meetings.cancelConfirmTitle")}
-          description={confirm === "end" ? t("meetings.detail.header.endConfirm") : t("meetings.cancelConfirm")}
+          title={confirmKind === "end" ? t("meetings.endConfirmTitle") : t("meetings.cancelConfirmTitle")}
+          description={confirmKind === "end" ? t("meetings.detail.header.endConfirm") : t("meetings.cancelConfirm")}
           footer={
             <>
               <Button type="button" size="lg" variant="ghost" className={cn(kitButton.base, kitButton.ghost)} onClick={() => setConfirm(null)}>
@@ -339,7 +363,7 @@ export function MeetingDetailView({
                   }
                 }}
               >
-                {confirm === "end" ? t("meetings.confirmEnd") : t("meetings.confirmCancel")}
+                {confirmKind === "end" ? t("meetings.confirmEnd") : t("meetings.confirmCancel")}
               </Button>
             </>
           }

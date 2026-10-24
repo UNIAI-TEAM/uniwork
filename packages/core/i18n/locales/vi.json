@@ -4434,7 +4434,8 @@
         "tickerLast": "Câu gần nhất",
         "tickerLabel": "{{key}}: {{name}} lúc {{time}}. Mở lời thoại",
         "aiListening": "Đang nghe · {{count}} câu · tóm tắt và việc cần làm có sau khi kết thúc",
-        "draftJob": "Bản nháp biểu quyết: <b>{{title}}</b>"
+        "draftJob": "Bản nháp biểu quyết: <b>{{title}}</b>",
+        "aiListeningUncounted": "Đang nghe · tóm tắt và việc cần làm có sau khi kết thúc"
       },
       "notes": {
         "title": "Ghi chú",
@@ -5029,7 +5030,8 @@
       "liveExtend": "Cần thêm giờ thì gia hạn trên trang cuộc họp.",
       "linkUsesOf": "<n>{{used}}/{{max}}</n> lượt",
       "linkUsesPlain": "{{used}}/{{max}} lượt",
-      "linkExpiresDayFirst": "hết hạn {{day}} <time>{{clock}}</time>"
+      "linkExpiresDayFirst": "hết hạn {{day}} <time>{{clock}}</time>",
+      "createMismatch": "Cuộc họp với thông tin trước có thể đã được tạo. Hãy xem danh sách cuộc họp trước khi tạo lại."
     },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",

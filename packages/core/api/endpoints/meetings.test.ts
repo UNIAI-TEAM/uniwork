@@ -124,13 +124,14 @@ describe("meetings endpoints", () => {
     expect(headers(2).get("Idempotency-Key")).toBeNull();
   });
 
-  it("listInviteLinks keeps a re-derived secret and drops a malformed one", async () => {
+  it("listInviteLinks keeps a re-derived secret and drops only a malformed secret", async () => {
     const link = { id: "l1", meeting_id: "m1", name: "n", access_mode: "AUTO_ADMIT", expires_at: meeting.ends_at, used_count: 0 };
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ invite_links: [{ ...link, secret: "s3cr3t" }] }))
       .mockResolvedValueOnce(json({ invite_links: [{ ...link, secret: 12 }] }));
     expect((await listInviteLinks("m1"))[0]?.secret).toBe("s3cr3t");
-    await expect(listInviteLinks("m1")).resolves.toEqual([]);
+    // One drifted secret must not empty the panel: the link stays revocable.
+    await expect(listInviteLinks("m1")).resolves.toEqual([{ ...link, secret: undefined }]);
   });
 
   it("deleteMeeting and addNote resolve without a body", async () => {

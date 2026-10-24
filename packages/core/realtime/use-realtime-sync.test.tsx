@@ -1388,14 +1388,50 @@ describe("useRealtimeSync › meeting scribe", () => {
     expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
   });
 
-  it("refreshes every meeting detail on meeting.created, so a series learns its next meeting", () => {
+  it("refreshes only the open series details on meeting.created, so a series learns its next meeting", () => {
     vi.useFakeTimers();
-    const { invalidate, client } = setup();
-    client.emit({ type: "meeting.created", payload: { meeting_id: "m2" } });
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 1 });
+    qc.setQueryData(["meeting", "solo"], { id: "solo", version: 1 });
+    client.emit({ type: "meeting.created", payload: { meeting_id: "m2", version: "1" } });
     act(() => {
       vi.advanceTimersByTime(250);
     });
-    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting"]));
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "solo"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-participants", "m1"]));
+  });
+
+  it("refreshes the other members of a series on meeting.canceled, and only that series", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 1 });
+    qc.setQueryData(["meeting", "m2"], { id: "m2", series_id: "s1", version: 5 });
+    qc.setQueryData(["meeting", "x1"], { id: "x1", series_id: "s2", version: 1 });
+    client.emit({ type: "meeting.canceled", payload: { meeting_id: "m2", version: "6" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).toContain(JSON.stringify(["meeting", "m2"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "x1"]));
+  });
+
+  it("keeps the version filter for the changed meeting while its series siblings still refresh", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 9 });
+    qc.setQueryData(["meeting", "m2"], { id: "m2", series_id: "s1", version: 5 });
+    client.emit({ type: "meeting.updated", payload: { meeting_id: "m2", version: "5" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "m2"]));
   });
 
   it("refreshes the meeting detail on scribe.updated", () => {

@@ -4,6 +4,7 @@ import { Lock, RefreshCw, TriangleAlert, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorCode } from "@uniwork/core/api/http";
 import { useAuthStore } from "@uniwork/core/auth";
 import { calendarKeys } from "@uniwork/core/calendar";
 import { meetingKeys, useMeetingCapabilities } from "@uniwork/core/meetings";
@@ -22,7 +23,7 @@ import { validateDraft } from "./draft-validation";
 import { readMoreOpen, rememberMoreOpen } from "./more-options";
 import type { Rsvp } from "./person-role-row";
 import { ResultPanelBody, ResultPanelHead } from "./result-panel";
-import { dropRun, linksPending, retryPhase1, retryRows, runProgress, runRows, startSubmitRun, useSubmitRun, type SubmitRun } from "./run-submit-plan";
+import { dropRun, linksPending, retryRows, runProgress, runRows, startSubmitRun, useSubmitRun, type SubmitRun } from "./run-submit-plan";
 import { scribeAvailability, scribePolicyDefault } from "./scribe-block";
 import { SheetFields } from "./sheet-fields";
 import { SheetFooter } from "./sheet-footer";
@@ -32,7 +33,14 @@ import { seriesShortTitle } from "./carried-over-block";
 import { footerLine, focusIssue, headCaption, outcomeToast, resultCaption } from "./sheet-copy";
 
 export type EditorSetup =
-  | { mode: "create"; initial: MeetingDraft }
+  | {
+      mode: "create";
+      initial: MeetingDraft;
+      /** What the discard question compares against; the initial draft when unset. */
+      baseline?: MeetingDraft;
+      /** The quick card's key, so a create it may already have made is never made twice. */
+      idempotencyKey?: string;
+    }
   | {
       mode: "followUp";
       initial: MeetingDraft;
@@ -50,6 +58,8 @@ export type EditorSetup =
       existingLinks: readonly MeetingInviteLink[];
       rsvp: ReadonlyMap<string, Rsvp>;
       quorumLocked: boolean;
+      /** People removed earlier: the server refuses to invite them again. */
+      removedUserIds: ReadonlySet<string>;
       stale: boolean;
       reseed: () => MeetingDraft;
     };
@@ -80,17 +90,26 @@ export function SheetEditor({
   const idPrefix = useId().replace(/:/g, "");
   const formId = `${idPrefix}-form`;
   const qc = useQueryClient();
-  const state = useMeetingDraft(setup.initial);
+  const state = useMeetingDraft(setup.initial, setup.mode === "create" ? setup.baseline : undefined);
   const { draft, snapshot, changes, submitted, setSubmitted, reset } = state;
   const nowMs = useNow(30_000);
   const { data: caps } = useMeetingCapabilities(workspaceId);
   const { data: members = [] } = useMembers(workspaceId);
   const user = useAuthStore((s) => s.user);
   const ws = useOptionalWorkspace();
-  const [idempotencyKey] = useState(() => globalThis.crypto?.randomUUID?.() ?? `k${Date.now()}${Math.random()}`);
+  const [idempotencyKey] = useState(
+    () => (setup.mode === "create" && setup.idempotencyKey) || (globalThis.crypto?.randomUUID?.() ?? `k${Date.now()}${Math.random()}`),
+  );
   const [runId, setRunId] = useState<string | null>(initialRunId ?? null);
   const run = useSubmitRun(runId);
   const attached = useRef(true);
+  // A run that outlives the sheet reports by toast (finish reads this).
+  useEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
   const [confirm, setConfirm] = useState<"discard" | "reload" | null>(null);
   const [moreOpen, setMoreOpen] = useState(() =>
     setup.mode === "create" ? readMoreOpen() : setup.initial.links.length + setup.initial.motions.length > 0 || Boolean(setup.initial.quorum) || (setup.mode === "edit" && setup.existingLinks.length > 0),
@@ -101,7 +120,11 @@ export function SheetEditor({
   const live = meeting?.status === "IN_PROGRESS" ? { startsAt: meeting.starts_at, endsAt: meeting.ends_at } : undefined;
   const phase1Busy = Boolean(run && run.phase === "phase1" && !run.phase1Error);
   const phase2 = run?.phase === "phase2";
-  const showResult = Boolean(run && run.phase === "done" && !run.phase1Error && needsPanel(run));
+  const panelNow = Boolean(run && run.phase === "done" && !run.phase1Error && needsPanel(run));
+  // Once shown, the panel stays through its own retries (they put the run back in phase 2).
+  const [panelRunId, setPanelRunId] = useState<string | null>(null);
+  if (panelNow && panelRunId !== run!.id) setPanelRunId(run!.id);
+  const showResult = Boolean(run && !run.phase1Error && (panelNow || panelRunId === run.id));
   const readOnly = phase1Busy || phase2 || ended;
   const timeTouched = (["date", "start", "end", "timezone"] as const).some((k) => draft[k] !== snapshot[k]);
   const issues = validateDraft(draft, { nowMs, checkPast: setup.mode !== "edit" || timeTouched, timeLocked: Boolean(live) });
@@ -166,6 +189,8 @@ export function SheetEditor({
         ? buildEditPlan(setup.meeting, draft, snapshot, { ...ctx, timeLocked: Boolean(live) })
         : buildCreatePlan(draft, ctx);
     attached.current = true;
+    // A failed create is built again from the fields as they are now, under the same key.
+    if (run) dropRun(run.id);
     setRunId(startSubmitRun(plan, { workspaceId, idempotencyKey, invalidate, onDone: finish }));
   };
 
@@ -267,21 +292,24 @@ export function SheetEditor({
       {showResult && run ? (
         <>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-3 pb-4 max-sm:px-4">
-            <ResultPanelBody run={run} nameOf={nameOf} workspaceName={workspaceName} onRetry={(keys) => void retryRows(run.id, keys)} />
+            <ResultPanelBody run={run} nameOf={nameOf} workspaceName={workspaceName} onRetry={(keys) => void retryRows(run.id, keys, finish)} />
           </div>
           <SheetFooter
             line={failures.length ? { tone: "muted", text: t("meetings.sheet.resultPending", { count: failures.length }) } : null}
             primaryType="button"
             primaryLabel={setup.mode === "edit" || !onDone ? t("common.close") : t("meetings.sheet.openMeeting")}
             kbd={false}
+            busy={xLocked}
             onPrimary={() => {
-              dropRun(run.id);
+              // Mid-retry the run reports by toast once the sheet is gone; the meeting still opens.
+              if (run.phase === "done") dropRun(run.id);
+              else attached.current = false;
               onClose();
               if (setup.mode !== "edit" && run.meetingId) onDone?.(run.meetingId);
             }}
             extra={
               failures.length >= 2 ? (
-                <Button variant="ghost" size="lg" className={cn(kitButton.base, kitButton.ghost)} onClick={() => void retryRows(run.id, failures.map((f) => f.key))}>
+                <Button variant="ghost" size="lg" className={cn(kitButton.base, kitButton.ghost)} onClick={() => void retryRows(run.id, failures.map((f) => f.key), finish)}>
                   {t("meetings.sheet.retryAll")}
                 </Button>
               ) : null
@@ -295,9 +323,6 @@ export function SheetEditor({
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            if (run?.phase1Error) {
-              if (run.plan.mode === "create") return retryPhase1(run.id);
-            }
             submit();
           }}
         >
@@ -327,6 +352,7 @@ export function SheetEditor({
               existingLinks={setup.mode === "edit" ? setup.existingLinks : undefined}
               rsvp={setup.mode === "edit" ? setup.rsvp : undefined}
               quorumLocked={setup.mode === "edit" && setup.quorumLocked}
+              removedUserIds={setup.mode === "edit" ? setup.removedUserIds : undefined}
               onManage={setup.mode === "edit" ? requestClose : undefined}
               titleSwap={setup.mode === "followUp" ? setup.swap : null}
               onKeepOldTitle={setup.mode === "followUp" && setup.swap ? () => state.patch({ title: setup.previous.title }) : undefined}
@@ -363,7 +389,11 @@ export function SheetEditor({
             </div>
           ) : null}
           <SheetFooter
-            line={footerLine({ run, issues, submitted, setup: setup.mode, changes: changes.length, caption: inviteCaption(draft.people.map((p) => nameOf(p.userId)), t), progress: run ? runProgress(run) : null, t })}
+            line={
+              errorCode(run?.phase1Error) === "idempotency_payload_mismatch"
+                ? { tone: "destructive", text: t("meetings.sheet.createMismatch") }
+                : footerLine({ run, issues, submitted, setup: setup.mode, changes: changes.length, caption: inviteCaption(draft.people.map((p) => nameOf(p.userId)), t), progress: run ? runProgress(run) : null, t })
+            }
             onCancel={ended ? undefined : requestClose}
             stacked={!phonePage}
             form={formId}

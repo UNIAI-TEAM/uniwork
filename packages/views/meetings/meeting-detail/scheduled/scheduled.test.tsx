@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
@@ -51,10 +52,10 @@ describe("StripRsvpRow", () => {
     const opens = screen.getByText((_, el) => el?.tagName === "P" && /^Phòng họp mở lúc \d\d:\d\d \S/.test(el.textContent ?? ""));
     expect(opens.querySelector("time")).toHaveTextContent(/^\d\d:\d\d$/);
     const group = screen.getByRole("group", { name: "Trả lời lời mời của Lan Phạm" });
-    for (const radio of within(group).getAllByRole("radio")) expect(radio).not.toBeChecked();
+    for (const choice of within(group).getAllByRole("button")) expect(choice).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Thêm vào lịch" })).toBeInTheDocument();
 
-    fireEvent.click(within(group).getByRole("radio", { name: "Tham dự" }));
+    fireEvent.click(within(group).getByRole("button", { name: "Tham dự" }));
     await waitFor(() => expect(callsTo(`/invitations/${minh.id}/response`, "PUT")).toHaveLength(1));
 
     // The server now holds the answer: the strip reads it from the invitations it is given.
@@ -74,16 +75,64 @@ describe("StripRsvpRow", () => {
     expect(await screen.findByText("Bạn tham dự")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Trả lời lời mời của Lan Phạm" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Đổi câu trả lời" }));
-    expect(screen.getByRole("radio", { name: "Tham dự" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Tham dự" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets a keyboard reach any answer without saving the ones on the way, and keeps focus while saving", async () => {
+    const minh = demo.meetings.m3.invitations.find((inv) => inv.response_status === "PENDING")!;
+    const { rerender } = renderSlot(<StripRsvpRow variant="strip" />, "minh");
+    // The save stays in flight until `saved()`.
+    let saved = () => {};
+    const fixture = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "PUT" ? new Promise<void>((resolve) => (saved = resolve)) : fixture(path, init),
+    );
+    const user = userEvent.setup();
+    const group = screen.getByRole("group", { name: "Trả lời lời mời của Lan Phạm" });
+    within(group).getByRole("button", { name: "Tham dự" }).focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    await user.tab();
+    await user.tab();
+    const decline = within(group).getByRole("button", { name: "Từ chối" });
+    expect(decline).toHaveFocus();
+    expect(callsTo(`/invitations/${minh.id}/response`, "PUT")).toHaveLength(0);
+
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(callsTo(`/invitations/${minh.id}/response`, "PUT")).toHaveLength(1));
+    expect((callsTo(`/invitations/${minh.id}/response`, "PUT")[0]![1] as { body?: unknown }).body).toEqual({ response: "DECLINED" });
+    await waitFor(() => expect(decline).toHaveAttribute("aria-pressed", "true"));
+    expect(decline).toHaveAttribute("aria-disabled", "true");
+    expect(decline).toHaveFocus();
+    // A second answer while the first is saving is not sent.
+    await user.click(within(group).getByRole("button", { name: "Tham dự" }));
+    expect(callsTo(`/invitations/${minh.id}/response`, "PUT")).toHaveLength(1);
+
+    // Saved: the control folds into the answered line and focus moves to "Đổi".
+    decline.focus();
+    saved();
+    const answered = detailValue("m3", {
+      user: "minh",
+      invitations: demo.meetings.m3.invitations.map((inv) => (inv.id === minh.id ? { ...inv, response_status: "DECLINED" } : inv)),
+    });
+    rerender(
+      wrapWithNav(
+        <WorkspaceProvider workspace={demoWorkspace} user={demoUser("minh")}>
+          <DetailContext.Provider value={answered}>
+            <StripRsvpRow variant="strip" />
+          </DetailContext.Provider>
+        </WorkspaceProvider>,
+      ),
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Đổi câu trả lời" })).toHaveFocus());
   });
 
   it("puts the answer in the phone bar and keeps the room row in the strip", () => {
     const { unmount } = renderSlot(<StripRsvpRow variant="phoneBar" />, "minh", { isPhone: true });
     expect(screen.getByText("mời bạn", { exact: false })).toBeInTheDocument();
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(within(screen.getByRole("group", { name: "Trả lời lời mời của Lan Phạm" })).getAllByRole("button")).toHaveLength(3);
     unmount();
     renderSlot(<StripRsvpRow variant="strip" actions={<button type="button">Vào phòng họp</button>} />, "minh", { isPhone: true });
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Trả lời lời mời của Lan Phạm" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Phòng họp" })).toHaveTextContent(/Phòng họp mở lúc \d\d:\d\d/);
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
   });

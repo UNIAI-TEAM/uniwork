@@ -174,6 +174,7 @@ export function PeopleField({
   readOnly,
   edit,
   rsvp,
+  removed,
   previousSecretaryId,
   previousWeek,
   variant = "rows",
@@ -187,6 +188,8 @@ export function PeopleField({
   readOnly?: boolean;
   edit?: boolean;
   rsvp?: ReadonlyMap<string, Rsvp>;
+  /** People removed from the meeting earlier: the server refuses to invite them again, so neither picker offers them. */
+  removed?: ReadonlySet<string>;
   /** Follow-up: the previous meeting's secretary, offered back as "Giao lại vai thư ký". */
   previousSecretaryId?: string;
   previousWeek?: number | null;
@@ -199,7 +202,8 @@ export function PeopleField({
   const phone = useMediaQuery("(max-width: 639px)");
   const [picking, setPicking] = useState(false);
   const byId = new Map(members.map((m) => [m.user_id, m]));
-  const exclude = new Set([host.userId, ...people.map((p) => p.userId)]);
+  const chosen = new Set([host.userId, ...people.map((p) => p.userId)]);
+  const exclude = new Set([...chosen, ...(removed ?? [])]);
   const labelId = `${idPrefix}-people-label`;
   const searchId = `${idPrefix}-people`;
   const nameOf = (userId: string) => byId.get(userId)?.display_name ?? t("meetings.formerMember");
@@ -208,7 +212,7 @@ export function PeopleField({
   const role = (userId: string, next: DraftRole) => onChange(setRole(people, userId, next));
   const secretary = people.find((p) => p.role === "SECRETARY");
   const showSearch = !edit || adding;
-  const toggle = (userId: string) => (exclude.has(userId) ? remove(userId) : add(userId));
+  const toggle = (userId: string) => (chosen.has(userId) ? remove(userId) : add(userId));
   const search = showSearch && phone && variant === "rows" ? (
     <button
       type="button"
@@ -238,7 +242,7 @@ export function PeopleField({
     <div role="group" aria-labelledby={labelId}>
       {picking ? (
         <PhonePeoplePicker
-          members={members}
+          members={removed?.size ? members.filter((m) => !removed.has(m.user_id)) : members}
           hostId={host.userId}
           chosen={new Set(people.map((p) => p.userId))}
           onToggle={toggle}

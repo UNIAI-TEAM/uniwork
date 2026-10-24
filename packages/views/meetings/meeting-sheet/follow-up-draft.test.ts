@@ -15,6 +15,17 @@ describe("followUpWindow", () => {
     expect(followUpWindow(meeting, Date.parse("2026-11-03T00:00:00Z"), HCM)?.date).toBe("2026-11-09");
   });
 
+  it("keeps the wall time across a DST change", () => {
+    // Thu 22 Oct 2026 09:00 BST; the EU clocks go back on 25 Oct.
+    const london = { starts_at: "2026-10-22T08:00:00Z", ends_at: "2026-10-22T08:28:00Z" };
+    expect(followUpWindow(london, Date.parse("2026-10-25T12:00:00Z"), "Europe/London")).toEqual({ date: "2026-10-29", start: "09:00", end: "09:30" });
+    // Thu 29 Oct 09:00 GMT is 09:00Z: half past eight UTC is still before it.
+    expect(followUpWindow(london, Date.parse("2026-10-29T08:30:00Z"), "Europe/London")?.date).toBe("2026-10-29");
+    // Thu 29 Oct 2026 09:00 PDT; the US clocks go back on 1 Nov.
+    const la = { starts_at: "2026-10-29T16:00:00Z", ends_at: "2026-10-29T17:00:00Z" };
+    expect(followUpWindow(la, Date.parse("2026-11-02T00:00:00Z"), "America/Los_Angeles")).toEqual({ date: "2026-11-05", start: "09:00", end: "10:00" });
+  });
+
   it("leaves the form's own default for a window it cannot read", () => {
     expect(followUpWindow({ starts_at: "x", ends_at: "y" }, 0, HCM)).toBeUndefined();
   });

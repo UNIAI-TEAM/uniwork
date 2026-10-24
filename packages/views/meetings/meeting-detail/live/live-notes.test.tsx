@@ -34,9 +34,10 @@ function renderSlot(
     who = "lan",
     value,
     notes,
-  }: { who?: DemoUserKey; value?: Partial<DetailContextValue>; notes?: () => Promise<unknown> } = {},
+    extra,
+  }: { who?: DemoUserKey; value?: Partial<DetailContextValue>; notes?: () => Promise<unknown>; extra?: Record<string, unknown> } = {},
 ) {
-  routeMeeting(key, { viewer: who });
+  routeMeeting(key, { viewer: who, extra });
   if (notes) notesRoute(notes);
   setSessionUser(demoUser(who));
   return render(
@@ -88,6 +89,16 @@ describe("LiveNotesTab", () => {
       "Ví dụ: Minh cập nhật đối tác ví lúc 21:30",
     );
     expect(await screen.findByText("Đang nghe · 15 câu · tóm tắt và việc cần làm có sau khi kết thúc")).toBeInTheDocument();
+  });
+
+  it("counts the lines only once the whole transcript is loaded", async () => {
+    // Joined late: the newest page is in, older lines are still on the server.
+    const segments = demo.meetings.m4.transcript.segments;
+    renderSlot("m4", <LiveNotesTab />, {
+      extra: { [`/api/v1/meetings/${M4.id}/transcript`]: { segments, older_cursor: "o1" } },
+    });
+    expect(await screen.findByText("Đang nghe · tóm tắt và việc cần làm có sau khi kết thúc")).toBeInTheDocument();
+    expect(screen.queryByText(/câu ·/)).not.toBeInTheDocument();
   });
 
   it("calls an old line the last one, in muted ink", async () => {

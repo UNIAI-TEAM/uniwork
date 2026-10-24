@@ -4,6 +4,7 @@ import { ChevronDown, CircleAlert, Clock, X } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorCode } from "@uniwork/core/api/http";
 import { useAuthStore } from "@uniwork/core/auth";
 import { calendarKeys } from "@uniwork/core/calendar";
 import { meetingKeys, useMeetingCapabilities } from "@uniwork/core/meetings";
@@ -25,7 +26,6 @@ import { PeopleSearch } from "../meetings/meeting-sheet/people-field";
 import {
   dropRun,
   isHttpFailure,
-  retryPhase1,
   retryRows,
   runRows,
   startSubmitRun,
@@ -89,7 +89,7 @@ const newKey = () => globalThis.crypto?.randomUUID?.() ?? `k${Date.now()}${Math.
  * time row in place), the title, the people search and the scribe default.
  * [Tạo cuộc họp] (or ⌘↵) creates through the sheet's submit plan and keeps
  * the person on the calendar with a toast; [Thêm tùy chọn] hands the exact
- * draft to the full sheet. Non-modal (AUDIT L1): Esc, × and a click outside
+ * draft, and the card's Idempotency-Key, to the full sheet. Non-modal (AUDIT L1): Esc, × and a click outside
  * close it without asking (AB-11), except while the create call runs.
  */
 export function MeetingQuickCard({
@@ -104,7 +104,7 @@ export function MeetingQuickCard({
   initial: MeetingDraft;
   anchor: Element | null;
   onClose: () => void;
-  onMoreOptions: (draft: MeetingDraft) => void;
+  onMoreOptions: (draft: MeetingDraft, idempotencyKey: string) => void;
   onOpenMeeting: (meetingId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -118,6 +118,8 @@ export function MeetingQuickCard({
   const [timeCommitted, setTimeCommitted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
+  // One key per card: a create resent after a lost answer, here or from the sheet, never makes a second meeting.
+  const [idempotencyKey] = useState(newKey);
   const run = useSubmitRun(runId);
   const attached = useRef(true);
   useEffect(() => {
@@ -196,8 +198,6 @@ export function MeetingQuickCard({
 
   const submit = () => {
     if (busy) return;
-    // Lost answer: the same plan with the same key, so the server never makes a second meeting.
-    if (run?.phase1Error && !isHttpFailure(run.phase1Error)) return retryPhase1(run.id);
     if (validateDraft(draft, { nowMs: Date.now(), checkPast: true }).length) {
       setSubmitted(true);
       if (!draft.title.trim()) document.getElementById(`${id}-title`)?.focus();
@@ -213,7 +213,7 @@ export function MeetingQuickCard({
       scribeOffered: availability === "on",
       defaultLinkName: "",
     });
-    setRunId(startSubmitRun(plan, { workspaceId, idempotencyKey: newKey(), invalidate, onDone: finish }));
+    setRunId(startSubmitRun(plan, { workspaceId, idempotencyKey, invalidate, onDone: finish }));
   };
 
   const requestClose = () => {
@@ -369,7 +369,7 @@ export function MeetingQuickCard({
               aria-haspopup="dialog"
               aria-disabled={busy || undefined}
               className={cn(kitButton.base, kitButton.ghost, "-ml-3.5")}
-              onClick={() => !busy && onMoreOptions(draft)}
+              onClick={() => !busy && onMoreOptions(draft, idempotencyKey)}
             >
               {t("meetings.sheet.more")}
             </Button>
@@ -398,6 +398,7 @@ export function MeetingQuickCard({
 }
 
 function failureLine(err: unknown, t: ReturnType<typeof useTranslation>["t"]): string {
+  if (errorCode(err) === "idempotency_payload_mismatch") return t("meetings.sheet.createMismatch");
   if (!isHttpFailure(err)) return t("meetings.sheet.unknownOutcome");
   return t("meetings.sheet.createFailed", { reason: apiErrorCopy(err) ?? t("common.error") });
 }

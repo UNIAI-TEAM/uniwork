@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useOptionalNavigation } from "../../navigation";
 import type { DetailTab } from "./detail-model";
 
@@ -27,34 +27,35 @@ export function resolveDetailTab(
 
 /**
  * The page's tab in the URL (`?tab=`), so a reload or a shared link keeps it;
- * the calendar's docked panel keeps it in state instead (its URL is the
- * calendar's). `set` drops the one-shot deep-link params and may add others
- * (`finalize=1` for the minutes confirm).
+ * the calendar's docked panel keeps the same params in state instead (its URL
+ * is the calendar's). `set` drops the one-shot deep-link params and may add
+ * others (`finalize=1` for the minutes confirm, read back as `finalize`).
  */
 export function useDetailTab(list: readonly DetailTab[], { urlBacked }: { urlBacked: boolean }) {
   const nav = useOptionalNavigation();
   const params = urlBacked ? nav?.searchParams : undefined;
-  const [local, setLocal] = useState<DetailTab | null>(null);
-  const current = resolveDetailTab(list, {
-    tab: params ? params.get("tab") : local,
-    section: params?.get("section"),
-    segment: params?.get("segment"),
-  });
-  const set = useCallback(
-    (tab: DetailTab, extra: Record<string, string> = {}) => {
-      if (!params || !nav) {
-        setLocal(tab);
-        return;
-      }
-      const next = new URLSearchParams(params);
-      for (const key of ["section", "segment", "finalize"]) next.delete(key);
-      if (tab === list[0]) next.delete("tab");
-      else next.set("tab", tab);
-      for (const [key, value] of Object.entries(extra)) next.set(key, value);
-      const qs = next.toString();
-      nav.replace(qs ? `${nav.pathname}?${qs}` : nav.pathname);
-    },
-    [list, nav, params],
-  );
-  return { current, set };
+  const [localQs, setLocalQs] = useState("");
+  const search = params ?? new URLSearchParams(localQs);
+  const current = resolveDetailTab(list, { tab: search.get("tab"), section: search.get("section"), segment: search.get("segment") });
+  const commit = (next: URLSearchParams) => {
+    const qs = next.toString();
+    if (params && nav) nav.replace(qs ? `${nav.pathname}?${qs}` : nav.pathname);
+    else setLocalQs(qs);
+  };
+  const set = (tab: DetailTab, extra: Record<string, string> = {}) => {
+    const next = new URLSearchParams(search);
+    for (const key of ["section", "segment", "finalize"]) next.delete(key);
+    if (tab === list[0]) next.delete("tab");
+    else next.set("tab", tab);
+    for (const [key, value] of Object.entries(extra)) next.set(key, value);
+    commit(next);
+  };
+  const finalize = search.get("finalize") === "1";
+  const closeFinalize = () => {
+    if (!finalize) return;
+    const next = new URLSearchParams(search);
+    next.delete("finalize");
+    commit(next);
+  };
+  return { current, set, finalize, closeFinalize };
 }

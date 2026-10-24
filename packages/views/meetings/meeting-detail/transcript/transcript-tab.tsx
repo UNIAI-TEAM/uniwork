@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, Ellipsis, Info, Trash2, Upload, UserPen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
@@ -180,12 +180,15 @@ export function TranscriptView({
     if (!activeId) return;
     document.querySelector(`[data-segment-id="${CSS.escape(activeId)}"]`)?.scrollIntoView({ block: "center" });
   }, [activeId]);
+  // Once per target: rows change with every live caption, and the reader may be typing elsewhere by then.
+  const landed = useRef("");
   useEffect(() => {
-    if (!target) return;
+    if (!target || landed.current === target) return;
     const line = document.querySelector<HTMLElement>(`[data-segment-id="${CSS.escape(target)}"]`);
     if (!line) return;
     line.scrollIntoView({ block: "center" });
     line.focus({ preventScroll: true });
+    landed.current = target;
   }, [target, rows]);
   // A chapter the search hid is drawn once the search is cleared, then scrolled to.
   useEffect(() => {

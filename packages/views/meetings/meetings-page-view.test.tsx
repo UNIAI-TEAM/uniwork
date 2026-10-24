@@ -10,7 +10,13 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingsPageView } from "./meetings-page-view";
 
 vi.mock("./instant-meeting-dialog", () => ({ InstantMeetingDialog: ({ trigger }: { trigger: ReactNode }) => trigger }));
-vi.mock("./meeting-sheet", () => ({ MeetingSheet: ({ trigger }: { trigger: ReactNode }) => trigger }));
+vi.mock("./meeting-sheet", () => ({
+  MeetingSheet: ({ trigger, open }: { trigger: ReactNode; open?: boolean }) => (
+    <div data-testid="meeting-sheet" data-open={String(Boolean(open))}>
+      {trigger}
+    </div>
+  ),
+}));
 
 const me: User = {
   id: "u-host",
@@ -174,6 +180,16 @@ describe("MeetingsPageView empty chip", () => {
     expect(screen.queryByText("Không tìm thấy cuộc họp")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Xem tất cả cuộc họp" }));
     expect(adapter.replace).toHaveBeenLastCalledWith("/org/team/meetings");
+  });
+
+  it("opens the header's create sheet from an empty workspace, so it outlives the empty state", async () => {
+    emptyList();
+    renderPage(nav(""));
+    await screen.findByText("Chưa có cuộc họp nào");
+    const create = screen.getAllByRole("button", { name: "Tạo cuộc họp" });
+    expect(screen.getAllByTestId("meeting-sheet")).toHaveLength(1);
+    fireEvent.click(create[create.length - 1]!);
+    expect(screen.getByTestId("meeting-sheet")).toHaveAttribute("data-open", "true");
   });
 
   it("keeps the search wording while a search is part of the filter", async () => {

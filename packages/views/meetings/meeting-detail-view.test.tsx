@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
+import { meetingKeys } from "@uniwork/core/meetings";
 import { toast } from "sonner";
 import type { NavigationAdapter } from "../navigation";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -42,11 +44,13 @@ function open(
     extra = {},
     adapter = nav(),
     props = {},
+    client,
   }: {
     viewer?: DemoUserKey;
     extra?: Record<string, unknown>;
     adapter?: NavigationAdapter;
     props?: Partial<Parameters<typeof MeetingDetailView>[0]>;
+    client?: QueryClient;
   } = {},
 ) {
   const who = viewer ?? (key === "m1Outsider" ? "tuan" : "lan");
@@ -59,6 +63,7 @@ function open(
         <MeetingDetailView workspaceId={demoWorkspace.id} meetingId={fixtureMeeting(key).id} {...handlers} {...props} />
       </WorkspaceProvider>,
       adapter,
+      client,
     ),
   );
   return { ...handlers, adapter };
@@ -159,9 +164,9 @@ describe("MeetingDetailView › strip per state and viewer", () => {
   it("asks an invitee for an answer before the meeting", async () => {
     open("m3", { viewer: "minh" });
     const row = await strip();
-    expect(await within(row).findByRole("radio", { name: "Tham dự" })).toBeInTheDocument();
-    expect(within(row).getByRole("radio", { name: "Chưa chắc" })).toBeInTheDocument();
-    expect(within(row).getByRole("radio", { name: "Từ chối" })).toBeInTheDocument();
+    expect(await within(row).findByRole("button", { name: "Tham dự" })).toHaveAttribute("aria-pressed");
+    expect(within(row).getByRole("button", { name: "Chưa chắc" })).toHaveAttribute("aria-pressed");
+    expect(within(row).getByRole("button", { name: "Từ chối" })).toHaveAttribute("aria-pressed");
     expect(within(row).queryByRole("button", { name: "Bắt đầu họp" })).not.toBeInTheDocument();
   });
 
@@ -388,5 +393,87 @@ describe("MeetingDetailView › tabs", () => {
     expect(await within(tabs).findByRole("tab", { name: /Ghi chú chung/ })).toHaveAttribute("aria-selected", "true");
     expect(demo.meetings.m4.notes.length).toBeGreaterThan(0);
     expect(await within(tabs).findByText(String(demo.meetings.m4.notes.length))).toBeInTheDocument();
+  });
+});
+
+describe("MeetingDetailView › review fixes", () => {
+  it("keeps the reschedule sheet open once the missed meeting is scheduled again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    open("m6", { client });
+    fireEvent.click(await within(await strip()).findByRole("button", { name: "Đặt lại lịch" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    const m6 = fixtureMeeting("m6");
+    act(() => {
+      client.setQueryData(meetingKeys.detail(m6.id), { ...m6, starts_at: "2026-10-26T08:00:00Z", ends_at: "2026-10-26T08:45:00Z" });
+    });
+    await waitFor(() => expect(screen.queryByText("Cuộc họp không diễn ra")).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("names three invitees who have not answered and counts the rest", async () => {
+    const m3 = fixtureMeeting("m3");
+    const base = `/api/v1/meetings/${m3.id}`;
+    const people = ["An", "Bình", "Chi", "Dũng", "Giang"].map((name, i) => ({
+      ...demo.meetings.m3.participants[0],
+      id: `p${i}`,
+      user_id: `u${i}`,
+      display_name_snapshot: name,
+      role: "PARTICIPANT",
+    }));
+    open("m3", {
+      extra: {
+        [`${base}/participants`]: { participants: [...demo.meetings.m3.participants, ...people] },
+        [`${base}/invitations`]: {
+          invitations: people.map((p) => ({ id: `i${p.id}`, meeting_id: m3.id, participant_id: p.id, response_status: "PENDING" })),
+        },
+      },
+    });
+    const row = await strip();
+    expect(await within(row).findByText("5 người chưa phản hồi: An, Bình, Chi +2")).toBeInTheDocument();
+  });
+
+  it("writes a task's due day the same west of UTC as the board does", async () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      open("m1", { extra: MINUTES_ON });
+      const row = await strip();
+      expect(await within(row).findByText(/Hạn sớm nhất T2 26\/10/)).toBeInTheDocument();
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+
+  it("opens a shared ?tab=transcript on the overview when the scribe was off and heard nothing", async () => {
+    const m1 = fixtureMeeting("m1");
+    const base = `/api/v1/meetings/${m1.id}`;
+    open("m1", {
+      adapter: nav("tab=transcript"),
+      extra: { ...MINUTES_ON, [base]: { meeting: { ...m1, scribe_enabled: false } }, [`${base}/transcript`]: { segments: [] } },
+    });
+    const tabs = await screen.findByRole("tablist", { name: "Phần của cuộc họp" });
+    await waitFor(() => expect(within(tabs).getByRole("tab", { name: /Tổng quan/ })).toHaveAttribute("aria-selected", "true"));
+    expect(within(tabs).queryByRole("tab", { name: /Lời thoại/ })).not.toBeInTheDocument();
+  });
+
+  it("reaches the pending items from the minutes tab on the page through the section deep link", async () => {
+    const adapter = nav("tab=minutes");
+    open("m1", { adapter, extra: MINUTES_ON });
+    fireEvent.click(await screen.findByRole("button", { name: /việc chưa giao$/ }));
+    expect(adapter.replace).toHaveBeenCalledWith(`${adapter.pathname}?section=action-items`);
+  });
+
+  it("finalizes the minutes and reaches the pending items from the calendar panel, without touching its URL", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const adapter = nav();
+    open("m1", { adapter, extra: MINUTES_ON, props: { layout: "panel" } });
+    fireEvent.click(await within(await strip()).findByRole("button", { name: "Chốt biên bản" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "Chốt biên bản?" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: /Biên bản/ })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(await screen.findByRole("button", { name: /việc chưa giao$/ }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Tổng quan/ })).toHaveAttribute("aria-selected", "true"));
+    expect(adapter.replace).not.toHaveBeenCalled();
   });
 });

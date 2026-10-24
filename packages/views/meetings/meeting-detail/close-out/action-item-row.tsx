@@ -31,12 +31,16 @@ type Override = { assignee_id?: string | null; due_date?: string | null };
 /** "Minh" of "Minh Trần": the kit's chips carry the first name. */
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
-/** A YYYY-MM-DD as the kit's "T3 27/10"; "" when it does not parse. */
+/** A YYYY-MM-DD as the kit's "T3 27/10", read as a calendar day so no zone moves it; "" when it does not parse. */
+export function dueWords(date: string | null | undefined, now: number, t: ReturnType<typeof useTranslation>["t"]): string {
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? shortDay(`${date}T00:00:00Z`, now, t, "UTC") : "";
+}
+
+/** `dueWords` with the page's clock and language. */
 export function useDueWords() {
   const { t } = useTranslation();
   const { now } = useDetail();
-  return (date: string | null | undefined) =>
-    date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? shortDay(`${date}T00:00:00Z`, now, t, "UTC") : "";
+  return (date: string | null | undefined) => dueWords(date, now, t);
 }
 
 /** Avatar 20 + a name, tinted by join order (PLAN D11). */

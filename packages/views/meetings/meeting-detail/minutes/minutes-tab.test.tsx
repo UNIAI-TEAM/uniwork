@@ -7,6 +7,7 @@ import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../../test/api-mock";
 import { DetailContext, type DetailContextValue } from "../detail-context";
 import { demo, demoUser, demoWorkspace, detailValue, type DemoUserKey } from "../test-fixtures";
+import { useDetailTab } from "../use-detail-tab";
 import { MinutesTab } from "./minutes-tab";
 
 const M1 = demo.meetings.m1.meeting.id;
@@ -106,6 +107,17 @@ function withPostFailing(error: Error, path?: (p: string) => boolean) {
   );
 }
 
+/** The page's context with the finalize ask read from the URL, as `MeetingDetailView` wires it. */
+function PageContext({ user, value }: { user: DemoUserKey; value?: Partial<DetailContextValue> }) {
+  const tab = useDetailTab(["overview", "transcript", "minutes"], { urlBacked: true });
+  const base = detailValue("m1", { user, ...value });
+  return (
+    <DetailContext.Provider value={{ ...base, tabs: { finalize: { open: tab.finalize, close: tab.closeFinalize }, ...base.tabs } }}>
+      <MinutesTab />
+    </DetailContext.Provider>
+  );
+}
+
 function renderTab({
   user = "lan",
   url = `/sao-mai/van-hanh/meetings/${M1}`,
@@ -116,9 +128,7 @@ function renderTab({
   const view = render(
     wrapWithNav(
       <WorkspaceProvider workspace={demoWorkspace} user={demoUser(user)}>
-        <DetailContext.Provider value={detailValue("m1", { user, ...value })}>
-          <MinutesTab />
-        </DetailContext.Provider>
+        <PageContext user={user} value={value} />
       </WorkspaceProvider>,
       nav,
     ),
@@ -185,14 +195,13 @@ describe("MinutesTab", () => {
 
   it("heads a draft with its state bar and quiet actions", async () => {
     respond(draft);
-    renderTab();
+    const review = vi.fn();
+    renderTab({ value: { tabs: { ...detailValue("m1").tabs, review } } });
     const heading = await screen.findByRole("heading", { level: 2, name: page.title });
     expect(heading).toHaveAttribute("id", "meeting-minutes-heading");
     expect(screen.getByText(/^Bản nháp · tạo từ tóm tắt \d\d:\d\d \d\d\/10 ·/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "9 việc chưa giao" })).toHaveAttribute(
-      "href",
-      `/sao-mai/van-hanh/meetings/${M1}?section=action-items`,
-    );
+    await userEvent.click(screen.getByRole("button", { name: "9 việc chưa giao" }));
+    expect(review).toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Mở tài liệu" })).toHaveAttribute("href", "/sao-mai-mvkm79lj/van-hanh/documents/d1");
     expect(screen.getByRole("button", { name: "Cập nhật từ tóm tắt" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bỏ chốt" })).not.toBeInTheDocument();

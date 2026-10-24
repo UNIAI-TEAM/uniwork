@@ -25,3 +25,20 @@ describe("meetingAvatarTint", () => {
     expect(meetingAvatarTint("lan", [])).toBe("gray");
   });
 });
+
+describe("meetingAvatarTint's member index", () => {
+  it("reads a members list once, however many faces ask", () => {
+    let reads = 0;
+    const many = Array.from({ length: 1000 }, (_, i) => ({
+      get user_id() {
+        reads += 1;
+        return `u${i}`;
+      },
+    }));
+    for (let i = 0; i < 1000; i += 1) meetingAvatarTint(`u${i}`, many);
+    expect(reads).toBe(1000);
+    expect(meetingAvatarTint("u7", many)).toBe(MEETING_ORDER[7 % 5]);
+  });
+});
+
+const MEETING_ORDER = ["blue", "pink", "teal", "orange", "green"];

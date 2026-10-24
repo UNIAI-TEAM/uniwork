@@ -9,8 +9,8 @@ import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
 import { MeetingPersonAvatar } from "../../meeting-person";
 import { meetingAvatarTint } from "../avatar-tint";
+import { dueWords } from "../close-out/action-item-row";
 import { useDetail } from "../detail-context";
-import { shortDay } from "../format";
 import { NoticeLine } from "../ui/notice-line";
 import { Section } from "../ui/section";
 import { Segmented } from "../ui/segmented";
@@ -24,17 +24,12 @@ export function shortMeetingTitle(title: string | null | undefined): string {
   return full.split(/\s+[—–]\s+/)[0] || full;
 }
 
-/** A task's YYYY-MM-DD due date as "T2 26/10" (read at noon UTC, so no zone moves it a day). */
-export function dueDay(date: string | null | undefined, now: number, t: ReturnType<typeof useTranslation>["t"]): string {
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? shortDay(`${date}T12:00:00Z`, now, t) : "";
-}
-
 /** "Cần làm · T2 26/10 ↗" (kit `.task-chip`); a plain caption on a phone unless `pill` (the series brief keeps it). */
 export function TaskChip({ task, pill = false, className }: { task: Task; pill?: boolean; className?: string }) {
   const { t } = useTranslation();
   const { now } = useDetail();
   const status = t(`tasks.status_${task.status ?? ""}`, { defaultValue: t("tasks.status_todo") });
-  const day = dueDay(task.due_date, now, t);
+  const day = dueWords(task.due_date, now, t);
   return (
     <span
       className={cn(
@@ -178,7 +173,7 @@ export function CarriedOverBrief({
             <span className="text-caption text-muted-foreground">{total}</span>
             {withSummary ? (
               <span className="text-caption text-muted-foreground @max-[37.5rem]/meeting:hidden">
-                {lineSummary(items, owner, dueDay(earliest, now, t), t)}
+                {lineSummary(items, owner, dueWords(earliest, now, t), t)}
               </span>
             ) : null}
             <ChevronRight

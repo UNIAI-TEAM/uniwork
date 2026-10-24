@@ -42,7 +42,7 @@ const TOAST = { position: "bottom-center" } as const;
 /**
  * The Biên bản tab (AfterMinutes): the page's title and state bar with its
  * quiet actions, then a read-only preview of the UniNote page. Finalizing
- * starts from the strip's [Chốt biên bản] (`?finalize=1` opens the confirm
+ * starts from the strip's [Chốt biên bản] (`tabs.finalize` opens the confirm
  * here); a page edited after finalizing is finalized again from the state
  * bar. Reopening, refreshing the facts and the finalized version stay with a
  * clerk who can edit the page (spec meeting follow-through §9.2 item 4, D12).
@@ -82,15 +82,9 @@ export function MinutesTab() {
 
   const canChange = isClerk && Boolean(minutes?.can_edit && minutes.document_id);
   const canFinalize = canChange && minutes?.finalized === false;
-  // The strip's [Chốt biên bản] lands here with ?finalize=1: the param is the dialog's open state.
-  const wantsFinalize = navigation.searchParams.get("finalize") === "1";
-  const dropFinalizeParam = () => {
-    if (!wantsFinalize) return;
-    const params = new URLSearchParams(navigation.searchParams);
-    params.delete("finalize");
-    const qs = params.toString();
-    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
-  };
+  // The strip's [Chốt biên bản] lands here with the finalize ask open: it is the dialog's open state.
+  const wantsFinalize = tabs.finalize?.open === true;
+  const dropFinalizeParam = () => tabs.finalize?.close();
   const doFinalize = () => {
     dropFinalizeParam();
     setActionError(null);
@@ -192,13 +186,10 @@ export function MinutesTab() {
     }
     if (pending > 0) {
       parts.push(
-        <AppLink
-          key="pending"
-          href={`${navigation.pathname}?section=action-items`}
-          className="rounded-xs font-medium text-primary underline-offset-2 hover:underline"
-        >
+        // The overview's action items, by the page's own scroll: a URL would be the calendar's in its panel.
+        <button key="pending" type="button" onClick={tabs.review} className="rounded-xs font-medium text-primary underline-offset-2 hover:underline">
           {t("meetings.detail.minutes.pendingLink", { count: pending })}
-        </AppLink>,
+        </button>,
       );
     }
     state = <p>{parts.flatMap((part, i) => (i === 0 ? [part] : [" · ", part]))}</p>;

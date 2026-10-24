@@ -3,10 +3,10 @@ import { cloneElement, useId, useState, type FormEvent, type KeyboardEvent, type
 import { CircleAlert, X, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
-import { createInstantMeeting, inviteParticipant, setMeetingScribe } from "@uniwork/core/api/endpoints/meetings";
-import { meetingKeys, useMeetingCapabilities } from "@uniwork/core/meetings";
+import { inviteParticipant, setMeetingScribe } from "@uniwork/core/api/endpoints/meetings";
+import { errorCode } from "@uniwork/core/api/http";
+import { useCreateInstantMeeting, useMeetingCapabilities } from "@uniwork/core/meetings";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -56,7 +56,7 @@ export function InstantMeetingDialog({
 function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string; onStarted: (id: string) => void; onClose: () => void }) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
-  const qc = useQueryClient();
+  const create = useCreateInstantMeeting(workspaceId);
   const user = useAuthStore((s) => s.user);
   const { data: caps } = useMeetingCapabilities(workspaceId);
   const { data: members = [] } = useMembers(workspaceId);
@@ -106,16 +106,19 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
     setError(null);
     let meetingId: string;
     try {
-      const meeting = await createInstantMeeting(workspaceId, title.trim() || undefined, { idempotencyKey: key });
+      const meeting = await create.mutateAsync({ title: title.trim() || undefined, idempotencyKey: key });
       if (!meeting) throw new Error("meeting_invalid");
       meetingId = meeting.id;
     } catch (err) {
-      setError(t("meetings.instantDialog.startFailed", { reason: apiErrorCopy(err) ?? t("common.error") }));
+      // The same key with another title: the first answer was lost and that meeting may already be running.
+      setError(
+        errorCode(err) === "idempotency_payload_mismatch"
+          ? t("meetings.sheet.createMismatch")
+          : t("meetings.instantDialog.startFailed", { reason: apiErrorCopy(err) ?? t("common.error") }),
+      );
       setBusy(false);
       return;
     }
-    void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
-    void qc.invalidateQueries({ queryKey: meetingKeys.stats(workspaceId) });
     if (scribeAvailability(caps) === "on" && scribeOn !== policy) await switchScribe(meetingId, scribeOn);
     onClose();
     onStarted(meetingId);

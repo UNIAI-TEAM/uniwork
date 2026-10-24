@@ -36,6 +36,10 @@ export type DetailContextValue = {
     /** null when the page has no tabs (scheduled, missed, canceled, outsider). */
     current: DetailTab | null;
     set: (tab: DetailTab) => void;
+    /** The minutes' finalize confirm the strip asked for: `?finalize=1` on the page, state in the calendar panel. */
+    finalize?: { open: boolean; close: () => void };
+    /** The overview tab scrolled to the action items (the strip's "Rà và giao"). */
+    review?: () => void;
   };
   /** The live roll drawer, opened from the rail's "Điểm danh"; the page reads it to make room for the docked drawer. */
   roll: { open: boolean; setOpen: (open: boolean) => void };

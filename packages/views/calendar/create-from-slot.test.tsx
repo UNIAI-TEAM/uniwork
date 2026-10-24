@@ -170,10 +170,10 @@ describe("CreateFromSlot", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
     expect(cardProps.current.onOpenMeeting).toBe(onOpenMeeting);
     const draft = { ...(cardProps.current.initial as object), title: "Duyệt kịch bản" };
-    act(() => (cardProps.current.onMoreOptions as (d: unknown) => void)(draft));
+    act(() => (cardProps.current.onMoreOptions as (d: unknown, key: string) => void)(draft, "k-card"));
     expect(screen.queryByTestId("meeting-quick-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("meeting-sheet")).toBeInTheDocument();
-    expect(sheetProps.current).toMatchObject({ mode: "create", initialDraft: draft });
+    expect(sheetProps.current).toMatchObject({ mode: "create", initialDraft: draft, idempotencyKey: "k-card" });
   });
 
   it("starts a meeting on today's day cell at the next quarter hour", () => {

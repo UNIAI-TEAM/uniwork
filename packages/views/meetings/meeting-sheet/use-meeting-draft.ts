@@ -3,12 +3,12 @@ import { useCallback, useMemo, useState } from "react";
 import { draftChanges, type MeetingDraft } from "./draft-model";
 
 /**
- * The sheet's draft state: the values, the snapshot they started from (open,
- * prefill or a reload), which fields were left after a change (errors show
+ * The sheet's draft state: the values, the snapshot they are compared with
+ * (open, prefill, a reload, or a baseline under a handed-over draft), which fields were left after a change (errors show
  * from then on) and whether a submit was tried (every error shows).
  */
-export function useMeetingDraft(initial: MeetingDraft) {
-  const [state, setState] = useState(() => ({ draft: initial, snapshot: initial }));
+export function useMeetingDraft(initial: MeetingDraft, baseline: MeetingDraft = initial) {
+  const [state, setState] = useState(() => ({ draft: initial, snapshot: baseline }));
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [submitted, setSubmitted] = useState(false);
 

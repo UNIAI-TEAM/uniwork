@@ -140,6 +140,7 @@ export function MotionDrafts({
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<string | null>(null);
+  const isLocked = (m: MotionDraft | undefined) => Boolean(m?.status && m.status !== "DRAFT");
   const move = (index: number, by: number) => {
     const next = [...motions];
     const [row] = next.splice(index, 1);
@@ -154,7 +155,7 @@ export function MotionDrafts({
       <p className="mt-0.5 text-caption text-muted-foreground group-data-[mode=edit]/sheet:mt-2">{t("meetings.sheet.motionsHint")}</p>
       <ol className="mt-3 empty:mt-0 group-data-[mode=live]/sheet:mt-2">
         {motions.map((m, i) => {
-          const locked = Boolean(m.status && m.status !== "DRAFT");
+          const locked = isLocked(m);
           const invalid = !locked && showErrors && motionIssue(m.title);
           if (!locked && !readOnly && (editing === m.key || invalid)) {
             return (
@@ -184,10 +185,10 @@ export function MotionDrafts({
                     <Ellipsis aria-hidden />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled={i === 0} onClick={() => move(i, -1)}>
+                    <DropdownMenuItem disabled={i === 0 || isLocked(motions[i - 1])} onClick={() => move(i, -1)}>
                       {t("meetings.governance.motionMoveUp")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem disabled={i === motions.length - 1} onClick={() => move(i, 1)}>
+                    <DropdownMenuItem disabled={i === motions.length - 1 || isLocked(motions[i + 1])} onClick={() => move(i, 1)}>
                       {t("meetings.governance.motionMoveDown")}
                     </DropdownMenuItem>
                     <DropdownMenuItem variant="destructive" onClick={() => onChange(motions.filter((x) => x.key !== m.key))}>
