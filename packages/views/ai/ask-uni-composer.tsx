@@ -168,7 +168,8 @@ export function AskUniComposer({
       <AskUniComposerNotes wsId={workspace.id} tainted={tainted} />
       <div
         data-slot="ask-uni-composer-frame"
-        className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30"
+        // While the folded notes' sign sits in the top-right corner, the question's lines stop short of it.
+        className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30 has-data-[slot=ask-uni-composer-notes-sign]:[&_.ProseMirror]:pe-7"
       >
         <AskUniComposerNotesSign wsId={workspace.id} tainted={tainted} />
         {focus ? (

@@ -64,7 +64,7 @@ export function AskUniComposerNotes({ wsId, tainted }: { wsId: string; tainted: 
   );
 }
 
-/** The folded notes: a warning sign on the box's top-right corner that opens them again. Place it in the frame. */
+/** The folded notes: a warning sign in the box's top-right corner that opens them again. Place it in the frame. */
 export function AskUniComposerNotesSign({ wsId, tainted }: { wsId: string; tainted: boolean }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.notes" });
   const { notes, folded } = useComposerNotes(wsId, tainted);
@@ -80,9 +80,9 @@ export function AskUniComposerNotesSign({ wsId, tainted }: { wsId: string; taint
             variant="ghost"
             size="icon-xs"
             data-slot="ask-uni-composer-notes-sign"
-            // Rests on the frame's top-right corner, just above the border, so it never covers what the asker types.
-            // Orange in both themes (the owner's call); the warning signal reads amber on dark and brown on light.
-            className="absolute -top-5 right-2 z-10 text-tint-orange-foreground hover:text-tint-orange-foreground"
+            // Inside the frame's top-right corner; the composer pads the editor's lines clear of it. Orange in both
+            // themes (the owner's call); the warning signal reads amber on dark and brown on light.
+            className="absolute top-2 right-2 z-10 text-tint-orange-foreground hover:text-tint-orange-foreground"
             onClick={show}
           />
         }
