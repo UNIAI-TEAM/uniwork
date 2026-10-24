@@ -99,7 +99,9 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   gọi API ở `10.0.2.2:8080` (địa chỉ của runner nhìn từ emulator, nên chế độ máy bay cắt được thật), Chrome mở trang web
   ở `localhost:3000` qua `adb reverse` (secure context như site thật). Chạy `chat-read-send.yaml`,
   `offline-send-relaunch.yaml` và `background-resume.yaml` qua `scripts/maestro-retry.sh`; không đọc secret nào. Artifact
-  `maestro-e2e`: ảnh chụp và log server/web (không log Maestro: nó ghi mật khẩu được gõ), và khi một flow đỏ hẳn thì
+  `maestro-e2e`: ảnh chụp và log server/web (không lấy nguyên thư mục log Maestro: nó ghi mật khẩu được gõ; chỉ lấy
+  `maestro-attempts/`, bản sao `maestro.log` và `device-logcat.txt` của mỗi lần chạy hỏng mà `scripts/maestro-retry.sh`
+  đã bỏ mọi dòng chứa mật khẩu, `MAESTRO_ATTEMPT_LOGS`), và khi một flow đỏ hẳn thì
   log máy: `scripts/maestro-retry.sh` chép `adb logcat -d` vào `logcat.txt` (`MAESTRO_LOGCAT`) trước khi emulator tắt,
   bước sau bỏ mọi dòng chứa mật khẩu và lọc `ReactNativeJS`/`ReactNative`/`AndroidRuntime` ra `logcat-js.txt` (in luôn
   vào log job). Màn "This screen hit a problem" là lỗi render một error boundary đã bắt: câu lỗi JavaScript nằm ở
@@ -216,7 +218,12 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   (`MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"` ở mỗi job iOS; mặc định 2 phút không đủ cho lần mở đầu trên simulator vừa
   boot), và trước lần chạy lại `MAESTRO_IOS_UDID` cho script dừng `xcodebuild` và runner còn sót của lần trước. Thông báo
   "iOS driver not ready in time" ở cả hai lần nghĩa là driver không lên nổi trong 5 phút, xem log xctest_runner trong
-  artifact `maestro-smoke-ios`.
+  artifact `maestro-smoke-ios`. Trên emulator Android (`MAESTRO_ADB_RECOVER`), một lần chạy mà `maestro.log` của chính
+  nó ghi mất kết nối adb (`Command failed (host:transport:emulator-5554): device offline` ngay ở "Launch app", logcat
+  có `adbd: host-N: offline`) không tính là một lần thử của app: script khởi động lại adb server, chờ emulator boot
+  xong, nghỉ vài giây rồi chạy lại, tối đa `MAESTRO_ADB_DROPS` (2) lần, để lại cảnh báo "adb transport dropped" và một
+  dòng trong step summary (UNI-2142; kết nối rơi chưa tới nửa giây lúc Maestro mở phiên, Maestro 2.11.0 không chịu
+  được: mobile-dev-inc/maestro#3451). Cảnh báo này lặp lại thường xuyên thì là việc của hạ tầng emulator, không phải app.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại

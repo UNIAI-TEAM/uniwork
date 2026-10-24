@@ -12,16 +12,68 @@ const script = path.join(import.meta.dirname, "maestro-retry.sh");
  * Runs the script with a fake `maestro` that fails its first `failures` calls, and a fake `adb` whose log is one line.
  * `logcat: true` points MAESTRO_LOGCAT at a file in the run's directory and returns what was written there.
  * Fake `pkill`, `pgrep` (nothing left running) and `xcrun` record their calls in `sequence`, between the maestro runs.
+ *
+ * `outcomes` (e.g. ["drop", "fail", "pass"]) replaces `failures`: each maestro call writes a session into
+ * MAESTRO_TESTS_DIR as Maestro writes ~/.maestro/tests/<timestamp>, whose maestro.log carries what `failureLogs` says
+ * that outcome leaves there (a dropped adb transport, the #437 log; an app assertion; …), and fails; "pass" writes
+ * nothing.
+ * `attemptLogs: true` points MAESTRO_ATTEMPT_LOGS at a directory and returns its files and their contents.
  */
-function run(failures, env = {}, { logcat = false, adb = null } = {}) {
+const failed = (message) => `[ERROR] maestro.orchestra.Orchestra.executeCommands: [Command execution] CommandFailed: ${message}`;
+const offline = "Command failed (host:transport:emulator-5554): device offline";
+// What a failed session's maestro.log holds, as Maestro 2.11.0 writes it (smoke437/2026-10-23_181632).
+const failureLogs = {
+  // The adb transport dropped under "Launch app": the command fails on it, and so does the step capture after it.
+  drop: [
+    failed(offline),
+    "[ WARN] maestro.orchestra.debug.ArtifactsGenerator.captureStepHierarchy: Failed to capture step hierarchy",
+    `Caused by: java.io.IOException: ${offline}`,
+    "[ERROR] maestro.cli.runner.TestRunner.runCatching-ta8aW1Q: Failed to run flow",
+    `java.io.IOException: ${offline}`,
+  ],
+  // Dropped while Maestro started its driver, before any command ran.
+  "drop-at-start": ["[ERROR] maestro.cli.runner.TestRunner.runCatching-ta8aW1Q: Failed to run flow", `java.io.IOException: ${offline}`],
+  fail: [failed("Assertion is false: id: sign-in is visible")],
+  // The app's own failure, then the transport dropped while Maestro captured the failed step: the flow failed for the
+  // app's reason, so it spends an app attempt.
+  "fail-then-drop": [
+    failed("Assertion is false: id: sign-in is visible"),
+    "[ WARN] maestro.orchestra.debug.ArtifactsGenerator.captureStepHierarchy: Failed to capture step hierarchy",
+    `Caused by: java.io.IOException: ${offline}`,
+  ],
+  "crash-then-drop": [failed("Unable to launch app com.uniworkos.chat"), `Caused by: java.io.IOException: ${offline}`],
+};
+
+function run(failures, env = {}, { logcat = false, adb = null, outcomes = null, attemptLogs = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "maestro-retry-"));
   try {
     const count = path.join(dir, "count");
     const sequence = path.join(dir, "sequence");
+    const tests = path.join(dir, "tests");
     fs.writeFileSync(count, "0");
+    const verdict = outcomes
+      ? [
+          `outcome=$(sed -n "\${n}p" "${path.join(dir, "outcomes")}")`,
+          `[ "$outcome" = pass ] && exit 0`,
+          `session="${tests}/2026-10-23_18160$n/Sign-in"`,
+          `mkdir -p "$session/logs"`,
+          `case "$outcome" in`,
+          `  *drop*) echo "I adbd    : host-17: offline" > "$session/logs/device-logcat.txt" ;;`,
+          `  *) echo "E ReactNativeJS: TypeError: boom" > "$session/logs/device-logcat.txt" ;;`,
+          `esac`,
+          `{ echo "Input text maestro-1700000000-pw"; cat "${dir}/log-$n"; } > "$session/logs/maestro.log"`,
+          `echo "I ime: typed maestro-1700000000-pw" >> "$session/logs/device-logcat.txt"`,
+          `cp "$session/logs/maestro.log" "${tests}/2026-10-23_18160$n/maestro.log"`,
+          `exit 1`,
+        ].join("\n")
+      : `[ "$n" -gt ${failures} ]`;
+    if (outcomes) {
+      fs.writeFileSync(path.join(dir, "outcomes"), `${outcomes.join("\n")}\n`);
+      outcomes.forEach((o, i) => fs.writeFileSync(path.join(dir, `log-${i + 1}`), `${(failureLogs[o] ?? []).join("\n")}\n`));
+    }
     fs.writeFileSync(
       path.join(dir, "maestro"),
-      `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro" >> "${sequence}"\necho "maestro $*"\n[ "$n" -gt ${failures} ]\n`,
+      `#!/bin/sh\nn=$(($(cat "${count}") + 1))\necho "$n" > "${count}"\necho "maestro" >> "${sequence}"\necho "maestro $*"\n${verdict}\n`,
       { mode: 0o755 },
     );
     for (const [tool, status] of [["pkill", 0], ["pgrep", 1], ["xcrun", 0]]) {
@@ -36,16 +88,36 @@ function run(failures, env = {}, { logcat = false, adb = null } = {}) {
     );
     const summary = path.join(dir, "summary");
     const log = path.join(dir, "logcat.txt");
+    const kept = path.join(dir, "attempts");
     const result = spawnSync("bash", [script, "test", "flows/smoke-launch.yaml"], {
-      env: { PATH: `${dir}:${process.env.PATH}`, GITHUB_STEP_SUMMARY: summary, ...(logcat ? { MAESTRO_LOGCAT: log } : {}), ...env },
+      env: {
+        PATH: `${dir}:${process.env.PATH}`,
+        GITHUB_STEP_SUMMARY: summary,
+        MAESTRO_TESTS_DIR: tests,
+        MAESTRO_ADB_SETTLE: "0",
+        ...(logcat ? { MAESTRO_LOGCAT: log } : {}),
+        ...(attemptLogs ? { MAESTRO_ATTEMPT_LOGS: kept } : {}),
+        ...env,
+      },
       encoding: "utf8",
     });
+    const files = (root) =>
+      fs.existsSync(root)
+        ? Object.fromEntries(
+            fs
+              .readdirSync(root, { recursive: true })
+              .filter((f) => fs.statSync(path.join(root, f)).isFile())
+              .sort()
+              .map((f) => [f, fs.readFileSync(path.join(root, f), "utf8")]),
+          )
+        : null;
     return {
       status: result.status,
       out: result.stdout,
       calls: Number(fs.readFileSync(count, "utf8")),
       summary: fs.existsSync(summary) ? fs.readFileSync(summary, "utf8") : "",
       logcat: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : null,
+      attempts: files(kept),
       adb: fs.existsSync(path.join(dir, "adb-calls")) ? fs.readFileSync(path.join(dir, "adb-calls"), "utf8").trim().split("\n") : [],
       sequence: fs.existsSync(sequence) ? fs.readFileSync(sequence, "utf8").trim().split("\n") : [],
     };
@@ -138,27 +210,100 @@ test("the PR gate's offline flow also leaves the emulator online for the flow af
   assert.match(header, /^onFlowComplete:\n {2}- setAirplaneMode: disabled$/m);
 });
 
-// An emulator whose adbd dropped (\`device offline\`) stayed offline for the retry ten seconds later, so both attempts failed
-// on a dead transport (UNI-2142, #437). With MAESTRO_ADB_RECOVER set, an attempt first reconnects an emulator adb does
-// not call "device" and waits for it to finish booting; a healthy one costs one get-state.
-test("MAESTRO_ADB_RECOVER reconnects an offline emulator before an attempt, and leaves a healthy one alone", () => {
-  // get-state answers "offline" until reconnect has run, then "device"; the boot is complete.
-  const offlineUntilReconnect = (dir) =>
-    [
-      `case "$1" in`,
-      `  get-state) [ -f "${dir}/reconnected" ] && echo device || echo offline ;;`,
-      `  reconnect) touch "${dir}/reconnected" ;;`,
-      `  shell) echo 1 ;;`,
-      `esac`,
-    ].join("\n");
-  const recovered = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: offlineUntilReconnect });
-  assert.equal(recovered.status, 0);
-  assert.deepEqual(recovered.adb, ["adb get-state", "adb reconnect offline", "adb get-state", "adb shell getprop sys.boot_completed"]);
-  assert.match(recovered.out, /::warning::adb reports the emulator offline before attempt 1; reconnecting/);
 
-  const healthy = run(1, { MAESTRO_ADB_RECOVER: "1" }, { adb: () => `[ "$1" = get-state ] && echo device` });
-  assert.equal(healthy.status, 0);
-  assert.deepEqual(healthy.adb, ["adb get-state", "adb get-state"], "one get-state per attempt, nothing more");
+// UNI-2142: the emulator's adb connection drops for 0.3–0.5 s in the first seconds of a Maestro session (adbd: "host-17:
+// offline", then a new host connection), Maestro 2.11.0's next shell call meets "device offline" and the flow fails on
+// "Launch app" (mobile-dev-inc/maestro#3451). By the time anything can ask, the transport is back, so `adb get-state`
+// read "device" and the old check never acted, while the retry hit the same window again (#434, #437). The failed
+// session's own log says it was the transport: that run gets a fresh adb server and does not spend an app attempt.
+const healthyAdb = () => [`case "$1" in`, `  get-state) echo device ;;`, `  shell) echo 1 ;;`, `esac`].join("\n");
+const reset = ["adb kill-server", "adb start-server", "adb get-state", "adb shell getprop sys.boot_completed"];
 
-  assert.deepEqual(run(1).adb, [], "without MAESTRO_ADB_RECOVER nothing calls adb");
+test("MAESTRO_ADB_RECOVER restarts adb after a run its log shows lost the transport, and reruns it as an infra retry", () => {
+  const r = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: healthyAdb, outcomes: ["drop", "pass"] });
+  assert.equal(r.status, 0);
+  assert.equal(r.calls, 2);
+  assert.deepEqual(r.adb, reset, "nothing before the first attempt, a fresh server and a booted emulator before the rerun");
+  assert.match(r.out, /::warning title=adb transport dropped::maestro test flows\/smoke-launch\.yaml lost the emulator's adb transport \(device offline\) on attempt 1 of 2; restarting the adb server and running it again \(infra retry 1 of 2\)/);
+  assert.doesNotMatch(r.out, /Flaky device run/, "a dropped transport is not the app's flake");
+  assert.match(r.summary, /^- adb transport dropped: `maestro test flows\/smoke-launch\.yaml` on attempt 1; adb server restarted$/m);
+});
+
+test("a dropped transport spends its own budget, so the app keeps both of its attempts", () => {
+  const r = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: healthyAdb, outcomes: ["drop", "drop", "fail", "pass"] });
+  assert.equal(r.status, 0);
+  assert.equal(r.calls, 4);
+  assert.deepEqual(r.adb, [...reset, ...reset], "a reset after each drop, none after the app's own failure");
+  assert.match(r.out, /::warning title=Flaky device run::maestro test flows\/smoke-launch\.yaml failed, then passed on attempt 2 of 2/);
+});
+
+test("past MAESTRO_ADB_DROPS a drop is an ordinary failed attempt, and the error names the transport", () => {
+  const r = run(0, { MAESTRO_ADB_RECOVER: "1", MAESTRO_ADB_DROPS: "1" }, { adb: healthyAdb, outcomes: ["drop", "drop", "drop", "pass"] });
+  assert.equal(r.status, 1);
+  assert.equal(r.calls, 3, "one infra retry, then the two app attempts");
+  assert.deepEqual(r.adb, reset);
+  assert.match(r.out, /::error title=Device run failed::maestro test flows\/smoke-launch\.yaml failed 2 time\(s\); the emulator's adb transport dropped on 3 run\(s\)/);
+});
+
+test("an app failure is not a drop, and without MAESTRO_ADB_RECOVER a drop is not either", () => {
+  const app = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: healthyAdb, outcomes: ["fail", "fail"] });
+  assert.equal(app.status, 1);
+  assert.equal(app.calls, 2);
+  assert.deepEqual(app.adb, [], "no adb restart for an assertion");
+  assert.doesNotMatch(app.out, /adb transport dropped/);
+  assert.match(app.out, /::error title=Device run failed::maestro test flows\/smoke-launch\.yaml failed 2 time\(s\)$/m);
+
+  const off = run(0, {}, { adb: healthyAdb, outcomes: ["drop", "drop", "pass"] });
+  assert.equal(off.status, 1);
+  assert.equal(off.calls, 2);
+  assert.deepEqual(off.adb, [], "without MAESTRO_ADB_RECOVER (iOS) nothing calls adb");
+});
+
+test("after an adb restart MAESTRO_ADB_REVERSE maps its ports again, and an emulator not back in time is a warning", () => {
+  const r = run(0, { MAESTRO_ADB_RECOVER: "1", MAESTRO_ADB_REVERSE: "3000" }, { adb: healthyAdb, outcomes: ["drop", "pass"] });
+  assert.equal(r.status, 0);
+  assert.deepEqual(r.adb, ["adb reverse tcp:3000 tcp:3000", ...reset, "adb reverse tcp:3000 tcp:3000"], "kill-server drops the mappings");
+
+  const gone = run(0, { MAESTRO_ADB_RECOVER: "1", MAESTRO_ADB_WAIT: "0" }, { adb: () => `[ "$1" = get-state ] && echo offline`, outcomes: ["drop", "pass"] });
+  assert.equal(gone.status, 0);
+  assert.match(gone.out, /::warning::the emulator was not back after restarting the adb server, before the rerun of attempt 1/);
+});
+
+// maestro-e2e keeps screenshots only, since Maestro's log holds the typed password, and Maestro clears logcat at every
+// flow start: a drop on the hermetic job could not be confirmed from its artifact. Each failed run's own logs are kept.
+test("MAESTRO_ATTEMPT_LOGS keeps every failed run's maestro.log and device log, without the password's lines", () => {
+  const r = run(0, { MAESTRO_ADB_RECOVER: "1", MAESTRO_TEST_PASSWORD: "maestro-1700000000-pw" }, { adb: healthyAdb, outcomes: ["drop", "fail", "pass"], attemptLogs: true });
+  assert.equal(r.status, 0);
+  const attempts = r.attempts ?? {};
+  assert.deepEqual(Object.keys(attempts), [
+    "smoke-launch-run1/2026-10-23_181601/Sign-in/logs/device-logcat.txt",
+    "smoke-launch-run1/2026-10-23_181601/Sign-in/logs/maestro.log",
+    "smoke-launch-run1/2026-10-23_181601/maestro.log",
+    "smoke-launch-run2/2026-10-23_181602/Sign-in/logs/device-logcat.txt",
+    "smoke-launch-run2/2026-10-23_181602/Sign-in/logs/maestro.log",
+    "smoke-launch-run2/2026-10-23_181602/maestro.log",
+  ], "the passing run keeps nothing");
+  for (const [file, text] of Object.entries(attempts)) assert.doesNotMatch(text, /maestro-1700000000-pw/, file);
+  assert.match(attempts["smoke-launch-run1/2026-10-23_181601/maestro.log"], /device offline/);
+  assert.match(attempts["smoke-launch-run1/2026-10-23_181601/Sign-in/logs/device-logcat.txt"], /adbd {4}: host-17: offline/);
+  assert.equal(run(0, {}, { outcomes: ["fail", "pass"] }).attempts, null, "without MAESTRO_ATTEMPT_LOGS nothing is kept");
+});
+
+// Review of UNI-2142: Maestro writes the transport's error into the log of a run that failed for the app's own reason
+// too, when the drop comes while it captures the failed step. Only the error of the command that failed the flow (or,
+// when no command ran, of the flow) says whether the transport was why, so an app crash at launch still spends an app
+// attempt and still fails.
+test("a transport error after the app's own failure is the app's failure, and a drop before any command is a drop", () => {
+  for (const outcome of ["fail-then-drop", "crash-then-drop"]) {
+    const r = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: healthyAdb, outcomes: [outcome, outcome, "pass"] });
+    assert.equal(r.status, 1, outcome);
+    assert.equal(r.calls, 2, `${outcome}: two app attempts, no infra retry`);
+    assert.deepEqual(r.adb, [], `${outcome}: no adb restart`);
+    assert.doesNotMatch(r.out, /adb transport dropped/, outcome);
+    assert.match(r.out, /::error title=Device run failed::maestro test flows\/smoke-launch\.yaml failed 2 time\(s\)$/m, outcome);
+  }
+  const start = run(0, { MAESTRO_ADB_RECOVER: "1" }, { adb: healthyAdb, outcomes: ["drop-at-start", "pass"] });
+  assert.equal(start.status, 0);
+  assert.deepEqual(start.adb, reset);
+  assert.match(start.out, /::warning title=adb transport dropped::/);
 });
