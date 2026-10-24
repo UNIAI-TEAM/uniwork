@@ -11,6 +11,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { syncChat } from "@/data/chat-sync/sync";
 import { flushOwed } from "@/data/owed";
+import * as report from "@/data/report";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
@@ -124,6 +125,32 @@ describe("useChatRealtime", () => {
     const latest = scopes.mock.calls.at(-1)?.[0] ?? [];
     expect(latest[0]).toBe("r2");
     expect(latest).toEqual(expect.arrayContaining(["r1", "r2", "r3"]));
+  });
+
+  it("beats through HTTP before the socket has wired presence", async () => {
+    mockSocket.current = null;
+    jest.useFakeTimers();
+    await mount().hook;
+    await act(async () => undefined);
+    expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
+  });
+
+  it("reconciles from the socket beat when it returns a snapshot", async () => {
+    mockSocket.current!.sendPresenceBeat = jest.fn(async () => ["U9"]);
+    jest.useFakeTimers();
+    await mount().hook;
+    await act(async () => undefined);
+    expect(mockSocket.current!.sendPresenceBeat).toHaveBeenCalledWith(true);
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U9"], "ME", expect.any(Number));
+  });
+
+  it("reports when the opening sync throws", async () => {
+    jest.mocked(syncChat).mockRejectedValueOnce(new Error("offline"));
+    const onErr = jest.fn();
+    jest.spyOn(report, "bestEffort").mockReturnValue(onErr);
+    await mount().hook;
+    await flush();
+    expect(onErr).toHaveBeenCalled();
   });
 
   it("loads the workspace's pins and beats presence while the app is in front", async () => {
