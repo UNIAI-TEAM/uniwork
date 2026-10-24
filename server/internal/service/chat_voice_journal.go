@@ -89,9 +89,13 @@ func journalTTL(sess voiceCallSession, now time.Time) time.Duration {
 	return voiceCallUnansweredTTL - now.Sub(sess.invitedAt)
 }
 
-// storeVoiceCallSession keeps the session in this process and in the journal.
-func storeVoiceCallSession(key string, sess voiceCallSession) {
+func cacheVoiceCallSessionInProcess(key string, sess voiceCallSession) {
 	voiceCallSessions.Store(key, sess)
+}
+
+// writeVoiceCallSessionLocal keeps the session in this process and in the journal.
+func writeVoiceCallSessionLocal(key string, sess voiceCallSession) {
+	cacheVoiceCallSessionInProcess(key, sess)
 	rdb := voiceJournal.Load()
 	if rdb == nil {
 		return
@@ -113,8 +117,8 @@ func storeVoiceCallSession(key string, sess voiceCallSession) {
 	}
 }
 
-// deleteVoiceCallSession forgets the session here and in the journal.
-func deleteVoiceCallSession(key string) {
+// deleteVoiceCallSessionLocal forgets the session here and in the journal.
+func deleteVoiceCallSessionLocal(key string) {
 	voiceCallSessions.Delete(key)
 	if rdb := voiceJournal.Load(); rdb != nil {
 		journalDelete(rdb, key)

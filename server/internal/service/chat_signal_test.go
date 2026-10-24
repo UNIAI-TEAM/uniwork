@@ -455,7 +455,7 @@ func TestAcceptOnAnotherNodeStillClosesTheRing(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The answer reaches another node: this one forgets the call.
-	dropVoiceCallInvite(dm.ID, "call-other-node")
+	s.dropVoiceCallInvite(ctx, dm.ID, "call-other-node")
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-other-node"); err != nil {
 		t.Fatal(err)
 	}
