@@ -6201,6 +6201,7 @@
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
     "source_bar": {
+      "app_soon": "{{name}} · Coming soon",
       "title": "UNI searches",
       "more": "Connect more apps · Coming soon",
       "hide": "Hide the sources bar"

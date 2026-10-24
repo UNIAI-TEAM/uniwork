@@ -6152,6 +6152,7 @@
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
     "source_bar": {
+      "app_soon": "{{name}} · Sắp có",
       "title": "UNI tìm trong",
       "more": "Kết nối thêm ứng dụng · Sắp có",
       "hide": "Ẩn thanh nguồn"
