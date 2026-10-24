@@ -50,8 +50,13 @@ describe("AskUniModeButton", () => {
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Chế độ: Hỏi trước/ }));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getAllByRole("menuitemradio").map((r) => r.textContent)).toEqual(["Hỏi trước", "Kế hoạch"]);
+    const titles = within(menu).getAllByRole("menuitemradio").map((r) => document.getElementById(r.getAttribute("aria-labelledby") ?? "")?.textContent);
+    expect(titles).toEqual(["Hỏi trước", "Kế hoạch"]);
     expect(within(menu).queryByText("Tự động")).toBeNull();
+    // Each mode is named by its title alone and described by its one-line hint.
+    expect(within(menu).getByRole("menuitemradio", { name: "Hỏi trước" })).toHaveAccessibleDescription("Hỏi bạn trước từng thay đổi");
+    expect(within(menu).getByRole("menuitemradio", { name: "Kế hoạch" })).toHaveAccessibleDescription("Gom thành kế hoạch để bạn duyệt một lần");
+    expect(within(menu).getByText("Khi UNI muốn thay đổi dữ liệu")).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Kế hoạch" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/ask-uni-mode", { method: "PUT", body: { mode: "plan" } }));
     expect(await screen.findByRole("button", { name: /Chế độ: Kế hoạch/ })).toBeInTheDocument();

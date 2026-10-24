@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { useId } from "react";
+import { ChevronDown, ListChecks, MessageCircleQuestionMark, Zap, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { useSetAskUniMode } from "@uniwork/core/ai/proposals";
@@ -8,6 +9,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -15,6 +17,9 @@ import {
 
 /** Weakest first: a ceiling allows its own rank and every one below it. */
 const MODES = ["ask", "plan", "auto"] as const;
+
+/** One glyph per mode, on the trigger and in the menu: it also keeps this apart from the model picker's "Tự động". */
+const MODE_ICONS: Record<(typeof MODES)[number], LucideIcon> = { ask: MessageCircleQuestionMark, plan: ListChecks, auto: Zap };
 
 /**
  * The mode Ask UNI works in, or null when the member has no say: actions off, or the organization's ceiling is
@@ -33,8 +38,10 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
   const { t } = useTranslation(undefined, { keyPrefix: "ai.mode" });
   const state = useAskUniMode(wsId);
   const save = useSetAskUniMode(wsId);
+  const id = useId();
   if (!state) return null;
   const current = t(state.mode);
+  const CurrentIcon = MODE_ICONS[state.mode];
   return (
     <>
       <DropdownMenu>
@@ -42,23 +49,33 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
           disabled={save.isPending}
           render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("label_with", { mode: current })} />}
         >
-          {/* The model picker beside it can also read "Tự động"; the shield marks this one as permissions. */}
-          <ShieldCheck aria-hidden />
+          <CurrentIcon aria-hidden />
           {current}
           <ChevronDown aria-hidden />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" className="min-w-48">
+        <DropdownMenuContent align="end" side="top" className="w-80">
           <DropdownMenuRadioGroup
             value={state.mode}
             onValueChange={(next) => {
               if (next !== state.mode) save.mutate(String(next));
             }}
           >
-            {state.allowed.map((m) => (
-              <DropdownMenuRadioItem key={m} value={m}>
-                {t(m)}
-              </DropdownMenuRadioItem>
-            ))}
+            <DropdownMenuLabel>{t("menu_title")}</DropdownMenuLabel>
+            {state.allowed.map((m) => {
+              const Icon = MODE_ICONS[m];
+              return (
+                // The title names the item; the hint describes it, so a screen reader hears both apart.
+                <DropdownMenuRadioItem key={m} value={m} className="items-start gap-2.5 py-1.5" aria-labelledby={`${id}-${m}`} aria-describedby={`${id}-${m}-hint`}>
+                  <Icon aria-hidden className="mt-0.5 text-muted-foreground" />
+                  <span className="flex min-w-0 flex-col">
+                    <span id={`${id}-${m}`}>{t(m)}</span>
+                    <span id={`${id}-${m}-hint`} className="text-caption text-muted-foreground">
+                      {t(`${m}_hint`)}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              );
+            })}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>

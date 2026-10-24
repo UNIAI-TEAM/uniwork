@@ -6204,6 +6204,10 @@
       "ask": "Ask first",
       "plan": "Plan",
       "auto": "Auto",
+      "ask_hint": "Asks you before each change",
+      "plan_hint": "Groups changes into a plan you approve once",
+      "auto_hint": "Makes small changes itself, asks for bigger ones",
+      "menu_title": "When UNI wants to change your data",
       "label_with": "Mode: {{mode}}",
       "save_failed": "Could not save the mode. Try again.",
       "tainted_note": "This conversation has read content you did not write, so every change will still ask you first, even in Auto mode."

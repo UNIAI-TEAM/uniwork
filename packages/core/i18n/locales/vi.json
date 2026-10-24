@@ -6155,6 +6155,10 @@
       "ask": "Hỏi trước",
       "plan": "Kế hoạch",
       "auto": "Tự động",
+      "ask_hint": "Hỏi bạn trước từng thay đổi",
+      "plan_hint": "Gom thành kế hoạch để bạn duyệt một lần",
+      "auto_hint": "Tự làm thay đổi nhỏ, việc lớn vẫn hỏi bạn",
+      "menu_title": "Khi UNI muốn thay đổi dữ liệu",
       "label_with": "Chế độ: {{mode}}",
       "save_failed": "Không lưu được chế độ. Thử lại.",
       "tainted_note": "Hội thoại này đã đọc nội dung không do bạn viết, nên mọi thay đổi vẫn hỏi bạn trước dù đang ở chế độ Tự động."
