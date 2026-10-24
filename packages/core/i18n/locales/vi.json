@@ -6005,7 +6005,8 @@
       "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
       "default": "Đã xử lý",
       "retry": "Đã kiểm tra lại câu trả lời",
-      "summary_other": "Xong sau {{count}} bước"
+      "summary_other": "Xong sau {{count}} bước",
+      "thought_only": "Đã suy nghĩ"
     },
     "cite": {
       "label": "Nguồn {{n}}",

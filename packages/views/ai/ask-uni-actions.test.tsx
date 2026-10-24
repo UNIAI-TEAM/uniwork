@@ -128,7 +128,7 @@ describe("Ask UNI answer actions: create", () => {
       if (path.endsWith("/ai/conversations/c1/messages")) return Promise.resolve({ messages: history() });
       return base(path, init);
     });
-    const idle: AskStreamState = { status: "idle", question: "", conversationId: "c1", draft: "", steps: [], sources: {}, followups: [], proposals: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
+    const idle: AskStreamState = { status: "idle", question: "", conversationId: "c1", draft: "", thinking: "", steps: [], sources: {}, followups: [], proposals: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>

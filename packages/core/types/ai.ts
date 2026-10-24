@@ -46,10 +46,17 @@ export const AiCitationSchema = z.object({
 export type AiCitation = z.infer<typeof AiCitationSchema>;
 export type AiSource = AiCitation;
 
+/**
+ * One tool step, or (kind "think") the thinking before the answer. A round's first step carries the sentence the model
+ * wrote before calling (`note`) and its thinking summary (`thought`); both are "" when there were none.
+ */
 export const AiStepSchema = z.object({
   tool: z.string().catch(""),
   label: z.string().catch(""),
   counts: z.record(z.string(), z.number()).catch({}),
+  note: z.string().catch(""),
+  thought: z.string().catch(""),
+  kind: z.string().catch(""),
 });
 export type AiStep = z.infer<typeof AiStepSchema>;
 

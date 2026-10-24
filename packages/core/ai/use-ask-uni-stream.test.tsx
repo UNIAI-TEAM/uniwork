@@ -66,13 +66,39 @@ describe("useAskUniStream", () => {
     emit({ type: "delta", text: "hel" });
     emit({ type: "delta", text: "lo" });
     expect(result.current.state.draft).toBe("hello");
-    emit({ type: "step", round: 1, phase: "tool", tool: "search", label: "late", counts: { tasks: 2 } });
-    emit({ type: "step", round: 2, phase: "retry", tool: "", label: "", counts: {} });
+    emit({ type: "step", round: 1, phase: "tool", tool: "search", label: "late", counts: { tasks: 2 }, note: "" });
+    emit({ type: "step", round: 2, phase: "retry", tool: "", label: "", counts: {}, note: "" });
     expect(result.current.state.draft).toBe("");
     expect(result.current.state.steps).toEqual([
-      { tool: "search", label: "late", counts: { tasks: 2 } },
-      { tool: "", label: "", counts: {} },
+      { tool: "search", label: "late", counts: { tasks: 2 }, note: "", thought: "", kind: "" },
+      { tool: "", label: "", counts: {}, note: "", thought: "", kind: "" },
     ]);
+  });
+
+  it("gathers each call's thinking and hands it, with the note, to the step it leads to", () => {
+    const { result } = setup();
+    act(() => void result.current.ask({ question: "q" }));
+    emit({ type: "reasoning", text: "Cần xem " });
+    emit({ type: "reasoning", text: "việc mở." });
+    expect(result.current.state.thinking).toBe("Cần xem việc mở.");
+    emit({ type: "delta", text: "Mình tìm." });
+    emit({ type: "step", round: 1, phase: "tool", tool: "search", label: "mở", counts: {}, note: "Mình tìm." });
+    emit({ type: "step", round: 1, phase: "tool", tool: "get_task", label: "A", counts: {}, note: "" });
+    expect(result.current.state.steps.map((s) => [s.tool, s.note, s.thought])).toEqual([
+      ["search", "Mình tìm.", "Cần xem việc mở."],
+      ["get_task", "", ""],
+    ]);
+    expect(result.current.state.thinking).toBe("");
+    // The answer call's thinking stays live until done brings the stored think step.
+    emit({ type: "reasoning", text: "Đủ rồi." });
+    expect(result.current.state.thinking).toBe("Đủ rồi.");
+    const stored = [
+      ...result.current.state.steps,
+      { tool: "", label: "", counts: {}, note: "", thought: "Đủ rồi.", kind: "think" },
+    ];
+    emit({ type: "done", message: msg({ steps: stored }), usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 } });
+    expect(result.current.state.steps).toEqual(stored);
+    expect(result.current.state.thinking).toBe("");
   });
 
   it("sources merge by source_id and followups land in state", () => {
@@ -395,16 +421,19 @@ describe("useAskUniStream", () => {
 });
 
 describe("useAskModelChoice", () => {
-  it("persists model and effort only, and rehydrates them from storage", async () => {
+  it("persists model, effort and the notes' fold only, and rehydrates them from storage", async () => {
     useAskModelChoice.getState().setModel("claude-opus");
     useAskModelChoice.getState().setEffort("high");
+    useAskModelChoice.getState().hideNotes(1234);
     const stored = JSON.parse(localStorage.getItem("uniwork_ask_uni_model") ?? "{}") as { state: Record<string, unknown> };
-    expect(stored.state).toEqual({ model: "claude-opus", effort: "high" });
-    useAskModelChoice.setState({ model: "", effort: "" });
+    expect(stored.state).toEqual({ model: "claude-opus", effort: "high", notesHiddenUntil: 1234 });
+    useAskModelChoice.setState({ model: "", effort: "", notesHiddenUntil: 0 });
     expect(useAskModelChoice.getState().model).toBe("");
     localStorage.setItem("uniwork_ask_uni_model", JSON.stringify({ ...stored, version: 1 }));
     await useAskModelChoice.persist.rehydrate();
-    expect(useAskModelChoice.getState()).toMatchObject({ model: "claude-opus", effort: "high" });
+    expect(useAskModelChoice.getState()).toMatchObject({ model: "claude-opus", effort: "high", notesHiddenUntil: 1234 });
+    useAskModelChoice.getState().showNotes();
+    expect(useAskModelChoice.getState().notesHiddenUntil).toBe(0);
   });
 
   const proposal = { id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending" } as never;

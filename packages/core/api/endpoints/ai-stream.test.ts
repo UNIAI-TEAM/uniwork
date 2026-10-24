@@ -104,6 +104,22 @@ describe("askUniStream", () => {
     expect(events[3]).toMatchObject({ message: { steps: [], followups: [], focus: null, mentions: [] } });
   });
 
+  it("reads reasoning frames and a step's note, an absent note as empty, and skips a malformed reasoning frame", async () => {
+    const events = await collect(
+      sse([
+        frame("reasoning", { text: 5 }),
+        frame("reasoning", { text: "Cần xem." }),
+        frame("step", { round: 1, phase: "tool", tool: "search", label: "x", counts: {}, note: "Mình tìm." }),
+        frame("step", { round: 1, phase: "tool", tool: "get_task", label: "A", counts: {} }),
+      ]),
+    );
+    expect(events).toEqual([
+      { type: "reasoning", text: "Cần xem." },
+      { type: "step", round: 1, phase: "tool", tool: "search", label: "x", counts: {}, note: "Mình tìm." },
+      { type: "step", round: 1, phase: "tool", tool: "get_task", label: "A", counts: {}, note: "" },
+    ]);
+  });
+
   it("ignores comment lines", async () => {
     const events = await collect(sse([": ping\n\n", frame("delta", { text: "a" }), ": ping\n\n"]));
     expect(events).toEqual([{ type: "delta", text: "a" }]);

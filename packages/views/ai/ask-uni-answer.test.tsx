@@ -141,7 +141,7 @@ describe("AskUniMessageTurn", () => {
   });
 
   it("shows the message's own stored steps as a collapsed line", () => {
-    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {} }, { tool: "get_task", label: "B", counts: {} }] }));
+    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {}, note: "", thought: "", kind: "" }, { tool: "get_task", label: "B", counts: {}, note: "", thought: "", kind: "" }] }));
     expect(screen.getByRole("button", { name: "Xong sau 2 bước" })).toHaveAttribute("aria-expanded", "false");
   });
 

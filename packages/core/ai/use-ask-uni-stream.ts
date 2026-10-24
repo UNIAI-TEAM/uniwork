@@ -17,6 +17,8 @@ export interface AskStreamState {
   conversationId: string | null;
   /** Text of the current model call; cleared on every step. */
   draft: string;
+  /** Thinking summary of the current model call (ask_uni_thinking); a step takes it, and it is cleared then. */
+  thinking: string;
   /** One entry per tool step, in arrival order; a step with tool "" is the server's malformed-answer retry. */
   steps: AiStep[];
   /** Sources found so far, by source_id. */
@@ -48,6 +50,7 @@ const IDLE: AskStreamState = {
   question: "",
   conversationId: null,
   draft: "",
+  thinking: "",
   steps: [],
   sources: {},
   followups: [],
@@ -137,7 +140,16 @@ export function useAskUniStream(wsId: string) {
             if (useAiPanelStore.getState().conversationId === null) useAiPanelStore.getState().select(e.conversationId);
             break;
           case "step":
-            setState((s) => ({ ...s, draft: "", steps: [...s.steps, { tool: e.tool, label: e.label, counts: e.counts }] }));
+            // The call's thinking leads to this step; its text was the note the step now carries.
+            setState((s) => ({
+              ...s,
+              draft: "",
+              thinking: "",
+              steps: [...s.steps, { tool: e.tool, label: e.label, counts: e.counts, note: e.note, thought: s.thinking, kind: "" }],
+            }));
+            break;
+          case "reasoning":
+            setState((s) => ({ ...s, thinking: s.thinking + e.text }));
             break;
           case "sources":
             setState((s) => ({ ...s, sources: { ...s.sources, ...Object.fromEntries(e.sources.map((x) => [x.source_id, x])) } }));
@@ -202,6 +214,9 @@ export function useAskUniStream(wsId: string) {
               status: e.message.notice === "stopped" ? "stopped" : "done",
               message,
               proposals: e.message.notice === "stopped" ? [] : s.proposals,
+              // The stored steps add the think step that holds the answer call's thinking.
+              steps: message.steps.length > 0 ? message.steps : s.steps,
+              thinking: "",
             }));
             break;
           }

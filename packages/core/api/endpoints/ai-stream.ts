@@ -15,8 +15,9 @@ import { parseWithFallback } from "../schema";
 
 export type AskUniStreamEvent =
   | { type: "run"; runId: string; conversationId: string }
-  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number> }
+  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number>; note: string }
   | { type: "delta"; text: string }
+  | { type: "reasoning"; text: string }
   | { type: "proposal"; proposals: AiProposal[] }
   | { type: "citations"; citations: AiCitation[] }
   | { type: "sources"; sources: AiCitation[] }
@@ -39,9 +40,15 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
       tool: z.string().catch(""),
       label: z.string().catch(""),
       counts: z.record(z.string(), z.number()).catch({}),
+      note: z.string().catch(""),
     });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:step" });
     return r && { type: "step", ...r };
+  },
+  reasoning: (raw) => {
+    const s = z.object({ text: z.string() });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:reasoning" });
+    return r && { type: "reasoning", text: r.text };
   },
   delta: (raw) => {
     const s = z.object({ text: z.string() });

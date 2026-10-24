@@ -6052,7 +6052,8 @@
       "default": "Worked",
       "retry": "Double-checked the answer",
       "summary_one": "Done in {{count}} step",
-      "summary_other": "Done in {{count}} steps"
+      "summary_other": "Done in {{count}} steps",
+      "thought_only": "Thought it over"
     },
     "cite": {
       "label": "Source {{n}}",

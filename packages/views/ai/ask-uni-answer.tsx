@@ -68,6 +68,7 @@ export function AskUniMessageTurn({
   conversationId,
   steps,
   writing = false,
+  thinking = "",
   sources,
   wsId = "",
   onRegenerate,
@@ -80,6 +81,8 @@ export function AskUniMessageTurn({
   steps?: AiStep[];
   /** True once the live answer's first text has arrived. */
   writing?: boolean;
+  /** The live call's thinking, still being written. */
+  thinking?: string;
   /** The conversation's source book by `S#`, for markers this message does not cite itself; its own citations win. */
   sources?: Map<string, AiCitation>;
   wsId?: string;
@@ -126,7 +129,7 @@ export function AskUniMessageTurn({
         <div className="mb-1">
           <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} model={message.model ?? ""} look={look} />
         </div>
-        <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} />
+        <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} thinking={thinking} />
         {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} streaming={streaming} /> : null}
         {showNotice ? (
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
