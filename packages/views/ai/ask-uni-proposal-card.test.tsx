@@ -233,6 +233,8 @@ describe("AskUniProposalCard", () => {
     ]);
     for (const label of ["Bắt đầu", "Kết thúc", "Múi giờ", "Người tham dự", "Người được mời", "Người dẫn dắt", "Nằm trong"]) expect(screen.getByText(label)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/starts_at|ends_at|attendee_ids|user_ids|lead_id|parent_id/);
+    // schedule_meeting makes a new meeting: there is no old value, so no "(trống) →".
+    expect(container.textContent).not.toMatch(/trống|→/);
   });
 
   it("labels the project and meeting status enums", () => {
