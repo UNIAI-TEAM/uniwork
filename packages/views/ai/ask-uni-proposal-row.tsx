@@ -5,26 +5,23 @@ import { useTranslation } from "react-i18next";
 import type { AiProposal } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { entityKindIcon } from "./ask-uni-entity";
 import { isInAppHref } from "./ask-uni-links";
-import { fieldLabel, formatProposalValue } from "./ask-uni-proposal-values";
+import { AskUniProposalEdit, type EditCallbacks } from "./ask-uni-proposal-edit";
+import { fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
 
 const SAFE_CODE = /^[a-z_]+$/;
 const FADED = new Set(["rejected", "undone", "expired"]);
-// The one field "Sửa" opens: the row's title when it has one, else the text it will post.
-const EDIT_FIELDS = ["title", "name"];
 
 export interface ProposalRowProps {
   proposal: AiProposal;
   selectable?: boolean;
   selected?: boolean;
   onToggle?: () => void;
-  onEdit?: (changes: Record<string, unknown>) => void;
+  onEdit?: (changes: Record<string, unknown>, cb: EditCallbacks) => void;
   onApply?: () => void;
   onReject?: () => void;
   onUndo?: () => void;
@@ -72,38 +69,6 @@ function Audience({ proposal }: { proposal: AiProposal }) {
   );
 }
 
-function Editor({ proposal, onSave, onCancel }: { proposal: AiProposal; onSave: (changes: Record<string, unknown>) => void; onCancel: () => void }) {
-  const { t } = useTranslation();
-  const field = proposal.preview.fields.find((f) => EDIT_FIELDS.includes(f.field));
-  const key = field?.field ?? "body";
-  const initial = field ? (typeof field.to === "string" ? field.to : "") : proposal.preview.body;
-  const [value, setValue] = useState(initial);
-  const label = t("ai.proposal.edit_field", { field: fieldLabel(t, key) });
-  return (
-    <form
-      className="mt-2 flex flex-col gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave({ [key]: value });
-      }}
-    >
-      {key === "body" ? (
-        <Textarea aria-label={label} value={value} rows={4} onChange={(e) => setValue(e.target.value)} />
-      ) : (
-        <Input aria-label={label} value={value} onChange={(e) => setValue(e.target.value)} />
-      )}
-      <div className="flex gap-1.5">
-        <Button type="submit" size="sm">
-          {t("ai.proposal.save")}
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          {t("ai.proposal.cancel")}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
 function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string }) {
   const { t } = useTranslation();
   const { status } = proposal;
@@ -142,8 +107,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   const href = proposal.result.href;
   // A link only to an in-app path: the href is data from the server, not markup.
   const link = isInAppHref(href) ? href : "";
-  // Edit only what the row carries: a title, or the text it will post. Never invent one.
-  const editable = preview.fields.some((f) => EDIT_FIELDS.includes(f.field)) || preview.body !== "";
+  const editable = hasEditable(proposal);
   const disabled = busy || status === "applying" || status === "undoing";
 
   return (
@@ -169,14 +133,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
         <Audience proposal={proposal} />
         <StatusLine proposal={proposal} error={error} />
         {editing && pending && onEdit ? (
-          <Editor
-            proposal={proposal}
-            onCancel={() => setEditing(false)}
-            onSave={(changes) => {
-              onEdit(changes);
-              setEditing(false);
-            }}
-          />
+          <AskUniProposalEdit proposal={proposal} busy={busy} onSave={onEdit} onDone={() => setEditing(false)} />
         ) : null}
         <div className="mt-2 flex flex-wrap items-center gap-1.5 empty:hidden">
           {pending && !editing ? (

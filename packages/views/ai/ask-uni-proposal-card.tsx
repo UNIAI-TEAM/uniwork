@@ -65,7 +65,11 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
             onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb))}
             onReject={() => go(p.id, (cb) => reject.mutate(p.id, cb))}
             onUndo={() => go(p.id, (cb) => undo.mutate(p.id, cb))}
-            onEdit={(changes) => go(p.id, (cb) => edit.mutate({ id: p.id, changes }, cb))}
+            onEdit={(changes, cb) => {
+              // The form shows its own refusal, so the row's error line stays quiet.
+              setBusyId(p.id);
+              edit.mutate({ id: p.id, changes }, { ...cb, onSettled: () => setBusyId("") });
+            }}
             busy={inFlight}
             error={errors[p.id] || undefined}
           />

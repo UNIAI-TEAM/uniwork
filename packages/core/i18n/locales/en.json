@@ -6269,6 +6269,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "edit_field": "Edit {{field}}",
+      "picked": "Picked: {{name}}",
       "select_step": "Select step {{n}}",
       "step_n": "Step {{n}}",
       "uses_step": "uses the result of step {{n}}",

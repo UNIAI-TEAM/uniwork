@@ -6220,6 +6220,7 @@
       "save": "Lưu",
       "cancel": "Hủy",
       "edit_field": "Sửa {{field}}",
+      "picked": "Đã chọn: {{name}}",
       "select_step": "Chọn bước {{n}}",
       "step_n": "Bước {{n}}",
       "uses_step": "dùng kết quả của bước {{n}}",

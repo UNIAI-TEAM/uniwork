@@ -1,4 +1,5 @@
 import type { useTranslation } from "react-i18next";
+import type { AiProposal } from "@uniwork/core/types";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -52,3 +53,33 @@ export function formatProposalValue(v: unknown, type: string, field: string, t: 
   }
   return t("ai.proposal.unreadable_value");
 }
+
+export type EditKind = "text" | "markdown" | "date" | "datetime" | "enum" | "object";
+
+/**
+ * The control "Sửa" gives a field, or null when it stays read-only. A field is editable only when its key is an
+ * argument of the tool and its value is one we can send as that argument's machine value: labels (the preview holds
+ * names), `*_id` text (a title standing for an id), lists of people (the picker takes one), and the status of a
+ * task or meeting (its options are workspace labels, not status keys) are shown but not edited.
+ */
+export function editKind(f: AiProposal["preview"]["fields"][number], tool: string): EditKind | null {
+  if (f.field.endsWith("_ids") || (f.type === "text" && f.field.endsWith("_id"))) return null;
+  switch (f.type) {
+    case "text":
+    case "markdown":
+      return typeof f.to === "string" ? f.type : null;
+    case "date":
+    case "datetime":
+      return f.type;
+    case "enum":
+      return (f.field === "status" && !tool.includes("project")) || f.options.length === 0 ? null : "enum";
+    case "person":
+    case "project":
+      return Array.isArray(f.to) ? null : "object";
+    default:
+      return null;
+  }
+}
+
+/** Whether "Sửa" has anything to open: an editable field, or the text a comment or message will post. */
+export const hasEditable = (p: AiProposal) => p.preview.body !== "" || p.preview.fields.some((f) => editKind(f, p.tool) !== null);

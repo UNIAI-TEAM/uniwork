@@ -211,13 +211,13 @@ describe("AskUniProposalCard", () => {
     for (const t of ["Đã lên kế hoạch", "Tạm dừng", "Đã lên lịch", "Đã hủy"]) expect(screen.getByText(t)).toBeInTheDocument();
   });
 
-  it("offers Sửa only on a row with a title or a body", () => {
+  it("offers Sửa only on a row with something to edit", () => {
     mount([
-      row({ id: "a" }),
+      row({ id: "a", preview: { target: { kind: "task", id: "T1", title: "x" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] } }),
       row({ id: "b", position: 2, tool: "cancel_meeting", preview: { target: { kind: "meeting", id: "M", title: "H" }, fields: [{ field: "status", type: "enum", from: "SCHEDULED", to: "CANCELED" }] } }),
       row({ id: "c", position: 3, tool: "add_comment", preview: { target: { kind: "task", id: "T", title: "x" }, fields: [], body: "hi" } }),
     ]);
-    expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(2);
   });
 
   it("disables every row while one call is in flight", () => {
