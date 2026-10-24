@@ -43,14 +43,18 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	return out
 }
 
+func toAiMemoryProposalDTO(p service.AskMemoryProposal) sdo.AiMemoryProposalDTO {
+	return sdo.AiMemoryProposalDTO{
+		ID: p.ID, MessageID: p.MessageID, Position: p.Position, Action: p.Action, MemoryID: p.MemoryID, Kind: p.Kind, Text: p.Text,
+		BeforeKind: p.BeforeKind, BeforeText: p.BeforeText, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
+	}
+}
+
 // aiMemoryProposalDTOs is ps as the API names them; never nil.
 func aiMemoryProposalDTOs(ps []service.AskMemoryProposal) []sdo.AiMemoryProposalDTO {
 	out := make([]sdo.AiMemoryProposalDTO, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, sdo.AiMemoryProposalDTO{
-			ID: p.ID, MessageID: p.MessageID, Position: p.Position, Action: p.Action, MemoryID: p.MemoryID, Kind: p.Kind, Text: p.Text,
-			BeforeKind: p.BeforeKind, BeforeText: p.BeforeText, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
-		})
+		out = append(out, toAiMemoryProposalDTO(p))
 	}
 	return out
 }

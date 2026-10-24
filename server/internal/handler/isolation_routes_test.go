@@ -849,6 +849,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/ai/proposals/{proposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"POST /api/v1/ai/proposals/{proposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"PATCH /api/v1/ai/proposals/{proposalID}":       {body: isoJSON(map[string]any{"changes": map[string]any{"title": "edited"}}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	// Ask UNI memory proposals (P4): only the asker decides them, as above.
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/apply":  {control: []int{http.StatusConflict}, reason: "the seeded memory proposal is rejected, so the owner's own call reaches the row and answers 409 proposal_not_pending, which a broken route would not; an outsider gets 404 before any membership, flag or state check"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"PATCH /api/v1/ai/memory-proposals/{memoryProposalID}":       {body: isoJSON(map[string]any{"text": "edited"}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"POST /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply": {
 		body: func(_ *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"proposal_ids": []string{tn.ids["aiProposal"]}}}

@@ -89,6 +89,12 @@ type AiMemoryUpdateSDI struct {
 	Text *string `json:"text" description:"Chữ mới 1–300 ký tự; bỏ trống thì giữ" example:"Trả lời ngắn gọn"`
 }
 
+// AiMemoryProposalEditSDI is PATCH /api/v1/ai/memory-proposals/{memoryProposalID}; a field left out stays.
+type AiMemoryProposalEditSDI struct {
+	Kind *string `json:"kind" description:"preference hoặc fact; bỏ trống thì giữ" example:"fact"`
+	Text *string `json:"text" description:"Chữ sẽ lưu, 1–300 ký tự, một dòng; bỏ trống thì giữ" example:"Gọi tôi là Vinh"`
+}
+
 // AiMemorySwitchSDI is PUT /api/v1/me/ask-uni-memory.
 type AiMemorySwitchSDI struct {
 	Enabled bool `json:"enabled" description:"true bật Dùng bộ nhớ, false tắt" example:"true"`

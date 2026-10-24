@@ -165,6 +165,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`
 		}{}
+	case "memoryProposalID":
+		return struct {
+			MemoryProposalID string `path:"memoryProposalID" description:"ULID đề xuất bộ nhớ của Hỏi UNI" example:"01K4AIMPR0000000000000001"`
+		}{}
 	case "proposalID":
 		return struct {
 			ProposalID string `path:"proposalID" description:"ULID dòng đề xuất của Hỏi UNI" example:"01K4AIPRP000000000000001"`

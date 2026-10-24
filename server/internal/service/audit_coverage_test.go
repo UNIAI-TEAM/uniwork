@@ -62,7 +62,6 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
 	audit.ActionOrganizationAskWritePolicyChanged: "covered by askuni_modes_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
-	audit.ActionAIMemoryProposalRejected:          "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -2008,6 +2007,11 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionAIMemoryProposalRejected: func(t *testing.T, f *auditFixture) {
+			if _, err := f.memory(t).RejectProposal(f.ctx, f.owner.ID, f.memoryProposal(t)); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -2384,6 +2388,54 @@ func (f *auditFixture) askProposal(t *testing.T) (*AskUNIService, string) {
 		t.Fatal(err)
 	}
 	return ask, row.ID
+}
+
+// memoryProposal stores one pending remember proposal of the owner's and
+// returns its id.
+func (f *auditFixture) memoryProposal(t *testing.T) string {
+	t.Helper()
+	w := f.build(t)
+	row, err := f.q.AiInsertMemoryProposal(f.ctx, db.AiInsertMemoryProposalParams{
+		ID: util.NewID(), OrganizationID: f.orgID, WorkspaceID: w.ID, ConversationID: util.NewID(), MessageID: util.NewID(),
+		Position: 1, Action: "remember", Kind: pgtype.Text{String: "fact", Valid: true}, Body: pgtype.Text{String: "Tôi làm ở Huế", Valid: true},
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedBy: f.owner.ID, CreatedByKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return row.ID
+}
+
+// A memory proposal's apply and undo write the ai_memory.* row of the
+// command they run, which the table above covers by action through the
+// manual commands.
+func TestMemoryProposalCommandsWriteTheirRows(t *testing.T) {
+	for command, c := range map[string]struct {
+		action string
+		run    func(m *AiMemoryService, f *auditFixture, id string) error
+	}{
+		"ApplyProposal": {audit.ActionAIMemoryCreated, func(m *AiMemoryService, f *auditFixture, id string) error {
+			_, err := m.ApplyProposal(f.ctx, f.owner.ID, id)
+			return err
+		}},
+		"UndoProposal": {audit.ActionAIMemoryDeleted, func(m *AiMemoryService, f *auditFixture, id string) error {
+			if _, err := m.ApplyProposal(f.ctx, f.owner.ID, id); err != nil {
+				return err
+			}
+			_, err := m.UndoProposal(f.ctx, f.owner.ID, id)
+			return err
+		}},
+	} {
+		t.Run(command, func(t *testing.T) {
+			f := newAuditFixture(t)
+			if err := c.run(f.memory(t), f, f.memoryProposal(t)); err != nil {
+				t.Fatal(err)
+			}
+			if !f.wrote(t, c.action) {
+				t.Fatalf("%s left no %s audit row; rows written: %v", command, c.action, f.actions(t))
+			}
+		})
+	}
 }
 
 func (f *auditFixture) newTask(t *testing.T) db.Task {

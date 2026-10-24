@@ -313,6 +313,10 @@ type Routes struct {
 	DeleteAiMemory          http.HandlerFunc
 	ClearAiMemory           http.HandlerFunc
 	SetAskUniMemory         http.HandlerFunc
+	ApplyAiMemoryProposal   http.HandlerFunc
+	RejectAiMemoryProposal  http.HandlerFunc
+	UndoAiMemoryProposal    http.HandlerFunc
+	EditAiMemoryProposal    http.HandlerFunc
 	ApplyAiProposal         http.HandlerFunc
 	RejectAiProposal        http.HandlerFunc
 	UndoAiProposal          http.HandlerFunc

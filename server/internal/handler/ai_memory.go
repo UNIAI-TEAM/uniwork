@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -124,4 +127,51 @@ func (h *handlers) setAskUniMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// memoryProposalAnswer answers a decision on a memory proposal. A 409 carries
+// the row as it now stands in error.fields.proposal, so the card repaints
+// from the answer (R16); every other refusal carries no row.
+func (h *handlers) memoryProposalAnswer(w http.ResponseWriter, p service.AskMemoryProposal, err error) {
+	var ce service.CodedError
+	switch {
+	case err == nil:
+		respondJSON(w, 200, toAiMemoryProposalDTO(p))
+	case errors.As(err, &ce) && ce.Status == http.StatusConflict && p.ID != "":
+		respondErrorFields(w, ce.Status, ce.Code, ce.Error(), map[string]any{"proposal": toAiMemoryProposalDTO(p)})
+	default:
+		h.mapServiceError(w, err)
+	}
+}
+
+// memoryProposalCall runs one decision as the caller on {memoryProposalID}.
+func (h *handlers) memoryProposalCall(w http.ResponseWriter, r *http.Request, run func(ctx context.Context, userID, id string) (service.AskMemoryProposal, error)) {
+	if h.AiMemory == nil {
+		respondError(w, http.StatusServiceUnavailable, "ai_memory_unavailable", "Ask UNI memory is not configured")
+		return
+	}
+	p, err := run(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "memoryProposalID"))
+	h.memoryProposalAnswer(w, p, err)
+}
+
+func (h *handlers) applyAiMemoryProposal(w http.ResponseWriter, r *http.Request) {
+	h.memoryProposalCall(w, r, h.AiMemory.ApplyProposal)
+}
+
+func (h *handlers) rejectAiMemoryProposal(w http.ResponseWriter, r *http.Request) {
+	h.memoryProposalCall(w, r, h.AiMemory.RejectProposal)
+}
+
+func (h *handlers) undoAiMemoryProposal(w http.ResponseWriter, r *http.Request) {
+	h.memoryProposalCall(w, r, h.AiMemory.UndoProposal)
+}
+
+func (h *handlers) editAiMemoryProposal(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AiMemoryProposalEditSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	h.memoryProposalCall(w, r, func(ctx context.Context, userID, id string) (service.AskMemoryProposal, error) {
+		return h.AiMemory.EditProposal(ctx, userID, id, in.Kind, in.Text)
+	})
 }

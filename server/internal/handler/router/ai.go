@@ -234,6 +234,40 @@ func registerAI(r api, h Routes) {
 		sdo:         sdo.AiMemoryClearSDO{},
 		auth:        true,
 	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/apply", h.ApplyAiMemoryProposal, apiOp{
+		summary: "Apply an Ask UNI memory proposal",
+		description: "Người hỏi bấm Nhớ / Lưu / Quên trên thẻ đề xuất bộ nhớ: thêm, sửa hoặc xóa mục bộ nhớ của chính mình, ghi audit ai_memory.* (không kèm chữ) có metadata.via ask_uni; bấm hai lần chỉ chạy một lần. " +
+			"Không bao giờ tự áp dụng, ở mọi chế độ; cờ ask_uni_actions và trần ghi không liên quan. Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại); cờ ask_uni_memory tắt -> 403 ai_memory_disabled; mất quyền workspace -> 403. " +
+			"Mục update/forget nhắm tới đã bị xóa -> 404 ai_memory_not_found. 409 kèm dòng hiện tại trong error.fields.proposal: proposal_not_pending, proposal_expired (quá 24 giờ), ai_memory_off (người hỏi tắt Dùng bộ nhớ), ai_memory_full, ai_memory_duplicate.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/reject", h.RejectAiMemoryProposal, apiOp{
+		summary: "Reject an Ask UNI memory proposal",
+		description: "Bỏ qua một đề xuất bộ nhớ pending của chính người hỏi: pending -> rejected, ghi audit ai_memory_proposal.rejected (không kèm chữ). " +
+			"Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled; 409 proposal_not_pending / proposal_expired kèm dòng trong error.fields.proposal.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/undo", h.UndoAiMemoryProposal, apiOp{
+		summary: "Undo an applied Ask UNI memory proposal",
+		description: "Hoàn tác một lần một đề xuất bộ nhớ đã áp dụng: remember xóa mục đã tạo, update ghi lại chữ cũ, forget tạo lại mục (id mới); ghi audit ai_memory.* của lệnh ngược. " +
+			"Mục đã bị sửa hoặc xóa sau khi áp dụng -> 409 undo_unavailable, dòng giữ applied; dòng không applied -> 409 proposal_not_pending; cả hai kèm dòng trong error.fields.proposal. Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Patch("/ai/memory-proposals/{memoryProposalID}", h.EditAiMemoryProposal, apiOp{
+		summary: "Edit an Ask UNI memory proposal",
+		description: "Sửa loại và/hoặc chữ của một đề xuất remember/update pending trước khi áp dụng; trường bỏ trống thì giữ. Chữ sai hoặc sửa đề xuất forget -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate. " +
+			"Không ghi audit: dòng là sổ sách AI cho tới khi áp dụng. Dòng của người khác -> 404; không còn pending / quá hạn -> 409 kèm dòng; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryProposalEditSDI{},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
 	r.Post("/ai/proposals/{proposalID}/apply", h.ApplyAiProposal, apiOp{
 		summary: "Apply an Ask UNI proposal",
 		description: "Áp dụng một dòng đề xuất của chính người hỏi (nút Áp dụng): chạy lệnh nghiệp vụ như người hỏi, ghi audit ai_proposal.applied. Bấm hai lần chỉ chạy một lần. " +
