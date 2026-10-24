@@ -194,6 +194,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     parentShared,
     onOpen,
     onOpenFolder: (id) => goHome({ kind: "home" }, id),
+    officeHome,
   });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });

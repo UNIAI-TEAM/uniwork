@@ -92,6 +92,7 @@ export const MOBILE_PATHS = [
   ".github/workflows/chat-mobile-rollback.yml",
   ".github/workflows/chat-mobile-device-farm.yml",
   ".github/workflows/chat-mobile-store-screenshots.yml",
+  ".github/workflows/chat-mobile-tls-pins.yml",
   // scripts/mobile-workflows.test.mjs reads the release runbook.
   "docs/runbooks/unichat-mobile-release.md",
   // The server's side of the app's contracts: data/realtime/frames.test.ts reads the event
@@ -108,6 +109,9 @@ export const MOBILE_PATHS = [
   "server/internal/handler/workspace.go",
   "server/internal/handler/task.go",
   "server/internal/handler/organization_members.go",
+  // The routes the app's calls must find (scripts/mobile-route-catalogue.test.mjs): a router change that drops one
+  // fails there, not on the phones.
+  "server/internal/handler/router/*.go",
   "server/internal/config/unichat_downloads.go",
   "server/internal/featureflags/keys.go",
   "server/internal/service/account_deletion.go",

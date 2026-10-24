@@ -10,7 +10,10 @@ export function expoCryptoMock() {
     CryptoDigestAlgorithm: { SHA256: "SHA-256" },
     CryptoEncoding: { BASE64: "base64", HEX: "hex" },
     getRandomBytesAsync: async (size: number) => new Uint8Array(randomBytes(size)),
-    // pkce.ts always asks for base64
-    digestStringAsync: async (_algorithm: string, data: string) => createHash("sha256").update(data, "ascii").digest("base64"),
+    // pkce.ts asks for base64, apple.ts for hex
+    digestStringAsync: async (_algorithm: string, data: string, options?: { encoding?: string }) =>
+      createHash("sha256")
+        .update(data, "ascii")
+        .digest(options?.encoding === "hex" ? "hex" : "base64"),
   };
 }

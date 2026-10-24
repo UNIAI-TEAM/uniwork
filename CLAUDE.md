@@ -384,6 +384,18 @@ Every command that changes business state writes an `audit_events` row and its
   (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
   `metadata.via` (`TestMcpCallCarriesTheVia`,
   `TestRecordWritesTheViaOfTheRequest`).
+- iPhone calls ring through CallKit from VoIP pushes the server sends straight
+  to APNs (ADR 0038): an iPhone's PushKit token is a `push_subscriptions` row
+  with `transport = 'apns_voip'`, and only `server/internal/notification/push_apns.go`
+  sends to it — a ring still within its window or its end, never a chat,
+  missed-call or tray push, since iOS stops waking an app whose VoIP push does
+  not ring CallKit. An end goes once, only to the tokens that ring reached
+  while it is in its window, never to the device session that answered or
+  declined, and never retries the row: iOS shows a call for every VoIP push.
+  `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`,
+  `TestChatPushNeverReachesAPushKitToken`,
+  `TestCallRingClosedEndsTheCallKitRing` and
+  `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
 
 ## Platform Admin and Observability
 
@@ -513,6 +525,13 @@ database and never reveal whether an id exists to a non-member.
   MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
   (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
   native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
+- Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
+  Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
+  the SHA-256 of the raw nonce the app sent. An Apple identity links by `users.apple_id`, by email only when Apple's
+  address is not a private relay and the account's address is verified, never to an MFA account; account deletion
+  revokes the Apple token the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
+  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking` and `TestDeleteAccountRevokesTheAppleToken` hold it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

@@ -2,9 +2,9 @@ Subject: New sign-in to your UniWork account
 
 New device sign-in
 
-Your UniWork account was just signed in from a browser it has not used before.
+{{if .Data.App}}Your UniWork account was just signed in on a phone with the UniChat app.{{else}}Your UniWork account was just signed in from a browser it has not used before.{{end}}
 
-    Browser: {{.Data.UserAgent}}
+    {{if .Data.App}}Device{{else}}Browser{{end}}: {{.Data.UserAgent}}
     IP address: {{.Data.IP}}
     When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
 

@@ -2,12 +2,16 @@
 
 Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-1838); `scripts/store-metadata.mjs` sinh từ
 đây `store/apple/store.config.json` (EAS Metadata, `eas metadata:push`) và `store/play/<ngôn ngữ>/*.txt` (main store
-listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên hiển thị "UniChat", định danh
-`com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
+listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự của từng store; `store-listing.test.ts` đỏ khi chúng cũ. Tên trên cả hai store là "UniWork Chat":
+App Store Connect giữ app dưới tên đó vì "UniChat" đã có người giữ (`docs/evidence/unichat/release-accounts.md`), và
+`eas metadata:push` gửi tên khác là xin đổi sang một tên không được phép. Tên dưới biểu tượng trên máy vẫn là "UniChat",
+định danh `com.uniworkos.chat` (bản `internal` dùng `com.uniworkos.chat.staging`, tên "UniChat (Staging)"). Lý do và luật: spec
 `docs/superpowers/specs/2026-10-16-chat-native-apps-design.md` §3.1, §3.4, §11; quy trình nộp:
 `docs/runbooks/unichat-mobile-release.md`. Chữ ở đây là bản nháp; chủ sở hữu duyệt trước lần nộp production (Q1).
 
 ## Mô tả
+
+**Tên trên store (≤ 30 ký tự):** UniWork Chat
 
 **vi — phụ đề (≤ 30 ký tự):** Nhắn tin và gọi cho cả đội
 
@@ -15,7 +19,7 @@ listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự c�
 
 **vi — mô tả:**
 
-> UniChat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
+> UniWork Chat là ứng dụng nhắn tin của UniWork cho đội ngũ Việt Nam. Trò chuyện riêng, nhóm và kênh của workspace luôn
 > đồng bộ với UniWork trên web và máy tính.
 >
 > - Tin nhắn tức thời, trả lời trích dẫn, luồng, cảm xúc, nhắc tên, đã đọc
@@ -35,7 +39,7 @@ listing của Play, bố cục fastlane supply), kiểm giới hạn ký tự c�
 
 **en — description:**
 
-> UniChat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
+> UniWork Chat is the messaging app of UniWork, built for Vietnamese teams. Direct messages, groups and workspace channels
 > stay in sync with UniWork on the web and desktop.
 >
 > - Instant messages, quoted replies, threads, reactions, mentions and read receipts
@@ -77,6 +81,7 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 | Mã định danh trong báo cáo crash | Cùng báo cáo trên: id người dùng UniWork (mã ULID), phiên bản, bản dựng, kênh và id bản cập nhật | Identifiers → User ID; App Functionality; Linked | Personal info → User IDs; App functionality; Shared: không (nhà cung cấp dịch vụ: Sentry) |
 | Xử lý AI (Anthropic, bên thứ ba) | Khi **bất kỳ thành viên nào** dùng AI trên nội dung chung: người dùng này bấm "Bắt kịp nhanh" trên điện thoại, hoặc một thành viên khác dùng Bắt kịp, Hỏi UNI hay tóm tắt cuộc gọi trên web/máy tính. Gửi tin nhắn của cuộc trò chuyện (và nội dung cuộc gọi đã ghi, khi có người ghi) kèm tên người gửi và thời gian — gồm cả tin của người dùng này; server UniWork gửi đi, app không gọi thẳng Anthropic. Màn thông báo xử lý AI trên điện thoại (nêu tên Anthropic, dữ liệu gửi đi, không dùng để huấn luyện, rút lại ở Cài đặt › Quyền riêng tư và pháp lý; câu trả lời lưu trên server, `PUT /me/ai-consent`) chặn yêu cầu AI của chính người dùng từ điện thoại tới khi họ đồng ý; người dùng **không cho phép** (hay rút lại, `DELETE /me/ai-consent`) thì server chỉ bỏ tin họ viết trong các cuộc trò chuyện khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi, dù ai yêu cầu, cả trên web/máy tính (`users.ai_opt_out_at`, `server/internal/service/ai_opt_out.go`); tin trong phòng họp, bản ghi lời nói cuộc họp, bình luận công việc và tài liệu không thuộc phạm vi này; người chưa trả lời thì tin vẫn đi khi thành viên khác dùng AI, web và máy tính không hỏi | User Content → Emails or Text Messages (và Audio Data nếu khai cuộc gọi đã ghi); App Functionality; Linked; Apple 5.1.2(i): màn đồng ý trước yêu cầu AI đầu tiên từ điện thoại; người từ chối thì tin họ viết trong các cuộc trò chuyện bị bỏ khỏi Bắt kịp, Hỏi UNI và tóm tắt cuộc gọi, dù ai yêu cầu | Messages → Other in-app messages; App functionality; khi người dùng hoặc một thành viên khác dùng tính năng AI; Shared: không (nhà cung cấp dịch vụ: Anthropic, Hoa Kỳ) |
 | Báo cáo vi phạm | Người dùng báo cáo một tin nhắn hay một người: lý do, lời mô tả (tuỳ chọn), id tin và người. Chủ sở hữu và quản trị viên tổ chức thấy lý do, người/tin bị báo cáo và **người báo cáo** trong Nhật ký hoạt động; lời mô tả chỉ nằm trong bản xuất dữ liệu của tổ chức | User Content → Other User Content; App Functionality; Linked | Messages → Other in-app messages; App functionality; Shared: không |
+| Đăng nhập bằng Apple (chỉ iPhone) | Người dùng chọn Đăng nhập bằng Apple (ADR 0041): Apple gửi mã tài khoản Apple, email (có thể là địa chỉ chuyển tiếp của Apple khi người dùng chọn ẩn email) và, lần đầu, tên nếu người dùng chia sẻ. Server giữ mã tài khoản Apple và refresh token Apple (mã hoá) chỉ để báo Apple thu hồi khi tài khoản bị xoá | Contact Info → Name, Email Address; Identifiers → User ID; App Functionality; Linked | Personal info → Name, Email, User IDs; App functionality; Shared: không |
 
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
 
@@ -175,26 +180,42 @@ lần khởi động lại), `FOREGROUND_SERVICE` cùng `FOREGROUND_SERVICE_PHON
 `maxSdkVersion`; chỉ có nghĩa tới Android 11 — từ Android 12 tai nghe Bluetooth đi qua `BLUETOOTH_CONNECT` ở bảng trên).
 `android-manifest.test.ts` giữ cả `maxSdkVersion` của từng quyền: hiện không quyền nào có.
 
+Thư viện Maven mà các module kéo theo cũng thêm quyền khi Gradle gộp manifest, đều là quyền thường hoặc quyền riêng
+của hãng, cấp lúc cài, không hộp thoại, không khai báo riêng trên Play: số chưa đọc trên biểu tượng app
+(`ShortcutBadger` của `expo-notifications`) xin `READ_APP_BADGE` và quyền badge của từng launcher (Samsung, HTC, Sony,
+Huawei, OPPO, Apex, Solid, EverythingMe); `firebase-messaging` xin quyền nhận tin FCM của Google Play services
+(`com.google.android.c2dm.permission.RECEIVE`), đường mọi push đi qua; `androidx.core` khai và xin quyền mức chữ ký
+`<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` để chỉ chính app gửi được tới receiver nó đăng ký lúc chạy. Quyền
+ràng buộc dịch vụ install referrer của Play (`installreferrer` qua `expo-application`) **bị gỡ** (`blockedPermissions`):
+app không đọc nguồn cài đặt. Danh sách đầy đủ của bản release, mỗi quyền một lý do, là
+`apps/chat-mobile/android-permissions.json`; `scripts/mobile-apk-scan.mjs` đọc manifest đã gộp của chính APK/AAB và đỏ
+khi bản build xin một quyền ngoài danh sách đó.
+
 **iOS privacy manifest** (`app.config.ts › IOS_PRIVACY_MANIFEST`, đặt vào `ios.privacyManifests`): không tracking; dữ liệu
 thu thập đúng từng dòng Apple App Privacy của bảng "Quyền riêng tư" ở trên (`store-listing.test.ts` so hai bên); lý do
 dùng API cần khai báo: UserDefaults `CA92.1`, file timestamp `C617.1` và `3B52.1`, system boot time `35F9.1`, disk space
 `E174.1`. Module Expo và Sentry mang manifest riêng; Xcode gộp lại khi archive (runbook › iOS privacy manifest).
 
-Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
-`docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`, và
-**gọi điện tắt trên iPhone** bằng công tắc server `unichat_mobile_calls_ios` (mặc định tắt: iPhone không hiện nút gọi,
-không nhận push đổ chuông). Vì vậy mô tả App Store của bản iOS đầu tiên **bỏ dòng "Gọi thoại và video" / "Voice and
-video calls"** (Apple 2.3.1: metadata phải đúng với app) cho tới khi bật CallKit; mô tả Play giữ nguyên. Thông báo nhắc
+Gọi trên iPhone đi PushKit + CallKit (`docs/adr/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` §4): chỉ
+bản build với `UNICHAT_IOS_CALLS=1` khai background mode `voip` (VoIP push đổ chuông qua màn cuộc gọi của iOS; lý do
+cho review: "rings incoming voice/video calls between members of an organization through CallKit") và `audio`, và
+**gọi điện vẫn tắt trên iPhone** cho tới khi công tắc server `unichat_mobile_calls_ios` bật (mặc định tắt: iPhone không
+hiện nút gọi, không nhận push đổ chuông). Bản App Store nào chưa có cả hai **bỏ dòng "Gọi thoại và video" / "Voice and
+video calls"** (Apple 2.3.1: metadata phải đúng với app); bản có cả hai thêm lại dòng đó và bỏ storefront Trung Quốc
+đại lục (CallKit không được duyệt ở đó; runbook › Cuộc gọi trên iPhone). Mô tả Play giữ nguyên. Thông báo nhắc
 tên và cuộc gọi nhỡ trên iPhone là "time-sensitive" (đi qua Chế độ tập trung; entitlement
 `com.apple.developer.usernotifications.time-sensitive`, EAS bật capability cho App ID khi ký) và mỗi push tin mang số
 chưa đọc cho biểu tượng app. Màn tắt khi áp tai trong cuộc gọi thoại (Android, cảm biến tiệm cận) dùng `WAKE_LOCK`, quyền
 thường đã khai, không xin quyền mới. Gọi trên iPhone là **năng lực của bản build**, không chỉ của công tắc server
-(Apple 2.5.4, 2.3.1): bản iOS hiện tại **không khai background mode nào** — `UIBackgroundModes` chỉ có `audio` (để cuộc
-gọi giữ tiếng khi rời app hay khoá máy; lý do cho review: "keeps an ongoing voice/video call audible") trong bản build
-với `UNICHAT_IOS_CALLS=1`, và `app.config.ts` từ chối biến đó khi `modules/unichat-calls` chưa có phần iOS (CallKit,
-PushKit). Bản build không có nó thì app luôn tắt gọi trên iPhone, `unichat_mobile_calls_ios` bật cũng vậy
+(Apple 2.5.4, 2.3.1): bản iOS hiện tại **chỉ khai background mode `processing`** — task theo lịch của
+`expo-background-task` (`BGProcessingTask`, định danh `com.expo.modules.backgroundtask.processing`) gửi tiếp tin và thao
+tác viết lúc offline khi mạng có lại mà app đang ở nền (lý do cho review: "sends messages the user wrote offline once the
+network is back, while the app is in the background"; `docs/engineering/unichat-mobile/offline-first.md` › Gửi tiếp ở
+nền) — và thêm `audio` (để cuộc gọi giữ tiếng khi rời app hay khoá máy; lý do cho review: "keeps an ongoing voice/video
+call audible") cùng `voip` chỉ trong bản build với `UNICHAT_IOS_CALLS=1`, và `app.config.ts` từ chối biến đó khi
+`modules/unichat-calls` không có phần iOS (CallKit, PushKit). Bản build không có nó thì app luôn tắt gọi trên iPhone, `unichat_mobile_calls_ios` bật cũng vậy
 (`lib/runtime-extra.ts › lackingFlags`): server không bật được tính năng mà reviewer chưa thấy. `expo-task-manager`
-tự thêm `fetch`, `expo-audio` có thể thêm `audio`; plugin `with-unichat-calls` gỡ cả hai (trừ `audio` ở bản có gọi) và
+tự thêm `fetch`, `expo-audio` có thể thêm `audio`; plugin `with-unichat-calls` gỡ cả hai (trừ `audio` và `voip` ở bản có gọi) và
 `app.config.test.ts` đọc Info.plist cuối của bản release.
 
 **Android, dịch vụ chạy nền (foreground service): đúng một, dịch vụ cuộc gọi** (`expo.modules.unichatcalls.CallService`,
@@ -204,7 +225,10 @@ App content): kiểu `phoneCall` — "VoIP voice and video calls between members
 `camera` — "the user's own microphone/camera during a call they started or answered", kèm video quay màn hình: nhận
 cuộc gọi trên máy khoá → Nghe → khoá máy giữa cuộc gọi → thông báo cuộc gọi đang diễn ra → Gác máy. `expo-audio` tắt
 phát/ghi nền (`enableBackgroundPlayback: false`; tin thoại dừng khi rời app), `MediaProjectionService` của WebRTC (chia
-sẻ màn hình, app không dùng) bị gỡ khỏi manifest. Ba dịch vụ không chạy nền khác: `UniChatMessagingService` (dịch vụ
+sẻ màn hình, app không dùng) bị gỡ khỏi manifest. Dịch vụ của WorkManager (`SystemJobService`, `SystemAlarmService`,
+`SystemForegroundService` — không có kiểu foreground và không bao giờ chạy: không job nào xin chạy foreground — và
+`MultiInstanceInvalidationService` của Room) chạy job gửi tiếp tin đang chờ khi app ở nền (`modules/unichat-background`),
+không thêm quyền nào. Ba dịch vụ không chạy nền khác: `UniChatMessagingService` (dịch vụ
 FCM của app: push đổ chuông thành màn đổ chuông ngay, không cần khởi động JavaScript; mọi push khác chuyển cho dịch vụ
 của `expo-notifications`), `TaskJobService` của `expo-task-manager` (đường dự phòng của push cuộc gọi khi app đang mở)
 và `CallActionTaskService` (Từ chối/Gác máy trên thông báo báo cho server). App không xin quyền

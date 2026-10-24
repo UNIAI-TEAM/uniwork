@@ -44,6 +44,7 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   cache đĩa qua schema mạng (`data/persisted-schema.lock.json`). Schema đổi thì quyết định bump version.
 - `data/server-contract.test.ts`: mỗi trường schema app đọc là một trường JSON của SDO Go trả nó; mỗi flag trong
   `MOBILE_FLAG_DEFAULTS` là flag `Mobile: true` của `server/internal/featureflags/keys.go`.
+- `scripts/mobile-route-catalogue.test.mjs`: mọi path `/api/v1` app gọi (kể cả core nó chạy) là route router đăng ký.
 - Không nuốt lỗi: `.catch(bestEffort(...))` (`data/report.ts`) hoặc `settled()` (`lib/settled.ts`); log qua
   `data/logger.ts` (`no-console` ở nơi khác); lỗi một thao tác là `toast.error(...)`.
 - Không `any`, không `x!` trong `app/`/`components/`; dòng mã nguồn ≤ 150 ký tự (`max-len`); file ≤ 500 dòng.
@@ -56,10 +57,18 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
-  `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`.
+  `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`. Mọi
+  quyền binary Android xin, kể cả quyền thư viện Maven gộp vào, có trong `android-permissions.json` kèm ai thêm, vì sao
+  giữ, Play hỏi gì (`scripts/mobile-apk-scan.mjs` đọc APK/AAB thật); không cần thì chặn bằng `blockedPermissions`.
 - Mọi tin FCM vào `UniChatMessagingService` trước (`modules/unichat-calls`, ưu tiên trên dịch vụ của expo-notifications,
-  `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp như cũ;
+  `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp với `tag` của server nhấc lên chỗ
+  expo-notifications đọc (`PushTag.kt`: mỗi push của phòng thay thông báo của phòng);
   chữ và công tắc của chuông native ghi qua `data/calls/native-ring.ts` (chi tiết: `calls.md`).
+- iPhone (ADR 0038, `calls-ios.md`): mọi VoIP push vào `modules/unichat-calls/ios/CallCenter.swift` được báo cho CallKit trước completion
+  của PushKit, kể cả `end` và payload lạ (`native-modules.test.ts › every VoIP push is reported to CallKit`); module iOS
+  tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
+  (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
+  (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
   PR, có `ReviewAt`.
 - Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo
@@ -74,13 +83,14 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 | `app.config.ts`, biến build, ký OTA, ghim TLS | `docs/engineering/unichat-mobile/config-security.md` |
 | `lib/`, theme, token, tương phản | `docs/engineering/unichat-mobile/lib-and-theme.md` |
 | Socket, frame, ân hạn nền, khôi phục phiên | `docs/engineering/unichat-mobile/realtime.md` |
-| Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa | `docs/engineering/unichat-mobile/offline-first.md` |
+| Mở lạnh, kho trên máy, outbox, gửi tiếp ở nền, lượt chờ, nháp, cache đĩa | `docs/engineering/unichat-mobile/offline-first.md` |
 | Báo lỗi, Sentry, log, cấu hình từ xa, thống kê | `docs/engineering/unichat-mobile/observability.md` |
 | Xoá tài khoản, pháp lý, đồng ý AI, báo cáo, hồ sơ store | `docs/engineering/unichat-mobile/store-compliance.md` |
 | Ẩn thông báo, khoá app, chặn chụp màn hình | `docs/engineering/unichat-mobile/device-privacy.md` |
 | Deep link, phản hồi thông báo | `docs/engineering/unichat-mobile/navigation.md` |
 | Tab Chat: key, cache, màn hình, file route | `docs/engineering/unichat-mobile/chat.md` |
 | Cuộc gọi, cuộc gọi native Android, kênh và push | `docs/engineering/unichat-mobile/calls.md` |
+| Cuộc gọi trên iPhone: PushKit, CallKit, token VoIP, `NativeCallSession` | `docs/engineering/unichat-mobile/calls-ios.md` |
 | Hiệu năng danh sách, timeline, ảnh, bundle | `docs/engineering/unichat-mobile/performance.md` |
 | Trợ năng, cảm giác, quy ước nền tảng, ngôn ngữ | `docs/engineering/unichat-mobile/ux-a11y-i18n.md` |
 | Lệnh, hai lớp test, CI | `docs/engineering/unichat-mobile/testing-ci.md` |

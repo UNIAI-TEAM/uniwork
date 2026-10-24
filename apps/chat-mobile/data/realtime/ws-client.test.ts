@@ -82,6 +82,22 @@ function useMockSocket() {
   });
 }
 
+describe("WSClient presence beat", () => {
+  useMockSocket();
+
+  it("sends presence.beat and resolves from presence.ack", async () => {
+    const { client, socket } = connectAuthenticatedClient();
+    const pending = client.sendPresenceBeat(true);
+    expect(socket.frames().at(-1)).toEqual({
+      type: "presence.beat",
+      payload: { state: "online", visible: true },
+    });
+    socket.receive({ type: "presence.ack", payload: { online_user_ids: ["u2"] } });
+    await expect(pending).resolves.toEqual(["u2"]);
+    client.disconnect();
+  });
+});
+
 describe("WSClient application heartbeat", () => {
   useMockSocket();
 

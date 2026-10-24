@@ -436,6 +436,7 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/notifications/push/config": {class: isoPublic, reason: reasonProbe},
 	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
 	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/apple/native":        {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
 	"POST /api/v1/auth/login":               {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/logout":              {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/mfa/verify":          {class: isoPublic, reason: reasonAuth},

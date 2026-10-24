@@ -16,8 +16,10 @@ name: UniChat mobile production build
 # Crash reporting is a release condition for production (audit
 # "observability-optional-in-prod"): the EAS `production` environment must hold
 # SENTRY_DSN, and this environment SENTRY_AUTH_TOKEN with the SENTRY_ORG /
-# SENTRY_PROJECT variables, so the run can prove the build's source maps and
-# symbols reached Sentry (the release <appId>@<version>+<version code> exists).
+# SENTRY_PROJECT variables, so the run can prove the build's JS source map
+# reached Sentry: Sentry resolves the debug ID of the bundle inside the built
+# AAB (scripts/mobile-sentry-symbols.mjs). The R8 mapping and native symbols
+# are not uploaded to Sentry (no Sentry Android Gradle plugin).
 # The store build itself still succeeds without them (eas.json keeps
 # SENTRY_ALLOW_FAILURE: a build must work without Sentry); this workflow refuses
 # to submit it unless allow_missing_crash_reporting is ticked, which the
@@ -155,9 +157,10 @@ jobs:
           ' "$RUNNER_TEMP/build.json"
       - name: Security scan of the built bundle
         # Audit "Security & privacy", no-ci-binary-security-scan: the AAB the store would get, built with the production
-        # EAS environment, carries no credential in any file and still defines every class native code finds by name
-        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit). Its manifest is protobuf, so
-        # the CI release APK (mobile-verify.yml › android-release) is what scans the manifest. Before anything is submitted.
+        # EAS environment, carries no credential in any file, still defines every class native code finds by name
+        # (scripts/mobile-apk-scan.mjs; 0.3.0 (11) reached Play without WebRTC's JniInit), and its merged manifest (read
+        # from the bundle's protobuf) is locked down and asks only for the permissions of
+        # apps/chat-mobile/android-permissions.json. Before anything is submitted.
         run: |
           set -euo pipefail
           url="$(node -e '
@@ -170,23 +173,30 @@ jobs:
           fi
           curl -sSfL --retry 3 -o "$RUNNER_TEMP/app.aab" "$url"
           node "$GITHUB_WORKSPACE/scripts/mobile-apk-scan.mjs" "$RUNNER_TEMP/app.aab"
-      - name: The build's source maps and symbols reached Sentry
+      - id: symbols
+        name: The build's JS source map reached Sentry
         if: steps.crash.outputs.verify == 'true'
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           SENTRY_URL: ${{ vars.SENTRY_URL }}
           RELEASE: com.uniworkos.chat@${{ steps.version.outputs.version }}+${{ steps.build.outputs.version_code }}
-        # The Gradle upload (sentry.gradle) names the release <appId>@<versionName>+<versionCode>; with
-        # SENTRY_ALLOW_FAILURE a failed upload leaves the build green, so the release's presence is the proof.
+        # The Gradle upload (sentry.gradle) sends the bundle and its map as an artifact bundle keyed by the bundle's
+        # debug ID; that creates no Sentry release (one appears with the first event), so the release endpoint 404s
+        # after an upload that worked (0.3.1 (12)). With SENTRY_ALLOW_FAILURE a failed upload leaves the build green,
+        # so the proof is Sentry resolving the debug ID read from this AAB's own bundle (scripts/mobile-sentry-symbols.mjs).
+        # The R8 mapping and NDK symbols are not uploaded (no Sentry Android Gradle plugin): this proves the JS only.
         run: |
           set -euo pipefail
-          encoded="$(node -p 'encodeURIComponent(process.env.RELEASE)')"
-          status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" "${SENTRY_URL:-https://sentry.io}/api/0/organizations/$SENTRY_ORG/releases/$encoded/")"
-          if [ "$status" != "200" ]; then
-            echo "::error::Sentry has no release $RELEASE ($status): the build's source maps and symbols did not upload, so its crashes would be unreadable. Check SENTRY_AUTH_TOKEN in the EAS production environment and the build log's sentry-cli step."
-            exit 1
+          if node "$GITHUB_WORKSPACE/scripts/mobile-sentry-symbols.mjs" "$RUNNER_TEMP/app.aab" --release "$RELEASE"; then
+            exit 0
           fi
+          if [ "$ALLOW_NO_CRASH_REPORTING" = "true" ]; then
+            echo "::warning::submitting $RELEASE without its source map proved in Sentry: allow_missing_crash_reporting waives it (recorded in the summary)"
+            exit 0
+          fi
+          exit 1
       - name: Submit this binary to the production app's internal track
         working-directory: apps/chat-mobile
         env:
@@ -198,11 +208,13 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           VERSION_CODE: ${{ steps.build.outputs.version_code }}
           BUILD_ID: ${{ steps.build.outputs.id }}
+          DEBUG_ID: ${{ steps.symbols.outputs.debug_id }}
         run: |
           {
             echo "### UniChat production build"
             echo
             echo "- version \`${VERSION:-?}\`, version code \`${VERSION_CODE:-not built}\`, EAS build \`${BUILD_ID:-none}\`"
+            if [ -n "$DEBUG_ID" ]; then echo "- JS bundle debug ID \`$DEBUG_ID\` (Sentry: Settings › Source Maps › Artifact Bundles)"; fi
             if [ "$ALLOW_NO_CRASH_REPORTING" = "true" ]; then echo "- **crash reporting waived** for this run (allow_missing_crash_reporting)"; fi
             echo "- next: test it on the production app's internal track, then run \"UniChat mobile promote\" with version code \`${VERSION_CODE:-?}\` (runbook › Phát hành production theo giai đoạn)"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -5,15 +5,12 @@
 //     queues are read, on NetInfo's offline → online edge without waiting for
 //     any socket, on every return to the front, and as the app leaves it: a
 //     message written just before a switch goes while JavaScript still runs
-//     (Android until the process is frozen, iOS its few seconds; the socket's
-//     25 s grace keeps the path warm). A workspace's socket reconnect adds its
-//     own flush (realtime/use-chat-realtime.ts). Nothing drains the outbox
-//     while the app stays away: iOS needs a custom module for
-//     beginBackgroundTask, and an OS-scheduled periodic task
-//     (expo-background-task: WorkManager, BGProcessingTask) runs at 15 minutes
-//     at best and adds WorkManager's own manifest entries, which
-//     scripts/android-manifest.mjs does not see (it reads linked packages, not
-//     Maven libraries), so the Play declarations could not be checked here;
+//     (the socket's 25 s grace keeps the path warm), and what is still owed
+//     then keeps going off screen (outbox-drain/background-send.ts: iOS's
+//     borrowed time and scheduled task, Android's WorkManager job, which also
+//     sends when the network comes back with the app away); back in front, the
+//     Android job waiting for a network stands down. A workspace's socket
+//     reconnect adds its own flush (realtime/use-chat-realtime.ts);
 //   - the offline copy (timeline-refresh.ts): the recent rooms whose cached
 //     timeline is behind are read once as the app leaves the front, and a push
 //     about a room, received in front or tapped, reads that room's newest page.
@@ -26,6 +23,7 @@ import { AppState } from "react-native";
 import { isOnlineState } from "@/lib/reachability";
 import { authConfig } from "./auth/flow";
 import { flushOwed } from "./owed";
+import { backInFront, keepSendingOffScreen } from "./outbox-drain/background-send";
 import { bestEffort } from "./report";
 import { hydrateFromPush, refreshStaleTimelines } from "./timeline-refresh";
 
@@ -48,9 +46,14 @@ export function useAccountSync(userId: string | null): void {
       wasOnline = online;
     });
     const appState = AppState.addEventListener("change", (state) => {
-      if (state === "active") flush();
+      if (state === "active") {
+        flush();
+        void backInFront().catch(bestEffort("outbox", "background send not stood down", "report"));
+      }
       if (state !== "background") return;
+      // The flush first: what it puts on the wire is "sending", which keepSendingOffScreen counts as owed.
       flush();
+      void keepSendingOffScreen(userId).catch(bestEffort("outbox", "outbox not kept going off screen", "report"));
       if (onlineManager.isOnline()) void refreshStaleTimelines(qc).catch(bestEffort("offline-cache", "stale rooms not refreshed", "report"));
     });
     const received = Notifications.addNotificationReceivedListener((notification) => hydrate(notification.request.content.data));

@@ -122,7 +122,7 @@ func TestMobileCallsKillSwitchTurnsOffByEnv(t *testing.T) {
 // FF_<KEY>=N% (or a `percent: {percent: N, by: user_id}` rule in the flags
 // file) puts the same person in or out on every config read, about N% of all.
 func TestMobileSubsystemSwitchesRollOutByUserPercent(t *testing.T) {
-	for _, key := range []string{"unichat_mobile_media_upload", "unichat_mobile_voice_messages", "unichat_mobile_ai_catch_up", "unichat_mobile_outbox_flush", "unichat_mobile_chat_sync"} {
+	for _, key := range []string{"unichat_mobile_media_upload", "unichat_mobile_voice_messages", "unichat_mobile_ai_catch_up", "unichat_mobile_outbox_flush", "unichat_mobile_background_send", "unichat_mobile_chat_sync"} {
 		f, ok := Lookup(key)
 		if !ok || !f.Mobile || !f.Default || f.Public || f.ReviewAt.IsZero() {
 			t.Fatalf("%s: %+v, want a mobile flag on by default with a review date", key, f)

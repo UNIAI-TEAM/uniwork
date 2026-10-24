@@ -244,6 +244,42 @@ describe("runFolderUpload upload", () => {
     expect(transport.calls.filter((c) => c.method === "put" && c.fileKey === "f-0002")).toHaveLength(1);
   });
 
+  it("a zero-size picked file the browser cannot open fails as file_unreadable: the probe reads the blob itself, a 0-size slice opens nothing", async () => {
+    // Chromium cannot stat a path past MAX_PATH: size is 0, slice(0, 1) is an
+    // empty blob that resolves, and only reading the file itself rejects.
+    class UnstatableBlob extends Blob {
+      override get size(): number {
+        return 0;
+      }
+      override slice(): Blob {
+        return new Blob([]);
+      }
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        return Promise.reject(new DOMException("not found", "NotFoundError"));
+      }
+    }
+    const { transport, handle } = setup(
+      files(3),
+      { putFailures: { "f001.pdf": ["network", "network", "network"] } },
+      { file: (index) => (index === 1 ? new UnstatableBlob(["x"]) : new Blob(["x"])) },
+    );
+    const report = await settle(handle.done);
+    expect(report.done).toBe(2);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "file_unreadable", retryable: false }]);
+    expect(transport.calls.filter((c) => c.method === "put" && c.fileKey === "f-0002")).toHaveLength(1);
+  });
+
+  it("a genuinely empty readable file whose PUT drops still takes the network retry path", async () => {
+    const { transport, handle } = setup(
+      files(3),
+      { putFailures: { "f001.pdf": ["network", "network", "network"] } },
+      { file: (index) => (index === 1 ? new Blob([]) : new Blob(["x"])) },
+    );
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "network", retryable: true }]);
+    expect(transport.calls.filter((c) => c.method === "put" && c.fileKey === "f-0002")).toHaveLength(3);
+  });
+
   it("fails a file after two retries, and retryFailed re-runs only that file", async () => {
     const { transport, handle } = setup(files(3), { putFailures: { "f001.pdf": ["network", "network", "network"] } });
     const report = await settle(handle.done);

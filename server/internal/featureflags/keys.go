@@ -78,11 +78,13 @@ var catalogue = []Flag{
 	// (or an organization/user override) hides calling on every installed
 	// phone at its next config read, incoming calls included.
 	{Key: "unichat_mobile_calls", Description: "UniChat mobile: gọi thoại/video, cả màn cuộc gọi đến native trên Android; tắt là kill switch ẩn và ngừng nhận cuộc gọi trên mọi bản đã cài (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
-	// Calls on an iPhone wait for CallKit and PushKit (docs/adr/drafts/0038): without them a locked
+	// Calls on an iPhone ring through CallKit and PushKit (docs/adr/0038): without them a locked
 	// iPhone plays one short sound and keeps "X đang gọi" after the call ends. Off by default; an
 	// iPhone's unichat_mobile_calls reads off while this is off (MobileFlagsFor), and the push
-	// consumer sends no ring to an iPhone (PushConsumer.SetMobileCallsIOS).
-	{Key: "unichat_mobile_calls_ios", Description: "UniChat mobile: gọi điện trên iPhone; tắt (mặc định) thì iPhone không hiện nút gọi và không nhận push đổ chuông, vì chưa có CallKit/PushKit (UNI-2053)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	// consumer sends no ring to an iPhone (PushConsumer.SetMobileCallsIOS). On, an iPhone with a
+	// PushKit token gets VoIP pushes (push_apns.go); turn it on once the APNs key is on the server
+	// and the CallKit build has passed the device checklist.
+	{Key: "unichat_mobile_calls_ios", Description: "UniChat mobile: gọi điện trên iPhone; bật thì iPhone có token PushKit đổ chuông qua CallKit (VoIP push thẳng tới APNs), tắt (mặc định) thì iPhone không hiện nút gọi và không nhận push đổ chuông (UNI-2053, ADR 0038)", Default: false, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	// The phone's other risky subsystems (UNI-2053 audit "remote-config-thin"): each is on by default and
 	// read by the app through useMobileFlag / readMobileFlag; FF_<KEY>=false, FF_<KEY>=N% (by user id) or a
 	// console override turns one off for everyone, a share of people, an organization or one person.
@@ -90,6 +92,7 @@ var catalogue = []Flag{
 	{Key: "unichat_mobile_voice_messages", Description: "UniChat mobile: ghi và gửi tin thoại; tắt thì ẩn nút ghi âm của ô soạn tin (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_ai_catch_up", Description: "UniChat mobile: \"Bắt kịp nhanh\" bằng AI trên danh sách chat; tắt thì ẩn banner (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_outbox_flush", Description: "UniChat mobile: tự gửi lại tin và thao tác đang chờ (khi có mạng lại, về foreground, socket nối lại); tắt thì chúng nằm yên trên máy, gửi từ ô soạn tin và nút Thử lại vẫn chạy (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
+	{Key: "unichat_mobile_background_send", Description: "UniChat mobile: gửi tiếp tin và thao tác đang chờ khi app đã rời màn hình (iOS xin thêm thời gian lúc rời app và task nền theo lịch; Android job WorkManager chạy khi có mạng, kể cả khi mạng có lại lúc app ở nền); tắt thì chúng chờ tới lần mở app sau (UNI-2141)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "unichat_mobile_chat_sync", Description: "UniChat mobile: đồng bộ chat theo nhật ký thay đổi (GET .../chat/sync, ADR 0039 nháp): reconnect và mỗi phút yên lặng chỉ đọc phần đã đổi; tắt thì reconnect refetch mọi timeline đang hiện như trước (UNI-2071)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	// The conversation's message list on FlashList 2 (audit timeline-flatlist): off by default keeps the tuned
 	// inverted FlatList; FF_UNICHAT_MOBILE_TIMELINE_RECYCLED=N% puts a share of people (by user id) on the recycled

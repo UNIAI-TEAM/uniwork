@@ -6,8 +6,20 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
-import { REQUIRED_DEX_CLASSES, compare, dexClassDescriptors, dexFindings, isDexPath, manifestFindings, parseXmlTree, scanBytes } from "./mobile-apk-scan.mjs";
+import { fakeDex, protoXml } from "./mobile-apk-scan.fixture.mjs";
+import {
+  REQUIRED_DEX_CLASSES,
+  compare,
+  dexClassDescriptors,
+  dexFindings,
+  isDexPath,
+  manifestFindings,
+  manifestPermissions,
+  parseProtoXml,
+  parseXmlTree,
+  permissionFindings,
+  scanBytes,
+} from "./mobile-apk-scan.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,10 +33,24 @@ const XMLTREE = `N: android=http://schemas.android.com/apk/res/android (line=1)
     A: package="com.uniworkos.chat" (Raw: "com.uniworkos.chat")
       E: uses-permission (line=2)
         A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.INTERNET" (Raw: "android.permission.INTERNET")
+      E: uses-permission (line=2)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.DETECT_SCREEN_CAPTURE" (Raw: "android.permission.DETECT_SCREEN_CAPTURE")
+        A: http://schemas.android.com/apk/res/android:minSdkVersion(0x0101020c)=34
+      E: uses-permission (line=2)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.READ_EXTERNAL_STORAGE" (Raw: "android.permission.READ_EXTERNAL_STORAGE")
+        A: http://schemas.android.com/apk/res/android:maxSdkVersion(0x01010271)=32
+      E: uses-permission-sdk-23 (line=2)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.permission.ACCESS_COARSE_LOCATION" (Raw: "android.permission.ACCESS_COARSE_LOCATION")
+      E: permission (line=2)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" (Raw: "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+        A: http://schemas.android.com/apk/res/android:protectionLevel(0x01010009)=0x00000002
+      E: uses-permission (line=2)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" (Raw: "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
       E: application (line=3)
         A: http://schemas.android.com/apk/res/android:debuggable(0x0101000f)=true
         A: http://schemas.android.com/apk/res/android:allowBackup(0x01010280)=false
         A: http://schemas.android.com/apk/res/android:usesCleartextTraffic(0x010104ec)=false
+        A: http://schemas.android.com/apk/res/android:networkSecurityConfig(0x01010527)=@0x7f150004
           E: activity (line=4)
             A: http://schemas.android.com/apk/res/android:name(0x01010003)=".MainActivity" (Raw: ".MainActivity")
             A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
@@ -50,6 +76,20 @@ const XMLTREE = `N: android=http://schemas.android.com/apk/res/android (line=1)
                   E: action (line=12)
                     A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.x.PING" (Raw: "com.x.PING")
 `;
+
+/** An app bundle's base/manifest/AndroidManifest.xml under `dir`: a locked-down application asking for `permissions`. */
+function writeBundleManifest(dir, permissions) {
+  fs.mkdirSync(path.join(dir, "base", "manifest"), { recursive: true });
+  const manifest = {
+    tag: "manifest",
+    attrs: { package: "com.uniworkos.chat" },
+    children: [
+      ...permissions.map((name) => ({ tag: "uses-permission", attrs: { "android:name": name } })),
+      { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
+    ],
+  };
+  fs.writeFileSync(path.join(dir, "base", "manifest", "AndroidManifest.xml"), protoXml(manifest));
+}
 
 test("finds credentials and prints only a hint of them", () => {
   // The jwt.io sample key, split so secret scanners do not read the fixture as a key.
@@ -106,7 +146,7 @@ test("reads aapt2's xmltree and flags a debuggable app and every component reach
   );
 });
 
-test("flags backup, cleartext and testOnly, and a dump without a manifest", () => {
+test("flags backup, cleartext, testOnly and an unpinned app, and a dump without a manifest", () => {
   const tree = parseXmlTree(`  E: manifest (line=1)
     A: package="a.b" (Raw: "a.b")
       E: application (line=2)
@@ -115,10 +155,105 @@ test("flags backup, cleartext and testOnly, and a dump without a manifest", () =
 `);
   assert.deepEqual(
     manifestFindings(tree).findings.map((f) => f.rule),
-    ["test-only", "allow-backup", "cleartext"],
+    ["test-only", "allow-backup", "cleartext", "unpinned"],
   );
   assert.deepEqual(manifestFindings(parseXmlTree("")).findings.map((f) => f.rule), ["no-manifest"]);
   assert.deepEqual(manifestFindings(parseXmlTree('  E: manifest (line=1)\n    A: package="a.b" (Raw: "a.b")\n')).findings, []);
+});
+
+// The same manifest as XMLTREE, as an app bundle carries it.
+const PROTO_MANIFEST = {
+  tag: "manifest",
+  attrs: { "android:compileSdkVersion": "36", package: "com.uniworkos.chat" },
+  children: [
+    { tag: "uses-permission", attrs: { "android:name": "android.permission.INTERNET" } },
+    { tag: "uses-permission", attrs: { "android:name": "android.permission.DETECT_SCREEN_CAPTURE", "android:minSdkVersion": "34" } },
+    { tag: "uses-permission", attrs: { "android:name": "android.permission.READ_EXTERNAL_STORAGE", "android:maxSdkVersion": "32" } },
+    { tag: "uses-permission-sdk-23", attrs: { "android:name": "android.permission.ACCESS_COARSE_LOCATION" } },
+    { tag: "permission", attrs: { "android:name": "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION", "android:protectionLevel": "signature" } },
+    { tag: "uses-permission", attrs: { "android:name": "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" } },
+    {
+      tag: "application",
+      attrs: { "android:debuggable": "true", "android:allowBackup": "false", "android:usesCleartextTraffic": "false", "android:networkSecurityConfig": "" },
+      children: [
+        { tag: "activity", attrs: { "android:name": ".MainActivity", "android:exported": "true" }, children: [{ tag: "intent-filter", children: [{ tag: "action", attrs: { "android:name": "android.intent.action.MAIN" } }] }] },
+        { tag: "activity", attrs: { "android:name": "com.evil.Leaky", "android:exported": "true" } },
+        { tag: "service", attrs: { "android:name": "com.x.Hidden", "android:exported": "false" } },
+        { tag: "receiver", attrs: { "android:name": "androidx.profileinstaller.ProfileInstallReceiver", "android:permission": "android.permission.DUMP", "android:exported": "true" } },
+        { tag: "provider", attrs: { "android:name": "com.x.Prov", "android:exported": "true" } },
+        { tag: "receiver", attrs: { "android:name": "com.x.Implicit" }, children: [{ tag: "intent-filter", children: [{ tag: "action", attrs: { "android:name": "com.x.PING" } }] }] },
+      ],
+    },
+  ],
+};
+
+const XMLTREE_PERMISSIONS = [
+  { name: "android.permission.INTERNET" },
+  { name: "android.permission.DETECT_SCREEN_CAPTURE", minSdkVersion: 34 },
+  { name: "android.permission.READ_EXTERNAL_STORAGE", maxSdkVersion: 32 },
+  { name: "android.permission.ACCESS_COARSE_LOCATION", tag: "uses-permission-sdk-23" },
+  { name: "com.uniworkos.chat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" },
+];
+
+test("lists the permissions the merged manifest asks for, with their API bounds, and not the ones it declares", () => {
+  assert.deepEqual(manifestPermissions(parseXmlTree(XMLTREE)), XMLTREE_PERMISSIONS);
+  assert.deepEqual(manifestPermissions(parseXmlTree("")), []);
+});
+
+test("reads an app bundle's protobuf manifest into the tree aapt2's xmltree gives for an APK", () => {
+  const tree = parseProtoXml(protoXml(PROTO_MANIFEST));
+  assert.deepEqual(manifestPermissions(tree), XMLTREE_PERMISSIONS);
+  const proto = manifestFindings(tree);
+  const apk = manifestFindings(parseXmlTree(XMLTREE));
+  assert.equal(proto.packageName, "com.uniworkos.chat");
+  assert.deepEqual(proto.findings, apk.findings);
+  assert.throws(() => parseProtoXml(Buffer.from([0x0a, 0x7f, 0x01])), /runs past the end/);
+  assert.throws(() => parseProtoXml(Buffer.from([0x0b])), /wire type 3/);
+  // A manifest nested past any real one is refused, not followed until the stack runs out.
+  let deep = { tag: "x" };
+  for (let i = 0; i < 100; i++) deep = { tag: "x", children: [deep] };
+  assert.throws(() => parseProtoXml(protoXml(deep)), /nested deeper than 64/);
+});
+
+test("a permission outside the reviewed list fails, one asked for under other API bounds fails, one no longer asked for is reported", () => {
+  const allowlist = {
+    permissions: [
+      { name: "android.permission.INTERNET", reason: "r" },
+      { name: "android.permission.DETECT_SCREEN_CAPTURE", minSdkVersion: 34, reason: "r" },
+      { name: "android.permission.READ_EXTERNAL_STORAGE", reason: "r" },
+      { name: "{package}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION", reason: "r" },
+      { name: "android.permission.ACCESS_COARSE_LOCATION", reason: "r" },
+      { name: "android.permission.CAMERA", reason: "r" },
+    ],
+  };
+  const { findings, missing } = permissionFindings(XMLTREE_PERMISSIONS, allowlist, "com.uniworkos.chat");
+  assert.deepEqual(
+    findings.map((f) => [f.rule, f.name]),
+    [
+      ["permission-sdk-changed", "android.permission.READ_EXTERNAL_STORAGE"],
+      // The sdk-23 element is another element: only an entry with that tag lists it.
+      ["permission-unlisted", "android.permission.ACCESS_COARSE_LOCATION"],
+    ],
+  );
+  assert.match(findings[0].hint, /maxSdkVersion=32.*android-permissions\.json lists it with no bounds/);
+  assert.match(findings[1].hint, /<uses-permission-sdk-23 android\.permission\.ACCESS_COARSE_LOCATION> is not in android-permissions\.json/);
+  assert.deepEqual(missing.map((entry) => entry.name), ["android.permission.ACCESS_COARSE_LOCATION", "android.permission.CAMERA"]);
+  assert.deepEqual(permissionFindings([], {}, "a"), { findings: [], missing: [] });
+});
+
+test("the app's reviewed permissions say who adds each one, why it stays and what Play asks of it", () => {
+  const allowlist = JSON.parse(fs.readFileSync(path.join(here, "../apps/chat-mobile/android-permissions.json"), "utf8"));
+  const keys = allowlist.permissions.map((entry) => `${entry.tag ?? "uses-permission"} ${entry.name}`);
+  assert.equal(new Set(keys).size, keys.length, "one entry per permission element");
+  for (const entry of allowlist.permissions) {
+    assert.match(entry.name, /^(?:[a-z][\w]*\.)+[A-Z][A-Z0-9_]*$|^\{package\}\.[A-Z][A-Z0-9_]*$/, entry.name);
+    assert.ok(String(entry.from ?? "").length >= 5, `${entry.name}: from`);
+    assert.ok(String(entry.reason ?? "").length >= 30, `${entry.name}: reason`);
+    assert.ok(String(entry.play ?? "").length >= 10, `${entry.name}: play`);
+    for (const bound of ["minSdkVersion", "maxSdkVersion"]) if (bound in entry) assert.ok(Number.isInteger(entry[bound]), `${entry.name}: ${bound}`);
+  }
+  // Blocking it killed the app at launch on Android 14+ (app.config.ts › blockedPermissions).
+  assert.ok(allowlist.permissions.some((entry) => entry.name === "android.permission.DETECT_SCREEN_CAPTURE" && entry.minSdkVersion === 34));
 });
 
 test("the baseline excuses what it names, for this package, and reports what it names in vain", () => {
@@ -225,18 +360,22 @@ test("scans an archive end to end and fails on a credential the baseline does no
     fs.writeFileSync(path.join(dir, "base", "assets", "index.android.bundle"), `var a = 1; var token = "ghp_${"z".repeat(36)}";`);
     fs.mkdirSync(path.join(dir, "base", "dex"));
     fs.writeFileSync(path.join(dir, "base", "dex", "classes.dex"), fakeDex(REQUIRED));
+    writeBundleManifest(dir, ["android.permission.INTERNET"]);
     execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
     const baseline = path.join(dir, "baseline.json");
     fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [] }));
-    const run = spawnSync(process.execPath, [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline], { encoding: "utf8" });
+    const permissions = path.join(dir, "android-permissions.json");
+    fs.writeFileSync(permissions, JSON.stringify({ permissions: [{ name: "android.permission.INTERNET" }] }));
+    const scanArgs = [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline, "--permissions", permissions];
+    const run = spawnSync(process.execPath, scanArgs, { encoding: "utf8" });
     assert.equal(run.status, 1, run.stdout + run.stderr);
     assert.match(run.stdout, /::error::github-token in base\/assets\/index\.android\.bundle at \d+: ghp_zz…/);
     assert.ok(!run.stdout.includes("z".repeat(10)), "the log never carries the value");
 
     fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [{ rule: "github-token", file: "base/assets/index.android.bundle", reason: "fixture" }] }));
-    const excused = spawnSync(process.execPath, [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline], { encoding: "utf8" });
+    const excused = spawnSync(process.execPath, scanArgs, { encoding: "utf8" });
     assert.equal(excused.status, 0, excused.stdout + excused.stderr);
-    assert.match(excused.stdout, /only the secret and dex scans ran/);
+    assert.match(excused.stdout, /permissions: 1 asked for \(base\/manifest\/AndroidManifest\.xml\), every one reviewed/);
     assert.match(excused.stdout, /dex: 1 file\(s\) define all \d+ class\(es\) found by name/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -265,6 +404,34 @@ test("fails an archive whose dex lost a class found by name, or that has no dex 
     const empty = scan();
     assert.equal(empty.status, 1, empty.stdout + empty.stderr);
     assert.match(empty.stdout, /::error::no-dex in classes\*\.dex: the archive has no dex file/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("fails an app bundle that asks for a permission the reviewed list does not name, or that has no manifest", { skip: spawnSync("zip", ["-v"]).status !== 0 }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apk-scan-test-"));
+  try {
+    fs.mkdirSync(path.join(dir, "base", "dex"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "base", "dex", "classes.dex"), fakeDex(REQUIRED));
+    writeBundleManifest(dir, ["android.permission.INTERNET", "android.permission.READ_CONTACTS"]);
+    execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
+    const baseline = path.join(dir, "baseline.json");
+    fs.writeFileSync(baseline, JSON.stringify({ exported: [], secrets: [] }));
+    const permissions = path.join(dir, "android-permissions.json");
+    fs.writeFileSync(permissions, JSON.stringify({ permissions: [{ name: "android.permission.INTERNET" }, { name: "android.permission.CAMERA" }] }));
+    const scan = () => spawnSync(process.execPath, [path.join(here, "mobile-apk-scan.mjs"), path.join(dir, "app.aab"), "--baseline", baseline, "--permissions", permissions], { encoding: "utf8" });
+    const added = scan();
+    assert.equal(added.status, 1, added.stdout + added.stderr);
+    assert.match(added.stdout, /::error::permission-unlisted in AndroidManifest\.xml: <uses-permission android\.permission\.READ_CONTACTS> is not in android-permissions\.json/);
+    assert.match(added.stdout, /::notice::android-permissions\.json lists <uses-permission android\.permission\.CAMERA>, which the binary no longer asks for: drop it/);
+
+    fs.rmSync(path.join(dir, "app.aab"));
+    fs.rmSync(path.join(dir, "base", "manifest"), { recursive: true });
+    execFileSync("zip", ["-qr", "app.aab", "base"], { cwd: dir });
+    const none = scan();
+    assert.equal(none.status, 1, none.stdout + none.stderr);
+    assert.match(none.stdout, /::error::no-manifest in base\/manifest\/AndroidManifest\.xml: an app bundle without its base module's manifest/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

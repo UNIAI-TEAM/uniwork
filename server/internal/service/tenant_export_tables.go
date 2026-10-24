@@ -82,6 +82,7 @@ var tenantExportIncludedTables = []string{
 	"chat_thread_followers",
 	"chat_thread_task_links",
 	"chat_user_nicknames",
+	"chat_voice_call_sessions",
 	"chat_voice_recordings",
 	"chat_voice_transcripts",
 	"comment_reactions",

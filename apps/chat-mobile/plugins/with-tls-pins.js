@@ -1,13 +1,14 @@
 // TLS public-key pinning for UniChat's own servers (audit "Security & privacy",
-// no-pinning-or-attestation; MASVS-NETWORK-2). Off unless the build's
-// environment names the pins (app.config.ts › tlsPinning reads
-// UNICHAT_TLS_PINS and UNICHAT_TLS_PIN_EXPIRES), so no build pins by accident.
+// no-pinning-or-attestation; MASVS-NETWORK-2), on for every staging and
+// production build: app.config.ts › tlsPinning hands it the committed
+// tls-pins.json (hosts, pins, expiry). Dev builds never pin.
 //
-// The pins are base64 SHA-256 hashes of the SubjectPublicKeyInfo of the CA
-// keys that issue the API's and the web app's certificates, a current one and
-// at least one backup (runbook › Ghim khoá TLS): a leaf certificate rotates
-// every few months, a CA key does not, and a backup lets the server move to
-// another CA without a new binary.
+// The pins are base64 SHA-256 hashes of the SubjectPublicKeyInfo of CA keys,
+// from two CA operators (runbook docs/runbooks/unichat-tls-pins.md): a leaf
+// certificate rotates every few months and Let's Encrypt picks among several
+// intermediates, a root key does not change, and a second operator's roots let
+// the server move CA without a new binary. scripts/mobile-tls-pins.mjs checks
+// every pinned host's live chain against them every day.
 //
 // - Android: a network security config with one <pin-set> per build, carrying
 //   an expiration date after which Android stops enforcing it: the safety
@@ -29,7 +30,7 @@ function networkSecurityConfig({ domains, pins, expiration }) {
   const domainLines = domains.map((domain) => `    <domain includeSubdomains="false">${xmlEscape(domain)}</domain>`).join("\n");
   const pinLines = pins.map((pin) => `      <pin digest="SHA-256">${xmlEscape(pin)}</pin>`).join("\n");
   return `<?xml version="1.0" encoding="utf-8"?>
-<!-- Written by plugins/with-tls-pins.js from UNICHAT_TLS_PINS: do not edit. -->
+<!-- Written by plugins/with-tls-pins.js from tls-pins.json: do not edit. -->
 <network-security-config>
   <base-config cleartextTrafficPermitted="false" />
   <domain-config cleartextTrafficPermitted="false">

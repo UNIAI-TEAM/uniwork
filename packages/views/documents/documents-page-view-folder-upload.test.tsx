@@ -7,6 +7,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import type { OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentsPageView } from "./documents-page-view";
 
 // Folder upload on the Documents home (UNI-2052): the entries exist only when
@@ -74,14 +75,14 @@ function nav(folderId?: string): NavigationAdapter {
   };
 }
 
-function renderView(adapter: NavigationAdapter = nav()) {
+function renderView(adapter: NavigationAdapter = nav(), officeHome?: OfficeHomeLaunchProps) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
     wrap(
       <NavigationProvider value={adapter}>
         <WorkspaceProvider workspace={workspace} user={user}>
           <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} officeHome={officeHome} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>
       </NavigationProvider>,
@@ -89,13 +90,36 @@ function renderView(adapter: NavigationAdapter = nav()) {
   );
 }
 
-function fileEntry(name: string): FileSystemFileEntry {
+function fileEntry(name: string, file: File = new File(["x"], name, { type: "application/pdf" })): FileSystemFileEntry {
   return {
     isFile: true,
     isDirectory: false,
     name,
-    file: (ok: (f: File) => void) => ok(new File(["x"], name, { type: "application/pdf" })),
+    file: (ok: (f: File) => void) => ok(file),
   } as unknown as FileSystemFileEntry;
+}
+
+// Edge: a path past 260 characters is a size-0 File whose bytes cannot be read (UNI-2152).
+class UnstatableFile extends File {
+  constructor(name: string) {
+    super(["x"], name, { type: "application/pdf" });
+  }
+  override get size(): number {
+    return 0;
+  }
+  override arrayBuffer(): Promise<ArrayBuffer> {
+    return Promise.reject(new DOMException("not found", "NotFoundError"));
+  }
+}
+
+function officeHomeProps(launch = vi.fn(async () => "launched" as const)): OfficeHomeLaunchProps {
+  return {
+    channel: "stable",
+    launch,
+    loadInstallers: vi.fn(async () => ({ installers: [] })),
+    loadPlatformHint: vi.fn(async () => ({ platform: "win32-x64" as const, confidence: "certain" as const })),
+    downloadInstaller: vi.fn(async () => "UniWork-Office.exe"),
+  };
 }
 
 function dirEntry(name: string, children: FileSystemEntry[]): FileSystemDirectoryEntry {
@@ -223,6 +247,37 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
     expect(within(dialog).getByTestId("folder-upload-destination")).toHaveTextContent(t("documents.home.my_folder.label"));
     expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("1 tệp");
+  });
+
+  it("warns about a dropped folder the browser cannot fully read and opens the app from the dialog (UNI-2152)", async () => {
+    route({ folderUpload: true });
+    const launch = vi.fn(async () => "launched" as const);
+    renderView(nav(), officeHomeProps(launch));
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const children = [fileEntry("a.pdf"), fileEntry("long.pdf", new UnstatableFile("long.pdf"))];
+    const items = [{ kind: "file", webkitGetAsEntry: () => dirEntry("Báo cáo", children), getAsFile: () => null }];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(await within(dialog).findByRole("heading", { name: "Có 1 tệp trình duyệt không đọc được" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Tải 1 tệp còn lại" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.open_office") }));
+    await waitFor(() => expect(launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
+    await waitFor(() => expect(screen.queryByTestId("folder-upload-dialog")).toBeNull());
+    expect(toast.info).toHaveBeenCalledOnce();
+  });
+
+  it("warns about picked files the browser cannot read, with the files nouns (UNI-2152)", async () => {
+    route({ folderUpload: true });
+    renderView(nav(), officeHomeProps());
+    fireEvent.click(await screenWithFolderUpload());
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folder_upload.menu_file") }));
+    const input = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf", { type: "application/pdf" }), new UnstatableFile("long.pdf")] } });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(await within(dialog).findByRole("note")).toHaveTextContent("Tải lên › Tải lên tệp");
   });
 
   it("reads a dropped folder with the server's extension list, so skipped files do not trip the read bound", async () => {

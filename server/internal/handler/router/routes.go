@@ -73,6 +73,7 @@ type Routes struct {
 	AuthProviders         http.HandlerFunc
 	GoogleStart           http.HandlerFunc
 	GoogleCallback        http.HandlerFunc
+	AppleSignIn           http.HandlerFunc
 	DesktopStart          http.HandlerFunc
 	DesktopConsent        http.HandlerFunc
 	DesktopConsentCommand http.HandlerFunc

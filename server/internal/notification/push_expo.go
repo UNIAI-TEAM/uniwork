@@ -53,8 +53,13 @@ type expoMessage struct {
 	// Badge is the iPhone's icon count (iOS only; a zero clears it).
 	Badge *int `json:"badge,omitempty"`
 	// InterruptionLevel "time-sensitive" lets a mention or a call through
-	// Focus on an iPhone (iOS 15+, the app's time-sensitive entitlement).
+	// Focus on an iPhone (iOS 15+, the app's time-sensitive entitlement);
+	// "passive" lists a quiet chat follow-up without lighting the screen.
 	InterruptionLevel string `json:"interruptionLevel,omitempty"`
+	// ThreadID groups an iPhone's chat pushes by room (or thread): Expo maps
+	// it to aps.thread-id, and the lock screen stacks them under one entry
+	// instead of a line per message. iOS only; Android groups by data.tag.
+	ThreadID string `json:"threadId,omitempty"`
 }
 
 // timeSensitiveChannels are the pushes an iPhone shows through Focus: a
@@ -90,6 +95,13 @@ const (
 	ChannelMentions    = "mentions"
 	ChannelMessages    = "messages"
 	ChannelGeneral     = "general"
+	// ChannelChatQuiet is default importance with no sound and no vibration
+	// (a low one would file the room under Android's "Silent"): a chat
+	// push that follows one the phone alerted for in the same room within
+	// chatAlertWindow replaces the room's notification on it, silently. Only
+	// a build that created it is sent it (expoChatQuiet): Android shows a
+	// push for a channel it does not know on an alerting fallback channel.
+	ChannelChatQuiet = "chat_quiet"
 )
 
 // pushChannel files a notification kind under its channel, so a person can
@@ -100,26 +112,60 @@ func pushChannel(kind string) string {
 		return ChannelCalls
 	case KindChatMentioned, KindMentioned, KindDocumentMentioned, KindDocumentBodyMentioned, KindDocumentDiscussionMentioned:
 		return ChannelMentions
-	case KindChatDM, KindChatThreadReplied:
+	case KindChatDM, KindChatMessage, KindChatThreadReplied:
 		return ChannelMessages
 	default:
 		return ChannelGeneral
 	}
 }
 
-// expoCallUIAgent is the user agent of a subscription from an Android build
-// that draws its own incoming call (UniChat 0.3.0 and later say so with
-// call_ui when they register; notification.Service.SubscribePush).
-const expoCallUIAgent = "expo/android; call-ui"
+// PushCaps is what an Android build says it can do when it registers
+// (notification.Service.SubscribePush): CallUI, it draws its own incoming
+// call (UniChat 0.3.0 and later, call_ui); ChatQuiet, it created the
+// chat_quiet channel and names a pushed notification by data.tag, so a
+// room's pushes replace one notification (chat_quiet). An iPhone has
+// neither: it keeps the visible call push, and quiets a push by its sound
+// field.
+type PushCaps struct {
+	CallUI    bool
+	ChatQuiet bool
+}
+
+// The marks an Android subscription's user agent carries after its platform,
+// in this order: "expo/android; call-ui; chat-quiet".
+const (
+	expoCallUIMark    = "call-ui"
+	expoChatQuietMark = "chat-quiet"
+)
 
 // expoUserAgent is what a mobile subscription records: the platform, and the
-// call-ui mark for an Android build with the native call UI. Only Android
-// has one; an iPhone keeps the visible call push whatever it says.
-func expoUserAgent(platform string, callUI bool) string {
-	if platform == "android" && callUI {
-		return expoCallUIAgent
+// marks of what an Android build can do.
+func expoUserAgent(platform string, caps PushCaps) string {
+	agent := "expo/" + platform
+	if platform != "android" {
+		return agent
 	}
-	return "expo/" + platform
+	if caps.CallUI {
+		agent += "; " + expoCallUIMark
+	}
+	if caps.ChatQuiet {
+		agent += "; " + expoChatQuietMark
+	}
+	return agent
+}
+
+// expoMark reports an Android subscription whose user agent carries mark.
+func expoMark(sub db.PushSubscription, mark string) bool {
+	rest, ok := strings.CutPrefix(sub.UserAgent.String, "expo/android")
+	if !sub.UserAgent.Valid || !ok {
+		return false
+	}
+	for _, part := range strings.Split(rest, ";") {
+		if strings.TrimSpace(part) == mark {
+			return true
+		}
+	}
+	return false
 }
 
 // expoPlatform is the OS a mobile subscription registered from ("ios",
@@ -136,9 +182,13 @@ func expoPlatform(sub db.PushSubscription) string {
 // expoCallUI reports a subscription that gets call pushes as data-only
 // messages. An Android build from before the call UI ("expo/android") has
 // no task to turn one into a ring, so it keeps the visible push.
-func expoCallUI(sub db.PushSubscription) bool {
-	return sub.UserAgent.Valid && sub.UserAgent.String == expoCallUIAgent
-}
+func expoCallUI(sub db.PushSubscription) bool { return expoMark(sub, expoCallUIMark) }
+
+// expoChatQuiet reports an Android build that has the chat_quiet channel and
+// whose FCM service lifts data.tag (UniChatMessagingService › PushTag), so a
+// room's pushes replace one notification. An older one gets no quiet
+// follow-up at all: its tray keeps the pushes that alerted, one each.
+func expoChatQuiet(sub db.PushSubscription) bool { return expoMark(sub, expoChatQuietMark) }
 
 // callData is the data a call push carries: ids, the names a ringing screen
 // shows and when the ring ends. Nothing else about the room or the people.
@@ -214,6 +264,45 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 		if timeSensitiveChannels[channel] {
 			m.InterruptionLevel = "time-sensitive"
 		}
+	}
+	if msg.Chat.RoomID != "" && msg.Call.Type == "" {
+		return chatBurstMessage(sub, msg, m)
+	}
+	return m, true
+}
+
+// chatBurstMessage groups a chat push with the room's others and quiets a
+// follow-up (PushMessage.Quiet). An iPhone stacks them under the room's
+// thread and plays nothing for a quiet one. Android names a notification by
+// data.tag only on a build whose FCM service lifts the tag to where
+// expo-notifications reads it (Expo sends the data as a JSON string; the same
+// build created chat_quiet, so expoChatQuiet says both): there each push
+// replaces the room's notification, its title says the room's count, and a
+// quiet one goes on the quiet channel. An older build keeps a notification
+// per push, so it gets the plain title and no quiet follow-up at all.
+func chatBurstMessage(sub db.PushSubscription, msg PushMessage, m expoMessage) (expoMessage, bool) {
+	switch expoPlatform(sub) {
+	case "ios":
+		m.ThreadID = msg.Tag
+		if msg.Quiet {
+			m.Sound = ""
+			m.InterruptionLevel = "passive"
+		}
+	case "android":
+		grouped := expoChatQuiet(sub)
+		if msg.Quiet && !grouped {
+			return expoMessage{}, false
+		}
+		if grouped && msg.Chat.Summary != "" {
+			m.Title += " · " + msg.Chat.Summary
+		}
+		if msg.Quiet {
+			m.ChannelID = ChannelChatQuiet
+		}
+	}
+	if msg.Quiet {
+		// The app's foreground handler plays nothing for it either.
+		m.Data["quiet"] = "1"
 	}
 	return m, true
 }
@@ -329,12 +418,20 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 // a web subscription while VAPID is off.
 var ErrPushSkipped = errors.New("push: skipped, no sender for this subscription")
 
-// NewPrefixSender routes Expo tokens to expo and every other endpoint to web.
-func NewPrefixSender(expo, web PushSender) PushSender { return prefixSender{expo, web} }
+// NewPrefixSender routes an iPhone's PushKit token to voip, Expo tokens to
+// expo and every other endpoint to web. A nil voip (no APNs key) or web (no
+// VAPID) acknowledges its subscriptions without sending.
+func NewPrefixSender(expo, web, voip PushSender) PushSender { return prefixSender{expo, web, voip} }
 
-type prefixSender struct{ expo, web PushSender }
+type prefixSender struct{ expo, web, voip PushSender }
 
 func (s prefixSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
+	if isVoIPSubscription(sub) {
+		if s.voip == nil {
+			return ErrPushSkipped
+		}
+		return s.voip.Send(ctx, sub, msg)
+	}
 	if isExpoPushToken(sub.Endpoint) {
 		return s.expo.Send(ctx, sub, msg)
 	}

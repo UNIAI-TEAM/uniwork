@@ -154,6 +154,10 @@ jobs:
       MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
       MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
       MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+      # Maestro's XCTest driver gets 5 minutes to answer, not its default 2: its first launch on a freshly booted
+      # simulator took 161 s and 176 s in mobile-verify's runs that went red (October 2026). A driver that answers sooner is used
+      # at once; scripts/maestro-retry.sh › MAESTRO_IOS_UDID clears a timed-out one before the retry.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,7 +197,7 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
-          echo "UDID=$udid" >> "$GITHUB_ENV"
+          { echo "UDID=$udid"; echo "MAESTRO_IOS_UDID=$udid"; } >> "$GITHUB_ENV"
       - name: Install Maestro ${{ env.MAESTRO_VERSION }}
         if: needs.gate.outputs.ready == 'true'
         # The release zip itself, not the get.maestro.mobile.dev script: the

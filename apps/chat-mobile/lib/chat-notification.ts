@@ -21,8 +21,15 @@ export interface ChatPushTarget {
   threadRootId?: string;
 }
 
+/** A notification as it was shown: its title and the push's data. */
+interface ShownChatPush {
+  title: string;
+  data: Record<string, unknown>;
+}
+
 export type ChatNotificationAction =
-  | { action: "reply"; key: string; notificationId: string; target: ChatPushTarget; text: string }
+  /** `shown` lets a reply the app lock refuses put the notification back (data/chat-notification-actions.ts). */
+  | { action: "reply"; key: string; notificationId: string; target: ChatPushTarget; text: string; shown: ShownChatPush }
   | { action: "mark_read"; key: string; notificationId: string; target: ChatPushTarget };
 
 const record = asRecord;
@@ -54,6 +61,14 @@ export function chatPushTarget(value: unknown): ChatPushTarget | null {
   return threadRootId ? { workspaceId, roomId, messageId, threadRootId } : { workspaceId, roomId, messageId };
 }
 
+/**
+ * A chat message that follows one its room alerted for within the server's window (server push_consumer.go ›
+ * chatAlertWindow): it shows without a sound, in the foreground as on the lock screen.
+ */
+export function isQuietPush(value: unknown): boolean {
+  return pushData(value)?.quiet === "1";
+}
+
 /** The Reply or Mark as read a notification response asks for, or null (a plain tap opens the room as before). */
 export function chatNotificationAction(response: unknown): ChatNotificationAction | null {
   const outer = record(response);
@@ -65,11 +80,14 @@ export function chatNotificationAction(response: unknown): ChatNotificationActio
   // Android's background task gets the native bundle as is: for a push of Expo's service, the data is a JSON
   // string at `content.dataString` and there is no `data` (NotificationSerializer.toBundle(NotificationRequest)).
   const content = record(request?.content);
-  const target = chatPushTarget(content?.data ?? (typeof content?.dataString === "string" ? { dataString: content.dataString } : null));
-  if (!target) return null;
-  // One action of one notification runs once, whichever of the listener and the background task hears it first.
-  const key = `${notificationId || target.messageId}:${action}`;
+  const data = pushData(content?.data ?? (typeof content?.dataString === "string" ? { dataString: content.dataString } : null));
+  const target = chatPushTarget(data);
+  if (!data || !target) return null;
+  // One action of one push runs once, whichever of the listener and the background task hears it first. Android
+  // shows every push of a room under one notification id (the room's tag; each message pushes, server UNI-2141),
+  // so the message names which push it was.
+  const key = `${notificationId}:${target.messageId}:${action}`;
   if (action === MARK_READ_ACTION) return { action, key, notificationId, target };
   const reply = text(outer?.userText).trim().slice(0, CHAT_MESSAGE_BODY_MAX_LENGTH);
-  return reply ? { action, key, notificationId, target, text: reply } : null;
+  return reply ? { action, key, notificationId, target, text: reply, shown: { title: text(content?.title), data } } : null;
 }

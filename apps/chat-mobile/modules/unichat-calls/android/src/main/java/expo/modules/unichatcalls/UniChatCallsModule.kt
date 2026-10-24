@@ -11,7 +11,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
- * UniChat's native calls on Android (docs/adr/drafts/0038), as JavaScript
+ * UniChat's native calls on Android (docs/adr/0038), as JavaScript
  * sees them through modules/unichat-calls/index.ts. Every function is cheap
  * and synchronous but leaveLockScreen, which waits for the person to unlock;
  * the policy (when to ring, when the service runs) lives in data/calls/, which

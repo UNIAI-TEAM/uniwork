@@ -181,7 +181,7 @@ func TestTaintFollowsWhoWroteWhatWasRead(t *testing.T) {
 	if err := s.chat.SignalVoiceAccept(ctx, x.ub.ID, x.w.ID, dm.ID, "taint-call"); err != nil {
 		t.Fatal(err)
 	}
-	backdateVoiceCallAnswer(t, dm.ID, "taint-call", 45*time.Second)
+	backdateVoiceCallAnswer(t, s.chat, dm.ID, "taint-call", 45*time.Second)
 	if err := s.chat.SignalVoiceHangup(ctx, x.ub.ID, x.w.ID, dm.ID, "taint-call"); err != nil {
 		t.Fatal(err)
 	}

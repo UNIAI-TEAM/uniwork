@@ -9,7 +9,7 @@ import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
 import { ABI } from "./mobile-ftl-devices.mjs";
 import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 import { REQUIRED_DEX_CLASSES } from "./mobile-apk-scan.mjs";
-import { fakeDex } from "./mobile-apk-scan.fixture.mjs";
+import { fakeDex, protoXml } from "./mobile-apk-scan.fixture.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
 // ADR 0043): what the four workflows promise, held so an edit cannot quietly
@@ -228,15 +228,40 @@ test("the production build is verified, built from a main tag once, proved in Se
   assert.doesNotMatch(wf, /--auto-submit/, "no second build behind a submit");
   const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
   assert.deepEqual(eas.submit["production-internal"], { android: { track: "internal" } });
-  // The Gradle upload names the release <appId>@<versionName>+<versionCode>: its presence proves the symbols arrived.
+  // The Gradle upload names the release <appId>@<versionName>+<versionCode>; the messages name it.
   assert.match(wf, /RELEASE: com\.uniworkos\.chat@\$\{\{ steps\.version\.outputs\.version \}\}\+\$\{\{ steps\.build\.outputs\.version_code \}\}/);
   assert.match(wf, /if: steps\.crash\.outputs\.verify == 'true'/);
   assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/);
   assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./, "inputs reach the shell through env");
 });
 
+// UNI-2142: the artifact-bundle upload creates no Sentry release, so 0.3.1 (12) failed a release lookup after an
+// upload that worked. The proof is Sentry resolving the debug ID of the bundle in the AAB that is then submitted.
+test("the production build proves its JS source map in Sentry by the debug ID of the scanned AAB, unless waived", () => {
+  const wf = read("chat-mobile-production.yml");
+  assert.doesNotMatch(wf, /\/releases\//, "no lookup of a release object the upload never creates");
+  const order = ["- name: Security scan of the built bundle", "- id: symbols", "- name: Submit this binary"].map((step) => wf.indexOf(step));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "download and scan, then the Sentry proof, then submit");
+  const step = wf.split("- id: symbols")[1].split(/^ {6}- /m)[0];
+  for (const name of ["SENTRY_AUTH_TOKEN", "SENTRY_ORG", "SENTRY_PROJECT", "SENTRY_URL"]) assert.match(step, new RegExp(`^ {10}${name}: \\$\\{\\{ (secrets|vars)\\.${name} \\}\\}$`, "m"), name);
+  assert.match(wf, /DEBUG_ID: \$\{\{ steps\.symbols\.outputs\.debug_id \}\}/, "the summary names the debug ID");
+  const bin = nodeStub();
+  try {
+    const run = (env) => runStep("chat-mobile-production.yml", /^ {6}- id: symbols$/m, { GITHUB_WORKSPACE: "/ws", RELEASE: "com.uniworkos.chat@0.3.1+12", ...env }, bin);
+    const proved = run({ NODE_EXIT: "0" });
+    assert.equal(proved.status, 0);
+    assert.match(proved.stdout, /node \/ws\/scripts\/mobile-sentry-symbols\.mjs \S+\/app\.aab --release com\.uniworkos\.chat@0\.3\.1\+12/);
+    assert.notEqual(run({ NODE_EXIT: "1" }).status, 0, "no source map: not submitted");
+    const waived = run({ NODE_EXIT: "1", ALLOW_NO_CRASH_REPORTING: "true" });
+    assert.equal(waived.status, 0);
+    assert.match(waived.stdout, /::warning::submitting com\.uniworkos\.chat@0\.3\.1\+12 without its source map proved in Sentry: allow_missing_crash_reporting waives it/);
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
+});
+
 // Audit "Security & privacy", no-ci-binary-security-scan: the AAB that would be submitted is scanned first.
-test("the production AAB is scanned for credentials before it is submitted", () => {
+test("the production AAB is scanned for credentials, its manifest and its permissions before it is submitted", () => {
   const wf = read("chat-mobile-production.yml");
   const order = ["- id: build", "- name: Security scan of the built bundle", "- name: Submit this binary"].map((step) => wf.indexOf(step));
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "build, then scan, then submit");
@@ -246,12 +271,32 @@ test("the production AAB is scanned for credentials before it is submitted", () 
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin);
     fs.writeFileSync(path.join(bin, "curl"), '#!/bin/sh\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\ncp "$FAKE_AAB" "$out"\n', { mode: 0o755 });
+    const reviewed = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/android-permissions.json"), "utf8")).permissions;
+    const bundleManifest = {
+      tag: "manifest",
+      attrs: { package: "com.uniworkos.chat" },
+      children: [
+        ...reviewed.map((entry) => ({
+          tag: entry.tag ?? "uses-permission",
+          attrs: {
+            "android:name": entry.name.replace("{package}", "com.uniworkos.chat"),
+            ...(entry.minSdkVersion ? { "android:minSdkVersion": String(entry.minSdkVersion) } : {}),
+            ...(entry.maxSdkVersion ? { "android:maxSdkVersion": String(entry.maxSdkVersion) } : {}),
+          },
+        })),
+        // The TLS pin-set every release binary carries (scripts/mobile-apk-scan.mjs › unpinned).
+        { tag: "application", attrs: { "android:allowBackup": "false", "android:networkSecurityConfig": "" } },
+      ],
+    };
     const aab = (name, bundle) => {
       const src = path.join(dir, name);
       fs.mkdirSync(path.join(src, "base", "assets"), { recursive: true });
       fs.writeFileSync(path.join(src, "base", "assets", "index.android.bundle"), bundle);
       fs.mkdirSync(path.join(src, "base", "dex"));
       fs.writeFileSync(path.join(src, "base", "dex", "classes.dex"), fakeDex(REQUIRED_DEX_CLASSES.map((entry) => entry.descriptor)));
+      // A manifest that asks for exactly the reviewed permissions (apps/chat-mobile/android-permissions.json).
+      fs.mkdirSync(path.join(src, "base", "manifest"));
+      fs.writeFileSync(path.join(src, "base", "manifest", "AndroidManifest.xml"), protoXml(bundleManifest));
       execFileSync("zip", ["-qr", "../" + name + ".aab", "base"], { cwd: src });
       return path.join(dir, `${name}.aab`);
     };
@@ -485,6 +530,11 @@ test("every PR that needs the signed-in flows runs them against a server it star
   }
   // Screenshots and server logs only: Maestro's own log holds the typed password.
   assert.match(job, /~\/\.maestro\/tests\/\*\*\/\*\.png/);
+  assert.doesNotMatch(job, /^ {12}~\/\.maestro\/tests\/\*\*$/m, "never the whole Maestro output");
+  // UNI-2142: each failed run's maestro.log and device log, which scripts/maestro-retry.sh copies without the
+  // password's lines, so a dropped adb transport can be told from an app failure in the artifact.
+  assert.match(job, /^ {10}MAESTRO_ATTEMPT_LOGS: \$\{\{ runner\.temp \}\}\/maestro-attempts$/m);
+  assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/maestro-attempts\/\*\*$/m);
   // A flow that dies into an error screen says why: the device log of a failed flow, taken before the emulator goes
   // (scripts/maestro-retry.sh › MAESTRO_LOGCAT), in a buffer big enough for both attempts, without the password's
   // lines, its JavaScript lines in the job log, and both files in the artifact.
@@ -496,6 +546,17 @@ test("every PR that needs the signed-in flows runs them against a server it star
   assert.match(job, /^ {12}\$\{\{ runner\.temp \}\}\/logcat-js\.txt$/m);
   const logStep = job.indexOf("name: The device log of a failed flow");
   assert.ok(logStep > 0 && logStep < job.indexOf("name: maestro-e2e"), "the log is cut down before the artifact is uploaded");
+});
+
+// UNI-2142: the emulator's adb transport drops for under half a second as a Maestro session starts, on any emulator
+// job; both PR emulator jobs let scripts/maestro-retry.sh restart adb and rerun such a run outside the app's attempts.
+test("both PR emulator jobs let a run that lost the adb transport get a fresh adb server", () => {
+  const { jobs } = jobsOf(read("mobile-verify.yml"));
+  for (const id of ["android-smoke", "android-e2e"]) {
+    const job = jobs.get(id) ?? "";
+    assert.match(job, /reactivecircus\/android-emulator-runner@v2/, `${id} runs an emulator`);
+    assert.match(job, /^ {10}MAESTRO_ADB_RECOVER: "1"$/m, id);
+  }
 });
 
 test("mobile-verify declares the force_native input the release passes", () => {
@@ -521,6 +582,19 @@ test("the Android-only callers leave iOS out, and every iOS build uses the pinne
     assert.doesNotMatch(text, /Xcode_\*\.app \| sort -V \| tail -1/, `${file} never takes the newest Xcode on the image`);
   }
   assert.equal(envPin(wf, "XCODE_VERSION"), envPin(read("chat-mobile-verify.yml"), "XCODE_VERSION"), "one Xcode for the PR and the nightly");
+});
+
+// The iOS smoke went red on both attempts with "iOS driver not ready in time" (runs 39961695475, 39944349493): the
+// first launch of Maestro's XCTest driver on a fresh simulator took 161 s and 176 s, past Maestro's 120 s default,
+// and the retry started a second runner beside the first one's leftover xcodebuild.
+test("every iOS job gives Maestro's driver five minutes to start, and the retry clears a timed-out one", () => {
+  for (const [file, job] of [["mobile-verify.yml", "ios-release"], ["chat-mobile-verify.yml", "ios"], ["chat-mobile-store-screenshots.yml", "ios"]]) {
+    const text = jobsOf(read(file)).jobs.get(job) ?? "";
+    assert.ok(Number(envPin(text, "MAESTRO_DRIVER_STARTUP_TIMEOUT")?.replaceAll('"', "")) >= 300_000, `${file} › ${job} sets MAESTRO_DRIVER_STARTUP_TIMEOUT to 5 min or more`);
+    if (/maestro-retry\.sh --device "\$UDID"/.test(text)) {
+      assert.match(text, /\{ echo "UDID=\$udid"; echo "MAESTRO_IOS_UDID=\$udid"; \} >> "\$GITHUB_ENV"/, `${file} › ${job} hands the retry its simulator`);
+    }
+  }
 });
 
 // Runs the scope job's decide step as written in the workflow, with `node` stubbed
@@ -736,7 +810,8 @@ test("the smoke and the nightly time the app on the emulator against perf-budget
   assert.match(verify.get("android-release") ?? "", /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the PR's release APK logs its startup marks");
   const smoke = verify.get("android-smoke") ?? "";
   assert.match(smoke, /mobile-perf\.mjs apk /, "the smoke measures the APK");
-  assert.match(smoke, /mobile-perf\.mjs startup --package com\.uniworkos\.chat --mark first-screen --runs 5/, "and five cold starts to the first screen");
+  // Ten, not five (UNI-2142): a launch on the fresh emulator varies by ~28 %, and the PR's gate is the median.
+  assert.match(smoke, /mobile-perf\.mjs startup --package com\.uniworkos\.chat --mark first-screen --runs 10 /, "and ten cold starts to the first screen");
   assert.match(smoke, /mobile-perf\.mjs check /, "and holds them to the budget");
   assert.match(smoke, /name: unichat-perf-android\n/, "and keeps the numbers for `tighten`");
 
@@ -786,6 +861,24 @@ test("every Maestro run in the mobile workflows goes through scripts/maestro-ret
     runs += [...wf.matchAll(/\$\{\{ github\.workspace \}\}\/scripts\/maestro-retry\.sh (?:test|--device)/g)].length;
   }
   assert.ok(runs >= 13, `found ${runs} wrapped runs`);
+});
+
+// Audit "Security & privacy", no-pinning-or-attestation: the pins no OTA can change are checked against the live
+// chains every day and on every PR that touches them or the hosts the deploy names (runbook unichat-tls-pins).
+test("the TLS pins are checked against the live chains daily and on every PR that touches them, reading no secret", () => {
+  const wf = read("chat-mobile-tls-pins.yml");
+  assert.match(wf, /^ {2}schedule:\n {4}- cron: "\d+ \d+ \* \* \*"$/m, "daily");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  const paths = [...(wf.match(/^ {2}pull_request:\n {4}paths:\n((?: {6}- .+\n)+)/m)?.[1] ?? "").matchAll(/- (\S+)/g)].map((m) => m[1]);
+  for (const file of ["apps/chat-mobile/tls-pins.json", "apps/chat-mobile/certs/tls-pins/**", "apps/chat-mobile/plugins/with-tls-pins.js", "scripts/mobile-tls-pins.mjs", "deploy/app/env/uniwork-be.env", ".github/workflows/chat-mobile-tls-pins.yml"]) {
+    assert.ok(paths.includes(file), `a PR touching ${file} runs the check`);
+  }
+  assert.match(wf, /run: node --test scripts\/mobile-tls-pins\.test\.mjs\n/, "the contract on the committed pins");
+  assert.match(wf, /run: node scripts\/mobile-tls-pins\.mjs$/m, "the live check, failing the job on a missing pin");
+  assert.match(wf, /- uses: actions\/checkout@v4\n {8}with:\n {10}fetch-depth: 0\n/, "every chat-mobile-v* tag: the pin-sets of the binaries in the field are checked too");
+  assert.ok(paths.includes("deploy/**/*.yaml") && paths.includes("deploy/**/*.yml"), "a PR that changes a cert-manager issuer runs the issuer contract");
+  assert.doesNotMatch(wf, /secrets\.|vars\./, "a fork's PR can run it");
+  assert.doesNotMatch(wf, /continue-on-error/, "a missing pin is red");
 });
 
 // A contract test that no workflow runs holds nothing: every mobile one is in the checks job's step.

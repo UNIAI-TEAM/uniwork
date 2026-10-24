@@ -8,8 +8,9 @@ import (
 	"testing"
 )
 
-// The model reads a status the way the web shows it, beside the key a filter
-// takes (UNI-2137): a Vietnamese answer then says "Cần làm", never "todo".
+// The model reads a status the way the web shows it, with no key beside it
+// (UNI-2137): a Vietnamese answer then says "Cần làm", never "todo". A key next
+// to the label was copied into answers as "Cần làm (todo)" (UNI-2150).
 func TestAskAgentStatusesReadAsTheWebShowsThem(t *testing.T) {
 	x, s, tc := newAgentWorld(t)
 	ctx := context.Background()
@@ -39,11 +40,11 @@ func TestAskAgentStatusesReadAsTheWebShowsThem(t *testing.T) {
 		}
 		text := b.String()
 		want := map[string][]string{
-			"list_tasks":    {"Status: Cần làm (key: todo)\n", "Status: Chờ QA (key: qa_check)\n"},
-			"get_task":      {"Status: Cần làm (key: todo)\n"},
-			"list_projects": {"Status: Đã lên kế hoạch (key: planned)\n"},
-			"get_project":   {"Status: Đã lên kế hoạch (key: planned)\n"},
-			"list_meetings": {"Status: Đã lên lịch (key: SCHEDULED)\n"},
+			"list_tasks":    {"Status: Cần làm\n", "Status: Chờ QA\n"},
+			"get_task":      {"Status: Cần làm\n"},
+			"list_projects": {"Status: Đã lên kế hoạch\n"},
+			"get_project":   {"Status: Đã lên kế hoạch\n"},
+			"list_meetings": {"Status: Đã lên lịch\n"},
 			"search":        {"Trạng thái: Cần làm ·"},
 		}[c.tool]
 		for _, w := range want {
@@ -51,10 +52,38 @@ func TestAskAgentStatusesReadAsTheWebShowsThem(t *testing.T) {
 				t.Errorf("%s does not say %q:\n%s", c.tool, w, text)
 			}
 		}
-		for _, raw := range []string{"Status: todo", "Status: planned", "Status: SCHEDULED", "Trạng thái: todo"} {
-			if strings.Contains(text, raw) {
-				t.Errorf("%s hands the model the raw %q:\n%s", c.tool, raw, text)
-			}
+		if raw := rawWords(statusLines(text), append(rawStatusKeys(), "qa_check")); len(raw) > 0 {
+			t.Errorf("%s hands the model the raw %v with a status:\n%s", c.tool, raw, text)
+		}
+	}
+}
+
+// With no key in sight, the model filters by the label it read: a custom
+// status by its name, a built-in by the web's label, in any case (UNI-2150).
+// The key still works.
+func TestAskAgentListTasksFiltersByTheStatusLabel(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	if _, err := s.tasks.CreateTaskStatus(ctx, Human(x.ua.ID), x.w.ID, CreateTaskStatusInput{Key: "qa_check", Name: "Chờ QA", Category: "in_review", Color: "#8b5cf6"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Kiểm thử biểu mẫu", Status: "qa_check"}); err != nil {
+		t.Fatal(err)
+	}
+	titles := func(status string) string {
+		var got []string
+		for _, it := range runAgentTool(t, s, tc, "list_tasks", `{"status":"`+status+`","project_id":"","assignee_id":"","priority":"","due_from":"","due_to":"","overdue":false,"limit":0}`) {
+			got = append(got, it.Title)
+		}
+		return strings.Join(got, ", ")
+	}
+	todo := titles("todo")
+	if todo == "" {
+		t.Fatal("the world has no todo task to filter by")
+	}
+	for status, want := range map[string]string{"Chờ QA": "Kiểm thử biểu mẫu", "chờ qa": "Kiểm thử biểu mẫu", "qa_check": "Kiểm thử biểu mẫu", "Cần làm": todo} {
+		if got := titles(status); got != want {
+			t.Errorf("list_tasks status %q = [%s], want [%s]", status, got, want)
 		}
 	}
 }

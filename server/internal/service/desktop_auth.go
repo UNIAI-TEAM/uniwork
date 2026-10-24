@@ -334,8 +334,31 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	if err != nil {
 		return DesktopSession{}, err
 	}
+	sess, err := s.issueDeviceSession(ctx, q, user.ID, nativeDevice{
+		ClientID: row.ClientID, DeploymentID: row.DeploymentID, Label: row.DeviceLabel, Platform: row.Platform, Build: row.Build,
+	})
+	if err != nil {
+		return DesktopSession{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DesktopSession{}, err
+	}
+	return sess, nil
+}
+
+// nativeDevice is what a new device session records about the app that asked
+// for it: the PKCE attempt's fields, or a native Sign in with Apple's.
+type nativeDevice struct {
+	ClientID, DeploymentID, Label, Platform, Build string
+}
+
+// issueDeviceSession opens a device session of its own family for userID in
+// the caller's transaction: the refresh token, the device row and the
+// auth.desktop_session_created audit row. The code exchange and the native
+// Sign in with Apple both end here, so both hand out the same session.
+func (s *DesktopAuthService) issueDeviceSession(ctx context.Context, q *db.Queries, userID string, d nativeDevice) (DesktopSession, error) {
 	deviceID := util.NewID()
-	access, err := s.minter.MintSession(user.ID, deviceID)
+	access, err := s.minter.MintSession(userID, deviceID)
 	if err != nil {
 		return DesktopSession{}, err
 	}
@@ -345,32 +368,29 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	}
 	expires := s.now().Add(s.refreshTTL())
 	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
-		ID: util.NewID(), UserID: user.ID, TokenHash: hashToken(refresh),
+		ID: util.NewID(), UserID: userID, TokenHash: hashToken(refresh),
 		ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, SessionID: deviceID,
-		UserAgent: row.ClientID + "/" + row.Platform, Ip: "",
+		UserAgent: d.ClientID + "/" + d.Platform, Ip: "",
 	}); err != nil {
 		return DesktopSession{}, err
 	}
 	if _, err := q.CreateDeviceSession(ctx, db.CreateDeviceSessionParams{
-		ID: deviceID, UserID: user.ID, SessionFamilyID: deviceID, ClientID: row.ClientID,
-		DeploymentID: row.DeploymentID, DeviceLabel: row.DeviceLabel, Platform: row.Platform,
-		Build: row.Build, RefreshTokenDigest: hashToken(refresh), ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true},
+		ID: deviceID, UserID: userID, SessionFamilyID: deviceID, ClientID: d.ClientID,
+		DeploymentID: d.DeploymentID, DeviceLabel: d.Label, Platform: d.Platform,
+		Build: d.Build, RefreshTokenDigest: hashToken(refresh), ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true},
 		CreatedByKind: string(audit.KindHuman),
 	}); err != nil {
 		return DesktopSession{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: audit.NoOrganization, Actor: audit.User(user.ID), Action: audit.ActionAuthDesktopSessionCreated,
+		OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionCreated,
 		ResourceType: "device_session", ResourceID: deviceID,
-		Metadata: map[string]any{"client_id": row.ClientID, "deployment_id": row.DeploymentID},
+		Metadata: map[string]any{"client_id": d.ClientID, "deployment_id": d.DeploymentID},
 	}); err != nil {
 		return DesktopSession{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return DesktopSession{}, err
-	}
-	return DesktopSession{AccountID: user.ID, DeviceSessionID: deviceID, SessionID: deviceID,
-		DeploymentID: row.DeploymentID,
+	return DesktopSession{AccountID: userID, DeviceSessionID: deviceID, SessionID: deviceID,
+		DeploymentID: d.DeploymentID,
 		AccessToken:  access, ExpiresIn: int32(s.minter.TTL / time.Second), RefreshToken: refresh,
 		RefreshExpiresIn: int32(s.refreshTTL() / time.Second)}, nil
 }
@@ -768,6 +788,21 @@ func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string)
 			}
 		}
 		return false
+	}
+	return false
+}
+
+// clientAllowed is allowed without a redirect: a native sign-in that never
+// leaves the app (Sign in with Apple) names a configured client and an
+// allowlisted deployment.
+func (s *DesktopAuthService) clientAllowed(clientID, deploymentID string) bool {
+	if clientID == "" || !s.deploymentAllowed(deploymentID) {
+		return false
+	}
+	for _, c := range s.cfg.DesktopClients() {
+		if c.ID == clientID {
+			return true
+		}
 	}
 	return false
 }
