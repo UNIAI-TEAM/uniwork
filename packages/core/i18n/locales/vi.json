@@ -6246,7 +6246,7 @@
       "apply_all": "Áp dụng tất cả",
       "undo": "Hoàn tác",
       "open": "Mở",
-      "approve_plan": "Duyệt kế hoạch ({{count}} bước)",
+      "approve_plan_other": "Duyệt kế hoạch ({{count}} bước)",
       "save": "Lưu",
       "cancel": "Hủy",
       "edit_field": "Sửa {{field}}",

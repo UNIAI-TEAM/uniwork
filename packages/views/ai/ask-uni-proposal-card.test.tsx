@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiProposal } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -85,6 +85,14 @@ describe("AskUniProposalCard", () => {
     const [path, init] = requestMock.mock.calls[0] as [string, { body: unknown }];
     expect(path).toBe("/api/v1/ai/conversations/c1/messages/m1/proposals/apply");
     expect(init.body).toEqual({ proposal_ids: ["p1", "p3"] });
+  });
+
+  it("counts plan steps in English with the right plural", async () => {
+    await act(async () => {
+      await setLocale("en");
+    });
+    mount([row({ id: "p1", mode: "plan" })]);
+    expect(screen.getByRole("button", { name: "Approve plan (1 step)" })).toBeInTheDocument();
   });
 
   it("stops asking to pick steps once no step of the plan waits", () => {
