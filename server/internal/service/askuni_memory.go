@@ -79,6 +79,8 @@ func (m *askMemoryTurn) promptEntries() []ai.MemoryEntry {
 // askProposeMemoryTool is the tool a memory turn adds after the read and write
 // tools (R10). It is not one of ADR 0044's write tools: a call drafts a row in
 // the turn and saves nothing. Its bytes are a literal, so the cache prefix holds.
+// It names no Undo because it saves nothing: the undo is the memory
+// proposal's own, once the asker applies it.
 var askProposeMemoryTool = ai.Tool{
 	Name:        "propose_memory",
 	Description: "Propose to remember, change or forget one entry of the asker's memory. Saves nothing: the asker decides on each proposal.",
@@ -126,6 +128,11 @@ func (m *askMemoryTurn) draft(args json.RawMessage) (d askMemoryDraft, line, cod
 			return invalid("unknown entry " + a.Entry)
 		}
 		cur = m.entries[i]
+		// Two cards on one entry would contradict each other; the second
+		// would fail at apply.
+		if slices.ContainsFunc(m.drafts, func(d askMemoryDraft) bool { return d.MemoryID == cur.ID }) {
+			return invalid("entry " + a.Entry + " already has a proposal in this turn")
+		}
 	}
 	d = askMemoryDraft{Action: a.Action, MemoryID: cur.ID, Kind: cur.Kind, Body: cur.Body, BeforeKind: cur.Kind, BeforeBody: cur.Body}
 	switch a.Action {
