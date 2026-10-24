@@ -6268,7 +6268,7 @@
       "audience": {
         "workspace": "Cả workspace",
         "private": "Chỉ bạn",
-        "task": "Người xem được task này",
+        "task": "Người xem được công việc này",
         "document": "Người xem được tài liệu này",
         "meeting": "Người trong cuộc họp",
         "room": "{{count}} người trong phòng chat"
@@ -6289,9 +6289,9 @@
         "default": "Không áp dụng được. Hỏi lại UNI."
       },
       "tool": {
-        "create_task": "Tạo task",
-        "update_task": "Sửa task",
-        "add_comment": "Bình luận vào task",
+        "create_task": "Tạo công việc",
+        "update_task": "Sửa công việc",
+        "add_comment": "Bình luận vào công việc",
         "create_project": "Tạo dự án",
         "update_project": "Sửa dự án",
         "schedule_meeting": "Đặt cuộc họp",
@@ -6321,7 +6321,7 @@
         "ends_at": "Kết thúc",
         "timezone": "Múi giờ",
         "project_id": "Dự án",
-        "parent_task_id": "Task cha",
+        "parent_task_id": "Công việc cha",
         "parent_id": "Nằm trong",
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
