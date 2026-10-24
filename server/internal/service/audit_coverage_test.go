@@ -62,10 +62,6 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
 	audit.ActionOrganizationAskWritePolicyChanged: "covered by askuni_modes_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
-	audit.ActionAIMemoryCreated:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
-	audit.ActionAIMemoryUpdated:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
-	audit.ActionAIMemoryDeleted:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
-	audit.ActionAIMemoryCleared:                   "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
 	audit.ActionAIMemoryProposalRejected:          "Ask UNI memory P4: AiMemoryService (Task 2/8) wires it and covers it in ai_memory_test.go",
 }
 
@@ -1976,6 +1972,32 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// Ask UNI's memory (P4): add, edit, delete and clear an entry.
+		audit.ActionAIMemoryCreated: func(t *testing.T, f *auditFixture) {
+			f.memory(t).Create(f.ctx, f.owner.ID, f.orgID, "fact", "Tôi làm ở Hà Nội")
+		},
+		audit.ActionAIMemoryUpdated: func(t *testing.T, f *auditFixture) {
+			m := f.memory(t)
+			e, _ := m.Create(f.ctx, f.owner.ID, f.orgID, "fact", "Tôi làm ở Hà Nội")
+			txt := "Tôi làm ở Đà Nẵng"
+			if _, err := m.Update(f.ctx, f.owner.ID, f.orgID, e.ID, nil, &txt); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAIMemoryDeleted: func(t *testing.T, f *auditFixture) {
+			m := f.memory(t)
+			e, _ := m.Create(f.ctx, f.owner.ID, f.orgID, "fact", "Tôi làm ở Hà Nội")
+			if err := m.Delete(f.ctx, f.owner.ID, f.orgID, e.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAIMemoryCleared: func(t *testing.T, f *auditFixture) {
+			m := f.memory(t)
+			_, _ = m.Create(f.ctx, f.owner.ID, f.orgID, "fact", "Tôi làm ở Hà Nội")
+			if _, err := m.Clear(f.ctx, f.owner.ID, f.orgID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -2318,6 +2340,16 @@ func (f *auditFixture) defaultAgent(t *testing.T) db.Agent {
 
 // askProposal wires Ask UNI with its actions on and stores one pending
 // create_task proposal of the owner's; it returns the service and the row id.
+// memory is the memory service on the fixture's gates with the flag on; the
+// organization exists once build has run.
+func (f *auditFixture) memory(t *testing.T) *AiMemoryService {
+	t.Helper()
+	f.build(t)
+	m := NewAiMemoryService(f.pool, f.q, f.orgs, f.ws)
+	m.SetFlags(memoryFlagFake{on: true})
+	return m
+}
+
 func (f *auditFixture) askProposal(t *testing.T) (*AskUNIService, string) {
 	t.Helper()
 	w := f.build(t)
