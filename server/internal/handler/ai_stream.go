@@ -69,6 +69,8 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 		sw.event("citations", sdo.AskStreamCitationsDTO{Citations: citationDTOs(ev.Citations)})
 	case "followups":
 		sw.event("followups", sdo.AskStreamFollowupsDTO{Followups: ev.Followups})
+	case "memory_used":
+		sw.event("memory_used", sdo.AskStreamMemoryUsedDTO{MemoryIDs: ev.MemoryIDs})
 	case "done":
 		if ev.Done != nil {
 			u := ev.Done.Usage

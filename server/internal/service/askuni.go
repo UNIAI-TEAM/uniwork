@@ -171,6 +171,8 @@ type AskResult struct {
 	// Proposals are the rows the turn proposed, as they stand after any
 	// auto-applied ones ran; none when the agent proposed nothing.
 	Proposals []AskProposal
+	// MemoryIDs are the memory entries the answer used (P4).
+	MemoryIDs []string
 }
 
 const (
@@ -828,6 +830,7 @@ type askTurn struct {
 	Mentions                 []AskContextRef
 	Steps                    []AskStep
 	Followups                []string
+	MemoryIDs                []string
 	Regenerates              string
 	// Model is the catalogue key of the model the person chose; "" for Auto.
 	Model string
@@ -890,7 +893,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
 		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
 		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
-		FileNotes: jsonOrEmptyList(t.FileNotes),
+		FileNotes: jsonOrEmptyList(t.FileNotes), MemoryIds: jsonOrEmptyList(t.MemoryIDs),
 	})
 	if err != nil {
 		return db.AiMessage{}, err

@@ -450,6 +450,23 @@ func TestToAiMessageDTOFileNotes(t *testing.T) {
 	}
 }
 
+// memory_ids reach the API as stored; a row from before the column lists none.
+func TestMemoryIDsInTheMessageDTOAndTheStream(t *testing.T) {
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]", MemoryIds: `["e1","e2"]`}); !slices.Equal(out.MemoryIDs, []string{"e1", "e2"}) {
+		t.Fatalf("memory ids %v", out.MemoryIDs)
+	}
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.MemoryIDs == nil || len(out.MemoryIDs) != 0 {
+		t.Fatalf("no ids: %v, want []", out.MemoryIDs)
+	}
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "memory_used", MemoryIDs: []string{"e1"}})
+	sw.close()
+	if !strings.Contains(rec.Body.String(), "event: memory_used\ndata: {\"memory_ids\":[\"e1\"]}\n\n") {
+		t.Fatalf("frames:\n%s", rec.Body.String())
+	}
+}
+
 // The stream route asks as the dock: the answer's follow-up block becomes a
 // followups frame right before done. The JSON route never does.
 func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {

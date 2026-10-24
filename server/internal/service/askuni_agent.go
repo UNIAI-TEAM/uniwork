@@ -318,8 +318,12 @@ func agentCitations(answer string, b *sourceBook) []AskCitation {
 // agentMalformed is a reply that cannot be stored as the answer (R11): empty
 // once its tags and any follow-up block are stripped, cut at the output
 // ceiling, or still calling tools.
-func agentMalformed(r ai.Response) bool {
-	body, _ := splitFollowups(strings.TrimSpace(ai.StripUntrustedTags(r.Text)))
+func agentMalformed(r ai.Response, memory bool) bool {
+	text := strings.TrimSpace(ai.StripUntrustedTags(r.Text))
+	if memory {
+		text, _ = splitMemoryUsed(text)
+	}
+	body, _ := splitFollowups(text)
 	return len(r.ToolCalls) > 0 || r.StopReason == "max_tokens" || r.StopReason == "length" || body == ""
 }
 
@@ -514,7 +518,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		return AskResult{}, err
 	}
 	if memory != nil {
-		promptID, vars["memory"] = askWithMemory[promptID], memory.promptEntries()
+		if withMemory, ok := askWithMemory[promptID]; ok {
+			promptID, vars["memory"] = withMemory, memory.promptEntries()
+		} else {
+			memory = nil // a prompt without the memory rules: a plain turn
+		}
 	}
 	prompt, _ := ai.LookupPrompt(promptID)
 	hist := history(rows, true)
@@ -540,7 +548,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 	// Every call streams its text to the asker as it arrives (R2); without a
 	// sink nothing streams.
-	draft := &askDraft{emit: emit, cutFollowups: splitOff}
+	draft := &askDraft{emit: emit, cutFollowups: splitOff, cutMemory: memory != nil}
 	if emit != nil {
 		req.OnDelta = draft.add
 	}
@@ -606,7 +614,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		if regen {
 			return keepOld(ai.NoticeRefused, err)
 		}
-		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil, nil)
+		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil, nil, nil)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
@@ -625,7 +633,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		// The dock's draft stops before the follow-up block, so a stop keeps the
 		// answer cut there and no question.
-		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, withThought(), nil, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, withThought(), nil, nil, nil)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -652,7 +660,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil, nil, nil)
 	}
 
 	var resp ai.Response
@@ -716,7 +724,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		req.History, req.Vars, req.ToolResultTurn = msgs, nil, true
 	}
-	if agentMalformed(resp) {
+	if agentMalformed(resp, memory != nil) {
 		// One retry (R11): what the answer round sent, then a user turn
 		// asking for the answer; the bad reply is not sent back, the tools
 		// still are. It is counted against the organization, never refused.
@@ -741,14 +749,19 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// (R6), so the store outlives the request.
 	sctx, cancelStore := outliving(ctx)
 	defer cancelStore()
-	if agentMalformed(resp) {
+	if agentMalformed(resp, memory != nil) {
 		if regen {
 			return keepOld(ai.NoticeAgentFailed, ai.ErrOutputInvalid)
 		}
-		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil, nil, nil)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	var followups []string
+	var followups, memoryIDs []string
+	if memory != nil {
+		var refs []string
+		answer, refs = splitMemoryUsed(answer)
+		memoryIDs = memory.usedIDs(refs)
+	}
 	if splitOff {
 		answer, followups = splitFollowups(answer)
 	}
@@ -756,7 +769,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if writes != nil {
 		writes.tainted = taint.tainted()
 	}
-	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, withThought(), followups, writes)
+	res, err = s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, withThought(), followups, memoryIDs, writes)
 	if first && in.Dock {
 		nameWith = namedSources(answer, book)
 	}
@@ -783,8 +796,8 @@ func namedSources(answer string, b *sourceBook) string {
 // rows writes recorded (nil on every turn that did not answer). Its text
 // already streamed, so it ends with any proposals, citations, any follow-ups
 // and done.
-func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string, writes *askWrites) (AskResult, error) {
-	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes}
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups, memoryIDs []string, writes *askWrites) (AskResult, error) {
+	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, MemoryIDs: memoryIDs, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes}
 	if writes != nil {
 		turn.Proposals, turn.Mode, turn.Tainted, turn.RunID = writes.rows, writes.mode, writes.tainted, res.RunID
 	}
@@ -792,7 +805,10 @@ func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskRe
 	if err != nil {
 		return AskResult{}, err
 	}
-	res.Message, res.Citations = msg, citations
+	res.Message, res.Citations, res.MemoryIDs = msg, citations, memoryIDs
+	if len(memoryIDs) > 0 && s.agentMetrics != nil {
+		s.agentMetrics.ObserveAskMemory("used")
+	}
 	if len(turn.Proposals) > 0 {
 		if res.Proposals = s.turnProposals(ctx, base.UserID, w.OrganizationID, msg.ID, writes); len(res.Proposals) > 0 {
 			emit.emit(AskEvent{Name: "proposal", Proposals: res.Proposals})

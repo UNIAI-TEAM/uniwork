@@ -32,6 +32,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts, Note: st.Note, Thought: st.Thought, Kind: st.Kind})
 	}
 	out.Followups = decodeList[string](m.Followups)
+	out.MemoryIDs = decodeList[string](m.MemoryIds)
 	for _, r := range decodeList[service.AskContextRef](m.Mentions) {
 		out.Mentions = append(out.Mentions, sdo.AiContextRefDTO{Kind: r.Kind, ID: r.ID, Title: r.Title})
 	}

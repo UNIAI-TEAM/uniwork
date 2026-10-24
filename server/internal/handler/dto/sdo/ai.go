@@ -120,6 +120,7 @@ type AiMessageDTO struct {
 	// Proposals is filled by the list of messages and the proposal event; the
 	// done event's message carries none.
 	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
+	MemoryIDs []string        `json:"memory_ids" description:"Trên câu trả lời: id các mục bộ nhớ của người hỏi mà UNI đã dùng; rỗng ở mọi tin khác" example:"[\"01K4AIMEM0000000000000001\"]"`
 	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 
@@ -179,6 +180,12 @@ type AskStreamSourcesDTO struct {
 // when the answer suggests questions to ask next.
 type AskStreamFollowupsDTO struct {
 	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
+}
+
+// AskStreamMemoryUsedDTO is the data of event memory_used, sent before done
+// when the answer used entries of the asker's memory.
+type AskStreamMemoryUsedDTO struct {
+	MemoryIDs []string `json:"memory_ids" description:"Id các mục bộ nhớ của người hỏi mà câu trả lời đã dùng" example:"[\"01K4AIMEM0000000000000001\"]"`
 }
 
 // AskStreamTitleDTO is the data of event title, sent after done when UNI named
