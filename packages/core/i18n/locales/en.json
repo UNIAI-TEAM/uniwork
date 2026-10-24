@@ -6202,7 +6202,7 @@
     "page_chip": "This page: {{label}}",
     "source_bar": {
       "app_soon": "{{name}} · Coming soon",
-      "title": "UNI searches",
+      "title": "Connected apps",
       "more": "Connect more apps · Coming soon",
       "hide": "Hide the sources bar"
     },

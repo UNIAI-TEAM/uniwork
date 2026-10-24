@@ -6,16 +6,10 @@ import { AskUniSourcesBar } from "./ask-uni-sources-bar";
 initI18n();
 
 describe("AskUniSourcesBar", () => {
-  it("names the modules UNI reads, then the outside apps as coming soon, each as a labelled tile", () => {
+  it("names each outside app as coming soon, in order", () => {
     render(<AskUniSourcesBar />);
-    const list = screen.getByRole("list", { name: "UNI tìm trong" });
+    const list = screen.getByRole("list", { name: "Ứng dụng kết nối" });
     expect(within(list).getAllByRole("img").map((i) => i.getAttribute("aria-label"))).toEqual([
-      "Công việc",
-      "Dự án",
-      "Tài liệu",
-      "Cuộc họp",
-      "Trò chuyện",
-      "Danh bạ",
       "Google Drive · Sắp có",
       "Slack · Sắp có",
       "Gmail · Sắp có",
