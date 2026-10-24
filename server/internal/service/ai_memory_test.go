@@ -73,7 +73,7 @@ func TestAiMemoryValidatesText(t *testing.T) {
 	ctx := context.Background()
 	m, x := memoryWorld(t)
 	org, u := x.w.OrganizationID, x.ua.ID
-	for _, bad := range []string{"", "   ", strings.Repeat("a", 301), "hai\ndòng", "chuông\x07"} {
+	for _, bad := range []string{"", "   ", strings.Repeat("a", 301), "hai\ndòng", "chuông\x07", "hai dòng"} {
 		if _, err := m.Create(ctx, u, org, "fact", bad); !errors.As(err, new(ValidationError)) {
 			t.Errorf("Create(%q) = %v, want a validation error", bad, err)
 		}

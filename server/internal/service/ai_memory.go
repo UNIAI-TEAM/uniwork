@@ -129,7 +129,7 @@ func validMemoryText(s string) (string, error) {
 		return "", Invalid("text must be 1 to 300 characters")
 	}
 	for _, r := range s {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) {
 			return "", Invalid("text must be one line without control characters")
 		}
 	}
