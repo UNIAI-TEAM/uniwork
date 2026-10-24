@@ -51,8 +51,12 @@ export interface FolderUploadDialogProps {
   checking?: boolean;
   /** Host wiring of "Open UniWork Office"; without it (or on a device with no app) the warning suggests a shorter path. */
   officeHome?: OfficeHomeLaunchProps;
-  /** The app opened: the folder is its to upload now, nothing was written here. */
-  onLaunched?: () => void;
+  /**
+   * "Mở UniWork Office" was pressed and the link sent, whatever the browser could tell of it: the folder is the
+   * app's to upload now and nothing was written here. The host closes this dialog and toasts; `install` opens the
+   * installer dialog on its own when the server has an installer for this channel, and is null when it has none.
+   */
+  onHandoff?: (install: (() => void) | null) => void;
   /** The staged pick this dialog shows; a launch answers only to the pick it began for, never to the next one. */
   pick?: object | null;
   onSubmit: (options: { shareWithWorkspace: boolean }) => void;
@@ -76,7 +80,7 @@ export function FolderUploadDialog({
   unreadable = [],
   checking = false,
   officeHome,
-  onLaunched,
+  onHandoff,
   pick,
   onSubmit,
 }: FolderUploadDialogProps) {
@@ -98,7 +102,7 @@ export function FolderUploadDialog({
   const refusal = plan?.refusal ?? null;
   // Files the browser cannot read (UNI-2152): the dialog is the warning, with the app as its way out.
   const warn = unreadable.length > 0 && refusal === null;
-  const launcher = useOfficeHomeLaunch(officeHome, { onLaunched, scope: pick });
+  const launcher = useOfficeHomeLaunch(officeHome, { onHandoff: (install) => onHandoff?.(install), scope: pick });
   const appAvailable = launcher.status !== "unavailable";
   const left = plan ? Math.max(0, plan.totals.files - unreadable.length) : 0;
   // The dialog turned into the warning (a slow probe answered) or the device has no app to open: the focus follows
@@ -125,12 +129,14 @@ export function FolderUploadDialog({
     });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={popupRef}
         // Start on the primary action; a refused plan has none, so the dialog itself takes the focus.
         initialFocus={() => (refusal || pending ? popupRef.current : primaryRef.current) ?? true}
-        className="sm:max-w-lg"
+        // One shrinkable column: a long folder name wraps or truncates inside it and never widens the dialog past its edges.
+        className="grid-cols-[minmax(0,1fr)] sm:max-w-lg"
         closeLabel={t("common.close")} data-testid="folder-upload-dialog" data-mode={mode}>
         <DialogHeader>
           <DialogTitle>
@@ -146,7 +152,7 @@ export function FolderUploadDialog({
         </DialogHeader>
         {plan ? (
           <form
-            className="flex flex-col gap-3"
+            className="flex min-w-0 flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault();
               if (refusal || pending || checking || launcher.launching || (warn && left === 0)) return;
@@ -169,7 +175,7 @@ export function FolderUploadDialog({
               </dd>
             </dl>
             {renamed ? (
-              <p className="text-caption text-muted-foreground" data-testid="folder-upload-renamed">
+              <p className="min-w-0 break-words text-caption text-muted-foreground" data-testid="folder-upload-renamed">
                 {t("documents.folder_upload.dialog.root_renamed", { name: plan.rootName, title: plan.rootTitle })}
               </p>
             ) : null}
@@ -355,8 +361,10 @@ export function FolderUploadDialog({
             </DialogFooter>
           </form>
         ) : null}
-        {launcher.prompt}
       </DialogContent>
     </Dialog>
+    {/* Beside the warning, never inside it: the toast opens it after the warning has closed. */}
+    {launcher.prompt}
+    </>
   );
 }

@@ -44,7 +44,7 @@ function officeHome(over: Partial<OfficeHomeLaunchProps> = {}): OfficeHomeLaunch
 function renderDialog(over: Partial<FolderUploadDialogProps> = {}) {
   const onSubmit = vi.fn();
   const onOpenChange = vi.fn();
-  const onLaunched = vi.fn();
+  const onHandoff = vi.fn();
   render(
     <FolderUploadDialog
       open
@@ -52,13 +52,13 @@ function renderDialog(over: Partial<FolderUploadDialogProps> = {}) {
       plan={plan()}
       destinationName="Thư mục của tôi"
       onSubmit={onSubmit}
-      onLaunched={onLaunched}
+      onHandoff={onHandoff}
       unreadable={[ONE]}
       officeHome={officeHome()}
       {...over}
     />,
   );
-  return { onSubmit, onOpenChange, onLaunched };
+  return { onSubmit, onOpenChange, onHandoff };
 }
 
 const openApp = () => screen.findByRole("button", { name: "Mở UniWork Office" });
@@ -164,17 +164,17 @@ describe("FolderUploadDialog with one affected file (the real case)", () => {
 
   it("opens the app on press and hands the folder over without writing anything", async () => {
     const home = officeHome();
-    const { onSubmit, onLaunched } = renderDialog({ officeHome: home });
+    const { onSubmit, onHandoff } = renderDialog({ officeHome: home });
     fireEvent.click(await openApp());
     await waitFor(() => expect(home.launch).toHaveBeenCalledWith("uniwork-office://home", expect.anything()));
-    await waitFor(() => expect(onLaunched).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onHandoff).toHaveBeenCalledOnce());
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("shows Đang mở… while launching: the primary and the rest are aria-disabled, Hủy stays live", async () => {
     let finish: (outcome: OfficeLaunchOutcome) => void = () => undefined;
     const home = officeHome({ launch: vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => { finish = resolve; })) });
-    const { onSubmit, onLaunched, onOpenChange } = renderDialog({ officeHome: home });
+    const { onSubmit, onHandoff, onOpenChange } = renderDialog({ officeHome: home });
     fireEvent.click(await openApp());
     const busy = await screen.findByRole("button", { name: "Đang mở…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
@@ -189,20 +189,67 @@ describe("FolderUploadDialog with one affected file (the real case)", () => {
     fireEvent.click(cancel);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     finish("launched");
-    await waitFor(() => expect(onLaunched).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onHandoff).toHaveBeenCalledOnce());
   });
 
-  it("opens the install prompt over the warning when the app is not installed, and Để sau returns to it", async () => {
-    const home = officeHome({ launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed") });
-    const { onLaunched } = renderDialog({ officeHome: home });
+  it.each<OfficeLaunchOutcome>(["launched", "not-installed", "error"])(
+    "hands over on %s: no install prompt opens over the warning, and without installers there is nothing to offer",
+    async (outcome) => {
+      const home = officeHome({ launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => outcome) });
+      const { onHandoff, onSubmit } = renderDialog({ officeHome: home });
+      fireEvent.click(await openApp());
+      await waitFor(() => expect(onHandoff).toHaveBeenCalledOnce());
+      expect(onHandoff).toHaveBeenCalledWith(null);
+      expect(screen.queryByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeNull();
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("offers the install prompt to the host when installers exist for this channel, and loads them once", async () => {
+    const installer = { platform: "win32-x64" as const, url: "https://x/UniWork-Office.exe", kind: "exe", channel: "stable" as const };
+    const home = officeHome({
+      launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed"),
+      loadInstallers: vi.fn(async () => ({ installers: [installer] })),
+    });
+    const { onHandoff } = renderDialog({ officeHome: home });
     fireEvent.click(await openApp());
-    const prompt = await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
-    expect(prompt).toBeInTheDocument();
-    expect(onLaunched).not.toHaveBeenCalled();
-    fireEvent.click(within(prompt).getByRole("button", { name: "Để sau" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeNull());
-    expect(screen.getByRole("heading", { name: "Có 1 tệp trình duyệt không đọc được" })).toBeInTheDocument();
-    expect(await openApp()).toBeInTheDocument();
+    await waitFor(() => expect(onHandoff).toHaveBeenCalledOnce());
+    expect(onHandoff).toHaveBeenCalledWith(expect.any(Function));
+    expect(home.loadInstallers).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeNull();
+  });
+
+  it("offers nothing when the installers cannot be loaded", async () => {
+    const home = officeHome({
+      launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed"),
+      loadInstallers: vi.fn(async () => {
+        throw new Error("down");
+      }),
+    });
+    const { onHandoff } = renderDialog({ officeHome: home });
+    fireEvent.click(await openApp());
+    await waitFor(() => expect(onHandoff).toHaveBeenCalledWith(null));
+  });
+});
+
+describe("FolderUploadDialog's collision note", () => {
+  const renamed = plan({ rootTitle: `${ROOT} (2)` });
+
+  it("wraps its whole text: no clamp, no truncation, shrinkable", () => {
+    renderDialog({ plan: renamed });
+    const note = screen.getByTestId("folder-upload-renamed");
+    expect(note.textContent).toContain(ROOT);
+    expect(note.textContent).toContain(`${ROOT} (2)`);
+    for (const cls of ["truncate", "line-clamp", "overflow-hidden", "text-ellipsis"]) expect(note.className).not.toContain(cls);
+    expect(note.className).toContain("min-w-0");
+    expect(note.className).toContain("break-words");
+  });
+
+  it("keeps the form inside the dialog's single column so a long name cannot widen it", () => {
+    renderDialog({ plan: renamed });
+    const dialog = screen.getByTestId("folder-upload-dialog");
+    expect((dialog.querySelector("form") as HTMLElement).className).toContain("min-w-0");
+    expect(dialog.className).toContain("grid-cols-[minmax(0,1fr)]");
   });
 });
 

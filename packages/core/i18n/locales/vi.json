@@ -10596,7 +10596,8 @@
         "opening": "Đang mở…",
         "rest": "Tải {{count}} tệp còn lại",
         "handoff_a": "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên thư mục rồi chọn lại thư mục này.",
-        "handoff_a_files": "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên tệp rồi chọn lại các tệp này."
+        "handoff_a_files": "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên tệp rồi chọn lại các tệp này.",
+        "handoff_install": "Chưa cài UniWork Office?"
       },
       "skip_reason": {
         "hidden": "Tệp ẩn hoặc tệp hệ thống",

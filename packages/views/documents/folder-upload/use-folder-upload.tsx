@@ -201,12 +201,20 @@ export function useFolderUpload({
     setError(null);
   };
 
-  /** The app opened for `staged`: it is the app's to upload now, so the dialog goes without writing anything. */
-  const launchedFor = (staged: StagedFolder | null) => () => {
+  /**
+   * "Mở UniWork Office" was pressed for `staged`: the browser cannot tell an installed app from a missing one, so
+   * whatever it saw the warning closes (never two dialogs) and the toast carries the way in the app. Its action
+   * opens the installer dialog alone, and only when the server has an installer to offer.
+   */
+  const handedOffFor = (staged: StagedFolder | null) => (install: (() => void) | null) => {
     // A launch that outlived its dialog (Hủy while "Đang mở…") has no dialog left to close, nor a hand-off to announce.
     if (!staged || headRef.current !== staged) return;
     dismissHead();
-    toast.info(latest.current.t("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode)), { duration: HANDOFF_TOAST_MS });
+    const { t: tr } = latest.current;
+    toast.info(tr("documents.folder_upload.unreadable.handoff_a", modeContext(staged.mode)), {
+      duration: HANDOFF_TOAST_MS,
+      action: install ? { label: tr("documents.folder_upload.unreadable.handoff_install"), onClick: install } : undefined,
+    });
   };
 
   const invalidate = () => {
@@ -432,7 +440,7 @@ export function useFolderUpload({
             unreadable={check.unreadable}
             checking={check.checking}
             officeHome={officeHome}
-            onLaunched={launchedFor(head)}
+            onHandoff={handedOffFor(head)}
             pick={head}
             onSubmit={(options) => void confirm(options)}
           />

@@ -9,7 +9,7 @@ import {
   type FolderUploadEntry,
 } from "@uniwork/core/documents/folder-upload";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { DesktopPlatformGuess, OfficeLaunchOptions, OfficeLaunchOutcome } from "@uniwork/core/office";
+import type { DesktopPlatformGuess, OfficeInstallerOption, OfficeLaunchOutcome } from "@uniwork/core/office";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import type { OfficeHomeLaunchProps } from "../../office/office-home-launch";
 import { wrap } from "../../test/api-mock";
@@ -166,6 +166,8 @@ describe("useFolderUpload: files the browser cannot read", () => {
       "Đã mở UniWork Office. Trong ứng dụng, bấm Tải lên › Tải lên thư mục rồi chọn lại thư mục này.",
     );
     expect(toast.info.mock.calls[0]?.[1]).toMatchObject({ duration: 12_000 });
+    // No installer on this server: the toast text alone, no action that leads to a dead dialog.
+    expect(toast.info.mock.calls[0]?.[1]?.action).toBeUndefined();
     expect(transport.calls).toEqual([]);
     expect(toast.loading).not.toHaveBeenCalled();
   });
@@ -310,25 +312,117 @@ describe("useFolderUpload: a launch answers to the pick it began for (R2-2)", ()
   });
 });
 
-describe("useFolderUpload: late hand-off and cancelling the probe (R2-3)", () => {
-  it("a hand-off after not-installed closes the prompt and the dialog, dismisses the head and toasts", async () => {
-    let late: (() => void) | undefined;
-    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions): Promise<OfficeLaunchOutcome> => {
-      late = options?.onLateHandoff;
-      return "not-installed";
-    });
-    const { transport } = setup({ officeHome: officeHome({ launch }) });
-    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+const windowsInstaller: OfficeInstallerOption = {
+  platform: "win32-x64",
+  url: "https://downloads.test/UniWork-Office.exe",
+  kind: "exe",
+  channel: "stable",
+};
+const installPrompt = () => screen.queryByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
+
+describe("useFolderUpload: Mở UniWork Office closes the warning whatever the outcome (UNI-2152 fix 2)", () => {
+  it.each<OfficeLaunchOutcome>(["launched", "not-installed", "error"])(
+    "%s: the warning is gone, the head is dismissed with no server call, the toast shows, no install dialog opens",
+    async (outcome) => {
+      const launch = vi.fn(async (): Promise<OfficeLaunchOutcome> => outcome);
+      const { transport } = setup({ officeHome: officeHome({ launch }) });
+      stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+      fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+      await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(toast.info.mock.calls[0]?.[0]).toBe(t("documents.folder_upload.unreadable.handoff_a"));
+      expect(toast.info.mock.calls[0]?.[1]).toMatchObject({ duration: 12_000 });
+      expect(transport.calls).toEqual([]);
+      expect(installPrompt()).toBeNull();
+    },
+  );
+
+  it("files mode: the same, with the files wording", async () => {
+    const launch = vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed");
+    setup({ officeHome: officeHome({ launch }) });
+    act(() => hook.addFiles([pdf("a.pdf"), new UnstatableFile("long.pdf")]));
     fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
-    expect(await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeInTheDocument();
-    expect(toast.info).not.toHaveBeenCalled();
-    act(() => late?.());
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(toast.info).toHaveBeenCalledOnce();
-    expect(toast.info.mock.calls[0]?.[0]).toContain("Đã mở UniWork Office");
-    expect(transport.calls).toEqual([]);
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(toast.info.mock.calls[0]?.[0]).toBe(t("documents.folder_upload.unreadable.handoff_a", { context: "files" }));
   });
 
+  it("the toast action opens the install prompt alone; Để sau leaves a clean page", async () => {
+    const launch = vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed");
+    const home = officeHome({ launch, loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    const options = toast.info.mock.calls[0]?.[1];
+    expect(options).toMatchObject({ duration: 12_000, action: { label: "Chưa cài UniWork Office?" } });
+    expect(installPrompt()).toBeNull();
+    act(() => {
+      options.action.onClick();
+    });
+    const prompt = await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
+    // Alone: the warning is already closed, nothing sits behind it.
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: /trình duyệt không đọc được/ })).toBeNull();
+    fireEvent.click(within(prompt).getByRole("button", { name: "Để sau" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(home.loadInstallers).toHaveBeenCalledOnce();
+  });
+
+  it("the toast action still opens the prompt when the next staged folder is already showing", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]), entries("Hai", ["b.pdf"]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    act(() => {
+      toast.info.mock.calls[0]?.[1].action.onClick();
+    });
+    expect(await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeInTheDocument();
+  });
+
+  it("has no action when the installer list is empty, or cannot be loaded", async () => {
+    const loadInstallers = vi.fn(async (): Promise<{ installers: OfficeInstallerOption[] }> => {
+      throw new Error("down");
+    });
+    setup({ officeHome: officeHome({ launch: vi.fn(async (): Promise<OfficeLaunchOutcome> => "not-installed"), loadInstallers }) });
+    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    expect(toast.info.mock.calls[0]?.[1]?.action).toBeUndefined();
+  });
+
+  it("loads the installers once for the page, not once per pick", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    for (const root of ["Một", "Hai"]) {
+      stage(entries(root, ["a.pdf", new UnstatableFile("long.pdf")]));
+      fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    }
+    expect(toast.info).toHaveBeenCalledTimes(2);
+    expect(home.loadInstallers).toHaveBeenCalledOnce();
+  });
+
+  it("an aborted launch (Hủy while Đang mở…) shows nothing, whatever it ends with", async () => {
+    let finish: (outcome: OfficeLaunchOutcome) => void = () => undefined;
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => { finish = resolve; }));
+    setup({ officeHome: officeHome({ launch, loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) }) });
+    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await screen.findByRole("button", { name: "Đang mở…" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await act(async () => {
+      finish("not-installed");
+    });
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("useFolderUpload: cancelling the probe (R2-3)", () => {
   it.each([
     ["Hủy", () => fireEvent.click(screen.getByRole("button", { name: "Hủy" }))],
     ["Esc", () => fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })],

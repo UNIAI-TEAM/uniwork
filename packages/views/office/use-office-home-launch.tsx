@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   buildOfficeHomeLink,
   DESKTOP_PLATFORMS,
@@ -16,10 +16,13 @@ import { OfficeInstallPrompt } from "./install-prompt";
 /** Marks "no scope" apart from a scope that is undefined. */
 const NO_SCOPE = Symbol("no-scope");
 
+/** The way to the installer dialog, handed to the host when the server has an installer for this channel. */
+type OpenInstall = () => void;
+
 /** One press of the button: who it began for, who to tell, and whether the app answered late. */
 interface Launch {
   scope: unknown;
-  done: (() => void) | undefined;
+  done: ((install: OpenInstall | null) => void) | undefined;
   lateHandoff: boolean;
 }
 
@@ -37,8 +40,15 @@ export interface OfficeHomeLaunchProps {
 }
 
 export interface OfficeHomeLaunchOptions {
-  /** The app took over: launched at once, or after the launcher gave up on it. */
-  onLaunched?: () => void;
+  /**
+   * The folder-upload warning's way of using the launcher. Whatever the outcome of a press (`launched`,
+   * `not-installed`, `error`; the browser cannot tell an installed app that kept the page in front from a
+   * missing one) the host is told once, with the way to the installer dialog, or null when the server has no
+   * installer for this channel. The launcher then opens no installer prompt by itself and keeps no late
+   * hand-off watch: the host closes its dialog and decides what to offer. The prompt it renders is standalone,
+   * open only through that function, and belongs to no scope.
+   */
+  onHandoff?: (install: OpenInstall | null) => void;
   /**
    * What the launcher is for (the pick a dialog shows). A launch began for one scope never shows its
    * "launching" state, its installer prompt or its hand-off on another: the next pick starts clean.
@@ -59,11 +69,11 @@ export interface OfficeHomeLauncher {
  * The launch half of "Open UniWork Office": the platform hint, opening the app
  * through its registered scheme, and the installer dialog when the browser saw
  * no hand-off (the app is missing or did not answer). Shared by the header
- * button and the folder-upload warning.
+ * button and the folder-upload warning (`onHandoff`).
  */
 export function useOfficeHomeLaunch(
   props: OfficeHomeLaunchProps | undefined,
-  { onLaunched, scope }: OfficeHomeLaunchOptions = {},
+  { onHandoff, scope }: OfficeHomeLaunchOptions = {},
 ): OfficeHomeLauncher {
   const [hint, setHint] = useState<DesktopPlatformGuess | null>(null);
   const [installers, setInstallers] = useState<OfficeInstallerOption[]>([]);
@@ -72,9 +82,13 @@ export function useOfficeHomeLaunch(
   const [launchingFor, setLaunchingFor] = useState<unknown>(NO_SCOPE);
   const [installFor, setInstallFor] = useState<unknown>(NO_SCOPE);
   const [reason, setReason] = useState<"not-installed" | "error">("not-installed");
+  const [standalone, setStandalone] = useState(false);
   const current = useRef<Launch | null>(null);
-  const latest = useRef({ onLaunched, scope });
-  latest.current = { onLaunched, scope };
+  // The host's one load of the installers (handoff mode); null until the first press, and again after a failure.
+  const installersLoad = useRef<Promise<boolean> | null>(null);
+  const latest = useRef({ onHandoff, scope });
+  latest.current = { onHandoff, scope };
+  const handoff = onHandoff !== undefined;
   const loadPlatformHint = props?.loadPlatformHint;
 
   useEffect(() => {
@@ -95,32 +109,58 @@ export function useOfficeHomeLaunch(
 
   const status = !props ? "unavailable" : !hint ? "unknown" : hint.confidence === "unsupported" ? "unavailable" : "available";
   const launching = launchingFor === scope;
-  const installOpen = installFor === scope;
-  const setInstallOpen = (open: boolean) => setInstallFor(open ? scope : NO_SCOPE);
+  const installOpen = handoff ? standalone : installFor === scope;
+  const setInstallOpen = (open: boolean) => (handoff ? setStandalone(open) : setInstallFor(open ? scope : NO_SCOPE));
+  const openInstall = useCallback(() => setStandalone(true), []);
+
+  /** Loads the installers once and says whether this channel has one the prompt could offer (the prompt's own filter). */
+  const loadInstallersOnce = (): Promise<boolean> => {
+    if (!props) return Promise.resolve(false);
+    installersLoad.current ??= props.loadInstallers().then(
+      (loaded) => {
+        const supported = loaded.supportedPlatforms ?? DESKTOP_PLATFORMS;
+        setInstallers(loaded.installers);
+        setPlatforms(supported);
+        return loaded.installers.some((row) => row.channel === props.channel && supported.includes(row.platform));
+      },
+      () => {
+        installersLoad.current = null;
+        return false;
+      },
+    );
+    return installersLoad.current;
+  };
 
   const run = async () => {
     if (!props || (current.current && current.current.scope === scope)) return;
     // The callback and the scope of the render that pressed the button: a launch that outlives its caller (a dialog dismissed meanwhile) answers to the caller it began with.
-    const launch: Launch = { scope, done: latest.current.onLaunched, lateHandoff: false };
+    const launch: Launch = { scope, done: latest.current.onHandoff, lateHandoff: false };
     const outlived = () => latest.current.scope !== launch.scope;
     current.current = launch;
     setLaunchingFor(scope);
     try {
       const { channel, deploymentId, apiOrigin, launch: open, loadInstallers } = props;
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
-      const outcome = await open(buildOfficeHomeLink(channel, profile), {
-        // The app opened after the launcher gave up: no "did not respond" prompt, now or while the installers load.
-        onLateHandoff: () => {
-          launch.lateHandoff = true;
-          setInstallFor((at: unknown) => (at === launch.scope ? NO_SCOPE : at));
-          launch.done?.();
-        },
-      }).catch((): OfficeLaunchOutcome => "error");
-      if (outcome === "launched") {
-        launch.done?.();
+      // Started beside the launch so the host's answer waits for the app, not for a second request.
+      const installable = launch.done ? loadInstallersOnce() : null;
+      const outcome = await open(
+        buildOfficeHomeLink(channel, profile),
+        launch.done
+          ? {}
+          : {
+              // The app opened after the launcher gave up: no "did not respond" prompt, now or while the installers load.
+              onLateHandoff: () => {
+                launch.lateHandoff = true;
+                setInstallFor((at: unknown) => (at === launch.scope ? NO_SCOPE : at));
+              },
+            },
+      ).catch((): OfficeLaunchOutcome => "error");
+      if (launch.done) {
+        // The host decides what the outcome means; it ignores a press whose pick is gone.
+        launch.done((await installable) ? openInstall : null);
         return;
       }
-      if (outlived()) return;
+      if (outcome === "launched" || outlived()) return;
       setReason(outcome === "not-installed" ? "not-installed" : "error");
       try {
         const loaded = await loadInstallers();
@@ -136,6 +176,12 @@ export function useOfficeHomeLaunch(
     }
   };
 
+  const relaunch = async () => {
+    if (!props) return;
+    const profile = props.deploymentId && props.apiOrigin ? { deploymentId: props.deploymentId, apiOrigin: props.apiOrigin } : undefined;
+    await props.launch(buildOfficeHomeLink(props.channel, profile)).catch(() => undefined);
+  };
+
   const prompt =
     props && hint ? (
       <OfficeInstallPrompt
@@ -148,7 +194,9 @@ export function useOfficeHomeLaunch(
         onOpenChange={setInstallOpen}
         onOpenAgain={() => {
           setInstallOpen(false);
-          void run();
+          // Standalone, the pick that pressed the button is gone: send the link and leave the rest to the app.
+          if (handoff) void relaunch();
+          else void run();
         }}
         onDownload={props.downloadInstaller}
       />

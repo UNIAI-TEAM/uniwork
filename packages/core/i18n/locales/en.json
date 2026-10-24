@@ -10651,7 +10651,8 @@
         "rest_one": "Upload the other {{count}} file",
         "rest_other": "Upload the other {{count}} files",
         "handoff_a": "UniWork Office is open. In the app, choose Upload › Upload folder and pick this folder again.",
-        "handoff_a_files": "UniWork Office is open. In the app, choose Upload › Upload files and pick these files again."
+        "handoff_a_files": "UniWork Office is open. In the app, choose Upload › Upload files and pick these files again.",
+        "handoff_install": "UniWork Office not installed?"
       },
       "skip_reason": {
         "hidden": "Hidden or system files",
