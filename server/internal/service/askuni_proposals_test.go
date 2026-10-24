@@ -140,6 +140,10 @@ func TestApplyProposalRunsTheCommandOnce(t *testing.T) {
 	if got.Status != "applied" || got.Decision != "confirmed" || !got.CanUndo || got.Result.ObjectID == "" || proposalRow(t, s, row.ID).DecidedBy.String != x.ua.ID {
 		t.Fatalf("row = %+v", got)
 	}
+	// The card links the result in the app, so the href is a path, not the MCP item's absolute URL.
+	if !strings.HasPrefix(got.Result.Href, "/") || !strings.HasSuffix(got.Result.Href, "/tasks/"+got.Result.ObjectID) {
+		t.Fatalf("result href = %q, want an in-app path to the task", got.Result.Href)
+	}
 	if n := proposalAudits(t, x, "ai_proposal.applied", row.ID); n != 1 {
 		t.Fatalf("%d ai_proposal.applied rows, want 1", n)
 	}

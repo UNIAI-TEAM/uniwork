@@ -509,6 +509,8 @@ func (s *AskUNIService) runClaimed(ctx context.Context, userID string, row db.Ag
 // settleApplied marks the claimed row applied with what its command returned
 // and writes ai_proposal.applied in the same transaction.
 func (s *AskUNIService) settleApplied(ctx context.Context, userID string, row db.AgentActionProposal, decision, targetID string, res AskProposalResult, inv *askInverse) (db.AgentActionProposal, error) {
+	// The MCP items carry absolute URLs; the card opens the result in the app.
+	res.Href = s.href(res.Href)
 	result, err := json.Marshal(res)
 	if err != nil {
 		return db.AgentActionProposal{}, err
