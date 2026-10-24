@@ -6200,6 +6200,7 @@
       "plan": "Plan",
       "auto": "Auto",
       "label_with": "Mode: {{mode}}",
+      "save_failed": "Could not save the mode. Try again.",
       "tainted_note": "This conversation has read content someone else wrote, so every change will still ask you first, even in Auto mode."
     },
     "model": {
@@ -6293,6 +6294,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "edit_field": "Edit {{field}}",
+      "edit_invalid": "This change is not valid. Fix it and save again.",
+      "edit_invalid_field": "{{field}} is not valid. Fix it and save again.",
       "picked": "Picked: {{name}}",
       "select_step": "Select step {{n}}",
       "step_n": "Step {{n}}",
@@ -6327,6 +6330,8 @@
         "not_found": "This item was not found. It may have been deleted, or you may no longer have access.",
         "invalid_args": "This proposal is not valid. Edit it or ask UNI again.",
         "proposal_expired": "This proposal has expired. Ask UNI again.",
+        "proposal_ref_pending": "This step uses the result of an earlier step that is not applied yet. Apply that step first.",
+        "proposal_not_pending": "This proposal was already handled, perhaps in another tab.",
         "ai_actions_disabled": "Ask UNI actions are switched off. Ask an organization admin to turn them on.",
         "ai_write_rate_limited": "Too many changes at once. Wait a minute and try again.",
         "undo_unavailable": "Cannot undo: someone changed it afterwards.",
@@ -6354,6 +6359,7 @@
         "description": "Description",
         "content": "Content",
         "body": "Text",
+        "reason": "Reason",
         "status": "Status",
         "priority": "Priority",
         "assignee_id": "Assignee",

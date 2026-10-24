@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -54,6 +55,19 @@ describe("AskUniModeButton", () => {
     fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Kế hoạch" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/ask-uni-mode", { method: "PUT", body: { mode: "plan" } }));
     expect(await screen.findByRole("button", { name: /Chế độ: Kế hoạch/ })).toBeInTheDocument();
+  });
+
+  it("says when the mode did not save, and keeps the one in use", async () => {
+    serve({ enabled: true, ceiling: "plan", mode: "ask" });
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/me/ask-uni-mode" ? Promise.reject(new ApiError("Ask UNI actions are off", "ai_actions_disabled", 403)) : base?.(path, init),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Chế độ: Hỏi trước/ }));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitemradio", { name: "Kế hoạch" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không lưu được chế độ. Thử lại.");
+    expect(screen.getByRole("button", { name: /Chế độ: Hỏi trước/ })).toBeInTheDocument();
   });
 
   it("says every change still asks first in a tainted conversation on Tự động", async () => {

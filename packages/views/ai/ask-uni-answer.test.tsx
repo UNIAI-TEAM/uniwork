@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachments";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { AiFileNote, AiMessage } from "@uniwork/core/types";
+import { AiProposalSchema, type AiFileNote, type AiMessage } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
 import { isInAppHref } from "./ask-uni-links";
@@ -257,6 +257,33 @@ describe("AskUniMessageTurn", () => {
     unmount();
     mount(msg({ content: "a" }));
     expect(screen.getByText(/^UNI/)).toBeInTheDocument();
+  });
+
+  describe("the proposal card", () => {
+    const proposal = AiProposalSchema.parse({
+      id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending", mode: "ask",
+      preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] },
+    });
+    const serveActions = (enabled: boolean) =>
+      requestMock.mockImplementation((path: string) =>
+        Promise.resolve(path === "/api/v1/workspaces/ws1/ai/capabilities" ? { enabled: true, ask_uni: true, actions: { enabled, ceiling: "plan", mode: "ask" } } : {}),
+      );
+    const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+    it("offers the buttons while actions are on", async () => {
+      serveActions(true);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      expect(await screen.findByRole("button", { name: "Áp dụng" })).toBeInTheDocument();
+    });
+
+    it("keeps the rows as history, with no button, once actions are off", async () => {
+      serveActions(false);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
   });
 
   describe("files the question carried", () => {

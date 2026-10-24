@@ -81,5 +81,11 @@ export function editKind(f: AiProposal["preview"]["fields"][number], tool: strin
   }
 }
 
-/** Whether "Sửa" has anything to open: an editable field, or the text a comment or message will post. */
-export const hasEditable = (p: AiProposal) => p.preview.body !== "" || p.preview.fields.some((f) => editKind(f, p.tool) !== null);
+/** The tool argument `preview.body` stands for: a page's content, a cancellation's reason, else the text it posts. */
+export const bodyArg = (tool: string) => (tool === "create_document" ? "content" : tool === "cancel_meeting" ? "reason" : "body");
+
+/** The body "Sửa" may change: not one the server cut to fit the card, or saving it would cut the page. */
+export const bodyEditable = (p: AiProposal) => p.preview.body !== "" && !p.preview.body_truncated;
+
+/** Whether "Sửa" has anything to open: an editable field, or the whole text the row will post. */
+export const hasEditable = (p: AiProposal) => bodyEditable(p) || p.preview.fields.some((f) => editKind(f, p.tool) !== null);

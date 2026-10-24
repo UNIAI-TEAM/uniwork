@@ -7,7 +7,9 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { askRefHref } from "./ask-uni-context-chips";
 import { entityKindIcon } from "./ask-uni-entity";
 import { isInAppHref } from "./ask-uni-links";
 import { AskUniProposalEdit, type EditCallbacks } from "./ask-uni-proposal-edit";
@@ -29,6 +31,8 @@ export interface ProposalRowProps {
   busy?: boolean;
   /** Code of the last refused call on this row (e.g. an undo that found the object edited). */
   error?: string;
+  /** Actions are off: the row is history, with no button or checkbox. */
+  readOnly?: boolean;
 }
 
 function Fields({ proposal }: { proposal: AiProposal }) {
@@ -97,16 +101,18 @@ function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string 
 }
 
 /** One change UNI proposes. Presentational: the card owns the calls. Every text from the model shows as plain text. */
-export function AskUniProposalRow({ proposal, selectable = false, selected = false, onToggle, onEdit, onApply, onReject, onUndo, busy = false, error }: ProposalRowProps) {
+export function AskUniProposalRow({ proposal, selectable = false, selected = false, onToggle, onEdit, onApply, onReject, onUndo, busy = false, error, readOnly = false }: ProposalRowProps) {
   const { t } = useTranslation();
+  const ws = useOptionalWorkspace()?.workspace;
   const [editing, setEditing] = useState(false);
   const { preview, status } = proposal;
   const Icon = entityKindIcon(preview.target.kind);
   const tool = SAFE_CODE.test(proposal.tool) ? t(`ai.proposal.tool.${proposal.tool}`, { defaultValue: t("ai.proposal.tool.other") }) : t("ai.proposal.tool.other");
-  const pending = status === "pending";
+  const pending = status === "pending" && !readOnly;
   const href = proposal.result.href;
-  // A link only to an in-app path: the href is data from the server, not markup.
-  const link = isInAppHref(href) ? href : "";
+  // A link only to an in-app path: the href is data from the server, not markup. A row whose outcome is unknown
+  // made no result yet, so it opens the object it names, if any.
+  const link = isInAppHref(href) ? href : status === "unknown" && preview.target.id ? (askRefHref(ws, preview.target) ?? "") : "";
   const editable = hasEditable(proposal);
   const disabled = busy || status === "applying" || status === "undoing";
 
@@ -156,7 +162,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
               {t("ai.proposal.open")}
             </AppLink>
           ) : null}
-          {status === "applied" && proposal.can_undo ? (
+          {status === "applied" && proposal.can_undo && !readOnly ? (
             <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onUndo}>
               {t("ai.proposal.undo")}
             </Button>

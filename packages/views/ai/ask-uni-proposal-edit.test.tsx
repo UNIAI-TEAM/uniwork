@@ -29,7 +29,7 @@ function mount(p: AiProposal) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniProposalCard message={{ id: "m1", proposals: [p] }} conversationId="c1" mode="ask" />
+        <AskUniProposalCard message={{ id: "m1", proposals: [p] }} conversationId="c1" />
       </WorkspaceProvider>,
     ),
   );
@@ -96,7 +96,8 @@ describe("AskUniProposalEdit", () => {
     fireEvent.change(title, { target: { value: "Mới" } });
     await save();
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("title must be 1-200 characters");
+    expect(alert).toHaveTextContent("Tiêu đề không hợp lệ. Sửa lại rồi lưu.");
+    expect(alert).not.toHaveTextContent("title must be");
     expect(title.parentElement).toContainElement(alert);
     expect(title).toHaveValue("Mới");
     expect(screen.getByRole("button", { name: "Lưu" })).toBeEnabled();
@@ -107,7 +108,7 @@ describe("AskUniProposalEdit", () => {
     edit(row(TASK));
     fireEvent.change(screen.getByRole("textbox", { name: "Sửa Tiêu đề" }), { target: { value: "Mới" } });
     await save();
-    expect(await screen.findByRole("alert")).toHaveTextContent("nothing to change");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Thay đổi này không hợp lệ. Sửa lại rồi lưu.");
     expect(screen.getByRole("textbox", { name: "Sửa Tiêu đề" })).toHaveValue("Mới");
   });
 
@@ -174,6 +175,37 @@ describe("AskUniProposalEdit", () => {
     edit(row([{ field: "a(b", type: "text", from: "x", to: "x" }]));
     fireEvent.change(screen.getByRole("textbox", { name: "Sửa a(b" }), { target: { value: "y" } });
     await save();
-    expect(await screen.findByRole("alert")).toHaveTextContent("a(b is not valid");
+    expect(await screen.findByRole("alert")).toHaveTextContent("a(b không hợp lệ");
+  });
+
+  it("edits the content of a page UNI drafts as content", async () => {
+    const title = { field: "title", type: "text", from: null, to: "Trang" };
+    edit(row([title], { tool: "create_document", preview: { target: { kind: "document", id: "", title: "Trang" }, fields: [title], body: "Cũ" } }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Sửa Nội dung" }), { target: { value: "Mới" } });
+    await save();
+    await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { content: "Mới" } }));
+  });
+
+  it("edits the reason of a cancellation as reason", async () => {
+    const status = { field: "status", type: "enum", from: "SCHEDULED", to: "CANCELED" };
+    edit(row([status], { tool: "cancel_meeting", preview: { target: { kind: "meeting", id: "M", title: "Họp" }, fields: [status], body: "Bận" } }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Sửa Lý do" }), { target: { value: "Dời sang tuần sau" } });
+    await save();
+    await waitFor(() => expect(patches()[0]![1].body).toEqual({ changes: { reason: "Dời sang tuần sau" } }));
+  });
+
+  const cutPage = { target: { kind: "document", id: "", title: "Trang" }, body: "Phần đầu", body_truncated: true };
+
+  it("keeps a page body that was cut to fit the card read-only", () => {
+    const title = { field: "title", type: "text", from: null, to: "Trang" };
+    edit(row([title], { tool: "create_document", preview: { ...cutPage, fields: [title] } }));
+    expect(screen.getByRole("textbox", { name: "Sửa Tiêu đề" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Sửa Nội dung" })).toBeNull();
+  });
+
+  it("offers no Sửa when a cut page body is all there is", () => {
+    mount(row([], { tool: "create_document", preview: { ...cutPage, fields: [] } }));
+    expect(screen.getByText("Phần đầu")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sửa" })).toBeNull();
   });
 });

@@ -436,7 +436,13 @@ describe("AskUniThread files", () => {
   it("hides regenerate on an answer with proposals and shows its card", async () => {
     const proposal = { id: "p1", message_id: "a1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } };
     requestMock.mockImplementation((path: string) =>
-      Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], { ...history[1], proposals: [proposal] }] } : {}),
+      Promise.resolve(
+        path === "/api/v1/ai/conversations/c1/messages"
+          ? { messages: [history[0], { ...history[1], proposals: [proposal] }] }
+          : path.endsWith("/ai/capabilities")
+            ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } }
+            : {},
+      ),
     );
     mount(stream());
     expect(await screen.findByText("UNI đề xuất · cần bạn xác nhận")).toBeInTheDocument();

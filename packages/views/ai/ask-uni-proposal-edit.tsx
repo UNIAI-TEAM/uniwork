@@ -12,7 +12,7 @@ import { DateField } from "../common/date-field";
 import { DateTimeField } from "../common/datetime-field";
 import { useWorkspaceId } from "../layout/workspace-context";
 import { AskUniObjectPicker, type AskUniObjectItem } from "./ask-uni-object-picker";
-import { editKind, fieldLabel, formatProposalValue, type EditKind } from "./ask-uni-proposal-values";
+import { bodyArg, bodyEditable, editKind, fieldLabel, formatProposalValue, type EditKind } from "./ask-uni-proposal-values";
 
 const SAFE_CODE = /^[a-z_]+$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -56,7 +56,7 @@ function itemsOf(p: AiProposal): Item[] {
     const initial = kind === "datetime" ? toLocal(to) : kind === "date" ? (DAY.test(to) ? to : "") : kind === "object" ? "" : to;
     items.push({ key: f.field, kind, type: f.type, options: f.options, initial });
   }
-  if (p.preview.body !== "") items.push({ key: "body", kind: "markdown", type: "text", options: [], initial: p.preview.body });
+  if (bodyEditable(p)) items.push({ key: bodyArg(p.tool), kind: "markdown", type: "text", options: [], initial: p.preview.body });
   return items;
 }
 
@@ -130,10 +130,12 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
       onError: (err) => {
         setSaving(false);
         const code = errorCode(err) ?? "";
+        // The server words a refusal in English, for the model: it only says which field, the form says the rest.
+        const message = apiErrorMessage(err) ?? "";
+        const field = items.find((i) => new RegExp(`\\b${i.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(message))?.key ?? "";
         const known = code !== "invalid_args" && SAFE_CODE.test(code) ? t(`ai.proposal.error.${code}`, { defaultValue: "" }) : "";
-        const text = known || apiErrorMessage(err) || t("ai.proposal.generic_error");
-        const field = items.find((i) => new RegExp(`\\b${i.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text))?.key ?? "";
-        setError({ field, text });
+        const invalid = field ? t("ai.proposal.edit_invalid_field", { field: fieldLabel(t, field) }) : t("ai.proposal.edit_invalid");
+        setError({ field, text: code === "invalid_args" ? invalid : known || t("ai.proposal.generic_error") });
       },
     });
   };

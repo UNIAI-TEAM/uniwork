@@ -6151,6 +6151,7 @@
       "plan": "Kế hoạch",
       "auto": "Tự động",
       "label_with": "Chế độ: {{mode}}",
+      "save_failed": "Không lưu được chế độ. Thử lại.",
       "tainted_note": "Hội thoại này đã đọc nội dung do người khác viết, nên mọi thay đổi vẫn hỏi bạn trước dù đang ở chế độ Tự động."
     },
     "model": {
@@ -6244,6 +6245,8 @@
       "save": "Lưu",
       "cancel": "Hủy",
       "edit_field": "Sửa {{field}}",
+      "edit_invalid": "Thay đổi này không hợp lệ. Sửa lại rồi lưu.",
+      "edit_invalid_field": "{{field}} không hợp lệ. Sửa lại rồi lưu.",
       "picked": "Đã chọn: {{name}}",
       "select_step": "Chọn bước {{n}}",
       "step_n": "Bước {{n}}",
@@ -6278,6 +6281,8 @@
         "not_found": "Không tìm thấy đối tượng này. Có thể nó đã bị xóa hoặc bạn không còn quyền xem.",
         "invalid_args": "Đề xuất này không hợp lệ. Sửa nội dung hoặc hỏi lại UNI.",
         "proposal_expired": "Đề xuất đã hết hạn. Hỏi lại UNI.",
+        "proposal_ref_pending": "Bước này dùng kết quả của một bước trước chưa được áp dụng. Áp dụng bước đó trước.",
+        "proposal_not_pending": "Đề xuất này đã được xử lý, có thể ở một tab khác.",
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
@@ -6305,6 +6310,7 @@
         "description": "Mô tả",
         "content": "Nội dung",
         "body": "Nội dung",
+        "reason": "Lý do",
         "status": "Trạng thái",
         "priority": "Độ ưu tiên",
         "assignee_id": "Người phụ trách",

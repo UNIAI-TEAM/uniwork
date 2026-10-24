@@ -60,6 +60,11 @@ export function AskUniModeButton({ wsId, conversationTainted }: { wsId: string; 
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      {save.isError ? (
+        <p role="alert" className="basis-full text-caption text-destructive">
+          {t("save_failed")}
+        </p>
+      ) : null}
       {conversationTainted && state.mode === "auto" ? (
         <p role="status" className="basis-full text-caption text-muted-foreground">
           {t("tainted_note")}

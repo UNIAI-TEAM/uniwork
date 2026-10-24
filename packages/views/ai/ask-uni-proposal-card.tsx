@@ -17,9 +17,10 @@ import { AskUniProposalRow } from "./ask-uni-proposal-row";
 /**
  * The rows UNI proposes for one answer. Ask mode: each row applies on its own, two or more waiting add "apply all".
  * Plan mode: rows start ticked and one button approves the ticked ones in order. Every call awaits the server;
- * the hooks repaint the rows from its answer.
+ * the hooks repaint the rows from its answer. `readOnly` (actions switched off) keeps the rows as history with no
+ * button or checkbox.
  */
-export function AskUniProposalCard({ message, conversationId, mode }: { message: Pick<AiMessage, "id" | "proposals">; conversationId: string; mode: string }) {
+export function AskUniProposalCard({ message, conversationId, readOnly = false }: { message: Pick<AiMessage, "id" | "proposals">; conversationId: string; readOnly?: boolean }) {
   const { t } = useTranslation();
   const apply = useApplyAiProposal(conversationId);
   const reject = useRejectAiProposal(conversationId);
@@ -31,8 +32,10 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
   const [errors, setErrors] = useState<Record<string, string>>({});
   const rows = [...message.proposals].sort((a, b) => a.position - b.position);
   const pending = rows.filter((r) => r.status === "pending");
-  const plan = mode === "plan";
-  const ticked = pending.filter((r) => !unticked.has(r.id));
+  // Position 0 is the "Tạo tài liệu" row: the server decides the mode and the batch from the model's rows alone.
+  const steps = pending.filter((r) => r.position >= 1);
+  const plan = !readOnly && rows.find((r) => r.position >= 1)?.mode === "plan";
+  const ticked = steps.filter((r) => !unticked.has(r.id));
 
   const [busyId, setBusyId] = useState("");
   const [cardError, setCardError] = useState("");
@@ -50,7 +53,7 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
     applyMany.mutate({ messageId: message.id, ids }, { onError: (err) => setCardError(errorCode(err) ?? "default") });
   };
 
-  const header = plan ? "header_plan" : pending.length > 0 ? "header_ask" : "header_done";
+  const header = plan ? "header_plan" : pending.length > 0 && !readOnly ? "header_ask" : "header_done";
   return (
     <section aria-label={t(`ai.proposal.${header}`)} className="mt-3 flex flex-col gap-2">
       <h3 className="text-caption font-medium text-muted-foreground">{t(`ai.proposal.${header}`)}</h3>
@@ -59,7 +62,8 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
           <AskUniProposalRow
             key={p.id || `${p.position}`}
             proposal={p}
-            selectable={plan}
+            selectable={plan && p.position >= 1}
+            readOnly={readOnly}
             selected={!unticked.has(p.id)}
             onToggle={() => setUnticked((s) => { const n = new Set(s); if (!n.delete(p.id)) n.add(p.id); return n; })}
             onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb))}
@@ -80,13 +84,13 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
           {t(`ai.proposal.error.${/^[a-z_]+$/.test(cardError) ? cardError : "default"}`, { defaultValue: t("ai.proposal.error.default") })}
         </p>
       ) : null}
-      {plan && pending.length > 0 ? (
+      {plan && steps.length > 0 ? (
         <Button type="button" size="sm" className="self-start" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
           {t("ai.proposal.approve_plan", { count: ticked.length })}
         </Button>
       ) : null}
-      {!plan && pending.length >= 2 ? (
-        <Button type="button" size="sm" variant="outline" className="self-start" disabled={inFlight} onClick={() => approve(pending.map((r) => r.id))}>
+      {!plan && !readOnly && steps.length >= 2 ? (
+        <Button type="button" size="sm" variant="outline" className="self-start" disabled={inFlight} onClick={() => approve(steps.map((r) => r.id))}>
           {t("ai.proposal.apply_all")}
         </Button>
       ) : null}

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiProposal } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { user, workspace } from "./ask-uni-fixtures";
 import { AskUniProposalCard } from "./ask-uni-proposal-card";
 
 initI18n();
@@ -26,9 +28,18 @@ function row(over: Record<string, unknown> = {}): AiProposal {
   });
 }
 
-function mount(proposals: AiProposal[], mode = "ask") {
-  return render(wrapWithNav(<AskUniProposalCard message={{ id: "m1", proposals }} conversationId="c1" mode={mode} />));
+function mount(proposals: AiProposal[], readOnly = false) {
+  return render(
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <AskUniProposalCard message={{ id: "m1", proposals }} conversationId="c1" readOnly={readOnly} />
+      </WorkspaceProvider>,
+    ),
+  );
 }
+
+const pageRow = (mode: string) =>
+  row({ id: "pd", position: 0, tool: "create_document", mode, preview: { target: { kind: "document", id: "", title: "Trang" }, fields: [], body: "Nội dung" } });
 
 beforeEach(() => {
   requestMock.mockReset();
@@ -63,7 +74,7 @@ describe("AskUniProposalCard", () => {
 
   it("renders a plan with checkboxes", async () => {
     requestMock.mockResolvedValue({ proposals: [] });
-    mount([row({ id: "p1", mode: "plan" }), row({ id: "p2", position: 2, mode: "plan", preview: { target: { kind: "task", id: "", title: "Gửi" }, fields: [], refs: [1] } }), row({ id: "p3", position: 3, mode: "plan" })], "plan");
+    mount([row({ id: "p1", mode: "plan" }), row({ id: "p2", position: 2, mode: "plan", preview: { target: { kind: "task", id: "", title: "Gửi" }, fields: [], refs: [1] } }), row({ id: "p3", position: 3, mode: "plan" })]);
     const boxes = screen.getAllByRole("checkbox");
     expect(boxes).toHaveLength(3);
     boxes.forEach((b) => expect(b).toBeChecked());
@@ -129,6 +140,8 @@ describe("AskUniProposalCard", () => {
     ["ai_actions_disabled", "đang tắt hành động ghi"],
     ["ai_write_rate_limited", "Áp dụng quá nhanh"],
     ["undo_unavailable", "đã có người sửa sau đó"],
+    ["proposal_ref_pending", "Áp dụng bước đó trước"],
+    ["proposal_not_pending", "đã được xử lý"],
     ["whatever_new", "Không áp dụng được. Hỏi lại UNI."],
   ])("shows the failed copy for %s", (code, text) => {
     mount([row({ status: "failed", error_code: code })]);
@@ -218,6 +231,45 @@ describe("AskUniProposalCard", () => {
       row({ id: "c", position: 3, tool: "add_comment", preview: { target: { kind: "task", id: "T", title: "x" }, fields: [], body: "hi" } }),
     ]);
     expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(2);
+  });
+
+  it("takes its mode from UNI's own rows and leaves the page row out of a plan", async () => {
+    requestMock.mockResolvedValue({ proposals: [] });
+    mount([pageRow("ask"), row({ id: "p1", mode: "plan" }), row({ id: "p2", position: 2, mode: "plan" })]);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Duyệt kế hoạch (2 bước)" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    expect((requestMock.mock.calls[0] as [string, { body: unknown }])[1].body).toEqual({ proposal_ids: ["p1", "p2"] });
+  });
+
+  it("leaves a waiting page row out of Áp dụng tất cả, whatever mode it was made in", async () => {
+    requestMock.mockResolvedValue({ proposals: [] });
+    mount([pageRow("plan"), row({ id: "p1" }), row({ id: "p2", position: 2 })]);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng tất cả" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    expect((requestMock.mock.calls[0] as [string, { body: unknown }])[1].body).toEqual({ proposal_ids: ["p1", "p2"] });
+  });
+
+  it("shows the rows as history, with no button or checkbox, while actions are off", () => {
+    mount(
+      [
+        row({ id: "p1", mode: "plan" }),
+        row({ id: "p2", position: 2, mode: "plan" }),
+        row({ id: "p3", position: 3, mode: "plan", status: "applied", can_undo: true, result: { object_id: "T1", href: "/acme/team/tasks/T1", revision: 2, changes: [], note: "" } }),
+      ],
+      true,
+    );
+    expect(screen.getAllByText("Viết spec")).toHaveLength(3);
+    expect(screen.getByText("Đã áp dụng")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("link", { name: "Mở" })).toHaveAttribute("href", "/acme/team/tasks/T1");
+  });
+
+  it("links the object an update names when its outcome is unknown", () => {
+    mount([row({ status: "unknown" })]);
+    expect(screen.getByRole("link", { name: "Mở" })).toHaveAttribute("href", "/acme/team/tasks/T1");
   });
 
   it("disables every row while one call is in flight", () => {

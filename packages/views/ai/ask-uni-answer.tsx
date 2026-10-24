@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import type { AiCitation, AiMessage, AiStep } from "@uniwork/core/types";
 import { SafeMarkdown } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -92,6 +93,9 @@ export function AskUniMessageTurn({
     [sources, message.citations],
   );
   const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
+  // With actions off (or not read yet) the card is history: its rows, no button.
+  const hasProposals = (message.proposals?.length ?? 0) > 0;
+  const actionsOn = useAiCapabilities(wsId, wsId !== "" && hasProposals).data?.actions.enabled === true;
   // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
   const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
   if (message.role === "user") {
@@ -128,8 +132,8 @@ export function AskUniMessageTurn({
         ) : null}
         <AskUniFileNotes notes={message.file_notes ?? []} />
         <AskUniSources citations={message.citations} />
-        {stored && conversationId && (message.proposals?.length ?? 0) > 0 ? (
-          <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} mode={message.proposals?.[0]?.mode ?? ""} />
+        {stored && conversationId && hasProposals ? (
+          <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} readOnly={!actionsOn} />
         ) : null}
         {stored && conversationId ? (
           <AskUniActions
