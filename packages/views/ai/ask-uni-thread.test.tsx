@@ -12,6 +12,9 @@ import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
 initI18n();
 
+// The thread's timing is not under test here; use-smooth-text.test.tsx holds the reveal.
+vi.mock("./use-smooth-text", () => ({ useSmoothText: (text: string) => text }));
+
 // Long enough to be shown while it streams; a call's short lead-in is held back.
 const LONG = "Có 3 việc quá hạn. ".repeat(10);
 const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", thinking: "", steps: [], sources: {}, followups: [], proposals: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
@@ -84,8 +87,7 @@ describe("AskUniThread", () => {
     m.update(stream({ status: "streaming", question: "Họp tuần?", draft: "", steps }));
     expect(screen.getByRole("status")).toHaveTextContent("Đang tìm “quá hạn”…");
     m.update(stream({ status: "streaming", question: "Họp tuần?", draft: LONG, steps }));
-    // The answer is revealed over a few frames, then whole.
-    expect(await screen.findByText(LONG.trim(), undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText(LONG.trim())).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Đang viết câu trả lời…");
   });
 
