@@ -26,6 +26,7 @@ import (
 //	POST  /api/v1/me/delete         (credential rate limit)
 //	PUT   /api/v1/me/ai-consent
 //	DELETE /api/v1/me/ai-consent
+//	PUT   /api/v1/me/ask-uni-mode
 func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",
@@ -162,6 +163,15 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		tags: []string{"me"},
 		sdi:  sdi.SetPushPreviewsSDI{},
 		sdo:  sdo.UserSDO{},
+		auth: true,
+	})
+	r.Put("/me/ask-uni-mode", h.SetAskUniMode, apiOp{
+		summary: "Set my Ask UNI mode",
+		description: "Chế độ Hỏi UNI của người dùng, nhớ theo người: ask (Hỏi trước), plan (Kế hoạch) hoặc auto (Tự động); giá trị khác -> 400. " +
+			"Mỗi lượt hỏi gửi mode của nó, và server hạ xuống trần của tổ chức. Là cài đặt hiển thị nên không ghi audit. Cờ ask_uni_actions tắt thì 403 ai_actions_disabled.",
+		tags: []string{"me"},
+		sdi:  sdi.AskUniModeSDI{},
+		sdo:  sdo.AskUniModeSDO{},
 		auth: true,
 	})
 	r.Delete("/me/ai-consent", h.WithdrawAIConsent, apiOp{

@@ -30,11 +30,12 @@ export function isTimelineActivity(event: AuditEvent): boolean {
   return !DUPLICATED_BY_THE_TIMELINE.test(event.action);
 }
 
-/** The AI app a change came through (ADR 0033), or "" when none or malformed. */
-function viaClient(event: AuditEvent): string {
+/** The AI app (ADR 0033) or Ask UNI (ADR 0044) a change came through, or "" when none or malformed. */
+function viaClient(event: AuditEvent, askUni: string): string {
   const via = event.metadata.via;
   if (typeof via !== "object" || via === null) return "";
-  const name = (via as Record<string, unknown>).client_name;
+  const { client_name: name, kind } = via as Record<string, unknown>;
+  if (kind === "ask_uni") return askUni;
   return typeof name === "string" ? name : "";
 }
 
@@ -71,7 +72,7 @@ export function TaskActivityRow({
   // but omit it from this resource-local timeline and its remaining-field count.
   const timelineChanges = changeEntries(event).filter(([field]) => field !== "position");
   const changes = timelineChanges.slice(0, 2);
-  const via = viaClient(event);
+  const via = viaClient(event, t("ai.title"));
   return (
     <div
       data-testid={`task-timeline-activity-${event.id}`}

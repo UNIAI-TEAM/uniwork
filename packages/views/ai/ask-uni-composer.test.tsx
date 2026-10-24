@@ -10,7 +10,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { AskUniComposer } from "./ask-uni-composer";
-import { composerRoutes, user, workspace } from "./ask-uni-fixtures";
+import { capabilities, composerRoutes, user, workspace } from "./ask-uni-fixtures";
 
 initI18n();
 
@@ -595,6 +595,27 @@ describe("AskUniComposer", () => {
       fireEvent.click(screen.getByRole("button", { name: "Bỏ phạm vi Dự án: Website" }));
       expect(screen.getByText("Trang này: Nộp app")).toBeInTheDocument();
     });
+  });
+
+  it("sends the mode button's mode with the question, and none when the button is hidden", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path.endsWith("/ai/capabilities")
+        ? Promise.resolve({ ...capabilities(), actions: { enabled: true, ceiling: "auto", mode: "plan" } })
+        : composerRoutes(path),
+    );
+    const { onSend } = mount();
+    await screen.findByRole("button", { name: /Chế độ: Kế hoạch/ });
+    type("Tạo việc");
+    key("Enter");
+    expect(onSend.mock.calls[0]![0]).toMatchObject({ question: "Tạo việc", mode: "plan" });
+  });
+
+  it("omits mode when actions are off", async () => {
+    const { onSend } = mount();
+    await screen.findByLabelText("Câu hỏi cho UNI");
+    type("Tạo việc");
+    key("Enter");
+    expect(onSend.mock.calls[0]![0]).not.toHaveProperty("mode");
   });
 
 });

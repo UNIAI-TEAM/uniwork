@@ -73,6 +73,37 @@ func TestAnthropicStreamDeliversTextAndUsage(t *testing.T) {
 	}
 }
 
+// TestAnthropicStreamHandsThinkingApart: a thinking summary goes to
+// OnThinking and never into the text; the raw turn keeps the thinking block
+// and its signature for the next round.
+func TestAnthropicStreamHandsThinkingApart(t *testing.T) {
+	a := anthropicStream(t, func(w http.ResponseWriter, r *http.Request) {
+		sse(w, aStart,
+			[2]string{"content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}`},
+			[2]string{"content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Cần xem "}}`},
+			[2]string{"content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"các việc mở."}}`},
+			[2]string{"content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig"}}`},
+			[2]string{"content_block_stop", `{"type":"content_block_stop","index":0}`},
+			[2]string{"content_block_start", `{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`},
+			[2]string{"content_block_delta", `{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Xong."}}`},
+			[2]string{"content_block_stop", `{"type":"content_block_stop","index":1}`},
+			aMsgDelta("end_turn"), aEnd)
+	})
+	var text, thought []string
+	req := CompletionRequest{Model: "claude-opus-5", MaxTokens: 64, Thinking: true, Messages: []Message{{Role: "user", Content: "q"}},
+		OnThinking: func(s string) { thought = append(thought, s) }}
+	resp, err := a.Stream(context.Background(), req, func(s string) { text = append(text, s) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(thought, []string{"Cần xem ", "các việc mở."}) || !reflect.DeepEqual(text, []string{"Xong."}) || resp.Text != "Xong." {
+		t.Fatalf("thought %q text %q resp %q", thought, text, resp.Text)
+	}
+	if !strings.Contains(string(resp.Raw), `"signature":"sig"`) || !strings.Contains(string(resp.Raw), "các việc mở.") {
+		t.Fatalf("raw turn lost the thinking block: %s", resp.Raw)
+	}
+}
+
 func TestAnthropicStreamToolUse(t *testing.T) {
 	a := anthropicStream(t, func(w http.ResponseWriter, r *http.Request) {
 		sse(w, aStart,

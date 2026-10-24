@@ -21,6 +21,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions, out.Attachments = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}, []sdo.AiAttachmentDTO{}
+	out.Proposals = []sdo.AiProposalDTO{}
 	out.FileNotes = decodeList[sdo.AiFileNoteDTO](m.FileNotes) // stored in the DTO's own shape
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
@@ -28,7 +29,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 		if counts == nil {
 			counts = map[string]int{}
 		}
-		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts})
+		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts, Note: st.Note, Thought: st.Thought, Kind: st.Kind})
 	}
 	out.Followups = decodeList[string](m.Followups)
 	for _, r := range decodeList[service.AskContextRef](m.Mentions) {
@@ -74,6 +75,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,
 		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
 		Models: models, AutoModel: c.AutoModel, Attachments: c.Attachments,
+		Actions: sdo.AiActionsDTO{Enabled: c.Actions.Enabled, Ceiling: c.Actions.Ceiling, Mode: c.Actions.Mode},
 	})
 }
 
@@ -115,7 +117,7 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 
 // askInputFromSDI maps the body both ask routes share.
 func askInputFromSDI(in sdi.AskUniSDI) service.AskInput {
-	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Regenerate: in.RegenerateMessageID, AttachmentIDs: in.AttachmentIDs}
+	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Mode: in.Mode, Regenerate: in.RegenerateMessageID, AttachmentIDs: in.AttachmentIDs}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}
@@ -210,8 +212,23 @@ func (h *handlers) listAiMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := sdo.AiMessageListSDO{Messages: make([]sdo.AiMessageDTO, 0, len(rows))}
+	// One read for the proposals of every answer, not one per message.
+	var answers []string
+	orgID := ""
+	for _, m := range rows {
+		orgID = m.OrganizationID
+		if m.Role == "assistant" {
+			answers = append(answers, m.ID)
+		}
+	}
+	proposals, err := h.AskUNI.MessageProposals(r.Context(), orgID, answers)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	for _, m := range rows {
 		dto := toAiMessageDTO(m.AiMessage)
+		dto.Proposals = aiProposalDTOs(proposals[m.ID])
 		for _, a := range m.Attachments {
 			dto.Attachments = append(dto.Attachments, sdo.AiAttachmentDTO{ID: a.ID, Name: a.Name, MIME: a.MIME, Size: a.Size, Kind: a.Kind})
 		}
@@ -231,6 +248,7 @@ func (h *handlers) deleteAiConversation(w http.ResponseWriter, r *http.Request) 
 func toAiConversationDTO(c db.AiConversation) sdo.AiConversationDTO {
 	return sdo.AiConversationDTO{
 		ID: c.ID, Title: c.Title, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Time.UTC().Format(time.RFC3339),
+		Tainted: service.ConversationTainted(c),
 	}
 }
 

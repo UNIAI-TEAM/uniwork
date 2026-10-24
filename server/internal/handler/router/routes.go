@@ -298,23 +298,32 @@ type Routes struct {
 	SubscribePush              http.HandlerFunc
 	UnsubscribePush            http.HandlerFunc
 
-	AiCapabilities       http.HandlerFunc
-	UploadAiAttachment   http.HandlerFunc
-	CancelAiAttachment   http.HandlerFunc
-	DownloadAiAttachment http.HandlerFunc
-	GetOrgAskModels      http.HandlerFunc
-	SetOrgAskModels      http.HandlerFunc
-	AskUni               http.HandlerFunc
-	AskUniStream         http.HandlerFunc
-	ChatCatchUp          http.HandlerFunc
-	ListAiConversations  http.HandlerFunc
-	ListAiMessages       http.HandlerFunc
-	DeleteAiConversation http.HandlerFunc
-	RenameAiConversation http.HandlerFunc
-	SetAiFeedback        http.HandlerFunc
-	ClearAiFeedback      http.HandlerFunc
-	WorkspaceAiUsage     http.HandlerFunc
-	OrganizationAiUsage  http.HandlerFunc
+	AiCapabilities          http.HandlerFunc
+	UploadAiAttachment      http.HandlerFunc
+	CancelAiAttachment      http.HandlerFunc
+	DownloadAiAttachment    http.HandlerFunc
+	GetOrgAskModels         http.HandlerFunc
+	SetOrgAskModels         http.HandlerFunc
+	GetOrgAskWritePolicy    http.HandlerFunc
+	SetOrgAskWritePolicy    http.HandlerFunc
+	SetAskUniMode           http.HandlerFunc
+	ApplyAiProposal         http.HandlerFunc
+	RejectAiProposal        http.HandlerFunc
+	UndoAiProposal          http.HandlerFunc
+	EditAiProposal          http.HandlerFunc
+	ApplyAiMessageProposals http.HandlerFunc
+	SaveAiAnswerDocument    http.HandlerFunc
+	AskUni                  http.HandlerFunc
+	AskUniStream            http.HandlerFunc
+	ChatCatchUp             http.HandlerFunc
+	ListAiConversations     http.HandlerFunc
+	ListAiMessages          http.HandlerFunc
+	DeleteAiConversation    http.HandlerFunc
+	RenameAiConversation    http.HandlerFunc
+	SetAiFeedback           http.HandlerFunc
+	ClearAiFeedback         http.HandlerFunc
+	WorkspaceAiUsage        http.HandlerFunc
+	OrganizationAiUsage     http.HandlerFunc
 
 	AiByokChatCompletions http.HandlerFunc
 	AiByokMessages        http.HandlerFunc

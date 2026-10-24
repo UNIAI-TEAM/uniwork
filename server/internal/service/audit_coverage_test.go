@@ -60,6 +60,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
 	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
 	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
+	audit.ActionOrganizationAskWritePolicyChanged: "covered by askuni_modes_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
@@ -1948,6 +1949,28 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatalf("ExpireMultipartUploads = %d, err = %v", n, err)
 			}
 		},
+		// Ask UNI's executor (ADR 0044): a proposal applied, rejected, undone.
+		audit.ActionAIProposalApplied: func(t *testing.T, f *auditFixture) {
+			ask, id := f.askProposal(t)
+			if _, err := ask.ApplyProposal(f.ctx, f.owner.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAIProposalRejected: func(t *testing.T, f *auditFixture) {
+			ask, id := f.askProposal(t)
+			if _, err := ask.RejectProposal(f.ctx, f.owner.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAIProposalUndone: func(t *testing.T, f *auditFixture) {
+			ask, id := f.askProposal(t)
+			if _, err := ask.ApplyProposal(f.ctx, f.owner.ID, id); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ask.UndoProposal(f.ctx, f.owner.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -2142,6 +2165,10 @@ func auditActions() []string {
 		audit.ActionOrganizationPushPreviewPolicyChanged,
 		audit.ActionOrganizationMobileSecurityPolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
+		audit.ActionOrganizationAskWritePolicyChanged,
+		audit.ActionAIProposalApplied,
+		audit.ActionAIProposalRejected,
+		audit.ActionAIProposalUndone,
 	}
 }
 
@@ -2277,6 +2304,34 @@ func (f *auditFixture) defaultAgent(t *testing.T) db.Agent {
 		t.Fatalf("default agent missing: %v", err)
 	}
 	return agents[0]
+}
+
+// askProposal wires Ask UNI with its actions on and stores one pending
+// create_task proposal of the owner's; it returns the service and the row id.
+func (f *auditFixture) askProposal(t *testing.T) (*AskUNIService, string) {
+	t.Helper()
+	w := f.build(t)
+	ask := NewAskUNIService(f.pool, f.q, f.ws, f.orgs, f.tasks, nil, f.chat, nil, nil)
+	ask.SetReadTools(NewMcpToolService(f.q, ask, NewHomeService(f.q, f.ws), f.ws, "https://app.example.test"))
+	ask.SetFlags(actionsFlagFake{on: true})
+	tc := ai.ToolContext{ActorID: f.owner.ID, OrganizationID: f.orgID, WorkspaceID: w.ID}
+	tool, err := ask.askWriteToolNamed("create_task")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := tool.prepare(f.ctx, tc, json.RawMessage(`{"title":"Việc UNI đề xuất"}`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := askProposalParams(tc, util.NewID(), util.NewID(), util.NewID(), 1, d, AskModeAsk, false, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := f.q.AiInsertProposal(f.ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ask, row.ID
 }
 
 func (f *auditFixture) newTask(t *testing.T) db.Task {

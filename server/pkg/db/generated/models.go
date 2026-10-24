@@ -41,6 +41,42 @@ type Agent struct {
 	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
 }
 
+type AgentActionProposal struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Source         string             `json:"source"`
+	RunID          string             `json:"run_id"`
+	AgentID        pgtype.Text        `json:"agent_id"`
+	ConversationID pgtype.Text        `json:"conversation_id"`
+	MessageID      pgtype.Text        `json:"message_id"`
+	Position       int32              `json:"position"`
+	ActionType     string             `json:"action_type"`
+	TargetKind     string             `json:"target_kind"`
+	TargetID       pgtype.Text        `json:"target_id"`
+	Payload        string             `json:"payload"`
+	Preview        string             `json:"preview"`
+	RiskLevel      string             `json:"risk_level"`
+	Mode           string             `json:"mode"`
+	Tainted        bool               `json:"tainted"`
+	TargetRevision pgtype.Int8        `json:"target_revision"`
+	Status         string             `json:"status"`
+	Decision       pgtype.Text        `json:"decision"`
+	Result         string             `json:"result"`
+	Undo           pgtype.Text        `json:"undo"`
+	Error          pgtype.Text        `json:"error"`
+	DecidedBy      pgtype.Text        `json:"decided_by"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	AppliedAt      pgtype.Timestamptz `json:"applied_at"`
+	UndoneBy       pgtype.Text        `json:"undone_by"`
+	UndoneAt       pgtype.Timestamptz `json:"undone_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AiAttachment struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -65,6 +101,8 @@ type AiConversation struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	TitleSource    string             `json:"title_source"`
+	TaintedAt      pgtype.Timestamptz `json:"tainted_at"`
+	TaintTracked   bool               `json:"taint_tracked"`
 }
 
 type AiMessage struct {
@@ -2109,6 +2147,9 @@ type Organization struct {
 	MobileAppLockRequiredBy      pgtype.Text        `json:"mobile_app_lock_required_by"`
 	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
 	MobileScreenCaptureBlockedBy pgtype.Text        `json:"mobile_screen_capture_blocked_by"`
+	AskUniWriteCeiling           pgtype.Text        `json:"ask_uni_write_ceiling"`
+	AskUniWriteCeilingUpdatedBy  pgtype.Text        `json:"ask_uni_write_ceiling_updated_by"`
+	AskUniWriteCeilingUpdatedAt  pgtype.Timestamptz `json:"ask_uni_write_ceiling_updated_at"`
 }
 
 type OrganizationMember struct {
@@ -2557,6 +2598,7 @@ type User struct {
 	AppleID              pgtype.Text        `json:"apple_id"`
 	AppleClientID        pgtype.Text        `json:"apple_client_id"`
 	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
+	AskUniMode           pgtype.Text        `json:"ask_uni_mode"`
 }
 
 type WebhookInbox struct {

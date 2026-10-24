@@ -30,7 +30,7 @@
       "apps/chat-desktop/src/main/auth/transport.ts": "d23335e9d9fa0e0c10d93b3d399bed7cc818f28e8ed43e7a924abcbe61c6305c"
     },
     "apps/chat-mobile/data/calls/call-engine.ts": {
-      "packages/views/chat/use-native-voice-call.ts": "c6efcdec685280d7779dbc7060575ec2f4567be3fc30df90722cd07d2e4c14d0"
+      "packages/views/chat/use-native-voice-call.ts": "5895fba80fad5bd8dd9fbb8aba36ce01f6aa81bcb9d90adacfd2af5ca4e852f8"
     },
     "apps/chat-mobile/data/chat-actions.ts": {
       "packages/core/chat/chat-hooks-messages.ts": "d4314054ce84825b03b663be23fca88adc393e14873b5fbeefbfa6820d08669f",

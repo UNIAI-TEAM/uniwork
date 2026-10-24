@@ -12,7 +12,9 @@ import (
 type AskSink func(AskEvent)
 
 // AskEvent is one event of a streamed turn. Name selects the field that
-// carries it: run, step, sources, delta, citations, followups, done, title or error.
+// carries it: run, step, sources, delta, reasoning, proposal, citations,
+// followups, done, title or error. Delta carries the text of both delta and
+// reasoning.
 type AskEvent struct {
 	Name      string
 	Run       *AskRunEvent
@@ -24,6 +26,7 @@ type AskEvent struct {
 	Done      *AskResult
 	Title     *AskTitleEvent // the generated name of a new conversation, after done
 	Code      string
+	Proposals []AskProposal // the turn's rows after the store and any auto-applied ones (R18)
 }
 
 type AskRunEvent struct{ RunID, ConversationID string }
@@ -35,6 +38,9 @@ type AskStepEvent struct {
 	Tool   string
 	Label  string // the query or the one object the tool named; "" otherwise
 	Counts map[string]int
+	// Note is the sentence the model wrote before asking for this round's
+	// tools, on the round's first step only; "" otherwise.
+	Note string
 }
 
 // AskUsage is the tokens of a turn's model calls, summed.
@@ -81,10 +87,28 @@ type askDraft struct {
 	raw          strings.Builder
 	sent         string
 	stuck        bool
+	// thought is the call's thinking summary so far (ask_uni_thinking).
+	thought strings.Builder
 }
 
 // reset starts a new call: nothing of it streamed yet.
-func (d *askDraft) reset() { d.raw.Reset(); d.sent, d.stuck = "", false }
+func (d *askDraft) reset() { d.raw.Reset(); d.thought.Reset(); d.sent, d.stuck = "", false }
+
+// think takes one delta of the call's thinking summary: sent on as reasoning,
+// and kept, up to askThoughtRunes, for the step it leads to.
+func (d *askDraft) think(text string) {
+	d.emit.emit(AskEvent{Name: "reasoning", Delta: text})
+	if d.thought.Len() < 4*askThoughtRunes {
+		d.thought.WriteString(text)
+	}
+}
+
+// takeThought is the call's thinking summary so far, capped, and forgets it.
+func (d *askDraft) takeThought() string {
+	t := capRunes(strings.TrimSpace(d.thought.String()), askThoughtRunes, "…")
+	d.thought.Reset()
+	return t
+}
 
 // add takes one raw delta and emits what it adds to the call's text once
 // untrusted tags are stripped (ruling PF1). A tail that may still grow into a

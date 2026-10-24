@@ -226,6 +226,11 @@ var isoReferences = []isoReference{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// A's proposal named in B's apply-all: B's conversation holds no such row
+	// under that answer, so it is the same not found as an id that names
+	// nothing, and A's row stays as seeded. The control applies B's own pending row.
+	{method: "POST", pattern: "/api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply", what: "proposal", body: map[string]any{
+		"proposal_ids": []any{isoRef("aiProposalPending")}}, covers: []string{"AiApplyProposalsSDI.proposal_ids"}},
 	// A's unsent upload named in B's question: B did not upload it, so it is
 	// the same not found as an id that names nothing, A's file stays unsent and
 	// the question stores nothing of B's either. The control sends B's own.

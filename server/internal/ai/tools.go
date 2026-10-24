@@ -8,8 +8,10 @@ import (
 )
 
 // Tool registry (spec §3.4). The registry is source code: no tool is loaded
-// from the database. Ask UNI's tools only read (TestAskUniToolsAreReadOnly);
-// the MCP connector's write tools run as the human who consented (ADR 0033).
+// from the database. Ask UNI's read tools only read (TestAskAgentToolsAreReadOnly);
+// its write tools only propose and each names its undo
+// (TestAskUniWriteToolsDeclareLevelAndUndo); the MCP connector's write tools
+// run as the human who consented (ADR 0033).
 type ToolKind string
 
 const (
@@ -68,7 +70,7 @@ func (r Registry) Names() []string {
 	return out
 }
 
-// MutationCount is what TestAskUniToolsAreReadOnly asserts to be zero.
+// MutationCount is what TestAskAgentToolsAreReadOnly asserts to be zero.
 func (r Registry) MutationCount() int {
 	n := 0
 	for _, t := range r {

@@ -36,13 +36,17 @@ func WithRequest(ctx context.Context, info RequestInfo) context.Context {
 }
 
 // Via names an AI app that acts for the person through the MCP connector
-// (ADR 0033). Record writes it into metadata.via so history can say who
-// pressed the key and through what.
+// (ADR 0033), or the Ask UNI proposal a write ran for (ADR 0044). Record
+// writes it into metadata.via so history can say who pressed the key and
+// through what.
 type Via struct {
 	Kind       string
 	ClientID   string
 	GrantID    string
 	ClientName string
+	// ProposalID is the Ask UNI proposal the write applies or undoes; the
+	// MCP connector leaves it empty.
+	ProposalID string
 }
 
 // WithVia returns ctx with v added to the request provenance.
@@ -67,7 +71,11 @@ func withVia(m map[string]any, v *Via) map[string]any {
 	for k, val := range m {
 		out[k] = val
 	}
-	out["via"] = map[string]any{"kind": v.Kind, "client_id": v.ClientID, "grant_id": v.GrantID, "client_name": v.ClientName}
+	if v.ProposalID != "" {
+		out["via"] = map[string]any{"kind": v.Kind, "proposal_id": v.ProposalID}
+	} else {
+		out["via"] = map[string]any{"kind": v.Kind, "client_id": v.ClientID, "grant_id": v.GrantID, "client_name": v.ClientName}
+	}
 	return out
 }
 

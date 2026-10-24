@@ -68,8 +68,8 @@ GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3, 4;
 
 -- name: AiCreateConversation :one
-INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title, taint_tracked)
+VALUES ($1, $2, $3, $4, $5, true)
 RETURNING *;
 
 -- name: AiGetConversation :one
@@ -151,6 +151,12 @@ RETURNING *;
 -- tenant: parent conversation_id
 SELECT * FROM ai_messages WHERE id = $1 AND conversation_id = $2;
 
+-- name: AiLockMessageInConversation :one
+-- tenant: parent conversation_id
+-- Holds the answer while its document row is looked up and made, so two
+-- clicks of "Tạo tài liệu" make one page.
+SELECT id FROM ai_messages WHERE id = $1 AND conversation_id = $2 FOR UPDATE;
+
 -- name: AiUpsertMessageFeedback :exec
 -- tenant: parent conversation_id
 INSERT INTO ai_message_feedback (id, organization_id, workspace_id, conversation_id, message_id, rating, reason, note, created_by)
@@ -201,3 +207,7 @@ RETURNING file_id;
 -- The collector's question: which of these files an Ask UNI question still carries.
 SELECT file_id FROM ai_attachments
 WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: AiMarkConversationTainted :exec
+UPDATE ai_conversations SET tainted_at = COALESCE(tainted_at, now())
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);

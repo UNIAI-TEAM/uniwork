@@ -38,10 +38,34 @@ func TestAskMetricsBoundToolLabel(t *testing.T) {
 	}
 }
 
+// Proposal outcomes are counted per write tool; the labels stay closed sets.
+func TestAskMetricsCountActions(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{})
+	reg.AIAsk.ObserveAskAction("create_task", "applied")
+	reg.AIAsk.ObserveAskAction("send_chat_message", "undone")
+	reg.AIAsk.ObserveAskAction("search", "weird")
+	reg.AIAsk.ObserveAskTaintDowngrade()
+	rec := httptest.NewRecorder()
+	NewHandler(reg.Gatherer).ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	body, _ := io.ReadAll(rec.Body)
+	for _, want := range []string{
+		`uniwork_ai_ask_actions_total{outcome="applied",tool="create_task"} 1`,
+		`uniwork_ai_ask_actions_total{outcome="undone",tool="send_chat_message"} 1`,
+		`uniwork_ai_ask_actions_total{outcome="failed",tool="other"} 1`,
+		`uniwork_ai_ask_taint_downgrades_total 1`,
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+}
+
 func TestAskMetricsAreNilSafe(t *testing.T) {
 	var m *AIAsk
 	m.ObserveAskRun("answered", 1, 1)
 	m.ObserveAskTool("search", "ok", 1)
+	m.ObserveAskAction("create_task", "applied")
+	m.ObserveAskTaintDowngrade()
 	if m.Collectors() != nil {
 		t.Fatal("nil collectors")
 	}

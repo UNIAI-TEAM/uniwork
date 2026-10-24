@@ -1196,6 +1196,10 @@
         "workspace_agent.added": "Agent added to workspace",
         "agent.created": "Agent created",
         "agent.updated": "Agent updated",
+        "ai_proposal.applied": "Applied an Ask UNI proposal",
+        "ai_proposal.rejected": "Skipped an Ask UNI proposal",
+        "ai_proposal.undone": "Undid an Ask UNI proposal",
+        "organization.ask_uni_write_policy_changed": "Changed what Ask UNI may change",
         "task.created": "Task created",
         "task.updated": "Task updated",
         "task.deleted": "Task deleted",
@@ -1236,6 +1240,7 @@
         "priority": "Priority",
         "assignee_id": "Assignee",
         "assignee_kind": "Assignee kind",
+        "ask_uni_write_ceiling": "Ask UNI change permission",
         "due_date": "Due",
         "start_date": "Start date",
         "project_id": "Project",
@@ -1733,7 +1738,22 @@
       "askModelsDescription": "Choose which models members may use when asking UNI. A model that is off does not appear in the model picker.",
       "askModelsAuto": "Auto",
       "askModelsAutoNote": "Always on: UNI picks a suitable model.",
-      "askModelsSaveFailed": "Could not save the change. Try again."
+      "askModelsSaveFailed": "Could not save the change. Try again.",
+      "askWriteTitle": "Ask UNI changes",
+      "askWriteDescription": "The most Ask UNI may decide on its own in this organization. Each member picks a mode, never above this one.",
+      "askWriteCeiling": {
+        "off": "Off",
+        "ask": "Ask first only",
+        "plan": "Ask first and Plan (default)",
+        "auto": "Including Auto"
+      },
+      "askWriteCeilingNote": {
+        "off": "UNI only answers and proposes no changes.",
+        "ask": "Every change waits for someone to apply it.",
+        "plan": "Changes wait one by one, or as a whole plan.",
+        "auto": "Small, easily undone changes may apply on their own."
+      },
+      "askWriteReadOnly": "Only owners and admins can change this."
     },
     "state": {
       "load_error": "Couldn't load this section.",
@@ -6034,7 +6054,8 @@
       "default": "Worked",
       "retry": "Double-checked the answer",
       "summary_one": "Done in {{count}} step",
-      "summary_other": "Done in {{count}} steps"
+      "summary_other": "Done in {{count}} steps",
+      "thought_only": "Thought it over"
     },
     "cite": {
       "label": "Source {{n}}",
@@ -6077,7 +6098,9 @@
       "note_label": "Note (optional)",
       "note_placeholder": "Tell UNI more…",
       "note_count": "{{count}}/{{max}}",
-      "send_feedback": "Send feedback"
+      "send_feedback": "Send feedback",
+      "create_task": "Create task",
+      "create_document": "Create document"
     },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
@@ -6180,6 +6203,29 @@
     "placeholder_project": "Ask about this project…",
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
+    "source_bar": {
+      "app_soon": "{{name}} · Coming soon",
+      "title": "Connected apps",
+      "more": "Connect more apps · Coming soon",
+      "hide": "Hide the sources bar"
+    },
+    "notes": {
+      "hide": "Fold these notes for a day",
+      "show_one": "Show {{count}} note",
+      "show_other": "Show {{count}} notes"
+    },
+    "mode": {
+      "ask": "Ask first",
+      "plan": "Plan",
+      "auto": "Auto",
+      "ask_hint": "Asks you before each change",
+      "plan_hint": "Groups changes into a plan you approve once",
+      "auto_hint": "Makes small changes itself, asks for bigger ones",
+      "menu_title": "When UNI wants to change your data",
+      "label_with": "Mode: {{mode}}",
+      "save_failed": "Could not save the mode. Try again.",
+      "tainted_note": "This conversation read content you did not write, so every change still asks you first."
+    },
     "model": {
       "label": "Choose a model",
       "auto": "Auto",
@@ -6256,6 +6302,111 @@
         "3": "Which meetings are coming up next week?",
         "4": "Which high-priority tasks are still open?"
       }
+    },
+    "proposal": {
+      "header_ask": "UNI proposes · needs your confirmation",
+      "header_plan": "UNI's plan · pick the steps to run",
+      "header_done": "UNI's proposal",
+      "apply": "Apply",
+      "edit": "Edit",
+      "reject": "Skip",
+      "apply_all": "Apply all",
+      "undo": "Undo",
+      "open": "Open",
+      "approve_plan_one": "Approve plan ({{count}} step)",
+      "approve_plan_other": "Approve plan ({{count}} steps)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit_field": "Edit {{field}}",
+      "edit_invalid": "This change is not valid. Fix it and save again.",
+      "edit_invalid_field": "{{field}} is not valid. Fix it and save again.",
+      "picked": "Picked: {{name}}",
+      "select_step": "Select step {{n}}",
+      "step_n": "Step {{n}}",
+      "uses_step": "uses the result of step {{n}}",
+      "empty_value": "(empty)",
+      "unreadable_value": "(unreadable)",
+      "generic_error": "That did not work. Try again.",
+      "applying": "Applying…",
+      "undoing": "Undoing…",
+      "unknown": "The outcome is not clear. Open the item to check.",
+      "unknown_status": "Status unknown.",
+      "status": {
+        "applied": "Applied",
+        "rejected": "Skipped",
+        "undone": "Undone",
+        "expired": "Expired"
+      },
+      "audience_title": "Who will see it",
+      "audience": {
+        "workspace": "The whole workspace",
+        "private": "Only you",
+        "task": "Anyone who can see this task",
+        "document": "Anyone who can see this document",
+        "meeting": "People in the meeting",
+        "room": "{{count}} people in the chat room"
+      },
+      "notifies": "Notifies {{names}}",
+      "notifies_more": "Notifies {{names}} and others",
+      "notifies_others": "Notifies others",
+      "error": {
+        "revision_conflict": "The item changed after UNI proposed this. Ask UNI again for a fresh proposal.",
+        "not_found": "This item was not found. It may have been deleted, or you may no longer have access.",
+        "invalid_args": "This proposal is not valid. Edit it or ask UNI again.",
+        "proposal_expired": "This proposal has expired. Ask UNI again.",
+        "proposal_ref_pending": "This step uses the result of an earlier step that is not applied yet. Apply that step first.",
+        "proposal_not_pending": "This proposal was already handled, perhaps in another tab.",
+        "ai_actions_disabled": "Ask UNI actions are switched off. Ask an organization admin to turn them on.",
+        "ai_write_rate_limited": "Too many changes at once. Wait a minute and try again.",
+        "undo_unavailable": "Cannot undo: someone changed it afterwards.",
+        "default": "Could not apply this. Ask UNI again."
+      },
+      "tool": {
+        "create_task": "Create task",
+        "update_task": "Update task",
+        "add_comment": "Comment on task",
+        "create_project": "Create project",
+        "update_project": "Update project",
+        "schedule_meeting": "Schedule meeting",
+        "update_meeting": "Update meeting",
+        "invite_to_meeting": "Invite to meeting",
+        "cancel_meeting": "Cancel meeting",
+        "restore_meeting": "Restore meeting",
+        "create_document": "Create document",
+        "update_document": "Update document",
+        "add_document_comment": "Comment on document",
+        "send_chat_message": "Send chat message",
+        "other": "Change"
+      },
+      "field": {
+        "title": "Title",
+        "description": "Description",
+        "content": "Content",
+        "body": "Text",
+        "reason": "Reason",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee_id": "Assignee",
+        "lead_id": "Lead",
+        "start_date": "Start date",
+        "due_date": "Due date",
+        "starts_at": "Starts",
+        "ends_at": "Ends",
+        "timezone": "Time zone",
+        "project_id": "Project",
+        "parent_task_id": "Parent task",
+        "parent_id": "Inside",
+        "labels": "Labels",
+        "attendee_ids": "Attendees",
+        "user_ids": "Invited people",
+        "mode": "Content"
+      },
+      "content_mode": {
+        "append": "Added at the end of the document",
+        "replace": "Replaces the whole document"
+      },
+      "details": "Show details",
+      "plan_skip_note": "Unticked steps are skipped"
     }
   },
   "admin": {

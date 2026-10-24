@@ -357,8 +357,14 @@ Every command that changes business state writes an `audit_events` row and its
   a connection to a model host; `internal/ai` never imports `internal/service`
   and only calls sqlc queries named `Ai*`, so the model side of the house
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
-  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
-  `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it.
+  Ask UNI's write tools never run a command in the agent loop: each records an
+  `agent_action_proposals` row, and only the asker's Apply (or Auto mode, for an
+  untainted level-1 row) runs the service command, as `service.Human(asker)`
+  through one shared gate (ADR 0044; ADR 0010 still holds for the agent runtime).
+  `TestAskUniWriteToolsDeclareLevelAndUndo`, `TestAskUniLoopNeverRunsAWriteCommand`,
+  `TestAskUniTaintedTurnNeverAutoApplies`, `TestAskUniModeIsClampedToTheCeiling`,
+  `TestAskUniOnlyTheAskerDecidesAProposal` and `TestAIWriteGateIsShared` hold it.
 - The signed-in desktop app uses the keys the person saved on UniWork only
   through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
   key, and its calls record the `office.byok_desktop` capability while web and

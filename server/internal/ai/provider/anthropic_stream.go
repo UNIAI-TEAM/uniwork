@@ -7,8 +7,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 )
 
-// Stream is Complete over the SSE endpoint: text deltas go to onDelta as they
-// arrive, everything else is accumulated and turned into the same response.
+// Stream is Complete over the SSE endpoint: text deltas go to onDelta and
+// thinking summary deltas to req.OnThinking as they arrive, everything else is
+// accumulated and turned into the same response.
 func (a *Anthropic) Stream(ctx context.Context, req CompletionRequest, onDelta func(string)) (CompletionResponse, error) {
 	params, err := a.params(req)
 	if err != nil {
@@ -25,8 +26,11 @@ func (a *Anthropic) Stream(ctx context.Context, req CompletionRequest, onDelta f
 		}
 		switch ev.Type {
 		case "content_block_delta":
-			if ev.Delta.Type == "text_delta" && ev.Delta.Text != "" {
+			switch {
+			case ev.Delta.Type == "text_delta" && ev.Delta.Text != "":
 				onDelta(ev.Delta.Text)
+			case ev.Delta.Type == "thinking_delta" && ev.Delta.Thinking != "" && req.OnThinking != nil:
+				req.OnThinking(ev.Delta.Thinking)
 			}
 		case "message_stop":
 			complete = true
