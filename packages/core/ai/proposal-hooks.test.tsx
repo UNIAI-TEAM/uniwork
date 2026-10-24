@@ -118,6 +118,30 @@ describe("proposal hooks", () => {
     expect(rowsOf(qc).map((r) => r.status)).toEqual(["pending", "pending"]);
   });
 
+  it("a malformed success answer refetches instead of splicing an empty-id row", async () => {
+    const { qc, wrapper } = setup();
+    const before = qc.getQueryData(aiKeys.messages("c1"));
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    vi.mocked(fetch).mockResolvedValueOnce(json("garbage"));
+    const { result } = renderHook(() => useApplyAiProposal("c1"), { wrapper });
+    await act(async () => void (await result.current.mutateAsync("p1")));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: aiKeys.messages("c1") });
+    expect(qc.getQueryData(aiKeys.messages("c1"))).toBe(before);
+  });
+
+  it("a row whose message is not cached changes nothing and does not crash", async () => {
+    const { qc, wrapper } = setup();
+    const before = qc.getQueryData(aiKeys.messages("c1"));
+    vi.mocked(fetch).mockResolvedValueOnce(json(row("zz", { status: "applied" })));
+    const { result } = renderHook(() => useApplyAiProposal("c1"), { wrapper });
+    await act(async () => void (await result.current.mutateAsync("zz")));
+    expect(qc.getQueryData(aiKeys.messages("c1"))).toEqual(before);
+    qc.removeQueries({ queryKey: aiKeys.messages("c1") });
+    vi.mocked(fetch).mockResolvedValueOnce(json(row("p1", { status: "applied" })));
+    await act(async () => void (await result.current.mutateAsync("p1")));
+    expect(qc.getQueryData(aiKeys.messages("c1"))).toBeUndefined();
+  });
+
   it("set mode writes the server's answer into the capabilities cache", async () => {
     const { qc, wrapper } = setup();
     const caps = { enabled: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } } as unknown as AiCapabilities;

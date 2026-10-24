@@ -51,7 +51,8 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
   proposal: (raw) => {
     const s = z.object({ proposals: z.array(AiProposalSchema) });
     const r = parseWithFallback<{ proposals: AiProposal[] } | null>(raw, s, null, { endpoint: "ai.askStream:proposal" });
-    return r && { type: "proposal", proposals: r.proposals };
+    // A row with no id cannot be matched to a card, so it is dropped.
+    return r && { type: "proposal", proposals: r.proposals.filter((p) => p.id !== "") };
   },
   citations: (raw) => {
     const s = z.object({ citations: z.array(AiCitationSchema) });

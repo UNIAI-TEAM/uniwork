@@ -163,7 +163,8 @@ export function useAskUniStream(wsId: string) {
             finished = true;
             settle({ accepted: true });
             // The done frame carries the answer without its rows; the stored answer keeps the ones the turn announced.
-            const message: AiMessage = proposals.length > 0 ? { ...e.message, proposals } : e.message;
+            // A stopped turn stored none of them, so they are not kept.
+            const message: AiMessage = proposals.length > 0 && e.message.notice !== "stopped" ? { ...e.message, proposals } : e.message;
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
             if (conversationId && regenerateOf) {
               // The question is already stored; the new answer takes the old one's place.

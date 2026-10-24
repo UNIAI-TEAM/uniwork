@@ -184,6 +184,8 @@ describe("askUniStream", () => {
       ]),
     );
     expect(events).toHaveLength(2);
+    const noId = await collect(sse([frame("proposal", { proposals: [row, { tool: "x" }] })]));
+    expect(noId).toMatchObject([{ type: "proposal", proposals: [{ id: "p1" }] }]);
     expect(events[0]).toMatchObject({ type: "proposal", proposals: [{ id: "p1", status: "applied", preview: { body: "", fields: [] } }] });
     expect(events[1]).toEqual({ type: "delta", text: "x" });
   });

@@ -429,4 +429,14 @@ describe("useAskModelChoice", () => {
     emit({ type: "proposal", proposals: [applied] });
     expect(result.current.state.proposals).toEqual([applied]);
   });
+
+  it("a stopped turn keeps no proposals: the server stored none", () => {
+    const { result, qc } = setup();
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "proposal", proposals: [proposal] });
+    emit({ type: "done", message: msg({ notice: "stopped" }), usage: usage0 });
+    expect(result.current.state.message?.proposals).toEqual([]);
+    const stored = qc.getQueryData<{ id: string; proposals: unknown[] }[]>(aiKeys.messages("c1"));
+    expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([]);
+  });
 });

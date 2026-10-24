@@ -8,6 +8,11 @@ import { aiKeys } from "./hooks";
 /** Rows the server just answered replace the cached ones by id; nothing else in the conversation moves. */
 function putRows(qc: QueryClient, conversationId: string, rows: AiProposal[]) {
   if (rows.length === 0) return;
+  // An unreadable answer (a row with no id) cannot be spliced in: read the answers again instead.
+  if (rows.some((r) => r.id === "")) {
+    void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
+    return;
+  }
   const byId = new Map(rows.map((r) => [r.id, r]));
   qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) =>
     old?.map((m) => (m.proposals.some((p) => byId.has(p.id)) ? { ...m, proposals: m.proposals.map((p) => byId.get(p.id) ?? p) } : m)),
