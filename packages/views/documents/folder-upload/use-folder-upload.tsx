@@ -433,6 +433,7 @@ export function useFolderUpload({
             checking={check.checking}
             officeHome={officeHome}
             onLaunched={launchedFor(head)}
+            pick={head}
             onSubmit={(options) => void confirm(options)}
           />
         </>

@@ -13,6 +13,16 @@ import {
 } from "@uniwork/core/office";
 import { OfficeInstallPrompt } from "./install-prompt";
 
+/** Marks "no scope" apart from a scope that is undefined. */
+const NO_SCOPE = Symbol("no-scope");
+
+/** One press of the button: who it began for, who to tell, and whether the app answered late. */
+interface Launch {
+  scope: unknown;
+  done: (() => void) | undefined;
+  lateHandoff: boolean;
+}
+
 /** Host wiring of "Open UniWork Office" (no document, no launch ticket). */
 export interface OfficeHomeLaunchProps {
   channel: OfficeChannel;
@@ -27,10 +37,13 @@ export interface OfficeHomeLaunchProps {
 }
 
 export interface OfficeHomeLaunchOptions {
-  /** False keeps the platform hint unloaded (a dialog that is closed). Default true. */
-  enabled?: boolean;
   /** The app took over: launched at once, or after the launcher gave up on it. */
   onLaunched?: () => void;
+  /**
+   * What the launcher is for (the pick a dialog shows). A launch began for one scope never shows its
+   * "launching" state, its installer prompt or its hand-off on another: the next pick starts clean.
+   */
+  scope?: unknown;
 }
 
 export interface OfficeHomeLauncher {
@@ -50,25 +63,22 @@ export interface OfficeHomeLauncher {
  */
 export function useOfficeHomeLaunch(
   props: OfficeHomeLaunchProps | undefined,
-  { enabled = true, onLaunched }: OfficeHomeLaunchOptions = {},
+  { onLaunched, scope }: OfficeHomeLaunchOptions = {},
 ): OfficeHomeLauncher {
   const [hint, setHint] = useState<DesktopPlatformGuess | null>(null);
   const [installers, setInstallers] = useState<OfficeInstallerOption[]>([]);
   const [platforms, setPlatforms] = useState<readonly DesktopPlatform[]>(DESKTOP_PLATFORMS);
-  const [installOpen, setInstallOpen] = useState(false);
+  // The scope a launch or an installer prompt belongs to; NO_SCOPE when there is none.
+  const [launchingFor, setLaunchingFor] = useState<unknown>(NO_SCOPE);
+  const [installFor, setInstallFor] = useState<unknown>(NO_SCOPE);
   const [reason, setReason] = useState<"not-installed" | "error">("not-installed");
-  const [launching, setLaunching] = useState(false);
-  const busy = useRef(false);
-  // The app opened after the launcher gave up: no "did not respond" prompt, now or while the installers load.
-  const lateHandoff = useRef(false);
-  const latest = useRef({ onLaunched });
-  latest.current = { onLaunched };
-  // The callback of the render that pressed the button: a launch that outlives its caller (a dialog dismissed meanwhile) answers to the caller it began with.
-  const launchDone = useRef<(() => void) | undefined>(undefined);
+  const current = useRef<Launch | null>(null);
+  const latest = useRef({ onLaunched, scope });
+  latest.current = { onLaunched, scope };
   const loadPlatformHint = props?.loadPlatformHint;
 
   useEffect(() => {
-    if (!enabled || !loadPlatformHint) return;
+    if (!loadPlatformHint) return;
     let active = true;
     loadPlatformHint().then(
       (value) => {
@@ -81,30 +91,36 @@ export function useOfficeHomeLaunch(
     return () => {
       active = false;
     };
-  }, [enabled, loadPlatformHint]);
+  }, [loadPlatformHint]);
 
   const status = !props ? "unavailable" : !hint ? "unknown" : hint.confidence === "unsupported" ? "unavailable" : "available";
-
-  const onLateHandoff = () => {
-    lateHandoff.current = true;
-    setInstallOpen(false);
-    launchDone.current?.();
-  };
+  const launching = launchingFor === scope;
+  const installOpen = installFor === scope;
+  const setInstallOpen = (open: boolean) => setInstallFor(open ? scope : NO_SCOPE);
 
   const run = async () => {
-    if (!props || busy.current) return;
-    busy.current = true;
-    lateHandoff.current = false;
-    launchDone.current = latest.current.onLaunched;
-    setLaunching(true);
+    if (!props || (current.current && current.current.scope === scope)) return;
+    // The callback and the scope of the render that pressed the button: a launch that outlives its caller (a dialog dismissed meanwhile) answers to the caller it began with.
+    const launch: Launch = { scope, done: latest.current.onLaunched, lateHandoff: false };
+    const outlived = () => latest.current.scope !== launch.scope;
+    current.current = launch;
+    setLaunchingFor(scope);
     try {
-      const { channel, deploymentId, apiOrigin, launch, loadInstallers } = props;
+      const { channel, deploymentId, apiOrigin, launch: open, loadInstallers } = props;
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
-      const outcome = await launch(buildOfficeHomeLink(channel, profile), { onLateHandoff }).catch((): OfficeLaunchOutcome => "error");
+      const outcome = await open(buildOfficeHomeLink(channel, profile), {
+        // The app opened after the launcher gave up: no "did not respond" prompt, now or while the installers load.
+        onLateHandoff: () => {
+          launch.lateHandoff = true;
+          setInstallFor((at: unknown) => (at === launch.scope ? NO_SCOPE : at));
+          launch.done?.();
+        },
+      }).catch((): OfficeLaunchOutcome => "error");
       if (outcome === "launched") {
-        launchDone.current?.();
+        launch.done?.();
         return;
       }
+      if (outlived()) return;
       setReason(outcome === "not-installed" ? "not-installed" : "error");
       try {
         const loaded = await loadInstallers();
@@ -113,10 +129,10 @@ export function useOfficeHomeLaunch(
       } catch {
         setInstallers([]);
       }
-      if (!lateHandoff.current) setInstallOpen(true);
+      if (!launch.lateHandoff && !outlived()) setInstallFor(launch.scope);
     } finally {
-      busy.current = false;
-      setLaunching(false);
+      if (current.current === launch) current.current = null;
+      setLaunchingFor((at: unknown) => (at === launch.scope ? NO_SCOPE : at));
     }
   };
 

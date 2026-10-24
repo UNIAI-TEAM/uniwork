@@ -53,6 +53,8 @@ export interface FolderUploadDialogProps {
   officeHome?: OfficeHomeLaunchProps;
   /** The app opened: the folder is its to upload now, nothing was written here. */
   onLaunched?: () => void;
+  /** The staged pick this dialog shows; a launch answers only to the pick it began for, never to the next one. */
+  pick?: object | null;
   onSubmit: (options: { shareWithWorkspace: boolean }) => void;
 }
 
@@ -75,6 +77,7 @@ export function FolderUploadDialog({
   checking = false,
   officeHome,
   onLaunched,
+  pick,
   onSubmit,
 }: FolderUploadDialogProps) {
   const { t, i18n } = useTranslation();
@@ -95,12 +98,13 @@ export function FolderUploadDialog({
   const refusal = plan?.refusal ?? null;
   // Files the browser cannot read (UNI-2152): the dialog is the warning, with the app as its way out.
   const warn = unreadable.length > 0 && refusal === null;
-  const launcher = useOfficeHomeLaunch(officeHome, { enabled: open && warn, onLaunched });
+  const launcher = useOfficeHomeLaunch(officeHome, { onLaunched, scope: pick });
   const appAvailable = launcher.status !== "unavailable";
   const left = plan ? Math.max(0, plan.totals.files - unreadable.length) : 0;
-  // The device has no app to open: the primary action moves to the upload of the rest.
+  // The dialog turned into the warning (a slow probe answered) or the device has no app to open: the focus follows
+  // to the primary action, which the footer just swapped. The first open is initialFocus's.
   useEffect(() => {
-    if (warn && !appAvailable) primaryRef.current?.focus();
+    if (warn) primaryRef.current?.focus();
   }, [warn, appAvailable]);
   // A plan with no root is a files-mode run (ADDENDUM 2): the files land in the destination itself.
   const mode = plan !== null && plan.rootName === null ? "files" : "folder";

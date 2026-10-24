@@ -4,11 +4,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { DEFAULT_DOCUMENT_LIMITS, type DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import {
   createFakeFolderUploadTransport,
+  findUnreadable,
   type FakeFolderUploadOptions,
   type FolderUploadEntry,
 } from "@uniwork/core/documents/folder-upload";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { DesktopPlatformGuess, OfficeLaunchOutcome } from "@uniwork/core/office";
+import type { DesktopPlatformGuess, OfficeLaunchOptions, OfficeLaunchOutcome } from "@uniwork/core/office";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import type { OfficeHomeLaunchProps } from "../../office/office-home-launch";
 import { wrap } from "../../test/api-mock";
@@ -23,6 +24,11 @@ const toast = vi.hoisted(() => ({
   dismiss: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast }));
+// Pass-through, so a test can read the signal the probe was given.
+vi.mock("@uniwork/core/documents/folder-upload", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@uniwork/core/documents/folder-upload")>();
+  return { ...original, findUnreadable: vi.fn(original.findUnreadable) };
+});
 
 const { t } = initI18n();
 
@@ -230,5 +236,128 @@ describe("useFolderUpload: files the browser cannot read", () => {
     expect(await heading("Có 1 tệp trình duyệt không đọc được")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mở UniWork Office" })).toBeNull();
     expect(screen.getByRole("note")).toHaveTextContent("Chép thư mục vào chỗ có đường dẫn ngắn hơn");
+  });
+});
+
+const slowFile = (name: string) => {
+  let release: () => void = () => undefined;
+  const file = new UnstatableFile(
+    name,
+    () => new Promise<ArrayBuffer>((_, reject) => { release = () => reject(new DOMException("not found", "NotFoundError")); }),
+  );
+  return { file, release: () => release() };
+};
+
+describe("useFolderUpload: the focus follows the dialog into the warning (R2-1)", () => {
+  it("moves to Mở UniWork Office when a slow probe turns the checking dialog into the warning", async () => {
+    const slow = slowFile("long.pdf");
+    setup();
+    stage(entries("Mới", ["a.pdf", slow.file]));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("status")).toBeInTheDocument();
+    act(() => slow.release());
+    expect(await heading("Có 1 tệp trình duyệt không đọc được")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Mở UniWork Office" })).toHaveFocus());
+  });
+
+  it("moves to the rest when there is no app to open", async () => {
+    const slow = slowFile("long.pdf");
+    setup({ officeHome: undefined });
+    stage(entries("Mới", ["a.pdf", slow.file]));
+    await screen.findByRole("dialog");
+    act(() => slow.release());
+    expect(await heading("Có 1 tệp trình duyệt không đọc được")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tải 1 tệp còn lại" })).toHaveFocus());
+  });
+});
+
+describe("useFolderUpload: a launch answers to the pick it began for (R2-2)", () => {
+  const twoWarned = () =>
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]), entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+
+  it("leaves the next pick's buttons live and opens no install prompt over it", async () => {
+    let finish: (outcome: OfficeLaunchOutcome) => void = () => undefined;
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => { finish = resolve; }));
+    setup({ officeHome: officeHome({ launch }) });
+    twoWarned();
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await screen.findByRole("button", { name: "Đang mở…" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai"));
+    const primary = await screen.findByRole("button", { name: "Mở UniWork Office" });
+    expect(primary).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: "Tải 1 tệp còn lại" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByRole("button", { name: "Đang mở…" })).toBeNull();
+    await act(async () => {
+      finish("not-installed");
+    });
+    expect(screen.queryByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mở UniWork Office" })).not.toHaveAttribute("aria-disabled");
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("lets the next pick open the app while the first launch is still pending", async () => {
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>(() => undefined));
+    setup({ officeHome: officeHome({ launch }) });
+    twoWarned();
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await screen.findByRole("button", { name: "Đang mở…" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai"));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    expect(launch).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("button", { name: "Đang mở…" })).toBeInTheDocument();
+  });
+});
+
+describe("useFolderUpload: late hand-off and cancelling the probe (R2-3)", () => {
+  it("a hand-off after not-installed closes the prompt and the dialog, dismisses the head and toasts", async () => {
+    let late: (() => void) | undefined;
+    const launch = vi.fn(async (_url: string, options?: OfficeLaunchOptions): Promise<OfficeLaunchOutcome> => {
+      late = options?.onLateHandoff;
+      return "not-installed";
+    });
+    const { transport } = setup({ officeHome: officeHome({ launch }) });
+    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    expect(await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" })).toBeInTheDocument();
+    expect(toast.info).not.toHaveBeenCalled();
+    act(() => late?.());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast.info).toHaveBeenCalledOnce();
+    expect(toast.info.mock.calls[0]?.[0]).toContain("Đã mở UniWork Office");
+    expect(transport.calls).toEqual([]);
+  });
+
+  it.each([
+    ["Hủy", () => fireEvent.click(screen.getByRole("button", { name: "Hủy" }))],
+    ["Esc", () => fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })],
+  ])("%s during the checking dialog aborts the probe and dismisses the head", async (_name, leave) => {
+    const slow = slowFile("long.pdf");
+    setup();
+    stage(entries("Một", ["a.pdf", slow.file]), entries("Hai", ["b.pdf"]));
+    await screen.findByRole("status");
+    const signal = vi.mocked(findUnreadable).mock.calls.at(-1)?.[1]?.signal;
+    expect(signal?.aborted).toBe(false);
+    act(() => {
+      leave();
+    });
+    await waitFor(() => expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai"));
+    expect(signal?.aborted).toBe(true);
+  });
+});
+
+describe("useFolderUpload: the platform hint loads once, before any pick (R2-5)", () => {
+  it("never shows the app button on a device with no installer", async () => {
+    const loadPlatformHint = vi.fn(async (): Promise<DesktopPlatformGuess> => ({ platform: null, confidence: "unsupported" }));
+    setup({ officeHome: officeHome({ loadPlatformHint }) });
+    await waitFor(() => expect(loadPlatformHint).toHaveBeenCalledOnce());
+    await act(async () => undefined);
+    stage(entries("Mới", ["a.pdf", new UnstatableFile("long.pdf")]));
+    expect(await heading("Có 1 tệp trình duyệt không đọc được")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mở UniWork Office" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Tải 1 tệp còn lại" })).toBeInTheDocument();
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    expect(loadPlatformHint).toHaveBeenCalledOnce();
   });
 });
