@@ -126,7 +126,11 @@ describe("AskUniProposalCard", () => {
   it("shows applied with open and undo", async () => {
     requestMock.mockResolvedValue(row({ status: "undone" }));
     mount([row({ status: "applied", can_undo: true, result: { object_id: "T1", href: "/acme/team/tasks/T1", revision: 2, changes: [], note: "" } })]);
-    expect(screen.getByRole("link", { name: "Mở" })).toHaveAttribute("href", "/acme/team/tasks/T1");
+    const open = screen.getByRole("link", { name: "Mở" });
+    expect(open).toHaveAttribute("href", "/acme/team/tasks/T1");
+    // The link wears the outline button: its border is the input colour, not the base's transparent one.
+    expect(open.className).toContain("border-input");
+    expect(open.className).not.toContain("border-transparent");
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/proposals/p1/undo", expect.anything()));
   });

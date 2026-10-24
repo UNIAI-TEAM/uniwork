@@ -181,7 +181,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
             </>
           ) : null}
           {(status === "applied" || status === "unknown") && link ? (
-            <AppLink href={link} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <AppLink href={link} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               <ArrowUpRight aria-hidden />
               {t("ai.proposal.open")}
             </AppLink>
