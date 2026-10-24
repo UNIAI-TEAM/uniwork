@@ -84,7 +84,8 @@ function StoredTurn({
         steps={stream.message?.id === message.id && stream.steps.length > 0 ? stream.steps : undefined}
         sources={sources}
         wsId={wsId}
-        onRegenerate={isLast ? onRegenerate : undefined}
+        // An answer with proposals is not regenerated: its rows may already have changed something.
+        onRegenerate={isLast && message.proposals.length === 0 ? onRegenerate : undefined}
         regenerateDisabled={stream.status === "streaming"}
       />
       {error !== undefined ? <StreamError code={error} /> : null}

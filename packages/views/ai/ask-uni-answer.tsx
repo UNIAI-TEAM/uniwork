@@ -12,6 +12,7 @@ import { dropEchoedNames } from "./ask-uni-text";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniContextChips } from "./ask-uni-context-chips";
 import { AskUniFileNotes, AskUniQuestionFiles } from "./ask-uni-files";
+import { AskUniProposalCard } from "./ask-uni-proposal-card";
 import { AskUniMessageMeta } from "./ask-uni-meta";
 import { useAskModelLook } from "./ask-uni-provider";
 import { AskUniProgress } from "./ask-uni-steps";
@@ -21,7 +22,7 @@ const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused"
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes" | "proposals">>;
 
 // How an answer or a question shows a link that isInAppHref lets through.
 const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
@@ -127,6 +128,9 @@ export function AskUniMessageTurn({
         ) : null}
         <AskUniFileNotes notes={message.file_notes ?? []} />
         <AskUniSources citations={message.citations} />
+        {stored && conversationId && (message.proposals?.length ?? 0) > 0 ? (
+          <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} mode={message.proposals?.[0]?.mode ?? ""} />
+        ) : null}
         {stored && conversationId ? (
           <AskUniActions
             conversationId={conversationId}
