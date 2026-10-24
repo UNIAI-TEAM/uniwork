@@ -213,8 +213,9 @@ export class WSClient {
       this.presenceBeatWaiter = null;
     }
     return new Promise((resolve) => {
+      // A newer beat and an ack both clear this timer, so when it fires the waiter is this one.
       const timer = setTimeout(() => {
-        if (this.presenceBeatWaiter) this.presenceBeatWaiter = null;
+        this.presenceBeatWaiter = null;
         resolve(null);
       }, 10_000);
       this.presenceBeatWaiter = { resolve, timer };
