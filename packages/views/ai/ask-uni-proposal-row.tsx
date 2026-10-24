@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowUpRight, Ban, Check, CircleAlert, CircleCheck, Clock, Pencil, TriangleAlert, Undo2, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AiProposal } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -17,6 +18,13 @@ import { fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal
 
 const SAFE_CODE = /^[a-z_]+$/;
 const FADED = new Set(["rejected", "undone", "expired"]);
+// One glyph per settled state, beside its words.
+const STATUS_ICON: Record<string, { Icon: LucideIcon; tone: string }> = {
+  applied: { Icon: CircleCheck, tone: "text-success" },
+  rejected: { Icon: Ban, tone: "text-muted-foreground" },
+  undone: { Icon: Undo2, tone: "text-muted-foreground" },
+  expired: { Icon: Clock, tone: "text-muted-foreground" },
+};
 
 export interface ProposalRowProps {
   proposal: AiProposal;
@@ -80,7 +88,8 @@ function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string 
   if (code || status === "failed") {
     const known = SAFE_CODE.test(code) ? t(`ai.proposal.error.${code}`, { defaultValue: "" }) : "";
     return (
-      <p role="alert" className="mt-1.5 text-caption text-destructive">
+      <p role="alert" className="mt-1.5 flex items-start gap-1.5 text-caption text-destructive">
+        <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
         {known || t("ai.proposal.error.default")}
       </p>
     );
@@ -93,11 +102,22 @@ function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string 
       </p>
     );
   }
-  if (status === "unknown") return <p className="mt-1.5 text-caption text-muted-foreground">{t("ai.proposal.unknown")}</p>;
-  if (FADED.has(status) || status === "applied") {
-    return <p className="mt-1.5 text-caption text-muted-foreground">{t(`ai.proposal.status.${status}`)}</p>;
+  if (status === "unknown") {
+    return (
+      <p className="mt-1.5 flex items-start gap-1.5 text-caption text-muted-foreground">
+        <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0 text-warning" />
+        {t("ai.proposal.unknown")}
+      </p>
+    );
   }
-  return null;
+  const settled = STATUS_ICON[status];
+  if (!settled) return null;
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-caption text-muted-foreground">
+      <settled.Icon aria-hidden className={cn("size-3.5 shrink-0", settled.tone)} />
+      {t(`ai.proposal.status.${status}`)}
+    </p>
+  );
 }
 
 /** One change UNI proposes. Presentational: the card owns the calls. Every text from the model shows as plain text. */
@@ -145,25 +165,30 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
           {pending && !editing ? (
             <>
               <Button type="button" size="sm" disabled={disabled} onClick={onApply}>
+                <Check aria-hidden />
                 {t("ai.proposal.apply")}
               </Button>
               {editable ? (
                 <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setEditing(true)}>
+                  <Pencil aria-hidden />
                   {t("ai.proposal.edit")}
                 </Button>
               ) : null}
-              <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onReject}>
+              <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onReject}>
+                <X aria-hidden />
                 {t("ai.proposal.reject")}
               </Button>
             </>
           ) : null}
           {(status === "applied" || status === "unknown") && link ? (
-            <AppLink href={link} className="text-caption text-primary underline-offset-2 hover:underline">
+            <AppLink href={link} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <ArrowUpRight aria-hidden />
               {t("ai.proposal.open")}
             </AppLink>
           ) : null}
           {status === "applied" && proposal.can_undo && !readOnly ? (
             <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onUndo}>
+              <Undo2 aria-hidden />
               {t("ai.proposal.undo")}
             </Button>
           ) : null}

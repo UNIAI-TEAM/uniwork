@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCheck, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useApplyAiMessageProposals,
@@ -56,7 +57,10 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
   const header = plan && steps.length > 0 ? "header_plan" : pending.length > 0 && !readOnly ? "header_ask" : "header_done";
   return (
     <section aria-label={t(`ai.proposal.${header}`)} className="mt-3 flex flex-col gap-2">
-      <h3 className="text-caption font-medium text-muted-foreground">{t(`ai.proposal.${header}`)}</h3>
+      <h3 className="flex items-center gap-1.5 text-caption font-medium text-muted-foreground">
+        <Sparkles aria-hidden className="size-3.5 shrink-0 text-primary" />
+        {t(`ai.proposal.${header}`)}
+      </h3>
       <ul className="flex flex-col gap-2">
         {rows.map((p) => (
           <AskUniProposalRow
@@ -85,14 +89,20 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
         </p>
       ) : null}
       {plan && steps.length > 0 ? (
-        <Button type="button" size="sm" className="self-start" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
-          {t("ai.proposal.approve_plan", { count: ticked.length })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button type="button" size="sm" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
+            <ListChecks aria-hidden />
+            {t("ai.proposal.approve_plan", { count: ticked.length })}
+          </Button>
+        </div>
       ) : null}
       {!plan && !readOnly && steps.length >= 2 ? (
-        <Button type="button" size="sm" variant="outline" className="self-start" disabled={inFlight} onClick={() => approve(steps.map((r) => r.id))}>
-          {t("ai.proposal.apply_all")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button type="button" size="sm" disabled={inFlight} onClick={() => approve(steps.map((r) => r.id))}>
+            <CheckCheck aria-hidden />
+            {t("ai.proposal.apply_all")}
+          </Button>
+        </div>
       ) : null}
     </section>
   );

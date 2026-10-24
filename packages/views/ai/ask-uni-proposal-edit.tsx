@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Check, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
 import type { AiProposal } from "@uniwork/core/types";
@@ -200,9 +201,11 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
       {error && error.field === "" ? alert(error.text) : null}
       <div className="flex gap-1.5">
         <Button type="submit" size="sm" disabled={busy || saving}>
+          <Check aria-hidden />
           {t("ai.proposal.save")}
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+        <Button type="button" size="sm" variant="outline" onClick={onDone}>
+          <X aria-hidden />
           {t("ai.proposal.cancel")}
         </Button>
       </div>
