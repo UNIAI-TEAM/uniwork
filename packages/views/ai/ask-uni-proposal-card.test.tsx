@@ -37,7 +37,8 @@ beforeEach(() => {
 
 describe("AskUniProposalCard", () => {
   it("renders a pending ask card", () => {
-    mount([row({ id: "p1" }), row({ id: "p2", position: 2 })]);
+    const titled = (id: string, position: number) => row({ id, position, preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }, { field: "status", type: "enum", from: "todo", to: "done" }] } });
+    mount([titled("p1", 1), titled("p2", 2)]);
     expect(screen.getByText("UNI đề xuất · cần bạn xác nhận")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Áp dụng" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(2);
@@ -187,6 +188,44 @@ describe("AskUniProposalCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Áp dụng tất cả" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalled());
     expect((requestMock.mock.calls[0] as [string, { body: unknown }])[1].body).toEqual({ proposal_ids: ["p1", "p2"] });
+  });
+  it("labels the meeting fields the server emits", () => {
+    const { container } = mount([
+      row({
+        tool: "schedule_meeting",
+        preview: {
+          target: { kind: "meeting", id: "", title: "Họp" },
+          fields: ["starts_at", "ends_at", "timezone", "attendee_ids", "user_ids", "lead_id", "parent_id"].map((field) => ({ field, type: "text", from: null, to: "x" })),
+        },
+      }),
+    ]);
+    for (const label of ["Bắt đầu", "Kết thúc", "Múi giờ", "Người tham dự", "Người được mời", "Người dẫn dắt", "Nằm trong"]) expect(screen.getByText(label)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/starts_at|ends_at|attendee_ids|user_ids|lead_id|parent_id/);
+  });
+
+  it("labels the project and meeting status enums", () => {
+    mount([
+      row({ id: "a", tool: "update_project", preview: { target: { kind: "project", id: "P", title: "D" }, fields: [{ field: "status", type: "enum", from: "planned", to: "paused" }] } }),
+      row({ id: "b", position: 2, tool: "cancel_meeting", preview: { target: { kind: "meeting", id: "M", title: "H" }, fields: [{ field: "status", type: "enum", from: "SCHEDULED", to: "CANCELED" }] } }),
+    ]);
+    for (const t of ["Đã lên kế hoạch", "Tạm dừng", "Đã lên lịch", "Đã hủy"]) expect(screen.getByText(t)).toBeInTheDocument();
+  });
+
+  it("offers Sửa only on a row with a title or a body", () => {
+    mount([
+      row({ id: "a" }),
+      row({ id: "b", position: 2, tool: "cancel_meeting", preview: { target: { kind: "meeting", id: "M", title: "H" }, fields: [{ field: "status", type: "enum", from: "SCHEDULED", to: "CANCELED" }] } }),
+      row({ id: "c", position: 3, tool: "add_comment", preview: { target: { kind: "task", id: "T", title: "x" }, fields: [], body: "hi" } }),
+    ]);
+    expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(1);
+  });
+
+  it("disables every row while one call is in flight", () => {
+    requestMock.mockReturnValue(new Promise(() => undefined));
+    mount([row({ id: "p1" }), row({ id: "p2", position: 2 })]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Áp dụng" })[0]!);
+    screen.getAllByRole("button", { name: "Áp dụng" }).forEach((b) => expect(b).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Áp dụng tất cả" })).toBeDisabled();
   });
 });
 

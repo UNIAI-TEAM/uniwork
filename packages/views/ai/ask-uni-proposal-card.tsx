@@ -36,6 +36,8 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
 
   const [busyId, setBusyId] = useState("");
   const [cardError, setCardError] = useState("");
+  // One call at a time: a second would replace the first one's callbacks, so every button waits.
+  const inFlight = busyId !== "" || applyMany.isPending;
 
   // A refusal that carries rows repaints them (the hooks do that); the code still shows on the row it came from.
   const go = (id: string, start: (cb: { onError: (e: unknown) => void; onSettled: () => void }) => void) => {
@@ -64,7 +66,7 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
             onReject={() => go(p.id, (cb) => reject.mutate(p.id, cb))}
             onUndo={() => go(p.id, (cb) => undo.mutate(p.id, cb))}
             onEdit={(changes) => go(p.id, (cb) => edit.mutate({ id: p.id, changes }, cb))}
-            busy={busyId === p.id || applyMany.isPending}
+            busy={inFlight}
             error={errors[p.id] || undefined}
           />
         ))}
@@ -75,12 +77,12 @@ export function AskUniProposalCard({ message, conversationId, mode }: { message:
         </p>
       ) : null}
       {plan && pending.length > 0 ? (
-        <Button type="button" size="sm" className="self-start" disabled={ticked.length === 0 || applyMany.isPending} onClick={() => approve(ticked.map((r) => r.id))}>
+        <Button type="button" size="sm" className="self-start" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
           {t("ai.proposal.approve_plan", { count: ticked.length })}
         </Button>
       ) : null}
       {!plan && pending.length >= 2 ? (
-        <Button type="button" size="sm" variant="outline" className="self-start" disabled={applyMany.isPending} onClick={() => approve(pending.map((r) => r.id))}>
+        <Button type="button" size="sm" variant="outline" className="self-start" disabled={inFlight} onClick={() => approve(pending.map((r) => r.id))}>
           {t("ai.proposal.apply_all")}
         </Button>
       ) : null}

@@ -46,11 +46,11 @@ function Fields({ proposal }: { proposal: AiProposal }) {
           <dd className="min-w-0 break-words whitespace-pre-wrap text-foreground">
             {proposal.tool.startsWith("create_") ? null : (
               <>
-                <span className="text-muted-foreground">{formatProposalValue(f.from, f.type, f.field, t, i18n.language)}</span>
+                <span className="text-muted-foreground">{formatProposalValue(f.from, f.type, f.field, t, i18n.language, proposal.tool)}</span>
                 <span> → </span>
               </>
             )}
-            <span>{formatProposalValue(f.to, f.type, f.field, t, i18n.language)}</span>
+            <span>{formatProposalValue(f.to, f.type, f.field, t, i18n.language, proposal.tool)}</span>
           </dd>
         </div>
       ))}
@@ -75,7 +75,7 @@ function Audience({ proposal }: { proposal: AiProposal }) {
 function Editor({ proposal, onSave, onCancel }: { proposal: AiProposal; onSave: (changes: Record<string, unknown>) => void; onCancel: () => void }) {
   const { t } = useTranslation();
   const field = proposal.preview.fields.find((f) => EDIT_FIELDS.includes(f.field));
-  const key = field?.field ?? (proposal.preview.body !== "" ? "body" : "title");
+  const key = field?.field ?? "body";
   const initial = field ? (typeof field.to === "string" ? field.to : "") : proposal.preview.body;
   const [value, setValue] = useState(initial);
   const label = t("ai.proposal.edit_field", { field: fieldLabel(t, key) });
@@ -142,6 +142,8 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   const href = proposal.result.href;
   // A link only to an in-app path: the href is data from the server, not markup.
   const link = isInAppHref(href) ? href : "";
+  // Edit only what the row carries: a title, or the text it will post. Never invent one.
+  const editable = preview.fields.some((f) => EDIT_FIELDS.includes(f.field)) || preview.body !== "";
   const disabled = busy || status === "applying" || status === "undoing";
 
   return (
@@ -182,9 +184,11 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
               <Button type="button" size="sm" disabled={disabled} onClick={onApply}>
                 {t("ai.proposal.apply")}
               </Button>
-              <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setEditing(true)}>
-                {t("ai.proposal.edit")}
-              </Button>
+              {editable ? (
+                <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setEditing(true)}>
+                  {t("ai.proposal.edit")}
+                </Button>
+              ) : null}
               <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onReject}>
                 {t("ai.proposal.reject")}
               </Button>
