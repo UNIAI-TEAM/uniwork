@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUpRight, Ban, Check, CircleAlert, CircleCheck, Clock, Pencil, TriangleAlert, Undo2, X, type LucideIcon } from "lucide-react";
+import { useState, type ReactElement } from "react";
+import { ArrowRight, ArrowUpRight, Ban, Check, ChevronDown, CircleAlert, CircleCheck, Clock, Pencil, TriangleAlert, Undo2, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AiProposal } from "@uniwork/core/types";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { askRefHref } from "./ask-uni-context-chips";
-import { entityKindIcon } from "./ask-uni-entity";
+import { CHIP, entityKindIcon } from "./ask-uni-entity";
 import { isInAppHref } from "./ask-uni-links";
 import { AskUniProposalEdit, type EditCallbacks } from "./ask-uni-proposal-edit";
 import { fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
@@ -52,15 +53,19 @@ function Fields({ proposal }: { proposal: AiProposal }) {
   // A page edit's mode says how the body below lands; it has no old value either.
   const noFrom = (field: string) => creates || field === "mode";
   return (
-    <dl className="mt-1.5 flex flex-col gap-1 text-caption">
+    <dl className="mt-2 grid grid-cols-[minmax(0,6rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-caption">
       {fields.map((f, i) => (
-        <div key={`${f.field}-${i}`} className="flex flex-wrap items-baseline gap-x-2">
+        <div key={`${f.field}-${i}`} className="contents">
           <dt className="text-muted-foreground">{fieldLabel(t, f.field)}</dt>
           <dd className="min-w-0 break-words whitespace-pre-wrap text-foreground">
             {noFrom(f.field) ? null : (
               <>
-                <span className="text-muted-foreground">{formatProposalValue(f.from, f.type, f.field, t, i18n.language, proposal.tool)}</span>
-                <span> → </span>
+                {/* The old value is struck through; an empty one has nothing to strike. */}
+                <span className={cn("text-muted-foreground", f.from !== null && f.from !== undefined && f.from !== "" && "line-through")}>
+                  {formatProposalValue(f.from, f.type, f.field, t, i18n.language, proposal.tool)}
+                </span>
+                <ArrowRight aria-hidden className="mx-1 inline size-3 align-[-1px] text-muted-foreground" />
+                <span className="sr-only">→ </span>
               </>
             )}
             <span>{formatProposalValue(f.to, f.type, f.field, t, i18n.language, proposal.tool)}</span>
@@ -80,7 +85,7 @@ function Audience({ proposal }: { proposal: AiProposal }) {
   if (!who && !notifies) return null;
   return (
     <p className="mt-1.5 text-caption text-muted-foreground">
-      <span className="font-medium">{t("ai.proposal.audience_title")}:</span> {[who, notifies].filter(Boolean).join(" · ")}
+      <span>{t("ai.proposal.audience_title")}:</span> {[who, notifies].filter(Boolean).join(" · ")}
     </p>
   );
 }
@@ -124,13 +129,50 @@ function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string 
   );
 }
 
-/** One change UNI proposes. Presentational: the card owns the calls. Every text from the model shows as plain text. */
+/** The object a row acts on, as the answer's chips show one: a link when it already exists. */
+function TargetChip({ target }: { target: AiProposal["preview"]["target"] }) {
+  const ws = useOptionalWorkspace()?.workspace;
+  if (!target.title) return null;
+  const Icon = entityKindIcon(target.kind);
+  const body = (
+    <>
+      <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{target.title}</span>
+    </>
+  );
+  const href = target.id ? askRefHref(ws, target) : null;
+  return href ? (
+    <AppLink href={href} className={cn(CHIP, "mx-0 min-w-0 hover:bg-surface-hover")}>
+      {body}
+    </AppLink>
+  ) : (
+    <span className={cn(CHIP, "mx-0 min-w-0")}>{body}</span>
+  );
+}
+
+const QUIET = "text-muted-foreground";
+const ICON_ACTION = cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), QUIET);
+
+/** An icon-only action on a folded row: the narrow panel keeps the line to one row, the tooltip names it. */
+function IconAction({ label, render }: { label: string; render: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={render} aria-label={label} />
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * One change UNI proposes. Presentational: the card owns the calls. Every text from the model shows as plain text.
+ * A settled row folds into one line, with its details a click away; a plan step is approved from the card's footer.
+ */
 export function AskUniProposalRow({ proposal, selectable = false, selected = false, onToggle, onEdit, onApply, onReject, onUndo, busy = false, error, readOnly = false }: ProposalRowProps) {
   const { t } = useTranslation();
   const ws = useOptionalWorkspace()?.workspace;
   const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const { preview, status } = proposal;
-  const Icon = entityKindIcon(preview.target.kind);
   const tool = SAFE_CODE.test(proposal.tool) ? t(`ai.proposal.tool.${proposal.tool}`, { defaultValue: t("ai.proposal.tool.other") }) : t("ai.proposal.tool.other");
   const pending = status === "pending" && !readOnly;
   const href = proposal.result.href;
@@ -139,65 +181,123 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   const link = isInAppHref(href) ? href : status === "unknown" && preview.target.id ? (askRefHref(ws, preview.target) ?? "") : "";
   const editable = hasEditable(proposal);
   const disabled = busy || status === "applying" || status === "undoing";
+  const settled = STATUS_ICON[status];
+  const folded = Boolean(settled) && !open;
+
+  const actions = (
+    <>
+      {status === "unknown" && link ? (
+        <AppLink href={link} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), QUIET)}>
+          <ArrowUpRight aria-hidden />
+          {t("ai.proposal.open")}
+        </AppLink>
+      ) : null}
+    </>
+  );
+
+  if (settled) {
+    return (
+      <li className={cn("px-3 py-2", FADED.has(status) && "opacity-60")}>
+        <div className="flex items-center gap-1.5">
+          <settled.Icon aria-hidden className={cn("size-4 shrink-0", settled.tone)} />
+          <p className="min-w-0 flex-1 truncate text-body">
+            <span className="font-medium">{tool}</span>
+            {preview.target.title ? <span className="ms-1.5 text-caption text-muted-foreground">{preview.target.title}</span> : null}
+          </p>
+          <span className="shrink-0 text-caption text-muted-foreground">{t(`ai.proposal.status.${status}`)}</span>
+          <span className="flex shrink-0 items-center">
+            {status === "applied" && link ? (
+              <IconAction label={t("ai.proposal.open")} render={<AppLink href={link} className={ICON_ACTION}><ArrowUpRight aria-hidden /></AppLink>} />
+            ) : null}
+            {status === "applied" && proposal.can_undo && !readOnly ? (
+              <IconAction
+                label={t("ai.proposal.undo")}
+                render={<Button type="button" size="icon-sm" variant="ghost" className={QUIET} disabled={disabled} onClick={onUndo}><Undo2 aria-hidden /></Button>}
+              />
+            ) : null}
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className={QUIET}
+              aria-label={t("ai.proposal.details")}
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+            >
+              <ChevronDown aria-hidden className={cn("transition-transform", open && "rotate-180")} />
+            </Button>
+          </span>
+        </div>
+        {error ? <StatusLine proposal={proposal} error={error} /> : null}
+        {folded ? null : (
+          <div className="ps-5.5">
+            <Details proposal={proposal} />
+          </div>
+        )}
+      </li>
+    );
+  }
 
   return (
-    <li className={cn("flex items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5", FADED.has(status) && "opacity-60")}>
+    <li className="flex items-start gap-2.5 px-3 py-3">
       {selectable && pending ? (
         <Checkbox className="mt-0.5" checked={selected} onCheckedChange={() => onToggle?.()} aria-label={t("ai.proposal.select_step", { n: proposal.position })} />
       ) : null}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-1.5 text-body">
-          <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-body">
           {selectable ? <span className="text-caption text-muted-foreground">{t("ai.proposal.step_n", { n: proposal.position })}</span> : null}
           <span className="font-medium">{tool}</span>
-          {preview.target.title ? <span className="min-w-0 break-words text-muted-foreground">{preview.target.title}</span> : null}
+          <TargetChip target={preview.target} />
         </div>
-        {preview.refs.length > 0 ? (
-          <p className="mt-0.5 text-caption text-muted-foreground">{preview.refs.map((n) => t("ai.proposal.uses_step", { n })).join(" · ")}</p>
-        ) : null}
-        <Fields proposal={proposal} />
-        {/* Verbatim and inert: the words that will be posted, line breaks kept, never parsed as markdown or html. */}
-        {preview.body !== "" ? (
-          <p className="mt-1.5 max-h-48 overflow-auto rounded-sm bg-muted px-2 py-1.5 text-body break-words whitespace-pre-wrap">{preview.body}</p>
-        ) : null}
-        <Audience proposal={proposal} />
+        <Details proposal={proposal} />
         <StatusLine proposal={proposal} error={error} />
         {editing && pending && onEdit ? (
           <AskUniProposalEdit proposal={proposal} busy={busy} onSave={onEdit} onDone={() => setEditing(false)} />
         ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 empty:hidden">
+        <div className="mt-2 -ms-2 flex flex-wrap items-center gap-1 empty:hidden">
           {pending && !editing ? (
             <>
-              <Button type="button" size="sm" disabled={disabled} onClick={onApply}>
-                <Check aria-hidden />
-                {t("ai.proposal.apply")}
-              </Button>
+              {/* A plan step is approved with the plan; only a row of its own applies alone. */}
+              {selectable ? null : (
+                <Button type="button" size="sm" className="ms-2 me-1" disabled={disabled} onClick={onApply}>
+                  <Check aria-hidden />
+                  {t("ai.proposal.apply")}
+                </Button>
+              )}
               {editable ? (
-                <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setEditing(true)}>
+                <Button type="button" size="sm" variant="ghost" className={QUIET} disabled={disabled} onClick={() => setEditing(true)}>
                   <Pencil aria-hidden />
                   {t("ai.proposal.edit")}
                 </Button>
               ) : null}
-              <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onReject}>
+              <Button type="button" size="sm" variant="ghost" className={QUIET} disabled={disabled} onClick={onReject}>
                 <X aria-hidden />
                 {t("ai.proposal.reject")}
               </Button>
             </>
           ) : null}
-          {(status === "applied" || status === "unknown") && link ? (
-            <AppLink href={link} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-              <ArrowUpRight aria-hidden />
-              {t("ai.proposal.open")}
-            </AppLink>
-          ) : null}
-          {status === "applied" && proposal.can_undo && !readOnly ? (
-            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onUndo}>
-              <Undo2 aria-hidden />
-              {t("ai.proposal.undo")}
-            </Button>
-          ) : null}
+          {actions}
         </div>
       </div>
     </li>
+  );
+}
+
+/** What the row changes: the steps it uses, its fields, the words it posts and who sees them. */
+function Details({ proposal }: { proposal: AiProposal }) {
+  const { t } = useTranslation();
+  const { preview } = proposal;
+  return (
+    <>
+      {preview.refs.length > 0 ? (
+        <p className="mt-0.5 text-caption text-muted-foreground">{preview.refs.map((n) => t("ai.proposal.uses_step", { n })).join(" · ")}</p>
+      ) : null}
+      <Fields proposal={proposal} />
+      {/* Verbatim and inert: the words that will be posted, line breaks kept, never parsed as markdown or html. */}
+      {preview.body !== "" ? (
+        <p className="mt-2 max-h-48 overflow-auto border-l-2 border-muted-foreground/30 py-0.5 ps-2.5 text-body break-words whitespace-pre-wrap">{preview.body}</p>
+      ) : null}
+      <Audience proposal={proposal} />
+    </>
   );
 }

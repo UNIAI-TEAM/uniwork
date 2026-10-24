@@ -6386,7 +6386,9 @@
       "content_mode": {
         "append": "Added at the end of the document",
         "replace": "Replaces the whole document"
-      }
+      },
+      "details": "Show details",
+      "plan_skip_note": "Unticked steps are skipped"
     }
   },
   "admin": {

@@ -6336,7 +6336,9 @@
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
         "replace": "Thay toàn bộ tài liệu"
-      }
+      },
+      "details": "Xem chi tiết",
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
     }
   },
   "admin": {

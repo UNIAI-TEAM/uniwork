@@ -215,7 +215,7 @@ export function AskUniProposalEdit({ proposal, onSave, onDone, busy = false }: P
           <Check aria-hidden />
           {t("ai.proposal.save")}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={onDone}>
+        <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={onDone}>
           <X aria-hidden />
           {t("ai.proposal.cancel")}
         </Button>

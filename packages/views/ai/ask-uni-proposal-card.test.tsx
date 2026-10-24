@@ -87,6 +87,38 @@ describe("AskUniProposalCard", () => {
     expect(init.body).toEqual({ proposal_ids: ["p1", "p3"] });
   });
 
+  it("applies a plan only from its footer, and says unticked steps are skipped", () => {
+    const titled = { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] };
+    mount([row({ id: "p1", mode: "plan", preview: titled }), row({ id: "p2", position: 2, mode: "plan", preview: titled })]);
+    expect(screen.queryByRole("button", { name: "Áp dụng" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Sửa" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Bỏ qua" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Duyệt kế hoạch (2 bước)" })).toBeInTheDocument();
+    expect(screen.getByText("Bước bỏ tick sẽ bị bỏ qua")).toBeInTheDocument();
+  });
+
+  it("folds a settled row into one line and opens its details on request", () => {
+    mount([row({ status: "applied", can_undo: true, result: { object_id: "T1", href: "/acme/team/tasks/T1", revision: 2, changes: [], note: "" } })]);
+    expect(screen.getByText("Đã áp dụng")).toBeInTheDocument();
+    expect(screen.queryByText("Trạng thái")).toBeNull();
+    const more = screen.getByRole("button", { name: "Xem chi tiết" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Trạng thái")).toBeInTheDocument();
+  });
+
+  it("strikes an old value through, but not an empty one", () => {
+    mount([row({ preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "status", type: "enum", from: "todo", to: "done" }, { field: "description", type: "markdown", from: null, to: "Mới" }] } })]);
+    expect(screen.getByText("Cần làm")).toHaveClass("line-through");
+    expect(screen.getByText("(trống)")).not.toHaveClass("line-through");
+  });
+
+  it("names its object as a chip that opens it", () => {
+    mount([row()]);
+    expect(screen.getByRole("link", { name: /Viết spec/ })).toHaveAttribute("href", "/acme/team/tasks/T1");
+  });
+
   it("counts plan steps in English with the right plural", async () => {
     await act(async () => {
       await setLocale("en");
@@ -118,7 +150,8 @@ describe("AskUniProposalCard", () => {
     ]);
     const el = screen.getByText((_, n) => n?.textContent === body && n.tagName === "P");
     expect(el.className).toContain("whitespace-pre-wrap");
-    expect(container.querySelector("strong, b, a")).toBeNull();
+    expect(el.querySelector("strong, b, a")).toBeNull();
+    expect(container.querySelector("strong, b")).toBeNull();
     expect(screen.getByText("Ai sẽ thấy:")).toBeInTheDocument();
     expect(screen.getByText(/Báo cho Lan/)).toBeInTheDocument();
   });
@@ -128,9 +161,9 @@ describe("AskUniProposalCard", () => {
     mount([row({ status: "applied", can_undo: true, result: { object_id: "T1", href: "/acme/team/tasks/T1", revision: 2, changes: [], note: "" } })]);
     const open = screen.getByRole("link", { name: "Mở" });
     expect(open).toHaveAttribute("href", "/acme/team/tasks/T1");
-    // The link wears the outline button: its border is the input colour, not the base's transparent one.
-    expect(open.className).toContain("border-input");
-    expect(open.className).not.toContain("border-transparent");
+    // A quiet action like its neighbour: the ghost button's hover, with no outline.
+    expect(open.className).toContain("hover:bg-muted");
+    expect(open.className).not.toContain("border-input");
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/proposals/p1/undo", expect.anything()));
   });
@@ -147,7 +180,7 @@ describe("AskUniProposalCard", () => {
   ])("shows %s faded with no buttons", (status, text) => {
     const { container } = mount([row({ status })]);
     expect(screen.getByText(text)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Xem chi tiết"]);
     expect(container.querySelector("li")?.className).toContain("opacity-60");
   });
 
@@ -294,7 +327,7 @@ describe("AskUniProposalCard", () => {
     );
     expect(screen.getAllByText("Viết spec")).toHaveLength(3);
     expect(screen.getByText("Đã áp dụng")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Xem chi tiết"]);
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.getByRole("link", { name: "Mở" })).toHaveAttribute("href", "/acme/team/tasks/T1");
   });

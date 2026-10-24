@@ -61,48 +61,52 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
         <Sparkles aria-hidden className="size-3.5 shrink-0 text-primary" />
         {t(`ai.proposal.${header}`)}
       </h3>
-      <ul className="flex flex-col gap-2">
-        {rows.map((p) => (
-          <AskUniProposalRow
-            key={p.id || `${p.position}`}
-            proposal={p}
-            selectable={plan && p.position >= 1}
-            readOnly={readOnly}
-            selected={!unticked.has(p.id)}
-            onToggle={() => setUnticked((s) => { const n = new Set(s); if (!n.delete(p.id)) n.add(p.id); return n; })}
-            onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb))}
-            onReject={() => go(p.id, (cb) => reject.mutate(p.id, cb))}
-            onUndo={() => go(p.id, (cb) => undo.mutate(p.id, cb))}
-            onEdit={(changes, cb) => {
-              // The form shows its own refusal, so the row's error line stays quiet.
-              setBusyId(p.id);
-              edit.mutate({ id: p.id, changes }, { ...cb, onSettled: () => setBusyId("") });
-            }}
-            busy={inFlight}
-            error={errors[p.id] || undefined}
-          />
-        ))}
-      </ul>
+      {/* One soft surface, no outline: rows part with hairlines, the footer sits inside (ClickUp's quiet card). */}
+      <div className="overflow-hidden rounded-lg bg-muted/50">
+        <ul className="divide-y divide-border">
+          {rows.map((p) => (
+            <AskUniProposalRow
+              key={p.id || `${p.position}`}
+              proposal={p}
+              selectable={plan && p.position >= 1}
+              readOnly={readOnly}
+              selected={!unticked.has(p.id)}
+              onToggle={() => setUnticked((s) => { const n = new Set(s); if (!n.delete(p.id)) n.add(p.id); return n; })}
+              onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb))}
+              onReject={() => go(p.id, (cb) => reject.mutate(p.id, cb))}
+              onUndo={() => go(p.id, (cb) => undo.mutate(p.id, cb))}
+              onEdit={(changes, cb) => {
+                // The form shows its own refusal, so the row's error line stays quiet.
+                setBusyId(p.id);
+                edit.mutate({ id: p.id, changes }, { ...cb, onSettled: () => setBusyId("") });
+              }}
+              busy={inFlight}
+              error={errors[p.id] || undefined}
+            />
+          ))}
+        </ul>
+        {plan && steps.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2.5">
+            <Button type="button" size="sm" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
+              <ListChecks aria-hidden />
+              {t("ai.proposal.approve_plan", { count: ticked.length })}
+            </Button>
+            <span className="text-caption text-muted-foreground">{t("ai.proposal.plan_skip_note")}</span>
+          </div>
+        ) : null}
+        {!plan && !readOnly && steps.length >= 2 ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border px-3 py-2.5">
+            <Button type="button" size="sm" disabled={inFlight} onClick={() => approve(steps.map((r) => r.id))}>
+              <CheckCheck aria-hidden />
+              {t("ai.proposal.apply_all")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
       {cardError ? (
         <p role="alert" className="text-caption text-destructive">
           {t(`ai.proposal.error.${/^[a-z_]+$/.test(cardError) ? cardError : "default"}`, { defaultValue: t("ai.proposal.error.default") })}
         </p>
-      ) : null}
-      {plan && steps.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" size="sm" disabled={ticked.length === 0 || inFlight} onClick={() => approve(ticked.map((r) => r.id))}>
-            <ListChecks aria-hidden />
-            {t("ai.proposal.approve_plan", { count: ticked.length })}
-          </Button>
-        </div>
-      ) : null}
-      {!plan && !readOnly && steps.length >= 2 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" size="sm" disabled={inFlight} onClick={() => approve(steps.map((r) => r.id))}>
-            <CheckCheck aria-hidden />
-            {t("ai.proposal.apply_all")}
-          </Button>
-        </div>
       ) : null}
     </section>
   );
