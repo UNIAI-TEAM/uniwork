@@ -104,7 +104,25 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 		}
 	}
 	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
-	if tool == "" {
+	title, proposes := "", false
+	for _, t := range req.Tools {
+		proposes = proposes || t.Name == "create_task"
+	}
+	if rest, ok := strings.CutPrefix(fakeQuestion(first), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
+		title = strings.TrimSpace(rest)
+	}
+	if title != "" {
+		// The row may still be pending, so the answer never says the task exists.
+		if tool == "" {
+			in, _ := json.Marshal(map[string]string{"title": title})
+			resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
+			resp.StopReason = "tool_use"
+		} else if strings.Contains(tool, "proposal row") {
+			resp.Text = "Tôi đã đề xuất task \"" + title + "\"; bạn xem và áp dụng đề xuất nếu đồng ý."
+		} else {
+			resp.Text = "Tôi chưa đề xuất được task này."
+		}
+	} else if tool == "" {
 		in, _ := json.Marshal(map[string]string{"query": fakeQuestion(first)})
 		resp.ToolCalls = []provider.ToolCall{{ID: "fake-search-1", Name: "search", Input: in}}
 		resp.StopReason = "tool_use"

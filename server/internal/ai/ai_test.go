@@ -1622,3 +1622,27 @@ func TestGatewayCancelledStreamWithNothingIsCancelledAtZeroCost(t *testing.T) {
 		t.Fatalf("%+v %+v", row, quota.recorded)
 	}
 }
+
+// With a write tool in the request and a question that starts "Tạo task ", the
+// fake agent proposes that task, then answers without claiming it was made.
+func TestFakeAgentProposesATask(t *testing.T) {
+	q := func(s string) provider.Message {
+		return provider.Message{Role: "user", Content: `<untrusted source="question">` + s + `</untrusted>`}
+	}
+	write := []provider.ToolSpec{{Name: "search"}, {Name: "create_task"}}
+	req := provider.CompletionRequest{System: "You are UNI", Tools: write, Messages: []provider.Message{q("Tạo task Soạn báo cáo")}}
+	r1 := FakeReply(req)
+	if len(r1.ToolCalls) != 1 || r1.ToolCalls[0].Name != "create_task" || string(r1.ToolCalls[0].Input) != `{"title":"Soạn báo cáo"}` {
+		t.Fatalf("round one %+v", r1)
+	}
+	req.Messages = append(req.Messages, provider.Message{Role: "tool", Content: `proposal row 1 recorded: create_task "Soạn báo cáo".`})
+	r2 := FakeReply(req)
+	if len(r2.ToolCalls) != 0 || !strings.Contains(r2.Text, "đề xuất") || strings.Contains(r2.Text, "đã tạo") {
+		t.Fatalf("round two %+v", r2)
+	}
+	// Without the write tool the same question searches, as before.
+	req = provider.CompletionRequest{System: "You are UNI", Tools: write[:1], Messages: []provider.Message{q("Tạo task Soạn báo cáo")}}
+	if r := FakeReply(req); len(r.ToolCalls) != 1 || r.ToolCalls[0].Name != "search" {
+		t.Fatalf("read-only %+v", r)
+	}
+}

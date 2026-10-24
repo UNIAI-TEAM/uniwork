@@ -210,3 +210,59 @@ test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps
     await setFlag("ask_uni_stream", orgId, false);
   }
 });
+
+// P3: the docked Ask UNI proposes a write, the asker applies it and takes it back. The fake provider turns
+// "Tạo task <tên>" into a create_task call when write tools are sent (server/internal/ai/fake.go); the row stays
+// pending until the asker presses "Áp dụng", and the card never claims the task exists before that.
+test("docked Ask UNI answers with a source, proposes a task, applies it and undoes it", async ({ page }) => {
+  // Each setFlag below can wait out the server's 30 s override cache (featureflags.CacheTTL).
+  test.setTimeout(150_000);
+  const orgId = await onboard(page, "Chủ Hành Động", `Hành động ${stamp}`, "Đội Hành động");
+  test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
+
+  await setFlag("ask_uni_stream", orgId, true);
+  await setFlag("ask_uni_agent", orgId, true);
+  await setFlag("ask_uni_actions", orgId, true);
+  try {
+    const title = `Việc có nguồn ${stamp}`;
+    await reloadWithOrgFlags(page);
+    await page.getByRole("button", { name: "Tạo việc" }).click();
+    await page.getByLabel("Tiêu đề").fill(title);
+    await page.getByRole("button", { name: "Tạo", exact: true }).click();
+    await expect(page.getByText(title)).toBeVisible();
+
+    await page.keyboard.press("ControlOrMeta+j");
+    const dock = page.getByRole("complementary", { name: "Hỏi UNI" });
+    await expect(dock).toBeVisible();
+    const box = dock.getByRole("textbox", { name: "Câu hỏi cho UNI" });
+
+    // 1. A read question: the answer comes with its sources.
+    await box.fill(`việc có nguồn ${stamp} thế nào?`);
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: /^Nguồn \(\d+\)$/ }).click({ timeout: 15_000 });
+    await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible();
+
+    // 2. A write request: a proposal card, and nothing is created yet.
+    const made = `Soạn báo cáo ${stamp}`;
+    await box.fill(`Tạo task ${made}`);
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    const card = dock.getByRole("region", { name: "UNI đề xuất · cần bạn xác nhận" });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText(made)).toBeVisible();
+    await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0);
+
+    // 3. Apply: the row turns applied and the task exists.
+    await card.getByRole("button", { name: "Áp dụng", exact: true }).click();
+    await expect(dock.getByText("Đã áp dụng")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(made).and(page.locator(":not(aside *)")).first()).toBeVisible({ timeout: 15_000 });
+
+    // 4. Undo: the row turns undone and the task is gone.
+    await dock.getByRole("button", { name: "Hoàn tác", exact: true }).click();
+    await expect(dock.getByText("Đã hoàn tác")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0, { timeout: 15_000 });
+  } finally {
+    await setFlag("ask_uni_actions", orgId, false);
+    await setFlag("ask_uni_agent", orgId, false);
+    await setFlag("ask_uni_stream", orgId, false);
+  }
+});
