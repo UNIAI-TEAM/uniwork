@@ -197,7 +197,12 @@ export function useAskUniStream(wsId: string) {
             void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
             void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
             void qc.invalidateQueries({ queryKey: aiKeys.usages() });
-            setState((s) => ({ ...s, status: e.message.notice === "stopped" ? "stopped" : "done", message }));
+            setState((s) => ({
+              ...s,
+              status: e.message.notice === "stopped" ? "stopped" : "done",
+              message,
+              proposals: e.message.notice === "stopped" ? [] : s.proposals,
+            }));
             break;
           }
           case "error":

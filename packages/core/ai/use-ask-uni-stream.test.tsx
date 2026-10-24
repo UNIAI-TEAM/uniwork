@@ -436,6 +436,7 @@ describe("useAskModelChoice", () => {
     emit({ type: "proposal", proposals: [proposal] });
     emit({ type: "done", message: msg({ notice: "stopped" }), usage: usage0 });
     expect(result.current.state.message?.proposals).toEqual([]);
+    expect(result.current.state.proposals).toEqual([]);
     const stored = qc.getQueryData<{ id: string; proposals: unknown[] }[]>(aiKeys.messages("c1"));
     expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([]);
   });
