@@ -141,6 +141,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Cfg.OfficeInstallerStableURL = "https://downloads.example.test/office.exe"
 	d.Cfg.DesktopAuthClientID = isoOfficeClient
 	d.Cfg.DesktopAuthDeploymentIDs = []string{isoOfficeDeployment}
+	// The change-cursor check replays a snapshot cursor opened while seeding, after the whole
+	// route sweep; the sweep outlasts the 15-minute dev snapshot lifetime, so give it room.
+	d.Cfg.OfficeChangeSnapshotTTL = 2 * time.Hour
 	q := db.New(pool)
 	ctx := context.Background()
 
