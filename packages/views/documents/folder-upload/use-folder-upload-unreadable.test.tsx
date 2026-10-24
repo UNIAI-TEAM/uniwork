@@ -371,6 +371,41 @@ describe("useFolderUpload: Mở UniWork Office closes the warning whatever the o
     expect(home.loadInstallers).toHaveBeenCalledOnce();
   });
 
+  it("using the toast action spends the toast: a pick staged after Để sau never re-creates it (R3-1)", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    // sonner closes the toast on the action without calling onDismiss / onAutoClose.
+    act(() => {
+      toast.info.mock.calls[0]?.[1].action.onClick();
+    });
+    const prompt = await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Để sau" }));
+    await waitFor(() => expect(screen.queryAllByRole("dialog", { hidden: true })).toHaveLength(0));
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    await heading("Có 1 tệp trình duyệt không đọc được");
+    expect(toast.info).toHaveBeenCalledOnce();
+  });
+
+  it("closes the install prompt when a folder is staged under it: exactly one dialog, the folder's (R3-2)", async () => {
+    const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
+    setup({ officeHome: home });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở UniWork Office" }));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledOnce());
+    act(() => {
+      toast.info.mock.calls[0]?.[1].action.onClick();
+    });
+    await screen.findByRole("dialog", { name: "Tải UniWork Office cho máy tính" });
+    stage(entries("Hai", ["b.pdf", new UnstatableFile("deep.pdf")]));
+    await heading("Có 1 tệp trình duyệt không đọc được");
+    await waitFor(() => expect(installPrompt()).toBeNull());
+    expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1);
+    expect(screen.getByTestId("folder-upload-dialog")).toBeInTheDocument();
+  });
+
   it("never stacks the prompt: two warned folders dropped together leave A's toast without the action", async () => {
     const home = officeHome({ loadInstallers: vi.fn(async () => ({ installers: [windowsInstaller] })) });
     setup({ officeHome: home });
@@ -420,16 +455,48 @@ describe("useFolderUpload: Mở UniWork Office closes the warning whatever the o
     expect(toast.info).toHaveBeenCalledOnce();
   });
 
-  it("gives up waiting for a slow installer list after 1.5 s: the toast shows without the action", async () => {
-    const loadInstallers = vi.fn(() => new Promise<{ installers: OfficeInstallerOption[] }>(() => undefined));
-    setup({ officeHome: officeHome({ loadInstallers }) });
+  it("measures the 1.5 s installer cap from the moment the launch settles: a slow launch with a fast-enough list keeps the action", async () => {
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => setTimeout(() => resolve("launched"), 4_000)));
+    const loadInstallers = vi.fn(
+      () => new Promise<{ installers: OfficeInstallerOption[] }>((resolve) => setTimeout(() => resolve({ installers: [windowsInstaller] }), 2_000)),
+    );
+    setup({ officeHome: officeHome({ launch, loadInstallers }) });
     stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
     const press = await screen.findByRole("button", { name: "Mở UniWork Office" });
     vi.useFakeTimers();
     try {
       fireEvent.click(press);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(1_400);
+        await vi.advanceTimersByTimeAsync(4_100);
+      });
+      expect(toast.info).toHaveBeenCalledOnce();
+      expect(toast.info.mock.calls[0]?.[1]?.action).toMatchObject({ label: "Chưa cài UniWork Office?" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up waiting for a slow installer list 1.5 s after the launch settles: the toast shows without the action", async () => {
+    const launch = vi.fn(() => new Promise<OfficeLaunchOutcome>((resolve) => setTimeout(() => resolve("launched"), 4_000)));
+    const loadInstallers = vi.fn(() => new Promise<{ installers: OfficeInstallerOption[] }>(() => undefined));
+    setup({ officeHome: officeHome({ launch, loadInstallers }) });
+    stage(entries("Một", ["a.pdf", new UnstatableFile("long.pdf")]));
+    const press = await screen.findByRole("button", { name: "Mở UniWork Office" });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(press);
+      // Well past 1.5 s from the press, but the launch is still going: nothing shows yet.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_900);
+      });
+      expect(toast.info).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      // Settled at 4 s; the cap runs from there.
+      expect(toast.info).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_300);
       });
       expect(toast.info).not.toHaveBeenCalled();
       await act(async () => {

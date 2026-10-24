@@ -228,7 +228,16 @@ export function useFolderUpload({
     toast.info(text, {
       id,
       duration: HANDOFF_TOAST_MS,
-      action: offer ? { label: tr("documents.folder_upload.unreadable.handoff_install"), onClick: offer } : undefined,
+      // sonner closes the toast on the action without onDismiss/onAutoClose: spend it here too.
+      action: offer
+        ? {
+            label: tr("documents.folder_upload.unreadable.handoff_install"),
+            onClick: () => {
+              release();
+              offer();
+            },
+          }
+        : undefined,
       // Beside the text the action squeezes it to a few words and breaks mid-word: it wraps below instead.
       classNames: offer ? { toast: "flex-wrap", content: "min-w-56! flex-1" } : undefined,
       onDismiss: release,

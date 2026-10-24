@@ -126,6 +126,11 @@ export function useOfficeHomeLaunch(
   const installOpen = handoff ? standalone : installFor === scope;
   const setInstallOpen = (open: boolean) => (handoff ? setStandalone(open) : setInstallFor(open ? scope : NO_SCOPE));
   const openInstall = useCallback(() => setStandalone(true), []);
+  // A pick staged while the standalone prompt is open opens its folder dialog: never two dialogs, the prompt gives way.
+  const picked = scope !== undefined && scope !== null;
+  useEffect(() => {
+    if (handoff && picked) setStandalone(false);
+  }, [handoff, picked]);
 
   /** Loads the installers once and says whether this channel has one the prompt could offer (the prompt's own filter). */
   const loadInstallersOnce = (): Promise<boolean> => {
@@ -155,8 +160,8 @@ export function useOfficeHomeLaunch(
     try {
       const { channel, deploymentId, apiOrigin, launch: open, loadInstallers } = props;
       const profile = deploymentId && apiOrigin ? { deploymentId, apiOrigin } : undefined;
-      // Started beside the launch so the host's answer waits for the app, not for a second request, and never past the cap.
-      const installable = launch.done ? withinCap(loadInstallersOnce(), INSTALLERS_WAIT_MS) : null;
+      // Started beside the launch so the host's answer waits for the app, not for a second request; the cap runs from the settle.
+      const installable = launch.done ? loadInstallersOnce() : null;
       const outcome = await open(
         buildOfficeHomeLink(channel, profile),
         launch.done
@@ -169,9 +174,9 @@ export function useOfficeHomeLaunch(
               },
             },
       ).catch((): OfficeLaunchOutcome => "error");
-      if (launch.done) {
+      if (launch.done && installable) {
         // The host decides what the outcome means; it ignores a press whose pick is gone.
-        launch.done((await installable) ? openInstall : null);
+        launch.done((await withinCap(installable, INSTALLERS_WAIT_MS)) ? openInstall : null);
         return;
       }
       if (outcome === "launched" || outlived()) return;
