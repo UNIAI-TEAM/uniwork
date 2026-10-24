@@ -272,6 +272,31 @@ Spec ước một câu có file đắt thêm khoảng 0,01–0,03 USD với Sonn
 
 **Khi lùi migration.** Tắt cờ trước, rồi lùi theo thứ tự ngược: `9991792710000300_ai_messages_file_notes` bỏ cột `file_notes`; `9991792710000203_ai_attachments_file_idx`, `…202_ai_attachments_message_idx` và `…201_ai_attachments_conversation_idx` bỏ ba index của bảng (mỗi file một câu `DROP INDEX CONCURRENTLY`); `9991792710000200_ai_attachments` bỏ bảng `ai_attachments` (file đã gắn vẫn nằm trong kho, không còn dòng nào trỏ tới); `9991792710000100_file_purpose_ai_attachment` xóa các phiên tải lên mục đích `ai_attachment` trước khi thu hẹp CHECK.
 
+## Hỏi UNI: hành động ghi (UNI-2148, P3)
+
+UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình luận, chat) thay người hỏi. Model không chạy lệnh ghi: tool ghi chỉ lưu một dòng `agent_action_proposals`; lệnh chạy khi người hỏi bấm Áp dụng, hoặc ở chế độ Tự động với dòng mức 1 của lượt không bị nhiễm (ADR 0044, spec §6).
+
+- **Tắt khẩn cấp**: hai cách, cái nào nhanh hơn thì dùng.
+  - Override cờ `ask_uni_actions=false` ở `/admin/flags` (theo tổ chức hoặc toàn cục; thắng `FF_ASK_UNI_ACTIONS`). Agent thôi nhận tool ghi, client ẩn nút và thẻ, các route đề xuất trả 403 `ai_actions_disabled`.
+  - Trần của một tổ chức về `off`: `PUT /api/v1/orgs/{org}/ai/ask-write-policy` với `{"ceiling":"off"}` (chỉ owner/admin tổ chức). Chỉ tắt ghi của Hỏi UNI trong tổ chức đó; ghi qua MCP có công tắc riêng.
+  - Dòng đã áp dụng không biến mất khi tắt: thay đổi và audit giữ nguyên; người hỏi không hoàn tác được cho tới khi ghi mở lại.
+- **Metric**: `uniwork_ai_ask_actions_total{tool,outcome}` (`outcome`: `proposed`, `auto_applied`, `applied`, `rejected`, `failed`, `undone`; tool ngoài registry gom về `other`) và `uniwork_ai_ask_taint_downgrades_total` (lượt Tự động có dòng mức 1 nhưng bị nhiễm nên phải chờ người hỏi). `failed` tăng nhanh: xem mã lỗi dưới. Downgrade tăng là bình thường trong workspace dùng chung, vì lượt đọc nội dung của người khác thì nhiễm.
+- **Ngân sách**: 30 dòng áp dụng mỗi phút mỗi người (`uw:ai:ask:write:<user>`); chỉ bị tiêu khi lệnh sẽ chạy. Không có Redis thì đếm trong bộ nhớ từng tiến trình; Redis lỗi thì cho qua, như mọi limiter.
+- **Hết hạn**: dòng `pending` sống 24 giờ; sau đó `proposal_expired`.
+
+| Mã lỗi | HTTP | Nghĩa | Việc cần làm |
+| --- | --- | --- | --- |
+| `ai_actions_disabled` | 403 | Cờ `ask_uni_actions` tắt, trần tổ chức là `off`, hoặc chế độ của người dùng bị kẹp về rỗng | Không phải sự cố nếu cố ý tắt; nếu không, bật lại cờ hoặc trần |
+| `ai_write_rate_limited` | 429 | Quá 30 dòng áp dụng trong một phút | Đợi một phút; nếu lặp lại, tìm client gọi Áp dụng liên tục |
+| `proposal_expired` | 409 | Dòng quá 24 giờ | Hỏi lại UNI |
+| `proposal_not_pending` | 409 | Dòng đã được áp dụng, bỏ qua hoặc đang chạy (bấm đúp, hai tab) | Không cần làm; thẻ vẽ lại theo trạng thái thật |
+| `proposal_ref_pending` | 409 | Dòng dùng `{{row:N.id}}` của một dòng chưa áp dụng | Áp dụng dòng N trước (duyệt kế hoạch làm theo thứ tự) |
+| `revision_conflict` | 409 | Đối tượng đã đổi `revision` sau khi UNI đề xuất | Hỏi lại UNI để lấy đề xuất mới |
+| `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
+| `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
+
+Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,
