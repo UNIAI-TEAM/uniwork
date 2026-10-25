@@ -410,7 +410,7 @@ export function MeetingScribeCaptions({
                 as a warning when the server named why (the AI quota is spent, translation is off). */}
             {state === "skipped" ? (
               <span
-                className="inline-flex h-[22px] animate-caption-chip-in items-center gap-1.5 rounded-full bg-warning/12 px-2.5 font-semibold text-warning before:size-1.5 before:rounded-full before:bg-current"
+                className="inline-flex min-h-[22px] animate-caption-chip-in items-center gap-1.5 rounded-[11px] bg-warning/12 px-2.5 py-0.5 font-semibold text-warning before:size-1.5 before:shrink-0 before:rounded-full before:bg-current"
                 data-testid="meeting-caption-skipped"
               >
                 {t(skippedKey(skipReason))}
