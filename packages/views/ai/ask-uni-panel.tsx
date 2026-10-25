@@ -10,6 +10,7 @@ import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniHeader } from "./ask-uni-header";
 import { AskUniMemory } from "./ask-uni-memory";
+import { AskUniMemoryImport } from "./ask-uni-memory-import";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
 import { AskUniSourcesBar } from "./ask-uni-sources-bar";
@@ -39,7 +40,8 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const { i18n } = useTranslation();
   const conversationId = useAiPanelStore((s) => s.conversationId);
-  const memoryView = useAiPanelStore((s) => s.view) === "memory";
+  const view = useAiPanelStore((s) => s.view);
+  const memoryView = view === "memory" || view === "memory-import";
   // The panel owns the stream so the thread and the composer share one live turn.
   const stream = useAskUniStream(workspace.id);
   const { model, effort, look } = useAskModelSelection(workspace.id);
@@ -67,7 +69,7 @@ export function AskUniPanel() {
       <AskUniHeader />
       {memoryView ? null : <AskUniSourcesBar />}
       {memoryView ? (
-        <AskUniMemory orgId={workspace.organization_id} />
+        view === "memory-import" ? <AskUniMemoryImport orgId={workspace.organization_id} /> : <AskUniMemory orgId={workspace.organization_id} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
           {empty ? (
