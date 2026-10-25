@@ -220,6 +220,17 @@ product owner's yes first, as every live run does. The P3 bar: the existing and
 the new security cases all correct, at most one case wrong against the 36/36 of
 2026-10-23, at most $0.10 per question, every `action-*` case correct.
 
+A turn sent the write tools runs `copilot_answer@20` (`@21` with files, `@22`
+and `@23` with `ask_uni_thinking`): `@6`, `@7`, `@10` and `@11` plus one line
+telling the model to call the write tool at once when the question already
+says everything the change needs (UNI-2158). Without that line the first live
+run (2026-10-25) failed `action-create-self`: the rule to search before writing
+read the title "Soạn báo cáo tuần" as a request to write a report, the search
+matched "Chốt báo giá" (a task Quốc Hưng wrote) on the word "báo", and that
+read tainted the turn, so Auto left the row `pending`. The taint rule did its
+job (ADR 0044 §4); the fix is that a plain create reads nothing. The fake never
+searches before a create, so only a live run shows the line works.
+
 ## Kết quả P3
 
 **Chưa chạy.** Eval thật cho các ca `action-*` chưa được chạy: tốn tiền, cần chủ

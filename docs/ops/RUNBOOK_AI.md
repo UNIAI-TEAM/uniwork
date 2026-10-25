@@ -299,10 +299,10 @@ Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả m
 
 ### Suy nghĩ và lời dẫn của UNI (`ask_uni_thinking`)
 
-- **Cờ `ask_uni_thinking`** (`server/internal/featureflags/keys.go`, mặc định tắt, không Public, `review_at` 2027-04-30): bật thì lượt stream của agent bật adaptive thinking (bản tóm tắt) với model nhận được (họ Claude 5, Opus 4.6–4.8, Sonnet 4.6) và dùng prompt `copilot_answer@8`–`@11` (@4–@7 thêm lời dẫn). Panel hiện, dưới mỗi bước, câu model viết trước khi gọi tool và tóm tắt suy nghĩ; suy nghĩ trước câu trả lời lưu thành bước `kind: "think"`. Không cần migration: các trường mới nằm trong JSON `ai_messages.steps`.
+- **Cờ `ask_uni_thinking`** (`server/internal/featureflags/keys.go`, mặc định tắt, không Public, `review_at` 2027-04-30): bật thì lượt stream của agent bật adaptive thinking (bản tóm tắt) với model nhận được (họ Claude 5, Opus 4.6–4.8, Sonnet 4.6) và dùng prompt `copilot_answer@8`, `@9`, `@22`, `@23` (@4, @5, @20, @21 thêm lời dẫn; @20–@23 là của lượt có tool ghi). Panel hiện, dưới mỗi bước, câu model viết trước khi gọi tool và tóm tắt suy nghĩ; suy nghĩ trước câu trả lời lưu thành bước `kind: "think"`. Không cần migration: các trường mới nằm trong JSON `ai_messages.steps`.
 - **Chi phí**: suy nghĩ tính như token output; khi bật, ngân sách output của lượt lên 16.000 và mỗi lần gọi ít nhất 16.384 `max_tokens`. Model tự quyết có suy nghĩ hay không: Sonnet 5.5 ở mức `medium` (mặc định của Tự động) thường không suy nghĩ, Opus và mức cao thì có. Tóm tắt suy nghĩ do API viết bằng tiếng Anh; prompt chỉ dặn gọi đối tượng bằng tên, không bằng số nguồn.
-- **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`) với @8–@11, vì lời dẫn thêm chữ vào mỗi vòng tool.
-- **Tắt**: override `ask_uni_thinking=false` (hoặc `FF_ASK_UNI_THINKING`). Lượt sau quay về @4–@7, không gửi thinking; lượt đã lưu vẫn hiện lời dẫn và suy nghĩ của nó.
+- **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`) với @8, @9, @22, @23, vì lời dẫn thêm chữ vào mỗi vòng tool.
+- **Tắt**: override `ask_uni_thinking=false` (hoặc `FF_ASK_UNI_THINKING`). Lượt sau quay về @4, @5, @20, @21, không gửi thinking; lượt đã lưu vẫn hiện lời dẫn và suy nghĩ của nó.
 
 ## Không bao giờ
 

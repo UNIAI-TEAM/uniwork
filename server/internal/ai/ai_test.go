@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -120,12 +121,13 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
-		// copilot_answer@2 to @11 are the prompts with no OutputSchema: the
+		// copilot_answer@2 to @11 and @20 to @23 are the prompts with no OutputSchema: the
 		// schema would switch the tools off for the agent. The title prompt is
 		// free text.
 		freeText := k == PromptCopilotAnswerV2 || k == PromptCopilotAnswerV3 || k == PromptCopilotAnswerV4 || k == PromptCopilotAnswerV5 ||
 			k == PromptCopilotAnswerV6 || k == PromptCopilotAnswerV7 || k == PromptCopilotAnswerV8 || k == PromptCopilotAnswerV9 ||
-			k == PromptCopilotAnswerV10 || k == PromptCopilotAnswerV11 || k == PromptConversationTitle
+			k == PromptCopilotAnswerV10 || k == PromptCopilotAnswerV11 || k == PromptCopilotAnswerV20 || k == PromptCopilotAnswerV21 ||
+			k == PromptCopilotAnswerV22 || k == PromptCopilotAnswerV23 || k == PromptConversationTitle
 		if p.Key() != k || (len(p.OutputSchema) == 0 && !freeText) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
@@ -207,6 +209,10 @@ func TestPromptSnapshots(t *testing.T) {
 		PromptCopilotAnswerV9:  copilotFiles,
 		PromptCopilotAnswerV10: copilotAgent,
 		PromptCopilotAnswerV11: copilotFiles,
+		PromptCopilotAnswerV20: copilotAgent,
+		PromptCopilotAnswerV21: copilotFiles,
+		PromptCopilotAnswerV22: copilotAgent,
+		PromptCopilotAnswerV23: copilotFiles,
 		PromptConversationTitle: {
 			"question": "Việc nào trễ trong dự án Q4?", "answer": "Có 2 việc trễ [S1] [S2].",
 		},
@@ -1426,6 +1432,55 @@ func TestPromptGoldensCopilotNarrate(t *testing.T) {
 		}
 		if w.Render(vars) != b.Render(vars) {
 			t.Errorf("%s renders the user turn unlike %s", with, base)
+		}
+	}
+}
+
+// copilotWriteAtOnceLine is the line @20 to @23 add after the action rules
+// (UNI-2158): a change the question fully states is proposed without a lookup,
+// so a plain create in Auto mode reads nothing and applies.
+const copilotWriteAtOnceLine = "When the question already says everything a change needs, such as a task to create and its title, call the write tool at once: do not search or read first. Searching before you write is for text you write yourself, never for a title or value the asker gave. Look up only what the change needs, such as the object to edit or the person to assign.\n"
+
+// @20 and @21 are @6 and @7 with the line before the footer; @22 and @23 are
+// @20 and @21 with the narrate lines, as @10 and @11 are @6 and @7 with them.
+// Each renders the user turn exactly as its base does.
+func TestPromptGoldensCopilotWriteAtOnce(t *testing.T) {
+	const narrate = "Before each tool call, write one short sentence in the answer's language saying what you will look up and why; the panel shows it under that step. Never repeat these sentences in the answer.\n" +
+		"The panel also shows a summary of your thinking: in it, name tasks, people and documents by their titles, never by source numbers like S1.\n"
+	vars := map[string]any{"question": "Tạo task Soạn báo cáo tuần", "locale": "vi", "today": "2026-10-25", "files": []AttachedFile{{Name: "a.txt", Kind: "text", Text: "x"}}}
+	for _, c := range []struct{ base, with, added string }{
+		{PromptCopilotAnswerV6, PromptCopilotAnswerV20, copilotWriteAtOnceLine},
+		{PromptCopilotAnswerV7, PromptCopilotAnswerV21, copilotWriteAtOnceLine},
+		{PromptCopilotAnswerV20, PromptCopilotAnswerV22, narrate},
+		{PromptCopilotAnswerV21, PromptCopilotAnswerV23, narrate},
+	} {
+		b, _ := LookupPrompt(c.base)
+		w, ok := LookupPrompt(c.with)
+		if !ok || len(w.OutputSchema) != 0 {
+			t.Fatalf("%s must be registered without an output schema", c.with)
+		}
+		if want := strings.TrimSuffix(b.System, UntrustedFooter) + c.added + UntrustedFooter; w.System != want {
+			t.Errorf("%s system is not %s with %q:\n%s", c.with, c.base, c.added, w.System)
+		}
+		if w.Render(vars) != b.Render(vars) {
+			t.Errorf("%s renders the user turn unlike %s", c.with, c.base)
+		}
+	}
+}
+
+// Every prompt that offers the write tools says to write at once, except the
+// four that predate the line: they stay registered, word for word, for old
+// usage rows. A new variant of the action prompts (a memory one, say) that
+// leaves the line out fails here.
+func TestActionPromptsSayToWriteAtOnce(t *testing.T) {
+	frozen := []string{PromptCopilotAnswerV6, PromptCopilotAnswerV7, PromptCopilotAnswerV10, PromptCopilotAnswerV11}
+	for _, k := range PromptKeys() {
+		p, _ := LookupPrompt(k)
+		if !strings.Contains(p.System, "You can propose changes with the write tools.") {
+			continue
+		}
+		if has := strings.Contains(p.System, copilotWriteAtOnceLine); has == slices.Contains(frozen, k) {
+			t.Errorf("%s: carries the write-at-once line %v, want %v", k, has, !slices.Contains(frozen, k))
 		}
 	}
 }

@@ -35,7 +35,7 @@ const askThinkingFlag = "ask_uni_thinking"
 // askNarrated is the dock prompt with the narrate line for each one without.
 var askNarrated = map[string]string{
 	ai.PromptCopilotAnswerV4: ai.PromptCopilotAnswerV8, ai.PromptCopilotAnswerV5: ai.PromptCopilotAnswerV9,
-	ai.PromptCopilotAnswerV6: ai.PromptCopilotAnswerV10, ai.PromptCopilotAnswerV7: ai.PromptCopilotAnswerV11,
+	ai.PromptCopilotAnswerV20: ai.PromptCopilotAnswerV22, ai.PromptCopilotAnswerV21: ai.PromptCopilotAnswerV23,
 }
 
 // The bounds of one run (R10, R11). They are starting values, tuned by the
@@ -491,10 +491,10 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	if withFiles {
 		promptID, vars["files"] = ai.PromptCopilotAnswerV5, plan.Files
 	}
-	if writes != nil { // @4 and @5 with the action rules (R12)
-		promptID = ai.PromptCopilotAnswerV6
+	if writes != nil { // @4 and @5 with the action rules (R12, UNI-2158)
+		promptID = ai.PromptCopilotAnswerV20
 		if withFiles {
-			promptID = ai.PromptCopilotAnswerV7
+			promptID = ai.PromptCopilotAnswerV21
 		}
 	}
 	// Reasoning shows only where it streams: the dock's route.

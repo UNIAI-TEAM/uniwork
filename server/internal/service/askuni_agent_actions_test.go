@@ -605,8 +605,21 @@ func TestEditProposalRefusesASecondRowOnOneObject(t *testing.T) {
 	}
 }
 
+// withThinking reads ask_uni_thinking as on, every other flag through the
+// flags it wraps.
+type withThinking struct{ McpFlags }
+
+func (f withThinking) IsEnabled(ctx context.Context, key string, def bool) bool {
+	if key == askThinkingFlag {
+		return true
+	}
+	return f.McpFlags.IsEnabled(ctx, key, def)
+}
+
 // Write tools are offered only on a dock turn, with the flag on and a ceiling
 // that is not off; otherwise the request is today's, byte for byte (R2, R12).
+// An open turn runs the prompt that says to write at once (@20 to @23,
+// UNI-2158), never the four before it.
 func TestAskUniWriteToolsOnlyWhenOpen(t *testing.T) {
 	writes := []string{}
 	for _, tool := range (&AskUNIService{}).askWriteTools() {
@@ -635,7 +648,7 @@ func TestAskUniWriteToolsOnlyWhenOpen(t *testing.T) {
 		{"flag off", false, "", true, ai.PromptCopilotAnswerV4, agentToolOrder},
 		{"ceiling off", true, AskCeilingOff, true, ai.PromptCopilotAnswerV4, agentToolOrder},
 		{"old route", true, "", false, ai.PromptCopilotAnswerV3, agentToolOrder},
-		{"open", true, "", true, ai.PromptCopilotAnswerV6, all},
+		{"open", true, "", true, ai.PromptCopilotAnswerV20, all},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := newActWorld(t, c.ceiling)
@@ -655,7 +668,26 @@ func TestAskUniWriteToolsOnlyWhenOpen(t *testing.T) {
 		if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "q", Locale: "vi", Dock: true, AttachmentIDs: []string{f}}); err != nil {
 			t.Fatal(err)
 		}
-		check(t, *reqs, ai.PromptCopilotAnswerV7, all)
+		check(t, *reqs, ai.PromptCopilotAnswerV21, all)
+	})
+	t.Run("open and narrated", func(t *testing.T) {
+		w := newActWorld(t, "")
+		w.s.SetFlags(withThinking{withActions{agentFlagFake{org: w.x.w.OrganizationID}, true}})
+		reqs := scriptCalls(w.fake, "Xong.")
+		var events []AskEvent
+		w.ask(t, context.Background(), AskInput{Question: "q"}, &events)
+		check(t, *reqs, ai.PromptCopilotAnswerV22, all)
+	})
+	t.Run("open, narrated, with a file", func(t *testing.T) {
+		s, fake, flags, ua, _, w := attachAgentFixture(t)
+		s.SetFlags(withThinking{withActions{flags, true}})
+		f := uploadAskFile(t, s, ua.ID, w.ID, "ke-hoach.txt", []byte("Mục tiêu quý 4."))
+		reqs := scriptCalls(fake, "Xong.")
+		var events []AskEvent
+		if _, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "q", Locale: "vi", Dock: true, AttachmentIDs: []string{f}}, collectEvents(&events)); err != nil {
+			t.Fatal(err)
+		}
+		check(t, *reqs, ai.PromptCopilotAnswerV23, all)
 	})
 }
 
