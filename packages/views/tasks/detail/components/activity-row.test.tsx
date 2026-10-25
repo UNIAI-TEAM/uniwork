@@ -51,6 +51,71 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("+1");
   });
 
+  it("lúc tạo việc không kể loại người phụ trách, và phần dư nói rõ là trường", () => {
+    const el = row(
+      {
+        action: "task.created",
+        changes: {
+          title: { to: "Viết đặc tả" },
+          assignee_kind: { to: "human" },
+          status: { to: "todo" },
+          priority: { to: "high" },
+        },
+      },
+      "Lan",
+    );
+    expect(el).not.toHaveTextContent("Loại người phụ trách");
+    expect(el).not.toHaveTextContent("human");
+    expect(el).toHaveTextContent("+1 trường");
+  });
+
+  it("lúc tạo việc không liệt kê trường để trống, và mọi tên trường đều đọc bằng chữ", () => {
+    const el = row(
+      {
+        action: "task.created",
+        changes: {
+          assignee_id: { to: null },
+          due_at: { to: null },
+          due_date: { to: null },
+          start_at: { to: null },
+          start_date: { to: "" },
+          title: { to: "Viết đặc tả" },
+          status: { to: "todo" },
+        },
+      },
+      "Lan",
+    );
+    expect(el).not.toHaveTextContent("due_at");
+    expect(el).not.toHaveTextContent("Không có");
+    expect(el).not.toHaveTextContent("Hạn");
+    expect(el).toHaveTextContent("Tiêu đề");
+    expect(el).toHaveTextContent("Trạng thái");
+    expect(el).not.toHaveTextContent("trường");
+  });
+
+  it("giờ bắt đầu và giờ kết thúc có tên đọc được, không lộ khoá", () => {
+    const el = row(
+      {
+        changes: {
+          start_at: { from: null, to: "2026-10-21T02:00:00Z" },
+          due_at: { from: null, to: "2026-10-21T03:00:00Z" },
+        },
+      },
+      "Lan",
+    );
+    expect(el).toHaveTextContent("Giờ bắt đầu");
+    expect(el).toHaveTextContent("Giờ kết thúc");
+    expect(el).not.toHaveTextContent("start_at");
+    expect(el).not.toHaveTextContent("due_at");
+  });
+
+  it("đổi loại người phụ trách đọc bằng chữ, không lộ enum", () => {
+    const el = row({ changes: { assignee_kind: { from: "human", to: "agent" } } }, "Lan");
+    expect(el).toHaveTextContent("Loại người phụ trách");
+    expect(el).toHaveTextContent("Người");
+    expect(el).not.toHaveTextContent("human");
+  });
+
   it("cập nhật thường hiện diff từ → đến và tên người thực hiện", () => {
     const el = row(
       { changes: { status: { from: "todo", to: "in_progress" } } },

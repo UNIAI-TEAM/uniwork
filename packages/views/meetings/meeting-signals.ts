@@ -5,6 +5,8 @@
  * it sees. This file is the pure part (encode / decode / reduce) so it can be
  * tested without a room.
  */
+import { ParticipantKind, RoomEvent } from "livekit-client";
+
 export const SIGNAL_TOPIC = "uw.signal";
 export const PARTICIPANT_IDENTITY_PREFIX = "uw_participant_";
 
@@ -94,7 +96,10 @@ export function forgetIdentity(state: SignalsState, identity: string): SignalsSt
   return { ...state, hands: state.hands.filter((h) => h !== identity) };
 }
 
-export type MeetingParticipantRole = "agent" | "guest" | "secretary" | "observer";
+export type MeetingParticipantRole = "agent" | "guest" | "phone" | "secretary" | "observer";
+
+/** The server marks a phone caller "waiting" until the host admits them (UNI-2029). */
+export const DIAL_IN_STATE_ATTRIBUTE = "uw.dial_in";
 
 /** LiveKit identities of the meeting's guest participants (invite-link joiners). */
 export function guestIdentities(
@@ -108,17 +113,44 @@ export function guestIdentities(
 }
 
 /**
- * The role chip a participant carries in the room. Agents come from LiveKit's
- * participant kind (a LiveKit Agents worker joins as ParticipantKind.AGENT);
- * guests from the meeting's participant record.
+ * The role chip a participant carries in the room. Agents and phone callers
+ * come from LiveKit's participant kind (an Agents worker joins as AGENT, a
+ * dial-in caller as SIP); guests from the meeting's participant record.
  */
 export function participantRole(
-  participant: { identity: string; isAgent?: boolean },
+  participant: { identity: string; isAgent?: boolean; kind?: ParticipantKind },
   guests: ReadonlySet<string>,
 ): MeetingParticipantRole | null {
   if (participant.isAgent) return "agent";
+  if (participant.kind === ParticipantKind.SIP) return "phone";
   if (guests.has(participant.identity)) return "guest";
   return null;
+}
+
+/**
+ * Whether a room participant is in the meeting: the AI scribe joins as a
+ * LiveKit AGENT participant (spec 2026-10-20-meeting-scribe-agent-design D8)
+ * and is never counted, tiled, listed, moderated or announced; the room shows
+ * it as its own chip instead. A phone caller is in the room before the host
+ * admits them (held, deaf and mute), at first without the server's attribute,
+ * and shows up only in the lobby queue until it reads "admitted".
+ */
+export function inMeeting(p: {
+  isAgent?: boolean;
+  kind?: ParticipantKind;
+  attributes?: Readonly<Record<string, string>>;
+}): boolean {
+  if (p.isAgent) return false;
+  return p.kind !== ParticipantKind.SIP || p.attributes?.[DIAL_IN_STATE_ATTRIBUTE] === "admitted";
+}
+
+/** Room events a roster follows beyond joins and leaves: a rename, and an admitted phone caller. */
+export const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged, RoomEvent.ParticipantAttributesChanged];
+
+export function humanParticipants<
+  T extends { isAgent?: boolean; kind?: ParticipantKind; attributes?: Readonly<Record<string, string>> },
+>(participants: readonly T[]): T[] {
+  return participants.filter(inMeeting);
 }
 
 function liveKitIdentityForParticipant(participantId: string): string {

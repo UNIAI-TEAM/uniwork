@@ -1,9 +1,12 @@
 package ai
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
 // Error is a gateway refusal with the stable code the API returns (spec F-09
@@ -121,3 +124,8 @@ func errRateLimited(retry time.Duration) *Error {
 // out, clamped like a vendor's: for a bound a service holds itself, such as
 // Ask UNI's concurrent agent runs, so it reads the same as a vendor 429.
 func RateLimited(retry time.Duration) *Error { return errRateLimited(retry) }
+
+// IsTruncated reports a structured answer the vendor cut at max_tokens: the
+// gateway billed it and answered ErrOutputInvalid. A caller may retry once
+// with a smaller output (meeting_summary@7's brief mode).
+func IsTruncated(err error) bool { return errors.Is(err, provider.ErrTruncated) }

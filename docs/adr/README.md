@@ -54,6 +54,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0042](0042-console-admin-go-tin-bi-bao-cao-qua-mot-cua.md) | Console `/admin` thay đổi content đúng một cách: gỡ một tin đã bị báo cáo qua `ReportedContentRemover.RemoveReportedMessageQ` (nối với `ChatService` ở `main.go`), cùng giao dịch với `admin_actions`, audit và đóng báo cáo; console vẫn không đọc content; việc gỡ thứ hai cần ADR mới; bổ sung cho luật F-11 |
 | [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
 | [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) | Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang kênh Hỏi UNI |
+| [0045](0045-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
 
 ## Bản nháp
 
@@ -75,7 +76,11 @@ do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
 
 [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) (cổng chất lượng mobile, UNI-2053) được chấp nhận
 ngày 2026-10-21 với số 0037, đổi thành 0043 khi merge develop vì 0037 đã là thư mục workspace (UNI-2055);
-0038–0041 vẫn giữ cho các bản nháp bên dưới.
+0039–0041 vẫn giữ cho các bản nháp bên dưới.
+
+[0045](0045-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) (agent thư ký họp, UNI-1995) được chấp nhận
+ngày 2026-10-20 với số 0038 trên nhánh gộp UNI-1995; khi merge develop (2026-10-25) số 0038 đã thuộc về cuộc
+gọi native (UNI-2141) và 0039–0044 đã dùng hoặc giữ cho bản nháp, nên agent họp nhận số 0045.
 
 `drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21) được chấp nhận thành
 [0038](0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md) ngày 2026-10-23 (UNI-2141), giữ số: phần iOS từ kế

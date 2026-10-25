@@ -103,13 +103,31 @@ function valueKeys(field: string, value: string, resourceType?: string): string[
   return [task, meeting, member];
 }
 
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/**
+ * A stored date (`due_date`: YYYY-MM-DD, a calendar day) or instant (`due_at`:
+ * RFC 3339) in the reader's locale and time zone; null when it is neither.
+ */
+function dateValue(field: string, value: string, locale: string): string | null {
+  const day = field.endsWith("_date") ? DATE_ONLY.exec(value) : null;
+  if (day) {
+    const date = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+    return date.toLocaleDateString(locale, { dateStyle: "medium" });
+  }
+  if (!field.endsWith("_at") || !INSTANT.test(value)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}
+
 /**
  * Translated action / resource / field names and known enum values; the raw
  * token is the fallback so nothing goes blank and a newer server still reads.
  */
 export function useAuditLabels() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
-  const { t: tRoot } = useTranslation();
+  const { t: tRoot, i18n } = useTranslation();
   return {
     action: (action: string) => t(`actions.${action}`, { defaultValue: action }),
     resource: (type: string) => t(`resources.${type}`, { defaultValue: type }),
@@ -119,6 +137,8 @@ export function useAuditLabels() {
     value: (field: string, value: unknown, resourceType?: string): unknown => {
       if (typeof value === "boolean") return t(value ? "values.yes" : "values.no");
       if (typeof value !== "string" || value === "") return value;
+      const date = dateValue(field, value, i18n.language);
+      if (date) return date;
       const keys = valueKeys(field, value, resourceType);
       return keys.length === 0 ? value : tRoot(keys, { defaultValue: value });
     },

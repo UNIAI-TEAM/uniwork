@@ -19,9 +19,11 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -129,6 +131,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	t.Setenv("AI_CLOUD_SEARCH_PROVIDER", "fake")
 	t.Setenv("AI_CLOUD_IMAGE_PROVIDER", "fake")
 	t.Setenv("AI_CLOUD_TRANSCRIBE_PROVIDER", "fake")
+	// Uploaded meeting recordings (UNI-2001) on the fake vendor: the
+	// transcription routes then serve their owner. No worker runs here.
+	t.Setenv("AI_MEETING_TRANSCRIBE_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	// The Office desktop bridge: the download profile and the desktop client
 	// the launch and device routes check against.
@@ -136,6 +141,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Cfg.OfficeInstallerStableURL = "https://downloads.example.test/office.exe"
 	d.Cfg.DesktopAuthClientID = isoOfficeClient
 	d.Cfg.DesktopAuthDeploymentIDs = []string{isoOfficeDeployment}
+	// The change-cursor check replays a snapshot cursor opened while seeding, after the whole
+	// route sweep; the sweep outlasts the 15-minute dev snapshot lifetime, so give it room.
+	d.Cfg.OfficeChangeSnapshotTTL = 2 * time.Hour
 	q := db.New(pool)
 	ctx := context.Background()
 
@@ -176,6 +184,10 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Auth.SetMail(renderer, discardOutbox{})
 
 	d.Meetings.Tasks = d.Tasks
+	// The flag service: every catalogue flag, meeting_dial_in included, is
+	// switched on below as a global override, so the owner's control on the
+	// dial-in routes is a real read and rotation, not dial_in_unavailable.
+	d.Meetings.SetFlags(d.FeatureFlags)
 	d.Meetings.Chat = d.Chat
 	d.Tasks.Chat = d.Chat
 	d.Chat.SetAIGateway(d.Meetings.AI)
@@ -195,6 +207,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
+	d.Meetings.Docs = docs
+	d.Meetings.SetUploads(docs)
 	// As main.go wires it: the inbox names a document only through the read gate.
 	d.Notifications.SetDocumentReaders(docs)
 	// The chat document send files its bytes into the same Documents service
@@ -790,6 +804,7 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	}
 	tn.ids["breakGlassGrant"] = grantID
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
+	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/meetings/settings", tn.token, map[string]any{"auto_summary_enabled": false})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
 	tn.ids["docLink"] = isoID(t, out, "link")
 	tn.ids["docLinkToken"] = isoString(t, out, "token")
@@ -1184,6 +1199,46 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	m := tn.marker
 	ws := "/api/v1/workspaces/" + tn.wsID
 
+	// A meeting held without a room (UNI-2001), its recording queued for
+	// transcription through the route, and a second recording staged for the
+	// reference case. The recordings are staged on FileService directly: the
+	// shared upload session is the documents' one, already in this world.
+	out := w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/meetings", tn.token, map[string]any{
+		"title": m + " Held", "starts_at": time.Now().Add(48 * time.Hour).UTC().Truncate(time.Minute).Format(time.RFC3339),
+		"ends_at": time.Now().Add(49 * time.Hour).UTC().Truncate(time.Minute).Format(time.RFC3339),
+	})
+	tn.ids["heldMeeting"] = isoID(t, out, "meeting")
+	began := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["heldMeeting"]+"/held", tn.token, map[string]any{
+		"started_at": began.Format(time.RFC3339), "ended_at": began.Add(time.Hour).Format(time.RFC3339),
+	})
+	stageAudio := func(name string) string {
+		up, err := w.files.Upload(ctx, files.UploadInput{
+			Actor: audit.User(tn.userID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(), Filename: name,
+			Scope: files.Scope{OrganizationID: tn.orgID, WorkspaceID: tn.wsID},
+			Body:  bytes.NewReader(append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"+m), 0xff, 0xfb, 0x90, 0x64)),
+		})
+		if err != nil {
+			t.Fatalf("stage meeting audio: %v", err)
+		}
+		// The completed session the upload route leaves behind: it names the
+		// uploader and the meeting, which a transcription request must match.
+		if _, err := w.pool.Exec(ctx, `INSERT INTO file_multipart_uploads (id, organization_id, workspace_id, file_id,
+			file_upload_session_id, created_by, created_by_kind, opened_via, storage_upload_id, object_key, filename, size_bytes,
+			part_size, total_parts, probe_head_sha256, probe_tail_sha256, status, expires_at, closed_at, meeting_id)
+			VALUES ($1, $2, $3, $4, $5, $6, 'human', 'meeting_audio', 's', 'k', 'f', 1, 1, 1, 'h', '', 'completed',
+			now() + interval '1 day', now(), $7)`,
+			util.NewID(), tn.orgID, tn.wsID, string(up.File.ID), util.NewID(), tn.userID, tn.ids["heldMeeting"]); err != nil {
+			t.Fatalf("meeting audio session: %v", err)
+		}
+		return string(up.File.ID)
+	}
+	out = w.call(t, "POST", "/api/v1/meetings/"+tn.ids["heldMeeting"]+"/transcriptions", tn.token, map[string]any{
+		"upload_id": stageAudio(strings.ToLower(m) + "-part-1.mp3"), "language": "vi", "consent": true,
+	})
+	tn.ids["transcription"] = isoID(t, out, "transcription")
+	tn.ids["meetingAudioUpload"] = stageAudio(strings.ToLower(m) + "-part-2.mp3")
+
 	w.call(t, "POST", "/api/v1/tasks/"+tn.ids["task"]+"/reactions", tn.token, map[string]any{"emoji": "👍"})
 	w.call(t, "POST", "/api/v1/comments/"+tn.ids["taskComment"]+"/reactions", tn.token, map[string]any{"emoji": "👍"})
 	w.call(t, "PUT", ws+"/task-view-preferences", tn.token, map[string]any{"scope_type": "workspace", "prefs": map[string]any{"layout": "list"}})
@@ -1200,7 +1255,7 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 
 	// The live meeting: a mark, chat, a transcript line, a summary, a vote.
 	live := "/api/v1/meetings/" + tn.ids["liveMeeting"]
-	out := w.call(t, "GET", live+"/participants", tn.token, nil)
+	out = w.call(t, "GET", live+"/participants", tn.token, nil)
 	var hostPID string
 	for _, p := range isoList(t, out, "participants") {
 		if p["user_id"] == tn.userID {
@@ -1212,8 +1267,19 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	}
 	w.call(t, "PUT", live+"/attendance/"+hostPID, tn.token, map[string]any{"status": "PRESENT"})
 	w.call(t, "POST", live+"/chat", tn.token, map[string]any{"message": m + " meeting chat"})
-	w.call(t, "POST", live+"/transcript", tn.token, map[string]any{"text": m + " spoken line"})
-	w.call(t, "POST", live+"/summary", tn.token, map[string]any{"locale": "en"})
+	out = w.call(t, "POST", live+"/transcript", tn.token, map[string]any{"text": m + " spoken line"})
+	tn.ids["transcriptSegment"] = isoID(t, out, "segment")
+	w.call(t, "POST", live+"/summary", tn.token, map[string]any{"locale": "en"}, http.StatusAccepted)
+	// The run goes on after the answer (UNI-1995 #12); its rows exist once it ends.
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		run, _ := w.call(t, "GET", live+"/summary", tn.token, nil)["run"].(map[string]any)
+		if run["status"] == "idle" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s's summary run did not end: %v", tn.tag, run)
+		}
+	}
 	out = w.call(t, "POST", live+"/motions", tn.token, map[string]any{
 		"title": m + " Live motion", "ballot_mode": "PUBLIC", "threshold": "MAJORITY", "base": "PRESENT",
 	})
@@ -1234,23 +1300,26 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		t.Fatalf("meeting attendee: %v", err)
 	}
 
-	// A summary of the scheduled meeting with action items to convert - the
-	// fake model answers with none. The reference cases convert items 0-2;
-	// item 3 becomes a task here, so meeting_summary_task_links holds a row.
-	items := make([]map[string]string, 0, 4)
-	for i := range 4 {
-		items = append(items, map[string]string{"title": fmt.Sprintf("%s summary item %d", m, i), "owner": m + " Peer"})
-	}
-	rawItems, err := json.Marshal(items)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A summary of the scheduled meeting - the fake model answers with none -
+	// and its action items: the reference cases convert items 0-2 and 4-6,
+	// item 3 becomes a task here, and "actionItem" is the pending one the
+	// routes with {actionItemID} name.
 	tn.ids["meetingSummary"] = util.NewID()
 	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summaries
 		(id, organization_id, meeting_id, summary, decisions, action_items, model, created_by)
-		VALUES ($1, $2, $3, $4, '[]', $5, 'fake', $6)`,
-		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", string(rawItems), tn.userID); err != nil {
+		VALUES ($1, $2, $3, $4, '[]', '[]', 'fake', $5)`,
+		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", tn.userID); err != nil {
 		t.Fatalf("meeting summary: %v", err)
+	}
+	for i, key := range []string{"actionItem0", "actionItem1", "actionItem2", "actionItem3", "actionItem4", "actionItem5", "actionItem6", "actionItem"} {
+		tn.ids[key] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_action_items
+			(id, organization_id, workspace_id, meeting_id, source, summary_id, position, title, owner_text, created_by, created_by_kind)
+			VALUES ($1, $2, $3, $4, 'AI', $5, $6, $7, $8, 'meeting_summary', 'system')`,
+			tn.ids[key], tn.orgID, tn.wsID, tn.ids["meeting"], tn.ids["meetingSummary"], i,
+			fmt.Sprintf("%s summary item %d", m, i), m+" Peer"); err != nil {
+			t.Fatalf("meeting action item: %v", err)
+		}
 	}
 	// A summary run's lease lives only while the run does; an expired one is
 	// what a node that died mid-run leaves, so meeting_summary_runs holds a
@@ -1261,8 +1330,31 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
 		t.Fatalf("meeting summary run: %v", err)
 	}
-	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
-		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
+	// A finished scribe run: the agent API has no session caller, so the row
+	// is seeded the way MeetingService.ensureScribe writes it.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_scribe_runs
+		(id, organization_id, workspace_id, meeting_id, status, finished_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, 'FINISHED', now(), 'meeting_scribe', 'system')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["meeting"]); err != nil {
+		t.Fatalf("meeting scribe run: %v", err)
+	}
+	// An ended meeting waiting for its auto summary (UNI-2026): only
+	// endMeeting queues it, and the isolation world configures no model.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_auto_summaries (meeting_id, organization_id, due_at)
+		VALUES ($1, $2, now() + interval '1 hour') ON CONFLICT DO NOTHING`, tn.ids["meeting"], tn.orgID); err != nil {
+		t.Fatalf("meeting auto summary: %v", err)
+	}
+	// A speaker label of the shared microphone, filed the way
+	// AppendAgentSegments files it (the agent API has no session caller).
+	tn.ids["speakerLabel"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_speaker_labels
+		(id, organization_id, workspace_id, meeting_id, label_key, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, 'meeting_scribe', 'system')`,
+		tn.ids["speakerLabel"], tn.orgID, tn.wsID, tn.ids["meeting"], "uw_participant_"+tn.ids["participant"]+":1:A"); err != nil {
+		t.Fatalf("meeting speaker label: %v", err)
+	}
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/action-items/convert", tn.token, map[string]any{
+		"items": []any{map[string]any{"action_item_id": tn.ids["actionItem3"], "assignee_id": tn.peerID}},
 	})
 }
 

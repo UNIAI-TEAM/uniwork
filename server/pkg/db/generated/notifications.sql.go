@@ -684,6 +684,75 @@ func (q *Queries) ListMeetingReminderRecipients(ctx context.Context, meetingID s
 	return items, nil
 }
 
+const listMeetingTasksDue = `-- name: ListMeetingTasksDue :many
+SELECT t.id AS task_id, t.organization_id, t.workspace_id, t.title AS task_title,
+  t.assignee_id::text AS assignee_id, t.due_date, u.timezone,
+  m.id AS meeting_id, m.title AS meeting_title
+FROM meeting_action_items i
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+JOIN meetings m ON m.id = i.meeting_id AND m.organization_id = i.organization_id
+JOIN users u ON u.id = t.assignee_id
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE i.task_id IS NOT NULL AND i.dismissed_at IS NULL
+  AND t.assignee_kind = 'human'
+  AND t.due_date BETWEEN $1::date AND $2::date
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_task_overdue:' || t.id)
+ORDER BY t.due_date, t.id
+LIMIT 1000
+`
+
+type ListMeetingTasksDueParams struct {
+	DueFrom pgtype.Date `json:"due_from"`
+	DueTo   pgtype.Date `json:"due_to"`
+}
+
+type ListMeetingTasksDueRow struct {
+	TaskID         string      `json:"task_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	TaskTitle      string      `json:"task_title"`
+	AssigneeID     string      `json:"assignee_id"`
+	DueDate        pgtype.Date `json:"due_date"`
+	Timezone       string      `json:"timezone"`
+	MeetingID      string      `json:"meeting_id"`
+	MeetingTitle   string      `json:"meeting_title"`
+}
+
+// tenant: system
+// follow-2 (b): open tasks a meeting handed out to a person, due in
+// [$1, $2], with the assignee's timezone so the caller reads "today" in it.
+// A task already told it is overdue is done with.
+func (q *Queries) ListMeetingTasksDue(ctx context.Context, arg ListMeetingTasksDueParams) ([]ListMeetingTasksDueRow, error) {
+	rows, err := q.db.Query(ctx, listMeetingTasksDue, arg.DueFrom, arg.DueTo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMeetingTasksDueRow{}
+	for rows.Next() {
+		var i ListMeetingTasksDueRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.TaskTitle,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Timezone,
+			&i.MeetingID,
+			&i.MeetingTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMeetingsDueReminder = `-- name: ListMeetingsDueReminder :many
 SELECT m.id, m.organization_id, m.workspace_id, m.title, m.starts_at
 FROM meetings m
@@ -724,6 +793,68 @@ func (q *Queries) ListMeetingsDueReminder(ctx context.Context, arg ListMeetingsD
 			&i.WorkspaceID,
 			&i.Title,
 			&i.StartsAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMeetingsWithPendingItems = `-- name: ListMeetingsWithPendingItems :many
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.host_user_id,
+  COUNT(*)::int AS pending
+FROM meetings m
+JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
+WHERE m.status = 'ENDED'
+  AND COALESCE(m.actual_end_at, m.ends_at) >= $1::timestamptz
+  AND COALESCE(m.actual_end_at, m.ends_at) < $2::timestamptz
+  AND i.dismissed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_pending_items:' || m.id)
+GROUP BY m.id
+ORDER BY m.id
+LIMIT 500
+`
+
+type ListMeetingsWithPendingItemsParams struct {
+	EndedAfter  pgtype.Timestamptz `json:"ended_after"`
+	EndedBefore pgtype.Timestamptz `json:"ended_before"`
+}
+
+type ListMeetingsWithPendingItemsRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Title          string `json:"title"`
+	HostUserID     string `json:"host_user_id"`
+	Pending        int32  `json:"pending"`
+}
+
+// tenant: system
+// follow-2 (a): ENDED meetings whose end falls in [$1, $2) that still have
+// items nobody handled (not dismissed, no live task), and that the nudge has
+// not reached yet. idx_meetings_ended_at (migration 9991792900000050) bounds
+// the scan to the window.
+func (q *Queries) ListMeetingsWithPendingItems(ctx context.Context, arg ListMeetingsWithPendingItemsParams) ([]ListMeetingsWithPendingItemsRow, error) {
+	rows, err := q.db.Query(ctx, listMeetingsWithPendingItems, arg.EndedAfter, arg.EndedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMeetingsWithPendingItemsRow{}
+	for rows.Next() {
+		var i ListMeetingsWithPendingItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.HostUserID,
+			&i.Pending,
 		); err != nil {
 			return nil, err
 		}

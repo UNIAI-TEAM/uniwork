@@ -170,8 +170,9 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"hosted_by_me": boolArg("true for meetings the user asking hosts."),
 				"status":       strArg("SCHEDULED, IN_PROGRESS, ENDED, CANCELED or MISSED; \"\" for any."),
 			}, s.needsReads(s.agentListMeetings)),
-		readTool("get_meeting", "One meeting with its attendees, description and AI summary (decisions and action items). No transcript.",
+		readTool("get_meeting", "One meeting with its attendees, description and AI summary (decisions and action items). No transcript: get_meeting_transcript reads it.",
 			map[string]agentProp{"meeting_id": strArg("The meeting's id.")}, s.needsReads(s.agentGetMeeting)),
+		readTool(askToolTranscript, transcriptToolDesc, transcriptToolProps(), s.agentMeetingTranscript),
 		readTool("list_projects", "Projects of the workspace, open ones unless asked otherwise, with task counts.",
 			map[string]agentProp{
 				"query":          strArg("Words in the title or description; \"\" lists all."),

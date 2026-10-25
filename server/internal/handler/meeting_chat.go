@@ -55,7 +55,7 @@ func meetingFeedQuery(w http.ResponseWriter, r *http.Request) (service.FeedQuery
 }
 
 func feedCursorsDTO[T any](p service.FeedPage[T]) sdo.MeetingFeedCursorsDTO {
-	return sdo.MeetingFeedCursorsDTO{OlderCursor: p.OlderCursor, AfterCursor: p.AfterCursor, HasMoreAfter: p.HasMoreAfter}
+	return sdo.MeetingFeedCursorsDTO{OlderCursor: p.OlderCursor, AfterCursor: p.AfterCursor, HasMoreAfter: p.HasMoreAfter, NewerCursor: p.NewerCursor}
 }
 
 func (h *handlers) listChatMessages(w http.ResponseWriter, r *http.Request) {

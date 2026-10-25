@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import { PassThrough } from "node:stream";
 import { CdpPipe, DocsPdfError, FALLBACK_CSP, PAGE_SHIM, bundleCsp, isAllowedRequest, launchArgs, printParams, renderDocxPdf, resolveBundlePath, serveBundle, type DocsPdfOptions } from "./docs-pdf.ts";
+import { pageToDocx } from "@uniwork/office-engine/convert/native";
 import { findHandler } from "./handlers.ts";
 import type { RunMessage } from "./protocol.ts";
 
@@ -348,6 +349,66 @@ describe("export:docx handler", () => {
   });
 });
 
+// export:page (UNI-2004): a UniNote page's JSON becomes a DOCX, and a pdf
+// target renders that DOCX through the same renderer as export:docx.
+const PAGE_INPUT = {
+  title: "Biên bản họp",
+  content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Đã chốt ngân sách quý IV" }] }] },
+};
+
+describe("export:page handler", () => {
+  const run = async (payload: unknown, input: unknown = PAGE_INPUT, assets: string | null = dir): Promise<RunMessage> => {
+    await writeFile(join(dir, "input.json"), typeof input === "string" ? input : JSON.stringify(input));
+    await writeFile(join(dir, "ops.json"), typeof payload === "string" ? payload : JSON.stringify(payload));
+    return {
+      type: "run",
+      operation: "export",
+      format: "page",
+      inputPath: join(dir, "input.json"),
+      outputPath: join(dir, "output.bin"),
+      payloadPath: join(dir, "ops.json"),
+      tempDir: dir,
+      ...(assets ? { docsPdfAssetsDir: assets } : {}),
+      sandboxed: true,
+      sampleMs: 100,
+      heapMb: 64,
+      faults: false,
+    };
+  };
+  const handler = findHandler("export", "page")!;
+
+  it("writes the page as a DOCX without the renderer", async () => {
+    const outcome = await handler(await run({ target_format: "docx", source_version_id: "page:3" }, PAGE_INPUT, null));
+    expect(outcome).toMatchObject({ ok: true, result: { source_format: "page", target_format: "docx", source_version_id: "page:3" } });
+    const out = await readFile(join(dir, "output.bin"));
+    expect(out.subarray(0, 4).toString("latin1")).toBe("PK\x03\x04");
+    expect(out.toString("utf8")).toContain("Đã chốt ngân sách quý IV");
+  });
+
+  it("renders a pdf target from the page's DOCX through the Docs renderer", async () => {
+    plan([{ id: 1, kind: "print", w: 11906, h: 16838 }, { id: 2, kind: "done", ok: true }]);
+    const outcome = await handler(await run({ target_format: "pdf" }));
+    expect(outcome).toMatchObject({ ok: true, result: { source_format: "page", target_format: "pdf", renderer: "genoffice-docs-web", print_calls: 1 } });
+    expect((await readFile(join(dir, "output.bin"))).toString()).toMatch(/^%PDF-/);
+    // The pdf path keeps export:docx's confinement rules.
+    expect(await handler({ ...(await run({ target_format: "pdf" })), sandboxed: false })).toEqual({ ok: false, code: "engine_incompatible", reason: "sandbox_required" });
+    expect(await handler(await run({ target_format: "pdf" }, PAGE_INPUT, null))).toEqual({ ok: false, code: "engine_incompatible", reason: "docs_pdf_assets_missing" });
+  });
+
+  it("refuses another target, input that is not a page and missing inputs", async () => {
+    expect(await handler(await run({ target_format: "html" }))).toEqual({ ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" });
+    expect(await handler(await run({ target_format: "docx" }, "{"))).toEqual({ ok: false, code: "engine_result_invalid", reason: "page_input_invalid" });
+    expect(await handler(await run({ target_format: "docx" }, { title: "t", content: { type: "paragraph" } }))).toEqual({
+      ok: false,
+      code: "engine_result_invalid",
+      reason: "page_content_not_doc",
+    });
+    expect(await handler(await run("{"))).toMatchObject({ ok: false, reason: "export_payload_invalid" });
+    expect(await handler({ ...(await run({})), inputPath: null })).toMatchObject({ reason: "input_required" });
+    expect(await handler({ ...(await run({})), payloadPath: null })).toMatchObject({ reason: "payload_required" });
+  });
+});
+
 // Real renderer: UNIWORK_DOCS_PDF_TEST_ASSETS is a dir with `bundle/` (the PINNED Docs
 // build, apps/web/public/office-frame/docs/<version>) and `chromium` (a headless
 // Chromium or chrome-headless-shell). UNIWORK_DOCS_PDF_TEST_FIXTURES is a checkout of the
@@ -371,6 +432,15 @@ describe.skipIf(!realAssets)("export:docx with the real renderer (pinned bundle)
     const out = await renderReal(resolve(__dirname, "../../../../docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx"));
     expect(Buffer.from(out.pdf.subarray(0, 5)).toString()).toBe("%PDF-");
     expect(out.printCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders a UniNote page's DOCX to a PDF with at least one page (UNI-2004)", { timeout: 120_000 }, async () => {
+    const out = await renderDocxPdf(
+      pageToDocx(PAGE_INPUT),
+      { chromiumPath: join(realAssets!, "chromium"), bundleDir: join(realAssets!, "bundle"), profileDir: join(dir, "real-page"), timeoutMs: 100_000, noSandbox: true },
+      concat,
+    );
+    expect(pageCount(out.pdf)).toBeGreaterThanOrEqual(1);
   });
 
   describe.skipIf(!fixtureRoot)("the three measured fixtures", () => {

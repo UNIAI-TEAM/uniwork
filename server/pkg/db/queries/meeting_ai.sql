@@ -5,8 +5,30 @@ RETURNING *;
 
 -- name: ListTranscriptSegmentsLatest :many
 -- tenant: parent meeting_id
--- Newest first; callers reverse the page into reading order (G18).
-SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2;
+-- Newest first; callers reverse the page into reading order (G18). The
+-- source rule (parent spec §7.3, TranscriptSources) rides on every page:
+-- rich = the given transcriptions, else the scribe's lines; captions only
+-- when neither. An uploaded recording replaces the live lines (UNI-1995 #11):
+-- one transcript, never two copies of the same speech.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at DESC, id DESC LIMIT sqlc.arg('row_limit');
+
+-- name: ListTranscriptSegmentsBetween :many
+-- tenant: parent meeting_id
+-- Oldest first in [from_at, to_at) under the same source rule: Ask UNI's
+-- get_meeting_transcript reads a stretch of the meeting (scribe spec §5.2).
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND spoken_at >= sqlc.arg('from_at')::timestamptz AND spoken_at < sqlc.arg('to_at')::timestamptz
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT sqlc.arg('row_limit');
 
 -- name: ListTranscriptSegmentsBefore :many
 -- tenant: parent meeting_id
@@ -16,8 +38,35 @@ SELECT * FROM meeting_transcript_segments
 WHERE meeting_id = sqlc.arg('meeting_id')
   AND spoken_at <= sqlc.arg('before_at')::timestamptz
   AND (spoken_at, id) < (sqlc.arg('before_at')::timestamptz, sqlc.arg('before_id')::text)
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC
 LIMIT sqlc.arg('row_limit');
+
+-- name: ListTranscriptSegmentsAfter :many
+-- tenant: parent meeting_id
+-- Oldest first, the page after the cursor row (UNI-1995 #9): an ended
+-- meeting reads from its start. A zero cursor reads the first page.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND spoken_at >= sqlc.arg('after_at')::timestamptz
+  AND (spoken_at, id) > (sqlc.arg('after_at')::timestamptz, sqlc.arg('after_id')::text)
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT sqlc.arg('row_limit');
+
+-- name: GetVisibleTranscriptSegment :one
+-- tenant: parent meeting_id
+-- One line of the meeting under the source rule: the anchor of an around=
+-- read (a citation's "view in transcript").
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id') AND id = sqlc.arg('id')
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END);
 
 -- name: ListTranscriptSegmentsCreatedSince :many
 -- tenant: parent meeting_id
@@ -25,13 +74,35 @@ LIMIT sqlc.arg('row_limit');
 -- caption client or the STT agent and can land behind rows already read.
 SELECT * FROM meeting_transcript_segments
 WHERE meeting_id = sqlc.arg('meeting_id') AND created_at >= sqlc.arg('since')::timestamptz
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN (source = 'AGENT' AND cardinality(sqlc.arg('transcription_ids')::text[]) = 0) OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, sqlc.arg('topics'), sqlc.arg('open_questions'))
 RETURNING *;
+
+-- name: ListWorkspaceMeetingSearchTexts :many
+-- Ask UNI and MCP search a meeting by what it said too (UNI-1995 benchmark
+-- #14): each meeting's latest summary (paragraph, decisions, topics) and the
+-- titles of its pending and converted action items, for the meetings named.
+SELECT m.id AS meeting_id,
+  COALESCE(sm.summary, '')::text AS summary,
+  COALESCE(sm.decisions, '[]')::text AS decisions,
+  COALESCE(sm.topics, '[]')::text AS topics,
+  COALESCE((SELECT string_agg(i.title, E'\n' ORDER BY i.position, i.id) FROM meeting_action_items i
+    WHERE i.organization_id = m.organization_id AND i.meeting_id = m.id AND i.dismissed_at IS NULL), '')::text AS item_titles
+FROM meetings m
+LEFT JOIN LATERAL (
+  SELECT s.summary, s.decisions, s.topics FROM meeting_summaries s
+  WHERE s.meeting_id = m.id AND s.organization_id = m.organization_id
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1
+) sm ON true
+WHERE m.organization_id = sqlc.arg(organization_id) AND m.workspace_id = sqlc.arg(workspace_id)
+  AND m.id = ANY(sqlc.arg(meeting_ids)::text[]);
 
 -- name: GetLatestMeetingSummary :one
 -- tenant: parent meeting_id
@@ -106,3 +177,21 @@ SELECT (
   OR EXISTS (SELECT 1 FROM meeting_chat_messages WHERE meeting_id = sqlc.arg(meeting_id)::text)
   OR EXISTS (SELECT 1 FROM meeting_motions WHERE meeting_id = sqlc.arg(meeting_id)::text AND status = 'CLOSED')
 )::boolean AS has_source;
+
+-- name: ListTranscriptSegmentsByIDs :many
+-- The cited segments of one meeting (UNI-2002 evidence); an id of another
+-- meeting or tenant is simply absent.
+SELECT * FROM meeting_transcript_segments
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);
+
+-- name: SetMeetingAIContentShared :one
+-- tenant: by-id
+-- shared = true stamps the first share and keeps it; false clears it. The
+-- caller passed the clerk gate on this meeting (UNI-1995 access).
+UPDATE meetings SET
+  ai_content_shared_at = CASE WHEN sqlc.arg('shared')::bool THEN COALESCE(ai_content_shared_at, now()) ELSE NULL END,
+  ai_content_shared_by = CASE WHEN sqlc.arg('shared')::bool THEN COALESCE(ai_content_shared_by, sqlc.arg('by')::text) ELSE NULL END,
+  updated_at = now()
+WHERE id = sqlc.arg('id')
+RETURNING *;

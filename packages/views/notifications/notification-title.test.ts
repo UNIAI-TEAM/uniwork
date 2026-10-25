@@ -4,14 +4,14 @@ import type { Notification } from "@uniwork/core/types";
 import { notificationTitleKey, titleParts } from "./notification-title";
 
 describe("titleParts", () => {
-  const render = (p: Record<string, string>) => `${p.actor} moved “${p.task}” to ${p.status}`;
+  const render = (p: Record<string, string>) => `${p.actor} moved "${p.task}" to ${p.status}`;
 
   it("splits the rendered sentence into text and the params in the locale's order", () => {
     expect(titleParts(render, { actor: "An", task: "Spec", status: "done" })).toEqual([
       { param: "actor", value: "An" },
-      { text: " moved “" },
+      { text: ' moved "' },
       { param: "task", value: "Spec" },
-      { text: "” to " },
+      { text: '" to ' },
       { param: "status", value: "done" },
     ]);
   });
@@ -74,7 +74,7 @@ describe("notificationTitleKey", () => {
       params: { actor: "Minh", document: "Báo cáo Q4" },
     });
     expect(t(notificationTitleKey(row), row.params)).toBe(
-      "Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “Báo cáo Q4”.",
+      'Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu "Báo cáo Q4".',
     );
     expect(t(notificationTitleKey({ ...row, params: { actor: "Minh" } }), { actor: "Minh" })).toBe(
       "Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.",
@@ -84,6 +84,42 @@ describe("notificationTitleKey", () => {
   it("leaves a row of another resource alone, with or without a name", () => {
     const task = notification({ resource_type: "task", kind: "task_assigned", title_key: "notifications.kind.task_assigned" });
     expect(notificationTitleKey(task)).toBe("notifications.kind.task_assigned");
+  });
+
+  it("renders tasks_assigned on a meeting resource as one sentence with the count and the meeting", () => {
+    const row = notification({
+      kind: "tasks_assigned", resource_type: "meeting", resource_id: "m1",
+      title_key: "notifications.kind.tasks_assigned", params: { actor: "An", count: "3", meeting: "Họp tuần" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('An đã giao bạn 3 việc từ cuộc họp "Họp tuần"');
+  });
+
+  it("renders a tasks_assigned row without a meeting without the meeting clause", () => {
+    const row = notification({
+      kind: "tasks_assigned", resource_type: "task", resource_id: "t1",
+      title_key: "notifications.kind.tasks_assigned", params: { actor: "An", count: "3" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe("An đã giao bạn 3 việc");
+  });
+
+  it("words a recap of finalized minutes in its own sentence", () => {
+    const row = notification({
+      kind: "meeting_recap_ready", resource_type: "meeting", resource_id: "m1",
+      title_key: "notifications.kind.meeting_recap_ready", params: { meeting: "Giao ban", stage: "minutes" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('Biên bản "Giao ban" đã chốt · Xem lại các quyết định và việc được giao');
+    const summary = { ...row, params: { meeting: "Giao ban" } };
+    expect(t(notificationTitleKey(summary), summary.params)).toBe('Đã có tóm tắt cuộc họp "Giao ban" · Xem các quyết định và việc cần làm');
+  });
+
+  it("words an overdue meeting task in its own sentence", () => {
+    const row = notification({
+      kind: "meeting_task_due", resource_type: "task", resource_id: "t1",
+      title_key: "notifications.kind.meeting_task_due", params: { task: "Gửi báo cáo", meeting: "Giao ban", stage: "overdue" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đã quá hạn');
+    const today = { ...row, params: { task: "Gửi báo cáo", meeting: "Giao ban" } };
+    expect(t(notificationTitleKey(today), today.params)).toBe('Việc "Gửi báo cáo" từ cuộc họp "Giao ban" đến hạn hôm nay');
   });
 
   it("leaves a document row whose key is not a document kind alone", () => {

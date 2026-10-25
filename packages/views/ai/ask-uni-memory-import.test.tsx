@@ -108,10 +108,10 @@ describe("AskUniMemoryImport step 1", () => {
     ["ai_rate_limited", 429, "AI đang bận, thử lại sau ít phút."],
     ["invalid_request", 400, "Chữ dán không hợp lệ."],
     // The gateway's own codes reuse Ask UNI's shared AI copy.
-    ["ai_quota_exceeded", 402, "Tổ chức đã hết hạn mức token AI của tháng."],
-    ["ai_disabled", 503, "AI chưa được cấu hình trên server."],
-    ["ai_provider_error", 502, "Dịch vụ AI đang gặp sự cố, thử lại sau ít phút."],
-    ["ai_provider_timeout", 504, "UNI trả lời quá lâu, thử lại nhé."],
+    ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức token AI của tháng. Báo quản trị viên nếu cần thêm."],
+    ["ai_disabled", 503, "UniWork này chưa bật AI. Báo quản trị viên để bật."],
+    ["ai_provider_error", 502, "Dịch vụ AI không phản hồi. Hỏi lại sau ít phút."],
+    ["ai_provider_timeout", 504, "UNI chưa trả lời kịp. Hỏi lại, hoặc hỏi ngắn hơn."],
     ["ai_refused", 422, "Mô hình từ chối xử lý chữ này. Bỏ bớt phần nhạy cảm rồi thử lại."],
     ["organization_suspended", 403, "Tổ chức này đang tạm ngưng hoạt động."],
   ])("keeps the paste on %s", async (code, status, copy) => {

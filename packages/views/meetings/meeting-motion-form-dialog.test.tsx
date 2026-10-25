@@ -44,19 +44,21 @@ function renderForm(motion?: MeetingMotion) {
 }
 
 describe("MeetingMotionFormDialog", () => {
-  it("creates an item with the common defaults and counts characters", async () => {
+  it("creates an item with the common defaults and counts characters only near the limit", async () => {
     renderForm();
     const submit = await screen.findByRole("button", { name: "Thêm" });
     expect(submit).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("0/200")).toBeInTheDocument();
-    expect(screen.getByText("0/2000")).toBeInTheDocument();
+    expect(screen.queryByText("0/200")).toBeNull();
     expect(screen.getByRole("radio", { name: "Công khai" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Quá bán" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Trên số có mặt" })).toBeChecked();
+    expect(screen.getByText("Thông qua khi hơn một nửa số người có mặt tán thành. Ai không bỏ phiếu được tính là không tán thành.")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Nội dung"), { target: { value: "x".repeat(185) } });
+    expect(screen.getByText("185/200")).toBeInTheDocument();
     const title = "Thông qua kế hoạch quý IV";
     fireEvent.change(screen.getByLabelText("Nội dung"), { target: { value: title } });
-    expect(screen.getByText(`${title.length}/200`)).toBeInTheDocument();
+    expect(screen.queryByText(`${title.length}/200`)).toBeNull();
     fireEvent.click(submit);
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/motions", {
@@ -68,10 +70,16 @@ describe("MeetingMotionFormDialog", () => {
     expect(toast.success).toHaveBeenCalledWith("Đã thêm nội dung biểu quyết");
   });
 
-  it("says a secret ballot keeps only the totals", async () => {
+  it("says in words what the chosen rules add up to, and that a secret ballot keeps only the totals", async () => {
     renderForm();
-    expect(await screen.findByRole("radio", { name: /^Bỏ phiếu kín/ })).not.toBeChecked();
+    const secret = await screen.findByRole("radio", { name: "Bỏ phiếu kín" });
+    expect(secret).not.toBeChecked();
+    expect(screen.queryByText("Không lưu ai chọn gì, chỉ lưu số phiếu.")).toBeNull();
+    fireEvent.click(secret);
+    fireEvent.click(screen.getByRole("radio", { name: "Hai phần ba" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Trên tổng thành viên" }));
     expect(screen.getByText("Không lưu ai chọn gì, chỉ lưu số phiếu.")).toBeInTheDocument();
+    expect(screen.getByText(/^Thông qua khi ít nhất hai phần ba tổng thành viên cuộc họp tán thành\./)).toBeInTheDocument();
   });
 
   it("edits a draft in place with PATCH", async () => {

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingViewSessionScope } from "@uniwork/core/meetings/view-session";
+import { useAuthStore } from "@uniwork/core/auth";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
@@ -19,12 +20,16 @@ import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { copilotPanelShown } from "./conference-layout";
+import { catchUpLateMinutes, firstJoinedAt } from "./meeting-copilot/meeting-catch-up-card";
+import { LiveItemsAnnouncer, useUnseenLiveItems } from "./meeting-copilot/live-items-unseen";
+import type { CopilotSection } from "./meeting-room-copilot-tab";
 import {
   captionsErrorKey,
   captionsSupported,
   MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
+import { MeetingScribeCaptions, useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -40,6 +45,7 @@ import {
   ParticipantPresenceAnnouncer,
   ReactionAnnouncer,
   ScreenShareAnnouncer,
+  ScribeAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
 import { MeetingRoomAvatarsProvider } from "./meeting-room-avatars";
@@ -137,6 +143,14 @@ function ConferenceStage({
     setCaptionsOn(false);
   }, []);
   const resolvedMeetingId = meetingId ?? meeting?.id ?? "";
+  // The late joiner's catch-up counts from their first entry this session, not this mount.
+  const joinedAt = useMemo(() => firstJoinedAt(resolvedMeetingId), [resolvedMeetingId]);
+  const viewerId = useAuthStore((s) => s.user?.id);
+  const [catchUpDismissed, setCatchUpDismissed] = useState(false);
+  const dismissCatchUp = useCallback(() => setCatchUpDismissed(true), []);
+  const lateMinutes = catchUpDismissed
+    ? null
+    : catchUpLateMinutes({ meeting, joinedAt, viewerId, guest: guestMode });
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(resolvedMeetingId);
@@ -183,7 +197,15 @@ function ConferenceStage({
     if (compact) setSidebarSheetOpen(false);
     else setSidebarPinned(false);
   }, [compact, copilotActive, openSidebarTab]);
+  // Once the UNI panel has been on screen, the catch-up is no longer news.
+  const [catchUpSeen, setCatchUpSeen] = useState(false);
+  if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
+  const copilotBadge = lateMinutes !== null && !catchUpSeen;
   const chatVisible = sidebarTab === "chat" && panelShown;
+  // The live items the scribe writes are seen once the UNI panel's Việc section is on screen.
+  const [copilotSection, setCopilotSection] = useState<CopilotSection>("insights");
+  const liveItemsSeeing = copilotActive && copilotSection === "actions";
+  const liveItems = useUnseenLiveItems(guestMode ? undefined : resolvedMeetingId || undefined, liveItemsSeeing);
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
 
   const sheetClose = useMemo(
@@ -195,6 +217,11 @@ function ConferenceStage({
     ),
     [t],
   );
+  // The AI scribe in the room captions everyone; without it, or while its STT
+  // fails (benchmark #1), each viewer keeps their own Web Speech captions (spec D12).
+  const scribeInRoom = useScribeInRoom();
+  const scribePaused = useScribePaused();
+  const scribeCaptioning = scribeInRoom && !scribePaused;
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -205,8 +232,13 @@ function ConferenceStage({
       tab={sidebarTab}
       onTabChange={setSidebarTab}
       chatUnread={chatUnread.unread}
+      lateMinutes={lateMinutes}
+      onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
+      scribeOn={scribeInRoom}
+      liveItemsUnseen={liveItems.count}
+      onCopilotSectionChange={setCopilotSection}
     />
   );
 
@@ -214,16 +246,18 @@ function ConferenceStage({
     () => (resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} /> : null),
     [resolvedMeetingId, openMotions],
   );
-  const serverStt = caps?.server_stt === true;
   const captions = useMemo(
-    () => (
-      <MeetingLiveCaptions
-        meetingId={resolvedMeetingId}
-        enabled={captionsOn && !!resolvedMeetingId && !serverStt}
-        onError={handleCaptionsError}
-      />
-    ),
-    [resolvedMeetingId, captionsOn, serverStt, handleCaptionsError],
+    () =>
+      scribeCaptioning ? (
+        <MeetingScribeCaptions enabled={captionsOn} meetingId={resolvedMeetingId || undefined} />
+      ) : (
+        <MeetingLiveCaptions
+          meetingId={resolvedMeetingId}
+          enabled={captionsOn && !!resolvedMeetingId}
+          onError={handleCaptionsError}
+        />
+      ),
+    [resolvedMeetingId, captionsOn, scribeCaptioning, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(
@@ -234,14 +268,16 @@ function ConferenceStage({
         canHost={canHost.allowed}
         recordingEnabled={recordingEnabled}
         recording={recording}
-        captionsAvailable={!serverStt && captionsSupported()}
+        captionsAvailable={scribeInRoom || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
         onToggleCopilot={toggleCopilot}
         copilotActive={copilotActive}
+        copilotBadge={copilotBadge}
+        copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, serverStt, captionsOn, toggleCaptions, toggleCopilot, copilotActive],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
   );
 
   return (
@@ -262,6 +298,7 @@ function ConferenceStage({
               workspaceLabel={workspaceLabel}
               guestMode={guestMode}
               recording={recording}
+              scribeAvailable={caps?.scribe === true}
               sidebarOpen={sidebarPinned}
               onToggleSidebar={compact ? undefined : toggleSidebar}
               onOpenSidebar={compact ? openSidebarSheet : undefined}
@@ -341,7 +378,8 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          <SheetContent side="right" className="p-0 data-[side=right]:w-[min(100%,24rem)]" showCloseButton={false}>
+          {/* Full width on a phone (the sheet's own max-w-sm caps it from sm up): 24rem left a sliver of stage. */}
+          <SheetContent side="right" className="p-0 data-[side=right]:w-full" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>
@@ -355,7 +393,9 @@ function ConferenceStage({
       <ReactionAnnouncer />
       <ParticipantPresenceAnnouncer />
       <ScreenShareAnnouncer />
+      <ScribeAnnouncer meeting={meeting} />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
+      <LiveItemsAnnouncer count={liveItems.count} latest={liveItems.latest} seeing={liveItemsSeeing} />
     </div>
   );
 }

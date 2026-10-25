@@ -78,7 +78,11 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                       {t("nav.skip_to_content")}
                     </a>
                     {chatOnly ? <WorkspaceRail /> : <AppSidebar />}
-                    <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
+                    {/* clip, not hidden: an sr-only or other absolute node inside a
+                        page's inner scroller overflows this positioned frame, and a
+                        hidden frame still scrolls under scrollIntoView or focus,
+                        dragging the top bar off screen (UNI-1995). */}
+                    <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-clip outline-hidden">
                       <BrowserNotificationsPrompt />
                       <NavigationProgress />
                       <WorkspaceChrome bare={chatOnly}>{children}</WorkspaceChrome>

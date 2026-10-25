@@ -251,9 +251,15 @@ func anthropicOutputFormat(model string, schema json.RawMessage) (anthropic.JSON
 			return anthropic.JSONOutputFormatParam{}, false
 		}
 	}
-	var m map[string]any
-	if err := json.Unmarshal(schema, &m); err != nil || len(m) == 0 {
+	// Each member stays raw: the API writes an object's keys in the order its
+	// "properties" lists them, and a decoded map would sort them.
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(schema, &members); err != nil || len(members) == 0 {
 		return anthropic.JSONOutputFormatParam{}, false
+	}
+	m := make(map[string]any, len(members))
+	for k, v := range members {
+		m[k] = v
 	}
 	return anthropic.JSONOutputFormatParam{Schema: m}, true
 }

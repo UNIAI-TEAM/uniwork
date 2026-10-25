@@ -100,7 +100,7 @@ async function mounted() {
 }
 
 const fileInput = () => document.querySelector<HTMLInputElement>('input[type="file"]');
-const sendButton = () => screen.getByRole("button", { name: "Gửi" });
+const sendButton = () => screen.getByRole("button", { name: "Hỏi" });
 
 /** Picks files through the "+" menu's hidden input. */
 function pick(...files: File[]) {
@@ -344,7 +344,7 @@ describe("attaching files to an Ask UNI question", () => {
 
     it("keeps both when the server refuses the question, and says why at the files", async () => {
       await sent(Promise.resolve({ accepted: false, code: "ai_rate_limited", message: "quá nhanh" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn hỏi quá nhanh, thử lại sau một phút.");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang hỏi quá nhanh. Chờ một phút rồi hỏi lại.");
       expect(box().textContent).toBe("Đọc hai file này");
       expect(chips().map((c) => c.dataset.status)).toEqual(["ready", "ready"]);
       expect(sendButton()).not.toHaveAttribute("aria-disabled");

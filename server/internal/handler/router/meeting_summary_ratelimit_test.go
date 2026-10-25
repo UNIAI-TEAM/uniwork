@@ -32,5 +32,5 @@ func TestMeetingSummaryUsesOwnLimiterBucket(t *testing.T) {
 	caller{ip: office, bearer: mustMint(t, minter, "user-b")}.spend(t, h, http.MethodPost, "/api/v1/meetings/m1/summary", 6)
 
 	alice.spend(t, h, http.MethodGet, "/api/v1/meetings/m1/summary", 10)
-	alice.spend(t, h, http.MethodPost, "/api/v1/meetings/m1/summary/tasks", 10)
+	alice.spend(t, h, http.MethodPost, "/api/v1/meetings/m1/action-items/convert", 10)
 }

@@ -18,4 +18,8 @@ describe("create task dialog motion classes", () => {
     expect(value).toContain("motion-reduce:!transition-opacity");
     expect(value).not.toContain("transition-[width,height,max-width,transform]");
   });
+
+  it("gives the manual composer most of a phone's height, where a fixed 24rem leaves the body a few lines", () => {
+    expect(manualDialogContentClass(false)).toContain("max-sm:!h-[85dvh]");
+  });
 });

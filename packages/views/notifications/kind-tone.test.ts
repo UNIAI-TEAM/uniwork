@@ -4,7 +4,7 @@ import { NOTIFICATION_KINDS } from "@uniwork/core/types";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { kindIcon } from "./kind-icon";
-import { kindTone } from "./kind-tone";
+import { kindSignal, kindTone } from "./kind-tone";
 import { inboxCategory } from "./notification-category";
 
 describe("kindTone", () => {
@@ -14,6 +14,7 @@ describe("kindTone", () => {
 
   it("follows the module table, not its own colours", () => {
     expect(kindTone("task_assigned")).toBe(moduleTone("tasks"));
+    expect(kindTone("tasks_assigned")).toBe(kindTone("task_assigned"));
     expect(kindTone("meeting_starting")).toBe(moduleTone("meetings"));
     expect(kindTone("mentioned")).toBe(moduleTone("chat"));
     expect(kindTone("member_added")).toBe(moduleTone("people"));
@@ -23,6 +24,17 @@ describe("kindTone", () => {
   it("maps document_break_glass to workspace category and ShieldAlert icon", () => {
     expect(inboxCategory("document_break_glass")).toBe("workspace");
     expect(kindIcon("document_break_glass")).toBe(ShieldAlert);
+  });
+
+  // A failure is a signal, not a tint: its mark is destructive, its module tint stays the meetings one.
+  it("marks a failed transcript with the destructive signal", () => {
+    expect(kindSignal("meeting_transcript_failed")).toBe("destructive");
+    expect(kindTone("meeting_transcript_failed")).toBe(moduleTone("meetings"));
+    expect(kindSignal("meeting_transcript_ready")).toBeNull();
+  });
+
+  it("draws the summary reminder apart from the summary the system made", () => {
+    expect(kindIcon("meeting_summary_reminder")).not.toBe(kindIcon("meeting_summary_ready"));
   });
 
   it("maps document_changed to the documents tone, the documents glyph and the updates category (UNI-2056)", () => {

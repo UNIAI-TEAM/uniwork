@@ -68,4 +68,9 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
       "noopener,noreferrer",
     );
   });
+
+  it("names the description editor for assistive tech", async () => {
+    const { link } = await mountAndFindLink("spec");
+    expect(link.closest("[role=textbox]")).toHaveAttribute("aria-label", "Mô tả công việc");
+  });
 });

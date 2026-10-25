@@ -13,6 +13,9 @@ const (
 	MaxSources       = 20
 	MaxContextTokens = 12000
 	MaxExcerpt       = 1200
+	// MaxRecordExcerpt is the cap a source may claim through MaxRunes: one
+	// meeting record (UNI-1995 #17), ~1,200 tokens, a tenth of the budget.
+	MaxRecordExcerpt = 4 * MaxExcerpt
 )
 
 // Source is one permitted excerpt. ID is assigned by BuildContext ("S1"…);
@@ -23,6 +26,8 @@ type Source struct {
 	Title   string `json:"title"`
 	Href    string `json:"href"`
 	Excerpt string `json:"excerpt"`
+	// MaxRunes overrides MaxExcerpt for this source, up to MaxRecordExcerpt.
+	MaxRunes int `json:"-"`
 }
 
 type Focus struct {
@@ -61,8 +66,9 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 			truncated = true
 			break
 		}
-		if utf8.RuneCountInString(s.Excerpt) > MaxExcerpt {
-			s.Excerpt = string([]rune(s.Excerpt)[:MaxExcerpt]) + "…"
+		limit := min(max(s.MaxRunes, MaxExcerpt), MaxRecordExcerpt)
+		if utf8.RuneCountInString(s.Excerpt) > limit {
+			s.Excerpt = string([]rune(s.Excerpt)[:limit]) + "…"
 			truncated = true
 		}
 		cost := estimateTokens(s.Title) + estimateTokens(s.Excerpt)

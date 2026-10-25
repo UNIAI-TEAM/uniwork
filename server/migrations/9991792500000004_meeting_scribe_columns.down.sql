@@ -1,0 +1,10 @@
+ALTER TABLE meeting_summaries DROP COLUMN IF EXISTS partial;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS language;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS client_segment_id;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS speaker_label;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS end_ms;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS start_ms;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS transcription_id;
+ALTER TABLE meeting_transcript_segments DROP COLUMN IF EXISTS source;
+ALTER TABLE meetings DROP COLUMN IF EXISTS scribe_off_by;
+ALTER TABLE meetings DROP COLUMN IF EXISTS scribe_off_at;

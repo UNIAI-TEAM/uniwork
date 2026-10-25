@@ -30,7 +30,7 @@ import { CreateFromSlot } from "./create-from-slot";
 import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
 import { FullCalendarHost, type CalendarSlot } from "./fullcalendar-host";
 import { CalendarFloatingSearch } from "./calendar-floating-search";
-import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
+import { MeetingSheet } from "../meetings/meeting-sheet";
 
 export function CalendarPageView({
   workspaceId,
@@ -199,6 +199,8 @@ export function CalendarPageView({
         title={t("calendar.title")}
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* The phone calendar is the grid alone (board CreateFromSlot at 390): the planning column would squeeze it to nothing. */}
+        <div className="contents max-sm:hidden">
         <CalendarSidebar
           workspaceId={workspaceId}
           viewerTimeZone={viewerTimeZone}
@@ -211,8 +213,11 @@ export function CalendarPageView({
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
         />
+        </div>
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CalendarToolbar
+            // Phone (board CreateFromSlot at 390): ‹ › period · view mode; today and the tool cluster leave the bar.
+            className="max-sm:[&>div:first-child]:flex-1 max-sm:[&>div:first-child>button:last-of-type]:ml-auto max-sm:[&>div:first-child>button:not([aria-label])]:hidden max-sm:[&>div:last-child]:hidden"
             anchorDate={anchorDate}
             mine={mine}
             showWeekends={showWeekends}
@@ -272,6 +277,7 @@ export function CalendarPageView({
                 onOpenChange={setSlotMenuOpen}
                 slot={selectedSlot}
                 anchor={slotAnchor}
+                onOpenMeeting={onOpenMeeting}
               />
             </div>
           )}
@@ -313,12 +319,13 @@ export function CalendarPageView({
           />
         ) : null}
       </div>
-      <NewMeetingDialog
+      <MeetingSheet
+        mode="create"
         workspaceId={workspaceId}
         open={createMeetingOpen}
         onOpenChange={setCreateMeetingOpen}
         showTrigger={false}
-        onCreated={onOpenMeeting}
+        onDone={onOpenMeeting}
       />
     </div>
   );

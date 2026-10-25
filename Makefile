@@ -87,8 +87,8 @@ start: ## Start backend, frontend, and local LiveKit for the current checkout (m
 
 stop: ## Stop the backend and frontend processes of the current checkout (DB/LiveKit keep running)
 	$(REQUIRE_ENV)
-	@-lsof -ti:$(PORT) | xargs kill -9 2>/dev/null
-	@-lsof -ti:$(FRONTEND_PORT) | xargs kill -9 2>/dev/null
+	@-lsof -ti:$(PORT) -sTCP:LISTEN | xargs kill -9 2>/dev/null
+	@-lsof -ti:$(FRONTEND_PORT) -sTCP:LISTEN | xargs kill -9 2>/dev/null
 	@echo "✓ App processes stopped. Shared PostgreSQL/Redis/LiveKit are still running."
 
 check: ## Typecheck, lint, TS tests, Go tests, then E2E — E2E only when GATE_LEVEL is not fast

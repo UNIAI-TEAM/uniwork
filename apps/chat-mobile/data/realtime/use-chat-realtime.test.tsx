@@ -193,6 +193,24 @@ describe("useChatRealtime", () => {
     await act(async () => unmount());
   });
 
+  it("beats over the socket when it answers, and over HTTP when there is no socket", async () => {
+    jest.spyOn(FakeWSClient.prototype, "sendPresenceBeat").mockResolvedValue(["U3"]);
+    const first = mount();
+    const { unmount } = await first.hook;
+    await flush();
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U3"], "ME", expect.any(Number));
+    expect(chatApi.beatPresence).not.toHaveBeenCalled();
+    await act(async () => unmount());
+
+    // No socket yet: the heartbeat still goes out, by HTTP.
+    mockSocket.current = null;
+    const second = mount();
+    await second.hook;
+    await flush();
+    expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U2"], "ME", expect.any(Number));
+  });
+
   it("starts no heartbeat in the background or signed out", async () => {
     Object.defineProperty(AppState, "currentState", { value: "background", configurable: true, writable: true });
     const { hook } = mount();

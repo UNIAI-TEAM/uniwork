@@ -255,6 +255,8 @@ var catalogue = []EventDef{
 	{Topic: "motion.opened", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "motion.closed", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A shared note was added to a meeting; open panels refetch the notes. The body stays out of the payload.
+	{Topic: "note.created", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
@@ -263,14 +265,40 @@ var catalogue = []EventDef{
 	{Topic: "invite_link.revoked", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	// The AI scribe was switched on/off for a meeting or one of its runs changed
+	// state (UNI-2023); the meeting detail refetches scribe_enabled/scribe_status.
+	{Topic: "scribe.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A speaker label of the shared microphone appeared or was assigned
+	// (UNI-2024); the labels and the transcript's speaker names refetch.
+	{Topic: "speaker_label.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// An uploaded recording was queued, transcribed or failed for good
+	// (UNI-2001): the meeting's transcriptions, transcript and speaker
+	// labels refetch; the requester is notified on the last two.
+	{Topic: "transcription.requested", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "transcription.completed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "transcription.failed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// A clerk corrected or removed transcript lines or an uploaded
+	// transcription, or the retention sweep removed old ones (UNI-1995 #5):
+	// the transcript, transcriptions and summary of the meeting refetch.
+	{Topic: "transcript.changed", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would
-	// otherwise keep a stale summary. summary.tasks_linked follows a batch of
-	// tasks created from the summary's action items, so every open copy of
-	// the summary shows which items already became tasks.
+	// otherwise keep a stale summary (and, since UNI-1998, stale action items).
+	// UNI-2026: the auto summary of an ended meeting made no summary; the
+	// notification consumer sends the summary reminder instead. No client.
+	{Topic: "meeting.auto_summary_failed", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "summary.tasks_linked", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// The meeting's action items (UNI-1998): a clerk added, dismissed or
+	// restored one, or turned a batch into tasks (one event per batch), so
+	// every open copy of the list shows what is still pending.
+	{Topic: "action_item.created", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.dismissed", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.restored", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.converted", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "minutes.created", Version: 1, Payload: []string{"meeting_id", "document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "minutes.finalized", Version: 1, Payload: []string{"meeting_id", "document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "minutes.reopened", Version: 1, Payload: []string{"meeting_id", "document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},

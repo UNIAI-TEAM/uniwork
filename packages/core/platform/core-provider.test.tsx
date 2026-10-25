@@ -9,6 +9,7 @@ vi.mock("../api/endpoints/auth", () => ({
 }));
 
 import * as auth from "../api/endpoints/auth";
+import { useAiPanelStore } from "../ai/store";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import { registerOfficeDraftMemoryCleanup } from "../drafts/cleanup-registry";
 import { useCommentDraftStore } from "../tasks/stores/comment-draft-store";
@@ -97,6 +98,20 @@ describe("CoreProvider", () => {
 
     expect(useCommentDraftStore.getState().drafts).toEqual({});
     expect(useCommentDraftStore.getState().draftFor("task-1")).toBe("");
+  });
+
+  it("forgets the Ask UNI conversations on logout, which the next person could not open", async () => {
+    useAuthStore.getState().setUser(user);
+    render(
+      <CoreProvider>
+        <div>app</div>
+      </CoreProvider>,
+    );
+    useAiPanelStore.getState().openConversation("c1", { kind: "meeting", id: "m1" });
+
+    await useAuthStore.getState().logout();
+
+    expect(useAiPanelStore.getState()).toMatchObject({ conversationId: null, conversationByMeeting: {}, focusByConversation: {} });
   });
 
   it("removes registered global draft keys from storage on logout, not only from memory", async () => {

@@ -93,6 +93,13 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 				return nil, err
 			}
 			out = append(out, focus...)
+			if in.Focus.Kind == "meeting" {
+				said, err := s.focusTranscript(ctx, tc, in.Focus.ID, in.Question)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, said...)
+			}
 		}
 	}
 	found, err := s.searchWorkspace(ctx, tc, in.Question)
@@ -103,11 +110,33 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 	for _, src := range out {
 		seen[src.Href] = true
 	}
+	scoped := len(out)
 	for _, src := range found {
 		if !seen[src.Href] {
 			out = append(out, src)
 			seen[src.Href] = true
 		}
+	}
+	return withFoundMeetingRecord(out, scoped, func(id string) ([]ai.Source, error) { return s.meetingContext(ctx, tc, id) })
+}
+
+// withFoundMeetingRecord swaps the best meeting hit from out[from:] for its
+// record (UNI-1995 #17): the hit quotes the summary alone, so "which items,
+// who owns them?" had no answer. One meeting only, through the scoped reader,
+// so its gates apply unchanged; a gate that refuses the record keeps the hit.
+func withFoundMeetingRecord(out []ai.Source, from int, read func(meetingID string) ([]ai.Source, error)) ([]ai.Source, error) {
+	for i := from; i < len(out); i++ {
+		if out[i].Kind != "meeting" {
+			continue
+		}
+		rec, err := read(out[i].Href[strings.LastIndex(out[i].Href, "/")+1:])
+		if err != nil && !isGateRefusal(err) { // meeting_ai_restricted wraps ErrForbidden
+			return nil, err
+		}
+		if len(rec) == 1 {
+			out[i] = rec[0]
+		}
+		break
 	}
 	return out, nil
 }
@@ -312,14 +341,24 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
+	// A meeting is found by what it said too (benchmark #14): its latest
+	// summary, decisions, topics and open action items' titles.
+	said, err := s.meetingSearchTexts(ctx, tc.ActorID, meetings)
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range meetings {
-		sc := score(m.Title+" "+m.Description, ts)
+		rec := said[m.ID]
+		sc := score(m.Title+" "+m.Description+"\n"+rec.content, ts)
 		if sc == 0 && len(ts) > 0 {
 			continue
 		}
+		excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
+		if rec.summary != "" {
+			excerpt += "\nTóm tắt: " + rec.summary
+		}
 		items = append(items, scored{src: ai.Source{
-			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID,
-			Excerpt: fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description),
+			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt,
 		}, score: sc, when: m.StartsAt.Time})
 	}
 	return items, nil
@@ -564,7 +603,7 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 }
 
 // meetingSourceWithSummary is meetingContext's source; summarised says it
-// carries an AI summary (R8).
+// carries an AI summary or the meeting's record (R8).
 func (s *AskUNIService) meetingSourceWithSummary(ctx context.Context, tc ai.ToolContext, meetingID string) (src ai.Source, summarised bool, err error) {
 	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
 	if err != nil {
@@ -577,12 +616,28 @@ func (s *AskUNIService) meetingSourceWithSummary(ctx context.Context, tc ai.Tool
 	if err != nil {
 		return ai.Source{}, false, err
 	}
-	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
-	if sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID); err == nil && sum != nil {
-		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + sum.Decisions + "\nViệc cần làm: " + sum.ActionItems
-		summarised = true
+	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339))
+	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
+	if codedIs(err, "meeting_ai_restricted") {
+		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting
 	}
-	return ai.Source{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}, summarised, nil
+	if err != nil {
+		return ai.Source{}, false, err
+	}
+	record, err := s.meetingRecordExcerpt(ctx, tc, meetingID, sum)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
+	if record != "" {
+		excerpt += "\n" + record
+	}
+	// The description goes last: a long one must not push the record out.
+	if d := strings.TrimSpace(m.Description); d != "" {
+		excerpt += "\nMô tả: " + d
+	}
+	// The record carries the AI summary and items heard from other people's speech: both count as foreign (R8).
+	summarised = sum != nil || record != ""
+	return ai.Source{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt, MaxRunes: ai.MaxRecordExcerpt}, summarised, nil
 }
 
 // memberContext lists names and roles only. Email and phone never enter a

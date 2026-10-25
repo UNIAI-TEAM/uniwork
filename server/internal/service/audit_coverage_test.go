@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -1819,19 +1821,80 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		// UNI-1853: the host turns action items of a meeting summary into tasks.
-		audit.ActionMeetingSummaryTasksCreated: func(t *testing.T, f *auditFixture) {
-			w := f.build(t)
-			svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
-			svc.Tasks = f.tasks
-			m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+		// UNI-1998: a clerk turns pending action items into tasks.
+		audit.ActionMeetingActionItemsConverted: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sum := seedSummary(t, svc, m, f.owner.ID, ai.ActionItem{Title: "Gửi báo cáo"})
-			if _, err := svc.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, SummaryTasksInput{
-				SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}},
-			}); err != nil {
+			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID}}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// follow-5: a clerk links a pending item to a task that already exists.
+		audit.ActionMeetingActionItemLinked: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := svc.Tasks.Create(f.ctx, Human(f.owner.ID), m.WorkspaceID, CreateTaskInput{Title: "Báo cáo tuần"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.LinkActionItem(f.ctx, f.owner.ID, m.ID, items.Items[0].Item.ID, task.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1998: a clerk adds an item by hand.
+		audit.ActionMeetingActionItemCreated: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f)
+			if _, err := svc.AddActionItem(f.ctx, f.owner.ID, m.ID, AddActionItemInput{Title: "Đặt phòng"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1998: a clerk dismisses a pending item, then restores it.
+		audit.ActionMeetingActionItemDismissed: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DismissActionItem(f.ctx, f.owner.ID, m.ID, items.Items[0].Item.ID, "trùng"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingActionItemRestored: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := items.Items[0].Item.ID
+			if err := svc.DismissActionItem(f.ctx, f.owner.ID, m.ID, id, ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RestoreActionItem(f.ctx, f.owner.ID, m.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2003: a clerk makes the minutes, finalizes them, reopens them.
+		audit.ActionMeetingMinutesCreated: func(t *testing.T, f *auditFixture) {
+			auditMeetingWithMinutes(t, f)
+		},
+		audit.ActionMeetingMinutesFinalized: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithMinutes(t, f)
+			if _, err := svc.FinalizeMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingMinutesReopened: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithMinutes(t, f)
+			if _, err := svc.FinalizeMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ReopenMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1870,6 +1933,184 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := s.Summarize(f.ctx, f.owner.ID, m.ID, "vi"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2026: the owner switches auto summaries off for the organization.
+		audit.ActionMeetingSettingsChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			if _, err := s.SetMeetingSettings(f.ctx, Human(f.owner.ID), f.orgID, MeetingSettingsInput{AutoSummaryEnabled: new(false)}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2023: the host switches the AI scribe off for one meeting.
+		audit.ActionMeetingScribeToggled: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetScribe(f.ctx, f.owner.ID, m.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1995 access: the host shares one meeting's AI content with the workspace.
+		audit.ActionMeetingAISharingChanged: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetAIContentShared(f.ctx, f.owner.ID, m.ID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2024: a clerk marks the room's shared microphone.
+		audit.ActionMeetingSharedMicToggled: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := f.q.GetActiveUserParticipant(f.ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(f.owner.ID)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetSharedMic(f.ctx, f.owner.ID, m.ID, p.ID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2153: a member adds a shared note; open panels hear note.created.
+		audit.ActionMeetingNoteAdded: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Ghi chú"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2024: a clerk names a speaker label of the shared microphone.
+		audit.ActionMeetingSpeakerLabelAssigned: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := util.NewID()
+			if _, err := f.q.InsertMeetingSpeakerLabel(f.ctx, db.InsertMeetingSpeakerLabelParams{
+				ID: id, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
+				LabelKey: "uw_participant_x:1:A", CreatedBy: "meeting_scribe", CreatedByKind: "system",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			name := "Chị Lan"
+			if _, err := s.AssignSpeakerLabel(f.ctx, f.owner.ID, m.ID, id, nil, &name); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2001: the host records a meeting held without a room.
+		audit.ActionMeetingHeldRecorded: func(t *testing.T, f *auditFixture) {
+			auditHeldMeeting(t, f)
+		},
+		// UNI-2001: a clerk queues an uploaded recording for transcription.
+		audit.ActionMeetingTranscriptionRequested: func(t *testing.T, f *auditFixture) {
+			auditTranscription(t, f, nil)
+		},
+		// UNI-2001: the worker lands the finished job.
+		audit.ActionMeetingTranscriptionCompleted: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, nil)
+			for range 2 { // submit, then the poll that finds it done
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+		// UNI-2001: the vendor refused the job three times.
+		audit.ActionMeetingTranscriptionFailed: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, errors.New("vendor down"))
+			for range transcriptionMaxAttempts {
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+		// UNI-1995 #5: a clerk corrects or removes transcript lines, or an
+		// uploaded transcription with its audio; the retention sweep expires them.
+		audit.ActionMeetingTranscriptSegmentEdited: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := s.EditTranscriptSegment(f.ctx, f.owner.ID, m.ID, id, "Đã sửa"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptSegmentDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if err := s.DeleteTranscriptSegment(f.ctx, f.owner.ID, m.ID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptRangeDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := s.DeleteTranscriptRange(f.ctx, f.owner.ID, m.ID, id, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptDeleted: func(t *testing.T, f *auditFixture) {
+			s, m, _ := auditTranscriptLine(t, f)
+			if _, err := s.DeleteTranscript(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptionDeleted: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, errors.New("vendor down"))
+			for range transcriptionMaxAttempts {
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var id, meetingID string
+			if err := f.pool.QueryRow(f.ctx, `SELECT id, meeting_id FROM meeting_transcriptions WHERE organization_id = $1`, f.orgID).Scan(&id, &meetingID); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DeleteTranscription(f.ctx, f.owner.ID, meetingID, id); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingTranscriptExpired: func(t *testing.T, f *auditFixture) {
+			s, m, id := auditTranscriptLine(t, f)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE meeting_transcript_segments SET created_at = now() - interval '40 days' WHERE id = $1`, id); err != nil {
+				t.Fatal(err)
+			}
+			days := int32(30)
+			if _, err := s.SetMeetingTranscriptRetention(f.ctx, Human(f.owner.ID), m.OrganizationID, &days); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SweepTranscriptRetention(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2029: the host draws a new dial-in PIN.
+		audit.ActionMeetingDialInPinRotated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{
+				TokenTTL: time.Minute, HMACKey: []byte("t"), DialInEnabled: true, DialInNumber: "+84 28 7300 0000",
+			})
+			s.SetFlags(mcpFlagsExcept{})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.RotateDialInPin(f.ctx, f.owner.ID, m.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2199,8 +2440,25 @@ func auditActions() []string {
 		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
-		audit.ActionMeetingSummaryTasksCreated,
+		audit.ActionMeetingActionItemsConverted,
+		audit.ActionMeetingActionItemCreated,
+		audit.ActionMeetingActionItemDismissed,
+		audit.ActionMeetingActionItemRestored,
+		audit.ActionMeetingActionItemLinked,
+		audit.ActionMeetingMinutesCreated,
+		audit.ActionMeetingMinutesFinalized,
+		audit.ActionMeetingMinutesReopened,
 		audit.ActionMeetingSummaryCreated,
+		audit.ActionMeetingSettingsChanged,
+		audit.ActionMeetingScribeToggled,
+		audit.ActionMeetingAISharingChanged,
+		audit.ActionMeetingSharedMicToggled,
+		audit.ActionMeetingSpeakerLabelAssigned,
+		audit.ActionMeetingNoteAdded,
+		audit.ActionMeetingHeldRecorded,
+		audit.ActionMeetingTranscriptionRequested,
+		audit.ActionMeetingTranscriptionCompleted,
+		audit.ActionMeetingTranscriptionFailed,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 		audit.ActionOrganizationPushPreviewPolicyChanged,
@@ -2219,6 +2477,73 @@ func auditActions() []string {
 }
 
 const auditPassword = "password123"
+
+// auditHeldMeeting records a scheduled meeting as held an hour ago.
+func auditHeldMeeting(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting) {
+	t.Helper()
+	w := f.build(t)
+	s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(f.ctx, f.owner.ID, w.ID, CreateMeetingInput{Title: "Audit", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := time.Now().Add(-2 * time.Hour)
+	if m, err = s.RecordHeld(f.ctx, f.owner.ID, m.ID, held, held.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	return s, m
+}
+
+// auditTranscription queues one uploaded minute of a held meeting with the
+// fake vendor, which fails every submit with submitErr when set.
+func auditTranscription(t *testing.T, f *auditFixture, submitErr error) (*MeetingService, *provider.FakeFileTranscriber) {
+	t.Helper()
+	s, m := auditHeldMeeting(t, f)
+	fs := filesfake.New(filesfake.Options{})
+	s.SetFiles(fs)
+	s.SetFlags(mcpFlagsExcept{})
+	vendor := &provider.FakeFileTranscriber{SubmitErr: submitErr}
+	s.AI = ai.NewGateway(f.q, nil, nil, nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: vendor}})
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = COALESCE(overrides, '{}'::jsonb) || '{"meeting.transcription": 100}'::jsonb WHERE organization_id = $1`, m.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
+	up, err := fs.Upload(f.ctx, files.UploadInput{
+		Actor: audit.User(f.owner.ID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(), Filename: "hop.mp3",
+		Scope: files.Scope{OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID}, Body: bytes.NewReader(mp3(60, "audit")),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedMeetingAudioSession(t, f.pool, m, f.owner.ID, string(up.File.ID))
+	if _, err := s.RequestTranscription(f.ctx, f.owner.ID, m.ID, TranscriptionRequest{UploadID: string(up.File.ID), Consent: true}); err != nil {
+		t.Fatal(err)
+	}
+	return s, vendor
+}
+
+// auditTranscriptLine is a live meeting with one caption line.
+func auditTranscriptLine(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting, string) {
+	t.Helper()
+	w := f.build(t)
+	s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seg, err := s.AppendTranscript(f.ctx, f.owner.ID, m.ID, "Chốt lịch", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, m, seg.ID
+}
+
+func auditTranscriptionDue(t *testing.T, f *auditFixture) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE meeting_transcriptions SET next_attempt_at = now() - interval '1 second' WHERE organization_id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+}
 
 type auditFixture struct {
 	ctx     context.Context
@@ -2848,4 +3173,37 @@ func auditMultipartDocService(t *testing.T, f *auditFixture) (*DocumentService, 
 	svc.SetClock(clock.Now)
 	svc.store.spoolDir = t.TempDir()
 	return svc, store, clock
+}
+
+// auditMeetingWithItems is an instant meeting of the fixture's workspace with
+// a summary proposing these action items.
+func auditMeetingWithItems(t *testing.T, f *auditFixture, titles ...string) (*MeetingService, db.Meeting) {
+	t.Helper()
+	w := f.build(t)
+	svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	svc.Tasks = f.tasks
+	m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]ai.ActionItem, 0, len(titles))
+	for _, title := range titles {
+		items = append(items, ai.ActionItem{Title: title})
+	}
+	seedSummary(t, svc, m, f.owner.ID, items...)
+	return svc, m
+}
+
+// auditMeetingWithMinutes is an ended meeting of the owner's with its minutes made.
+func auditMeetingWithMinutes(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting) {
+	t.Helper()
+	svc, m := auditMeetingWithItems(t, f)
+	svc.Docs = NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	if _, err := svc.End(f.ctx, f.owner.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateMinutes(f.ctx, f.owner.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	return svc, m
 }

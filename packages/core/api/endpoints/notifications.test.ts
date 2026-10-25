@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { NotificationKind } from "../../types/notification";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
@@ -81,6 +82,17 @@ describe("notification endpoints", () => {
     expect(page.notifications[0]!.params.archive_batch_id).toBe("b1");
     vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...trashed, params: "x" }] }));
     await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+  });
+
+  it("listNotifications passes a tasks_assigned meeting row through with its count", async () => {
+    const kind: NotificationKind = "tasks_assigned";
+    const batch = {
+      ...row, kind, resource_type: "meeting", resource_id: "m1",
+      title_key: "notifications.kind.tasks_assigned", params: { actor: "An", count: "3" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [batch] }));
+    const page = await listNotifications();
+    expect(page.notifications[0]).toMatchObject({ kind: "tasks_assigned", resource_type: "meeting", params: { count: "3" } });
   });
 
   it("listNotifications reads sample_documents, [] when absent, and a bad one never blanks the page", async () => {

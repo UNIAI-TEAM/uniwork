@@ -108,6 +108,50 @@ func (q *Queries) ListMeetingChatMessagesBefore(ctx context.Context, arg ListMee
 	return items, nil
 }
 
+const listMeetingChatMessagesByIDs = `-- name: ListMeetingChatMessagesByIDs :many
+SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages
+WHERE organization_id = $1 AND meeting_id = $2
+  AND id = ANY($3::text[])
+`
+
+type ListMeetingChatMessagesByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MeetingID      string   `json:"meeting_id"`
+	Ids            []string `json:"ids"`
+}
+
+// The cited chat messages of one meeting (UNI-2002 evidence); an id of
+// another meeting or tenant is simply absent.
+func (q *Queries) ListMeetingChatMessagesByIDs(ctx context.Context, arg ListMeetingChatMessagesByIDsParams) ([]MeetingChatMessage, error) {
+	rows, err := q.db.Query(ctx, listMeetingChatMessagesByIDs, arg.OrganizationID, arg.MeetingID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingChatMessage{}
+	for rows.Next() {
+		var i MeetingChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SenderIdentity,
+			&i.SenderName,
+			&i.Message,
+			&i.SentAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMeetingChatMessagesLatest = `-- name: ListMeetingChatMessagesLatest :many
 SELECT id, meeting_id, participant_id, sender_identity, sender_name, message, sent_at, created_at, organization_id FROM meeting_chat_messages WHERE meeting_id = $1 ORDER BY sent_at DESC, id DESC LIMIT $2
 `

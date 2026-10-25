@@ -247,17 +247,17 @@ func TestDocumentEditKindsDefaultPrefs(t *testing.T) {
 // the kind's own entry, and the document name stays verbatim.
 func TestEditRequestAnsweredTitleFollowsTheDecision(t *testing.T) {
 	params := map[string]string{"actor": "An", "document": "Kế hoạch"}
-	if got, want := Title("vi", KindDocumentEditRequestAnswered, params), "An đã nhường quyền sửa “Kế hoạch” cho bạn"; got != want {
+	if got, want := Title("vi", KindDocumentEditRequestAnswered, params), "An đã nhường quyền sửa \"Kế hoạch\" cho bạn"; got != want {
 		t.Fatalf("accepted vi = %q, want %q", got, want)
 	}
 	params["decision"] = "decline"
-	if got, want := Title("vi", KindDocumentEditRequestAnswered, params), "An chưa nhả quyền sửa “Kế hoạch”"; got != want {
+	if got, want := Title("vi", KindDocumentEditRequestAnswered, params), "An chưa nhả quyền sửa \"Kế hoạch\""; got != want {
 		t.Fatalf("declined vi = %q, want %q", got, want)
 	}
-	if got, want := Title("en", KindDocumentEditRequestAnswered, params), "An is still editing “Kế hoạch”"; got != want {
+	if got, want := Title("en", KindDocumentEditRequestAnswered, params), "An is still editing \"Kế hoạch\""; got != want {
 		t.Fatalf("declined en = %q, want %q", got, want)
 	}
-	if got, want := Title("en", KindDocumentEditRequested, map[string]string{"actor": "An", "document": "D"}), "An wants to edit “D”"; got != want {
+	if got, want := Title("en", KindDocumentEditRequested, map[string]string{"actor": "An", "document": "D"}), "An wants to edit \"D\""; got != want {
 		t.Fatalf("requested en = %q, want %q", got, want)
 	}
 }

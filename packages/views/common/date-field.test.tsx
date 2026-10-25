@@ -33,4 +33,16 @@ describe("DateField", () => {
     fireEvent.click(screen.getByText("Bỏ chọn ngày"));
     expect(onChange).toHaveBeenCalledWith("");
   });
+
+  it("is named by its label and the day it shows, not the label alone", () => {
+    render(
+      <>
+        <label id="when-label" htmlFor="when">
+          Ngày họp
+        </label>
+        <DateField id="when" labelId="when-label" value="2026-10-20" onChange={() => {}} />
+      </>,
+    );
+    expect(screen.getByRole("button", { name: /^Ngày họp 20 thg 10, 2026$/ })).toBeInTheDocument();
+  });
 });

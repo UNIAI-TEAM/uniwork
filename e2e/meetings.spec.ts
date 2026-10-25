@@ -12,11 +12,11 @@ import {
   registerApiUser,
 } from "./meeting-recording-fixture";
 
-// Meeting lifecycle without LiveKit: tạo → bắt đầu → panel tóm tắt AI hiện
-// (kèm trạng thái AI tắt) → tải .ics → kết thúc → ENDED. Yêu cầu `make dev`.
+// Meeting lifecycle without LiveKit: tạo → tải .ics → bắt đầu → kết thúc →
+// ENDED, rồi phần Tóm tắt của Tổng quan (kèm trạng thái AI tắt). Yêu cầu `make dev`.
 const stamp = Date.now();
 
-test("meeting: create → start → summary panel → ics → end", async ({ page }) => {
+test("meeting: create → ics → start → end → summary", async ({ page }) => {
   await register(page, "E2E Meet", stamp);
   await verifyEmail(page);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
@@ -38,7 +38,7 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   // visit compiles /meetings/[meetingId], which alone can take longer than
   // the 5s default.
   await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Họp AI e2e" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Họp AI e2e" })).toBeVisible();
 
   // Scheduled: no summary panel yet, calendar available.
   await expect(page.getByTestId("meeting-summary-panel")).toHaveCount(0);
@@ -47,19 +47,24 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/\.ics$/);
 
-  await page.getByRole("button", { name: "Bắt đầu" }).click();
-  // exact: the activity timeline also renders "Đã lên lịch → Đang diễn ra".
-  await expect(page.getByText("Đang diễn ra", { exact: true })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByTestId("meeting-summary-panel")).toBeVisible();
-  // Without ANTHROPIC_API_KEY the panel explains that AI is off (or shows the
-  // empty transcript hint when the key is set): either is a valid server state.
-  await expect(
-    page.getByText("Tóm tắt AI chưa được bật trên máy chủ này.").or(page.getByText(/Chưa có bản ghi lời thoại/)).first(),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Bắt đầu họp" }).click();
+  await expect(page.getByText("Cuộc họp đang diễn ra")).toBeVisible({ timeout: 10_000 });
+  // Live, the page shows the shared notes and the transcript; the overview (and its summary) waits for the end.
+  await expect(page.getByRole("tab", { name: /Ghi chú chung/ })).toBeVisible();
+  await expect(page.getByTestId("meeting-summary-panel")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Kết thúc" }).click();
-  await page.getByRole("button", { name: /Kết thúc/ }).last().click();
+  await page.getByRole("button", { name: "Kết thúc họp" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: /Kết thúc/ }).click();
   await expect(page.getByText("Đã kết thúc").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("meeting-summary-panel")).toBeVisible();
+  // Without an AI provider the summary explains that AI is off; with one it is
+  // drafting, or says there was no transcript: each is a valid server state.
+  await expect(
+    page
+      .getByText("Tổ chức của bạn chưa dùng được Tóm tắt.")
+      .or(page.getByText(/Chưa có bản ghi lời thoại|Chưa có lời thoại|Đang soạn tóm tắt/))
+      .first(),
+  ).toBeVisible();
 });
 
 // ---- Recording (UNI-746) ---------------------------------------------------

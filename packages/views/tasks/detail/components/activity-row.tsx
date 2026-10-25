@@ -30,6 +30,10 @@ export function isTimelineActivity(event: AuditEvent): boolean {
   return !DUPLICATED_BY_THE_TIMELINE.test(event.action);
 }
 
+function isEmpty(value: unknown): boolean {
+  return value === null || value === undefined || value === "";
+}
+
 /** The AI app (ADR 0033) or Ask UNI (ADR 0044) a change came through, or "" when none or malformed. */
 function viaClient(event: AuditEvent, askUni: string): string {
   const via = event.metadata.via;
@@ -57,20 +61,23 @@ export function TaskActivityRow({
 }) {
   const { t } = useTranslation();
   const labels = useAuditLabels();
-  const valueLabel = (field: string, value: unknown): unknown => {
-    if (typeof value !== "string") return value;
-    if (field === "status") {
-      return t(`tasks.status_${value}`, { defaultValue: value });
-    }
-    if (field === "priority") {
-      return t(`tasks.priority_${value}`, { defaultValue: value });
-    }
-    return valueNames.get(value) ?? value;
-  };
+  // Ids (assignee, project) read as the names the caller resolved; enums go
+  // through the shared audit words.
+  const valueLabel = (field: string, value: unknown): unknown =>
+    typeof value === "string" && valueNames.has(value)
+      ? valueNames.get(value)
+      : labels.value(field, value, "task");
   // Position is an internal ordering coordinate, not a meaningful task-detail
   // change. Keep it in the immutable audit event for the organization log,
   // but omit it from this resource-local timeline and its remaining-field count.
-  const timelineChanges = changeEntries(event).filter(([field]) => field !== "position");
+  // On creation the assignee's kind only restates the assignee, and a field
+  // created empty is not news ("Hạn: Không có").
+  const created = event.action === "task.created";
+  const timelineChanges = changeEntries(event).filter(
+    ([field, change]) =>
+      field !== "position" &&
+      !(created && (field === "assignee_kind" || isEmpty(change.to))),
+  );
   const changes = timelineChanges.slice(0, 2);
   const via = viaClient(event, t("ai.title"));
   return (
@@ -110,7 +117,11 @@ export function TaskActivityRow({
             </span>
           ))}
           {timelineChanges.length > changes.length ? (
-            <span>+{timelineChanges.length - changes.length}</span>
+            <span>
+              {t("settings.audit.table.more_fields", {
+                count: timelineChanges.length - changes.length,
+              })}
+            </span>
           ) : null}
         </span>
       ) : null}

@@ -39,6 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0045): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -365,6 +366,13 @@ Every command that changes business state writes an `audit_events` row and its
   `TestAskUniWriteToolsDeclareLevelAndUndo`, `TestAskUniLoopNeverRunsAWriteCommand`,
   `TestAskUniTaintedTurnNeverAutoApplies`, `TestAskUniModeIsClampedToTheCeiling`,
   `TestAskUniOnlyTheAskerDecidesAProposal` and `TestAIWriteGateIsShared` hold it.
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0045) is the one
+  exception: it opens its STT vendor connection itself, holds no LLM key, and
+  reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
+  per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything
+  that needs a model is a request the server answers through `ai.Gateway`.
+  `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
+  SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
 - The signed-in desktop app uses the keys the person saved on UniWork only
   through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
   key, and its calls record the `office.byok_desktop` capability while web and

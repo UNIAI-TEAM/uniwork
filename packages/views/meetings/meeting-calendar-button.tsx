@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useMeetingCalendar } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toastApiError } from "../toast-api-error";
 
 /** "Họp giao ban Đội Sản phẩm" → "hop-giao-ban-doi-san-pham.ics"; an unusable title falls back to the id. */
@@ -47,8 +48,11 @@ export function MeetingCalendarButton({
       size="lg"
       variant="ghost"
       className={className}
-      disabled={cal.isPending}
-      onClick={() =>
+      // aria-disabled, not disabled: focus stays on the button while the file is fetched.
+      aria-disabled={cal.isPending || undefined}
+      aria-busy={cal.isPending || undefined}
+      onClick={() => {
+        if (cal.isPending) return;
         cal.mutate(meetingId, {
           onSuccess: (ics) => {
             const filename = meetingIcsFileName(title, meetingId);
@@ -56,10 +60,10 @@ export function MeetingCalendarButton({
             toast.success(t("meetings.calendarDownloaded", { file: filename }));
           },
           onError: (err) => toastApiError(err, t("common.error")),
-        })
-      }
+        });
+      }}
     >
-      <CalendarPlus aria-hidden />
+      {cal.isPending ? <Spinner data-icon="inline-start" /> : <CalendarPlus aria-hidden />}
       {t("meetings.addToCalendar")}
     </Button>
   );

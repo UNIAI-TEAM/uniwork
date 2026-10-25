@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -21,27 +21,87 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 	return sdo.TranscriptSegmentDTO{
 		ID: s.ID, MeetingID: s.MeetingID, ParticipantID: s.ParticipantID.String,
 		SpeakerName: s.SpeakerName, Text: s.Text, SpokenAt: rfc3339(s.SpokenAt),
+		Source: s.Source, TranscriptionID: s.TranscriptionID.String, StartMs: optInt32(s.StartMs), EndMs: optInt32(s.EndMs),
+		Language: s.Language, EditedAt: rfc3339(s.EditedAt),
 	}
 }
 
-func toSummaryDTO(v service.MeetingSummaryView) sdo.MeetingSummaryDTO {
-	s := v.Summary
+func optInt32(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int32
+}
+
+func toSummaryDTO(s db.MeetingSummary, starts map[string]time.Time) sdo.MeetingSummaryDTO {
+	points := func(in []service.SummaryDecision) []sdo.MeetingSummaryDecisionDTO {
+		out := make([]sdo.MeetingSummaryDecisionDTO, 0, len(in))
+		for _, dec := range in {
+			out = append(out, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
+		}
+		return out
+	}
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt),
-		Decisions: []string{}, ActionItems: make([]sdo.MeetingSummaryActionItemDTO, 0, len(v.Items)),
+		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial,
+		Decisions:     points(service.DecodeSummaryDecisions(s.Decisions)),
+		OpenQuestions: points(service.DecodeSummaryDecisions(s.OpenQuestions)),
+		Topics:        []sdo.MeetingSummaryTopicDTO{},
 	}
-	_ = json.Unmarshal([]byte(s.Decisions), &d.Decisions)
-	if d.Decisions == nil {
-		d.Decisions = []string{}
+	if s.TranscriptChangedAt.Valid {
+		at := rfc3339(s.TranscriptChangedAt)
+		d.TranscriptChangedAt = &at
 	}
-	for _, it := range v.Items {
-		d.ActionItems = append(d.ActionItems, sdo.MeetingSummaryActionItemDTO{
-			Index: it.Index, Title: it.Title, Owner: it.Owner, Due: it.Due,
-			SuggestedAssigneeID: it.SuggestedAssigneeID, DueDate: it.DueDate, TaskID: it.TaskID,
-		})
+	for _, t := range service.DecodeSummaryTopics(s.Topics) {
+		topic := sdo.MeetingSummaryTopicDTO{Title: t.Title, Points: points(t.Points)}
+		if t.Start != nil {
+			topic.Start = &sdo.MeetingEvidenceRefDTO{Kind: t.Start.Kind, ID: t.Start.ID}
+			if at, ok := starts[t.Start.ID]; ok {
+				v := at.UTC().Format(time.RFC3339)
+				topic.StartAt = &v
+			}
+		}
+		d.Topics = append(d.Topics, topic)
 	}
 	return d
+}
+
+func toSummaryRunDTO(r service.SummaryRun) sdo.MeetingSummaryRunDTO {
+	out := sdo.MeetingSummaryRunDTO{Status: r.Status, Attempts: r.Attempts}
+	if !r.At.IsZero() {
+		v := r.At.UTC().Format(time.RFC3339)
+		out.At = &v
+	}
+	if !r.FailedAt.IsZero() {
+		out.Failure = &sdo.MeetingSummaryRunFailureDTO{Code: r.FailureCode, At: r.FailedAt.UTC().Format(time.RFC3339)}
+	}
+	return out
+}
+
+func toEvidenceRefsDTO(refs []service.EvidenceRef) []sdo.MeetingEvidenceRefDTO {
+	out := make([]sdo.MeetingEvidenceRefDTO, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, sdo.MeetingEvidenceRefDTO{Kind: r.Kind, ID: r.ID})
+	}
+	return out
+}
+
+func (h *handlers) meetingEvidence(w http.ResponseWriter, r *http.Request) {
+	refs, err := service.ParseEvidenceRefs(r.URL.Query().Get("refs"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	sources, err := h.Meetings.EvidenceSources(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), refs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.MeetingEvidenceSDO{Items: make([]sdo.MeetingEvidenceSourceDTO, 0, len(sources))}
+	for _, src := range sources {
+		out.Items = append(out.Items, sdo.MeetingEvidenceSourceDTO{Kind: src.Kind, ID: src.ID, Author: src.Author, Text: src.Text, At: rfc3339(src.At)})
+	}
+	respondJSON(w, 200, out)
 }
 
 func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingDTO {
@@ -62,7 +122,8 @@ func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
-		AISummary: caps.AISummary, Recording: caps.Recording, ServerSTT: caps.ServerSTT,
+		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe, Transcription: caps.Transcription,
+		ScribePolicy: caps.ScribePolicy,
 	})
 }
 
@@ -79,32 +140,22 @@ func (h *handlers) appendTranscript(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
 }
 
-const meetingSTTAgentSecretHeader = "X-Meeting-Agent-Secret"
-
-func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request) {
-	secret := strings.TrimSpace(r.Header.Get(meetingSTTAgentSecretHeader))
-	if secret == "" || !h.Meetings.STTAgentEnabled() || secret != h.Cfg.MeetingSTTAgentSecret {
-		respondError(w, http.StatusUnauthorized, "unauthorized", "agent secret không hợp lệ")
-		return
-	}
-	var in sdi.AppendAgentTranscriptSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	seg, err := h.Meetings.AppendTranscriptFromAgent(r.Context(), chi.URLParam(r, "meetingID"),
-		strings.TrimSpace(in.ParticipantIdentity), strings.TrimSpace(in.SpeakerName), in.Text, in.SpokenAt)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
-}
-
 func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 	q, ok := meetingFeedQuery(w, r)
 	if !ok {
 		return
 	}
+	// The transcript also reads forward (UNI-1995 #9).
+	v := r.URL.Query()
+	switch order := strings.TrimSpace(v.Get("order")); order {
+	case "", "desc":
+	case "asc":
+		q.Asc = true
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "order phải là asc hoặc desc")
+		return
+	}
+	q.From, q.Around = strings.TrimSpace(v.Get("from")), strings.TrimSpace(v.Get("around"))
 	page, err := h.Meetings.Transcript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), q)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -112,23 +163,32 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.TranscriptSegmentDTO, 0, len(page.Items))
 	for _, s := range page.Items {
-		out = append(out, toTranscriptDTO(s))
+		d := toTranscriptDTO(s)
+		// A room speaker nobody named yet: the client words "Speaker n" itself.
+		if sp := page.Speakers[s.SpeakerLabel]; s.SpeakerLabel != "" && sp.Name == "" {
+			d.SpeakerLabel, d.RoomSpeaker = s.SpeakerLabel, sp.Number
+		}
+		out = append(out, d)
 	}
-	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page)})
+	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page.FeedPage)})
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {
-	v, err := h.Meetings.SummaryView(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	v, err := h.Meetings.SummaryWithRun(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.MeetingSummarySDO{}
-	if v != nil {
-		dto := toSummaryDTO(*v)
+	respondJSON(w, 200, toSummaryViewSDO(v))
+}
+
+func toSummaryViewSDO(v service.SummaryView) sdo.MeetingSummarySDO {
+	out := sdo.MeetingSummarySDO{Run: toSummaryRunDTO(v.Run)}
+	if v.Summary != nil {
+		dto := toSummaryDTO(*v.Summary, v.TopicStarts)
 		out.Summary = &dto
 	}
-	respondJSON(w, 200, out)
+	return out
 }
 
 // summaryLocale maps the requested output language onto the closed set the
@@ -145,23 +205,45 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	userID := middleware.UserID(r.Context())
-	s, err := h.Meetings.Summarize(r.Context(), userID, chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
+	// The run goes on after this answer (UNI-1995 #12): it ends in
+	// summary.created, or in the failure GET summary's run carries.
+	v, err := h.Meetings.StartSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	v, err := h.Meetings.SummaryViewOf(r.Context(), userID, s)
-	if err != nil {
-		// The summary is stored and billed: answer it without the server's
-		// suggestions rather than a failure that invites a second paid run.
-		if h.Log != nil {
-			h.Log.Warn("meetings: describe new summary", "meeting_id", s.MeetingID, "summary_id", s.ID, "err", err)
-		}
-		v = service.StoredSummaryView(s)
+	respondJSON(w, http.StatusAccepted, toSummaryViewSDO(v))
+}
+
+func (h *handlers) meetingCatchUp(w http.ResponseWriter, r *http.Request) {
+	var in sdi.MeetingCatchUpSDI
+	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
+		return
 	}
-	dto := toSummaryDTO(v)
-	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})
+	res, err := h.AskUNI.MeetingCatchUp(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	at := func(t *time.Time) *string {
+		if t == nil {
+			return nil
+		}
+		v := t.UTC().Format(time.RFC3339)
+		return &v
+	}
+	out := sdo.MeetingCatchUpSDO{
+		Summary: res.Summary, GeneratedAt: res.GeneratedAt.UTC().Format(time.RFC3339), Partial: res.Partial,
+		Highlights:  make([]sdo.MeetingCatchUpPointDTO, 0, len(res.Highlights)),
+		ActionItems: make([]sdo.MeetingCatchUpItemDTO, 0, len(res.ActionItems)),
+	}
+	for _, p := range res.Highlights {
+		out.Highlights = append(out.Highlights, sdo.MeetingCatchUpPointDTO{Text: p.Text, SegmentID: p.SegmentID, SpokenAt: at(p.SpokenAt)})
+	}
+	for _, a := range res.ActionItems {
+		out.ActionItems = append(out.ActionItems, sdo.MeetingCatchUpItemDTO{Title: a.Title, Owner: a.Owner, Due: a.Due, SegmentID: a.SegmentID, SpokenAt: at(a.SpokenAt)})
+	}
+	respondJSON(w, 200, out)
 }
 
 // blankAsNil reads "" like null: both mean "none" for an assignee or a due date.
@@ -171,41 +253,6 @@ func blankAsNil(s *string) *string {
 	}
 	v := strings.TrimSpace(*s)
 	return &v
-}
-
-func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {
-	var in sdi.SummaryTasksSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	items := make([]service.MeetingSummaryTaskItem, 0, len(in.Items))
-	for _, it := range in.Items {
-		// A missing index reaches the service as -1, which it refuses once it
-		// has authorized the caller.
-		index := -1
-		if it.Index != nil {
-			index = *it.Index
-		}
-		items = append(items, service.MeetingSummaryTaskItem{
-			Index: index, Title: it.Title, Description: it.Description,
-			AssigneeID: blankAsNil(it.AssigneeID), DueDate: blankAsNil(it.DueDate),
-			ProjectID: it.ProjectID, Priority: it.Priority,
-		})
-	}
-	res, err := h.Meetings.CreateTasksFromSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
-		service.SummaryTasksInput{SummaryID: in.SummaryID, Items: items})
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := sdo.MeetingSummaryTasksSDO{
-		TaskIDs: make([]string, 0, len(res.Links)), Items: make([]sdo.SummaryTaskLinkDTO, 0, len(res.Links)),
-	}
-	for _, l := range res.Links {
-		out.TaskIDs = append(out.TaskIDs, l.TaskID)
-		out.Items = append(out.Items, sdo.SummaryTaskLinkDTO{Index: l.Index, TaskID: l.TaskID})
-	}
-	respondJSON(w, 200, out)
 }
 
 func (h *handlers) startRecording(w http.ResponseWriter, r *http.Request) {

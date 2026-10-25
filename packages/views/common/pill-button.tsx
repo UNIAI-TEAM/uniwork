@@ -7,9 +7,11 @@ import { cn } from "@uniwork/ui/lib/utils";
 /**
  * Pill chrome for create-task / property toolbars. Hard width cap so
  * long project/assignee/label text wraps siblings instead of owning the row.
+ * On a coarse pointer the target inside the 1px border is 44px, like every
+ * registry control: 46px outside, so a clearable pill's inner buttons get 44.
  */
 const PILL_CHROME =
-  "inline-flex min-w-0 max-w-56 items-center overflow-hidden rounded-full border border-border/80 text-caption font-medium text-muted-foreground transition-colors";
+  "inline-flex min-w-0 max-w-56 items-center overflow-hidden rounded-full border border-border/80 text-caption font-medium text-muted-foreground transition-colors pointer-coarse:min-h-[2.875rem]";
 
 export function PillButton({
   className,
@@ -63,7 +65,8 @@ export function ClearablePillButton({
         type="button"
         disabled={disabled}
         className={cn(
-          "flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden py-1 pl-2.5",
+          // self-stretch: on a coarse pointer the whole 44px pill is the target.
+          "flex min-w-0 cursor-pointer items-center gap-1.5 self-stretch overflow-hidden py-1 pl-2.5",
           clearable ? "pr-1" : "pr-2.5",
           "disabled:cursor-not-allowed",
         )}
@@ -80,7 +83,7 @@ export function ClearablePillButton({
             event.stopPropagation();
             onClear?.();
           }}
-          className="flex shrink-0 cursor-pointer items-center py-1 pr-2 pl-0.5 text-muted-foreground hover:text-foreground"
+          className="flex shrink-0 cursor-pointer items-center self-stretch py-1 pr-2 pl-0.5 text-muted-foreground hover:text-foreground pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           <X className="size-3" aria-hidden />
         </button>

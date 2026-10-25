@@ -56,6 +56,11 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	if ev.Participant != nil {
 		mapped.Identity = ev.Participant.Identity
 		mapped.ParticipantSID = ev.Participant.Sid
+		if ev.Participant.Kind == livekit.ParticipantInfo_SIP {
+			mapped.ParticipantKind = service.ParticipantKindSIP
+			mapped.ParticipantName = ev.Participant.Name
+			mapped.SIPRuleID = ev.Participant.Attributes[livekit.AttrSIPDispatchRuleID]
+		}
 	}
 	if at := ev.GetCreatedAt(); at > 0 {
 		mapped.OccurredAt = time.Unix(at, 0).UTC()
@@ -87,6 +92,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	// A phone caller's LiveKit identity hashes their number: it is masked
+	// before anything is queued, and kept here only to hold the call.
+	callerIdentity := mapped.Identity
+	mapped = h.Meetings.MaskDialInEvent(mapped)
 	payload, err := json.Marshal(mapped)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "internal", "internal error")
@@ -104,6 +113,12 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 		h.Log.Error("livekit webhook enqueue", "err", err)
 		respondError(w, http.StatusInternalServerError, "internal", "internal error")
 		return
+	}
+	if mapped.Type == "conference.participant_joined" {
+		// Queued first, so the caller's knock is filed even if this hold is
+		// cut short; a phone caller is in the room already and is held now,
+		// not a worker tick later (the sweep holds anyone this misses).
+		h.Meetings.HoldDialInCaller(r.Context(), mapped, callerIdentity)
 	}
 	w.WriteHeader(http.StatusOK)
 }
