@@ -3,7 +3,6 @@ import { useState } from "react";
 import { ChevronRight, CircleAlert, Ellipsis, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { MOTION_DESCRIPTION_MAX_LENGTH, MOTION_TITLE_MAX_LENGTH } from "@uniwork/core/meetings/motions";
-import type { BallotMode, MotionBase, MotionThreshold } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -13,8 +12,8 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { kitButton } from "../meeting-detail/ui/kit-buttons";
-import { SegmentedSm } from "../meeting-detail/ui/segmented";
 import { TextButton } from "../meeting-detail/ui/text-button";
+import { MotionRuleRows, MotionRuleSummary } from "../meeting-motion-rules";
 import { newMotion, type MotionDraft } from "./draft-model";
 import { motionIssue } from "./draft-validation";
 import { AddRow } from "./guest-link-drafts";
@@ -49,74 +48,60 @@ function MotionEditor({
   const id = `motion-${motion.key}`;
   const set = (patch: Partial<MotionDraft>) => onChange({ ...motion, ...patch });
   return (
-    <li className="mt-3 rounded-control border border-border p-3">
-      <label htmlFor={id} className="mb-1.5 flex justify-between text-caption text-muted-foreground">
-        {t("meetings.governance.motionTitleLabel")}
-        {motion.title.length > COUNTER_FROM ? (
-          <span className="tabular-nums">
-            {motion.title.length}/{MOTION_TITLE_MAX_LENGTH}
-          </span>
+    <li className="mt-3 overflow-hidden rounded-control border border-border">
+      <div className="p-3">
+        <label htmlFor={id} className="mb-1.5 flex justify-between text-caption text-muted-foreground">
+          {t("meetings.governance.motionTitleLabel")}
+          {motion.title.length > COUNTER_FROM ? (
+            <span className="tabular-nums">
+              {motion.title.length}/{MOTION_TITLE_MAX_LENGTH}
+            </span>
+          ) : null}
+        </label>
+        <input
+          id={id}
+          value={motion.title}
+          placeholder={t("meetings.governance.motionTitlePlaceholder")}
+          aria-invalid={showIssue ? true : undefined}
+          aria-describedby={showIssue ? `${id}-error` : undefined}
+          onChange={(e) => set({ title: e.target.value })}
+          className={cn(CONTROL, "w-full aria-invalid:border-destructive")}
+        />
+        {showIssue ? (
+          <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1 text-caption text-destructive">
+            <CircleAlert aria-hidden className="size-3.5" />
+            {t(issue === "motionEmpty" ? "meetings.sheet.motionEmpty" : "meetings.sheet.motionTooLong")}
+          </p>
         ) : null}
-      </label>
-      <input
-        id={id}
-        value={motion.title}
-        placeholder={t("meetings.governance.motionTitlePlaceholder")}
-        aria-invalid={showIssue ? true : undefined}
-        aria-describedby={showIssue ? `${id}-error` : undefined}
-        onChange={(e) => set({ title: e.target.value })}
-        className={cn(CONTROL, "w-full aria-invalid:border-destructive")}
-      />
-      {showIssue ? (
-        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1 text-caption text-destructive">
-          <CircleAlert aria-hidden className="size-3.5" />
-          {t(issue === "motionEmpty" ? "meetings.sheet.motionEmpty" : "meetings.sheet.motionTooLong")}
-        </p>
-      ) : null}
-      <label htmlFor={`${id}-desc`} className="mt-3 mb-1.5 block text-caption text-muted-foreground">
-        {t("meetings.governance.motionDescriptionLabel")}
-      </label>
-      <textarea
-        id={`${id}-desc`}
-        value={motion.description}
-        maxLength={MOTION_DESCRIPTION_MAX_LENGTH}
-        onChange={(e) => set({ description: e.target.value })}
-        className={cn(CONTROL, "field-sizing-content block h-auto max-h-34 min-h-11 w-full resize-none py-2.5")}
-      />
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-3">
-        <SegmentedSm<BallotMode>
-          legend={t("meetings.governance.ballotModeLabel")}
-          value={motion.ballot_mode}
-          onChange={(v) => set({ ballot_mode: v })}
-          options={(["PUBLIC", "SECRET"] as const).map((v) => ({ value: v, label: t(`meetings.governance.ballotMode_${v}`) }))}
-        />
-        <SegmentedSm<MotionThreshold>
-          legend={t("meetings.governance.thresholdLabel")}
-          value={motion.threshold}
-          onChange={(v) => set({ threshold: v })}
-          options={(["MAJORITY", "TWO_THIRDS"] as const).map((v) => ({ value: v, label: t(`meetings.governance.threshold_${v}`) }))}
-        />
-        <SegmentedSm<MotionBase>
-          legend={t("meetings.governance.baseLabel")}
-          value={motion.base}
-          onChange={(v) => set({ base: v })}
-          options={(["PRESENT", "ALL_MEMBERS"] as const).map((v) => ({ value: v, label: t(`meetings.governance.base_${v}`) }))}
+        <label htmlFor={`${id}-desc`} className="mt-3 mb-1.5 block text-caption text-muted-foreground">
+          {t("meetings.governance.motionDescriptionLabel")}
+        </label>
+        <textarea
+          id={`${id}-desc`}
+          value={motion.description}
+          maxLength={MOTION_DESCRIPTION_MAX_LENGTH}
+          onChange={(e) => set({ description: e.target.value })}
+          className={cn(CONTROL, "field-sizing-content block h-auto max-h-34 min-h-11 w-full resize-none py-2.5")}
         />
       </div>
-      {motion.ballot_mode === "SECRET" ? <p className="mt-2 text-caption text-muted-foreground">{t("meetings.governance.secretHint")}</p> : null}
-      <div className="mt-3 flex justify-end">
-        <Button
-          variant="outline"
-          size="default"
-          className={cn(kitButton.sm, kitButton.outline)}
-          onClick={() => {
-            setTried(true);
-            if (!motionIssue(motion.title)) onDone();
-            else document.getElementById(id)?.focus();
-          }}
-        >
-          {t("meetings.sheet.motionDone")}
-        </Button>
+      {/* The rules run edge to edge under the fields; the foot says what they add up to, beside Xong. */}
+      <div className="divide-y divide-border border-t border-border">
+        <MotionRuleRows value={motion} onChange={set} />
+        <div className="flex items-end justify-between gap-3 bg-muted px-3 py-2.5 max-sm:flex-col max-sm:items-stretch">
+          <MotionRuleSummary value={motion} />
+          <Button
+            variant="outline"
+            size="default"
+            className={cn(kitButton.sm, kitButton.outline, "shrink-0 bg-popover")}
+            onClick={() => {
+              setTried(true);
+              if (!motionIssue(motion.title)) onDone();
+              else document.getElementById(id)?.focus();
+            }}
+          >
+            {t("meetings.sheet.motionDone")}
+          </Button>
+        </div>
       </div>
     </li>
   );

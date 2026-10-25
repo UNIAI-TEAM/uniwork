@@ -4041,7 +4041,13 @@
       "votedDecisions": "Voted",
       "votedTally": "{{yes}} for · {{no}} against · {{abstain}} abstained",
       "activityMotionDetail": "\"{{title}}\"",
-      "activityMotionDetailOutcome": "\"{{title}}\" · {{outcome}}"
+      "activityMotionDetailOutcome": "\"{{title}}\" · {{outcome}}",
+      "rulePass": "Passes when {{share}} of {{base}} vote yes.",
+      "ruleShare_MAJORITY": "more than half",
+      "ruleShare_TWO_THIRDS": "at least two thirds",
+      "ruleBase_PRESENT": "those present",
+      "ruleBase_ALL_MEMBERS": "all meeting members",
+      "ruleSilence": "Anyone who does not vote counts as not in favour."
     },
     "editSectionFormal": "Attendance",
     "actionItemsSection": {
