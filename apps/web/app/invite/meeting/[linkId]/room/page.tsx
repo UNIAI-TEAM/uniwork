@@ -34,6 +34,8 @@ type InviteRoomSession = {
   initialJoinDecision: JoinDecision | undefined;
   initialChoice: PreJoinChoice | undefined;
   meetingTitle: string;
+  /** The invite page said the AI scribe would transcribe the meeting. */
+  scribe: boolean;
 };
 
 const EMPTY_INVITE_ROOM_SESSION: InviteRoomSession = {
@@ -43,6 +45,7 @@ const EMPTY_INVITE_ROOM_SESSION: InviteRoomSession = {
   initialJoinDecision: undefined,
   initialChoice: undefined,
   meetingTitle: "",
+  scribe: false,
 };
 
 function loadInviteRoomSession(linkId: string): InviteRoomSession {
@@ -54,6 +57,7 @@ function loadInviteRoomSession(linkId: string): InviteRoomSession {
     initialJoinDecision: readCachedJoinDecision(linkId),
     initialChoice: readInvitePreJoinChoice(linkId),
     meetingTitle: sessionStorage.getItem(inviteStorageKey(linkId, "title")) ?? "",
+    scribe: sessionStorage.getItem(inviteStorageKey(linkId, "scribe")) === "1",
   };
 }
 
@@ -103,6 +107,7 @@ export default function MeetingInviteRoomPage() {
           joinBody={session.joinBody}
           invite={isGuest ? { linkId, secret: inviteSecret } : undefined}
           meetingTitle={session.meetingTitle}
+          guestScribe={session.scribe}
           initialJoinDecision={session.initialJoinDecision}
           initialChoice={session.initialChoice}
           onLeave={() => leaveMeetingInvite(nav, linkId)}

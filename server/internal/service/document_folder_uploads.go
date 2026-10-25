@@ -1009,7 +1009,7 @@ func (s *DocumentService) mintFolderUploadMultipart(ctx context.Context, actor A
 func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *FileService, actor Actor, batch db.DocumentFolderUpload, f db.DocumentFolderUploadFile) (string, error) {
 	mime, _ := document.ExpectedMIMEForExtension(f.Filename)
 	filename := files.SanitizeFilename(f.Filename)
-	prep, err := fs.prepareMultipartUpload(ctx, actor, documentScope(batch.OrganizationID, batch.WorkspaceID), filename, mime, f.SizeBytes, s.entitlements)
+	prep, err := fs.prepareMultipartUpload(ctx, actor, files.DocumentFile, documentScope(batch.OrganizationID, batch.WorkspaceID), filename, mime, f.SizeBytes, s.entitlements)
 	if err != nil {
 		return "", documentFileError(err)
 	}

@@ -327,6 +327,8 @@
   --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
   --menu-shadow: 0 4px 10px rgb(13 21 48 / 0.08), 0 0 1px rgb(0 0 0 / 0.27);
   --floating-shadow: 0 10px 25px rgb(18 43 165 / 0.10), 0 0 1px rgb(0 0 0 / 0.27);
+  /* Dims the page behind a meeting side sheet or dialog (kit --scrim). */
+  --scrim: rgb(10 10 10 / 0.40);
 
   /* Meeting room — the video stage, its control bar and tile labels. The
      stage is dark in BOTH themes (video reads best on near-black), so these
@@ -580,6 +582,7 @@
   --surface-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
   --menu-shadow: 0 4px 10px rgb(0 0 0 / 0.4), 0 0 1px rgb(255 255 255 / 0.12);
   --floating-shadow: 0 10px 25px rgb(0 0 0 / 0.5), 0 0 1px rgb(255 255 255 / 0.12);
+  --scrim: rgb(0 0 0 / 0.60);
 
   --meeting-stage: #1e1e1e;
   --meeting-stage-foreground: #f8f9fa;
@@ -707,9 +710,11 @@ html.dark[data-accent] {
    import instead of copying this block. */
 @theme inline {
   --animate-nav-progress-sweep: nav-progress-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-live-pulse: live-pulse 1.6s ease-in-out infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-app-shell: var(--app-shell);
+  --color-scrim: var(--scrim);
   --color-page-canvas: var(--page-canvas);
   --color-office-band: var(--office-band);
   --color-office-canvas: var(--office-canvas);

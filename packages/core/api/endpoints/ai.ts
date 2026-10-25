@@ -30,6 +30,8 @@ const DISABLED: AiCapabilities = {
   models: [],
   auto_model: "",
   attachments: false,
+  actions: { enabled: false, ceiling: "off", mode: "" },
+  memory: { enabled: false, on: false },
 };
 const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
 const EMPTY_CATCH_UP: ChatCatchUpResponse = {

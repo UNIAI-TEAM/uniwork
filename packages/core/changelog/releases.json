@@ -1,27 +1,5 @@
 [
   {
-    "id": "release-1-8-1",
-    "version": "1.8.1",
-    "date": "2026-10-24",
-    "sourceRef": "36584068134099499bc3db4023eaa46ede9f8de9",
-    "contentKey": "v1_8_1",
-    "sections": [
-      {
-        "kind": "improvements",
-        "items": [
-          "c5a748062298e681c7f210d9fe482b678f356dad1"
-        ]
-      },
-      {
-        "kind": "fixes",
-        "items": [
-          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1",
-          "cc1def6d37a298966b36f85f4dbaaac952240b6ab"
-        ]
-      }
-    ]
-  },
-  {
     "id": "release-1-8-0",
     "version": "1.8.0",
     "date": "2026-10-23",

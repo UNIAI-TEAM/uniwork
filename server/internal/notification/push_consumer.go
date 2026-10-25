@@ -796,9 +796,26 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "task":
 		return base + "/tasks/" + n.ResourceID, nil
 	case "meeting":
-		if n.Kind == KindMeetingSummaryReminder {
-			// Lands on the summary panel (use-meeting-section-deep-link.ts).
+		// Mirrors resource-href.ts: a batch of assigned tasks lands on the
+		// assignee's own tasks (paths.ts myTasks: the row names no task), the
+		// summary kinds on the summary panel and the transcript kinds on the
+		// transcript card (use-meeting-section-deep-link.ts).
+		switch n.Kind {
+		case KindTasksAssigned:
+			return base + "/my-tasks", nil
+		case KindMeetingSummaryReminder, KindMeetingSummaryReady:
 			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
+		case KindMeetingActionItemsPending:
+			return base + "/meetings/" + n.ResourceID + "?section=action-items", nil
+		case KindMeetingRecapReady:
+			var params map[string]string
+			_ = json.Unmarshal([]byte(n.Params), &params)
+			if params["stage"] == recapStageMinutes {
+				return base + "/meetings/" + n.ResourceID + "?section=minutes", nil
+			}
+			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
+		case KindMeetingTranscriptReady, KindMeetingTranscriptFailed:
+			return base + "/meetings/" + n.ResourceID + "?section=transcript", nil
 		}
 		return base + "/meetings/" + n.ResourceID, nil
 	case "audit_export":

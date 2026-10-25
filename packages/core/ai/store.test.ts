@@ -3,7 +3,17 @@ import { useAiPanelStore } from "./store";
 
 describe("ai panel store", () => {
   afterEach(() => {
-    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null, focus: null, workspaceId: null });
+    useAiPanelStore.setState({
+      view: "thread",
+      composerPrefill: null,
+      open: false,
+      conversationId: null,
+      pendingFocus: null,
+      focus: null,
+      workspaceId: null,
+      focusByConversation: {},
+      conversationByMeeting: {},
+    });
   });
 
   it("setFocus stores the hand-picked focus; a new conversation and a workspace change clear it", () => {
@@ -25,9 +35,8 @@ describe("ai panel store", () => {
     s.bindWorkspace("w1");
     s.select("c1");
     s.openWithFocus({ kind: "task", id: "t1" });
-    s.select("c1");
     s.bindWorkspace("w1");
-    expect(useAiPanelStore.getState().conversationId).toBe("c1");
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1" });
     s.bindWorkspace("w2");
     expect(useAiPanelStore.getState()).toMatchObject({ workspaceId: "w2", conversationId: null, pendingFocus: null });
   });
@@ -36,6 +45,46 @@ describe("ai panel store", () => {
     useAiPanelStore.getState().select("c1");
     useAiPanelStore.getState().bindWorkspace("w1");
     expect(useAiPanelStore.getState()).toMatchObject({ workspaceId: "w1", conversationId: "c1" });
+  });
+
+  it("picking another conversation drops a focus meant for a new question", () => {
+    const s = useAiPanelStore.getState();
+    s.openWithFocus({ kind: "email_thread", id: "e1" });
+    s.select("c9");
+    expect(useAiPanelStore.getState()).toMatchObject({ conversationId: "c9", pendingFocus: null });
+  });
+
+  it("opens a conversation handed over from a meeting with its focus, and remembers it for that meeting", () => {
+    useAiPanelStore.getState().openConversation("c1", { kind: "meeting", id: "m1" });
+    expect(useAiPanelStore.getState()).toMatchObject({
+      open: true,
+      conversationId: "c1",
+      pendingFocus: null,
+      focus: { kind: "meeting", id: "m1" },
+      focusByConversation: { c1: { kind: "meeting", id: "m1" } },
+      conversationByMeeting: { m1: "c1" },
+    });
+    useAiPanelStore.getState().rememberFocus("c2", { kind: "task", id: "t1" });
+    expect(useAiPanelStore.getState().conversationByMeeting).toEqual({ m1: "c1" });
+    useAiPanelStore.getState().forgetConversation("c1");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: null,
+      focusByConversation: { c2: { kind: "task", id: "t1" } },
+      conversationByMeeting: {},
+    });
+  });
+
+  it("reset forgets every conversation, for the next person on this browser", () => {
+    useAiPanelStore.getState().bindWorkspace("w1");
+    useAiPanelStore.getState().openConversation("c1", { kind: "meeting", id: "m1" });
+    useAiPanelStore.getState().reset();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      open: false,
+      conversationId: null,
+      workspaceId: null,
+      focusByConversation: {},
+      conversationByMeeting: {},
+    });
   });
 });
 
@@ -59,5 +108,33 @@ describe("ai panel page context", () => {
     useAiPanelStore.getState().setPage(T);
     useAiPanelStore.getState().setPage(null);
     expect(useAiPanelStore.getState().page).toBeNull();
+  });
+
+  it("view switches to memory and back to the thread on a workspace change or close", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    expect(useAiPanelStore.getState().view).toBe("memory");
+    s.setView("memory-import");
+    s.bindWorkspace("w1");
+    expect(useAiPanelStore.getState().view).toBe("memory-import");
+    s.bindWorkspace("w2");
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    s.setOpen(false);
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    s.toggle();
+    s.toggle();
+    expect(useAiPanelStore.getState().view).toBe("thread");
+  });
+
+  it("composerPrefill is set and cleared", () => {
+    const s = useAiPanelStore.getState();
+    s.setComposerPrefill("Cập nhật bộ nhớ của tôi: ");
+    expect(useAiPanelStore.getState().composerPrefill).toBe("Cập nhật bộ nhớ của tôi: ");
+    s.setComposerPrefill(null);
+    expect(useAiPanelStore.getState().composerPrefill).toBeNull();
   });
 });

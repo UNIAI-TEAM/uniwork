@@ -121,7 +121,7 @@ func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOt
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at
 `
 
 type CreateOrganizationParams struct {
@@ -163,6 +163,9 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.MobileAppLockRequiredBy,
 		&i.MobileScreenCaptureBlockedAt,
 		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
@@ -275,8 +278,30 @@ func (q *Queries) FilterAdmittedOrganizationMemberUserIDs(ctx context.Context, a
 	return items, nil
 }
 
+const getOrganizationAskWriteCeiling = `-- name: GetOrganizationAskWriteCeiling :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1
+`
+
+func (q *Queries) GetOrganizationAskWriteCeiling(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getOrganizationAskWriteCeiling, id)
+	var ask_uni_write_ceiling pgtype.Text
+	err := row.Scan(&ask_uni_write_ceiling)
+	return ask_uni_write_ceiling, err
+}
+
+const getOrganizationAskWriteCeilingForUpdate = `-- name: GetOrganizationAskWriteCeilingForUpdate :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetOrganizationAskWriteCeilingForUpdate(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getOrganizationAskWriteCeilingForUpdate, id)
+	var ask_uni_write_ceiling pgtype.Text
+	err := row.Scan(&ask_uni_write_ceiling)
+	return ask_uni_write_ceiling, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -306,12 +331,15 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.MobileAppLockRequiredBy,
 		&i.MobileScreenCaptureBlockedAt,
 		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -341,6 +369,9 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.MobileAppLockRequiredBy,
 		&i.MobileScreenCaptureBlockedAt,
 		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
@@ -723,7 +754,7 @@ func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, o.push_previews_hidden_at, o.push_previews_hidden_by, o.mobile_app_lock_required_at, o.mobile_app_lock_required_by, o.mobile_screen_capture_blocked_at, o.mobile_screen_capture_blocked_by, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, o.push_previews_hidden_at, o.push_previews_hidden_by, o.mobile_app_lock_required_at, o.mobile_app_lock_required_by, o.mobile_screen_capture_blocked_at, o.mobile_screen_capture_blocked_by, o.ask_uni_write_ceiling, o.ask_uni_write_ceiling_updated_by, o.ask_uni_write_ceiling_updated_at, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1 AND o.status <> 'archived'
@@ -754,6 +785,9 @@ type ListOrganizationsForUserRow struct {
 	MobileAppLockRequiredBy      pgtype.Text        `json:"mobile_app_lock_required_by"`
 	MobileScreenCaptureBlockedAt pgtype.Timestamptz `json:"mobile_screen_capture_blocked_at"`
 	MobileScreenCaptureBlockedBy pgtype.Text        `json:"mobile_screen_capture_blocked_by"`
+	AskUniWriteCeiling           pgtype.Text        `json:"ask_uni_write_ceiling"`
+	AskUniWriteCeilingUpdatedBy  pgtype.Text        `json:"ask_uni_write_ceiling_updated_by"`
+	AskUniWriteCeilingUpdatedAt  pgtype.Timestamptz `json:"ask_uni_write_ceiling_updated_at"`
 	Role                         string             `json:"role"`
 	DeactivatedAt                pgtype.Timestamptz `json:"deactivated_at"`
 }
@@ -796,6 +830,9 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.MobileAppLockRequiredBy,
 			&i.MobileScreenCaptureBlockedAt,
 			&i.MobileScreenCaptureBlockedBy,
+			&i.AskUniWriteCeiling,
+			&i.AskUniWriteCeilingUpdatedBy,
+			&i.AskUniWriteCeilingUpdatedAt,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -871,7 +908,7 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 }
 
 const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1 FOR SHARE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at FROM organizations WHERE id = $1 FOR SHARE
 `
 
 // An acceptance holds the organization row shared before it locks the
@@ -903,12 +940,15 @@ func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Orga
 		&i.MobileAppLockRequiredBy,
 		&i.MobileScreenCaptureBlockedAt,
 		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
 
 const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 // Close holds the organization row while it counts the other members, so an
@@ -941,6 +981,9 @@ func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Org
 		&i.MobileAppLockRequiredBy,
 		&i.MobileScreenCaptureBlockedAt,
 		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
@@ -981,6 +1024,26 @@ SELECT pg_advisory_xact_lock(hashtextextended('org-membership:' || $1::text, 0))
 // ListActiveOrganizationsForUser inside the same transaction.
 func (q *Queries) LockUserMembership(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, lockUserMembership, userID)
+	return err
+}
+
+const setOrganizationAskWriteCeiling = `-- name: SetOrganizationAskWriteCeiling :exec
+UPDATE organizations SET
+  ask_uni_write_ceiling = $1::text,
+  ask_uni_write_ceiling_updated_by = $2::text,
+  ask_uni_write_ceiling_updated_at = now(),
+  updated_at = now()
+WHERE id = $3
+`
+
+type SetOrganizationAskWriteCeilingParams struct {
+	Ceiling string `json:"ceiling"`
+	ActorID string `json:"actor_id"`
+	ID      string `json:"id"`
+}
+
+func (q *Queries) SetOrganizationAskWriteCeiling(ctx context.Context, arg SetOrganizationAskWriteCeilingParams) error {
+	_, err := q.db.Exec(ctx, setOrganizationAskWriteCeiling, arg.Ceiling, arg.ActorID, arg.ID)
 	return err
 }
 

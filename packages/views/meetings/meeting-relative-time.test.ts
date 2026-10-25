@@ -24,6 +24,11 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime("2026-09-08T08:00:20Z", "en-GB", now)).toBe("now");
   });
 
+  it("says the caller's own words for under a minute, never Intl's \"bây giờ\"", () => {
+    expect(formatRelativeTime("2026-09-08T07:59:30Z", "vi-VN", now, "vừa xong")).toBe("vừa xong");
+    expect(formatRelativeTime("2026-09-08T07:54:00Z", "vi-VN", now, "vừa xong")).toBe("6 phút trước");
+  });
+
   it("speaks Vietnamese for the vi locale and is empty for bad input", () => {
     expect(formatRelativeTime("2026-09-08T10:00:00Z", "vi-VN", now)).toBe("sau 2 giờ nữa");
     expect(formatRelativeTime("not-a-date", "vi-VN", now)).toBe("");

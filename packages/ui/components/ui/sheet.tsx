@@ -42,16 +42,19 @@ function SheetContent({
   side = "right",
   showCloseButton = true,
   closeLabel = "Close",
+  overlayClassName,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
   /** Screen-reader label of the close button; hosts pass their locale's word. */
   closeLabel?: string
+  /** Classes merged onto the backdrop, as on `DialogContent`. */
+  overlayClassName?: string
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      <SheetOverlay className={overlayClassName} />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}

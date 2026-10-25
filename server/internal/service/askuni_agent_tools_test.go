@@ -18,7 +18,7 @@ import (
 )
 
 var agentToolOrder = []string{
-	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects",
+	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
 	"get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
@@ -113,21 +113,29 @@ func TestAskAgentToolSchemasAreStrict(t *testing.T) {
 // vendor (gateway.go builds provider.ToolSpec from each tool) is the same
 // bytes on every build. ai.Tool itself cannot be marshalled (Handle is a func).
 func TestAskAgentToolBytesAreStable(t *testing.T) {
-	wire := func() []byte {
-		var specs []provider.ToolSpec
-		for _, tool := range agentRegistry((&AskUNIService{}).agentTools()) {
-			specs = append(specs, provider.ToolSpec{Name: tool.Name, Description: tool.Description, Schema: tool.Schema, Strict: tool.Strict})
+	// The read-only registry, and the one a turn that may propose writes is sent.
+	for _, writes := range []bool{false, true} {
+		wire := func() []byte {
+			s := &AskUNIService{}
+			var w []askWriteTool
+			if writes {
+				w = s.askWriteTools()
+			}
+			var specs []provider.ToolSpec
+			for _, tool := range agentToolRegistry(s.agentTools(), w) {
+				specs = append(specs, provider.ToolSpec{Name: tool.Name, Description: tool.Description, Schema: tool.Schema, Strict: tool.Strict})
+			}
+			b, err := json.Marshal(specs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return b
 		}
-		b, err := json.Marshal(specs)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return b
-	}
-	first := wire()
-	for range 20 {
-		if again := wire(); !bytes.Equal(first, again) {
-			t.Fatalf("tool bytes changed between builds:\n%s\n%s", first, again)
+		first := wire()
+		for range 20 {
+			if again := wire(); !bytes.Equal(first, again) {
+				t.Fatalf("writes %v: tool bytes changed between builds:\n%s\n%s", writes, first, again)
+			}
 		}
 	}
 }

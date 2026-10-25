@@ -402,7 +402,9 @@ jobs:
   # binary, a
   # production Next build, then the suite against localhost. LiveKit and
   # SMTP stay unset — the specs are written for that (mail goes to the
-  # `emails` outbox table, meetings run without a provider).
+  # `emails` outbox table, meetings run without a provider); the AI provider
+  # is the fake one. The scribe spec needs LiveKit and the agent: it runs in
+  # .github/workflows/meeting-scribe-nightly.yml.
   # At GATE_LEVEL=fast the suite runs on push to develop/main only; a PR gets
   # lint, typecheck, unit and Go. Above fast it runs on every PR too.
   e2e:
@@ -463,6 +465,12 @@ jobs:
       PREVIEW_ASSET_MAX_BYTES: "10485760"
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
+      # The deterministic AI provider (no network, no key): Ask UNI, meeting
+      # summaries and auto summaries run instead of being hidden, so
+      # e2e/meetings-follow-through.spec.ts (summary → items → tasks →
+      # carry-over) and e2e/ask-uni.spec.ts run here, and fail rather than
+      # skip when the provider goes missing (they read CI).
+      AI_PROVIDER: fake
       # e2e/document-edit-lock.spec.ts EL-A02 waits out a lock; it skips itself unless the TTL is
       # 30s or less (UNI-1645, CFE-1-17). Heartbeat stays at most half the TTL (config check).
       DOCUMENT_EDIT_LOCK_TTL: 20s

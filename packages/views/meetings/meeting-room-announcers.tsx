@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useLocalParticipant,
   useParticipants as useLiveKitParticipants,
@@ -9,19 +9,81 @@ import {
   ConnectionState,
   RoomEvent,
   Track,
+  type Participant,
   type RemoteParticipant,
   type TrackPublication,
 } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
+import type { Meeting } from "@uniwork/core/types";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
-import { reactionLabelKey } from "./meeting-signals";
+import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
+import { scribeChipState } from "./meeting-scribe-chip";
+import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 /** People already in the room when we connect are not news; only later arrivals are. */
 const PRESENCE_SETTLE_MS = 2000;
 /** Arrivals and departures this close together are read out as one sentence. */
 const PRESENCE_BATCH_MS = 1200;
+
+/**
+ * Always mounted, so a screen reader hears a room-wide switch flip (recording,
+ * the AI scribe) for everyone in the room, not only whoever flipped it. The
+ * state it mounts with is not news.
+ */
+export function OnOffAnnouncer({
+  on,
+  onText,
+  offText,
+  testId,
+}: {
+  on: boolean;
+  onText: string;
+  offText: string;
+  testId: string;
+}) {
+  const previous = useRef(on);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (previous.current === on) return;
+    previous.current = on;
+    setText(on ? onText : offText);
+  }, [on, onText, offText]);
+
+  return (
+    <p role="status" aria-live="polite" className="sr-only" data-testid={testId}>
+      {text}
+    </p>
+  );
+}
+
+/** "The AI scribe is transcribing" / "stopped": its arrival and departure are the privacy signal (spec D14). */
+export function ScribeAnnouncer({ meeting }: { meeting?: Pick<Meeting, "scribe_enabled" | "scribe_status"> }) {
+  const { t } = useTranslation();
+  const inRoom = useScribeInRoom();
+  const pausedNow = useScribePaused();
+  // The status the server reports: a host must hear that transcription stopped, not only that the agent left.
+  const failed = meeting ? scribeChipState(meeting, inRoom) === "failed" : false;
+  const paused = inRoom && pausedNow;
+  const previous = useRef({ inRoom, failed, paused });
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const was = previous.current;
+    previous.current = { inRoom, failed, paused };
+    if (failed && !was.failed) setText(t("meetings.scribe.announceFailed"));
+    else if (paused && !was.paused) setText(t("meetings.scribe.chipPaused"));
+    else if (inRoom !== was.inRoom || (was.paused && !paused)) {
+      setText(t(inRoom ? "meetings.scribe.announceOn" : "meetings.scribe.announceOff"));
+    }
+  }, [inRoom, failed, paused, t]);
+  return (
+    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-scribe-announcer">
+      {text}
+    </p>
+  );
+}
 
 /** Reactions pop on a tile for sighted viewers; this says them once, politely, for everyone else. */
 export function ReactionAnnouncer() {
@@ -76,8 +138,8 @@ export function ParticipantPresenceAnnouncer() {
       left = [];
       if (parts.length > 0) setText(parts.join(". "));
     };
-    const queue = (list: string[], p: RemoteParticipant) => {
-      if (Date.now() < readyAt) return;
+    const queue = (list: string[], p: Participant) => {
+      if (Date.now() < readyAt || !inMeeting(p)) return;
       list.push(p.name || p.identity);
       clearTimeout(timer);
       timer = setTimeout(flush, PRESENCE_BATCH_MS);
@@ -96,13 +158,18 @@ export function ParticipantPresenceAnnouncer() {
     };
     const onJoin = (p: RemoteParticipant) => queue(joined, p);
     const onLeave = (p: RemoteParticipant) => queue(left, p);
+    // A phone caller joins held and enters the meeting when the host admits them.
+    const onAttributes = (changed: Record<string, string>, p: Participant) => {
+      if (changed[DIAL_IN_STATE_ATTRIBUTE] === "admitted") queue(joined, p);
+    };
 
     room
       .on(RoomEvent.Connected, onSettle)
       .on(RoomEvent.Reconnecting, onReconnecting)
       .on(RoomEvent.Reconnected, onSettle)
       .on(RoomEvent.ParticipantConnected, onJoin)
-      .on(RoomEvent.ParticipantDisconnected, onLeave);
+      .on(RoomEvent.ParticipantDisconnected, onLeave)
+      .on(RoomEvent.ParticipantAttributesChanged, onAttributes);
     return () => {
       clearTimeout(timer);
       room
@@ -110,7 +177,8 @@ export function ParticipantPresenceAnnouncer() {
         .off(RoomEvent.Reconnecting, onReconnecting)
         .off(RoomEvent.Reconnected, onSettle)
         .off(RoomEvent.ParticipantConnected, onJoin)
-        .off(RoomEvent.ParticipantDisconnected, onLeave);
+        .off(RoomEvent.ParticipantDisconnected, onLeave)
+        .off(RoomEvent.ParticipantAttributesChanged, onAttributes);
     };
   }, [room, t]);
 

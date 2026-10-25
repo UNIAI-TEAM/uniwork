@@ -35,9 +35,11 @@ type OfficeExportPDFInput struct {
 
 // OfficeExportPDF is a completed export: the rendered bytes, opened from
 // FileService, and the job that produced them. The caller closes Reader.
+// Filename is set by exports that name their file (a page's title).
 type OfficeExportPDF struct {
-	Reader files.Reader
-	Job    db.OfficeJob
+	Reader   files.Reader
+	Job      db.OfficeJob
+	Filename string
 }
 
 // officeExportWait is how long one export request waits for its job; past it
@@ -99,6 +101,13 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 	case in.Version < 0:
 		return OfficeExportPDF{}, ErrOfficeExportInput
 	}
+	return s.runExport(ctx, actor, job, doc, access, version)
+}
+
+// runExport starts an export job, waits for it, opens its output and records
+// the export read: the tail every export route shares (the frame's PDF, a
+// page's DOCX or PDF).
+func (s *DocumentOfficeService) runExport(ctx context.Context, actor Actor, job OfficeJobInput, doc db.Document, access DocumentAccess, version *int32) (OfficeExportPDF, error) {
 	row, err := s.StartOfficeJob(ctx, actor, job)
 	if err != nil {
 		return OfficeExportPDF{}, err

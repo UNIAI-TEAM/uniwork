@@ -33,6 +33,9 @@ type isoReference struct {
 	// docKey names the fixture document the path's {documentID} should name
 	// instead of the default page (for an anchor case, a file document).
 	docKey string
+	// meetingKey does the same for {meetingID} (a meeting held without a
+	// room, for the transcription case).
+	meetingKey string
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -43,7 +46,8 @@ type isoReference struct {
 	// requires every id field of every SDI to be covered or exempted.
 	covers []string
 	// mustNotContain lists strings the attack's answer may not hold even
-	// when it is 2xx (a URL, a ticket).
+	// when it is 2xx (a URL, a ticket, or a row id of the referenced tenant
+	// written as an isoQuery placeholder such as "{meetingNote}").
 	mustNotContain []string
 	// multipart, when set, makes the case a multipart request instead of a
 	// JSON one: its fields resolve like body (so a field may name the other
@@ -58,6 +62,17 @@ type isoReference struct {
 	// afterAttack runs after each cross-tenant / member-of-both reference
 	// attack to assert the stored state (e.g. an empty source on a stored row).
 	afterAttack func(t *testing.T, w *isoWorld, label string)
+}
+
+// checkMustNotContain fails the case when the attack's answer holds one of
+// its mustNotContain strings, placeholders filled with ref's rows.
+func (c isoReference) checkMustNotContain(t *testing.T, label string, raw []byte, ref *isoTenant) {
+	t.Helper()
+	for _, bad := range c.mustNotContain {
+		if bad = isoQuery(bad, ref); strings.Contains(string(raw), bad) {
+			t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
+		}
+	}
 }
 
 type isoRef string       // the referenced tenant's row
@@ -121,6 +136,9 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	t.Helper()
 	path, ok := isoPath(t, c.pattern, tn)
+	if ok && c.meetingKey != "" {
+		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
+	}
 	if !ok || c.docKey == "" {
 		return path, ok
 	}
@@ -226,6 +244,11 @@ var isoReferences = []isoReference{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "room mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "room", "id": isoRef("room")}}}},
+	// A's proposal named in B's apply-all: B's conversation holds no such row
+	// under that answer, so it is the same not found as an id that names
+	// nothing, and A's row stays as seeded. The control applies B's own pending row.
+	{method: "POST", pattern: "/api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply", what: "proposal", body: map[string]any{
+		"proposal_ids": []any{isoRef("aiProposalPending")}}, covers: []string{"AiApplyProposalsSDI.proposal_ids"}},
 	// A's unsent upload named in B's question: B did not upload it, so it is
 	// the same not found as an id that names nothing, A's file stays unsent and
 	// the question stores nothing of B's either. The control sends B's own.
@@ -249,25 +272,44 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "project", body: map[string]any{
 		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(72 * time.Hour), "ends_at": isoAt(73 * time.Hour),
 		"project_id": isoRef("project")}, covers: []string{"CreateMeetingSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "previous meeting", body: map[string]any{
+		"title": isoUnique("ref"), "timezone": "Asia/Ho_Chi_Minh", "starts_at": isoAt(96 * time.Hour), "ends_at": isoAt(97 * time.Hour),
+		"previous_meeting_id": isoRef("meeting")}, covers: []string{"CreateMeetingSDI.previous_meeting_id"}},
 	{method: "PATCH", pattern: "/api/v1/meetings/{meetingID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchMeetingSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/invitations", what: "invitee", body: map[string]any{"user_id": isoRef("peer")},
 		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},
+	{method: "PUT", pattern: "/api/v1/meetings/{meetingID}/speaker-labels/{speakerLabelID}", what: "speaker", body: map[string]any{"user_id": isoRef("peer")},
+		covers: []string{"AssignSpeakerLabelSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/transcriptions", what: "staged recording", meetingKey: "heldMeeting",
+		body: map[string]any{"upload_id": isoRef("meetingAudioUpload"), "language": "vi", "consent": true}, covers: []string{"RequestTranscriptionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/host-transfer", what: "new host", body: map[string]any{"new_host_user_id": isoRef("peer")},
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},
 		covers: []string{"JoinMeetingSDI.invite_link_id"}},
-	// Each case converts its own item of the meeting's summary (the world
-	// seeds four), so its control leaves the others free. The people and
-	// projects named are checked before whether an item was converted.
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "assignee", body: map[string]any{
-		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 0, "assignee_id": isoRef("peer")}}},
-		covers: []string{"MeetingSummaryTaskItemSDI.assignee_id"}},
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "project", body: map[string]any{
-		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 1, "project_id": isoRef("project")}}},
-		covers: []string{"MeetingSummaryTaskItemSDI.project_id"}},
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "summary", body: map[string]any{
-		"summary_id": isoRef("meetingSummary"), "items": []any{map[string]any{"index": 2}}},
-		covers: []string{"SummaryTasksSDI.summary_id"}},
+	// Each case converts its own action item of the meeting (the world seeds
+	// them), so its control leaves the others free. The people and projects
+	// named are checked before whether an item was converted.
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "assignee", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem0"), "assignee_id": isoRef("peer")}}},
+		covers: []string{"ConvertActionItemSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "project", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem1"), "project_id": isoRef("project")}}},
+		covers: []string{"ConvertActionItemSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "action item", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoRef("actionItem2")}}},
+		covers: []string{"ConvertActionItemSDI.action_item_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "parent", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem4"), "parent_task_id": isoRef("task2")}}},
+		covers: []string{"ConvertActionItemSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "label", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem5"), "label_ids": []any{isoRef("label")}}}},
+		covers: []string{"ConvertActionItemSDI.label_ids"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "attachment", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem6"), "attachment_ids": []any{isoRef("attachment")}}}},
+		noControl: "the attachment is already attached to a task; a staged one would be needed", covers: []string{"ConvertActionItemSDI.attachment_ids"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/{actionItemID}/link", what: "task", body: map[string]any{"task_id": isoRef("task")},
+		noControl: "linking converts the tenant's one pending {actionItemID} item, which later cases and passes name; the write-control pass links it on its own tenant",
+		covers:    []string{"LinkActionItemSDI.task_id"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
@@ -422,6 +464,10 @@ var isoReferences = []isoReference{
 		query: "?email={peerEmail}"},
 	{method: "GET", pattern: "/api/v1/workspaces/{workspaceID}/chat/users/lookup", what: "user id of a person in another tenant", allow2xx: true,
 		query: "?user_id={peerID}"},
+	// The evidence route (UNI-2002) reads the cited lines of B's meeting: a
+	// note of A's named in ?refs= is simply absent from the answer.
+	{method: "GET", pattern: "/api/v1/meetings/{meetingID}/evidence", what: "note of another tenant cited as evidence", allow2xx: true,
+		query: "?refs=note:{meetingNote}", mustNotContain: []string{"{meetingNote}"}},
 
 	// Fields the first matrix run left without a case.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "members", body: map[string]any{
@@ -594,6 +640,8 @@ var isoRefFieldExempt = map[string]string{
 	"PushSubscribeSDI.apns_bundle_id":             "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
 	"PushSubscribeSDI.bundle_id":                  "the iPhone app's Apple bundle identifier (the APNs topic), not a row",
 	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"AgentSegmentSDI.segment_id":                  "the scribe agent's idempotency key for one segment, not a row; the route is reachable only with the meeting's own uwma_ token",
+	"CaptionSegmentSDI.segment_id":                "the scribe agent's own caption id, echoed back with its translation and never stored; the route is reachable only with the meeting's own uwma_ token",
 	"SendChatDocumentLinkSDI.client_msg_id":       "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",

@@ -17,6 +17,7 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		chat.FileReferenceProvider(),
 		chat.VoiceRecordingFileReferenceProvider(),
 		meetings.FileReferenceProvider(),
+		MeetingTranscriptionProvider{},
 		AuditExportReferenceProvider(),
 		PrivacyExportReferenceProvider(),
 		DocumentDownloadReferenceProvider(),

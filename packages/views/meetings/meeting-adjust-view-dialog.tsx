@@ -93,7 +93,7 @@ export function MeetingAdjustViewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger}
-      <DialogContent className="sm:max-w-md" showCloseButton>
+      <DialogContent className="sm:max-w-md" showCloseButton closeLabel={t("common.close")}>
         <DialogHeader>
           <DialogTitle>{t("meetings.adjustView")}</DialogTitle>
           <DialogDescription>{t("meetings.adjustViewHint")}</DialogDescription>

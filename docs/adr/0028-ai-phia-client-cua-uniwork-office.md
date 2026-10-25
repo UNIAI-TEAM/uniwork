@@ -60,8 +60,9 @@ qua server.
 - Còn nguyên và không đổi: `ai.Gateway` là đường LLM duy nhất của server; không SDK
   vendor nào ngoài `server/internal/ai/provider`. Các test giữ luật:
   `TestProviderSDKOnlyInAIProvider` và `TestAIPackageOnlyCallsAiQueries`
-  (`server/internal/arch_test.go`), `TestAskUniToolsAreReadOnly`
-  (`server/internal/service/askuni_test.go`).
+  (`server/internal/arch_test.go`); luật Hỏi UNI không chạy lệnh ghi nay do các
+  test của ADR 0044 giữ (`TestAskUniLoopNeverRunsAWriteCommand`,
+  `TestAskUniWriteToolsDeclareLevelAndUndo`), thay `TestAskUniToolsAreReadOnly` đã gỡ.
 - Việc còn lại: endpoint cloud tool (GO-A7, UNI-1008); chưa có guard test mới cho
   ranh giới client (kiểm bằng review: app không chứa credential provider của
   UniWork).

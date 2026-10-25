@@ -14,7 +14,7 @@ import { NewTaskDialog } from "../tasks/new-task-dialog";
 
 // The task dialog already ships with the top bar's "+ New"; the meeting one
 // does not, so it loads only when someone asks for it.
-const NewMeetingDialog = lazy(() => import("../meetings/new-meeting-dialog").then((m) => ({ default: m.NewMeetingDialog })));
+const MeetingSheet = lazy(() => import("../meetings/meeting-sheet").then((m) => ({ default: m.MeetingSheet })));
 
 const ROW =
   "group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-surface-hover active:bg-surface-selected";
@@ -90,12 +90,13 @@ export function HomeStart() {
       <NewTaskDialog workspaceId={workspace.id} open={creating} onOpenChange={setCreating} showTrigger={false} />
       {meetingLoaded ? (
         <Suspense fallback={null}>
-          <NewMeetingDialog
+          <MeetingSheet
+            mode="create"
             workspaceId={workspace.id}
             open={scheduling}
             onOpenChange={setScheduling}
             showTrigger={false}
-            onCreated={(id) => push(ws.meeting(id))}
+            onDone={(id) => push(ws.meeting(id))}
           />
         </Suspense>
       ) : null}

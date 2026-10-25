@@ -34,15 +34,15 @@ var documentNameCases = []struct {
 	vi   string
 	en   string
 }{
-	{KindDocumentCommented, `An đã bình luận trong “A "b" & <c>”`, `An commented on “A "b" & <c>”`},
-	{KindDocumentMentioned, `An đã nhắc đến bạn trong bình luận tại tài liệu “A "b" & <c>”.`, `An mentioned you in a comment on “A "b" & <c>”.`},
-	{KindDocumentBodyMentioned, `An đã nhắc đến bạn trong tài liệu “A "b" & <c>”.`, `An mentioned you in “A "b" & <c>”.`},
-	{KindDocumentCommentReplied, `An đã phản hồi bình luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your comment in “A "b" & <c>”.`},
-	{KindDocumentDiscussionMentioned, `An đã nhắc đến bạn trong thảo luận của tài liệu “A "b" & <c>”.`, `An mentioned you in a discussion on “A "b" & <c>”.`},
-	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
-	{KindDocumentCommentResolved, `An đã đánh dấu một bình luận trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked a comment in “A "b" & <c>” as resolved.`},
-	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “A "b" & <c>”.`, `An opened emergency view access (24h) to “A "b" & <c>”.`},
-	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn. Quyền: Chỉ xem.`, `An shared “A "b" & <c>” with you (View).`},
+	{KindDocumentCommented, `An đã bình luận trong "A "b" & <c>"`, `An commented on "A "b" & <c>"`},
+	{KindDocumentMentioned, `An đã nhắc đến bạn trong bình luận tại tài liệu "A "b" & <c>".`, `An mentioned you in a comment on "A "b" & <c>".`},
+	{KindDocumentBodyMentioned, `An đã nhắc đến bạn trong tài liệu "A "b" & <c>".`, `An mentioned you in "A "b" & <c>".`},
+	{KindDocumentCommentReplied, `An đã phản hồi bình luận của bạn trong tài liệu "A "b" & <c>".`, `An replied to your comment in "A "b" & <c>".`},
+	{KindDocumentDiscussionMentioned, `An đã nhắc đến bạn trong thảo luận của tài liệu "A "b" & <c>".`, `An mentioned you in a discussion on "A "b" & <c>".`},
+	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu "A "b" & <c>".`, `An replied to your discussion post in "A "b" & <c>".`},
+	{KindDocumentCommentResolved, `An đã đánh dấu một bình luận trong tài liệu "A "b" & <c>" là đã giải quyết.`, `An marked a comment in "A "b" & <c>" as resolved.`},
+	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu "A "b" & <c>".`, `An opened emergency view access (24h) to "A "b" & <c>".`},
+	{KindDocumentShared, `An đã chia sẻ tài liệu "A "b" & <c>" với bạn. Quyền: Chỉ xem.`, `An shared "A "b" & <c>" with you (View).`},
 }
 
 // shortPushTitleCases is the short titles OQ-C8 splits out, vi and en.
@@ -108,10 +108,10 @@ func TestTitleDocumentSharedLevels(t *testing.T) {
 	}
 	for _, tc := range cases {
 		p := map[string]string{"actor": "An", "document": "Kế hoạch", "level": tc.level}
-		if got, want := Title("vi", KindDocumentShared, p), "An đã chia sẻ tài liệu “Kế hoạch” với bạn. Quyền: "+tc.vi+"."; got != want {
+		if got, want := Title("vi", KindDocumentShared, p), "An đã chia sẻ tài liệu \"Kế hoạch\" với bạn. Quyền: "+tc.vi+"."; got != want {
 			t.Errorf("Title(vi, %s) = %q, want %q", tc.level, got, want)
 		}
-		if got, want := Title("en", KindDocumentShared, p), "An shared “Kế hoạch” with you ("+tc.en+")."; got != want {
+		if got, want := Title("en", KindDocumentShared, p), "An shared \"Kế hoạch\" with you ("+tc.en+")."; got != want {
 			t.Errorf("Title(en, %s) = %q, want %q", tc.level, got, want)
 		}
 	}
@@ -187,8 +187,8 @@ func TestPushConsumerMessageKeepsDocumentNameVerbatim(t *testing.T) {
 		locale string
 		want   string
 	}{
-		{"vi", `An đã bình luận trong “A "b" & <c>”`},
-		{"en", `An commented on “A "b" & <c>”`},
+		{"vi", `An đã bình luận trong "A "b" & <c>"`},
+		{"en", `An commented on "A "b" & <c>"`},
 	} {
 		if _, err := f.pool.Exec(f.ctx, `UPDATE users SET locale = $1 WHERE id = $2`, tc.locale, f.member.ID); err != nil {
 			t.Fatal(err)

@@ -107,8 +107,9 @@ describe("text containers", () => {
             if (!height || NOT_FIXED.test(height)) return [];
             // An icon, avatar or tile box: a fixed width beside the height (w-full or a fraction is a row, not a box).
             if (tokens.some((token) => /^(w|size)-(\d+(\.\d+)?|\[\d+px\]|px)$/.test(token))) return [];
-            if (FIXED_HEIGHT_OK[file]?.includes(literal)) return [];
-            return [`${file}:${i + 1} "${literal}"`];
+            const normalized = file.replace(/\\/g, "/");
+            if (FIXED_HEIGHT_OK[normalized]?.includes(literal)) return [];
+            return [`${normalized}:${i + 1} "${literal}"`];
           }),
         ),
     );

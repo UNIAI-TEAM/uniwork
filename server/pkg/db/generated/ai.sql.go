@@ -27,9 +27,9 @@ func (q *Queries) AiClearMessageFeedback(ctx context.Context, arg AiClearMessage
 }
 
 const aiCreateConversation = `-- name: AiCreateConversation :one
-INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source
+INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title, taint_tracked)
+VALUES ($1, $2, $3, $4, $5, true)
+RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source, tainted_at, taint_tracked
 `
 
 type AiCreateConversationParams struct {
@@ -58,6 +58,8 @@ func (q *Queries) AiCreateConversation(ctx context.Context, arg AiCreateConversa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TitleSource,
+		&i.TaintedAt,
+		&i.TaintTracked,
 	)
 	return i, err
 }
@@ -195,7 +197,7 @@ func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEvent
 }
 
 const aiGetConversation = `-- name: AiGetConversation :one
-SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations WHERE id = $1
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source, tainted_at, taint_tracked FROM ai_conversations WHERE id = $1
 `
 
 // tenant: by-id
@@ -211,12 +213,14 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TitleSource,
+		&i.TaintedAt,
+		&i.TaintTracked,
 	)
 	return i, err
 }
 
 const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE id = $1 AND conversation_id = $2
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM ai_messages WHERE id = $1 AND conversation_id = $2
 `
 
 type AiGetMessageInConversationParams struct {
@@ -245,6 +249,7 @@ func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessa
 		&i.SupersededAt,
 		&i.Model,
 		&i.FileNotes,
+		&i.MemoryIds,
 	)
 	return i, err
 }
@@ -369,9 +374,9 @@ func (q *Queries) AiInsertAttachment(ctx context.Context, arg AiInsertAttachment
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes, memory_ids)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE(NULLIF($15::text, ''), '[]'))
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids
 `
 
 type AiInsertMessageParams struct {
@@ -389,6 +394,7 @@ type AiInsertMessageParams struct {
 	Mentions       string      `json:"mentions"`
 	Model          string      `json:"model"`
 	FileNotes      string      `json:"file_notes"`
+	MemoryIds      string      `json:"memory_ids"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -407,6 +413,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Mentions,
 		arg.Model,
 		arg.FileNotes,
+		arg.MemoryIds,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -426,6 +433,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.SupersededAt,
 		&i.Model,
 		&i.FileNotes,
+		&i.MemoryIds,
 	)
 	return i, err
 }
@@ -658,7 +666,7 @@ func (q *Queries) AiListConversationCitations(ctx context.Context, arg AiListCon
 }
 
 const aiListConversations = `-- name: AiListConversations :many
-SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source, tainted_at, taint_tracked FROM ai_conversations
 WHERE workspace_id = $1 AND user_id = $2
 ORDER BY updated_at DESC
 LIMIT 20
@@ -687,6 +695,8 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TitleSource,
+			&i.TaintedAt,
+			&i.TaintTracked,
 		); err != nil {
 			return nil, err
 		}
@@ -699,8 +709,8 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM (
-  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM (
+  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
 ) m ORDER BY created_at ASC, id ASC
 `
 
@@ -733,6 +743,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.SupersededAt,
 			&i.Model,
 			&i.FileNotes,
+			&i.MemoryIds,
 		); err != nil {
 			return nil, err
 		}
@@ -744,9 +755,43 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 	return items, nil
 }
 
+const aiLockMessageInConversation = `-- name: AiLockMessageInConversation :one
+SELECT id FROM ai_messages WHERE id = $1 AND conversation_id = $2 FOR UPDATE
+`
+
+type AiLockMessageInConversationParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: parent conversation_id
+// Holds the answer while its document row is looked up and made, so two
+// clicks of "Tạo tài liệu" make one page.
+func (q *Queries) AiLockMessageInConversation(ctx context.Context, arg AiLockMessageInConversationParams) (string, error) {
+	row := q.db.QueryRow(ctx, aiLockMessageInConversation, arg.ID, arg.ConversationID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const aiMarkConversationTainted = `-- name: AiMarkConversationTainted :exec
+UPDATE ai_conversations SET tainted_at = COALESCE(tainted_at, now())
+WHERE id = $1 AND organization_id = $2
+`
+
+type AiMarkConversationTaintedParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) AiMarkConversationTainted(ctx context.Context, arg AiMarkConversationTaintedParams) error {
+	_, err := q.db.Exec(ctx, aiMarkConversationTainted, arg.ID, arg.OrganizationID)
+	return err
+}
+
 const aiRenameConversation = `-- name: AiRenameConversation :one
 UPDATE ai_conversations SET title = $2, title_source = 'user' WHERE id = $1
-RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source
+RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source, tainted_at, taint_tracked
 `
 
 type AiRenameConversationParams struct {
@@ -767,12 +812,14 @@ func (q *Queries) AiRenameConversation(ctx context.Context, arg AiRenameConversa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TitleSource,
+		&i.TaintedAt,
+		&i.TaintTracked,
 	)
 	return i, err
 }
 
 const aiSearchConversations = `-- name: AiSearchConversations :many
-SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source FROM ai_conversations
+SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at, title_source, tainted_at, taint_tracked FROM ai_conversations
 WHERE workspace_id = $1 AND user_id = $2
   AND uw_fold_search(title) ILIKE $3::text ESCAPE '\'
 ORDER BY updated_at DESC
@@ -804,6 +851,8 @@ func (q *Queries) AiSearchConversations(ctx context.Context, arg AiSearchConvers
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TitleSource,
+			&i.TaintedAt,
+			&i.TaintTracked,
 		); err != nil {
 			return nil, err
 		}

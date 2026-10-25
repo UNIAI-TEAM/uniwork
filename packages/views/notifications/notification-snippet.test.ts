@@ -54,4 +54,10 @@ describe("notificationSnippet", () => {
       kind: "deleted", key: "documents.collab.collabDiscussionDeleted",
     });
   });
+
+  // The server's sentence already says what to do when a transcript fails.
+  it("adds no second line to a failed transcript", () => {
+    const failed = { ...base, kind: "meeting_transcript_failed", resource_type: "meeting", params: { meeting: "Giao ban" } } as Notification;
+    expect(notificationSnippet(failed)).toBeNull();
+  });
 });

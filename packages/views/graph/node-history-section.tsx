@@ -8,14 +8,25 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { useStatusCatalog } from "../tasks/pickers/status-catalog";
-import { graphNodeHref, historySentence, historyWhen } from "./graph-labels";
+import { graphNodeHref, historySentence, historyWhen, isOriginEdge } from "./graph-labels";
 
 /**
  * "Dòng thời gian": who owned the work, when the deadline moved, where it came
  * from — read from the Work Graph, newest first (C-11 §7). Distinct from the
  * task's "Hoạt động" (audit + comments).
  */
-export function NodeHistorySection({ workspaceId, nodeType, nodeId }: { workspaceId: string; nodeType: string; nodeId: string }) {
+export function NodeHistorySection({
+  workspaceId,
+  nodeType,
+  nodeId,
+  originShown = false,
+}: {
+  workspaceId: string;
+  nodeType: string;
+  nodeId: string;
+  /** The screen already names where the node came from: its originated_from edge is not repeated. */
+  originShown?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const headingId = useId();
   const { workspace } = useWorkspace();
@@ -27,7 +38,7 @@ export function NodeHistorySection({ workspaceId, nodeType, nodeId }: { workspac
   if (ui !== "on") return null;
   const statusName = (key: string) => optionOf(key).label;
   const label = (key: string, vars?: Record<string, string>) => t(key, vars);
-  const items = [...(query.data?.items ?? [])].reverse();
+  const items = (query.data?.items ?? []).filter((item) => !(originShown && isOriginEdge(item))).reverse();
   const missing = query.error instanceof ApiError && query.error.status === 404;
 
   return (

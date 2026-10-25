@@ -68,8 +68,8 @@ GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3, 4;
 
 -- name: AiCreateConversation :one
-INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title, taint_tracked)
+VALUES ($1, $2, $3, $4, $5, true)
 RETURNING *;
 
 -- name: AiGetConversation :one
@@ -121,8 +121,8 @@ DELETE FROM ai_conversations WHERE id = $1;
 DELETE FROM ai_messages WHERE conversation_id = $1;
 
 -- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes, memory_ids)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE(NULLIF(sqlc.arg(memory_ids)::text, ''), '[]'))
 RETURNING *;
 
 -- name: AiListMessages :many
@@ -150,6 +150,12 @@ RETURNING *;
 -- name: AiGetMessageInConversation :one
 -- tenant: parent conversation_id
 SELECT * FROM ai_messages WHERE id = $1 AND conversation_id = $2;
+
+-- name: AiLockMessageInConversation :one
+-- tenant: parent conversation_id
+-- Holds the answer while its document row is looked up and made, so two
+-- clicks of "Tạo tài liệu" make one page.
+SELECT id FROM ai_messages WHERE id = $1 AND conversation_id = $2 FOR UPDATE;
 
 -- name: AiUpsertMessageFeedback :exec
 -- tenant: parent conversation_id
@@ -201,3 +207,7 @@ RETURNING file_id;
 -- The collector's question: which of these files an Ask UNI question still carries.
 SELECT file_id FROM ai_attachments
 WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: AiMarkConversationTainted :exec
+UPDATE ai_conversations SET tainted_at = COALESCE(tainted_at, now())
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id);

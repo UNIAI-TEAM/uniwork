@@ -47,6 +47,10 @@ const (
 	// target is an OOXML copy, and open/edit/serialize stay unbound.
 	FormatXLS Format = "xls"
 	FormatODT Format = "odt"
+	// FormatPage is a UniNote page (UNI-2004): one JSON input carrying the
+	// sanitized ProseMirror content, the title and the page's images. The
+	// boundary accepts it for capability and export only.
+	FormatPage Format = "page"
 )
 
 // ConvertTargets is the one OOXML target each Q7 source converts to. A pair
@@ -57,12 +61,14 @@ var ConvertTargets = map[Format]Format{
 	FormatODT: FormatDOCX,
 }
 
-// ExportTargets is the one rendered target each format exports to (UNI-1013:
-// DOCX renders to PDF through the Docs web renderer). Like ConvertTargets, a
-// pair outside it is never submitted and the engine's capability row decides
-// whether the running build binds it.
-var ExportTargets = map[Format]Format{
-	FormatDOCX: FormatPDF,
+// ExportTargets are the rendered targets each format exports to (UNI-1013:
+// DOCX renders to PDF through the Docs web renderer; UNI-2004: a page writes
+// DOCX, and PDF through that DOCX). Like ConvertTargets, a pair outside it is
+// never submitted and the engine's capability row decides whether the
+// running build binds it.
+var ExportTargets = map[Format][]Format{
+	FormatDOCX: {FormatPDF},
+	FormatPage: {FormatDOCX, FormatPDF},
 }
 
 // ReadableEngineVersions are the engine builds whose committed output the
@@ -294,6 +300,11 @@ const (
 	RuntimeInternalService RuntimeKind = "internal_service"
 	RuntimeNone            RuntimeKind = "none"
 )
+
+// CapabilityExportPDF is the engine's capability row for the pdf lane of an
+// export (follow-6): supported only where the Docs renderer is staged. It
+// names a capability row, not a grantable operation.
+const CapabilityExportPDF Operation = "export_pdf"
 
 // CapabilityEntry is one capability row as the engine reports it.
 type CapabilityEntry struct {

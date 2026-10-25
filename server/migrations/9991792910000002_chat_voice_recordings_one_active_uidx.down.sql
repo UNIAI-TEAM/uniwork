@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_chat_voice_recordings_one_active;

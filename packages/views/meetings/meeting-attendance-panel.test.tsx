@@ -49,7 +49,7 @@ function renderPanel(canEdit: boolean, query?: string) {
 describe("MeetingAttendancePanel", () => {
   it("says the roll is open and how many members the quorum still needs", async () => {
     renderPanel(true);
-    expect(await screen.findByText(/^Chưa chốt\. Dòng “Tự động” lấy theo lượt vào phòng/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Chưa chốt\. Dòng "Tự động" lấy theo lượt vào phòng/)).toBeInTheDocument();
     expect(screen.getByText("Có mặt 1/2 · 50%")).toBeInTheDocument();
     // 60% of 2 members is 1.2, so two must attend.
     expect(screen.getByText("Chưa đủ tỉ lệ: cần 60%, còn thiếu 1 người")).toBeInTheDocument();

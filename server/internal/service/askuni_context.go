@@ -87,9 +87,21 @@ func (s *AskUNIService) contextItems(ctx context.Context, tc ai.ToolContext, f a
 	var srcs func(context.Context, ai.ToolContext, string) ([]ai.Source, error)
 	switch f.Kind {
 	case "task":
-		srcs = s.taskContext
+		src, foreign, err := s.taskSourceWithComments(ctx, tc, f.ID)
+		if err != nil {
+			return nil, err
+		}
+		it := sourceItem(src)
+		it.Foreign = foreign
+		return []agentItem{it}, nil
 	case "meeting":
-		srcs = s.meetingContext
+		src, summarised, err := s.meetingSourceWithSummary(ctx, tc, f.ID)
+		if err != nil {
+			return nil, err
+		}
+		it := sourceItem(src)
+		it.Foreign = summarised
+		return []agentItem{it}, nil
 	case "email_thread":
 		srcs = s.emailThreadContext
 	case "document":
@@ -107,6 +119,11 @@ func (s *AskUNIService) contextItems(ctx context.Context, tc ai.ToolContext, f a
 	items := make([]agentItem, 0, len(found))
 	for _, src := range found {
 		items = append(items, sourceItem(src))
+	}
+	// The rendered focus carries no href: the id lets the agent read the
+	// meeting's transcript (get_meeting_transcript).
+	if f.Kind == "meeting" && len(items) > 0 {
+		items[0].Text += "\nMeeting ID: " + f.ID
 	}
 	return items, err
 }

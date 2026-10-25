@@ -74,6 +74,8 @@ type McpTaskComment struct {
 	CreatedAt string `json:"created_at"`
 	Body      string `json:"body"`
 	ReplyTo   string `json:"reply_to,omitempty"`
+	// authorID never leaves the server (Ask UNI's taint rules read it).
+	authorID string
 }
 
 // McpMemberList and McpTaskList are what the list tools return: the rows,
@@ -160,7 +162,7 @@ func (s *McpToolService) commentsOf(ctx context.Context, p McpPrincipal, taskID 
 	for _, c := range rows {
 		out = append(out, McpTaskComment{
 			ID: c.ID, Author: c.DisplayName, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339),
-			Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), ReplyTo: c.ParentCommentID.String,
+			Body: capRunes(c.Body, mcpMaxHitRunes, mcpHitCut), ReplyTo: c.ParentCommentID.String, authorID: c.AuthorID,
 		})
 	}
 	return out, truncated, nil
@@ -362,27 +364,36 @@ func mcpReplyError(err error) error {
 	return err
 }
 
-func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (McpWriteResult, error) {
+// check refuses what CreateTask would before it reads anything; Ask UNI's
+// prepare runs it too, so a bad proposal is the model's to fix.
+func (in mcpCreateTaskIn) check() error {
 	if title := strings.TrimSpace(in.Title); title == "" || utf8.RuneCountInString(title) > mcpMaxTitleRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
+		return McpInvalidArgs{Msg: fmt.Sprintf("title must be 1-%d characters", mcpMaxTitleRunes)}
 	}
 	for _, d := range []struct{ field, value string }{{"start_date", in.StartDate}, {"due_date", in.DueDate}} {
 		if d.value == "" {
 			continue
 		}
 		if err := mcpDate(d.field, d.value); err != nil {
-			return McpWriteResult{}, err
+			return err
 		}
 	}
 	if in.Priority != "" && !validPriority[in.Priority] {
-		return McpWriteResult{}, McpInvalidArgs{Msg: "priority must be one of " + strings.Join(mcpPriorities, ", ")}
+		return McpInvalidArgs{Msg: "priority must be one of " + strings.Join(mcpPriorities, ", ")}
 	}
 	if len(in.LabelIDs) > mcpMaxLabels {
-		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("label_ids holds at most %d labels", mcpMaxLabels)}
+		return McpInvalidArgs{Msg: fmt.Sprintf("label_ids holds at most %d labels", mcpMaxLabels)}
 	}
 	// update_task could never edit or undo a longer one.
 	if utf8.RuneCountInString(in.Description) > mcpMaxItemRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here", mcpMaxItemRunes)}
+		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here", mcpMaxItemRunes)}
+	}
+	return nil
+}
+
+func (s *McpToolService) CreateTask(ctx context.Context, p McpPrincipal, in mcpCreateTaskIn) (McpWriteResult, error) {
+	if err := in.check(); err != nil {
+		return McpWriteResult{}, err
 	}
 	parentRef, err := mcpID("parent_task_id", in.ParentTaskID)
 	if err != nil {
@@ -444,9 +455,16 @@ type mcpAddCommentIn struct {
 	ReplyTo     string `json:"reply_to"`
 }
 
-func (s *McpToolService) AddComment(ctx context.Context, p McpPrincipal, in mcpAddCommentIn) (McpWriteResult, error) {
+func (in mcpAddCommentIn) check() error {
 	if n := utf8.RuneCountInString(strings.TrimSpace(in.Body)); n == 0 || n > mcpMaxBodyRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("body must be 1-%d characters", mcpMaxBodyRunes)}
+		return McpInvalidArgs{Msg: fmt.Sprintf("body must be 1-%d characters", mcpMaxBodyRunes)}
+	}
+	return nil
+}
+
+func (s *McpToolService) AddComment(ctx context.Context, p McpPrincipal, in mcpAddCommentIn) (McpWriteResult, error) {
+	if err := in.check(); err != nil {
+		return McpWriteResult{}, err
 	}
 	replyTo, err := mcpID("reply_to", in.ReplyTo)
 	if err != nil {

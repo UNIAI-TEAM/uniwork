@@ -20,6 +20,7 @@ export function MeetingAssigneeSelect({
   onChange,
   className,
   unassignedLabel,
+  ariaLabel,
 }: {
   workspaceId: string;
   value?: string;
@@ -28,6 +29,8 @@ export function MeetingAssigneeSelect({
   className?: string;
   /** Overrides "Unassigned (AI suggestion)" where the suggestion is already shown beside the field. */
   unassignedLabel?: string;
+  /** Overrides "Assign task to" where the picker names something else (a speaker). */
+  ariaLabel?: string;
 }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
@@ -50,7 +53,7 @@ export function MeetingAssigneeSelect({
         else onChange(next);
       }}
     >
-      <SelectTrigger size="sm" className={className} aria-label={t("meetings.assignTaskTo")}>
+      <SelectTrigger className={className} aria-label={ariaLabel ?? t("meetings.assignTaskTo")}>
         <SelectValue placeholder={suggestedOwner || t("meetings.assignTaskTo")}>
           {active?.label ?? suggestedOwner}
         </SelectValue>

@@ -73,6 +73,21 @@ func TestEveryProviderCallIsBounded(t *testing.T) {
 		"StopRecording": func(ctx context.Context) error {
 			return a.StopRecording(ctx, StopRecordingRequest{RecordingID: "eg"})
 		},
+		"CreateDialInRule": func(ctx context.Context) error {
+			_, err := a.CreateDialInRule(ctx, DialInRuleRequest{RoomName: "r", Pin: "1"})
+			return err
+		},
+		"DeleteDialInRule": func(ctx context.Context) error {
+			return a.DeleteDialInRule(ctx, "SDR_x")
+		},
+		"ListDialInRules": func(ctx context.Context) error {
+			_, err := a.ListDialInRules(ctx, "ST_x")
+			return err
+		},
+		"ListParticipants": func(ctx context.Context) error {
+			_, err := a.ListParticipants(ctx, "r")
+			return err
+		},
 	}
 	for name, call := range calls {
 		t.Run(name, func(t *testing.T) {

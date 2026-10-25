@@ -135,6 +135,10 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if _, err := revokeAllMcpGrantsForUser(ctx, qtx, userID); err != nil {
 		return err
 	}
+	// Ask UNI memory goes with the account, in every organization (P4, R18).
+	if _, err := qtx.AiDeleteMemoriesForUser(ctx, userID); err != nil {
+		return err
+	}
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {
 		return err
 	}

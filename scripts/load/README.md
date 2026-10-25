@@ -141,7 +141,7 @@ docker run --rm -v "$PWD/scripts/load:/load:ro" -e BASE_URL=http://host.docker.i
 1. `go run ./cmd/seed --orgs 1 --tasks 100000` (from `server/`), then time
    `go run ./cmd/graph-rebuild --org <id>` (the first full projection).
 2. Start the API with `FF_GRAPH=true FF_GRAPH_UI=true` and make real changes
-   through it: a meeting, tasks from it (`POST /meetings/{id}/summary/tasks`),
+   through it: a meeting, tasks from it (`POST /meetings/{id}/action-items/convert`),
    reassignments, status, due dates and dependencies. Wait until
    `SELECT count(*) FROM graph_dirty` is 0.
 3. `go run ./cmd/graph-rebuild --org <id> --verify` must print `drift=0`.

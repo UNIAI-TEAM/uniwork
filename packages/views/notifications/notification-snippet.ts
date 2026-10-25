@@ -25,7 +25,7 @@ export function plainSnippet(raw: string): string {
     .trim();
 }
 
-/** What a document row says under its sentence. */
+/** What a row says under its sentence. */
 type NotificationSnippet =
   | { kind: "text"; text: string }
   | { kind: "deleted"; key: string }

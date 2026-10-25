@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -117,6 +117,11 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.CreatedAt,
 		&i.UsageEventID,
 		&i.OrganizationID,
+		&i.Partial,
+		&i.CreatedByKind,
+		&i.TranscriptChangedAt,
+		&i.Topics,
+		&i.OpenQuestions,
 	)
 	return i, err
 }
@@ -168,6 +173,55 @@ func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRec
 		&i.EndedAt,
 		&i.FileID,
 		&i.OrganizationID,
+	)
+	return i, err
+}
+
+const getVisibleTranscriptSegment = `-- name: GetVisibleTranscriptSegment :one
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1 AND id = $2
+  AND (CASE WHEN $3::bool
+    THEN (source = 'AGENT' AND cardinality($4::text[]) = 0) OR transcription_id = ANY($4::text[])
+    ELSE source = 'CAPTION' END)
+`
+
+type GetVisibleTranscriptSegmentParams struct {
+	MeetingID        string   `json:"meeting_id"`
+	ID               string   `json:"id"`
+	Rich             bool     `json:"rich"`
+	TranscriptionIds []string `json:"transcription_ids"`
+}
+
+// tenant: parent meeting_id
+// One line of the meeting under the source rule: the anchor of an around=
+// read (a citation's "view in transcript").
+func (q *Queries) GetVisibleTranscriptSegment(ctx context.Context, arg GetVisibleTranscriptSegmentParams) (MeetingTranscriptSegment, error) {
+	row := q.db.QueryRow(ctx, getVisibleTranscriptSegment,
+		arg.MeetingID,
+		arg.ID,
+		arg.Rich,
+		arg.TranscriptionIds,
+	)
+	var i MeetingTranscriptSegment
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.ParticipantID,
+		&i.SpeakerName,
+		&i.Text,
+		&i.SpokenAt,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Source,
+		&i.TranscriptionID,
+		&i.StartMs,
+		&i.EndMs,
+		&i.SpeakerLabel,
+		&i.ClientSegmentID,
+		&i.Language,
+		&i.OriginalText,
+		&i.EditedAt,
+		&i.EditedBy,
 	)
 	return i, err
 }
@@ -232,9 +286,9 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions
 `
 
 type InsertMeetingSummaryParams struct {
@@ -247,6 +301,10 @@ type InsertMeetingSummaryParams struct {
 	CreatedBy      string      `json:"created_by"`
 	UsageEventID   pgtype.Text `json:"usage_event_id"`
 	OrganizationID string      `json:"organization_id"`
+	Partial        bool        `json:"partial"`
+	CreatedByKind  string      `json:"created_by_kind"`
+	Topics         string      `json:"topics"`
+	OpenQuestions  string      `json:"open_questions"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -260,6 +318,10 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.CreatedBy,
 		arg.UsageEventID,
 		arg.OrganizationID,
+		arg.Partial,
+		arg.CreatedByKind,
+		arg.Topics,
+		arg.OpenQuestions,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -273,6 +335,11 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.CreatedAt,
 		&i.UsageEventID,
 		&i.OrganizationID,
+		&i.Partial,
+		&i.CreatedByKind,
+		&i.TranscriptChangedAt,
+		&i.Topics,
+		&i.OpenQuestions,
 	)
 	return i, err
 }
@@ -280,7 +347,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 const insertTranscriptSegment = `-- name: InsertTranscriptSegment :one
 INSERT INTO meeting_transcript_segments (id, meeting_id, participant_id, speaker_name, text, spoken_at, organization_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id
+RETURNING id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by
 `
 
 type InsertTranscriptSegmentParams struct {
@@ -313,6 +380,16 @@ func (q *Queries) InsertTranscriptSegment(ctx context.Context, arg InsertTranscr
 		&i.SpokenAt,
 		&i.CreatedAt,
 		&i.OrganizationID,
+		&i.Source,
+		&i.TranscriptionID,
+		&i.StartMs,
+		&i.EndMs,
+		&i.SpeakerLabel,
+		&i.ClientSegmentID,
+		&i.Language,
+		&i.OriginalText,
+		&i.EditedAt,
+		&i.EditedBy,
 	)
 	return i, err
 }
@@ -382,7 +459,7 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by, m.series_id FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
   AND (
@@ -443,6 +520,17 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 			&i.AttendanceFinalizedAt,
 			&i.AttendanceFinalizedBy,
 			&i.OrganizationID,
+			&i.ScribeOffAt,
+			&i.ScribeOffBy,
+			&i.MinutesDocumentID,
+			&i.MinutesFinalizedAt,
+			&i.MinutesFinalizedBy,
+			&i.MinutesFinalizedVersionID,
+			&i.DialInPin,
+			&i.SipDispatchRuleID,
+			&i.AiContentSharedAt,
+			&i.AiContentSharedBy,
+			&i.SeriesID,
 		); err != nil {
 			return nil, err
 		}
@@ -454,30 +542,37 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 	return items, nil
 }
 
-const listTranscriptSegmentsBefore = `-- name: ListTranscriptSegmentsBefore :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+const listTranscriptSegmentsAfter = `-- name: ListTranscriptSegmentsAfter :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1
-  AND spoken_at <= $2::timestamptz
-  AND (spoken_at, id) < ($2::timestamptz, $3::text)
-ORDER BY spoken_at DESC, id DESC
-LIMIT $4
+  AND spoken_at >= $2::timestamptz
+  AND (spoken_at, id) > ($2::timestamptz, $3::text)
+  AND (CASE WHEN $4::bool
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT $6
 `
 
-type ListTranscriptSegmentsBeforeParams struct {
-	MeetingID string             `json:"meeting_id"`
-	BeforeAt  pgtype.Timestamptz `json:"before_at"`
-	BeforeID  string             `json:"before_id"`
-	RowLimit  int32              `json:"row_limit"`
+type ListTranscriptSegmentsAfterParams struct {
+	MeetingID        string             `json:"meeting_id"`
+	AfterAt          pgtype.Timestamptz `json:"after_at"`
+	AfterID          string             `json:"after_id"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
-// The page older than the cursor row; the plain spoken_at bound lets the
-// (meeting_id, spoken_at) index start the scan at the cursor.
-func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTranscriptSegmentsBeforeParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegmentsBefore,
+// Oldest first, the page after the cursor row (UNI-1995 #9): an ended
+// meeting reads from its start. A zero cursor reads the first page.
+func (q *Queries) ListTranscriptSegmentsAfter(ctx context.Context, arg ListTranscriptSegmentsAfterParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsAfter,
 		arg.MeetingID,
-		arg.BeforeAt,
-		arg.BeforeID,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.Rich,
+		arg.TranscriptionIds,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -496,6 +591,208 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 			&i.SpokenAt,
 			&i.CreatedAt,
 			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsBefore = `-- name: ListTranscriptSegmentsBefore :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at <= $2::timestamptz
+  AND (spoken_at, id) < ($2::timestamptz, $3::text)
+  AND (CASE WHEN $4::bool
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at DESC, id DESC
+LIMIT $6
+`
+
+type ListTranscriptSegmentsBeforeParams struct {
+	MeetingID        string             `json:"meeting_id"`
+	BeforeAt         pgtype.Timestamptz `json:"before_at"`
+	BeforeID         string             `json:"before_id"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// The page older than the cursor row; the plain spoken_at bound lets the
+// (meeting_id, spoken_at) index start the scan at the cursor.
+func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTranscriptSegmentsBeforeParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsBefore,
+		arg.MeetingID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsBetween = `-- name: ListTranscriptSegmentsBetween :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at >= $2::timestamptz AND spoken_at < $3::timestamptz
+  AND (CASE WHEN $4::bool
+    THEN (source = 'AGENT' AND cardinality($5::text[]) = 0) OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT $6
+`
+
+type ListTranscriptSegmentsBetweenParams struct {
+	MeetingID        string             `json:"meeting_id"`
+	FromAt           pgtype.Timestamptz `json:"from_at"`
+	ToAt             pgtype.Timestamptz `json:"to_at"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Oldest first in [from_at, to_at) under the same source rule: Ask UNI's
+// get_meeting_transcript reads a stretch of the meeting (scribe spec §5.2).
+func (q *Queries) ListTranscriptSegmentsBetween(ctx context.Context, arg ListTranscriptSegmentsBetweenParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsBetween,
+		arg.MeetingID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSegmentsByIDs = `-- name: ListTranscriptSegmentsByIDs :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE organization_id = $1 AND meeting_id = $2
+  AND id = ANY($3::text[])
+`
+
+type ListTranscriptSegmentsByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MeetingID      string   `json:"meeting_id"`
+	Ids            []string `json:"ids"`
+}
+
+// The cited segments of one meeting (UNI-2002 evidence); an id of another
+// meeting or tenant is simply absent.
+func (q *Queries) ListTranscriptSegmentsByIDs(ctx context.Context, arg ListTranscriptSegmentsByIDsParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsByIDs, arg.OrganizationID, arg.MeetingID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -508,23 +805,34 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 }
 
 const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
 WHERE meeting_id = $1 AND created_at >= $2::timestamptz
+  AND (CASE WHEN $3::bool
+    THEN (source = 'AGENT' AND cardinality($4::text[]) = 0) OR transcription_id = ANY($4::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY created_at ASC, id ASC
-LIMIT $3
+LIMIT $5
 `
 
 type ListTranscriptSegmentsCreatedSinceParams struct {
-	MeetingID string             `json:"meeting_id"`
-	Since     pgtype.Timestamptz `json:"since"`
-	RowLimit  int32              `json:"row_limit"`
+	MeetingID        string             `json:"meeting_id"`
+	Since            pgtype.Timestamptz `json:"since"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
 // Delta read keyed on created_at, not spoken_at: spoken_at comes from the
 // caption client or the STT agent and can land behind rows already read.
 func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg ListTranscriptSegmentsCreatedSinceParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince, arg.MeetingID, arg.Since, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince,
+		arg.MeetingID,
+		arg.Since,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -541,6 +849,16 @@ func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg Li
 			&i.SpokenAt,
 			&i.CreatedAt,
 			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -553,18 +871,34 @@ func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg Li
 }
 
 const listTranscriptSegmentsLatest = `-- name: ListTranscriptSegmentsLatest :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language, original_text, edited_at, edited_by FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND (CASE WHEN $2::bool
+    THEN (source = 'AGENT' AND cardinality($3::text[]) = 0) OR transcription_id = ANY($3::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at DESC, id DESC LIMIT $4
 `
 
 type ListTranscriptSegmentsLatestParams struct {
-	MeetingID string `json:"meeting_id"`
-	Limit     int32  `json:"limit"`
+	MeetingID        string   `json:"meeting_id"`
+	Rich             bool     `json:"rich"`
+	TranscriptionIds []string `json:"transcription_ids"`
+	RowLimit         int32    `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
-// Newest first; callers reverse the page into reading order (G18).
+// Newest first; callers reverse the page into reading order (G18). The
+// source rule (parent spec §7.3, TranscriptSources) rides on every page:
+// rich = the given transcriptions, else the scribe's lines; captions only
+// when neither. An uploaded recording replaces the live lines (UNI-1995 #11):
+// one transcript, never two copies of the same speech.
 func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTranscriptSegmentsLatestParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest, arg.MeetingID, arg.Limit)
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest,
+		arg.MeetingID,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -581,6 +915,16 @@ func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTran
 			&i.SpokenAt,
 			&i.CreatedAt,
 			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+			&i.OriginalText,
+			&i.EditedAt,
+			&i.EditedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -590,4 +934,130 @@ func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTran
 		return nil, err
 	}
 	return items, nil
+}
+
+const listWorkspaceMeetingSearchTexts = `-- name: ListWorkspaceMeetingSearchTexts :many
+SELECT m.id AS meeting_id,
+  COALESCE(sm.summary, '')::text AS summary,
+  COALESCE(sm.decisions, '[]')::text AS decisions,
+  COALESCE(sm.topics, '[]')::text AS topics,
+  COALESCE((SELECT string_agg(i.title, E'\n' ORDER BY i.position, i.id) FROM meeting_action_items i
+    WHERE i.organization_id = m.organization_id AND i.meeting_id = m.id AND i.dismissed_at IS NULL), '')::text AS item_titles
+FROM meetings m
+LEFT JOIN LATERAL (
+  SELECT s.summary, s.decisions, s.topics FROM meeting_summaries s
+  WHERE s.meeting_id = m.id AND s.organization_id = m.organization_id
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1
+) sm ON true
+WHERE m.organization_id = $1 AND m.workspace_id = $2
+  AND m.id = ANY($3::text[])
+`
+
+type ListWorkspaceMeetingSearchTextsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	MeetingIds     []string `json:"meeting_ids"`
+}
+
+type ListWorkspaceMeetingSearchTextsRow struct {
+	MeetingID  string `json:"meeting_id"`
+	Summary    string `json:"summary"`
+	Decisions  string `json:"decisions"`
+	Topics     string `json:"topics"`
+	ItemTitles string `json:"item_titles"`
+}
+
+// Ask UNI and MCP search a meeting by what it said too (UNI-1995 benchmark
+// #14): each meeting's latest summary (paragraph, decisions, topics) and the
+// titles of its pending and converted action items, for the meetings named.
+func (q *Queries) ListWorkspaceMeetingSearchTexts(ctx context.Context, arg ListWorkspaceMeetingSearchTextsParams) ([]ListWorkspaceMeetingSearchTextsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceMeetingSearchTexts, arg.OrganizationID, arg.WorkspaceID, arg.MeetingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceMeetingSearchTextsRow{}
+	for rows.Next() {
+		var i ListWorkspaceMeetingSearchTextsRow
+		if err := rows.Scan(
+			&i.MeetingID,
+			&i.Summary,
+			&i.Decisions,
+			&i.Topics,
+			&i.ItemTitles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setMeetingAIContentShared = `-- name: SetMeetingAIContentShared :one
+UPDATE meetings SET
+  ai_content_shared_at = CASE WHEN $1::bool THEN COALESCE(ai_content_shared_at, now()) ELSE NULL END,
+  ai_content_shared_by = CASE WHEN $1::bool THEN COALESCE(ai_content_shared_by, $2::text) ELSE NULL END,
+  updated_at = now()
+WHERE id = $3
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+`
+
+type SetMeetingAIContentSharedParams struct {
+	Shared bool   `json:"shared"`
+	By     string `json:"by"`
+	ID     string `json:"id"`
+}
+
+// tenant: by-id
+// shared = true stamps the first share and keeps it; false clears it. The
+// caller passed the clerk gate on this meeting (UNI-1995 access).
+func (q *Queries) SetMeetingAIContentShared(ctx context.Context, arg SetMeetingAIContentSharedParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, setMeetingAIContentShared, arg.Shared, arg.By, arg.ID)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RoomName,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.MeetingType,
+		&i.HostUserID,
+		&i.ActualStartAt,
+		&i.ActualEndAt,
+		&i.Timezone,
+		&i.AllowJoinRequest,
+		&i.PreferredProviderKey,
+		&i.Version,
+		&i.UpdatedBy,
+		&i.CanceledBy,
+		&i.CanceledAt,
+		&i.CancelReason,
+		&i.ProjectID,
+		&i.CreatedByKind,
+		&i.QuorumPercent,
+		&i.AttendanceFinalizedAt,
+		&i.AttendanceFinalizedBy,
+		&i.OrganizationID,
+		&i.ScribeOffAt,
+		&i.ScribeOffBy,
+		&i.MinutesDocumentID,
+		&i.MinutesFinalizedAt,
+		&i.MinutesFinalizedBy,
+		&i.MinutesFinalizedVersionID,
+		&i.DialInPin,
+		&i.SipDispatchRuleID,
+		&i.AiContentSharedAt,
+		&i.AiContentSharedBy,
+		&i.SeriesID,
+	)
+	return i, err
 }

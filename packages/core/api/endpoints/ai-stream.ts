@@ -1,10 +1,14 @@
 import { z } from "zod";
 import {
   AiCitationSchema,
+  AiMemoryProposalSchema,
   AiMessageSchema,
+  AiProposalSchema,
   AskUniStreamUsageSchema,
   type AiCitation,
+  type AiMemoryProposal,
   type AiMessage,
+  type AiProposal,
   type AiStreamUsage,
   type AskUniInput,
 } from "../../types/ai";
@@ -13,8 +17,12 @@ import { parseWithFallback } from "../schema";
 
 export type AskUniStreamEvent =
   | { type: "run"; runId: string; conversationId: string }
-  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number> }
+  | { type: "step"; round: number; phase: "tool" | "retry" | (string & {}); tool: string; label: string; counts: Record<string, number>; note: string }
   | { type: "delta"; text: string }
+  | { type: "reasoning"; text: string }
+  | { type: "proposal"; proposals: AiProposal[] }
+  | { type: "memory_proposals"; proposals: AiMemoryProposal[] }
+  | { type: "memory_used"; memoryIds: string[] }
   | { type: "citations"; citations: AiCitation[] }
   | { type: "sources"; sources: AiCitation[] }
   | { type: "followups"; followups: string[] }
@@ -36,14 +44,37 @@ const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
       tool: z.string().catch(""),
       label: z.string().catch(""),
       counts: z.record(z.string(), z.number()).catch({}),
+      note: z.string().catch(""),
     });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:step" });
     return r && { type: "step", ...r };
+  },
+  reasoning: (raw) => {
+    const s = z.object({ text: z.string() });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:reasoning" });
+    return r && { type: "reasoning", text: r.text };
   },
   delta: (raw) => {
     const s = z.object({ text: z.string() });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:delta" });
     return r && { type: "delta", text: r.text };
+  },
+  proposal: (raw) => {
+    const s = z.object({ proposals: z.array(AiProposalSchema) });
+    const r = parseWithFallback<{ proposals: AiProposal[] } | null>(raw, s, null, { endpoint: "ai.askStream:proposal" });
+    // A row with no id cannot be matched to a card, so it is dropped.
+    return r && { type: "proposal", proposals: r.proposals.filter((p) => p.id !== "") };
+  },
+  memory_proposals: (raw) => {
+    const s = z.object({ memory_proposals: z.array(AiMemoryProposalSchema) });
+    const r = parseWithFallback<{ memory_proposals: AiMemoryProposal[] } | null>(raw, s, null, { endpoint: "ai.askStream:memory_proposals" });
+    // A row with no id cannot be matched to a card, so it is dropped.
+    return r && { type: "memory_proposals", proposals: r.memory_proposals.filter((p) => p.id !== "") };
+  },
+  memory_used: (raw) => {
+    const s = z.object({ memory_ids: z.array(z.string()) });
+    const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:memory_used" });
+    return r && { type: "memory_used", memoryIds: r.memory_ids };
   },
   citations: (raw) => {
     const s = z.object({ citations: z.array(AiCitationSchema) });

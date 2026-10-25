@@ -26,4 +26,16 @@ describe("Sidebar inset surfaces", () => {
       "lg:peer-data-[variant=inset]:ring-surface-border/60",
     );
   });
+
+  it("lets the inset shrink beside the rail, so wide content scrolls inside it, never the page", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <Sidebar variant="inset">Navigation</Sidebar>
+        <SidebarInset>Content</SidebarInset>
+      </SidebarProvider>,
+    );
+    // Without it the flex item's automatic minimum is its content (a wide board), and the page scrolls sideways
+    // under the fixed rail once that board's own scroller reaches its end.
+    expect(container.querySelector('[data-slot="sidebar-inset"]')).toHaveClass("min-w-0");
+  });
 });

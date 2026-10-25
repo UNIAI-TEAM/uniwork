@@ -188,6 +188,7 @@ fails on drift. One flat namespace, keys nested by section:
 | link (attach project) | **gắn** | Link | `chat.channel.project_label = "Gắn project"` |
 | inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
 | Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
+| the meeting scribe (the agent that transcribes and summarizes a meeting) | **Thư ký UNI** | UNI Scribe | `meetings.scribe.name`; its disclosures say once that it is an AI assistant; the person who takes the minutes stays **Thư ký** |
 | channel (chat work hub) | **kênh** | channel | `chat.channel.*`; first-class chat room kind attached to a Project |
 | thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng" |
 | link (message ↔ work item) | **gắn** | link | `chat.message.linked` / message↔task attachment |
@@ -401,6 +402,7 @@ surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
 | Settings and configuration | `Settings` | `Settings2`, `Cog` |
 | The system as an actor (audit, avatars) | `Cog` | `Settings` |
 | AI: Ask UNI, copilots, AI summaries and insights | `Sparkles` | anything else — not "auto", animations or decoration |
+| Thư ký UNI, the meeting scribe: what it wrote, its chip, its notices | `ScribeMark` (the tile; its `state` moves only while it works); among line icons `ScribeGlyph` — both `@uniwork/ui/brand/scribe-mark` | `Sparkles` |
 | Loading | `<Spinner />` | a raw `LoaderCircle animate-spin` |
 
 `Spinner` (`packages/ui/components/ui/spinner.tsx`) is decorative unless it is

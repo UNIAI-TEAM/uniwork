@@ -39,6 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0045): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -357,8 +358,21 @@ Every command that changes business state writes an `audit_events` row and its
   a connection to a model host; `internal/ai` never imports `internal/service`
   and only calls sqlc queries named `Ai*`, so the model side of the house
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
-  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
-  `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it.
+  Ask UNI's write tools never run a command in the agent loop: each records an
+  `agent_action_proposals` row, and only the asker's Apply (or Auto mode, for an
+  untainted level-1 row) runs the service command, as `service.Human(asker)`
+  through one shared gate (ADR 0044; ADR 0010 still holds for the agent runtime).
+  `TestAskUniWriteToolsDeclareLevelAndUndo`, `TestAskUniLoopNeverRunsAWriteCommand`,
+  `TestAskUniTaintedTurnNeverAutoApplies`, `TestAskUniModeIsClampedToTheCeiling`,
+  `TestAskUniOnlyTheAskerDecidesAProposal` and `TestAIWriteGateIsShared` hold it.
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0045) is the one
+  exception: it opens its STT vendor connection itself, holds no LLM key, and
+  reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
+  per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything
+  that needs a model is a request the server answers through `ai.Gateway`.
+  `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
+  SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
 - The signed-in desktop app uses the keys the person saved on UniWork only
   through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
   key, and its calls record the `office.byok_desktop` capability while web and
@@ -390,6 +404,8 @@ Every command that changes business state writes an `audit_events` row and its
   `TestChatPushNeverReachesAPushKitToken`,
   `TestCallRingClosedEndsTheCallKitRing` and
   `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
+- Audit rows of Ask UNI memory never carry the entry text (spec 2026-10-24
+  §5.10): `TestAiMemoryAuditCarriesNoText`.
 
 ## Platform Admin and Observability
 

@@ -227,24 +227,19 @@ type mcpCreateProjectIn struct {
 	DueDate     string `json:"due_date"`
 }
 
-// mcpLeadMember is the lead_type of every lead a tool sets: list_members
-// lists people, not agents.
-const mcpLeadMember = "member"
-
-// CreateProject creates a project without a chat channel (spec §5.2):
-// CreateChannel stays false.
-func (s *McpToolService) CreateProject(ctx context.Context, p McpPrincipal, in mcpCreateProjectIn) (McpWriteResult, error) {
+// check refuses a create the service would misread, before anything is read.
+func (in mcpCreateProjectIn) check() error {
 	if err := mcpProjectTitle(in.Title); err != nil {
-		return McpWriteResult{}, err
+		return err
 	}
 	if in.Status != "" {
 		if err := mcpProjectEnum("status", in.Status, validProjectStatuses); err != nil {
-			return McpWriteResult{}, err
+			return err
 		}
 	}
 	if in.Priority != "" {
 		if err := mcpProjectEnum("priority", in.Priority, mcpPriorities); err != nil {
-			return McpWriteResult{}, err
+			return err
 		}
 	}
 	for _, d := range []struct{ field, value string }{{"start_date", in.StartDate}, {"due_date", in.DueDate}} {
@@ -252,12 +247,25 @@ func (s *McpToolService) CreateProject(ctx context.Context, p McpPrincipal, in m
 			continue
 		}
 		if err := mcpDate(d.field, d.value); err != nil {
-			return McpWriteResult{}, err
+			return err
 		}
 	}
 	// update_project could never edit or undo a longer one.
 	if utf8.RuneCountInString(in.Description) > mcpMaxItemRunes {
-		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here", mcpMaxItemRunes)}
+		return McpInvalidArgs{Msg: fmt.Sprintf("description holds at most %d characters here", mcpMaxItemRunes)}
+	}
+	return nil
+}
+
+// mcpLeadMember is the lead_type of every lead a tool sets: list_members
+// lists people, not agents.
+const mcpLeadMember = "member"
+
+// CreateProject creates a project without a chat channel (spec §5.2):
+// CreateChannel stays false.
+func (s *McpToolService) CreateProject(ctx context.Context, p McpPrincipal, in mcpCreateProjectIn) (McpWriteResult, error) {
+	if err := in.check(); err != nil {
+		return McpWriteResult{}, err
 	}
 	leadID, err := mcpID("lead_id", in.LeadID)
 	if err != nil {

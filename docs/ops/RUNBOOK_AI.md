@@ -272,6 +272,47 @@ Spec ước một câu có file đắt thêm khoảng 0,01–0,03 USD với Sonn
 
 **Khi lùi migration.** Tắt cờ trước, rồi lùi theo thứ tự ngược: `9991792710000300_ai_messages_file_notes` bỏ cột `file_notes`; `9991792710000203_ai_attachments_file_idx`, `…202_ai_attachments_message_idx` và `…201_ai_attachments_conversation_idx` bỏ ba index của bảng (mỗi file một câu `DROP INDEX CONCURRENTLY`); `9991792710000200_ai_attachments` bỏ bảng `ai_attachments` (file đã gắn vẫn nằm trong kho, không còn dòng nào trỏ tới); `9991792710000100_file_purpose_ai_attachment` xóa các phiên tải lên mục đích `ai_attachment` trước khi thu hẹp CHECK.
 
+## Hỏi UNI: hành động ghi (UNI-2148, P3)
+
+UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình luận, chat) thay người hỏi. Model không chạy lệnh ghi: tool ghi chỉ lưu một dòng `agent_action_proposals`; lệnh chạy khi người hỏi bấm Áp dụng, hoặc ở chế độ Tự động với dòng mức 1 của lượt không bị nhiễm (ADR 0044, spec §6).
+
+- **Tắt khẩn cấp**: hai cách, cái nào nhanh hơn thì dùng.
+  - Override cờ `ask_uni_actions=false` ở `/admin/flags` (theo tổ chức hoặc toàn cục; thắng `FF_ASK_UNI_ACTIONS`). Agent thôi nhận tool ghi; client ẩn nút chế độ, các nút của thẻ đề xuất (Áp dụng, Sửa, Bỏ qua, Hoàn tác, Áp dụng tất cả, Duyệt kế hoạch) và mục trần ghi ở Cài đặt; thẻ đã có vẫn hiện như lịch sử, không còn nút. Các route đề xuất trả 403 `ai_actions_disabled`.
+  - Trần của một tổ chức về `off`: `PUT /api/v1/orgs/{org}/ai/ask-write-policy` với `{"ceiling":"off"}` (chỉ owner/admin tổ chức). Chỉ tắt ghi của Hỏi UNI trong tổ chức đó; ghi qua MCP có công tắc riêng.
+  - Dòng đã áp dụng không biến mất khi tắt: thay đổi và audit giữ nguyên; người hỏi không hoàn tác được cho tới khi ghi mở lại.
+- **Metric**: `uniwork_ai_ask_actions_total{tool,outcome}` (`outcome`: `proposed`, `auto_applied`, `applied`, `rejected`, `failed`, `undone`; tool ngoài registry gom về `other`) và `uniwork_ai_ask_taint_downgrades_total` (lượt Tự động có dòng mức 1 nhưng bị nhiễm nên phải chờ người hỏi). `failed` tăng nhanh: xem mã lỗi dưới. Downgrade tăng là bình thường trong workspace dùng chung, vì lượt đọc nội dung của người khác thì nhiễm.
+- **Ngân sách**: 30 dòng áp dụng mỗi phút mỗi người (`uw:ai:ask:write:<user>`); chỉ bị tiêu khi lệnh sẽ chạy. Không có Redis thì đếm trong bộ nhớ từng tiến trình; Redis lỗi thì cho qua, như mọi limiter.
+- **Hết hạn**: dòng `pending` sống 24 giờ; sau đó `proposal_expired`.
+
+| Mã lỗi | HTTP | Nghĩa | Việc cần làm |
+| --- | --- | --- | --- |
+| `ai_actions_disabled` | 403 | Cờ `ask_uni_actions` tắt, trần tổ chức là `off`, hoặc chế độ của người dùng bị kẹp về rỗng | Không phải sự cố nếu cố ý tắt; nếu không, bật lại cờ hoặc trần |
+| `ai_write_rate_limited` | 429 | Quá 30 dòng áp dụng trong một phút | Đợi một phút; nếu lặp lại, tìm client gọi Áp dụng liên tục |
+| `proposal_expired` | 409 | Dòng quá 24 giờ | Hỏi lại UNI |
+| `proposal_not_pending` | 409 | Dòng đã được áp dụng, bỏ qua hoặc đang chạy (bấm đúp, hai tab) | Không cần làm; thẻ vẽ lại theo trạng thái thật |
+| `proposal_ref_pending` | 409 | Dòng dùng `{{row:N.id}}` của một dòng chưa áp dụng | Áp dụng dòng N trước (duyệt kế hoạch làm theo thứ tự) |
+| `revision_conflict` | 409 | Đối tượng đã đổi `revision` sau khi UNI đề xuất | Hỏi lại UNI để lấy đề xuất mới |
+| `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
+| `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
+
+Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
+
+### Suy nghĩ và lời dẫn của UNI (`ask_uni_thinking`)
+
+- **Cờ `ask_uni_thinking`** (`server/internal/featureflags/keys.go`, mặc định tắt, không Public, `review_at` 2027-04-30): bật thì lượt stream của agent bật adaptive thinking (bản tóm tắt) với model nhận được (họ Claude 5, Opus 4.6–4.8, Sonnet 4.6) và dùng prompt `copilot_answer@8`, `@9`, `@22`, `@23` (@4, @5, @20, @21 thêm lời dẫn; @20–@23 là của lượt có tool ghi). Panel hiện, dưới mỗi bước, câu model viết trước khi gọi tool và tóm tắt suy nghĩ; suy nghĩ trước câu trả lời lưu thành bước `kind: "think"`. Không cần migration: các trường mới nằm trong JSON `ai_messages.steps`.
+- **Chi phí**: suy nghĩ tính như token output; khi bật, ngân sách output của lượt lên 16.000 và mỗi lần gọi ít nhất 16.384 `max_tokens`. Model tự quyết có suy nghĩ hay không: Sonnet 5.5 ở mức `medium` (mặc định của Tự động) thường không suy nghĩ, Opus và mức cao thì có. Tóm tắt suy nghĩ do API viết bằng tiếng Anh; prompt chỉ dặn gọi đối tượng bằng tên, không bằng số nguồn.
+- **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`) với @8, @9, @22, @23, vì lời dẫn thêm chữ vào mỗi vòng tool.
+- **Tắt**: override `ask_uni_thinking=false` (hoặc `FF_ASK_UNI_THINKING`). Lượt sau quay về @4, @5, @20, @21, không gửi thinking; lượt đã lưu vẫn hiện lời dẫn và suy nghĩ của nó.
+
+## Hỏi UNI: bộ nhớ (UNI-2156, P4)
+
+- **Cờ `ask_uni_memory`** (`server/internal/featureflags/keys.go`, mặc định tắt, Public, `review_at` 2027-05-31): bật ở `/admin/flags` bằng override theo tổ chức hoặc người dùng. Chỉ có tác dụng với lượt dock chạy agent (`ask_uni_agent` bật) và khi người hỏi không tắt công tắc "Dùng bộ nhớ" của mình. Bật thì prompt của lượt là bản có khối bộ nhớ (`copilot_answer@12`, `@13`, `@16`, `@17`, và `@24`–`@27` khi có tool ghi; `@14`, `@15`, `@18`, `@19` chỉ còn cho dòng usage cũ), agent có thêm tool `propose_memory`, màn Bộ nhớ và nhập từ AI khác dùng được.
+- **Tắt khẩn cấp**: override `ask_uni_memory=false` (hoặc `FF_ASK_UNI_MEMORY`). Lượt sau không có khối bộ nhớ trong prompt và không có tool `propose_memory`; mọi route bộ nhớ trả 403 `ai_memory_disabled`; client ẩn nút Bộ nhớ ở lần đọc capabilities kế tiếp. Lượt đang chạy xong bình thường.
+- **Dữ liệu giữ nguyên**: tắt cờ không xóa mục nào (`ai_memories`) và không xóa thẻ đề xuất đã lưu; bật lại thì mọi thứ về như cũ. Xóa dữ liệu là việc của chính người dùng (xóa mục, "Xóa toàn bộ bộ nhớ"). Tắt `ask_uni_agent` cũng làm cờ này vô hiệu.
+- **Chi phí**: khối bộ nhớ thường chỉ vài trăm token, nhưng trường hợp nặng nhất (50 mục × 300 ký tự, khoảng 15.000 ký tự) là cỡ 4–6 nghìn token cho **mỗi** vòng gọi model của lượt (spec §5.2; với khoảng 2,3 vòng mỗi câu, phần thêm tối đa khoảng $0,03 mỗi câu với Sonnet 5.5). Khối này nằm trong phần prompt đổi theo người nên không vào cache chung; `propose_memory` thêm một vòng tool khi người dùng nói điều đáng nhớ. Nhập từ AI khác là lời gọi riêng (`ask_uni_memory_import`, prompt `memory_import@1`), tách khỏi lượt hỏi: mỗi lần tách là một dòng `ai_usage_events`, thử lại một lần khi model trả sai khuôn thì tính thêm một dòng, và mỗi người bị giới hạn số lần tách mỗi giờ (`ai_memory_import_rate_limited`). Khi chi phí tăng bất thường, đối chiếu số dòng `capability = 'ask_uni_memory_import'` và tắt cờ trước khi tắt `ask_uni_agent`.
+- **Audit**: dòng audit của bộ nhớ không bao giờ chứa chữ của mục (`TestAiMemoryAuditCarriesNoText`); chữ dán khi nhập cũng không được log hay audit.
+- **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`, mục "P4: memory cases") và ca nhập `TestMemoryImportEvalLive`; mức đạt nằm ở đó.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,
