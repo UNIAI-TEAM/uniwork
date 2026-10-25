@@ -56,7 +56,8 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0045.
   đoạn mới, hoặc lặng ≥ 20 s sau ≥ 5 đoạn; ≤ 20 lần mỗi giờ; một lần nữa khi phòng đóng; không
   thử lại vì mỗi lần là một lời gọi model), `translate.py` (S6, UNI-2028: phụ đề dịch — đọc
   attribute `uw.caption_lang` do server đặt, gom final theo ngôn ngữ đích, tối đa 1 lần gọi
-  `/agent/translate` mỗi giây mỗi ngôn ngữ, phát `uw.caption.<L>`, không thử lại), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
+  `/agent/translate` mỗi giây mỗi ngôn ngữ, phát `uw.caption.<L>`, không thử lại; server trả `skipped` thì báo phòng
+  trên cùng topic bằng `uw.skipped` + `uw.segment_ids`, để web nói vì sao hiện bản gốc), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
   `stt.py` (`FakeSTT`, `make_stt`), `health.py` (`uw.scribe_state`), `config.py`, `notice.py` (ai được nghe lời báo, đọc WAV, cắt khung 10 ms).
 - `eval/` — bộ đánh giá chất lượng STT trên cuộc họp thật (WER, độ phủ thực thể, độ trễ, tỉ lệ
   phiên/giây nói; live và batch); không vào image. Bật `meeting_scribe` cho khách chỉ sau khi

@@ -149,11 +149,21 @@ async def entrypoint(ctx: JobContext) -> None:
             },
         )
 
+    async def publish_skip(lang: str, finals: list[Final], reason: str) -> None:
+        # No uw.segment_id: the room reads this as why those lines stay in the original.
+        await ctx.room.local_participant.send_text(
+            reason,
+            topic=f"{CAPTION_TOPIC}.{lang}",
+            compress=False,
+            attributes={"uw.skipped": reason, "uw.segment_ids": ",".join(f.segment_id for f in finals)},
+        )
+
     # Spec §5.3: the languages the people in the room picked (server-set attribute).
     translator = CaptionTranslator(
         client.translate,
         publish_translation,
         lambda: wanted_languages(p.attributes for p in ctx.room.remote_participants.values()),
+        skip=publish_skip,
     )
 
     def on_final(f: Final) -> None:

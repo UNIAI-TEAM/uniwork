@@ -106,7 +106,23 @@ function baseLanguage(language: string | undefined): string {
   return (language ?? "").slice(0, 2).toLowerCase();
 }
 
-type TranslationState = "idle" | "translating" | "original";
+type TranslationState = "idle" | "translating" | "original" | "skipped";
+
+/** The lines the server would not translate, and why (the agent's uw.skipped, spec §5.3). */
+type Skipped = { reason: string; ids: ReadonlySet<string> };
+const NOTHING_SKIPPED: Skipped = { reason: "", ids: new Set() };
+
+/** What the room says about a skip: the AI quota and a switched-off translation by name, anything else plainly. */
+function skippedKey(reason: string): string {
+  switch (reason) {
+    case "ai_quota_exceeded":
+      return "meetings.scribe.captionSkippedQuota";
+    case "unavailable":
+      return "meetings.scribe.captionSkippedOff";
+    default:
+      return "meetings.scribe.captionUntranslated";
+  }
+}
 
 /**
  * Reads the agent's captions while `enabled`, and the translations of the
@@ -127,6 +143,7 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   const room = useRoomContext();
   const [lines, setLines] = useState<ScribeCaption[]>([]);
   const [translated, setTranslated] = useState<ReadonlyMap<string, string>>(new Map());
+  const [skipped, setSkipped] = useState<Skipped>(NOTHING_SKIPPED);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!enabled) {
@@ -150,11 +167,22 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   }, [room, enabled]);
   useEffect(() => {
     setTranslated(new Map());
+    setSkipped(NOTHING_SKIPPED);
     if (!enabled || !lang) return;
     const topic = scribeTranslationTopic(lang);
     room.registerTextStreamHandler(topic, (reader, from) => {
       if (!room.getParticipantByIdentity(from.identity)?.isAgent) return;
-      const segmentId = reader.info.attributes?.["uw.segment_id"];
+      const a = reader.info.attributes ?? {};
+      // The server skipped these lines (the AI quota is spent, say): they stay in the original, and the room says why.
+      const reason = a["uw.skipped"];
+      if (reason) {
+        const ids = (a["uw.segment_ids"] ?? "").split(",").filter(Boolean);
+        void reader.readAll().then(() => {
+          setSkipped((prev) => ({ reason, ids: new Set([...prev.ids, ...ids].slice(-KEPT_TRANSLATIONS)) }));
+        });
+        return;
+      }
+      const segmentId = a["uw.segment_id"];
       if (!segmentId) return;
       void reader.readAll().then((text) => {
         setTranslated((prev) => new Map([...prev, [segmentId, text] as const].slice(-KEPT_TRANSLATIONS)));
@@ -164,7 +192,11 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   }, [room, enabled, lang]);
   // A final said in the picked language needs nothing; one in another waits for its translation.
   const awaiting = (l: ScribeCaption) =>
-    Boolean(lang) && l.final && baseLanguage(l.language) !== lang && !translated.has(l.segmentId);
+    Boolean(lang) &&
+    l.final &&
+    baseLanguage(l.language) !== lang &&
+    !translated.has(l.segmentId) &&
+    !skipped.ids.has(l.segmentId);
   const waiting = (l: ScribeCaption) => awaiting(l) && now - (l.finalAt ?? 0) < TRANSLATION_WAIT_MS;
   const deadline = lines.filter(waiting).reduce((min, l) => Math.min(min, (l.finalAt ?? 0) + TRANSLATION_WAIT_MS), Infinity);
   useEffect(() => {
@@ -179,13 +211,17 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
     return waiting(l) ? { ...l, pending: true } : l;
   });
   const newestForeign = [...lines].reverse().find((l) => l.final && Boolean(lang) && baseLanguage(l.language) !== lang);
-  const state: TranslationState = !newestForeign || !awaiting(newestForeign)
+  const state: TranslationState = !newestForeign
     ? "idle"
-    : waiting(newestForeign)
-      ? "translating"
-      : "original";
+    : skipped.ids.has(newestForeign.segmentId)
+      ? "skipped"
+      : !awaiting(newestForeign)
+        ? "idle"
+        : waiting(newestForeign)
+          ? "translating"
+          : "original";
   const ready = shown.filter((l) => l.final && !waiting(l));
-  return { lines: shown, state, ready };
+  return { lines: shown, state, ready, skipReason: skipped.reason };
 }
 
 /**
@@ -193,19 +229,29 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
  * a screen reader hears that captions are being translated, or that the
  * original is showing, the first time it happens.
  */
-function useTranslationNotice(lang: CaptionLanguage, state: TranslationState): string {
+function useTranslationNotice(lang: CaptionLanguage, state: TranslationState, skipReason: string): string {
   const { t } = useTranslation();
   const [notice, setNotice] = useState("");
-  const told = useRef(new Set<TranslationState>());
+  const told = useRef(new Set<string>());
   useEffect(() => {
     told.current.clear();
     setNotice("");
   }, [lang]);
+  // A skip is said once per reason: the quota running out is news, every line after it is not.
+  const said = state === "skipped" ? `skipped:${skipReason}` : state;
   useEffect(() => {
-    if (state === "idle" || told.current.has(state)) return;
-    told.current.add(state);
-    setNotice(t(state === "translating" ? "meetings.scribe.captionTranslating" : "meetings.scribe.captionUntranslated"));
-  }, [state, t]);
+    if (said === "idle" || told.current.has(said)) return;
+    told.current.add(said);
+    setNotice(
+      t(
+        state === "translating"
+          ? "meetings.scribe.captionTranslating"
+          : state === "skipped"
+            ? skippedKey(skipReason)
+            : "meetings.scribe.captionUntranslated",
+      ),
+    );
+  }, [said, state, skipReason, t]);
   return notice;
 }
 
@@ -329,9 +375,9 @@ export function MeetingScribeCaptions({
   const room = useRoomContext();
   const avatarOf = useRoomAvatarOf();
   const { lang, pick } = useCaptionLanguage(meetingId);
-  const { lines, state, ready } = useScribeCaptions(enabled, lang);
+  const { lines, state, ready, skipReason } = useScribeCaptions(enabled, lang);
   const said = useSpokenOnce(ready);
-  const notice = useTranslationNotice(lang, state);
+  const notice = useTranslationNotice(lang, state, skipReason);
   const flow = useRef<HTMLDivElement>(null);
   useGlide(flow);
   const thumb = useLanguageThumb(lang || ORIGINAL);
@@ -360,8 +406,18 @@ export function MeetingScribeCaptions({
           >
             <ScribeMark state={joining ? "joining" : "live"} className="size-5" />
             <span className="max-sm:hidden">{t("meetings.scribe.captionsLabel")}</span>
-            {/* Translating shows on the line and the thumb; only a translation that never came is said in words. */}
-            {state === "original" ? <span>{t("meetings.scribe.captionUntranslated")}</span> : null}
+            {/* Translating shows on the line and the thumb; a translation that will not come is said in words,
+                as a warning when the server named why (the AI quota is spent, translation is off). */}
+            {state === "skipped" ? (
+              <span
+                className="inline-flex h-[22px] animate-caption-chip-in items-center gap-1.5 rounded-full bg-warning/12 px-2.5 font-semibold text-warning before:size-1.5 before:rounded-full before:bg-current"
+                data-testid="meeting-caption-skipped"
+              >
+                {t(skippedKey(skipReason))}
+              </span>
+            ) : state === "original" ? (
+              <span>{t("meetings.scribe.captionUntranslated")}</span>
+            ) : null}
           </p>
           {meetingId ? (
             <ToggleGroup

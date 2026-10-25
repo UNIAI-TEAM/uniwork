@@ -4181,6 +4181,8 @@
       "captionEnglishShort": "EN",
       "captionTranslating": "Translating…",
       "captionUntranslated": "No translation yet, showing the original",
+      "captionSkippedQuota": "Your organization is out of AI quota, showing the original",
+      "captionSkippedOff": "Translated captions are off for your organization, showing the original",
       "captionLanguageFailed": "Could not change the caption language. Captions show the original.",
       "sharedMicOn": "Make room mic",
       "sharedMicOff": "Stop using as room mic",

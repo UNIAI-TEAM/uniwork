@@ -4180,6 +4180,8 @@
       "captionEnglishShort": "EN",
       "captionTranslating": "Đang dịch…",
       "captionUntranslated": "Chưa có bản dịch, đang hiện bản gốc",
+      "captionSkippedQuota": "Tổ chức đã hết hạn mức AI, phụ đề hiện bản gốc",
+      "captionSkippedOff": "Tổ chức chưa bật phụ đề dịch, phụ đề hiện bản gốc",
       "captionLanguageFailed": "Chưa đổi được ngôn ngữ phụ đề. Phụ đề hiện bản gốc.",
       "sharedMicOn": "Đặt làm mic hội trường",
       "sharedMicOff": "Bỏ mic hội trường",

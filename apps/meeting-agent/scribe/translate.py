@@ -7,7 +7,10 @@ most once a second, so a batch holds the finals of the last second at most.
 Each language runs its own call: a slow one never holds up another, and a
 final that waited more than MAX_AGE_S is dropped unsent (nobody reads it).
 The answer is published on uw.caption.<L> under the original uw.segment_id.
-Nothing is retried: a missing translation shows the original caption."""
+Nothing is retried: a missing translation shows the original caption. When
+the server answers why it skipped a batch (the organization's AI quota is
+spent, translation is off, the meeting's cap), the room is told on the same
+topic, so it says why it shows the original instead of waiting for nothing."""
 
 from __future__ import annotations
 
@@ -31,6 +34,12 @@ MAX_QUEUE = 100
 
 Translate = Callable[[list[dict], str], Awaitable[dict]]
 Publish = Callable[[str, Final, str], Awaitable[object]]
+# (language, the finals left untranslated, the server's reason)
+Skip = Callable[[str, list[Final], str], Awaitable[object]]
+
+
+async def _no_skip(_lang: str, _finals: list[Final], _reason: str) -> None:
+    return None
 
 
 def wanted_languages(attributes: Iterable[Mapping[str, str]]) -> set[str]:
@@ -52,9 +61,11 @@ class CaptionTranslator:
         *,
         clock: Callable[[], float] = time.monotonic,
         spacing_s: float = 1.0,
+        skip: Skip = _no_skip,
     ) -> None:
         self._translate = translate
         self._publish = publish
+        self._skip = skip
         self._wanted = wanted
         self._clock = clock
         self._spacing = spacing_s
@@ -117,7 +128,8 @@ class CaptionTranslator:
         except Exception as e:  # noqa: BLE001 - a missing translation shows the original
             log.warning("translate failed target=%s segments=%d err=%s", lang, len(batch), type(e).__name__)
             return
-        if skipped := out.get("skipped"):
+        skipped = out.get("skipped")
+        if skipped:
             log.info("translate skipped target=%s reason=%s", lang, skipped)
         by_id = {f.segment_id: f for f in batch}
         for t in out.get("translations") or []:
@@ -129,3 +141,8 @@ class CaptionTranslator:
                 except Exception as e:  # noqa: BLE001 - the room is closing; the loop must not die
                     log.warning("translation not published target=%s err=%s", lang, type(e).__name__)
                     return
+        if skipped and by_id:
+            try:
+                await self._skip(lang, list(by_id.values()), str(skipped))
+            except Exception as e:  # noqa: BLE001 - the room is closing; the loop must not die
+                log.warning("skip not published target=%s err=%s", lang, type(e).__name__)

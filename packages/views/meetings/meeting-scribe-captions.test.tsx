@@ -255,6 +255,37 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     }
   });
 
+  it("says plainly that the AI quota is spent when the server will not translate, and stops waiting", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true));
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Bạn là ai?");
+    expect(voiceLine()).toHaveAttribute("data-processing");
+    const skip = { "uw.skipped": "ai_quota_exceeded", "uw.segment_ids": "TR1-1" };
+    // Only the agent's word counts.
+    await caption("uw_participant_p2", skip, "ai_quota_exceeded", scribeTranslationTopic("en"));
+    expect(screen.queryByTestId("meeting-caption-skipped")).not.toBeInTheDocument();
+    await caption("uw_agent_scribe", skip, "ai_quota_exceeded", scribeTranslationTopic("en"));
+    expect(screen.getByTestId("meeting-caption-skipped")).toHaveTextContent("Tổ chức đã hết hạn mức AI, phụ đề hiện bản gốc");
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
+    expect(shown("Bạn là ai?")).not.toHaveClass("animate-caption-breathe");
+    expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Tổ chức đã hết hạn mức AI");
+    // No five-second wait for a translation that will not come: the line is read now, in the original.
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Bạn là ai?");
+  });
+
+  it("names a switched-off translation, and says anything else plainly", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true));
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Chốt lịch");
+    await caption("uw_agent_scribe", { "uw.skipped": "unavailable", "uw.segment_ids": "TR1-1" }, "unavailable", scribeTranslationTopic("en"));
+    expect(screen.getByTestId("meeting-caption-skipped")).toHaveTextContent("Tổ chức chưa bật phụ đề dịch");
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-2", true), "Gửi báo giá");
+    await caption("uw_agent_scribe", { "uw.skipped": "capped", "uw.segment_ids": "TR1-2" }, "capped", scribeTranslationTopic("en"));
+    expect(screen.getByTestId("meeting-caption-skipped")).toHaveTextContent("Chưa có bản dịch, đang hiện bản gốc");
+  });
+
   it("slides a thumb, measured, under the picked language behind short labels", async () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     const original = screen.getByRole("button", { name: "Bản gốc" });
