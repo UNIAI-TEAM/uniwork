@@ -307,6 +307,18 @@ type Routes struct {
 	GetOrgAskWritePolicy    http.HandlerFunc
 	SetOrgAskWritePolicy    http.HandlerFunc
 	SetAskUniMode           http.HandlerFunc
+	ListAiMemory            http.HandlerFunc
+	CreateAiMemory          http.HandlerFunc
+	UpdateAiMemory          http.HandlerFunc
+	DeleteAiMemory          http.HandlerFunc
+	ClearAiMemory           http.HandlerFunc
+	SplitAiMemoryImport     http.HandlerFunc
+	ImportAiMemory          http.HandlerFunc
+	SetAskUniMemory         http.HandlerFunc
+	ApplyAiMemoryProposal   http.HandlerFunc
+	RejectAiMemoryProposal  http.HandlerFunc
+	UndoAiMemoryProposal    http.HandlerFunc
+	EditAiMemoryProposal    http.HandlerFunc
 	ApplyAiProposal         http.HandlerFunc
 	RejectAiProposal        http.HandlerFunc
 	UndoAiProposal          http.HandlerFunc

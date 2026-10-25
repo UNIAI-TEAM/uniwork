@@ -206,6 +206,26 @@ describe("askUniStream", () => {
     expect(events[1]).toEqual({ type: "delta", text: "x" });
   });
 
+  it("memory_proposals and memory_used frames become events; malformed ones are dropped", async () => {
+    const row = { id: "mp1", message_id: "m1", position: 1, action: "remember", kind: "fact", text: "x", status: "pending" };
+    const events = await collect(
+      sse([
+        frame("memory_proposals", { memory_proposals: [row, { text: "no id" }] }),
+        frame("memory_proposals", { memory_proposals: "nope" }),
+        frame("memory_used", { memory_ids: ["e1", "e2"] }),
+        frame("memory_used", { memory_ids: 5 }),
+        "event: memory_used\ndata: {oops\n\n",
+        frame("delta", { text: "x" }),
+      ]),
+    );
+    expect(events).toMatchObject([
+      { type: "memory_proposals", proposals: [{ id: "mp1", action: "remember", status: "pending" }] },
+      { type: "memory_used", memoryIds: ["e1", "e2"] },
+      { type: "delta", text: "x" },
+    ]);
+    expect(events).toHaveLength(3);
+  });
+
   it("sends mode only when set", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(sse([])).mockResolvedValueOnce(sse([]));
     await askUniStream("ws1", { question: "q", mode: "plan" }, { onEvent: () => undefined });

@@ -105,6 +105,42 @@ type AiConversation struct {
 	TaintTracked   bool               `json:"taint_tracked"`
 }
 
+type AiMemory struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Kind           string             `json:"kind"`
+	Body           string             `json:"body"`
+	Source         string             `json:"source"`
+	ProposalID     pgtype.Text        `json:"proposal_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AiMemoryProposal struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ConversationID string             `json:"conversation_id"`
+	MessageID      string             `json:"message_id"`
+	Position       int32              `json:"position"`
+	Action         string             `json:"action"`
+	MemoryID       pgtype.Text        `json:"memory_id"`
+	Kind           pgtype.Text        `json:"kind"`
+	Body           pgtype.Text        `json:"body"`
+	BeforeKind     pgtype.Text        `json:"before_kind"`
+	BeforeBody     pgtype.Text        `json:"before_body"`
+	Status         string             `json:"status"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AiMessage struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -122,6 +158,7 @@ type AiMessage struct {
 	SupersededAt   pgtype.Timestamptz `json:"superseded_at"`
 	Model          string             `json:"model"`
 	FileNotes      string             `json:"file_notes"`
+	MemoryIds      string             `json:"memory_ids"`
 }
 
 type AiMessageFeedback struct {
@@ -2599,6 +2636,7 @@ type User struct {
 	AppleClientID        pgtype.Text        `json:"apple_client_id"`
 	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
 	AskUniMode           pgtype.Text        `json:"ask_uni_mode"`
+	AskUniMemoryOff      bool               `json:"ask_uni_memory_off"`
 }
 
 type WebhookInbox struct {

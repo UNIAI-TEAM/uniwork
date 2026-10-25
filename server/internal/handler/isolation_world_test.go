@@ -237,6 +237,10 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.AskUNI.SetFiles(fs)
 	d.AskUNI.SetFlags(d.FeatureFlags)
 	d.AskUNI.SetReadTools(d.McpTools)
+	d.AiMemory = service.NewAiMemoryService(pool, q, d.Organizations, d.Workspaces)
+	d.AiMemory.SetFlags(d.FeatureFlags)
+	d.AiMemory.SetImport(d.Meetings.AI, d.Redis)
+	d.AskUNI.SetMemory(d.AiMemory)
 	d.CalendarConnections = service.NewCalendarConnectionService(pool, q, d.Workspaces, box, config.Config{
 		FrontendOrigin: "http://localhost:3000",
 	})
@@ -1136,6 +1140,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 			fmt.Sprintf(`{"title":"%s proposal"}`, m), row.status, tn.userID); err != nil {
 			t.Fatalf("ask uni proposal %s: %v", row.key, err)
 		}
+	}
+	// One memory entry of the tenant owner's, and a rejected memory proposal
+	// under the same answer (P4), so both memory tables hold a row of A's.
+	tn.ids["aiMemory"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_memories
+		(id, organization_id, user_id, kind, body, source, created_by, created_by_kind)
+		VALUES ($1, $2, $3, 'fact', $4, 'manual', $3, 'human')`,
+		tn.ids["aiMemory"], tn.orgID, tn.userID, m+" memory entry"); err != nil {
+		t.Fatalf("ask uni memory: %v", err)
+	}
+	tn.ids["aiMemoryProposal"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_memory_proposals
+		(id, organization_id, workspace_id, conversation_id, message_id, position, action, kind, body, status, expires_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, 1, 'remember', 'fact', $6, 'rejected', now() + interval '24 hours', $7, 'human')`,
+		tn.ids["aiMemoryProposal"], tn.orgID, tn.wsID, tn.ids["conversation"], tn.ids["aiAnswer"], m+" memory proposal", tn.userID); err != nil {
+		t.Fatalf("ask uni memory proposal: %v", err)
 	}
 }
 

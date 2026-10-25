@@ -64,7 +64,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_invite_links, meeting_join_requests, meeting_conference_sessions,
 		meeting_attendance_sessions, meeting_audit_logs, outbox_events,
 		meeting_guests, meeting_provider_events, webhook_inbox,
-		ai_usage_events, agent_action_proposals, ai_conversations, ai_messages, ai_message_feedback, ai_attachments,
+		ai_usage_events, agent_action_proposals, ai_memories, ai_memory_proposals, ai_conversations, ai_messages, ai_message_feedback, ai_attachments,
 		chat_voice_recordings,
 		meeting_transcript_segments, meeting_summaries, meeting_recordings,
 		meeting_chat_messages, meeting_attendance_marks,

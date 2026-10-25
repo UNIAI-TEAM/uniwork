@@ -117,3 +117,10 @@ describe("AskUniProgress", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("propose_memory step", () => {
+  it("has its own sentence, not the generic one", () => {
+    render(<AskUniProgress steps={[step("propose_memory")]} running writing={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Đang đề xuất nhớ…");
+  });
+});

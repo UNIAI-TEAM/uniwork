@@ -520,6 +520,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/me/ai-consent":                               {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/push-previews":                            {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/ask-uni-mode":                             {class: isoSelf, reason: "the person's own Ask UNI mode (users.ask_uni_mode): it names no tenant row, takes no id and changes only the caller's account"},
+	"PUT /api/v1/me/ask-uni-memory":                           {class: isoSelf, reason: "the person's own Ask UNI memory switch (users.ask_uni_memory_off): it carries no tenant id and changes only the caller's account"},
 	"DELETE /api/v1/me/ai-consent":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
@@ -848,6 +849,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/ai/proposals/{proposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"POST /api/v1/ai/proposals/{proposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"PATCH /api/v1/ai/proposals/{proposalID}":       {body: isoJSON(map[string]any{"changes": map[string]any{"title": "edited"}}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	// Ask UNI memory proposals (P4): only the asker decides them, as above.
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/apply":  {control: []int{http.StatusConflict}, reason: "the seeded memory proposal is rejected, so the owner's own call reaches the row and answers 409 proposal_not_pending, which a broken route would not; an outsider gets 404 before any membership, flag or state check"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"PATCH /api/v1/ai/memory-proposals/{memoryProposalID}":       {body: isoJSON(map[string]any{"text": "edited"}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
 	"POST /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply": {
 		body: func(_ *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"proposal_ids": []string{tn.ids["aiProposal"]}}}
@@ -861,6 +867,16 @@ var isoRoutes = map[string]isoSpec{
 			}
 			return isoBody{json: map[string]any{"ceiling": ceiling}}
 		}},
+	"POST /api/v1/orgs/{org}/ai/memory": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"kind": "fact", "text": tn.marker + " added by the route"}}
+	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import/split": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"text": "- " + tn.marker + " split by the route"}}
+	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"entries": []map[string]any{{"kind": "fact", "text": tn.marker + " imported by the route"}}}}
+	}},
+	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                                                    {body: isoJSON(map[string]any{"text": "edited"})},
 	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
 	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},

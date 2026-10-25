@@ -5,6 +5,7 @@ import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachment
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiFileNote, type AiMessage } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
 import { isInAppHref } from "./ask-uni-links";
@@ -24,7 +25,7 @@ initI18n();
 const cite = { source_id: "S1", kind: "task", title: "Thiết kế trang chủ", quote: "Hạn thứ sáu, chưa có người nhận", href: "/acme/team/tasks/T1" };
 
 function msg(over: Partial<AiMessage> = {}): AiMessage {
-  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], created_at: "", ...over };
+  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], memory_ids: [], memory_proposals: [], created_at: "", ...over };
 }
 
 function mount(message: AiMessage, props: Partial<Parameters<typeof AskUniMessageTurn>[0]> = {}) {
@@ -474,5 +475,62 @@ describe("AskUniMessageTurn", () => {
       expect(screen.getByText("Tóm tắt đây.")).toBeInTheDocument();
       expect(document.body.textContent).not.toMatch(/UNI đã đọc|UNI chỉ đọc/);
     });
+  });
+});
+
+describe("AskUniMessageTurn memory", () => {
+  const ws = { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" };
+  const me = { id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "", email_verified_at: "", onboarding_questionnaire: {}, locale: "vi" };
+  const mem = { id: "p1", message_id: "m1", position: 0, action: "remember", memory_id: "", kind: "fact", text: "Tôi là kế toán", before_kind: "", before_text: "", status: "pending", expires_at: "" };
+  const mountMem = (message: AiMessage) =>
+    render(wrapWithNav(<WorkspaceProvider workspace={ws} user={me}><AskUniMessageTurn message={message} conversationId="c1" wsId="ws1" /></WorkspaceProvider>));
+  // The workspace is organization "o1" with the slug "acme": the memory routes take the slug.
+  const MEMORY = "/api/v1/orgs/acme/ai/memory";
+  const answerWith = (memoryEnabled: boolean) =>
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/ai/capabilities")
+          ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" }, memory: { enabled: memoryEnabled, on: true } }
+          : path === MEMORY
+            ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 }
+            : {},
+      ),
+    );
+  // Braces: a function returned from beforeEach is run as its teardown, and the mock is one.
+  beforeEach(() => {
+    answerWith(true);
+  });
+
+  it("puts the memory card under the P3 card and shows the used line above the actions", async () => {
+    const proposal = AiProposalSchema.parse({ id: "q1", message_id: "m1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } });
+    mountMem(msg({ content: "Xong.", proposals: [proposal], memory_proposals: [mem], memory_ids: ["e1"] }));
+    const p3 = await screen.findByText("UNI đề xuất · cần bạn xác nhận");
+    const card = await screen.findByText("Nhớ điều này?");
+    expect(p3.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const used = await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/);
+    const copy = screen.getByRole("button", { name: "Sao chép" });
+    expect(used.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("does not copy the used line", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mountMem(msg({ content: "Xong.", memory_ids: ["e1"] }));
+    await screen.findByText(/Đã dùng bộ nhớ/);
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(writeText.mock.calls[0]![0]).not.toContain("Đã dùng bộ nhớ");
+  });
+
+  it("shows no memory card or used line, and reads no memory, with the memory flag off", async () => {
+    answerWith(false);
+    mountMem(msg({ content: "Xong.", memory_proposals: [mem], memory_ids: ["e1"] }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+    // Let the capabilities answer land; with the flag on the card shows by then.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(screen.getByText("Xong.")).toBeInTheDocument();
+    expect(screen.queryByText("Nhớ điều này?")).toBeNull();
+    expect(screen.queryByText(/Đã dùng bộ nhớ/)).toBeNull();
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/ai/memory"))).toBe(false);
   });
 });

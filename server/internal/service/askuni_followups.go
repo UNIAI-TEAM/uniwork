@@ -63,16 +63,29 @@ func followupText(line string) string {
 	return q
 }
 
-// cutAtFollowups is streamed text up to the follow-up block, holding back a
-// tail that may still grow into its tag.
-func cutAtFollowups(s string) string {
-	if i := strings.Index(s, followupsTag); i >= 0 {
-		return s[:i]
-	}
-	for n := min(len(followupsTag)-1, len(s)); n > 0; n-- {
-		if strings.HasSuffix(s, followupsTag[:n]) {
-			return s[:len(s)-n]
+// cutAtFollowups is streamed text up to the follow-up block.
+func cutAtFollowups(s string) string { return cutAtTags(s, followupsTag) }
+
+// cutAtTags is streamed text up to the first of the tags, holding back a
+// tail that may still grow into one.
+func cutAtTags(s string, tags ...string) string {
+	cut := -1
+	for _, t := range tags {
+		if i := strings.Index(s, t); i >= 0 && (cut < 0 || i < cut) {
+			cut = i
 		}
 	}
-	return s
+	if cut >= 0 {
+		return s[:cut]
+	}
+	hold := 0
+	for _, t := range tags {
+		for n := min(len(t)-1, len(s)); n > hold; n-- {
+			if strings.HasSuffix(s, t[:n]) {
+				hold = n
+				break
+			}
+		}
+	}
+	return s[:len(s)-hold]
 }

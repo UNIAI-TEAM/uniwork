@@ -32,6 +32,10 @@ export const AiCapabilitiesSchema = z.object({
   actions: z
     .object({ enabled: z.boolean().catch(false), ceiling: z.string().catch("off"), mode: z.string().catch("") })
     .catch({ enabled: false, ceiling: "off", mode: "" }),
+  // Ask UNI's memory: `enabled` is the flag, `on` the person's switch; a malformed block hides memory, never AI.
+  memory: z
+    .object({ enabled: z.boolean().catch(false), on: z.boolean().catch(false) })
+    .catch({ enabled: false, on: false }),
 });
 export type AiCapabilities = z.infer<typeof AiCapabilitiesSchema>;
 
@@ -167,6 +171,64 @@ export type AiProposal = Omit<z.infer<typeof AiProposalSchema>, "status"> & {
   status: "pending" | "applying" | "applied" | "rejected" | "failed" | "undoing" | "undone" | "expired" | "unknown" | (string & {});
 };
 
+/**
+ * One "Nhớ điều này?" card (server AiMemoryProposalDTO). `action`, `kind` and
+ * `status` stay strings so a value a newer server adds still parses; `expired`
+ * is computed by the server at read time.
+ */
+export const AiMemoryProposalSchema = z.object({
+  id: z.string().catch(""),
+  message_id: z.string().catch(""),
+  position: z.number().catch(0),
+  action: z.string().catch(""),
+  memory_id: z.string().catch(""),
+  kind: z.string().catch(""),
+  text: z.string().catch(""),
+  before_kind: z.string().catch(""),
+  before_text: z.string().catch(""),
+  status: z.string().catch("unknown"),
+  expires_at: z.string().catch(""),
+});
+export type AiMemoryProposal = Omit<z.infer<typeof AiMemoryProposalSchema>, "action" | "status"> & {
+  action: "remember" | "update" | "forget" | (string & {});
+  status: "pending" | "applied" | "rejected" | "undone" | "expired" | "unknown" | (string & {});
+};
+
+export const AiMemorySchema = z.object({
+  id: z.string().catch(""),
+  kind: z.string().catch(""),
+  text: z.string().catch(""),
+  source: z.string().catch(""),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+});
+export type AiMemory = Omit<z.infer<typeof AiMemorySchema>, "kind"> & { kind: "preference" | "fact" | (string & {}) };
+
+export const AiMemoryListSchema = z.object({
+  entries: z.array(AiMemorySchema).catch([]),
+  on: z.boolean().catch(true),
+  limit: z.number().catch(50),
+  remaining: z.number().catch(50),
+});
+export type AiMemoryList = z.infer<typeof AiMemoryListSchema>;
+
+export const AiMemoryCandidateSchema = z.object({
+  text: z.string().catch(""),
+  kind: z.string().catch(""),
+  instruction_like: z.boolean().catch(false),
+  duplicate: z.boolean().catch(false),
+});
+export type AiMemoryCandidate = z.infer<typeof AiMemoryCandidateSchema>;
+
+export const AiMemoryImportSplitSchema = z.object({
+  candidates: z.array(AiMemoryCandidateSchema).catch([]),
+  skipped: z.array(z.object({ text: z.string().catch(""), reason: z.string().catch("") })).catch([]),
+});
+export type AiMemoryImportSplit = z.infer<typeof AiMemoryImportSplitSchema>;
+
+export const AiMemoryImportResultSchema = AiMemoryListSchema.extend({ skipped_duplicates: z.number().catch(0) });
+export type AiMemoryImportResult = z.infer<typeof AiMemoryImportResultSchema>;
+
 export const AiMessageSchema = z.object({
   id: z.string(),
   role: z.string(),
@@ -187,6 +249,9 @@ export const AiMessageSchema = z.object({
   file_notes: z.array(AiFileNoteSchema).catch([]),
   // On an answer: the rows UNI proposes, by position; a malformed list never drops the answer.
   proposals: z.array(AiProposalSchema).catch([]),
+  // On an answer: ids of the memory entries it used, and the memory cards UNI proposes; malformed lists never drop the answer.
+  memory_ids: z.array(z.string()).catch([]),
+  memory_proposals: z.array(AiMemoryProposalSchema).catch([]),
   created_at: z.string().optional().default(""),
 });
 export type AiMessage = Omit<z.infer<typeof AiMessageSchema>, "role"> & { role: "user" | "assistant" | (string & {}) };

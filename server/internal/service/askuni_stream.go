@@ -12,8 +12,8 @@ import (
 type AskSink func(AskEvent)
 
 // AskEvent is one event of a streamed turn. Name selects the field that
-// carries it: run, step, sources, delta, reasoning, proposal, citations,
-// followups, done, title or error. Delta carries the text of both delta and
+// carries it: run, step, sources, delta, reasoning, proposal,
+// memory_proposals, citations, followups, memory_used, done, title or error. Delta carries the text of both delta and
 // reasoning.
 type AskEvent struct {
 	Name      string
@@ -27,6 +27,9 @@ type AskEvent struct {
 	Title     *AskTitleEvent // the generated name of a new conversation, after done
 	Code      string
 	Proposals []AskProposal // the turn's rows after the store and any auto-applied ones (R18)
+	MemoryIDs []string      // the memory entries the answer used; sent only when there are some
+	// MemoryProposals are the turn's memory rows after the store (R11).
+	MemoryProposals []AskMemoryProposal
 }
 
 type AskRunEvent struct{ RunID, ConversationID string }
@@ -75,6 +78,9 @@ func (e AskSink) emitDone(res AskResult, followups []string) {
 	if len(followups) > 0 {
 		e.emit(AskEvent{Name: "followups", Followups: followups})
 	}
+	if len(res.MemoryIDs) > 0 {
+		e.emit(AskEvent{Name: "memory_used", MemoryIDs: res.MemoryIDs})
+	}
 	e.emit(AskEvent{Name: "done", Done: &res})
 }
 
@@ -84,9 +90,12 @@ type askDraft struct {
 	emit AskSink
 	// cutFollowups stops the text at the dock's follow-up block (R6).
 	cutFollowups bool
-	raw          strings.Builder
-	sent         string
-	stuck        bool
+	// cutMemory also stops it at <memory_used>; only a turn that told the
+	// model about memory has one.
+	cutMemory bool
+	raw       strings.Builder
+	sent      string
+	stuck     bool
 	// thought is the call's thinking summary so far (ask_uni_thinking).
 	thought strings.Builder
 }
@@ -127,7 +136,11 @@ func (d *askDraft) add(text string) {
 	}
 	clean := ai.StripUntrustedTags(r)
 	if d.cutFollowups {
-		clean = cutAtFollowups(clean)
+		if d.cutMemory {
+			clean = cutAtTags(clean, followupsTag, memoryUsedTag)
+		} else {
+			clean = cutAtFollowups(clean)
+		}
 	}
 	if !strings.HasPrefix(clean, d.sent) {
 		d.stuck = true

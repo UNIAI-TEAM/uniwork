@@ -75,6 +75,14 @@ beforeEach(() => {
 });
 
 describe("AskUniComposer", () => {
+  it("takes the memory screen's prefill once, then clears it", async () => {
+    useAiPanelStore.setState({ composerPrefill: "Cập nhật bộ nhớ của tôi: " });
+    mount();
+    await waitFor(() => expect(inline()).toEqual([{ type: "text", text: "Cập nhật bộ nhớ của tôi: " }]));
+    expect(useAiPanelStore.getState().composerPrefill).toBeNull();
+    expect(box().editor.isFocused).toBe(true);
+  });
+
   it("holds the chips, the box and the buttons in one frame", async () => {
     mount();
     act(() => useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m9" }));

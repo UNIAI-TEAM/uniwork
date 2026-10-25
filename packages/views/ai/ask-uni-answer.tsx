@@ -2,10 +2,11 @@
 
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useAiCapabilities } from "@uniwork/core/ai";
+import { useAiCapabilities, useAiConversations } from "@uniwork/core/ai";
 import type { AiCitation, AiMessage, AiStep } from "@uniwork/core/types";
 import { SafeMarkdown } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
@@ -13,6 +14,8 @@ import { dropEchoedNames } from "./ask-uni-text";
 import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniContextChips } from "./ask-uni-context-chips";
 import { AskUniFileNotes, AskUniQuestionFiles } from "./ask-uni-files";
+import { AskUniMemoryCard } from "./ask-uni-memory-card";
+import { AskUniMemoryUsed } from "./ask-uni-memory-used";
 import { AskUniProposalCard } from "./ask-uni-proposal-card";
 import { AskUniMessageMeta } from "./ask-uni-meta";
 import { useAskModelLook } from "./ask-uni-provider";
@@ -23,7 +26,7 @@ const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused"
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes" | "proposals">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes" | "proposals" | "memory_ids" | "memory_proposals">>;
 
 // How an answer or a question shows a link that isInAppHref lets through.
 const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
@@ -98,10 +101,20 @@ export function AskUniMessageTurn({
   const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
   // With actions off, the ceiling off (the server refuses every decision then) or not read yet, the card is history: its rows, no button.
   const hasProposals = (message.proposals?.length ?? 0) > 0;
-  const actions = useAiCapabilities(wsId, wsId !== "" && hasProposals).data?.actions;
+  const memoryProposals = message.memory_proposals ?? [];
+  const memoryIds = message.memory_ids ?? [];
+  const hasMemory = memoryProposals.length > 0 || memoryIds.length > 0;
+  const caps = useAiCapabilities(wsId, wsId !== "" && (hasProposals || hasMemory)).data;
+  const actions = caps?.actions;
   const actionsOn = actions?.enabled === true && actions.ceiling !== "off";
   // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
   const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
+  const stored = !streaming && settled;
+  // Memory proposals do not depend on P3 actions; with the memory flag off (or not read yet) an old answer shows no
+  // memory card or used line, so it reads no memory. The organization routes take the slug, never the id.
+  const orgSlug = useOptionalWorkspace()?.workspace.organization_slug ?? "";
+  const memoryOn = stored && !!conversationId && orgSlug !== "" && caps?.memory.enabled === true;
+  const tainted = useAiConversations(wsId, memoryOn && memoryProposals.length > 0).data?.find((c) => c.id === conversationId)?.tainted ?? false;
   if (message.role === "user") {
     return (
       <li className="flex flex-col items-end gap-1">
@@ -122,7 +135,6 @@ export function AskUniMessageTurn({
   const notice = message.notice ?? "";
   const noticeKey = NOTICES.has(notice) ? notice : notice ? "unavailable" : "";
   const showNotice = noticeKey !== "" && (message.content === "" || PARTIAL.has(notice));
-  const stored = !streaming && settled;
   return (
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
@@ -138,6 +150,14 @@ export function AskUniMessageTurn({
         <AskUniSources citations={message.citations} />
         {stored && conversationId && hasProposals ? (
           <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} readOnly={!actionsOn} />
+        ) : null}
+        {memoryOn && memoryProposals.length > 0 ? (
+          <AskUniMemoryCard message={{ id: message.id, memory_proposals: memoryProposals }} conversationId={conversationId} orgSlug={orgSlug} tainted={tainted} />
+        ) : null}
+        {memoryOn && memoryIds.length > 0 ? (
+          <div className="mt-2">
+            <AskUniMemoryUsed memoryIds={memoryIds} orgSlug={orgSlug} />
+          </div>
         ) : null}
         {stored && conversationId ? (
           <AskUniActions
