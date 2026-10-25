@@ -35,10 +35,10 @@ test("no source file imports a deprecated lucide alias", () => {
 });
 
 // One on-screen weight for every Lucide icon (docs/conventions.md › Icons ›
-// Stroke): base.css makes the stroke non-scaling at 1.5px.
-test("base.css strokes every Lucide icon 1.5px at every size", () => {
+// Stroke): base.css makes the stroke non-scaling at 2.5px.
+test("base.css strokes every Lucide icon 2.5px at every size", () => {
   const css = readFileSync("packages/ui/styles/base.css", "utf8");
-  assert.match(css, /svg\.lucide \{ stroke-width: 1\.5; \}/);
+  assert.match(css, /svg\.lucide \{ stroke-width: 2\.5; \}/);
   assert.match(css, /svg\.lucide :where\([^)]*\) \{ vector-effect: non-scaling-stroke; \}/);
 });
 
