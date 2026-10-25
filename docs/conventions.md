@@ -381,13 +381,26 @@ meeting's participants panel, a date field's `CalendarDays`) keeps its own.
 | 20px | `size-5` | header tiles, `IconTile size="md"` |
 | 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
 
+No size between the rows (`size-4.5`, `size-5.5`, `size-2`). `scripts/lucide-aliases.test.mjs`
+fails on one on a Lucide icon; the calls written before the rule sit in its
+shrinking `SIZE_BASELINE` until the icon sweep (UNI-2163) clears them.
+
 ### Stroke
 
-Lucide's default 2. Do not set `strokeWidth` on an icon to make it look lighter
-or heavier; pick the role's size instead. The one exception is the brand
-surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
-`auth-controls.tsx`), whose raised cards use a hairline 1.5–1.75 on tiles of
-`size="sm"` and up.
+One line weight on screen: every Lucide icon strokes 1.5px at every size.
+Lucide scales its stroke with the 24px viewBox, so its default 2 drew 1px at
+12px and 1.67px at 20px, and one screen showed four weights.
+`packages/ui/styles/base.css` makes the stroke non-scaling at 1.5, measured in
+CSS pixels, and it outranks any `strokeWidth` an icon is given.
+
+Do not set `strokeWidth` or `absoluteStrokeWidth` on a Lucide icon; pick the
+role's size instead. There is no exception, including the auth and onboarding
+cards, which used to draw a lighter hairline. `scripts/lucide-aliases.test.mjs`
+holds the rule in `base.css` and fails on a new stroke prop; the props written
+before it sit in its shrinking `STROKE_BASELINE` until the sweep clears them.
+Hand-drawn marks (`packages/ui/brand`, the task status and priority icons, the
+file-type marks) are not Lucide and draw their own weight. Beside line icons
+they match 1.5px at the size they render.
 
 ### Meaning
 
