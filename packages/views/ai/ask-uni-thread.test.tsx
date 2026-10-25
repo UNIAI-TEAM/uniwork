@@ -196,7 +196,9 @@ describe("AskUniThread", () => {
     await waitFor(() => expect(requestMock.mock.calls.some((c) => c[0] === "/api/v1/ai/conversations/c1/messages")).toBe(true));
     resolve({ messages: history });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
+    // SafeMarkdown remounts its paragraphs on every render, and the anchor settles one render after the history: query
+    // the final DOM, not a node found before that render.
+    await waitFor(() => expect(screen.getByText("Có 3 task quá hạn.")).toBeInTheDocument());
     expect(screen.getByText("một phần")).toBeInTheDocument();
   });
 
