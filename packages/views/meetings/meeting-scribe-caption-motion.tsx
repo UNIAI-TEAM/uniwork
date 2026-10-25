@@ -9,32 +9,100 @@ const WORD_OUT_MS = 170;
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
+/** How far the box is from its newest line, in px. */
+const gap = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight;
+
+/** How long the box takes to slide open or shut. */
+const SLIDE_MS = 300;
+/** The box's open and compact heights, in lines (compact is the region's `h-[calc(var(--cap-lh)*2.6)]`). */
+const OPEN_LINES = 6;
+const COMPACT_LINES = 2.6;
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+
 /**
  * The caption box follows the newest line, scrolling smoothly as lines wrap
  * in, until the viewer scrolls back to read: then new lines do not pull them
- * down, the box opens taller (`reading`), and `unseen` says lines arrived.
- * Scrolling back to the bottom, or `latest()`, follows again. Only the
- * viewer's own wheel, swipe or keys leave the bottom, so the box's own smooth
- * scrolls never count as reading. Reduced motion: it jumps instead of gliding.
- * `content` is what the box shows; each change of it is a chance it grew.
+ * down, the box slides open taller (`reading`), and `unseen` says lines
+ * arrived. `latest()` glides back down; reaching the bottom, by it or by
+ * scrolling, follows again and slides the box shut. Only the viewer's own
+ * wheel, swipe or keys leave the bottom, so the box's own smooth scrolls never
+ * count as reading. `content` is what the box shows: each change of it may
+ * have grown it. Reduced motion: it jumps instead of gliding.
  */
 export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: unknown) {
   const [reading, setReading] = useState(false);
   const [unseen, setUnseen] = useState(false);
-  const seen = useRef({ height: 0, box: 0 });
+  const height = useRef(0);
+  const slid = useRef(false);
+  // The box slides open or shut here, frame by frame, and only here: no class changes its height, so the
+  // commit that flips `reading` never lays the box out at another height first (any layout read then,
+  // a child's own effect included, would clip its scroll position and the lines would jump). Each frame
+  // sets the height and moves the lines in the same step, so they stay where the eye is: opening, the
+  // room it gains shows older lines above; shutting, the newest line stays on the bottom edge. The
+  // card's negative margin follows the height, so the room the box takes in the footer never changes.
+  // shortcut: the open height is set in px once, so crossing the sm breakpoint while open keeps the old
+  // line height until the box shuts; recompute on resize if that ever shows.
+  useLayoutEffect(() => {
+    const el = view.current;
+    const card = el?.parentElement;
+    if (!el || !card || slid.current === reading) return;
+    slid.current = reading;
+    const lineHeight = Number.parseFloat(getComputedStyle(card).getPropertyValue("--cap-lh")) || 0;
+    const compact = lineHeight * COMPACT_LINES;
+    const open = lineHeight * OPEN_LINES;
+    const place = (h: number) => {
+      el.style.height = `${h}px`;
+      card.style.marginTop = `${compact - h}px`;
+    };
+    const rest = () => {
+      if (reading) place(open);
+      else {
+        el.style.height = "";
+        card.style.marginTop = "";
+        el.scrollTop = el.scrollHeight;
+      }
+    };
+    if (!lineHeight || reducedMotion()) {
+      rest();
+      return;
+    }
+    const from = reading ? compact : open;
+    const to = reading ? open : compact;
+    const start = performance.now();
+    let shown = from;
+    let frame = 0;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / SLIDE_MS);
+      const h = from + (to - from) * easeOut(t);
+      place(h);
+      if (reading) el.scrollTop -= h - shown;
+      else el.scrollTop = el.scrollHeight;
+      shown = h;
+      if (t < 1) frame = requestAnimationFrame(step);
+      else rest();
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [view, reading]);
+  // Unmounted while open: nothing is left inline.
+  useEffect(
+    () => () => {
+      const el = view.current;
+      if (el) el.style.height = "";
+      if (el?.parentElement) el.parentElement.style.marginTop = "";
+    },
+    [view],
+  );
   useLayoutEffect(() => {
     const el = view.current;
     if (!el) return;
     // The lines' own height: the box's scrollHeight also grows when the box opens over fewer lines.
-    const height = (el.firstElementChild as HTMLElement | null)?.offsetHeight ?? el.scrollHeight;
-    const grew = height > seen.current.height;
-    // Opening taller keeps the lines where the eye left them: the room it gains shows older lines above.
-    const opened = el.clientHeight - seen.current.box;
-    seen.current = { height, box: el.clientHeight };
+    const lines = (el.firstElementChild as HTMLElement | null)?.offsetHeight ?? el.scrollHeight;
+    const grew = lines > height.current;
+    height.current = lines;
     if (reading) {
-      if (opened > 0) el.scrollTop -= opened;
       if (grew && !unseen) setUnseen(true);
-    } else if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+    } else if (gap(el) > 1) {
       el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? "auto" : "smooth" });
     }
   }, [view, reading, unseen, content]);
@@ -60,7 +128,7 @@ export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: u
       if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "Home") leave();
     };
     const onScroll = () => {
-      if (el.scrollHeight - el.scrollTop - el.clientHeight <= 2) {
+      if (gap(el) <= 2) {
         setReading(false);
         setUnseen(false);
       }
@@ -78,9 +146,15 @@ export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: u
       el.removeEventListener("scroll", onScroll);
     };
   }, [view]);
+  // Glide down first, still open; reaching the bottom (onScroll) follows again and shuts the box.
   const latest = () => {
-    setReading(false);
-    setUnseen(false);
+    const el = view.current;
+    if (!el || gap(el) <= 2) {
+      setReading(false);
+      setUnseen(false);
+      return;
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? "auto" : "smooth" });
   };
   return { reading, unseen, latest };
 }

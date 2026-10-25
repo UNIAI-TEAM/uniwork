@@ -449,11 +449,11 @@ export function MeetingScribeCaptions({
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-translation-notice">
         {notice}
       </p>
-      {/* Reading back, the box opens upwards over the stage: its negative margin keeps the room it takes in the
-          footer, so the tiles never reflow while someone scrolls. */}
+      {/* Reading back, the box slides open upwards over the stage: its negative margin keeps the room it takes
+          in the footer, so the tiles never reflow while someone scrolls (useCaptionScroll slides both). */}
       <div
         data-reading={reading ? "" : undefined}
-        className="relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px] data-reading:-mt-[calc(var(--cap-lh)*3.4)] data-reading:animate-caption-reveal"
+        className="relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px]"
       >
         {/* Joining or translating, the scribe is busy rather than listening: the light gathers and travels. */}
         <ScribeVoiceLine level={() => roomLoudness(room)} processing={joining || translating} />
@@ -478,42 +478,68 @@ export function MeetingScribeCaptions({
               <span>{t("meetings.scribe.captionUntranslated")}</span>
             ) : null}
           </p>
-          {meetingId ? (
-            <ToggleGroup
-              value={[lang || ORIGINAL]}
-              onValueChange={(v) => {
-                // Pressing the language that is on would clear the group; one is always picked.
-                const next = v[0];
-                if (next === ORIGINAL) pick("");
-                else if (next === "vi" || next === "en") pick(next);
-              }}
-              aria-label={t("meetings.scribe.captionLanguage")}
-              className="pointer-events-auto relative isolate ms-auto rounded-full bg-meeting-bar-chip-bg/60 p-[3px] ring-1 ring-meeting-bar-border/70"
-            >
-              {/* The picked language sits on a thumb that slides to it; it sweeps violet while a translation is on its way. */}
-              <span
-                ref={thumb}
-                aria-hidden
-                data-testid="meeting-caption-language-thumb"
-                data-language={lang || ORIGINAL}
-                className={cn(
-                  "absolute inset-y-[3px] left-0 -z-10 rounded-full shadow-surface ring-1 ring-meeting-bar-chip-hover/80 data-placed:transition-[transform,width] data-placed:duration-[420ms] data-placed:ease-[cubic-bezier(0.3,1.3,0.5,1)]",
-                  translating ? "animate-caption-thumb-sweep" : "bg-meeting-bar-chip-hover/80",
-                )}
-              />
-              {LANGUAGES.map(([value, name, short]) => (
-                <ToggleGroupItem
-                  key={value}
-                  value={value}
-                  aria-label={t(name)}
-                  title={t(name)}
-                  className="h-[26px] min-w-[38px] text-caption font-semibold tracking-[0.02em] text-meeting-bar-muted-foreground group-data-[spacing=0]/toggle-group:rounded-full group-data-[spacing=0]/toggle-group:px-2.5 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-full group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-full hover:bg-transparent hover:text-meeting-bar-foreground aria-pressed:bg-transparent aria-pressed:text-meeting-bar-foreground pointer-coarse:min-h-11"
-                >
-                  {t(short)}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          ) : null}
+          <div className="ms-auto flex items-center gap-2">
+            {/* Reading back: the way down to the newest line, beside the picker, so it covers no words and
+                the lines keep their width (a padding for it would rewrap them and move the one being read). */}
+            {reading ? (
+              <Button
+                type="button"
+                variant="meetingChip"
+                size="icon"
+                onClick={latest}
+                aria-label={t("meetings.scribe.captionsLatest")}
+                title={t("meetings.scribe.captionsLatest")}
+                data-testid="meeting-caption-latest"
+                className="pointer-events-auto relative animate-caption-chip-in rounded-full"
+              >
+                <ArrowDown aria-hidden className="size-4" />
+                {/* New lines came while reading back. */}
+                {unseen ? (
+                  <span
+                    aria-hidden
+                    data-testid="meeting-caption-unseen"
+                    className="absolute top-0.5 right-0.5 size-2 rounded-full bg-tint-violet-foreground"
+                  />
+                ) : null}
+              </Button>
+            ) : null}
+            {meetingId ? (
+              <ToggleGroup
+                value={[lang || ORIGINAL]}
+                onValueChange={(v) => {
+                  // Pressing the language that is on would clear the group; one is always picked.
+                  const next = v[0];
+                  if (next === ORIGINAL) pick("");
+                  else if (next === "vi" || next === "en") pick(next);
+                }}
+                aria-label={t("meetings.scribe.captionLanguage")}
+                className="pointer-events-auto relative isolate rounded-full bg-meeting-bar-chip-bg/60 p-[3px] ring-1 ring-meeting-bar-border/70"
+              >
+                {/* The picked language sits on a thumb that slides to it; it sweeps violet while a translation is on its way. */}
+                <span
+                  ref={thumb}
+                  aria-hidden
+                  data-testid="meeting-caption-language-thumb"
+                  data-language={lang || ORIGINAL}
+                  className={cn(
+                    "absolute inset-y-[3px] left-0 -z-10 rounded-full shadow-surface ring-1 ring-meeting-bar-chip-hover/80 data-placed:transition-[transform,width] data-placed:duration-[420ms] data-placed:ease-[cubic-bezier(0.3,1.3,0.5,1)]",
+                    translating ? "animate-caption-thumb-sweep" : "bg-meeting-bar-chip-hover/80",
+                  )}
+                />
+                {LANGUAGES.map(([value, name, short]) => (
+                  <ToggleGroupItem
+                    key={value}
+                    value={value}
+                    aria-label={t(name)}
+                    title={t(name)}
+                    className="h-[26px] min-w-[38px] text-caption font-semibold tracking-[0.02em] text-meeting-bar-muted-foreground group-data-[spacing=0]/toggle-group:rounded-full group-data-[spacing=0]/toggle-group:px-2.5 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-full group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-full hover:bg-transparent hover:text-meeting-bar-foreground aria-pressed:bg-transparent aria-pressed:text-meeting-bar-foreground pointer-coarse:min-h-11"
+                  >
+                    {t(short)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            ) : null}
+          </div>
         </div>
         {/* Two lines in full, the one before fading out at the top edge as the newest wraps in below. Scrolled
             back, it opens to six and new lines wait below until the viewer comes back down. */}
@@ -525,7 +551,7 @@ export function MeetingScribeCaptions({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           data-reading={reading ? "" : undefined}
-          className="pointer-events-auto relative mt-1.5 flex h-[calc(var(--cap-lh)*2.6)] flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] sm:text-title data-reading:h-[calc(var(--cap-lh)*6)] data-reading:pe-10 [&::-webkit-scrollbar]:hidden"
+          className="pointer-events-auto relative mt-1.5 flex h-[calc(var(--cap-lh)*2.6)] flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] data-reading:[mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95),black_calc(100%-1lh*0.6),transparent)] sm:text-title [&::-webkit-scrollbar]:hidden"
         >
           {/* mt-auto, not justify-end: a column justified to its end cannot scroll back to what overflows its start. */}
           <div className="mt-auto">
@@ -554,24 +580,6 @@ export function MeetingScribeCaptions({
             )}
           </div>
         </div>
-        {reading ? (
-          <Button
-            type="button"
-            variant="meetingChip"
-            size="icon"
-            onClick={latest}
-            aria-label={t("meetings.scribe.captionsLatest")}
-            title={t("meetings.scribe.captionsLatest")}
-            data-testid="meeting-caption-latest"
-            className="pointer-events-auto absolute right-3 bottom-3 z-10 animate-caption-chip-in rounded-full"
-          >
-            <ArrowDown aria-hidden className="size-4" />
-            {/* New lines came while reading back. */}
-            {unseen ? (
-              <span aria-hidden data-testid="meeting-caption-unseen" className="absolute top-0.5 right-0.5 size-2 rounded-full bg-tint-violet-foreground" />
-            ) : null}
-          </Button>
-        ) : null}
       </div>
     </div>
   );

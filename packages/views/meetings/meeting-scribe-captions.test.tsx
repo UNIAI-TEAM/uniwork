@@ -157,10 +157,14 @@ describe("MeetingScribeCaptions", () => {
     await caption("uw_agent_scribe", attrs("uw_participant_p2", "TR2-1", true), "Câu mới");
     expect(scrollTo).not.toHaveBeenCalled();
     expect(screen.getByTestId("meeting-caption-unseen")).toBeInTheDocument();
+    // The arrow glides down while the box stays open; reaching the bottom follows again and shuts it.
     fireEvent.click(latest);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 330, behavior: "smooth" });
+    expect(region).toHaveAttribute("data-reading");
+    top = 260;
+    fireEvent.scroll(region);
     expect(screen.queryByTestId("meeting-caption-latest")).not.toBeInTheDocument();
     expect(region).not.toHaveAttribute("data-reading");
-    expect(scrollTo).toHaveBeenCalledWith({ top: 330, behavior: "smooth" });
   });
 
   it("follows again once the viewer scrolls back to the bottom themselves", async () => {
