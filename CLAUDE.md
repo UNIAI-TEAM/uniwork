@@ -622,7 +622,7 @@ When adding a shared screen:
   `pnpm generate:lucide-aliases`), draw a module with `MODULE_ICONS` from
   `packages/views/layout/module-icons.ts`, and show loading with `<Spinner />`.
   `scripts/lucide-aliases.test.mjs` fails on an alias import or a raw
-  `LoaderCircle` at every gate level. Every Lucide icon strokes 2px at every
+  `LoaderCircle` at every gate level. Every Lucide icon strokes 1.5px at every
   size (`packages/ui/styles/base.css`, non-scaling); the same test fails on a
   `strokeWidth` prop or a size off the scale on one.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`

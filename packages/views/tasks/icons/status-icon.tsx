@@ -24,7 +24,7 @@ function ProgressCircle({ progress, children }: { progress: number; children?: R
         r={OUTER_RADIUS}
         fill="none"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         strokeDasharray="3.14 0"
         strokeDashoffset={-0.7}
@@ -79,7 +79,7 @@ function BlockedIcon() {
         x2={CENTER + FILL_RADIUS * Math.cos(-Math.PI * 0.25)}
         y2={CENTER - FILL_RADIUS * Math.sin(-Math.PI * 0.25)}
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
       />
@@ -94,7 +94,7 @@ function CancelledIcon() {
         d="M5 5 L9 9 M9 5 L5 9"
         fill="none"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
       />
@@ -141,9 +141,8 @@ export function StatusIcon({
       viewBox="0 0 14 14"
       fill="none"
       style={customColor ? { color: color ?? undefined } : undefined}
-      // overflow-visible: the 2px on-screen ring (the Lucide weight) reaches past the box at 12px.
       className={cn(
-        "size-4 shrink-0 overflow-visible",
+        "size-4 shrink-0",
         !inheritColor && !customColor && STATUS_CONFIG[category].iconColor,
         className,
       )}

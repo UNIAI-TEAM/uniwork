@@ -82,7 +82,7 @@ export const ScribeMark = forwardRef<SVGSVGElement, ScribeMarkProps>(function Sc
 /**
  * The same bars and lines in one colour, no tile, for a slot among other line
  * icons (a property row, a form field, a menu): it takes the text colour and the
- * same 2px on-screen stroke base.css gives the Lucide icons.
+ * same 1.5px on-screen stroke base.css gives the Lucide icons.
  */
 export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function ScribeGlyph({ size = 24, className, ...rest }, ref) {
   return (
@@ -93,7 +93,7 @@ export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function Scrib
       height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={1.5}
       strokeLinecap="round"
       aria-hidden
       focusable={false}

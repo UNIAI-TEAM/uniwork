@@ -55,7 +55,7 @@ const iconTileVariants = cva(
   {
     variants: {
       size: {
-        // 14px, not 12: at 12px the fixed 2px icon stroke closes up a glyph's inner detail.
+        // 14px, not 12: under the fixed icon stroke a module glyph keeps its inner detail open at 14px.
         xs: "size-5 rounded-[5px] [&_svg]:size-3.5",
         sm: "size-7 rounded-md [&_svg]:size-3.5",
         md: "size-10 rounded-lg [&_svg]:size-5",
