@@ -30,6 +30,8 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	switch {
 	case strings.Contains(req.System, "Name this conversation"):
 		text = "Fake title"
+	case strings.Contains(req.System, "You split text a person pasted"):
+		text = fakeMemoryImport(last)
 	case strings.Contains(req.System, "You are UNI") && len(req.Tools) > 0:
 		return fakeAgentReply(req)
 	case strings.Contains(req.System, "You are UNI"):
@@ -169,9 +171,19 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 		}
 	}
 	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
-	title, proposes := "", false
+	title, proposes, remembers := "", false, false
 	for _, t := range req.Tools {
 		proposes = proposes || t.Name == "create_task"
+		remembers = remembers || t.Name == "propose_memory"
+	}
+	// Memory turn: the user turn carries a non-empty memory block (the empty one
+	// has no asker_memory fence), so the answer ends with the used line. Only the
+	// asker's own question can start a memory proposal, never a tool result.
+	usesMemory := strings.Contains(last, `<untrusted source="asker_memory">`)
+	q := strings.TrimSpace(fakeQuestion(last))
+	memoryText, wantsMemory := "", remembers && !strings.Contains(tool, "memory row") && (strings.HasPrefix(q, "Từ giờ ") || strings.HasPrefix(q, "Nhớ giúp tôi"))
+	if wantsMemory {
+		memoryText = string([]rune(q)[:min(300, len([]rune(q)))])
 	}
 	if rest, ok := strings.CutPrefix(fakeQuestion(last), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
 		title = strings.TrimSpace(rest)
@@ -185,7 +197,14 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 			hijack = strings.TrimSpace(m[1])
 		}
 	}
-	if hijack != "" {
+	if wantsMemory {
+		in, _ := json.Marshal(map[string]string{"action": "remember", "kind": "preference", "text": memoryText})
+		resp.ToolCalls = []provider.ToolCall{{ID: "fake-memory-1", Name: "propose_memory", Input: in}}
+		resp.StopReason = "tool_use"
+	} else if remembers && strings.Contains(tool, "memory row") {
+		// The row is a draft: the answer never says it was saved.
+		resp.Text = "Mình sẽ nhớ nếu bạn đồng ý; bạn xem thẻ đề xuất bên dưới."
+	} else if hijack != "" {
 		in, _ := json.Marshal(map[string]string{"title": hijack})
 		resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
 		resp.StopReason = "tool_use"
@@ -216,14 +235,34 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 		}
 		resp.Text = "Tôi tìm thấy " + itoa(len(matches)) + " nguồn liên quan: " + strings.Join(refs, "; ")
 	}
+	if usesMemory && resp.Text != "" {
+		resp.Text += "\n<memory_used>M1</memory_used>"
+	}
 	resp.OutputTokens = estimateTokens(resp.Text)
 	return resp
 }
 
+// fakeMemoryImport is memory_import@1's fake: every non-empty line of the
+// paste is one fact, its list marker dropped.
+func fakeMemoryImport(rendered string) string {
+	entries := []map[string]any{}
+	for _, line := range strings.Split(fakeUntrusted(rendered, "pasted_memory"), "\n") {
+		if line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-*•")); line != "" {
+			entries = append(entries, map[string]any{"text": line, "kind": "fact", "instruction_like": false, "skip_reason": ""})
+		}
+	}
+	b, _ := json.Marshal(map[string]any{"entries": entries})
+	return string(b)
+}
+
 // fakeQuestion pulls the asker's question out of the rendered user message and
 // undoes EscapeUntrusted's tag escaping.
-func fakeQuestion(rendered string) string {
-	const open = `<untrusted source="question">`
+func fakeQuestion(rendered string) string { return fakeUntrusted(rendered, "question") }
+
+// fakeUntrusted is the content of the source block of a rendered message,
+// unescaped; the whole message when there is no such block.
+func fakeUntrusted(rendered, source string) string {
+	open := `<untrusted source="` + source + `">`
 	i := strings.Index(rendered, open)
 	if i < 0 {
 		return rendered

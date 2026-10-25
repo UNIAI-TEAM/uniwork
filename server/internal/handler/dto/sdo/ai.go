@@ -18,8 +18,9 @@ type AiCapabilitiesSDO struct {
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
 	// Attachments is false while ask_uni_attachments is off for the caller or
 	// their turn would not run the agent; the client then hides the upload entry.
-	Actions     AiActionsDTO `json:"actions" description:"Trạng thái hành động ghi của Hỏi UNI cho người gọi"`
-	Attachments bool         `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
+	Actions     AiActionsDTO    `json:"actions" description:"Trạng thái hành động ghi của Hỏi UNI cho người gọi"`
+	Memory      AiMemoryCapsDTO `json:"memory" description:"Bộ nhớ của Hỏi UNI cho người gọi"`
+	Attachments bool            `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
 }
 
 // AiActionsDTO is Ask UNI's write state for the caller.
@@ -119,7 +120,27 @@ type AiMessageDTO struct {
 	// Proposals is filled by the list of messages and the proposal event; the
 	// done event's message carries none.
 	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
-	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	MemoryIDs []string        `json:"memory_ids" description:"Trên câu trả lời: id các mục bộ nhớ của người hỏi mà UNI đã dùng; rỗng ở mọi tin khác" example:"[\"01K4AIMEM0000000000000001\"]"`
+	// MemoryProposals is filled by the list of messages and the
+	// memory_proposals event; the done event's message carries none.
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Các đề xuất nhớ, sửa, quên mục bộ nhớ UNI đưa ra trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
+	CreatedAt       string                `json:"created_at" example:"2026-09-06T08:00:00Z"`
+}
+
+// AiMemoryProposalDTO is one card "Nhớ điều này?" under an answer. It is the
+// asker's own memory, never work data, and only the asker decides it.
+type AiMemoryProposalDTO struct {
+	ID         string `json:"id" example:"01K4AIMPR0000000000000001"`
+	MessageID  string `json:"message_id" example:"01K4AIMSG0000000000000001"`
+	Position   int    `json:"position" description:"Thứ tự trong câu trả lời, từ 1 tới 3" example:"1"`
+	Action     string `json:"action" description:"remember, update hoặc forget" example:"remember"`
+	MemoryID   string `json:"memory_id" description:"Mục bộ nhớ mà update/forget nhắm tới; với remember là mục được tạo khi áp dụng; rỗng khi chưa có" example:""`
+	Kind       string `json:"kind" description:"preference hoặc fact sẽ lưu (remember, update); rỗng với forget" example:"preference"`
+	Text       string `json:"text" description:"Chữ sẽ lưu (remember, update); rỗng với forget" example:"Gọi tôi là anh Vinh"`
+	BeforeKind string `json:"before_kind" description:"Loại của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	BeforeText string `json:"before_text" description:"Chữ của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	Status     string `json:"status" description:"pending, applied, rejected, undone; thêm expired (pending quá hạn 24 giờ) tính lúc đọc" example:"pending"`
+	ExpiresAt  string `json:"expires_at" example:"2026-09-07T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.
@@ -180,6 +201,12 @@ type AskStreamFollowupsDTO struct {
 	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
 }
 
+// AskStreamMemoryUsedDTO is the data of event memory_used, sent before done
+// when the answer used entries of the asker's memory.
+type AskStreamMemoryUsedDTO struct {
+	MemoryIDs []string `json:"memory_ids" description:"Id các mục bộ nhớ của người hỏi mà câu trả lời đã dùng" example:"[\"01K4AIMEM0000000000000001\"]"`
+}
+
 // AskStreamTitleDTO is the data of event title, sent after done when UNI named
 // a new conversation; the stream may stay open briefly for it.
 type AskStreamTitleDTO struct {
@@ -205,6 +232,12 @@ type AskStreamDoneDTO struct {
 // store and any auto-applied ones, before citations.
 type AskStreamProposalDTO struct {
 	Proposals []AiProposalDTO `json:"proposals" description:"Mỗi dòng mang trạng thái của nó; dòng tự áp dụng đến với status applied"`
+}
+
+// AskStreamMemoryProposalsDTO is the data of event memory_proposals: the
+// turn's memory rows after the store, after proposal and before citations.
+type AskStreamMemoryProposalsDTO struct {
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Mỗi dòng ở trạng thái pending; người hỏi quyết từng dòng"`
 }
 
 // AskStreamErrorDTO is the data of event error: a code, never text.
@@ -355,4 +388,63 @@ type AskUniModeSDO struct {
 // AskWritePolicySDO is GET and PUT /api/v1/orgs/{org}/ai/ask-write-policy.
 type AskWritePolicySDO struct {
 	Ceiling string `json:"ceiling" description:"off, ask, plan hoặc auto; chưa đặt thì plan" example:"plan"`
+}
+
+// AiMemoryCapsDTO is Ask UNI's memory state for the caller.
+type AiMemoryCapsDTO struct {
+	Enabled bool `json:"enabled" description:"Cờ ask_uni_memory bật và lượt hỏi chạy agent; false thì client ẩn mọi thứ về bộ nhớ" example:"true"`
+	On      bool `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi (users.ask_uni_memory_off đảo lại)" example:"true"`
+}
+
+// AiMemoryDTO is one entry of the caller's memory.
+type AiMemoryDTO struct {
+	ID        string `json:"id" description:"Mã mục bộ nhớ" example:"01K4AIMEM0000000000000001"`
+	Kind      string `json:"kind" description:"preference (cách UNI trả lời) hoặc fact (về bạn)" example:"fact"`
+	Text      string `json:"text" description:"Một dòng, 1–300 ký tự" example:"Tôi làm ở phòng kinh doanh"`
+	Source    string `json:"source" description:"manual, chat hoặc import" example:"manual"`
+	CreatedAt string `json:"created_at" description:"Thời điểm thêm (RFC 3339)" example:"2026-10-24T09:00:00Z"`
+	UpdatedAt string `json:"updated_at" description:"Thời điểm sửa gần nhất (RFC 3339)" example:"2026-10-24T09:00:00Z"`
+}
+
+// AiMemoryListSDO is GET /api/v1/orgs/{org}/ai/memory.
+type AiMemoryListSDO struct {
+	Entries   []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức, cách trả lời trước, rồi theo thứ tự thêm (cũ trước)"`
+	On        bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit     int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining int           `json:"remaining" description:"Số mục còn thêm được" example:"49"`
+}
+
+// AiMemoryCandidateDTO is one entry UNI split out of a paste, for the person to tick.
+type AiMemoryCandidateDTO struct {
+	Text            string `json:"text" description:"Một dòng 1–300 ký tự, đã chuẩn hóa" example:"Trả lời ngắn gọn"`
+	Kind            string `json:"kind" description:"preference hoặc fact" example:"preference"`
+	InstructionLike bool   `json:"instruction_like" description:"Mục giống một mệnh lệnh cho AI (model hoặc server đánh dấu); client không tick sẵn" example:"false"`
+	Duplicate       bool   `json:"duplicate" description:"Trùng một mục đã có hoặc một mục trước trong lần dán; client không tick sẵn" example:"false"`
+}
+
+// AiMemorySkippedDTO is a line of the paste UNI left out.
+type AiMemorySkippedDTO struct {
+	Text   string `json:"text" description:"Chữ của dòng bị bỏ" example:"Tôi hay đau đầu"`
+	Reason string `json:"reason" description:"personal, other_person, secret hoặc not_about_user" example:"personal"`
+}
+
+// AiMemoryImportSplitSDO is POST /api/v1/orgs/{org}/ai/memory/import/split.
+type AiMemoryImportSplitSDO struct {
+	Candidates []AiMemoryCandidateDTO `json:"candidates" description:"Tối đa 100 mục để duyệt, theo thứ tự trong chữ dán"`
+	Skipped    []AiMemorySkippedDTO   `json:"skipped" description:"Dòng bị bỏ, chỉ để xem"`
+}
+
+// AiMemoryImportSDO is POST /api/v1/orgs/{org}/ai/memory/import: the memory
+// after the save, as GET answers it, and how many ticked entries it skipped.
+type AiMemoryImportSDO struct {
+	Entries           []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức sau khi lưu, cách trả lời trước, rồi theo thứ tự thêm"`
+	On                bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit             int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining         int           `json:"remaining" description:"Số mục còn thêm được" example:"45"`
+	SkippedDuplicates int           `json:"skipped_duplicates" description:"Số mục đã tick nhưng không lưu vì trùng bộ nhớ hoặc trùng một mục trước trong lần lưu" example:"1"`
+}
+
+// AiMemoryClearSDO is DELETE /api/v1/orgs/{org}/ai/memory.
+type AiMemoryClearSDO struct {
+	Deleted int64 `json:"deleted" description:"Số mục đã xóa" example:"3"`
 }

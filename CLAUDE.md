@@ -404,6 +404,8 @@ Every command that changes business state writes an `audit_events` row and its
   `TestChatPushNeverReachesAPushKitToken`,
   `TestCallRingClosedEndsTheCallKitRing` and
   `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
+- Audit rows of Ask UNI memory never carry the entry text (spec 2026-10-24
+  §5.10): `TestAiMemoryAuditCarriesNoText`.
 
 ## Platform Admin and Observability
 

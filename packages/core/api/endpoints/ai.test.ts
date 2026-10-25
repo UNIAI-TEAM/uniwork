@@ -192,6 +192,11 @@ describe("ai endpoints", () => {
     for (const m of msgs.slice(2)) expect([m.attachments, m.file_notes]).toEqual([[], []]);
   });
 
+  it("getAiCapabilities degrades a malformed memory block to off without disabling AI", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, memory: "nope" }));
+    expect(await getAiCapabilities("ws1")).toMatchObject({ enabled: true, memory: { enabled: false, on: false } });
+  });
+
   it("getAiCapabilities reads attachments and a malformed flag hides uploads without disabling AI", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, attachments: true }));
     expect((await getAiCapabilities("ws1")).attachments).toBe(true);

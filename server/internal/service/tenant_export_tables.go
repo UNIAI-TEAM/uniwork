@@ -69,6 +69,8 @@ var tenantExportIncludedTables = []string{
 	"agents",
 	"ai_attachments",
 	"ai_conversations",
+	"ai_memories",
+	"ai_memory_proposals",
 	"ai_message_feedback",
 	"ai_messages",
 	"attachments",

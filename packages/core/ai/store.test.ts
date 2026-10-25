@@ -4,6 +4,8 @@ import { useAiPanelStore } from "./store";
 describe("ai panel store", () => {
   afterEach(() => {
     useAiPanelStore.setState({
+      view: "thread",
+      composerPrefill: null,
       open: false,
       conversationId: null,
       pendingFocus: null,
@@ -106,5 +108,33 @@ describe("ai panel page context", () => {
     useAiPanelStore.getState().setPage(T);
     useAiPanelStore.getState().setPage(null);
     expect(useAiPanelStore.getState().page).toBeNull();
+  });
+
+  it("view switches to memory and back to the thread on a workspace change or close", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    expect(useAiPanelStore.getState().view).toBe("memory");
+    s.setView("memory-import");
+    s.bindWorkspace("w1");
+    expect(useAiPanelStore.getState().view).toBe("memory-import");
+    s.bindWorkspace("w2");
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    s.setOpen(false);
+    expect(useAiPanelStore.getState().view).toBe("thread");
+    s.setView("memory");
+    s.toggle();
+    s.toggle();
+    expect(useAiPanelStore.getState().view).toBe("thread");
+  });
+
+  it("composerPrefill is set and cleared", () => {
+    const s = useAiPanelStore.getState();
+    s.setComposerPrefill("Cập nhật bộ nhớ của tôi: ");
+    expect(useAiPanelStore.getState().composerPrefill).toBe("Cập nhật bộ nhớ của tôi: ");
+    s.setComposerPrefill(null);
+    expect(useAiPanelStore.getState().composerPrefill).toBeNull();
   });
 });

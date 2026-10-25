@@ -345,6 +345,14 @@ const (
 	ActionAIProposalRejected = "ai_proposal.rejected"
 	ActionAIProposalUndone   = "ai_proposal.undone"
 
+	// Ask UNI memory (P4, AiMemoryService): entries the person keeps. Metadata
+	// carries kind, source and length, never the text.
+	ActionAIMemoryCreated          = "ai_memory.created"
+	ActionAIMemoryUpdated          = "ai_memory.updated"
+	ActionAIMemoryDeleted          = "ai_memory.deleted"
+	ActionAIMemoryCleared          = "ai_memory.cleared"
+	ActionAIMemoryProposalRejected = "ai_memory_proposal.rejected"
+
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 

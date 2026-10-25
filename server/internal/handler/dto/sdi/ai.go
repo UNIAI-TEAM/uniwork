@@ -76,3 +76,36 @@ type AskUniModeSDI struct {
 type AskWritePolicySDI struct {
 	Ceiling string `json:"ceiling" description:"Trần chế độ ghi của Hỏi UNI trong tổ chức: off, ask, plan hoặc auto; giá trị khác thì 400" example:"plan"`
 }
+
+// AiMemoryCreateSDI is POST /api/v1/orgs/{org}/ai/memory.
+type AiMemoryCreateSDI struct {
+	Kind string `json:"kind" description:"preference hoặc fact" example:"fact"`
+	Text string `json:"text" description:"Một dòng 1–300 ký tự, không xuống dòng hay ký tự điều khiển" example:"Tôi làm ở phòng kinh doanh"`
+}
+
+// AiMemoryUpdateSDI is PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}; a field left out stays.
+type AiMemoryUpdateSDI struct {
+	Kind *string `json:"kind" description:"preference hoặc fact; bỏ trống thì giữ" example:"preference"`
+	Text *string `json:"text" description:"Chữ mới 1–300 ký tự; bỏ trống thì giữ" example:"Trả lời ngắn gọn"`
+}
+
+// AiMemoryProposalEditSDI is PATCH /api/v1/ai/memory-proposals/{memoryProposalID}; a field left out stays.
+type AiMemoryProposalEditSDI struct {
+	Kind *string `json:"kind" description:"preference hoặc fact; bỏ trống thì giữ" example:"fact"`
+	Text *string `json:"text" description:"Chữ sẽ lưu, 1–300 ký tự, một dòng; bỏ trống thì giữ" example:"Gọi tôi là Vinh"`
+}
+
+// AiMemoryImportSplitSDI is POST /api/v1/orgs/{org}/ai/memory/import/split.
+type AiMemoryImportSplitSDI struct {
+	Text string `json:"text" description:"Chữ dán từ ChatGPT, Claude hoặc Gemini, 1–20.000 ký tự; server không lưu chữ này" example:"- Trả lời ngắn gọn"`
+}
+
+// AiMemoryImportSDI is POST /api/v1/orgs/{org}/ai/memory/import.
+type AiMemoryImportSDI struct {
+	Entries []AiMemoryCreateSDI `json:"entries" description:"Các mục người dùng đã tick, 1–50 mục; mỗi mục kiểm như thêm tay"`
+}
+
+// AiMemorySwitchSDI is PUT /api/v1/me/ask-uni-memory.
+type AiMemorySwitchSDI struct {
+	Enabled bool `json:"enabled" description:"true bật Dùng bộ nhớ, false tắt" example:"true"`
+}

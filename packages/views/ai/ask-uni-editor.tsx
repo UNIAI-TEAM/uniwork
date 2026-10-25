@@ -35,6 +35,8 @@ export interface AskUniQuestion {
 export interface AskUniEditorHandle {
   clear(): void;
   focus(): void;
+  /** Appends text at the end and puts the caret after it. */
+  insert(text: string): void;
   isEmpty(): boolean;
 }
 
@@ -163,6 +165,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
   const picker = useRef<AskUniObjectPickerHandle>(null);
   const suggestion = useRef<Open | null>(null);
   const wantsFocus = useRef(false);
+  const wantsText = useRef<string | null>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string>();
   const [notice, setNotice] = useState("");
@@ -291,6 +294,13 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
     editor.view.focus();
   }, [editor]);
 
+  // Text asked for before the editor existed lands once it does.
+  useEffect(() => {
+    if (!editor || wantsText.current === null) return;
+    editor.chain().focus("end").insertContent(wantsText.current).run();
+    wantsText.current = null;
+  }, [editor]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -301,6 +311,10 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
       focus() {
         if (editor) editor.view.focus();
         else wantsFocus.current = true;
+      },
+      insert(text) {
+        if (editor) editor.chain().focus("end").insertContent(text).run();
+        else wantsText.current = text;
       },
       isEmpty: () => !editor || toQuestion(editor).question === "",
     }),

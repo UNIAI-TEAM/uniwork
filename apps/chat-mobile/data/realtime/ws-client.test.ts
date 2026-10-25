@@ -133,6 +133,33 @@ describe("WSClient presence beat", () => {
     await expect(pending).resolves.toBeNull();
     client.disconnect();
   });
+
+  it("resolves null when online_user_ids is not an array", async () => {
+    const { client, socket } = connectAuthenticatedClient();
+    const pending = client.sendPresenceBeat(true);
+    socket.receive({ type: "presence.ack", payload: { online_user_ids: "x" } });
+    await expect(pending).resolves.toBeNull();
+    client.disconnect();
+  });
+
+  it("ignores the beat timer after presence.ack already resolved", async () => {
+    const { client, socket } = connectAuthenticatedClient();
+    const pending = client.sendPresenceBeat(true);
+    socket.receive({ type: "presence.ack", payload: { online_user_ids: ["u2"] } });
+    await expect(pending).resolves.toEqual(["u2"]);
+    vi.advanceTimersByTime(10_001);
+    client.disconnect();
+  });
+
+  it("times out a superseding beat when ack never arrives", async () => {
+    const { client } = connectAuthenticatedClient();
+    void client.sendPresenceBeat(true);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const second = client.sendPresenceBeat(false);
+    await vi.advanceTimersByTimeAsync(10_001);
+    await expect(second).resolves.toBeNull();
+    client.disconnect();
+  });
 });
 
 describe("WSClient application heartbeat", () => {

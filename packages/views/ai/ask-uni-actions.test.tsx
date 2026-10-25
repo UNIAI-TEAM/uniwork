@@ -23,7 +23,7 @@ const user: User = { id: "u1", email: "a@b.c", display_name: "An", onboarded_at:
 const workspace: Workspace = { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" };
 
 function msg(over: Partial<AiMessage> = {}): AiMessage {
-  return { id: "m1", role: "assistant", content: "Kết quả **chính**.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], created_at: "", ...over };
+  return { id: "m1", role: "assistant", content: "Kết quả **chính**.", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], memory_ids: [], memory_proposals: [], created_at: "", ...over };
 }
 
 function docRow(over: Record<string, unknown> = {}) {
@@ -128,7 +128,7 @@ describe("Ask UNI answer actions: create", () => {
       if (path.endsWith("/ai/conversations/c1/messages")) return Promise.resolve({ messages: history() });
       return base(path, init);
     });
-    const idle: AskStreamState = { status: "idle", question: "", conversationId: "c1", draft: "", thinking: "", steps: [], sources: {}, followups: [], proposals: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
+    const idle: AskStreamState = { status: "idle", question: "", conversationId: "c1", draft: "", thinking: "", steps: [], sources: {}, followups: [], proposals: [], memoryProposals: [], memoryIds: [], regenerateOf: null, model: "", attachments: [], citations: [], message: null, errorCode: null };
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>

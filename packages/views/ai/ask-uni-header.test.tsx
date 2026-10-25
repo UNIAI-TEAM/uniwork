@@ -22,10 +22,14 @@ const conversations = [
   { id: "c2", title: "Họp tuần", created_at: "2026-09-05T08:00:00Z", updated_at: "2026-09-05T08:00:00Z" },
 ];
 
+let memoryFlag = true;
+
 beforeEach(() => {
+  memoryFlag = true;
   requestMock.mockReset();
   requestMock.mockImplementation((path: string, init?: { method?: string }) => {
     if (path === "/api/v1/workspaces/ws1/ai/conversations") return Promise.resolve({ conversations });
+    if (path === "/api/v1/workspaces/ws1/ai/capabilities") return Promise.resolve({ enabled: true, memory: { enabled: memoryFlag, on: true } });
     if (path.startsWith("/api/v1/ai/conversations/") && init?.method) return Promise.resolve({ ...conversations[0], title: "Mới" });
     return Promise.resolve({});
   });
@@ -92,6 +96,24 @@ describe("AskUniHeader", () => {
     useAiPanelStore.setState({ conversationId: "c9" });
     mount(client);
     expect(await screen.findByRole("button", { name: "Lịch sử hội thoại: Hội thoại cũ" })).toBeInTheDocument();
+  });
+
+  it("opens the memory screen from a button between the title and new", async () => {
+    mount();
+    const button = await screen.findByRole("button", { name: "Bộ nhớ" });
+    const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "");
+    expect(names.indexOf("Bộ nhớ")).toBeGreaterThan(names.findIndex((n) => n.startsWith("Lịch sử hội thoại")));
+    expect(names.indexOf("Bộ nhớ")).toBeLessThan(names.indexOf("Hội thoại mới"));
+    fireEvent.click(button);
+    expect(useAiPanelStore.getState().view).toBe("memory");
+  });
+
+  it("has no memory button when the flag is off", async () => {
+    memoryFlag = false;
+    mount();
+    await screen.findByRole("button", { name: "Hội thoại mới" });
+    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/workspaces/ws1/ai/capabilities")).toBe(true));
+    expect(screen.queryByRole("button", { name: "Bộ nhớ" })).toBeNull();
   });
 
   it("starts a new conversation, and closes", async () => {

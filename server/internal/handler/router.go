@@ -59,6 +59,8 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
+	// AiMemory is Ask UNI's per-person memory (P4); nil answers 503.
+	AiMemory *service.AiMemoryService
 	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
 	AIBYOK *service.AIBYOKService
 	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
@@ -538,6 +540,18 @@ func New(d Deps) http.Handler {
 		GetOrgAskWritePolicy:    h.getOrgAskWritePolicy,
 		SetOrgAskWritePolicy:    h.setOrgAskWritePolicy,
 		SetAskUniMode:           h.setAskUniMode,
+		ListAiMemory:            h.listAiMemory,
+		CreateAiMemory:          h.createAiMemory,
+		UpdateAiMemory:          h.updateAiMemory,
+		DeleteAiMemory:          h.deleteAiMemory,
+		ClearAiMemory:           h.clearAiMemory,
+		SplitAiMemoryImport:     h.splitAiMemoryImport,
+		ImportAiMemory:          h.importAiMemory,
+		SetAskUniMemory:         h.setAskUniMemory,
+		ApplyAiMemoryProposal:   h.applyAiMemoryProposal,
+		RejectAiMemoryProposal:  h.rejectAiMemoryProposal,
+		UndoAiMemoryProposal:    h.undoAiMemoryProposal,
+		EditAiMemoryProposal:    h.editAiMemoryProposal,
 		ApplyAiProposal:         h.applyAiProposal,
 		RejectAiProposal:        h.rejectAiProposal,
 		UndoAiProposal:          h.undoAiProposal,

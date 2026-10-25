@@ -15,6 +15,10 @@ type AIAsk struct {
 	// counts Auto turns whose level-1 rows waited because the turn was tainted.
 	Actions         *prometheus.CounterVec
 	TaintDowngrades prometheus.Counter
+	// Memory counts memory events by outcome; MemoryEntries is how many
+	// entries the asker's memory held on each turn that carried it.
+	Memory        *prometheus.CounterVec
+	MemoryEntries prometheus.Histogram
 }
 
 var (
@@ -31,6 +35,7 @@ var (
 		"cancel_meeting": true, "restore_meeting": true, "create_document": true, "update_document": true,
 		"add_document_comment": true, "send_chat_message": true,
 	}
+	askMemoryOutcomes = map[string]bool{"proposed": true, "applied": true, "rejected": true, "undone": true, "expired": true, "used": true, "import_split": true, "import_saved": true}
 	askActionOutcomes = map[string]bool{"proposed": true, "auto_applied": true, "applied": true, "rejected": true, "failed": true, "undone": true}
 )
 
@@ -67,6 +72,15 @@ func NewAIAsk() *AIAsk {
 			Name: "uniwork_ai_ask_taint_downgrades_total",
 			Help: "Ask UNI Auto turns whose level-1 rows waited for the asker because the turn read someone else's words.",
 		}),
+		Memory: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_ai_ask_memory_total",
+			Help: "Ask UNI memory events by outcome (proposed, applied, rejected, undone, expired, used, import_split, import_saved).",
+		}, []string{"outcome"}),
+		MemoryEntries: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "uniwork_ai_ask_memory_entries",
+			Help:    "Entries of the asker's memory on each Ask UNI turn that carried it; the cap is 50.",
+			Buckets: []float64{0, 1, 2, 5, 10, 20, 30, 40, 50},
+		}),
 	}
 }
 
@@ -74,7 +88,7 @@ func (m *AIAsk) Collectors() []prometheus.Collector {
 	if m == nil {
 		return nil
 	}
-	return []prometheus.Collector{m.Runs, m.Rounds, m.RunSeconds, m.ToolCalls, m.ToolSeconds, m.Actions, m.TaintDowngrades}
+	return []prometheus.Collector{m.Runs, m.Rounds, m.RunSeconds, m.ToolCalls, m.ToolSeconds, m.Actions, m.TaintDowngrades, m.Memory, m.MemoryEntries}
 }
 
 // ObserveAskRun records one finished run; an unknown outcome counts as agent_failed.
@@ -127,4 +141,20 @@ func (m *AIAsk) ObserveAskTaintDowngrade() {
 		return
 	}
 	m.TaintDowngrades.Inc()
+}
+
+// ObserveAskMemory records one memory event; an unknown outcome is dropped.
+func (m *AIAsk) ObserveAskMemory(outcome string) {
+	if m == nil || !askMemoryOutcomes[outcome] {
+		return
+	}
+	m.Memory.WithLabelValues(outcome).Inc()
+}
+
+// ObserveAskMemoryEntries records the entries one turn's memory held.
+func (m *AIAsk) ObserveAskMemoryEntries(n int) {
+	if m == nil {
+		return
+	}
+	m.MemoryEntries.Observe(float64(n))
 }

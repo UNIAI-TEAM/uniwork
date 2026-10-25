@@ -133,6 +133,11 @@ func pathParamSDI(path string) any {
 			Org     string `path:"org" description:"Slug tổ chức" example:"acme"`
 			GrantID string `path:"grantID" description:"ULID quyền truy cập của ứng dụng AI" example:"01J8X4GRT0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "org,memoryID":
+		return struct {
+			Org      string `path:"org" description:"Slug tổ chức" example:"acme"`
+			MemoryID string `path:"memoryID" description:"ULID mục bộ nhớ của Hỏi UNI" example:"01K4AIMEM0000000000000001"`
+		}{}
 	case "org,wsSlug":
 		return struct {
 			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
@@ -159,6 +164,10 @@ func pathParamSDI(path string) any {
 	case "conversationID":
 		return struct {
 			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`
+		}{}
+	case "memoryProposalID":
+		return struct {
+			MemoryProposalID string `path:"memoryProposalID" description:"ULID đề xuất bộ nhớ của Hỏi UNI" example:"01K4AIMPR0000000000000001"`
 		}{}
 	case "proposalID":
 		return struct {

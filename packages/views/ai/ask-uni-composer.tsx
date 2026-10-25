@@ -111,6 +111,15 @@ export function AskUniComposer({
     box.current?.focus();
   }, [pendingFocus, clearPendingFocus, setFocus]);
 
+  // The memory screen's "edit by chat" leaves a line to continue from: take it once.
+  const prefill = useAiPanelStore((s) => s.composerPrefill);
+  const setPrefill = useAiPanelStore((s) => s.setComposerPrefill);
+  useEffect(() => {
+    if (prefill === null) return;
+    box.current?.insert(prefill);
+    setPrefill(null);
+  }, [prefill, setPrefill]);
+
   // A hand-picked focus wins over the page; a removed page chip stays off until another page.
   const shownPage = focus ? null : page;
   const focusLabel = focus ? (focus.label ? `${kindLabel(focus.kind)}: ${focus.label}` : kindLabel(focus.kind)) : "";

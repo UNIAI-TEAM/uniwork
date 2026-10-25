@@ -29,6 +29,13 @@ import (
 //	PUT    /api/v1/orgs/{org}/ai/ask-models
 //	GET    /api/v1/orgs/{org}/ai/ask-write-policy
 //	PUT    /api/v1/orgs/{org}/ai/ask-write-policy
+//	GET    /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory
+//	PATCH  /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory/import/split
+//	POST   /api/v1/orgs/{org}/ai/memory/import
 //	POST   /api/v1/ai/proposals/{proposalID}/apply
 //	POST   /api/v1/ai/proposals/{proposalID}/reject
 //	POST   /api/v1/ai/proposals/{proposalID}/undo
@@ -186,6 +193,103 @@ func registerAI(r api, h Routes) {
 		tags: []string{"ai"},
 		sdi:  sdi.AskWritePolicySDI{},
 		sdo:  sdo.AskWritePolicySDO{},
+		auth: true,
+	})
+	r.Get("/orgs/{org}/ai/memory", h.ListAiMemory, apiOp{
+		summary: "My Ask UNI memory",
+		description: "Các mục bộ nhớ của người gọi trong tổ chức (riêng từng người, không ai khác đọc được), cách trả lời trước, rồi theo thứ tự thêm (cũ trước), kèm công tắc, trần 50 và số chỗ còn lại. " +
+			"Thành viên tổ chức; cờ ask_uni_memory tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryListSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory", h.CreateAiMemory, apiOp{
+		summary: "Add a memory entry",
+		description: "Thêm một mục cho chính mình (source manual, ghi audit không kèm chữ). kind sai hoặc chữ rỗng, quá 300 ký tự, có xuống dòng -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate; đủ 50 mục -> 409 ai_memory_full; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags:   []string{"ai"},
+		sdi:    sdi.AiMemoryCreateSDI{},
+		sdo:    sdo.AiMemoryDTO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	r.Patch("/orgs/{org}/ai/memory/{memoryID}", h.UpdateAiMemory, apiOp{
+		summary: "Edit a memory entry",
+		description: "Đổi kind và/hoặc chữ của mục của chính mình; trường bỏ trống thì giữ. Mục của người khác hay id không có -> 404 như nhau; chữ sai -> 400; trùng mục khác -> 409 ai_memory_duplicate; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryUpdateSDI{},
+		sdo:  sdo.AiMemoryDTO{},
+		auth: true,
+	})
+	r.Delete("/orgs/{org}/ai/memory/{memoryID}", h.DeleteAiMemory, apiOp{
+		summary:     "Delete a memory entry",
+		description: "Xóa một mục của chính mình, không hoàn tác. Mục của người khác hay id không có -> 404 như nhau; cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		status:      http.StatusNoContent,
+		auth:        true,
+	})
+	r.Delete("/orgs/{org}/ai/memory", h.ClearAiMemory, apiOp{
+		summary:     "Clear my memory",
+		description: "Xóa toàn bộ mục của người gọi trong tổ chức này, không hoàn tác; trả số mục đã xóa (0 thì không ghi audit). Cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AiMemoryClearSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import/split", h.SplitAiMemoryImport, apiOp{
+		summary: "Split text pasted from another AI into memory entries",
+		description: "Gọi model nhanh một lần (thử lại một lần khi sai định dạng, mỗi lần một dòng usage) để tách chữ dán thành tối đa 100 mục preference/fact; dòng đời tư, người khác, bí mật hay không nói về người dùng nằm trong skipped. " +
+			"Không lưu gì, không ghi audit, không ghi chữ dán vào log. Chữ dán là dữ liệu không tin cậy: mục giống mệnh lệnh (link, \"ignore previous\"…) có instruction_like, mục trùng có duplicate. " +
+			"Chữ rỗng hay quá 20.000 ký tự (CRLF tính một ký tự) -> 400; quá 5 lần một giờ -> 429 ai_memory_import_rate_limited; model sai định dạng hai lần -> 502 ai_memory_import_failed; cờ ask_uni_memory tắt -> 403 ai_memory_disabled. " +
+			"Lỗi của gateway đi thẳng ra: server không có AI -> 503 ai_disabled; hết quota -> 402 ai_quota_exceeded; nhà cung cấp giới hạn tốc độ -> 429 ai_rate_limited (khác ai_memory_import_rate_limited), có Retry-After; nhà cung cấp lỗi -> 502 ai_provider_error; quá hạn chờ -> 504 ai_provider_timeout; model từ chối -> 422 ai_refused. " +
+			"Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSplitSDI{},
+		sdo:  sdo.AiMemoryImportSplitSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import", h.ImportAiMemory, apiOp{
+		summary: "Save the entries the person ticked",
+		description: "Lưu 1–50 mục đã tick trong một transaction (source import, mỗi mục một dòng audit ai_memory.created không kèm chữ); server kiểm lại như thêm tay. " +
+			"Mục sai (kind, chữ rỗng, quá 300 ký tự, xuống dòng) -> 400 và không mục nào được lưu; mục trùng bộ nhớ hay trùng mục trước trong lần lưu thì bỏ qua và đếm trong skipped_duplicates; số mục còn lại vượt chỗ -> 409 ai_memory_full, không mục nào được lưu. " +
+			"Cờ tắt -> 403 ai_memory_disabled. Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSDI{},
+		sdo:  sdo.AiMemoryImportSDO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/apply", h.ApplyAiMemoryProposal, apiOp{
+		summary: "Apply an Ask UNI memory proposal",
+		description: "Người hỏi bấm Nhớ / Lưu / Quên trên thẻ đề xuất bộ nhớ: thêm, sửa hoặc xóa mục bộ nhớ của chính mình, ghi audit ai_memory.* (không kèm chữ) có metadata.via ask_uni; bấm hai lần chỉ chạy một lần. " +
+			"Không bao giờ tự áp dụng, ở mọi chế độ; cờ ask_uni_actions và trần ghi không liên quan. Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại); cờ ask_uni_memory tắt -> 403 ai_memory_disabled; mất quyền workspace -> 403. " +
+			"Mục update/forget nhắm tới đã bị xóa -> 404 ai_memory_not_found. 409 kèm dòng hiện tại trong error.fields.proposal: proposal_not_pending, proposal_expired (quá 24 giờ), ai_memory_off (người hỏi tắt Dùng bộ nhớ), ai_memory_full, ai_memory_duplicate, ai_memory_changed (mục update/forget nhắm tới đã đổi loại hoặc chữ từ khi UNI đề xuất; không đổi gì, dòng giữ pending).",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/reject", h.RejectAiMemoryProposal, apiOp{
+		summary: "Reject an Ask UNI memory proposal",
+		description: "Bỏ qua một đề xuất bộ nhớ pending của chính người hỏi, kể cả đã quá hạn: pending -> rejected, ghi audit ai_memory_proposal.rejected (không kèm chữ). " +
+			"Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled; dòng không còn pending -> 409 proposal_not_pending kèm dòng trong error.fields.proposal.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/undo", h.UndoAiMemoryProposal, apiOp{
+		summary: "Undo an applied Ask UNI memory proposal",
+		description: "Hoàn tác một lần một đề xuất bộ nhớ đã áp dụng: remember xóa mục đã tạo, update ghi lại chữ cũ, forget tạo lại mục (id mới); ghi audit ai_memory.* của lệnh ngược. " +
+			"Mục đã bị sửa hoặc xóa sau khi áp dụng -> 409 undo_unavailable, dòng giữ applied; dòng không applied -> 409 proposal_not_pending; cả hai kèm dòng trong error.fields.proposal. Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Patch("/ai/memory-proposals/{memoryProposalID}", h.EditAiMemoryProposal, apiOp{
+		summary: "Edit an Ask UNI memory proposal",
+		description: "Sửa loại và/hoặc chữ của một đề xuất remember/update pending trước khi áp dụng; trường bỏ trống thì giữ. Chữ sai hoặc sửa đề xuất forget -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate. " +
+			"Không ghi audit: dòng là sổ sách AI cho tới khi áp dụng. Dòng của người khác -> 404; không còn pending / quá hạn -> 409 kèm dòng; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryProposalEditSDI{},
+		sdo:  sdo.AiMemoryProposalDTO{},
 		auth: true,
 	})
 	r.Post("/ai/proposals/{proposalID}/apply", h.ApplyAiProposal, apiOp{

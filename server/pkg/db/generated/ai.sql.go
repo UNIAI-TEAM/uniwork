@@ -220,7 +220,7 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 }
 
 const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE id = $1 AND conversation_id = $2
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM ai_messages WHERE id = $1 AND conversation_id = $2
 `
 
 type AiGetMessageInConversationParams struct {
@@ -249,6 +249,7 @@ func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessa
 		&i.SupersededAt,
 		&i.Model,
 		&i.FileNotes,
+		&i.MemoryIds,
 	)
 	return i, err
 }
@@ -373,9 +374,9 @@ func (q *Queries) AiInsertAttachment(ctx context.Context, arg AiInsertAttachment
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes, memory_ids)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE(NULLIF($15::text, ''), '[]'))
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids
 `
 
 type AiInsertMessageParams struct {
@@ -393,6 +394,7 @@ type AiInsertMessageParams struct {
 	Mentions       string      `json:"mentions"`
 	Model          string      `json:"model"`
 	FileNotes      string      `json:"file_notes"`
+	MemoryIds      string      `json:"memory_ids"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -411,6 +413,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Mentions,
 		arg.Model,
 		arg.FileNotes,
+		arg.MemoryIds,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -430,6 +433,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.SupersededAt,
 		&i.Model,
 		&i.FileNotes,
+		&i.MemoryIds,
 	)
 	return i, err
 }
@@ -705,8 +709,8 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM (
-  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM (
+  SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice, steps, followups, focus, mentions, superseded_at, model, file_notes, memory_ids FROM ai_messages WHERE conversation_id = $1 AND superseded_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 200
 ) m ORDER BY created_at ASC, id ASC
 `
 
@@ -739,6 +743,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.SupersededAt,
 			&i.Model,
 			&i.FileNotes,
+			&i.MemoryIds,
 		); err != nil {
 			return nil, err
 		}
