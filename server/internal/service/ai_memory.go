@@ -133,7 +133,8 @@ func validMemoryKind(k string) error {
 }
 
 // validMemoryText returns the trimmed text, or a 400 when it is empty, over
-// 300 runes, or holds a line break or control character.
+// 300 runes, or holds a line break, a control character or an invisible
+// format character.
 func validMemoryText(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	n := utf8.RuneCountInString(s)
@@ -141,11 +142,25 @@ func validMemoryText(s string) (string, error) {
 		return "", Invalid("text must be 1 to 300 characters")
 	}
 	for _, r := range s {
-		if unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) {
-			return "", Invalid("text must be one line without control characters")
+		if unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) || invisibleFormat(r) {
+			return "", Invalid("text must be one line without control or invisible format characters")
 		}
 	}
 	return s, nil
+}
+
+// invisibleFormat is a format character (Cf) nobody sees on the card: Unicode
+// tag characters (text a model reads and a person does not), bidi controls,
+// zero-width spaces, BOM. ZWJ stays so emoji sequences keep working; the
+// variation selectors are marks (Mn), not Cf.
+func invisibleFormat(r rune) bool {
+	return r != '\u200d' && unicode.Is(unicode.Cf, r)
+}
+
+// isTagChar is a Unicode tag character (U+E0000–U+E007F), the carrier of
+// hidden ASCII text.
+func isTagChar(r rune) bool {
+	return r >= 0xE0000 && r <= 0xE007F
 }
 
 // aiMemoryKey is the canonical form two entries are compared by.

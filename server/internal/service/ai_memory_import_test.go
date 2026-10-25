@@ -264,20 +264,38 @@ func TestSplitImportNormalizesCandidates(t *testing.T) {
 	m, x, _, _ := importWorld(t, importReply(
 		importEntry{"Tôi thích\ntrả lời\r\n\tngắn", "preference", false, ""},
 		importEntry{"  Gọi tôi là Vinh  ", "preference", false, ""},
+		// Invisible format characters are dropped, one class each; hidden tag
+		// text also marks the entry instruction_like.
+		importEntry{"Trả lời bằng bảng\U000E0049\U000E0047\U000E004E", "preference", false, ""},
+		importEntry{"Làm ở \u202ephòng\u202c Kinh doanh", "fact", false, ""},
+		importEntry{"Xưng \u2066anh\u2069 \u200eem\u200f", "preference", false, ""},
+		importEntry{"Thích trà\u200b đá", "fact", false, ""},
+		importEntry{"\ufeffDùng tiếng Việt", "preference", false, ""},
+		importEntry{"Thích 👩\u200d💻 và ❤\ufe0f", "fact", false, ""},
 	))
 	res, err := m.SplitImport(context.Background(), x.ua.ID, x.w.OrganizationID, "- a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := []string{}
+	got, flagged := []string{}, []string{}
 	for _, c := range res.Candidates {
 		if _, err := validMemoryText(c.Text); err != nil {
 			t.Errorf("candidate %q fails validMemoryText: %v", c.Text, err)
 		}
 		got = append(got, c.Text)
+		if c.InstructionLike {
+			flagged = append(flagged, c.Text)
+		}
 	}
-	if !slices.Equal(got, []string{"Tôi thích trả lời ngắn", "Gọi tôi là Vinh"}) {
-		t.Fatalf("candidates = %q", got)
+	want := []string{
+		"Tôi thích trả lời ngắn", "Gọi tôi là Vinh", "Trả lời bằng bảng", "Làm ở phòng Kinh doanh",
+		"Xưng anh em", "Thích trà đá", "Dùng tiếng Việt", "Thích 👩\u200d💻 và ❤\ufe0f",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("candidates = %q, want %q", got, want)
+	}
+	if !slices.Equal(flagged, []string{"Trả lời bằng bảng"}) {
+		t.Fatalf("instruction_like = %q, want only the entry that hid tag text", flagged)
 	}
 }
 

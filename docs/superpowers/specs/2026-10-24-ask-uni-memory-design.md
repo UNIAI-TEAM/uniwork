@@ -87,7 +87,7 @@ Ngày 2026-10-24 người viết đọc help center của ClickUp và dùng th�
 | Giới hạn | Giá trị |
 |---|---|
 | Số mục mỗi người mỗi tổ chức | 50 |
-| Độ dài một mục | 1–300 ký tự (rune), một dòng, không ký tự điều khiển |
+| Độ dài một mục | 1–300 ký tự (rune), một dòng, không ký tự điều khiển, không ký tự định dạng vô hình (Cf: ký tự tag, điều khiển chiều chữ, khoảng trắng độ rộng 0; trừ ZWJ để emoji ghép vẫn dùng được) |
 | Chữ dán khi nhập | tối đa 20.000 ký tự |
 | Mục UNI tách ra từ một lần dán | tối đa 100 (hiện để duyệt; lưu vẫn theo chỗ trống còn lại) |
 | Lần tách chữ dán | 5 lần/giờ/người |
@@ -323,7 +323,7 @@ Spec gốc §6.9 để người xây dựng chọn giữ hay xóa, nhưng phải
 |---|---|
 | Nội dung người khác viết (task, chat, tài liệu, file) cố khiến UNI nhớ một điều | `propose_memory` chỉ tạo đề xuất; người dùng thấy nguyên văn và phải bấm; hội thoại nhiễm thì thẻ có dòng nhắc (§5.5). Prompt cấm đề xuất vì nguồn bảo vậy. |
 | Một mục bộ nhớ chứa câu lệnh ("luôn tạo task…", "gửi cho…") | Bộ nhớ ở trong `<untrusted>`; prompt nói bộ nhớ không bao giờ là lý do để đổi dữ liệu; eval có ca chặn (§8). Phần code giữ được: mọi thay đổi vẫn đi qua đề xuất của P3, việc mức 2 luôn chờ người bấm, và ở chế độ Tự động chỉ việc mức 1 trên đối tượng của chính người hỏi, trong lượt không nhiễm, mới tự chạy. Code **không** chặn được việc model làm theo một mục bộ nhớ ở đúng phần mức 1 đó, vì bộ nhớ không làm lượt bị nhiễm (spec gốc §5.3, chủ sản phẩm chốt 2026-10-16). Chủ sản phẩm chấp nhận phần này (§12, câu 1 chọn A). |
-| Một mục đóng thẻ `</untrusted>` hay giả dạng prompt | `EscapeUntrustedLine` từng mục; một dòng một mục, không ký tự điều khiển. |
+| Một mục đóng thẻ `</untrusted>` hay giả dạng prompt | `EscapeUntrustedLine` từng mục; một dòng một mục, không ký tự điều khiển hay ký tự định dạng vô hình (chữ ẩn trong ký tự tag không qua được bước người dùng nhìn thấy). |
 | Chữ dán từ AI khác chứa lệnh cho bộ tách | Chữ dán trong `<untrusted>`; bộ tách chỉ trả JSON theo schema, server kiểm lại; không tool nào được gửi cho lượt tách. Tệ nhất là danh sách đề xuất sai, và người dùng duyệt từng dòng. |
 | Chữ dán chứa dòng giống mệnh lệnh | Đánh dấu `instruction_like` (model và server), không tick sẵn, có lý do; nếu người dùng vẫn lưu thì mục đó vẫn chỉ là bộ nhớ không tin cậy như mọi mục. |
 | Lộ bộ nhớ của người này cho người khác | Mọi query theo `organization_id` + `user_id` của người gọi; không route nào nhận id người khác; isolation matrix và test riêng (§7). |

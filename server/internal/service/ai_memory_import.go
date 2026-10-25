@@ -137,11 +137,13 @@ func (s *AiMemoryService) splitCall(ctx context.Context, userID, orgID, text str
 	return nil, errAiMemoryImportFailed
 }
 
-// importCandidates re-checks the model's entries (R15): control characters
-// become one space, empty entries go, an entry that is still not a valid
-// memory line is skipped as not_about_user, a link or injection phrase makes
-// it instruction_like, and an entry equal to memory or to an earlier
-// candidate is a duplicate. At most 100 candidates and 100 skipped lines.
+// importCandidates re-checks the model's entries (R15): invisible format
+// characters are dropped (tag characters also make the entry
+// instruction_like), control characters become one space, empty entries go,
+// an entry that is still not a valid memory line is skipped as
+// not_about_user, a link or injection phrase makes it instruction_like, and an
+// entry equal to memory or to an earlier candidate is a duplicate. At most 100
+// candidates and 100 skipped lines.
 func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiMemoryImportSplit {
 	seen := map[string]bool{}
 	for _, m := range existing {
@@ -149,7 +151,15 @@ func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiM
 	}
 	out := AiMemoryImportSplit{Candidates: []AiMemoryCandidate{}, Skipped: []AiMemorySkipped{}}
 	for _, e := range entries {
-		text := strings.Join(strings.FieldsFunc(e.Text, func(r rune) bool {
+		hidden := false
+		text := strings.Map(func(r rune) rune {
+			if invisibleFormat(r) {
+				hidden = hidden || isTagChar(r)
+				return -1
+			}
+			return r
+		}, e.Text)
+		text = strings.Join(strings.FieldsFunc(text, func(r rune) bool {
 			return unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
 		}), " ")
 		if strings.TrimSpace(text) == "" {
@@ -162,7 +172,7 @@ func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiM
 					key := aiMemoryKey(valid)
 					out.Candidates = append(out.Candidates, AiMemoryCandidate{
 						Text: valid, Kind: e.Kind, Duplicate: seen[key],
-						InstructionLike: e.InstructionLike || aiMemoryInjectionPattern.MatchString(injectionForm(valid)),
+						InstructionLike: e.InstructionLike || hidden || aiMemoryInjectionPattern.MatchString(injectionForm(valid)),
 					})
 					seen[key] = true
 				}

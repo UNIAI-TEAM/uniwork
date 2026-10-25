@@ -85,6 +85,24 @@ func TestAiMemoryValidatesText(t *testing.T) {
 	if _, err := m.Create(ctx, u, org, "people", "x"); !errors.As(err, new(ValidationError)) {
 		t.Fatalf("kind people = %v", err)
 	}
+	// Invisible format characters would hide text from the person who checks it:
+	// one case per class.
+	for name, bad := range map[string]string{
+		"tag characters":   "Trả lời ngắn\U000E0041\U000E0042",
+		"bidi override":    "Tôi ở \u202eiệV\u202c",
+		"bidi isolate":     "Tôi ở \u2066Huế\u2069",
+		"bidi mark":        "Tôi\u200e ở Huế\u200f",
+		"zero-width space": "Tôi\u200b ở Huế",
+		"other Cf (BOM)":   "\ufeffTôi ở Huế",
+	} {
+		if _, err := m.Create(ctx, u, org, "fact", bad); !errors.As(err, new(ValidationError)) {
+			t.Errorf("%s: Create(%q) = %v, want a validation error", name, bad, err)
+		}
+	}
+	// ZWJ and variation selectors keep emoji sequences.
+	if _, err := m.Create(ctx, u, org, "preference", "Dùng 👩\u200d💻 và ❤\ufe0f khi khen"); err != nil {
+		t.Fatalf("emoji sequence refused: %v", err)
+	}
 }
 
 func TestAiMemoryRefusesDuplicates(t *testing.T) {
