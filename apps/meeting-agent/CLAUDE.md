@@ -43,7 +43,8 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0045.
   (`ctx.shutdown`) để vòng quét gọi lần chạy mới; 409 thì không rời.
 - **Track rời đi thì đóng luồng (UNI-2161):** `track_unsubscribed`, `track_unpublished` và
   `participant_disconnected` đều gọi `stop_track`; một luồng để mở sau khi tải lại trang nhận luôn track mới
-  (WebRTC dùng lại receiver) và mỗi câu bị ghi hai lần.
+  (WebRTC dùng lại receiver) và mỗi câu bị ghi hai lần. Track bắt đầu lại trong cùng job thì mã đoạn có thêm
+  `.<n>` (`segment_prefix`): server bỏ đoạn trùng mã (`ON CONFLICT DO NOTHING`).
 - Phiên bản ghim theo kết quả S0 (`livekit-agents==1.8.8`); đổi phiên bản là đổi có chủ đích.
 
 ## Cấu trúc

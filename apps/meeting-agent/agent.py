@@ -42,7 +42,7 @@ from scribe.keyterms import KeytermRefresher, build_keyterms
 from scribe.notice import NOTICE_PATH, NoticeLedger, frames_of, read_notice
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, Final, TrackTranscriber, start_once, stop_track
+from scribe.transcriber import Caption, Final, TrackTranscriber, segment_prefix, start_once, stop_track
 from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
@@ -119,6 +119,8 @@ async def entrypoint(ctx: JobContext) -> None:
     # Each track's transcribe task, and the transcribers of tracks that left (their STT time still counts).
     running: dict[str, asyncio.Task] = {}
     ended: list[TrackTranscriber] = []
+    # How often each track started in this job: a track that starts again needs segment ids of its own.
+    starts: dict[str, int] = {}
     vad_model = ctx.proc.userdata["vad"]
     keyterms: list[str] = []
 
@@ -174,8 +176,9 @@ async def entrypoint(ctx: JobContext) -> None:
     def new_transcriber(p: rtc.RemoteParticipant, track: rtc.Track) -> TrackTranscriber:
         diarize = shared_mic(p.attributes)
         return TrackTranscriber(
-            # The job id keeps segment ids unique across the runs of one meeting.
-            segment_prefix=f"{ctx.job.id}-{track.sid}",
+            # The job id keeps segment ids unique across the runs of one meeting, the start count across a
+            # track's starts within one.
+            segment_prefix=segment_prefix(ctx.job.id, track.sid, starts),
             identity=p.identity,
             stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize, base_url=SETTINGS.stt_base_url),
             publish=publish,

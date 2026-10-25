@@ -9,7 +9,7 @@ import numpy as np
 from livekit import rtc
 
 from scribe.stt import FakeSTT
-from scribe.transcriber import Caption, Final, TrackTranscriber, start_once, stop_track
+from scribe.transcriber import Caption, Final, TrackTranscriber, segment_prefix, start_once, stop_track
 
 RATE, FRAME = 16000, 160  # 10 ms frames
 
@@ -27,7 +27,7 @@ class Clock:
         return self.t
 
 
-def make(clock: Clock, idle: float = 30.0, job: str = "AJ_1", stt_impl=None):
+def make(clock: Clock, idle: float = 30.0, job: str = "AJ_1", stt_impl=None, prefix: str | None = None):
     captions: list[Caption] = []
     finals: list[Final] = []
 
@@ -35,7 +35,7 @@ def make(clock: Clock, idle: float = 30.0, job: str = "AJ_1", stt_impl=None):
         captions.append(c)
 
     t = TrackTranscriber(
-        segment_prefix=f"{job}-TR_a",
+        segment_prefix=prefix or f"{job}-TR_a",
         identity="uw_participant_p1",
         stt_impl=stt_impl or FakeSTT(),
         publish=publish,
@@ -181,6 +181,22 @@ async def test_a_track_that_left_stops_its_stream_and_can_start_again():
     assert start_once(transcribers, tasks, "TR_a", make_one, run) is None
     again.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def test_a_track_that_starts_again_in_the_same_job_gets_segment_ids_of_its_own():
+    """Review: a track that left and came back (the agent reconnected) starts a
+    new transcriber numbering from 1; with the same ids the server would drop
+    its lines as duplicates (ON CONFLICT DO NOTHING)."""
+    starts: dict[str, int] = {}
+    ids = []
+    for _ in range(2):
+        clock = Clock()
+        t, _, finals = make(clock, prefix=segment_prefix("AJ_1", "TR_a", starts))
+        await speak(t, clock, 0.6)
+        await t.close()
+        ids += [f.segment_id for f in finals]
+    assert ids == ["AJ_1-TR_a-1", "AJ_1-TR_a.2-1"]
+    assert segment_prefix("AJ_1", "TR_b", starts) == "AJ_1-TR_b"
 
 
 async def test_segment_ids_are_unique_across_jobs_on_the_same_track():
