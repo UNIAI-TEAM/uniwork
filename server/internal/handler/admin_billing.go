@@ -15,12 +15,16 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+var adminBillingICT = time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
+
 func adminBillingQuery(r *http.Request) service.AdminBillingListInput {
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
+	from, to := parseAdminBillingTimeRange(q.Get("date_from"), q.Get("date_to"))
 	return service.AdminBillingListInput{
 		Query: q.Get("q"), Provider: q.Get("provider"), Status: q.Get("status"),
+		From: from, To: to,
 		Limit: int32(limit), Offset: int32(offset),
 	}
 }
@@ -154,12 +158,12 @@ func (h *handlers) adminConfirmInvoiceRefund(w http.ResponseWriter, r *http.Requ
 	respondJSON(w, 200, sdo.AdminInvoiceSDO{Invoice: adminInvoiceDTOFromInvoice(inv, meta)})
 }
 
-// parseAdminBillingTimeRange maps admin date_from/date_to (YYYY-MM-DD, inclusive) to UTC bounds [from, to).
+// parseAdminBillingTimeRange maps admin date_from/date_to (YYYY-MM-DD, inclusive ICT) to [from, to).
 func parseAdminBillingTimeRange(fromDate, toDate string) (from, to time.Time) {
-	if d, err := time.ParseInLocation("2006-01-02", fromDate, time.UTC); err == nil {
+	if d, err := time.ParseInLocation("2006-01-02", fromDate, adminBillingICT); err == nil {
 		from = d
 	}
-	if d, err := time.ParseInLocation("2006-01-02", toDate, time.UTC); err == nil {
+	if d, err := time.ParseInLocation("2006-01-02", toDate, adminBillingICT); err == nil {
 		to = d.AddDate(0, 0, 1)
 	}
 	return from, to

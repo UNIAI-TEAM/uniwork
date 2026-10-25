@@ -940,7 +940,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/tasks/{taskID}/labels":                                                      {body: isoWith(map[string]string{"label_id": "label"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/agents":                                            {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
-		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
+		"plan_code": "starter", "success_path": "/billing/ok",
 	})},
 	"POST /api/v1/meetings/{meetingID}/restore": {control: []int{http.StatusConflict},
 		reason: "the tenant's own fixture meeting was never cancelled, so its owner's restore answers 409 invalid_meeting_state; the cross-tenant call must still be refused 403/404 and A's digest catches a restore"},

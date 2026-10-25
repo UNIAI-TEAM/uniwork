@@ -280,7 +280,7 @@ func TestCustomerBillingRefusesPlatformAdminOutsider(t *testing.T) {
 	if _, err := f.billing.Resume(f.ctx, outsider.ID, f.orgID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("Resume: got %v", err)
 	}
-	if _, err := f.billing.Checkout(f.ctx, outsider.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); !errors.Is(err, ErrForbidden) {
+	if _, err := f.billing.Checkout(f.ctx, outsider.ID, f.orgID, "paid_team", "/ok", "127.0.0.1"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("Checkout: got %v", err)
 	}
 	after, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
@@ -292,18 +292,52 @@ func TestCustomerBillingRefusesPlatformAdminOutsider(t *testing.T) {
 	}
 }
 
+func (f *billingFixture) setSubscriptionPeriodEnd(t *testing.T, end time.Time) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET current_period_end = $2 WHERE organization_id = $1`, f.orgID, end); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCancelWithoutPeriodEndIsRefused(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	admin := registerVerified(t, f.q, f.auth, "bill-cancel-no-period@example.com", "Admin")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.assignPlan(t, admin.ID, "paid_team")
+	_, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "cancel_not_available" || ce.Status != 409 {
+		t.Fatalf("cancel without period: got %v", err)
+	}
+	var cancelAt *time.Time
+	if err := f.pool.QueryRow(f.ctx, `SELECT cancel_at FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&cancelAt); err != nil {
+		t.Fatal(err)
+	}
+	if cancelAt != nil {
+		t.Fatalf("cancel_at = %v, want null", cancelAt)
+	}
+}
+
 func TestCancelResumeAndCheckout(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
+	periodEnd := time.Now().UTC().Add(30 * 24 * time.Hour)
+	f.setSubscriptionPeriodEnd(t, periodEnd)
 	snap, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID)
 	if err != nil || !snap.Subscription.CancelAt.Valid || snap.Subscription.Status != "active" {
 		t.Fatalf("cancel schedules, does not kill: %v %+v", err, snap.Subscription)
+	}
+	if !snap.Subscription.CancelAt.Time.Equal(periodEnd) {
+		t.Fatalf("cancel_at = %v, want %v", snap.Subscription.CancelAt.Time, periodEnd)
 	}
 	snap, err = f.billing.Resume(f.ctx, f.owner.ID, f.orgID)
 	if err != nil || snap.Subscription.CancelAt.Valid {
 		t.Fatalf("resume clears cancel_at: %v %+v", err, snap.Subscription)
 	}
-	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1")
+	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1")
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "billing_provider_unavailable" || ce.Status != 503 {
 		t.Fatalf("manual provider has no checkout: got %v", err)

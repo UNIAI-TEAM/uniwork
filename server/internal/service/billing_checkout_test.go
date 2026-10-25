@@ -24,7 +24,7 @@ func TestValidateCheckoutPath(t *testing.T) {
 func TestCheckoutMarksIntentFailedWhenProviderUnavailable(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
-	_, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1")
+	_, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1")
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "billing_provider_unavailable" {
 		t.Fatalf("checkout: %v", err)
@@ -78,11 +78,11 @@ func TestCheckoutReusesPendingIntentForSamePlan(t *testing.T) {
 	f.seedPlan(t, "paid_team", 500000, nil)
 	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
 	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
-	_, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1")
+	_, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1")
+	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,10 +113,10 @@ func TestCheckoutReusesIntentExpiry(t *testing.T) {
 	f.seedPlan(t, "paid_team", 500000, nil)
 	rec := &recordingCheckout{}
 	f.billing = NewBillingService(f.pool, f.q, f.orgs, rec)
-	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1"); err != nil {
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1"); err != nil {
 		t.Fatal(err)
 	}
 	if len(rec.inputs) != 2 {

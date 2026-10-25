@@ -105,9 +105,6 @@ RETURNING *;
 SELECT id, email, platform_role, platform_role_granted_by, platform_role_granted_at FROM users
 WHERE platform_role IS NOT NULL ORDER BY platform_role_granted_at DESC;
 
--- name: GetOrganizationStatus :one
-SELECT status FROM organizations WHERE id = $1;
-
 -- name: AdminListInvoices :many
 -- tenant: platform
 SELECT t.id, t.organization_id, t.subscription_id, t.provider, t.provider_invoice_id, t.number,
@@ -135,11 +132,11 @@ FROM (
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
   LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-  LEFT JOIN plans pl ON pl.id = sub.plan_id
+  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+  LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
   LEFT JOIN users init_u ON init_u.id = i.initiated_by
   LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
-  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
   LEFT JOIN LATERAL (
     SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
     FROM billing_payment_intents pi
@@ -154,6 +151,8 @@ FROM (
     AND (sqlc.narg('q')::text IS NULL OR i.number ILIKE '%' || sqlc.narg('q')::text || '%'
       OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
       OR init_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR init_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+    AND (sqlc.narg('date_from')::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= sqlc.narg('date_from')::timestamptz)
+    AND (sqlc.narg('date_to')::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < sqlc.narg('date_to')::timestamptz)
 ) t
 ORDER BY COALESCE(t.paid_at, t.created_at) DESC
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
@@ -167,7 +166,9 @@ WHERE (sqlc.narg('provider')::text IS NULL OR i.provider = sqlc.narg('provider')
   AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status')::text)
   AND (sqlc.narg('q')::text IS NULL OR i.number ILIKE '%' || sqlc.narg('q')::text || '%'
     OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR init_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR init_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%');
+    OR init_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR init_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+  AND (sqlc.narg('date_from')::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= sqlc.narg('date_from')::timestamptz)
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < sqlc.narg('date_to')::timestamptz);
 
 -- name: AdminListPaymentIntents :many
 -- tenant: platform
@@ -196,6 +197,8 @@ FROM (
       OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
       OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
       OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+    AND (sqlc.narg('date_from')::timestamptz IS NULL OR pi.created_at >= sqlc.narg('date_from')::timestamptz)
+    AND (sqlc.narg('date_to')::timestamptz IS NULL OR pi.created_at < sqlc.narg('date_to')::timestamptz)
 ) t
 ORDER BY t.created_at DESC
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
@@ -210,7 +213,9 @@ WHERE (sqlc.narg('provider')::text IS NULL OR pi.provider = sqlc.narg('provider'
   AND (sqlc.narg('q')::text IS NULL OR pi.id = sqlc.narg('q')::text
     OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
     OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
-    OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%');
+    OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+  AND (sqlc.narg('date_from')::timestamptz IS NULL OR pi.created_at >= sqlc.narg('date_from')::timestamptz)
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR pi.created_at < sqlc.narg('date_to')::timestamptz);
 
 -- name: AdminGetInvoiceByID :one
 -- tenant: platform
@@ -222,8 +227,8 @@ SELECT i.*, o.slug AS org_slug, o.name AS org_name,
 FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
 LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-LEFT JOIN plans pl ON pl.id = sub.plan_id
 LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
 LEFT JOIN LATERAL (
   SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
   FROM billing_payment_intents pi
@@ -286,31 +291,6 @@ RETURNING *;
 -- tenant: platform
 UPDATE invoices SET
   refund_provider_ref = sqlc.narg('refund_provider_ref'),
-  updated_at = now()
-WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
-RETURNING *;
-
--- name: AdminConfirmInvoiceRefund :one
--- tenant: platform
-UPDATE invoices SET
-  refund_confirm_reason = sqlc.arg('refund_confirm_reason'),
-  amount_refunded = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-    THEN amount_refunded + partial_refund_amount
-    ELSE amount_paid
-  END,
-  partial_refund_amount = NULL,
-  status = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
-    ELSE 'refunded'
-  END,
-  refunded_at = CASE
-    WHEN status = 'refund_pending' THEN now()
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
-    ELSE refunded_at
-  END,
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
 RETURNING *;

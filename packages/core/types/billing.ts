@@ -66,6 +66,7 @@ export const InvoiceSchema = z.object({
   status: z.string(),
   provider: z.string(),
   amount_paid: z.number(),
+  amount_refunded: z.number().optional().default(0),
   currency: z.string().optional().default("VND"),
   period_start: z.string(),
   period_end: z.string(),

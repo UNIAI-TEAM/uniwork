@@ -89,9 +89,10 @@ test("tablet product stage stays readable and Starter keeps one honest action", 
   await expect(stage.getByRole("tab", { name: "Cuộc họp", exact: true })).toHaveAttribute("aria-selected", "true");
 
   const pricing = page.locator("#bang-gia");
-  await expect(pricing.locator(".pricing-plan")).toContainText("Miễn phí");
+  await expect(pricing.locator(".pricing-plan")).toHaveCount(3);
+  await expect(pricing.locator(".pricing-plan").first()).toContainText("Miễn phí");
+  await expect(pricing.locator(".pricing-offer")).toContainText("499.000");
   await expect(pricing.locator(".pricing-quotas li")).toHaveCount(8);
-  await expect(pricing.locator(".pricing-plan a")).toHaveCount(1);
-  await expect(pricing.locator(".pricing-quotas")).toContainText("chưa phải cam kết");
+  await expect(pricing.locator(".pricing-plan a")).toHaveCount(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

@@ -315,7 +315,7 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
 	// The operator's queue of chat reports lives in admin.go itself: never beside the chat service that reads messages.
 	reportQueries := regexp.MustCompile(`\bq\.(AdminListChatReports|AdminChatReportQueue|AdminGetChatReportForUpdate|AdminResolveChatReport)\(`)
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminConfirmInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents|AdminGetInvoiceByID|AdminMarkInvoiceRefunded|AdminRequestInvoiceRefund|AdminRequestPartialInvoiceRefund|AdminRevertInvoiceRefundRequest|AdminPatchInvoiceRefundProviderRef)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -348,13 +348,23 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	src, err := os.ReadFile("service/admin.go")
-	if err != nil {
-		t.Fatal(err)
+	adminServiceFiles := []string{
+		"service/admin.go",
+		"service/admin_flags.go",
+		"service/admin_billing.go",
+		"service/admin_billing_refund.go",
+		"service/admin_billing_refund_vnpay.go",
+		"service/admin_plans.go",
 	}
 	for _, forbidden := range []string{"TaskService", "ChatService", "MeetingService", "GetTask", "chat_messages", "ListTasks"} {
-		if strings.Contains(string(src), forbidden) {
-			t.Errorf("service/admin.go mentions %s: the console never returns content", forbidden)
+		for _, rel := range adminServiceFiles {
+			src, err := os.ReadFile(rel)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(src), forbidden) {
+				t.Errorf("%s mentions %s: the console never returns content", rel, forbidden)
+			}
 		}
 	}
 }

@@ -21,7 +21,7 @@ const billingIntentTTL = 15 * time.Minute
 func ValidateCheckoutPath(path string) error {
 	if path == "" || !strings.HasPrefix(path, "/") || strings.Contains(path, "//") {
 		return CodedError{Code: "invalid_checkout_path", Status: http.StatusBadRequest,
-			Msg: "success_path và cancel_path phải là đường dẫn tương đối hợp lệ"}
+			Msg: "success_path phải là đường dẫn tương đối hợp lệ"}
 	}
 	return nil
 }
@@ -30,16 +30,12 @@ func ValidateCheckoutPath(path string) error {
 // billing_payment_intent before the URL is built so IPN can match vnp_TxnRef.
 // A still-valid pending intent for the same plan is reused so two devices do
 // not open two payable orders for one checkout wave.
-func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, cancelURL, clientIP string) (billing.CheckoutSession, error) {
+func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, clientIP string) (billing.CheckoutSession, error) {
 	if err := s.requireOwner(ctx, userID, orgID); err != nil {
 		return billing.CheckoutSession{}, err
 	}
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return billing.CheckoutSession{}, err
-	}
 	plan, err := s.q.GetPlanByCode(ctx, planCode)
-	if errors.Is(err, pgx.ErrNoRows) || !plan.IsActive {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !plan.IsActive) {
 		return billing.CheckoutSession{}, ErrNotFound
 	}
 	if err != nil {
@@ -70,7 +66,11 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 	if err != nil {
 		return billing.CheckoutSession{}, err
 	}
-	if planListPrice(before) > 0 && planListPrice(plan) < planListPrice(before) {
+	downgrade := planListPrice(before) > 0 && planListPrice(plan) < planListPrice(before)
+	if before.BillingPeriod != plan.BillingPeriod {
+		downgrade = planIsPaid(before) && plan.SortOrder < before.SortOrder
+	}
+	if downgrade {
 		return billing.CheckoutSession{}, CodedError{Code: "downgrade_not_allowed", Status: http.StatusForbidden,
 			Msg:    "không thể hạ gói trả phí qua thanh toán; dùng hủy gói vào cuối kỳ hoặc liên hệ quản trị",
 			Fields: map[string]any{"current_plan": before.Code, "target_plan": plan.Code}}
@@ -124,9 +124,8 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 	}
 
 	sess, err := s.provider.CreateCheckout(ctx, billing.CheckoutInput{
-		OrganizationID: orgID, PlanCode: planCode, CustomerEmail: u.Email,
-		SuccessURL: successURL, CancelURL: cancelURL,
-		IntentID: intentID, Amount: amount, Currency: currency,
+		SuccessURL: successURL,
+		IntentID:   intentID, Amount: amount, Currency: currency,
 		OrderInfo: orderInfo, ClientIP: clientIP,
 		CreatedAt: createdAt, ExpiresAt: expiresAt,
 	})
