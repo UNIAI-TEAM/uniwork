@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, CircleAlert, Flag, TriangleAlert } from "lucide-react";
+import { ChevronDown, CircleAlert, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../../common/date-field";
 import { PriorityPicker } from "../../../tasks/pickers/priority-picker";
+import { PriorityIcon } from "../../../tasks/icons/priority-icon";
 import { SearchableOptionPicker } from "../../../tasks/pickers/searchable-option-picker";
 import { duplicateLinkTarget } from "../../meeting-action-items/duplicate-link";
 import { actionItemTaskDescription } from "../../meeting-action-items/action-item-task-description";
@@ -269,9 +270,10 @@ export function ReviewSheet({
                           onChange={(p) => closeOut.setOverride(item.id, { priority: p })}
                           ariaLabel={t("meetings.detail.closeOut.colPriority")}
                           valueLabel={v.priority === "none" ? t("meetings.detail.closeOut.priorityUnset") : t(`tasks.priority_${v.priority}`)}
-                          triggerClassName={cn(CELL, v.priority === "none" && "text-muted-foreground", (v.priority === "high" || v.priority === "urgent") && "[&>svg:first-child]:text-warning")}
+                          triggerClassName={cn(CELL, v.priority === "none" && "text-muted-foreground")}
                         >
-                          {v.priority === "high" || v.priority === "urgent" ? <Flag aria-hidden className="size-3 text-warning" /> : null}
+                          {/* The task screen's own priority glyph, in its tint. */}
+                          {v.priority === "none" ? null : <PriorityIcon priority={v.priority} className="size-3" />}
                           {v.priority === "none" ? "—" : t(`tasks.priority_${v.priority}`)}
                           <ChevronDown aria-hidden className="size-3 text-faint-foreground" />
                         </PriorityPicker>

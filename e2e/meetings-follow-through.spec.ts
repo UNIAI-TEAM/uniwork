@@ -117,8 +117,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await expect(section.getByText("2 chờ giao · 2 đã giao")).toBeVisible({ timeout: 15_000 });
 
   const printRow = section.getByRole("listitem").filter({ hasText: "In tài liệu" });
-  await printRow.getByRole("button", { name: "Thao tác khác với việc này" }).click();
-  await page.getByRole("menuitem", { name: "Bỏ qua…" }).click();
+  await printRow.getByRole("button", { name: "Bỏ qua" }).click();
   await page.getByLabel("Lý do (không bắt buộc)").fill("Đã có bản in");
   await page.getByRole("button", { name: "Bỏ qua việc" }).click();
   await expect(section.getByRole("button", { name: "Đã bỏ qua 1" })).toBeVisible();

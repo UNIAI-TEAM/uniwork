@@ -149,6 +149,40 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     );
   });
 
+  it("opens an item's form, ready to edit, from anywhere on its row, while the row's controls keep their own clicks", async () => {
+    const user = userEvent.setup();
+    show("m1", "lan");
+    const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
+    const first = within(minhGroup).getAllByRole("listitem")[0]!;
+    // The checkbox only ticks the row.
+    await user.click(within(first).getByRole("checkbox"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(within(first).getByRole("button", { name: "Theo dõi sửa hai lỗi in hóa đơn trên máy in nhiệt khổ 58 mm" }));
+    const form = await screen.findByRole("dialog");
+    expect(within(form).getByDisplayValue("Theo dõi sửa hai lỗi in hóa đơn trên máy in nhiệt khổ 58 mm")).toBeInTheDocument();
+  });
+
+  it("puts Sửa and Bỏ qua on the row as icon buttons instead of a ⋯ menu", async () => {
+    const user = userEvent.setup();
+    show("m1", "lan");
+    const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
+    const first = within(minhGroup).getAllByRole("listitem")[0]!;
+    expect(within(first).queryByRole("button", { name: "Thao tác khác với việc này" })).toBeNull();
+    await user.click(within(first).getByRole("button", { name: "Bỏ qua" }));
+    expect(await screen.findByRole("dialog", { name: "Bỏ qua việc này?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hủy" }));
+    await user.click(within(first).getByRole("button", { name: "Sửa" }));
+    expect(await screen.findByDisplayValue("Theo dõi sửa hai lỗi in hóa đơn trên máy in nhiệt khổ 58 mm")).toBeInTheDocument();
+  });
+
+  it("opens an assigned item's task from its row", async () => {
+    show("m1", "lan");
+    fireEvent.click(await screen.findByRole("button", { name: "Đã giao 1 · 1 xong" }));
+    const converted = m1.action_items.items.find((item) => item.status === "CONVERTED" && item.task?.done)!;
+    const link = await screen.findByRole("link", { name: converted.task!.title || converted.title });
+    expect(link.getAttribute("href")).toContain(converted.task!.id);
+  });
+
   it("walks the rows with the arrows and opens the review with Ctrl+Enter", async () => {
     show("m1", "lan");
     const boxes = await screen.findAllByRole("checkbox");

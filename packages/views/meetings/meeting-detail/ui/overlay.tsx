@@ -103,7 +103,8 @@ export function Dialog440({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        role={role}
+        // An unset role must not override the popup's own "dialog": screen readers would not hear a dialog at all.
+        role={role ?? "dialog"}
         showCloseButton={false}
         overlayClassName={SCRIM}
         className={cn("gap-0 rounded-lg border border-border bg-popover p-6 ring-0 sm:max-w-110", className)}

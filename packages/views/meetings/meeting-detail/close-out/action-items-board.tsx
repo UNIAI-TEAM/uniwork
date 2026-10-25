@@ -10,7 +10,7 @@ import { MeetingRowsSkeleton, MeetingSectionError } from "../../meeting-section-
 import { useDetail } from "../detail-context";
 import { Byline, Section } from "../ui/section";
 import { TextButton } from "../ui/text-button";
-import { PendingItemRow, RowMenu, useDueWords } from "./action-item-row";
+import { PendingItemRow, RowActions, useDueWords } from "./action-item-row";
 import { ConvertedFold, DismissDialog, DismissedFold, GroupHeader, groupMeta, MemberItems, OutsiderItems } from "./board-parts";
 import { earliestDue, FLAT_AFTER_OWNERS, GROUP_ROWS, ownerGroups, ownerOf } from "./owner-groups";
 import { ReviewSheet } from "./review-sheet";
@@ -123,7 +123,7 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
       onTick={canTick ? (on) => closeOut.toggle(item.id, on) : undefined}
       onOverride={(patch) => closeOut.setOverride(item.id, patch)}
       onOpen={() => flow.edit(item.id)}
-      menu={<RowMenu onEdit={() => flow.edit(item.id)} onDismiss={() => setDismissing(item)} />}
+      menu={<RowActions itemId={item.id} onEdit={() => flow.edit(item.id)} onDismiss={() => setDismissing(item)} />}
     />
   );
 
@@ -222,7 +222,7 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         }}
       />
       <DismissDialog item={dismissing} onClose={() => setDismissing(null)} />
-      {/* The task screen's own composer: "Sửa…" opens an item's values, "Thêm việc" a blank one. */}
+      {/* The task screen's own composer: a row (or its Sửa) opens an item's values, "Thêm việc" a blank one. */}
       <CreateTaskDialog
         workspaceId={workspaceId}
         open={flow.composerOpen}

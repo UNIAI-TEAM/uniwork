@@ -1,5 +1,5 @@
 "use client";
-import { ArrowUpRight, CircleCheck, CircleDashed, Ellipsis, Flag, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CircleCheck, CircleDashed, EyeOff, Pencil, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
@@ -8,16 +8,11 @@ import { paths } from "@uniwork/core/paths";
 import type { TaskPriority } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../../common/date-field";
 import { useOptionalWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
+import { PriorityFlag as TaskPriorityFlag } from "../../../tasks/modes/status-pill";
 import { SearchableOptionPicker } from "../../../tasks/pickers/searchable-option-picker";
 import { MeetingPersonAvatar } from "../../meeting-person";
 import { meetingAvatarTint } from "../avatar-tint";
@@ -66,16 +61,10 @@ export function PersonTag({ userId, short, bare, className }: { userId: string |
   );
 }
 
-/** "⚑ Cao" in warning ink, for a high or urgent priority only. */
+/** The task screen's priority chip, for a high or urgent priority only: the meta line stays quiet otherwise. */
 export function PriorityFlag({ priority }: { priority: TaskPriority | undefined }) {
-  const { t } = useTranslation();
   if (priority !== "high" && priority !== "urgent") return null;
-  return (
-    <span className="inline-flex items-center gap-1 font-medium text-warning">
-      <Flag aria-hidden className="size-3" />
-      {t(`tasks.priority_${priority}`)}
-    </span>
-  );
+  return <TaskPriorityFlag priority={priority} withLabel />;
 }
 
 /** The converted item's task: "Cần làm · T2 26/10 ↗", success once done. */
@@ -99,7 +88,7 @@ export function TaskChip({ task }: { task: NonNullable<MeetingActionItem["task"]
     </>
   );
   return workspacePaths ? (
-    <AppLink href={workspacePaths.task(task.id)} className={cls} aria-label={label}>
+    <AppLink href={workspacePaths.task(task.id)} className={cn(cls, "relative z-1")} aria-label={label}>
       {body}
     </AppLink>
   ) : (
@@ -113,6 +102,13 @@ function useDetailPaths() {
   return { workspacePaths: workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null };
 }
 
+/** The id of a row's title, which its actions name as what they act on. */
+export const rowTitleId = (itemId: string) => `close-out-title-${itemId}`;
+
+/** A row the whole of which opens something: its title stretches over it; the row's own controls sit above. */
+const STRETCH = "after:absolute after:inset-0 after:rounded-md";
+const ABOVE = "relative z-1";
+
 const ROW = "-mx-2 grid min-h-13 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md px-2 py-1.5";
 const META = "col-span-2 col-start-2 flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground";
 const CHIP =
@@ -122,14 +118,15 @@ function TimeChip({ item }: { item: MeetingActionItem }) {
   const { meeting } = useDetail();
   if (item.evidence.length === 0) return <span />;
   // Kit `.item-time`: the chip hangs 6px into the gutter so its digits align with the column edge.
-  return <span className="-mr-1.5 inline-flex"><EvidenceTimeChip meetingId={meeting.id} refs={item.evidence} /></span>;
+  return <span className={cn("-mr-1.5 inline-flex", ABOVE)}><EvidenceTimeChip meetingId={meeting.id} refs={item.evidence} /></span>;
 }
 
 /**
  * A pending item (brief §2 "Action item row"): checkbox, title, time chip;
  * then "Chờ giao", the owner and due chips (inline pickers for a clerk), the
- * priority flag and ⋯. A member reads `waitFor` in place of the chips. On a
- * phone the title wraps to two lines and the chips are plain text.
+ * priority flag and the row's actions. A member reads `waitFor` in place of
+ * the chips. With `onOpen` the whole row opens the item. On a phone the title
+ * wraps to two lines and the chips are plain text.
  */
 export function PendingItemRow({
   item,
@@ -152,13 +149,13 @@ export function PendingItemRow({
   /** A member's line: "Chờ Lan Phạm hoặc Hà Vũ giao". */
   waitFor?: string;
   phone?: boolean;
-  /** Phone, outside select mode: the title opens the item. */
+  /** The row opens the item (on a phone, outside select mode). */
   onOpen?: () => void;
   menu?: ReactNode;
 }) {
   const { t } = useTranslation();
   const due = useDueWords();
-  const titleId = `close-out-title-${item.id}`;
+  const titleId = rowTitleId(item.id);
   const date = due(values.due_date);
   const said = item.due_text?.trim() ?? "";
   const selectable = onTick !== undefined;
@@ -170,6 +167,12 @@ export function PendingItemRow({
     ) : (
       <span id={titleId} className="line-clamp-2 text-body font-medium text-pretty">{item.title}</span>
     )
+  ) : onOpen ? (
+    <button type="button" onClick={onOpen} className={cn("min-w-0 cursor-pointer truncate text-left text-body font-medium", STRETCH)}>
+      <span id={titleId} title={item.title}>
+        {item.title}
+      </span>
+    </button>
   ) : (
     <span id={titleId} title={item.title} className="min-w-0 truncate text-body font-medium">
       {item.title}
@@ -191,14 +194,14 @@ export function PendingItemRow({
     <li
       data-close-out-row={item.id}
       className={cn(
-        "relative hover:bg-surface-hover",
+        "group/row relative hover:bg-surface-hover",
         phone && !selectable ? "-mx-2 flex flex-col gap-0.5 rounded-md px-2 py-1.5" : ROW,
         ticked && "bg-surface-selected hover:bg-surface-selected",
         !selectable && !phone && "grid-cols-[16px_minmax(0,1fr)_auto] items-start hover:bg-transparent",
       )}
     >
       {selectable ? (
-        <Checkbox aria-labelledby={titleId} checked={ticked} onCheckedChange={(on) => onTick(on === true)} />
+        <Checkbox aria-labelledby={titleId} checked={ticked} onCheckedChange={(on) => onTick(on === true)} className={ABOVE} />
       ) : phone ? null : (
         <CircleDashed aria-hidden className="mt-0.5 size-4 text-muted-foreground" />
       )}
@@ -224,7 +227,7 @@ export function PendingItemRow({
             onChange={(v) => onOverride({ due_date: v || null })}
             ariaLabel={dueLabel}
             triggerRender={
-              <button type="button" title={dueTitle} className={cn(CHIP, "pr-0 tabular-nums", values.guessed && "text-warning")} />
+              <button type="button" title={dueTitle} className={cn(CHIP, ABOVE, "pr-0 tabular-nums", values.guessed && "text-warning")} />
             }
             renderTrigger={() => (date ? dueText : t("meetings.detail.closeOut.dueNone"))}
           />
@@ -258,40 +261,45 @@ function OwnerChip({ value, onChange }: { value: string | null; onChange: (id: s
       ariaLabel={name ? t("meetings.detail.closeOut.ownerLabel", { name }) : t("meetings.detail.closeOut.ownerNoneLabel")}
       searchPlaceholder={t("meetings.detail.closeOut.ownerSearch")}
       noResultsLabel={t("meetings.detail.closeOut.ownerNoMatch")}
-      triggerClassName={cn(CHIP, "h-5 border-0 pr-1.5 pl-0 font-medium [&>svg:last-child]:hidden")}
+      triggerClassName={cn(CHIP, ABOVE, "h-5 border-0 pr-1.5 pl-0 font-medium [&>svg:last-child]:hidden")}
     >
       {name ? <PersonTag userId={value} short bare /> : t("meetings.detail.closeOut.ownerNone")}
     </SearchableOptionPicker>
   );
 }
 
-/** The row's ⋯: Bỏ qua… and Sửa… */
-export function RowMenu({ onDismiss, onEdit }: { onDismiss: () => void; onEdit: () => void }) {
+/**
+ * The row's two actions as icon buttons: Sửa opens the item (as the row does),
+ * Bỏ qua sets it aside. They show while the row is hovered or holds focus, and
+ * always on a touch screen, which has no hover.
+ */
+export function RowActions({ itemId, onEdit, onDismiss }: { itemId: string; onEdit: () => void; onDismiss: () => void }) {
   const { t } = useTranslation();
+  // The page's hover hints are the native title (as the time and due chips), not a tooltip layer.
+  const action = (label: string, Icon: LucideIcon, onClick: () => void) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      className="text-muted-foreground hover:text-foreground"
+      title={label}
+      aria-label={label}
+      aria-describedby={rowTitleId(itemId)}
+      onClick={onClick}
+    >
+      <Icon aria-hidden className="size-3.5" />
+    </Button>
+  );
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="-mr-1.75 ml-auto h-5 w-6 text-muted-foreground"
-            aria-label={t("meetings.detail.closeOut.more")}
-          />
-        }
-      >
-        <Ellipsis aria-hidden className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-50">
-        <DropdownMenuItem className="h-9 gap-2 px-2.5" onClick={onEdit}>
-          {t("meetings.detail.closeOut.edit")}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="h-9 gap-2 px-2.5" onClick={onDismiss}>
-          {t("meetings.detail.closeOut.dismiss")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span
+      className={cn(
+        ABOVE,
+        "-my-0.5 -mr-1.5 ml-auto inline-flex gap-0.5 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100",
+      )}
+    >
+      {action(t("meetings.detail.closeOut.edit"), Pencil, onEdit)}
+      {action(t("meetings.detail.closeOut.dismiss"), EyeOff, onDismiss)}
+    </span>
   );
 }
 
@@ -304,11 +312,21 @@ export function ConvertedItemRow({ item, oneLine }: { item: MeetingActionItem; o
   const { memberIndex } = useDetail();
   const owner = memberIndex.memberOf(item.task?.assignee_id)?.display_name;
   const priority = actionItemTaskDefaults(item, undefined).priority;
+  const { workspacePaths } = useDetailPaths();
   const glyph = <CircleCheck aria-hidden className="mt-0.5 size-4 text-success" />;
-  const title = <span className="min-w-0 text-body text-pretty">{item.task?.title || item.title}</span>;
+  const text = item.task?.title || item.title;
+  // The row opens its task, where it is edited.
+  const title =
+    item.task && workspacePaths ? (
+      <AppLink href={workspacePaths.task(item.task.id)} className={cn("min-w-0 text-body text-pretty", STRETCH)}>
+        {text}
+      </AppLink>
+    ) : (
+      <span className="min-w-0 text-body text-pretty">{text}</span>
+    );
   if (oneLine) {
     return (
-      <li className="-mx-2 grid min-h-11 grid-cols-[16px_minmax(0,1fr)_20px_auto] items-center gap-x-3 px-2 py-1 @max-[37.5rem]/meeting:grid-cols-[16px_minmax(0,1fr)] @max-[37.5rem]/meeting:items-start">
+      <li className="relative -mx-2 grid min-h-11 grid-cols-[16px_minmax(0,1fr)_20px_auto] items-center rounded-md hover:bg-surface-hover gap-x-3 px-2 py-1 @max-[37.5rem]/meeting:grid-cols-[16px_minmax(0,1fr)] @max-[37.5rem]/meeting:items-start">
         {glyph}
         {title}
         <span className="inline-flex @max-[37.5rem]/meeting:col-start-2" title={owner}>
@@ -322,7 +340,7 @@ export function ConvertedItemRow({ item, oneLine }: { item: MeetingActionItem; o
     );
   }
   return (
-    <li className={cn(ROW, "items-start")}>
+    <li className={cn(ROW, "relative items-start hover:bg-surface-hover")}>
       {glyph}
       {title}
       <TimeChip item={item} />
