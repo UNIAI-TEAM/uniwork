@@ -47,12 +47,17 @@ function mount() {
 }
 
 describe("AskUniMemory", () => {
-  it("groups the entries and counts them", async () => {
+  it("groups the entries in titled cards and counts them", async () => {
     mount();
     expect(await screen.findByText("Trả lời ngắn gọn")).toBeInTheDocument();
-    expect(screen.getByText("Cách UNI trả lời")).toBeInTheDocument();
-    expect(screen.getByText("Về bạn")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bộ nhớ của bạn" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /Cách UNI trả lời/ })).toHaveTextContent("Trả lời ngắn gọn");
+    expect(screen.getByRole("region", { name: /Về bạn/ })).toHaveTextContent("Tôi là kế toán");
     expect(screen.getByText("2/50")).toBeInTheDocument();
+    // Every line shows its edit and delete actions without a hover.
+    expect(screen.getByRole("button", { name: "Sửa mục: Trả lời ngắn gọn" })).toBeInTheDocument();
+    // The import sits folded on the same screen once there are entries.
+    expect(screen.getByRole("button", { name: "Nhập từ AI khác" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(/Xóa một mục không xóa cuộc trò chuyện/)).toBeInTheDocument();
   });
 
@@ -95,9 +100,10 @@ describe("AskUniMemory", () => {
     mount();
     const user = userEvent.setup();
     await screen.findByText("Trả lời ngắn gọn");
-    await user.tab(); // back
     await user.tab(); // switch
+    await user.tab(); // edit by chat
     await user.tab(); // first line
+    await user.tab(); // its edit button
     await user.tab(); // its delete button
     expect(screen.getByRole("button", { name: "Xóa mục: Trả lời ngắn gọn" })).toHaveFocus();
     await user.keyboard("{Enter}");
@@ -152,11 +158,12 @@ describe("AskUniMemory", () => {
   it("adds a fact", async () => {
     mount();
     await screen.findByText("Tôi là kế toán");
-    const group = screen.getByText("Về bạn").closest("section")!;
-    fireEvent.click(within(group).getByRole("button", { name: "Thêm" }));
+    const group = screen.getByRole("region", { name: /Về bạn/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Thêm mục" }));
     const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
     fireEvent.change(box, { target: { value: "Làm ở Hà Nội" } });
-    fireEvent.keyDown(box, { key: "Enter" });
+    expect(screen.getByText("12/300")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(LIST, { method: "POST", body: { kind: "fact", text: "Làm ở Hà Nội" } }));
   });
 
@@ -180,28 +187,43 @@ describe("AskUniMemory", () => {
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(LIST, { method: "DELETE" }));
   });
 
-  it("edits by chat and opens the import flow", async () => {
+  it("edits by chat: back to the conversation with the help strip open, nothing typed for you", async () => {
     mount();
     await screen.findByText("Tôi là kế toán");
-    fireEvent.click(screen.getByRole("button", { name: "Nhập từ AI khác" }));
-    expect(useAiPanelStore.getState().view).toBe("memory-import");
-    useAiPanelStore.setState({ view: "memory" });
     fireEvent.click(screen.getByRole("button", { name: "Sửa bằng cách nói với UNI" }));
-    expect(useAiPanelStore.getState().view).toBe("thread");
-    expect(useAiPanelStore.getState().composerPrefill).toBe("Cập nhật bộ nhớ của tôi: ");
+    expect(useAiPanelStore.getState()).toMatchObject({ view: "thread", memoryHelp: true, composerPrefill: null });
   });
 
-  it("goes back to the conversation", async () => {
+  it("edits a line in a wrapping box with the kind, a counter, Save and Cancel", async () => {
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Quay lại cuộc trò chuyện" }));
-    expect(useAiPanelStore.getState().view).toBe("thread");
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa mục: Trả lời ngắn gọn" }));
+    const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
+    expect(box.tagName).toBe("TEXTAREA");
+    fireEvent.change(box, { target: { value: "Trả lời\nchi tiết" } });
+    expect(box).toHaveValue("Trả lời chi tiết");
+    fireEvent.click(within(screen.getByRole("group", { name: "Loại" })).getByRole("button", { name: "Về bạn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(`${LIST}/m1`, { method: "PATCH", body: { kind: "fact", text: "Trả lời chi tiết" } }));
   });
 
-  it("offers a first entry and the import on an empty memory", async () => {
+  it("cancels an edit with Hủy", async () => {
+    mount();
+    fireEvent.click(await screen.findByText("Trả lời ngắn gọn"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" }), { target: { value: "Khác" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(screen.getByText("Trả lời ngắn gọn")).toBeInTheDocument();
+    expect(calls("PATCH")).toHaveLength(0);
+  });
+
+  it("offers UNI, a first entry and the open import on an empty memory", async () => {
     list = { ...list, entries: [], remaining: 50 };
     mount();
-    expect(await screen.findByText("Chưa có gì trong bộ nhớ")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nhập từ AI khác" })).toBeInTheDocument();
+    expect(await screen.findByText("Dạy UNI hiểu bạn")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nhập từ AI khác" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("button", { name: "Xóa toàn bộ bộ nhớ" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Nói với UNI" }));
+    expect(useAiPanelStore.getState()).toMatchObject({ view: "thread", memoryHelp: true });
+    useAiPanelStore.setState({ view: "memory" });
     fireEvent.click(screen.getByRole("button", { name: "Thêm mục" }));
     expect(screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" })).toBeInTheDocument();
   });
@@ -212,8 +234,8 @@ describe("AskUniMemory", () => {
     requestMock.mockImplementation((path: string, init?: { method?: string }) =>
       init?.method === "POST" ? Promise.reject(new ApiError("full", "ai_memory_full", 409)) : Promise.resolve(list),
     );
-    const group = screen.getByText("Về bạn").closest("section")!;
-    fireEvent.click(within(group).getByRole("button", { name: "Thêm" }));
+    const group = screen.getByRole("region", { name: /Về bạn/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Thêm mục" }));
     const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
     fireEvent.change(box, { target: { value: "Thêm" } });
     fireEvent.keyDown(box, { key: "Enter" });

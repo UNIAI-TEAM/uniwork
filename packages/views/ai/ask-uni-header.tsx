@@ -10,12 +10,30 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/
 import { useWorkspace } from "../layout/workspace-context";
 import { AskUniHistory } from "./ask-uni-history";
 
-function HeaderAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+function HeaderAction({
+  label,
+  onClick,
+  pressed,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={label} onClick={onClick} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground"
+            aria-label={label}
+            aria-pressed={pressed}
+            onClick={onClick}
+          />
         }
       >
         {children}
@@ -31,7 +49,7 @@ export function AskUniHeader() {
   const { workspace } = useWorkspace();
   const qc = useQueryClient();
   const conversations = useAiConversations(workspace.id);
-  const { conversationId, select, setOpen, setView } = useAiPanelStore();
+  const { conversationId, select, setOpen, setView, view } = useAiPanelStore();
   const memory = useAiCapabilities(workspace.id).data?.memory.enabled === true;
   // A conversation opened from search results may be in no recent list: every cached list of this workspace counts.
   const current =
@@ -46,9 +64,17 @@ export function AskUniHeader() {
         <AskUniHistory title={current?.title || t("untitled")} />
       </div>
       {memory ? (
-        <HeaderAction label={t("memory.button")} onClick={() => setView("memory")}>
-          <Brain aria-hidden />
-        </HeaderAction>
+        view === "memory" ? (
+          // Open, the button reads its name, like ClickUp's "Memory", and a second press goes back to the conversation.
+          <Button type="button" variant="secondary" size="sm" aria-pressed onClick={() => setView("thread")}>
+            <Brain aria-hidden />
+            {t("memory.button")}
+          </Button>
+        ) : (
+          <HeaderAction label={t("memory.button")} pressed={false} onClick={() => setView("memory")}>
+            <Brain aria-hidden />
+          </HeaderAction>
+        )
       ) : null}
       <HeaderAction label={t("new_conversation")} onClick={() => select(null)}>
         <MessageSquarePlus aria-hidden />
