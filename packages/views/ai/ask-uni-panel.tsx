@@ -9,6 +9,7 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniHeader } from "./ask-uni-header";
+import { AskUniMemory } from "./ask-uni-memory";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
 import { AskUniSourcesBar } from "./ask-uni-sources-bar";
@@ -38,6 +39,7 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const { i18n } = useTranslation();
   const conversationId = useAiPanelStore((s) => s.conversationId);
+  const memoryView = useAiPanelStore((s) => s.view) === "memory";
   // The panel owns the stream so the thread and the composer share one live turn.
   const stream = useAskUniStream(workspace.id);
   const { model, effort, look } = useAskModelSelection(workspace.id);
@@ -62,7 +64,10 @@ export function AskUniPanel() {
       {...dropHandlers}
     >
       <AskUniHeader />
-      <AskUniSourcesBar />
+      {memoryView ? null : <AskUniSourcesBar />}
+      {memoryView ? (
+        <AskUniMemory orgId={workspace.organization_id} />
+      ) : (
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
         {empty ? (
           <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} model={model} look={look} />
@@ -76,6 +81,7 @@ export function AskUniPanel() {
         )}
         <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={streaming} attachments={canAttach ? attachments : undefined} />
       </div>
+      )}
       {isDragOver ? <DropOverlay /> : null}
     </div>
   );
