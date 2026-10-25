@@ -29,6 +29,8 @@ const msg = (over: Record<string, unknown> = {}) => ({
   attachments: [],
   file_notes: [],
   proposals: [],
+  memory_ids: [],
+  memory_proposals: [],
   created_at: "t",
   ...over,
 });
@@ -448,6 +450,30 @@ describe("useAskModelChoice", () => {
     expect(result.current.state.proposals).toEqual([proposal]);
     const stored = qc.getQueryData<{ id: string; proposals: unknown[] }[]>(aiKeys.messages("c1"));
     expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([proposal]);
+  });
+
+  const memRow = { id: "mp1", message_id: "m1", position: 1, action: "remember", status: "pending" } as never;
+
+  it("memory_proposals and memory_used land in the stored answer on done", () => {
+    const { result, qc } = setup();
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "memory_proposals", proposals: [memRow] });
+    emit({ type: "memory_used", memoryIds: ["e1"] });
+    expect(result.current.state).toMatchObject({ memoryProposals: [memRow], memoryIds: ["e1"] });
+    emit({ type: "done", message: msg(), usage: usage0 });
+    const stored = qc.getQueryData<{ id: string; memory_proposals: unknown[]; memory_ids: string[] }[]>(aiKeys.messages("c1"));
+    expect(stored?.find((m) => m.id === "m1")).toMatchObject({ memory_proposals: [memRow], memory_ids: ["e1"] });
+  });
+
+  it("a stopped turn keeps no memory proposals", () => {
+    const { result } = setup();
+    act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
+    emit({ type: "memory_proposals", proposals: [memRow] });
+    emit({ type: "memory_used", memoryIds: ["e1"] });
+    emit({ type: "done", message: msg({ notice: "stopped" }), usage: usage0 });
+    expect(result.current.state.memoryIds).toEqual([]);
+    expect(result.current.state.message?.memory_proposals).toEqual([]);
+    expect(result.current.state.memoryProposals).toEqual([]);
   });
 
   it("a later proposal event replaces the rows (they carry their own state)", () => {

@@ -9,6 +9,9 @@ type AskUniPanelFocus = {
   label?: string;
 };
 
+/** What the dock shows: the conversation, the memory screen, or the import flow of the memory screen. */
+type AiPanelView = "thread" | "memory" | "memory-import";
+
 /** Client state of the Ask UNI panel (⌘J): open/closed and which conversation is showing. */
 interface AiPanelStore {
   open: boolean;
@@ -21,6 +24,9 @@ interface AiPanelStore {
   focus: AskUniPanelFocus | null;
   /** `kind:id` of a page whose chip the reader removed. */
   pageDismissed: string | null;
+  view: AiPanelView;
+  /** Text the composer takes once ("Sửa bằng cách nói với UNI"): it appends it, focuses, then sets this back to null. */
+  composerPrefill: string | null;
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
@@ -32,6 +38,8 @@ interface AiPanelStore {
   /** Moving to another object forgets the dismissal; a same-object update (a rename) keeps it. */
   setPage: (page: AskUniPanelFocus | null) => void;
   dismissPage: () => void;
+  setView: (view: AiPanelView) => void;
+  setComposerPrefill: (text: string | null) => void;
 }
 
 export const useAiPanelStore = create<AiPanelStore>((set) => ({
@@ -42,20 +50,24 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   page: null,
   focus: null,
   pageDismissed: null,
+  view: "thread",
+  composerPrefill: null,
   bindWorkspace: (wsId) =>
     set((s) =>
       s.workspaceId === wsId
         ? s
-        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null, focus: null }) },
+        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null, focus: null, view: "thread" as const, composerPrefill: null }) },
     ),
-  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null }) }),
+  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, view: "thread" as const }) }),
   toggle: () =>
-    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus })),
+    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, ...(s.open ? { view: "thread" as const } : {}) })),
   select: (conversationId) => set(conversationId === null ? { conversationId, focus: null } : { conversationId }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   clearPendingFocus: () => set({ pendingFocus: null }),
   setFocus: (focus) => set({ focus }),
   setPage: (page) =>
     set((s) => ({ page, pageDismissed: page && `${page.kind}:${page.id}` === s.pageDismissed ? s.pageDismissed : null })),
+  setView: (view) => set({ view }),
+  setComposerPrefill: (composerPrefill) => set({ composerPrefill }),
   dismissPage: () => set((s) => ({ pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null })),
 }));

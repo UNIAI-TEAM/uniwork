@@ -11,7 +11,7 @@ import { SafeMarkdown } from "@uniwork/ui/markdown";
 // The tools the server names (metrics/ai_ask.go askTools); a wire value outside this set never becomes a key.
 const TOOLS = new Set([
   "search", "list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects",
-  "get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
+  "get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload", "propose_memory",
 ]);
 
 /** The sentence for one step under `progress` or `steps_done`: blank tool is the server's retry, unknown tool the generic one. */

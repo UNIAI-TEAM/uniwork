@@ -121,8 +121,8 @@ DELETE FROM ai_conversations WHERE id = $1;
 DELETE FROM ai_messages WHERE conversation_id = $1;
 
 -- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice, steps, followups, focus, mentions, model, file_notes, memory_ids)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE(NULLIF(sqlc.arg(memory_ids)::text, ''), '[]'))
 RETURNING *;
 
 -- name: AiListMessages :many

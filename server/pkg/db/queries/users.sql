@@ -217,3 +217,9 @@ SELECT ask_uni_mode FROM users WHERE id = $1;
 
 -- name: SetUserAskUniMode :exec
 UPDATE users SET ask_uni_mode = sqlc.narg(mode)::text, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: GetUserAskUniMemoryOff :one
+SELECT ask_uni_memory_off FROM users WHERE id = $1;
+
+-- name: SetUserAskUniMemoryOff :exec
+UPDATE users SET ask_uni_memory_off = sqlc.arg(off), updated_at = now() WHERE id = sqlc.arg(id);

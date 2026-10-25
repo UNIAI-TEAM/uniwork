@@ -21,7 +21,7 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, Model: m.Model, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions, out.Attachments = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}, []sdo.AiAttachmentDTO{}
-	out.Proposals = []sdo.AiProposalDTO{}
+	out.Proposals, out.MemoryProposals = []sdo.AiProposalDTO{}, []sdo.AiMemoryProposalDTO{}
 	out.FileNotes = decodeList[sdo.AiFileNoteDTO](m.FileNotes) // stored in the DTO's own shape
 	// A column that is NULL or does not decode reads as empty, never an error.
 	for _, st := range decodeList[service.AskStep](m.Steps) {
@@ -32,12 +32,29 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts, Note: st.Note, Thought: st.Thought, Kind: st.Kind})
 	}
 	out.Followups = decodeList[string](m.Followups)
+	out.MemoryIDs = decodeList[string](m.MemoryIds)
 	for _, r := range decodeList[service.AskContextRef](m.Mentions) {
 		out.Mentions = append(out.Mentions, sdo.AiContextRefDTO{Kind: r.Kind, ID: r.ID, Title: r.Title})
 	}
 	var focus service.AskContextRef
 	if m.Focus.Valid && json.Unmarshal([]byte(m.Focus.String), &focus) == nil && focus.ID != "" {
 		out.Focus = &sdo.AiContextRefDTO{Kind: focus.Kind, ID: focus.ID, Title: focus.Title}
+	}
+	return out
+}
+
+func toAiMemoryProposalDTO(p service.AskMemoryProposal) sdo.AiMemoryProposalDTO {
+	return sdo.AiMemoryProposalDTO{
+		ID: p.ID, MessageID: p.MessageID, Position: p.Position, Action: p.Action, MemoryID: p.MemoryID, Kind: p.Kind, Text: p.Text,
+		BeforeKind: p.BeforeKind, BeforeText: p.BeforeText, Status: p.Status, ExpiresAt: p.ExpiresAt.UTC().Format(time.RFC3339),
+	}
+}
+
+// aiMemoryProposalDTOs is ps as the API names them; never nil.
+func aiMemoryProposalDTOs(ps []service.AskMemoryProposal) []sdo.AiMemoryProposalDTO {
+	out := make([]sdo.AiMemoryProposalDTO, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, toAiMemoryProposalDTO(p))
 	}
 	return out
 }
@@ -76,6 +93,7 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
 		Models: models, AutoModel: c.AutoModel, Attachments: c.Attachments,
 		Actions: sdo.AiActionsDTO{Enabled: c.Actions.Enabled, Ceiling: c.Actions.Ceiling, Mode: c.Actions.Mode},
+		Memory:  sdo.AiMemoryCapsDTO{Enabled: c.Memory.Enabled, On: c.Memory.On},
 	})
 }
 
@@ -226,9 +244,14 @@ func (h *handlers) listAiMessages(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	memory, err := h.AskUNI.MessageMemoryProposals(r.Context(), orgID, answers)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	for _, m := range rows {
 		dto := toAiMessageDTO(m.AiMessage)
-		dto.Proposals = aiProposalDTOs(proposals[m.ID])
+		dto.Proposals, dto.MemoryProposals = aiProposalDTOs(proposals[m.ID]), aiMemoryProposalDTOs(memory[m.ID])
 		for _, a := range m.Attachments {
 			dto.Attachments = append(dto.Attachments, sdo.AiAttachmentDTO{ID: a.ID, Name: a.Name, MIME: a.MIME, Size: a.Size, Kind: a.Kind})
 		}

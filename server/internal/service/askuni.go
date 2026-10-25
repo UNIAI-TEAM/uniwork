@@ -35,6 +35,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	memory   *AiMemoryService
 	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
@@ -66,6 +67,9 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
+
+// SetMemory wires the memory service whose flag and switch capabilities report.
+func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
 
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
@@ -103,7 +107,13 @@ type AICapabilities struct {
 	Attachments bool
 	// Actions is Ask UNI's write state: the flag, the ceiling, the asker's mode.
 	Actions AskActions
+	// Memory is the memory flag with the agent on (R9) and the asker's switch.
+	Memory AskMemoryCaps
 }
+
+// AskMemoryCaps is what capabilities say about memory: Enabled is the flag with
+// the agent on, On is the person's own switch.
+type AskMemoryCaps struct{ Enabled, On bool }
 
 type AskInput struct {
 	ConversationID string
@@ -161,6 +171,10 @@ type AskResult struct {
 	// Proposals are the rows the turn proposed, as they stand after any
 	// auto-applied ones ran; none when the agent proposed nothing.
 	Proposals []AskProposal
+	// MemoryIDs are the memory entries the answer used (P4).
+	MemoryIDs []string
+	// MemoryProposals are the memory rows the turn proposed (P4, R11).
+	MemoryProposals []AskMemoryProposal
 }
 
 const (
@@ -230,7 +244,16 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	out.Actions = s.askActions(ctx, tc, "")
 	// Write tools reach only an agent turn (agentOn), as files do.
-	out.Actions.Enabled = out.Actions.Enabled && s.agentOn(ctx, tc)
+	agent := s.agentOn(ctx, tc)
+	out.Actions.Enabled = out.Actions.Enabled && agent
+	if s.memory != nil {
+		out.Memory.Enabled = agent && s.memory.AskMemoryEnabled(ctx, userID, w.OrganizationID)
+		// A failed read reports on, deliberately: the turn path re-reads the switch, so this never feeds memory into a turn by itself.
+		out.Memory.On = true
+		if off, err := s.q.GetUserAskUniMemoryOff(ctx, userID); err == nil {
+			out.Memory.On = !off
+		}
+	}
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
@@ -316,12 +339,16 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			return AskResult{}, err
 		}
 		q, ok := regenerateQuestion(rows, in.Regenerate)
-		if ok { // an answer with proposals, in any state, is kept (R15)
+		if ok { // an answer with proposals or memory proposals, in any state, is kept (R15, P4 R11)
 			n, err := s.q.AiCountMessageProposals(ctx, db.AiCountMessageProposalsParams{OrganizationID: w.OrganizationID, MessageID: strText(in.Regenerate)})
 			if err != nil {
 				return AskResult{}, err
 			}
-			ok = n == 0
+			m, err := s.q.AiCountMessageMemoryProposals(ctx, db.AiCountMessageMemoryProposalsParams{OrganizationID: w.OrganizationID, MessageID: in.Regenerate})
+			if err != nil {
+				return AskResult{}, err
+			}
+			ok = n == 0 && m == 0
 		}
 		if !ok {
 			return AskResult{}, Invalid(errRegenerateTarget)
@@ -809,6 +836,7 @@ type askTurn struct {
 	Mentions                 []AskContextRef
 	Steps                    []AskStep
 	Followups                []string
+	MemoryIDs                []string
 	Regenerates              string
 	// Model is the catalogue key of the model the person chose; "" for Auto.
 	Model string
@@ -825,6 +853,9 @@ type askTurn struct {
 	Mode      string
 	Tainted   bool
 	RunID     string
+	// MemoryProposals are the turn's propose_memory rows, stored with the
+	// answer from position 1 (R11).
+	MemoryProposals []askMemoryDraft
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -871,12 +902,15 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
 		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
 		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
-		FileNotes: jsonOrEmptyList(t.FileNotes),
+		FileNotes: jsonOrEmptyList(t.FileNotes), MemoryIds: jsonOrEmptyList(t.MemoryIDs),
 	})
 	if err != nil {
 		return db.AiMessage{}, err
 	}
 	if err := s.insertTurnProposals(ctx, q, orgID, convID, msg.ID, t); err != nil {
+		return db.AiMessage{}, err
+	}
+	if err := s.insertTurnMemoryProposals(ctx, q, orgID, t.WorkspaceID, convID, msg.ID, t.UserID, t.MemoryProposals); err != nil {
 		return db.AiMessage{}, err
 	}
 	// A regenerate has no question of its own: an empty title leaves the stored one.
@@ -969,7 +1003,11 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 		return err
 	}
 	// Its proposals go with it; what they changed and its audit stay (R20).
+	// So do its memory proposals; the memory they changed stays (P4 R11).
 	if err := q.AiDeleteConversationProposals(ctx, db.AiDeleteConversationProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: strText(conversationID)}); err != nil {
+		return err
+	}
+	if err := q.AiDeleteConversationMemoryProposals(ctx, db.AiDeleteConversationMemoryProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID}); err != nil {
 		return err
 	}
 	fileIDs, err := q.AiDeleteConversationAttachments(ctx, db.AiDeleteConversationAttachmentsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID})

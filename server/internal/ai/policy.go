@@ -28,6 +28,9 @@ const (
 	CapCloudImage           Capability = "cloud_image_generate"
 	CapCloudTranscribe      Capability = "cloud_transcribe"
 	CapMediaAnalysis        Capability = "media_analysis"
+	// CapAskUniMemoryImport splits text pasted from another AI into candidate
+	// memory entries (P4 R15): one structured call on the fast model.
+	CapAskUniMemoryImport Capability = "ask_uni_memory_import"
 	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
 	// A1): a tool-calling chat, one Complete per tool-result round.
 	CapOfficeUniworkAI Capability = "office_uniwork_ai"
@@ -70,6 +73,9 @@ var policies = map[Capability]ModelPolicy{
 	CapAgentEvaluation:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmbedding:            {Default: embedding, MaxTokens: 0, Temperature: 0},
 	CapMediaAnalysis:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// 16 000 tokens fit 100 entries of 300 Vietnamese characters with their
+	// JSON; a reply cut at the ceiling is ErrOutputInvalid.
+	CapAskUniMemoryImport: {Default: fast, MaxTokens: 16000, Temperature: 0},
 	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML); per-module ceilings are lowered in officeModuleMaxTokens.
 	CapOfficeUniworkAI: {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
 }

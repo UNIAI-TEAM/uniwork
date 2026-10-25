@@ -266,3 +266,54 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
     await setFlag("ask_uni_stream", orgId, false);
   }
 });
+
+// The memory flow (UNI-2156, P4): a stated preference becomes a "Nhớ điều này?" card (server/internal/ai/fake.go
+// proposes memory for a question starting "Từ giờ "), nothing is kept until "Nhớ", the next answer says it used the
+// memory, and the entry can be edited and deleted from the Bộ nhớ screen.
+test("docked Ask UNI remembers a preference, uses it, and the memory screen edits and deletes it", async ({ page }) => {
+  test.setTimeout(150_000);
+  const orgId = await onboard(page, "Chủ Bộ Nhớ", `Bộ nhớ ${stamp}`, "Đội Bộ nhớ");
+  test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
+
+  await setFlag("ask_uni_stream", orgId, true);
+  await setFlag("ask_uni_agent", orgId, true);
+  await setFlag("ask_uni_memory", orgId, true);
+  try {
+    await reloadWithOrgFlags(page);
+    await page.keyboard.press("ControlOrMeta+j");
+    const dock = page.getByRole("complementary", { name: "Hỏi UNI" });
+    await expect(dock).toBeVisible();
+    const box = dock.getByRole("textbox", { name: "Câu hỏi cho UNI" });
+
+    // 1. A stated preference: a card, and nothing is remembered until the asker says so.
+    await box.fill("Từ giờ trả lời tôi bằng gạch đầu dòng");
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    const card = dock.getByRole("region", { name: "Đề xuất bộ nhớ" });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("Từ giờ trả lời tôi bằng gạch đầu dòng")).toBeVisible();
+    await card.getByRole("button", { name: "Nhớ", exact: true }).click();
+    await expect(card.getByText("Đã nhớ")).toBeVisible({ timeout: 15_000 });
+
+    // 2. A new question: the answer says it used the memory.
+    await box.fill("việc nào đang trễ?");
+    await dock.getByRole("button", { name: "Gửi" }).click();
+    await expect(dock.getByText(/Đã dùng bộ nhớ/)).toBeVisible({ timeout: 15_000 });
+
+    // 3. The memory screen: edit the line, then delete it.
+    await dock.getByRole("button", { name: "Bộ nhớ", exact: true }).click();
+    // The entry is a button named by its text; "Sửa mục này" is only its title.
+    await dock.getByRole("button", { name: "Từ giờ trả lời tôi bằng gạch đầu dòng" }).click();
+    const edit = dock.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
+    await edit.fill("Trả lời ngắn gọn");
+    await edit.press("Enter");
+    await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toBeVisible({ timeout: 15_000 });
+    await dock.getByRole("button", { name: "Xóa mục này" }).click();
+    // The confirmation is a toast outside the dock; the row itself must be gone.
+    await expect(page.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
+    await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toHaveCount(0);
+  } finally {
+    await setFlag("ask_uni_memory", orgId, false);
+    await setFlag("ask_uni_agent", orgId, false);
+    await setFlag("ask_uni_stream", orgId, false);
+  }
+});

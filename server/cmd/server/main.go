@@ -771,6 +771,10 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
 	askUNI.SetFlags(flags)
+	aiMemorySvc := service.NewAiMemoryService(pool, q, orgSvc, wsSvc)
+	aiMemorySvc.SetFlags(flags)
+	aiMemorySvc.SetImport(gateway, rdb)
+	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
@@ -812,6 +816,7 @@ func main() {
 	askUNI.SetReadTools(mcpTools)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
+		aiMemorySvc.SetMetrics(reg.AIAsk)
 	}
 	// The sweep of expired attempts, tokens and abandoned clients stops with
 	// runCancel and is awaited below.
@@ -844,6 +849,7 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		AiMemory:            aiMemorySvc,
 		McpAuth:             mcpAuth,
 		McpTools:            mcpTools,
 		AIBYOK:              aiBYOK,
