@@ -15,7 +15,7 @@ export type DraftIssueCode =
   | "motionEmpty"
   | "motionTooLong";
 
-export type DraftIssue = { field: string; code: DraftIssueCode; section?: "more" };
+export type DraftIssue = { field: string; code: DraftIssueCode };
 
 /** Empty is "no minimum" (0, which the server reads as clearing it); else an integer 1–100. */
 export function parseQuorum(text: string): { value: number; invalid: boolean } {
@@ -84,14 +84,14 @@ export function validateDraft(
   for (const link of draft.links) {
     const limit = parseLimit(link.maxUses);
     if (limit.invalid || (link.access === "AUTO_ADMIT" && limit.value === undefined)) {
-      issues.push({ field: `link-${link.key}`, code: "linkLimit", section: "more" });
+      issues.push({ field: `link-${link.key}`, code: "linkLimit" });
     }
   }
   for (const motion of draft.motions) {
     if (motion.status && motion.status !== "DRAFT") continue;
     const code = motionIssue(motion.title);
-    if (code) issues.push({ field: `motion-${motion.key}`, code, section: "more" });
+    if (code) issues.push({ field: `motion-${motion.key}`, code });
   }
-  if (parseQuorum(draft.quorum).invalid) issues.push({ field: "quorum", code: "quorumInvalid", section: "more" });
+  if (parseQuorum(draft.quorum).invalid) issues.push({ field: "quorum", code: "quorumInvalid" });
   return issues;
 }

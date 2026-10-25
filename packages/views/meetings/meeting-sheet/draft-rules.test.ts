@@ -50,7 +50,6 @@ describe("draft validation", () => {
     const motion = { ...newMotion(), title: "x".repeat(201) };
     const issues = validateDraft(draft({ title: "x", links: [link], motions: [motion], quorum: "120" }), { nowMs: NOW, checkPast: true });
     expect(issues.map((i) => i.code)).toEqual(["linkLimit", "motionTooLong", "quorumInvalid"]);
-    expect(issues.every((i) => i.section === "more")).toBe(true);
   });
 
   it("parses quorum and times", () => {

@@ -2,7 +2,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronRight, CircleAlert, Link, Plus, X } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
-import { inviteLinkStatus } from "@uniwork/core/meetings";
 import type { MeetingInviteLink } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -13,7 +12,7 @@ import { TextButton } from "../meeting-detail/ui/text-button";
 import { expiresAtFromDays } from "../invite-link-url";
 import { newGuestLink, type GuestLinkDraft, type LinkAccess, type LinkDays } from "./draft-model";
 import { parseLimit } from "./draft-validation";
-import { CONTROL, SECTION_TITLE } from "./sheet-styles";
+import { CONTROL } from "./sheet-styles";
 
 const DAYS: readonly LinkDays[] = ["1", "7", "30"];
 
@@ -97,15 +96,15 @@ function DraftRow({
   const set = (patch: Partial<GuestLinkDraft>) => !readOnly && onChange({ ...link, ...patch });
   return (
     <li className="mt-3 rounded-control border border-border p-3">
+      {/* The part's header already draws the link icon: the card opens on its name. */}
       <div className="flex items-center gap-2">
-        <Link aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           aria-label={t("meetings.linkName")}
           value={link.name}
           placeholder={placeholder}
           readOnly={readOnly}
           onChange={(e) => set({ name: e.target.value })}
-          className="-ml-1 h-8 min-w-0 flex-1 rounded-sm bg-transparent px-2 text-body font-medium outline-none placeholder:text-muted-foreground hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring max-sm:h-11"
+          className="-ml-2 h-8 min-w-0 flex-1 rounded-sm bg-transparent px-2 text-body font-medium outline-none placeholder:text-muted-foreground hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring max-sm:h-11"
         />
         <Button variant="ghost" size="icon-sm" className={cn(kitButton.icon, "[&_svg]:size-3.5")} aria-label={t("meetings.sheet.removeLink")} onClick={() => !readOnly && onRemove()}>
           <X aria-hidden />
@@ -122,9 +121,8 @@ function DraftRow({
             { value: "AUTO_ADMIT", label: t("meetings.linkAutoAdmit") },
           ]}
         />
-        <p className="mt-0.5 basis-full text-caption text-muted-foreground">
-          {t(link.access === "AUTO_ADMIT" ? "meetings.linkAutoAdmitGuestHint" : "meetings.linkNeedApprovalGuestHint")}
-        </p>
+        {/* "Chủ trì cho vào" says what it does; only self-admitting needs its catch (from the start, not before). */}
+        {link.access === "AUTO_ADMIT" ? <p className="mt-0.5 basis-full text-caption text-muted-foreground">{t("meetings.linkAutoAdmitGuestHint")}</p> : null}
       </Line>
       <Line label={t("meetings.linkExpiry")}>
         <SegmentedSm<LinkDays>
@@ -146,7 +144,7 @@ function DraftRow({
         ) : null}
       </Line>
       <Line label={t("meetings.sheet.linkLimit")}>
-        <span className={cn(CONTROL, "inline-flex h-8 w-24 items-center focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-ring has-aria-invalid:border-destructive max-sm:h-11")}>
+        <span className={cn(CONTROL, "inline-flex h-8 w-36 items-center focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-ring has-aria-invalid:border-destructive max-sm:h-11")}>
         <input
           id={limitId}
           inputMode="numeric"
@@ -187,8 +185,8 @@ function Line({ label, children }: { label: string; children: ReactNode }) {
 /**
  * Khách bên ngoài (create brief §2.9): a bordered row per new link — name,
  * Quyền vào (default Chủ trì cho vào), Hạn dùng 1/7/30 with its end, a limit
- * that self-admitting links must set — and, in edit, the links that exist as
- * read-only rows.
+ * that self-admitting links must set — and, in edit, the active links that
+ * exist as read-only rows.
  */
 export function GuestLinkDrafts({
   links,
@@ -214,16 +212,11 @@ export function GuestLinkDrafts({
   live?: boolean;
 }) {
   const { t } = useTranslation();
-  const active = existing.filter((l) => inviteLinkStatus(l, new Date(nowMs)) === "active");
   return (
-    <section className="pt-2" aria-labelledby="sheet-links-title">
-      <h3 id="sheet-links-title" className={SECTION_TITLE}>
-        {t("meetings.sheet.guestsTitle")}
-      </h3>
-      <p className="mt-0.5 text-caption text-muted-foreground group-data-[mode=edit]/sheet:mt-2">{t("meetings.sheet.guestsHint")}</p>
-      {active.length ? (
-        <ul className="mt-2 group-data-[mode=edit]/sheet:mt-0">
-          {active.map((l) => (
+    <>
+      {existing.length ? (
+        <ul>
+          {existing.map((l) => (
             <ExistingLinkRow key={l.id} link={l} nowMs={nowMs} onManage={onManage} live={live} />
           ))}
         </ul>
@@ -245,7 +238,7 @@ export function GuestLinkDrafts({
       </ul>
       <AddRow label={t("meetings.sheet.addLink")} disabled={readOnly} onClick={() => onChange([...links, newGuestLink()])} />
       {links.length ? <p className="mt-2 text-caption text-muted-foreground">{t("meetings.sheet.linkSecretAfter")}</p> : null}
-    </section>
+    </>
   );
 }
 

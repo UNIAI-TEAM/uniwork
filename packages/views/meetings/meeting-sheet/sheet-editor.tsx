@@ -20,7 +20,6 @@ import { kitButton } from "../meeting-detail/ui/kit-buttons";
 import { useNow } from "../use-now";
 import type { MeetingDraft } from "./draft-model";
 import { validateDraft } from "./draft-validation";
-import { readMoreOpen, rememberMoreOpen } from "./more-options";
 import type { Rsvp } from "./person-role-row";
 import { ResultPanelBody, ResultPanelHead } from "./result-panel";
 import { dropRun, linksPending, retryRows, runProgress, runRows, startSubmitRun, useSubmitRun, type SubmitRun } from "./run-submit-plan";
@@ -111,9 +110,6 @@ export function SheetEditor({
     };
   }, []);
   const [confirm, setConfirm] = useState<"discard" | "reload" | null>(null);
-  const [moreOpen, setMoreOpen] = useState(() =>
-    setup.mode === "create" ? readMoreOpen() : setup.initial.links.length + setup.initial.motions.length > 0 || Boolean(setup.initial.quorum) || (setup.mode === "edit" && setup.existingLinks.length > 0),
-  );
 
   const meeting = setup.mode === "edit" ? setup.meeting : null;
   const ended = meeting ? meeting.status === "ENDED" || meeting.status === "CANCELED" : false;
@@ -174,7 +170,6 @@ export function SheetEditor({
     const found = validateDraft(draft, { nowMs: now, checkPast: setup.mode !== "edit" || timeTouched, timeLocked: Boolean(live) });
     if (found.length) {
       setSubmitted(true);
-      if (found.some((i) => i.section === "more")) setMoreOpen(true);
       requestAnimationFrame(() => focusIssue(idPrefix, found[0]!));
       return;
     }
@@ -210,10 +205,6 @@ export function SheetEditor({
     onClose();
   };
   guardRef.current = requestClose;
-
-  useEffect(() => {
-    if (setup.mode === "create") rememberMoreOpen(moreOpen);
-  }, [moreOpen, setup.mode]);
 
   const pending = changes.length > 0 || phase1Busy || phase2;
   useEffect(() => {
@@ -345,8 +336,6 @@ export function SheetEditor({
               host={host}
               viewerId={user?.id}
               caps={caps}
-              moreOpen={moreOpen}
-              onMoreOpen={setMoreOpen}
               linkPlaceholder={linkPlaceholder}
               live={live}
               existingLinks={setup.mode === "edit" ? setup.existingLinks : undefined}

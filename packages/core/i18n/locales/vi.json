@@ -4200,7 +4200,12 @@
       "chipPausedShort": "Tạm dừng",
       "explainPaused": "Dịch vụ nhận dạng giọng nói đang lỗi. Thư ký UNI vẫn ở trong phòng và tự thử lại; trong lúc chờ, phụ đề dùng giọng nói trên máy của từng người.",
       "speakerSameAs": "Giống Người nói {{n}} · {{name}}",
-      "name": "Thư ký UNI"
+      "name": "Thư ký UNI",
+      "helpTitle": "Thư ký UNI làm gì?",
+      "helpCaptions": "Hiện phụ đề trực tiếp cho mọi người trong phòng.",
+      "helpTranscript": "Ghi lời thoại, ghi rõ ai nói câu nào.",
+      "helpSummary": "Tóm tắt cuộc họp và gợi ý việc cần làm từ những gì đã nói.",
+      "helpQuiet": "Thư ký UNI không nói, không bật camera và không tính là người tham gia."
     },
     "aiAccess": {
       "title": "Thư ký UNI và nội dung AI",
@@ -4919,21 +4924,7 @@
       "shareLabel": "Ai xem được tóm tắt và lời thoại",
       "shareMeeting": "Người dự họp",
       "shareWorkspace": "Cả workspace",
-      "shareMeetingHint": "Người dự họp: chủ trì, thư ký, người được mời và quản trị viên workspace.",
-      "shareWorkspaceHint": "Mọi thành viên workspace {{name}} đọc được tóm tắt và lời thoại.",
       "more": "Thêm tùy chọn",
-      "moreNeedsFix": "cần sửa",
-      "summaryGuests": "Khách bên ngoài: {{value}}",
-      "summaryVotes": "Biểu quyết: {{value}}",
-      "summaryRoll": "Điểm danh: {{value}}",
-      "summaryNone": "chưa có",
-      "summaryOneLinkApproval": "1 liên kết, chủ trì duyệt",
-      "summaryLinks_one": "{{count}} liên kết",
-      "summaryLinks_other": "{{count}} liên kết",
-      "summaryMotions_one": "{{count}} nội dung",
-      "summaryMotions_other": "{{count}} nội dung",
-      "summaryNoQuorum": "không yêu cầu",
-      "summaryQuorum": "tối thiểu {{percent}}%",
       "guestsTitle": "Khách bên ngoài",
       "guestsHint": "Khách không cần tài khoản UniWork, chỉ mở liên kết và nhập tên.",
       "linkAccess": "Quyền vào",
@@ -5051,7 +5042,11 @@
       "linkUsesOf": "<n>{{used}}/{{max}}</n> lượt",
       "linkUsesPlain": "{{used}}/{{max}} lượt",
       "linkExpiresDayFirst": "hết hạn {{day}} <time>{{clock}}</time>",
-      "createMismatch": "Cuộc họp với thông tin trước có thể đã được tạo. Hãy xem danh sách cuộc họp trước khi tạo lại."
+      "createMismatch": "Cuộc họp với thông tin trước có thể đã được tạo. Hãy xem danh sách cuộc họp trước khi tạo lại.",
+      "shareMeetingDesc": "Chủ trì, thư ký, người được mời và quản trị viên workspace.",
+      "shareWorkspaceDesc": "Mọi thành viên workspace {{name}}.",
+      "optionClose": "Bỏ {{name}}",
+      "rollHint": "Đặt tỉ lệ có mặt tối thiểu. Chưa đủ chỉ cảnh báo, không chặn cuộc họp."
     },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",

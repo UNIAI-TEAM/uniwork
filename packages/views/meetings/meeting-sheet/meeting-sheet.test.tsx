@@ -149,6 +149,35 @@ describe("MeetingSheet · create", () => {
     expect(toast.success).toHaveBeenCalledWith("Đã tạo cuộc họp", expect.anything());
   });
 
+  it("offers the optional parts as chips: one opens its part, an empty part closes back to its chip", async () => {
+    const dialog = openCreate();
+    const chips = within(dialog).getByRole("group", { name: "Thêm tùy chọn" });
+    expect(within(chips).getAllByRole("button").map((b) => b.textContent)).toEqual(["Khách bên ngoài", "Biểu quyết", "Điểm danh"]);
+    fireEvent.click(within(chips).getByRole("button", { name: "Điểm danh" }));
+    expect(within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu (%)")).toHaveFocus();
+    expect(within(chips).queryByRole("button", { name: "Điểm danh" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ Điểm danh" }));
+    expect(within(dialog).queryByLabelText("Tỉ lệ có mặt tối thiểu (%)")).toBeNull();
+    fireEvent.click(within(chips).getByRole("button", { name: "Biểu quyết" }));
+    await waitFor(() => expect(within(dialog).getByLabelText("Nội dung")).toHaveFocus());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ Biểu quyết" }));
+    expect(within(chips).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("says who reads the scribe's notes on one chip and changes it from its menu", async () => {
+    const dialog = openCreate();
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Ai xem được tóm tắt và lời thoại: Người dự họp, đổi" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Cả workspace/ }));
+    expect(await within(dialog).findByRole("button", { name: "Ai xem được tóm tắt và lời thoại: Cả workspace, đổi" })).toBeInTheDocument();
+  });
+
+  it("says what Thư ký UNI does behind the ? beside its name", async () => {
+    const dialog = openCreate();
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Thư ký UNI làm gì?" }));
+    expect(await screen.findByText("Hiện phụ đề trực tiếp cho mọi người trong phòng.")).toBeInTheDocument();
+    expect(screen.getByText("Tóm tắt cuộc họp và gợi ý việc cần làm từ những gì đã nói.")).toBeInTheDocument();
+  });
+
   it("puts the title error on the field and sends nothing", async () => {
     const dialog = openCreate();
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
@@ -188,8 +217,7 @@ describe("MeetingSheet · create", () => {
     });
     const dialog = openCreate();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Duyệt" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm liên kết khách" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Khách bên ngoài" }));
     fireEvent.change(within(dialog).getByLabelText("Tên liên kết"), { target: { value: "Agency" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
     expect(await screen.findByText("Chưa tạo được liên kết khách “Agency”.")).toBeInTheDocument();
@@ -272,9 +300,7 @@ describe("MeetingSheet · create runs", () => {
     });
     const dialog = openCreate();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Duyệt" } });
-    // The open state of Thêm tùy chọn is remembered from the test before.
-    if (!within(dialog).queryByRole("button", { name: "Thêm liên kết khách" })) fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm liên kết khách" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Khách bên ngoài" }));
     fireEvent.change(within(dialog).getByLabelText("Tên liên kết"), { target: { value: "Agency" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
     fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
@@ -351,8 +377,7 @@ describe("MeetingSheet · create runs", () => {
     const onDone = vi.fn();
     const dialog = openCreate(onDone);
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Duyệt" } });
-    if (!within(dialog).queryByRole("button", { name: "Thêm liên kết khách" })) fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm liên kết khách" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Khách bên ngoài" }));
     fireEvent.change(within(dialog).getByLabelText("Tên liên kết"), { target: { value: "Agency" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
     fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
@@ -393,7 +418,7 @@ describe("MeetingSheet · edit", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Cuộc họp đang diễn ra — không thể đổi thời gian.")).toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Giờ bắt đầu")).toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Thêm tùy chọn" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Điểm danh" }));
     expect(await within(dialog).findByText("Điểm danh đã chốt. Mở lại điểm danh rồi thử lại.")).toBeInTheDocument();
   });
 
@@ -405,8 +430,9 @@ describe("MeetingSheet · edit", () => {
         : undefined,
     );
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findByText(/Khách bên ngoài: 1 liên kết/)).toBeInTheDocument();
-    expect(within(dialog).queryByText(/Khách bên ngoài: 2 liên kết/)).toBeNull();
+    const guests = await within(dialog).findByRole("region", { name: "Khách bên ngoài" });
+    expect(within(guests).getAllByText("Agency")).toHaveLength(1);
+    expect(within(guests).getByText("1")).toBeInTheDocument();
   });
 
   it("never offers back someone removed from the meeting earlier", async () => {

@@ -1,17 +1,19 @@
 "use client";
-import type { ChangeEvent, ReactNode } from "react";
-import { CircleAlert, Lock } from "lucide-react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
+import { CircleAlert, Link, Lock, UserCheck, Vote } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { inviteLinkStatus } from "@uniwork/core/meetings";
 import type { MeetingCapabilities, MeetingInviteLink } from "@uniwork/core/types/meeting";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import { clock } from "../meeting-detail/format";
 import { TextButton } from "../meeting-detail/ui/text-button";
 import { scheduleWindowIso } from "../meeting-datetime";
+import { newGuestLink, newMotion } from "./draft-model";
 import type { DraftIssue } from "./draft-validation";
 import type { MeetingDraftState } from "./use-meeting-draft";
 import { GuestLinkDrafts } from "./guest-link-drafts";
-import { MoreOptions, QuorumSection, moreSummary } from "./more-options";
+import { OptionChips, OptionSection, QuorumSection } from "./more-options";
 import { MotionDrafts } from "./motion-drafts";
 import { PeopleField } from "./people-field";
 import type { Rsvp } from "./person-role-row";
@@ -33,8 +35,6 @@ export type SheetFieldsProps = {
   host: { userId: string; name: string; avatarUrl?: unknown };
   viewerId: string | undefined;
   caps: MeetingCapabilities | undefined;
-  moreOpen: boolean;
-  onMoreOpen: (open: boolean) => void;
   linkPlaceholder: string;
   /** Edit: the meeting is live, so its time is locked. */
   live?: { startsAt: string; endsAt: string };
@@ -63,7 +63,7 @@ function FieldError({ id, children, className }: { id: string; children: ReactNo
   );
 }
 
-/** The sheet's fields in the brief's order (§3.2): title, time, people, agenda, chips, Thư ký UNI, Thêm tùy chọn. */
+/** The sheet's fields in the brief's order (§3.2): title, time, people, agenda, chips, Thư ký UNI, then the optional parts. */
 export function SheetFields(p: SheetFieldsProps) {
   const { t } = useTranslation();
   // A phone opens create unfocused (CreatePhone f1): autofocus would pop the keyboard over the page.
@@ -73,7 +73,14 @@ export function SheetFields(p: SheetFieldsProps) {
   const titleIssue = issueOf("title") && (submitted || touched.has("title"));
   const scribeOn = draft.scribe ?? scribePolicyDefault(p.caps);
   const endsAtMs = Date.parse(scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone).ends_at);
-  const moreError = p.issues.some((i) => i.section === "more");
+  const activeLinks = (p.existingLinks ?? []).filter((l) => inviteLinkStatus(l, new Date(p.nowMs)) === "active");
+  // An optional part shows while it holds something; the roll also once opened, so clearing its field keeps the field.
+  const [rollOpen, setRollOpen] = useState(() => draft.quorum.trim() !== "");
+  const show = {
+    guests: activeLinks.length + draft.links.length > 0,
+    votes: draft.motions.length > 0,
+    roll: rollOpen || draft.quorum.trim() !== "",
+  };
   const agenda = {
     id: `${p.idPrefix}-agenda`,
     value: draft.description,
@@ -253,34 +260,69 @@ export function SheetFields(p: SheetFieldsProps) {
         />
       </div>
 
-      <MoreOptions
-        open={p.moreOpen}
-        onOpenChange={p.onMoreOpen}
-        summary={moreSummary(draft, p.existingLinks?.length ?? 0, t)}
-        hasError={moreError && submitted}
-      >
-        <GuestLinkDrafts
-          links={draft.links}
-          existing={p.existingLinks}
-          onChange={(links) => patch({ links })}
-          placeholder={p.linkPlaceholder}
-          nowMs={p.nowMs}
-          endsAtMs={endsAtMs}
-          showErrors={submitted}
-          readOnly={p.readOnly}
-          onManage={p.onManage}
-          live={Boolean(p.live)}
-        />
-        <MotionDrafts motions={draft.motions} onChange={(motions) => patch({ motions })} showErrors={submitted} readOnly={p.readOnly} />
-        <QuorumSection
-          value={draft.quorum}
-          onChange={(quorum) => patch({ quorum })}
-          showError={submitted || touched.has("quorum")}
-          onBlur={() => draft.quorum !== snapshot.quorum && touch("quorum")}
-          locked={p.quorumLocked}
-          readOnly={p.readOnly}
-        />
-      </MoreOptions>
+      {show.guests ? (
+        <OptionSection id={`${p.idPrefix}-guests`} icon={Link} title={t("meetings.sheet.guestsTitle")} count={activeLinks.length + draft.links.length}>
+          <GuestLinkDrafts
+            links={draft.links}
+            existing={activeLinks}
+            onChange={(links) => patch({ links })}
+            placeholder={p.linkPlaceholder}
+            nowMs={p.nowMs}
+            endsAtMs={endsAtMs}
+            showErrors={submitted}
+            readOnly={p.readOnly}
+            onManage={p.onManage}
+            live={Boolean(p.live)}
+          />
+        </OptionSection>
+      ) : null}
+      {show.votes ? (
+        <OptionSection
+          id={`${p.idPrefix}-votes`}
+          icon={Vote}
+          title={t("meetings.governance.motionsTitle")}
+          count={draft.motions.length}
+          onClose={draft.motions.every((m) => !m.id && !m.title.trim()) && !p.readOnly ? () => patch({ motions: [] }) : undefined}
+        >
+          <MotionDrafts motions={draft.motions} onChange={(motions) => patch({ motions })} showErrors={submitted} readOnly={p.readOnly} />
+        </OptionSection>
+      ) : null}
+      {show.roll ? (
+        <OptionSection
+          id={`${p.idPrefix}-roll`}
+          icon={UserCheck}
+          title={t("meetings.governance.attendanceTitle")}
+          onClose={draft.quorum.trim() === "" && !p.quorumLocked && !p.readOnly ? () => setRollOpen(false) : undefined}
+        >
+          <QuorumSection
+            value={draft.quorum}
+            onChange={(quorum) => patch({ quorum })}
+            showError={submitted || touched.has("quorum")}
+            onBlur={() => draft.quorum !== snapshot.quorum && touch("quorum")}
+            locked={p.quorumLocked}
+            readOnly={p.readOnly}
+            autoFocus={rollOpen && draft.quorum === ""}
+          />
+        </OptionSection>
+      ) : null}
+      <OptionChips
+        readOnly={p.readOnly}
+        items={[
+          { key: "guests" as const, icon: Link, label: t("meetings.sheet.guestsTitle"), hint: t("meetings.sheet.guestsHint"), onOpen: () => patch({ links: [newGuestLink()] }) },
+          {
+            key: "votes" as const,
+            icon: Vote,
+            label: t("meetings.governance.motionsTitle"),
+            hint: t("meetings.sheet.motionsHint"),
+            onOpen: () => {
+              const m = newMotion();
+              patch({ motions: [m] });
+              requestAnimationFrame(() => document.getElementById(`motion-${m.key}`)?.focus());
+            },
+          },
+          { key: "roll" as const, icon: UserCheck, label: t("meetings.governance.attendanceTitle"), hint: t("meetings.sheet.rollHint"), onOpen: () => setRollOpen(true) },
+        ].filter((chip) => !show[chip.key])}
+      />
     </>
   );
 }

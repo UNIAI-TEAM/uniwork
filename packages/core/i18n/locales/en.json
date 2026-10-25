@@ -4201,7 +4201,12 @@
       "chipPausedShort": "Paused",
       "explainPaused": "Speech recognition is failing. UNI Scribe stays in the room and keeps retrying; meanwhile captions use each person's device.",
       "speakerSameAs": "Same as speaker {{n}} · {{name}}",
-      "name": "UNI Scribe"
+      "name": "UNI Scribe",
+      "helpTitle": "What does UNI Scribe do?",
+      "helpCaptions": "Shows live captions to everyone in the room.",
+      "helpTranscript": "Writes the transcript, with who said each line.",
+      "helpSummary": "Summarizes the meeting and suggests tasks from what was said.",
+      "helpQuiet": "UNI Scribe never speaks, has no camera and is not counted as a participant."
     },
     "aiAccess": {
       "title": "UNI Scribe and AI content",
@@ -4920,21 +4925,7 @@
       "shareLabel": "Who can read the summary and transcript",
       "shareMeeting": "Attendees",
       "shareWorkspace": "Whole workspace",
-      "shareMeetingHint": "Attendees: the host, the secretary, invitees and workspace admins.",
-      "shareWorkspaceHint": "Every member of {{name}} can read the summary and transcript.",
       "more": "More options",
-      "moreNeedsFix": "needs a fix",
-      "summaryGuests": "Guests: {{value}}",
-      "summaryVotes": "Votes: {{value}}",
-      "summaryRoll": "Attendance: {{value}}",
-      "summaryNone": "none",
-      "summaryOneLinkApproval": "1 link, host approves",
-      "summaryLinks_one": "{{count}} link",
-      "summaryLinks_other": "{{count}} links",
-      "summaryMotions_one": "{{count}} motion",
-      "summaryMotions_other": "{{count}} motions",
-      "summaryNoQuorum": "not required",
-      "summaryQuorum": "at least {{percent}}%",
       "guestsTitle": "Guests",
       "guestsHint": "Guests need no UniWork account: they open the link and type a name.",
       "linkAccess": "Access",
@@ -5052,7 +5043,11 @@
       "linkUsesOf": "<n>{{used}}/{{max}}</n> uses",
       "linkUsesPlain": "{{used}}/{{max}} uses",
       "linkExpiresDayFirst": "expires {{day}} <time>{{clock}}</time>",
-      "createMismatch": "A meeting with the earlier details may already exist. Check your meetings before creating it again."
+      "createMismatch": "A meeting with the earlier details may already exist. Check your meetings before creating it again.",
+      "shareMeetingDesc": "The host, the secretary, invitees and workspace admins.",
+      "shareWorkspaceDesc": "Every member of {{name}}.",
+      "optionClose": "Remove {{name}}",
+      "rollHint": "Set a minimum attendance. Falling short only warns; it never blocks the meeting."
     },
     "instantDialog": {
       "titlePlaceholder": "Instant meeting",

@@ -18,7 +18,7 @@ import { TextButton } from "../meeting-detail/ui/text-button";
 import { newMotion, type MotionDraft } from "./draft-model";
 import { motionIssue } from "./draft-validation";
 import { AddRow } from "./guest-link-drafts";
-import { CONTROL, SECTION_TITLE } from "./sheet-styles";
+import { CONTROL } from "./sheet-styles";
 
 const COUNTER_FROM = 180;
 
@@ -139,7 +139,8 @@ export function MotionDrafts({
   readOnly?: boolean;
 }) {
   const { t } = useTranslation();
-  const [editing, setEditing] = useState<string | null>(null);
+  // The Biểu quyết chip opens the part with one untitled motion: it starts in its editor.
+  const [editing, setEditing] = useState<string | null>(() => motions.find((m) => !m.id && !m.title.trim())?.key ?? null);
   const isLocked = (m: MotionDraft | undefined) => Boolean(m?.status && m.status !== "DRAFT");
   const move = (index: number, by: number) => {
     const next = [...motions];
@@ -148,12 +149,8 @@ export function MotionDrafts({
     onChange(next);
   };
   return (
-    <section className="pt-2" aria-labelledby="sheet-motions-title">
-      <h3 id="sheet-motions-title" className={SECTION_TITLE}>
-        {t("meetings.governance.motionsTitle")}
-      </h3>
-      <p className="mt-0.5 text-caption text-muted-foreground group-data-[mode=edit]/sheet:mt-2">{t("meetings.sheet.motionsHint")}</p>
-      <ol className="mt-3 empty:mt-0 group-data-[mode=live]/sheet:mt-2">
+    <>
+      <ol>
         {motions.map((m, i) => {
           const locked = isLocked(m);
           const invalid = !locked && showErrors && motionIssue(m.title);
@@ -231,6 +228,6 @@ export function MotionDrafts({
           requestAnimationFrame(() => document.getElementById(`motion-${m.key}`)?.focus());
         }}
       />
-    </section>
+    </>
   );
 }
