@@ -496,7 +496,10 @@ describe("AskUniMessageTurn memory", () => {
             : {},
       ),
     );
-  beforeEach(() => answerWith(true));
+  // Braces: a function returned from beforeEach is run as its teardown, and the mock is one.
+  beforeEach(() => {
+    answerWith(true);
+  });
 
   it("puts the memory card under the P3 card and shows the used line above the actions", async () => {
     const proposal = AiProposalSchema.parse({ id: "q1", message_id: "m1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } });
