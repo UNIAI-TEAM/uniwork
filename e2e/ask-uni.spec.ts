@@ -300,14 +300,17 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
     await expect(dock.getByText(/Đã dùng bộ nhớ/)).toBeVisible({ timeout: 15_000 });
 
     // 3. The memory screen: edit the line, then delete it.
-    await dock.getByRole("button", { name: "Bộ nhớ" }).click();
-    await dock.getByRole("button", { name: "Sửa mục này" }).click();
+    await dock.getByRole("button", { name: "Bộ nhớ", exact: true }).click();
+    // The entry is a button named by its text; "Sửa mục này" is only its title.
+    await dock.getByRole("button", { name: "Từ giờ trả lời tôi bằng gạch đầu dòng" }).click();
     const edit = dock.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
     await edit.fill("Trả lời ngắn gọn");
     await edit.press("Enter");
     await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toBeVisible({ timeout: 15_000 });
     await dock.getByRole("button", { name: "Xóa mục này" }).click();
-    await expect(dock.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
+    // The confirmation is a toast outside the dock; the row itself must be gone.
+    await expect(page.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
+    await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toHaveCount(0);
   } finally {
     await setFlag("ask_uni_memory", orgId, false);
     await setFlag("ask_uni_agent", orgId, false);
