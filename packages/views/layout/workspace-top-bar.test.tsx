@@ -242,7 +242,18 @@ describe("WorkspaceTopBar", () => {
     // One field: the search trigger and the pill share it, search first.
     const search = screen.getByRole("button", { name: /tìm kiếm/i });
     const field = search.parentElement as HTMLElement;
-    expect(field).toHaveClass("w-96", "border-border", "bg-page-canvas");
+    // A pill field, so the pill inside is concentric with it; hovering lifts the whole field, pill included.
+    expect(field).toHaveClass(
+      "group/field",
+      "w-96",
+      "rounded-full",
+      "border-border",
+      "bg-page-canvas",
+      "hover:shadow-sm",
+      "dark:hover:bg-surface-hover",
+    );
+    expect(search).toHaveClass("hover:bg-transparent", "rounded-s-full");
+    expect(field.querySelector('[data-slot="ask-uni-cover"]')).toHaveClass("dark:group-hover/field:bg-surface-hover");
     expect(field).toContainElement(ask);
     expect(search.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });

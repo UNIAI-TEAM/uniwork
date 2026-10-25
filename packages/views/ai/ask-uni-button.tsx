@@ -53,9 +53,11 @@ export function AskUniButton({ labeled = false }: { labeled?: boolean }) {
                 className="absolute top-1/2 left-1/2 size-40 -translate-1/2 bg-[conic-gradient(var(--brand),var(--brand-accent),var(--brand-subtle-foreground),var(--brand))] motion-safe:group-hover/ai:animate-[spin_1.5s_linear_infinite] motion-safe:group-focus-visible/ai:animate-[spin_1.5s_linear_infinite]"
               />
             </span>
+            {/* The cover takes the search field's dark hover fill (group/field in the top bar), so both lift together. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-px -z-10 rounded-full bg-page-canvas transition-[inset] group-hover/ai:inset-[1.5px] group-focus-visible/ai:inset-[1.5px]"
+              data-slot="ask-uni-cover"
+              className="pointer-events-none absolute inset-px -z-10 rounded-full bg-page-canvas transition-[inset,background-color] group-hover/ai:inset-[1.5px] group-focus-visible/ai:inset-[1.5px] dark:group-hover/field:bg-surface-hover"
             />
             <Logo variant="mark" size={11} decorative />
             {name}

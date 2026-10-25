@@ -324,8 +324,10 @@ export function WorkspaceTopBar({
           </div>
           {/* One field on the app plane, as in ClickUp: search, then the AI pill at its end. The field carries
               the surface, or it sinks into the grey. */}
-          <div className="flex h-8 w-96 items-center rounded-md border border-border bg-page-canvas pe-1">
-            <SearchTrigger className="h-full min-w-0 flex-1 rounded-e-none bg-transparent sm:w-auto" />
+          {/* Hover lifts the whole field, pill included (its cover follows group/field). Light lifts by edge and
+              shadow, since its hover grey is the app plane's; dark has no visible shadow, so it lifts by fill. */}
+          <div className="group/field flex h-8 w-96 items-center rounded-full border border-border bg-page-canvas pe-1 transition-[background-color,border-color,box-shadow] hover:border-foreground/20 hover:shadow-sm dark:hover:bg-surface-hover">
+            <SearchTrigger className="h-full min-w-0 flex-1 rounded-s-full rounded-e-none bg-transparent hover:bg-transparent sm:w-auto dark:hover:bg-transparent" />
             <AskUniButton labeled />
           </div>
           <div className="flex flex-1 items-center justify-end gap-2">
