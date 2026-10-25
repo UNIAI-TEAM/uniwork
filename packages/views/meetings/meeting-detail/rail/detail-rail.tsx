@@ -39,12 +39,12 @@ function CarriedOverLink() {
 /**
  * The meeting's properties rail (kit `.rail`, 288): sticky beside main with
  * a left hairline; above main as plain property rows below 1200 and in the
- * calendar panel, where the outline, the history link and Ask are hidden
- * (the header's ⋯ still opens the history).
+ * calendar panel. Stacked, it hides the outline and Ask but keeps the history
+ * link, the page's only one; the panel keeps its ⋯ for that.
  */
 export function DetailRail() {
   const { t } = useTranslation();
-  const { displayStatus, viewer, isClerk, layout, sections, isPhone } = useDetail();
+  const { displayStatus, viewer, layout, sections, isPhone } = useDetail();
   const [history, setHistory] = useState(false);
   const panel = layout === "panel";
   const live = isLive(displayStatus);
@@ -66,16 +66,22 @@ export function DetailRail() {
     >
       <RailProperties />
       {panel ? null : (
-        <div className={cn("flex flex-col", COMPACT_HIDDEN)}>
-          <RailOutline />
-          {live && sections.carriedOver ? <CarriedOverLink /> : null}
-          {showsHistoryLink(displayStatus, viewer, isClerk) ? (
+        <>
+          <div className={cn("flex flex-col", COMPACT_HIDDEN)}>
+            <RailOutline />
+            {live && sections.carriedOver ? <CarriedOverLink /> : null}
+          </div>
+          {showsHistoryLink(viewer) ? (
             <RailGroup>
               <RailLink onClick={() => setHistory(true)}>{t("meetings.activity")}</RailLink>
             </RailGroup>
           ) : null}
-          {sections.ai ? <RailAsk /> : null}
-        </div>
+          {sections.ai ? (
+            <div className={cn("flex flex-col", COMPACT_HIDDEN)}>
+              <RailAsk />
+            </div>
+          ) : null}
+        </>
       )}
       <HistoryDrawer open={history} onOpenChange={setHistory} />
     </aside>

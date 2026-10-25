@@ -50,11 +50,10 @@ export function attendedText(summary: RollSummary, t: Translate): string {
 export const isLive = (status: DetailStatus) => status === "IN_PROGRESS" || status === "OVERTIME";
 
 /**
- * "Lịch sử thao tác ›" in the rail: never while live (the live rail carries
- * the carried-over line instead) nor for an outsider; before the meeting only
- * for whoever runs it. Everyone else reaches it from the header's ⋯.
+ * "Lịch sử thao tác ›" in the rail: the page's one way to the history (its
+ * header has no ⋯ any more), so every member and guest reader sees it, in
+ * every state; never an outsider.
  */
-export function showsHistoryLink(status: DetailStatus, viewer: DetailViewer, isClerk: boolean): boolean {
-  if (viewer === "outsider" || isLive(status)) return false;
-  return status !== "SCHEDULED" || isClerk;
+export function showsHistoryLink(viewer: DetailViewer): boolean {
+  return viewer !== "outsider";
 }

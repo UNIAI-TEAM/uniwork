@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState, type ReactNode } from "react";
-import { CircleAlert } from "lucide-react";
+import { Ban, CircleAlert, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   displayMeetingStatus,
@@ -28,6 +28,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { apiErrorCopy } from "../api-error-copy";
 import { useOptionalNavigation } from "../navigation";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { CollectionPageHeaderAction } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { useAskUniPageContext } from "../ai/ask-uni-page-context";
 import { MeetingSheet } from "./meeting-sheet";
@@ -230,20 +231,36 @@ export function MeetingDetailView({
   };
 
   const scheduled = status === "SCHEDULED";
-  const menu: DetailMenuItem[] = [
-    ...(canHost.allowed && status !== "CANCELED"
-      ? [{ key: "edit", label: t("meetings.edit"), onSelect: () => setEditOpen(true) }]
-      : []),
-    ...(isPhone && canHost.allowed && live ? [{ key: "end", label: t("meetings.end"), onSelect: () => ask("end") }] : []),
-    ...(isPhone && canHost.allowed && ended
-      ? [{ key: "followUp", label: t("meetings.detail.header.followUp"), onSelect: () => setFollowUpOpen(true) }]
-      : []),
-    { key: "history", label: t("meetings.detail.header.history"), onSelect: () => setHistoryOpen(true) },
-    ...(canCancel.allowed && (scheduled || status === "MISSED")
-      ? [{ key: "cancel", label: t("meetings.cancel"), destructive: true, onSelect: () => ask("cancel") }]
-      : []),
-  ];
+  const canEdit = canHost.allowed && status !== "CANCELED";
+  const cancelable = canCancel.allowed && (scheduled || status === "MISSED");
+  // The page's header bar carries edit and cancel as buttons and its rail the history;
+  // a phone and the calendar panel draw no such bar or rail link, so they keep the ⋯.
+  const inHeader = !isPhone && layout === "page";
+  const menu: DetailMenuItem[] = inHeader
+    ? []
+    : [
+        ...(canEdit ? [{ key: "edit", label: t("meetings.edit"), onSelect: () => setEditOpen(true) }] : []),
+        ...(isPhone && canHost.allowed && live ? [{ key: "end", label: t("meetings.end"), onSelect: () => ask("end") }] : []),
+        ...(isPhone && canHost.allowed && ended
+          ? [{ key: "followUp", label: t("meetings.detail.header.followUp"), onSelect: () => setFollowUpOpen(true) }]
+          : []),
+        { key: "history", label: t("meetings.detail.header.history"), onSelect: () => setHistoryOpen(true) },
+        ...(cancelable ? [{ key: "cancel", label: t("meetings.cancel"), destructive: true, onSelect: () => ask("cancel") }] : []),
+      ];
   const menuNode = <DetailMenu items={menu} className={isPhone ? "size-11" : undefined} />;
+  const actions = inHeader ? (
+    <>
+      {canEdit ? (
+        <CollectionPageHeaderAction icon={Pencil} label={t("meetings.edit")} aria-haspopup="dialog" onClick={() => setEditOpen(true)} />
+      ) : null}
+      {cancelable ? (
+        <CollectionPageHeaderAction icon={Ban} label={t("meetings.cancel")} variant="destructive" aria-haspopup="dialog" onClick={() => ask("cancel")} />
+      ) : null}
+      {headerActions}
+    </>
+  ) : (
+    headerActions
+  );
 
   return (
     <DetailContext.Provider value={detail}>
@@ -254,7 +271,7 @@ export function MeetingDetailView({
           <BreadcrumbHeader
             segments={layout === "panel" ? [] : [{ href: meetingsHref, label: <MeetingsCrumb /> }]}
             leaf={meeting.title}
-            actions={headerActions}
+            actions={actions}
           />
         )}
         {/* relative: absolute descendants (sr-only text, checkbox inputs) belong to this scroller, not the frame. */}
@@ -302,7 +319,7 @@ export function MeetingDetailView({
         {isPhone ? (
           <PhoneBottomBar barRef={setBar} meetingId={meeting.id} title={meeting.title} workspaceId={workspaceId} ask={sections.ai} />
         ) : null}
-        {/* The edit sheet opens from ⋯ and the missed strip's "Đặt lại lịch"; it outlives that row once the meeting is scheduled again. */}
+        {/* The edit sheet opens from the header (⋯ on a phone or in the panel) and the missed strip's "Đặt lại lịch"; it outlives that row once the meeting is scheduled again. */}
         <MeetingSheet mode="edit" workspaceId={workspaceId} meeting={meeting} open={editOpen} showTrigger={false} onOpenChange={setEditOpen} />
         {followUpOpen ? (
           <MeetingSheet

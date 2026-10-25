@@ -74,11 +74,10 @@ test("attendance: secretary marks in the roll drawer, finalize locks and shows i
   });
   expect(refused.status(), "a finalized roll refuses marks until reopened").toBe(409);
 
-  // The history drawer (header ⋯ → "Lịch sử thao tác") records it.
+  // The history drawer (the rail's "Lịch sử thao tác") records it.
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
-  await page.getByRole("button", { name: /^Thao tác khác: / }).click();
-  await page.getByRole("menuitem", { name: "Lịch sử thao tác" }).click();
+  await page.getByRole("button", { name: "Lịch sử thao tác", exact: true }).click();
   const history = page.getByRole("dialog", { name: "Lịch sử thao tác" });
   await expect(history.getByText("att-member đã chốt điểm danh", { exact: true })).toBeVisible();
 });

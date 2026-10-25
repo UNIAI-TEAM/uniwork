@@ -91,7 +91,7 @@ describe("DetailRail rows", () => {
     expect(await within(rail()).findByText("1 nhận lời · 1 chưa phản hồi")).toBeInTheDocument();
     expect(within(rail()).getByText("3 người")).toBeInTheDocument();
     expect(within(rail()).queryByText("Thư ký")).not.toBeInTheDocument();
-    expect(within(rail()).queryByRole("button", { name: "Lịch sử thao tác" })).not.toBeInTheDocument();
+    expect(within(rail()).getByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();
     expect(within(rail()).queryByRole("textbox")).not.toBeInTheDocument();
     await waitFor(() => expect(called("/participants")).toBe(true));
     expect(called("/invite-links")).toBe(false);
@@ -121,7 +121,7 @@ describe("DetailRail rows", () => {
     expect(await within(rail()).findByRole("button", { name: /^Khách: 1 liên kết · cần duyệt · 0\/3 lượt, Đối tác ví MoMoPay · hết hạn CN 25\/10/ })).toBeInTheDocument();
     expect(await within(rail()).findByText("Đang nghe · 15 câu")).toBeInTheDocument();
     expect(within(rail()).queryByText("Dự án")).not.toBeInTheDocument();
-    expect(within(rail()).queryByRole("button", { name: "Lịch sử thao tác" })).not.toBeInTheDocument();
+    expect(within(rail()).getByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();
     expect(await within(rail()).findByRole("button", { name: "Tóm tắt từ đầu đến giờ" })).toBeInTheDocument();
   });
 

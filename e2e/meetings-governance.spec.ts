@@ -226,9 +226,8 @@ test("votes: the secretary opens a drafted item from the strip, votes and closes
   await expect(decisions.getByText("Thông qua", { exact: true })).toBeVisible();
   await expect(decisions.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến")).toBeVisible();
 
-  // The history drawer (header ⋯ → "Lịch sử thao tác") records both steps.
-  await page.getByRole("button", { name: /^Thao tác khác: / }).click();
-  await page.getByRole("menuitem", { name: "Lịch sử thao tác" }).click();
+  // The history drawer (the rail's "Lịch sử thao tác") records both steps.
+  await page.getByRole("button", { name: "Lịch sử thao tác", exact: true }).click();
   const history = page.getByRole("dialog", { name: "Lịch sử thao tác" });
   await expect(history.getByText(/đã mở biểu quyết$/)).toBeVisible();
   await expect(history.getByText(/đã đóng biểu quyết$/)).toBeVisible();

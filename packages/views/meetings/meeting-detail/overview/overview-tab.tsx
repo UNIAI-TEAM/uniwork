@@ -58,9 +58,9 @@ function PhoneNotes() {
 /** Phone: "Lịch sử thao tác ›", the last row of the accordion; a phone draws only the rail's properties, not its history link. */
 function PhoneHistoryRow() {
   const { t } = useTranslation();
-  const { displayStatus, viewer, isClerk } = useDetail();
+  const { viewer } = useDetail();
   const [open, setOpen] = useState(false);
-  if (!showsHistoryLink(displayStatus, viewer, isClerk)) return null;
+  if (!showsHistoryLink(viewer)) return null;
   return (
     <>
       <button

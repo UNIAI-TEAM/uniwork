@@ -207,7 +207,7 @@ describe("MeetingDetailView › strip per state and viewer", () => {
     expect(within(row).queryByRole("button", { name: "Gia hạn 15 phút" })).not.toBeInTheDocument();
   });
 
-  it("offers the host 'held' or a new time when the window passed unstarted, and the cancel in ⋯", async () => {
+  it("offers the host 'held' or a new time when the window passed unstarted, and the cancel in the header", async () => {
     open("m6");
     const row = await strip();
     expect(await within(row).findByText("Cuộc họp không diễn ra")).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe("MeetingDetailView › strip per state and viewer", () => {
     expect(within(row).getByRole("button", { name: "Đặt lại lịch" })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Hủy cuộc họp" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Mô tả" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Thao tác khác: .*hủy cuộc họp/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
   });
 
   it("tells an attendee of a missed meeting who will reschedule it", async () => {
@@ -325,8 +325,7 @@ describe("MeetingDetailView › header actions", () => {
   it("confirms a cancel with a toast before leaving", async () => {
     const success = vi.spyOn(toast, "success");
     const { onDeleted } = open("m3");
-    fireEvent.click(await screen.findByRole("button", { name: /^Thao tác khác:/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Hủy cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Hủy cuộc họp" }));
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
     expect(success).toHaveBeenCalledWith("Đã hủy cuộc họp");
@@ -343,20 +342,26 @@ describe("MeetingDetailView › header actions", () => {
         ? Promise.reject(new ApiError("Cuộc họp đã đổi trạng thái", "conflict", 409))
         : routed(path, opts),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Thao tác khác:/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Hủy cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Hủy cuộc họp" }));
     const alerts = await screen.findAllByRole("alert");
     expect(alerts).toHaveLength(1);
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  it("offers history to everyone, and edit and cancel only to the host", async () => {
+  it("puts edit and cancel in the header bar for the host, with no ⋯ on the page", async () => {
+    open("m3");
+    expect(await screen.findByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Thao tác khác:/ })).not.toBeInTheDocument();
+  });
+
+  it("gives a member neither edit nor cancel, and the history from the rail", async () => {
     open("m3", { viewer: "minh" });
-    fireEvent.click(await screen.findByRole("button", { name: /^Thao tác khác:/ }));
-    expect(await screen.findByRole("menuitem", { name: "Lịch sử thao tác" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Sửa cuộc họp" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Hủy cuộc họp" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sửa cuộc họp" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hủy cuộc họp" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Thao tác khác:/ })).not.toBeInTheDocument();
   });
 });
 

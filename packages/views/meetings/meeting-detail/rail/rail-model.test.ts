@@ -31,13 +31,9 @@ describe("rail model", () => {
     expect(attendedText({ members: 4, present: 2, late: 1, excused: 0, absent: 1 }, t)).toBe("3/4 có mặt");
   });
 
-  it("offers the history link where the boards draw it", () => {
-    expect(showsHistoryLink("ENDED", "member", false)).toBe(true);
-    expect(showsHistoryLink("SCHEDULED", "host", true)).toBe(true);
-    expect(showsHistoryLink("SCHEDULED", "member", false)).toBe(false);
-    expect(showsHistoryLink("IN_PROGRESS", "host", true)).toBe(false);
-    expect(showsHistoryLink("OVERTIME", "host", true)).toBe(false);
-    expect(showsHistoryLink("ENDED", "outsider", false)).toBe(false);
-    expect(showsHistoryLink("CANCELED", "host", true)).toBe(true);
+  it("offers the history link to every reader but an outsider: the header has no ⋯ for it", () => {
+    expect(showsHistoryLink("member")).toBe(true);
+    expect(showsHistoryLink("host")).toBe(true);
+    expect(showsHistoryLink("outsider")).toBe(false);
   });
 });
