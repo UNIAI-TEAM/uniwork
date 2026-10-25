@@ -103,6 +103,14 @@ describe("ScribeVoiceLine", () => {
 });
 
 describe("ScribeGlyph", () => {
+  it("strokes 1.5px on screen at every size, like the Lucide icons beside it", () => {
+    const { container } = render(<ScribeGlyph className="size-4" />);
+    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("1.5");
+    const paths = [...container.querySelectorAll("path")];
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) expect(path.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+  });
+
   it("draws the bars and lines in the text colour, with no tile", () => {
     const { container } = render(<ScribeGlyph />);
     expect(container.querySelector("svg")?.getAttribute("stroke")).toBe("currentColor");

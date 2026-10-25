@@ -61,11 +61,13 @@ export function AskUniMemoryRow({
   };
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const tooLong = runeCount(text.trim()) > MEMORY_MAX_CHARS;
+  const shownError = error ?? (tooLong ? t("errors.invalid_request") : null);
   const commit = async () => {
     const next = text.trim();
     if (next === "" || (next === entry.text && kind === entry.kind)) return close();
     if (saving) return;
-    if (runeCount(next) > MEMORY_MAX_CHARS) return setError(t("errors.invalid_request"));
+    if (runeCount(next) > MEMORY_MAX_CHARS) return;
     setSaving(true);
     setError(null);
     const failure = await onSave({ kind, text: next });
@@ -81,9 +83,12 @@ export function AskUniMemoryRow({
           autoFocus
           aria-label={t("entry_label")}
           placeholder={t("entry_placeholder", { max: MEMORY_MAX_CHARS })}
-          aria-invalid={runeCount(text.trim()) > MEMORY_MAX_CHARS}
+          aria-invalid={tooLong}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setError(null);
+          }}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter") void commit();
@@ -105,9 +110,9 @@ export function AskUniMemoryRow({
             <SelectItem value="fact">{t("kind_fact")}</SelectItem>
           </SelectContent>
         </Select>
-        {error ? (
+        {shownError ? (
           <p role="alert" className="w-full text-caption text-destructive">
-            {error}
+            {shownError}
           </p>
         ) : null}
       </li>
@@ -129,7 +134,7 @@ export function AskUniMemoryRow({
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={t("delete_entry")}
+          aria-label={t("delete_entry", { text: entry.text })}
           className="text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
           onClick={onDelete}
         >

@@ -42,9 +42,20 @@ vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: (
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
 vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./workspace-top-bar", () => ({
-  WorkspaceChrome: ({ children, bare }: { children: ReactNode; bare?: boolean }) => (
+  WorkspaceChrome: ({
+    children,
+    bare,
+    nav,
+    frame,
+  }: {
+    children: ReactNode;
+    bare?: boolean;
+    nav?: ReactNode;
+    frame: (content: ReactNode) => ReactNode;
+  }) => (
     <div data-testid="chrome" data-bare={String(Boolean(bare))}>
-      {children}
+      {nav}
+      {frame(children)}
     </div>
   ),
 }));
@@ -145,5 +156,21 @@ describe("DashboardLayout frame", () => {
     const main = screen.getByRole("main");
     expect(main).toHaveClass("overflow-clip");
     expect(main).not.toHaveClass("overflow-hidden");
+  });
+
+  it("leaves the desktop workspace frame to its cards, and keeps chat-only's canvas", () => {
+    const view = render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByRole("main")).toHaveClass("lg:bg-transparent");
+    view.unmount();
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team" variant="chat-only">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByRole("main")).not.toHaveClass("lg:bg-transparent");
   });
 });

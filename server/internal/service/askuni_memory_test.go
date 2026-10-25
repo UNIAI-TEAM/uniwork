@@ -109,9 +109,9 @@ func TestAgentPicksMemoryPrompt(t *testing.T) {
 		prompt                 string
 		wantMemoryRow          bool
 	}{
-		{"memory and writes", true, true, false, ai.PromptCopilotAnswerV24, true},
-		{"memory, writes, narrated", true, true, true, ai.PromptCopilotAnswerV26, true},
-		{"memory only", false, true, false, ai.PromptCopilotAnswerV12, true},
+		{"memory and writes", true, true, false, ai.PromptCopilotAnswerV32, true},
+		{"memory, writes, narrated", true, true, true, ai.PromptCopilotAnswerV34, true},
+		{"memory only", false, true, false, ai.PromptCopilotAnswerV28, true},
 		{"switch off, writes", true, false, false, ai.PromptCopilotAnswerV20, false},
 		{"switch off", false, false, false, ai.PromptCopilotAnswerV4, false},
 	} {

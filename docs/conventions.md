@@ -375,19 +375,30 @@ meeting's participants panel, a date field's `CalendarDays`) keeps its own.
 
 | Size | Class | Role |
 | --- | --- | --- |
-| 12px | `size-3` | inside a chip or badge, `IconTile size="xs"` |
-| 14px | `size-3.5` | metadata beside caption text, `IconTile size="sm"` |
+| 12px | `size-3` | inside a chip or badge |
+| 14px | `size-3.5` | metadata beside caption text, `IconTile size="xs"` and `size="sm"` |
 | 16px | `size-4` | buttons, menu items, inputs, page-header glyph (`Button` sizes a bare svg to this) |
 | 20px | `size-5` | header tiles, `IconTile size="md"` |
 | 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
 
+No size between the rows (`size-4.5`, `size-5.5`, `size-2`); `scripts/lucide-aliases.test.mjs`
+fails on one on a Lucide icon.
+
 ### Stroke
 
-Lucide's default 2. Do not set `strokeWidth` on an icon to make it look lighter
-or heavier; pick the role's size instead. The one exception is the brand
-surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
-`auth-controls.tsx`), whose raised cards use a hairline 1.5–1.75 on tiles of
-`size="sm"` and up.
+One line weight on screen: every Lucide icon strokes 1.5px at every size.
+Lucide scales its stroke with the 24px viewBox, so its default 2 drew 1px at
+12px and 1.67px at 20px, and one screen showed four weights.
+`packages/ui/styles/base.css` makes the stroke non-scaling at 1.5, measured in
+CSS pixels, and it outranks any `strokeWidth` an icon is given.
+
+Do not set `strokeWidth` or `absoluteStrokeWidth` on a Lucide icon; pick the
+role's size instead. There is no exception, including the auth and onboarding
+cards, which used to draw a lighter hairline. `scripts/lucide-aliases.test.mjs`
+holds the rule in `base.css` and fails on a stroke prop on any Lucide icon.
+Hand-drawn marks (`packages/ui/brand`, the task status and priority icons, the
+file-type marks) are not Lucide and draw their own weight. Beside line icons
+they match 1.5px at the size they render.
 
 ### Meaning
 

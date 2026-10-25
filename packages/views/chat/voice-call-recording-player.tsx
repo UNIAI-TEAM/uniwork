@@ -109,7 +109,7 @@ export function VoiceCallRecordingPlayer({ src, onError }: { src: string; onErro
           aria-label={playing ? t("chat.voice_recording_pause") : t("chat.voice_recordings_play")}
           onClick={toggle}
         >
-          {playing ? <Pause aria-hidden className="size-4.5 fill-current" /> : <Play aria-hidden className="size-4.5 fill-current" />}
+          {playing ? <Pause aria-hidden className="size-4 fill-current" /> : <Play aria-hidden className="size-4 fill-current" />}
         </Button>
         <span className="shrink-0 text-label font-semibold tabular-nums">{format(position)}</span>
         <Track
@@ -159,7 +159,7 @@ export function VoiceCallRecordingPlayer({ src, onError }: { src: string; onErro
           aria-label={t("meetings.fullscreenEnter")}
           onClick={() => void frameRef.current?.requestFullscreen?.().catch(() => undefined)}
         >
-          <Maximize aria-hidden className="size-4.5" />
+          <Maximize aria-hidden className="size-4" />
         </Button>
       </div>
     </div>

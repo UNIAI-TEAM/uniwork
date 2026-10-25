@@ -424,7 +424,7 @@ type AiMemoryCandidateDTO struct {
 
 // AiMemorySkippedDTO is a line of the paste UNI left out.
 type AiMemorySkippedDTO struct {
-	Text   string `json:"text" description:"Chữ của dòng bị bỏ" example:"Tôi hay đau đầu"`
+	Text   string `json:"text" description:"Chữ của dòng bị bỏ; rỗng với secret, để mật khẩu không quay lại màn hình" example:"Tôi hay đau đầu"`
 	Reason string `json:"reason" description:"personal, other_person, secret hoặc not_about_user" example:"personal"`
 }
 

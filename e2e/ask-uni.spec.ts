@@ -315,7 +315,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
     await edit.fill("Trả lời ngắn gọn");
     await edit.press("Enter");
     await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toBeVisible({ timeout: 15_000 });
-    await dock.getByRole("button", { name: "Xóa mục này" }).click();
+    await dock.getByRole("button", { name: "Xóa mục: Trả lời ngắn gọn" }).click();
     // The confirmation is a toast outside the dock; the row itself must be gone.
     await expect(page.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
     await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn" })).toHaveCount(0);

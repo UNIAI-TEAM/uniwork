@@ -26,6 +26,12 @@
   :where(button, a[href], summary, select, label[for], [role="button"], [role="link"], [role="tab"],
     [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="treeitem"],
     [role="checkbox"], [role="radio"], [role="switch"]):not(:disabled, [aria-disabled="true"]) { cursor: pointer; }
+  /* Every Lucide icon strokes 1.5px on screen at every size (docs/conventions.md › Icons › Stroke). Lucide
+     scales its stroke with the 24px viewBox, so one weight of 2 drew 1px at 12px and 1.67px at 20px on the
+     same screen. A non-scaling stroke is measured in CSS pixels instead, and any author rule outranks the
+     strokeWidth attribute an icon was given. */
+  svg.lucide { stroke-width: 1.5; }
+  svg.lucide :where(path, line, polyline, polygon, circle, ellipse, rect) { vector-effect: non-scaling-stroke; }
 }
 
 /* iOS Safari tự phóng to cả trang khi focus vào input có cỡ chữ dưới 16px, và

@@ -240,7 +240,7 @@ export function ChatCreateReminderDialog({
             >
               {QUICK_PRESETS.map((item) => (
                 <ToggleGroupItem key={item} value={item} className={CHIP}>
-                  {item === preset ? <Check aria-hidden className="size-4" strokeWidth={2.4} /> : null}
+                  {item === preset ? <Check aria-hidden className="size-4" /> : null}
                   {t(presetLabelKey(item))}
                 </ToggleGroupItem>
               ))}
@@ -279,7 +279,7 @@ export function ChatCreateReminderDialog({
           {/* The moment the reminder fires, one line under the picker (canvas): 12px below it, not 20. */}
           {scheduleLabel ? (
             <output className="-mt-2 flex min-h-11 items-center gap-2.5 rounded-lg bg-tint-teal px-3.5 py-2.5 text-body text-foreground">
-              <AlarmClock className="size-4.5 shrink-0 text-tint-teal-foreground" aria-hidden />
+              <AlarmClock className="size-4 shrink-0 text-tint-teal-foreground" aria-hidden />
               <span>
                 {t("chat.reminder_scheduled_label")} <strong className="font-semibold">{scheduleLabel}</strong>
               </span>
@@ -290,7 +290,7 @@ export function ChatCreateReminderDialog({
             <Label htmlFor="reminder-repeat" className={CHAT_LABEL_CLASS}>{t("chat.reminder_repeat_label")}</Label>
             <Select value={repeat} onValueChange={(value) => setRepeat(value as ReminderRepeat)} items={repeatItems}>
               <SelectTrigger id="reminder-repeat" className={CHAT_SELECT_TRIGGER_CLASS}>
-                <Repeat aria-hidden className="size-4.5 text-muted-foreground" />
+                <Repeat aria-hidden className="size-4 text-muted-foreground" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

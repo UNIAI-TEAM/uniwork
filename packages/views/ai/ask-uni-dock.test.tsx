@@ -60,6 +60,30 @@ describe("AskUniDock", () => {
     expect(screen.getByRole("separator", { name: "Đổi độ rộng Hỏi UNI" })).toBeInTheDocument();
   });
 
+  it("frames the content and the dock as two desktop cards with an 8px gap, and leaves an unframed group as is", async () => {
+    window.innerWidth = 1280;
+    useAiPanelStore.setState({ open: true });
+    const view = render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniDock enabled framed>
+            <p>trang chính</p>
+          </AskUniDock>
+        </WorkspaceProvider>,
+      ),
+    );
+    const card = ["lg:rounded-lg", "lg:border", "lg:border-surface-border", "lg:bg-page-canvas"];
+    const panel = await screen.findByRole("complementary", { name: "Hỏi UNI" });
+    expect(panel).toHaveClass(...card);
+    expect(screen.getByText("trang chính").parentElement).toHaveClass(...card);
+    expect(screen.getByRole("separator", { name: "Đổi độ rộng Hỏi UNI" })).toHaveClass("lg:w-2");
+    view.unmount();
+
+    mount();
+    await screen.findByRole("complementary", { name: "Hỏi UNI" });
+    expect(screen.getByText("trang chính").parentElement).not.toHaveClass("lg:rounded-lg");
+  });
+
   it("ignores a stale fullPage flag: content stays visible and the handle shows", async () => {
     window.innerWidth = 1280;
     useAiPanelStore.setState({ open: true, fullPage: true } as never);

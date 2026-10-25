@@ -143,7 +143,7 @@ export function VoiceCallLogRow({
             </span>
           ) : message.voiceCall?.recording_status === "FAILED" ? (
             <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-destructive">
-              <CircleAlert aria-hidden className="size-3.25" />
+              <CircleAlert aria-hidden className="size-3.5" />
               {t("chat.voice_call_log_recording_failed")}
             </span>
           ) : null}

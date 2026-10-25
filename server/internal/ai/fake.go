@@ -242,7 +242,7 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 	return resp
 }
 
-// fakeMemoryImport is memory_import@1's fake: every non-empty line of the
+// fakeMemoryImport is memory_import@1 and @2's fake: every non-empty line of the
 // paste is one fact, its list marker dropped.
 func fakeMemoryImport(rendered string) string {
 	entries := []map[string]any{}

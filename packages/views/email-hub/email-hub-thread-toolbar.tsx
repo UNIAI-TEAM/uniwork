@@ -116,7 +116,7 @@ function TriageOverflowMenu({
           />
         }
       >
-        <Ellipsis className="size-4.5" aria-hidden />
+        <Ellipsis className="size-4" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         {can.canTriage ? (
@@ -282,7 +282,7 @@ export function EmailHubThreadToolbar({
                     />
                   }
                 >
-                  <Clock className="size-4.5" aria-hidden />
+                  <Clock className="size-4" aria-hidden />
                 </DropdownMenuTrigger>
                 <TooltipContent>{t("email_hub.snooze.action")}</TooltipContent>
               </Tooltip>
@@ -323,7 +323,7 @@ export function EmailHubThreadToolbar({
               />
             }
           >
-            <Star className={cn("size-4.5", thread.is_starred && "fill-current")} aria-hidden />
+            <Star className={cn("size-4", thread.is_starred && "fill-current")} aria-hidden />
           </TooltipTrigger>
           <TooltipContent>{thread.is_starred ? t("email_hub.unstar") : t("email_hub.star")}</TooltipContent>
         </Tooltip>
@@ -341,7 +341,7 @@ export function EmailHubThreadToolbar({
               />
             }
           >
-            <Sparkles className="size-4.5" aria-hidden />
+            <Sparkles className="size-4" aria-hidden />
           </TooltipTrigger>
           <TooltipContent>{t("email_hub.ai_title")}</TooltipContent>
         </Tooltip>
