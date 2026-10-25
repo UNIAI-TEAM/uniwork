@@ -48,7 +48,7 @@ func normalizeAdminBillingList(in AdminBillingListInput) AdminBillingListInput {
 	return in
 }
 
-func adminBillingFilters(in AdminBillingListInput) (provider, status, q, dateFrom, dateTo pgtype.Timestamptz) {
+func adminBillingFilters(in AdminBillingListInput) (provider, status, q pgtype.Text, dateFrom, dateTo pgtype.Timestamptz) {
 	if in.Provider != "" {
 		provider = nullText(in.Provider)
 	}
