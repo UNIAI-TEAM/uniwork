@@ -4171,6 +4171,8 @@
       "announceOff": "UNI Scribe stopped transcribing",
       "announceFailed": "UNI Scribe ran into a problem and is not transcribing. It will try again in a few minutes.",
       "captionsLabel": "Captions",
+      "captionsHistory": "Captions so far",
+      "captionsLatest": "Jump to the latest caption",
       "unknownSpeaker": "Speaker",
       "captionLanguage": "Caption language",
       "captionOriginal": "Original",

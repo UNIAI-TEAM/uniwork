@@ -79,14 +79,16 @@ const attrs = (identity: string, seg: string, final: boolean) => ({
 });
 
 describe("applyScribeCaption", () => {
-  it("replaces a segment's interim with its final, keeps a final over a late interim, and keeps three lines", () => {
+  it("replaces a segment's interim with its final, keeps a final over a late interim, and keeps fifty lines", () => {
     let lines = applyScribeCaption([], { segmentId: "a", identity: "p", text: "chốt", final: false });
     lines = applyScribeCaption(lines, { segmentId: "a", identity: "p", text: "chốt lịch", final: true });
     expect(lines).toEqual([{ segmentId: "a", identity: "p", text: "chốt lịch", final: true }]);
     lines = applyScribeCaption(lines, { segmentId: "a", identity: "p", text: "chốt", final: false });
     expect(lines[0]?.text).toBe("chốt lịch");
-    for (const id of ["b", "c", "d"]) lines = applyScribeCaption(lines, { segmentId: id, identity: "p", text: id, final: true });
-    expect(lines.map((l) => l.segmentId)).toEqual(["b", "c", "d"]);
+    for (let n = 1; n <= 50; n++) lines = applyScribeCaption(lines, { segmentId: `s${n}`, identity: "p", text: "x", final: true });
+    expect(lines).toHaveLength(50);
+    expect(lines[0]?.segmentId).toBe("s1");
+    expect(lines.at(-1)?.segmentId).toBe("s50");
   });
 });
 
@@ -127,6 +129,56 @@ describe("MeetingScribeCaptions", () => {
     expect(screen.getByText("Đang nghe…")).toBeInTheDocument();
     expect(voiceLine()).not.toHaveAttribute("data-processing");
     expect(label().querySelector("[data-scribe-mark]")).toHaveAttribute("data-scribe-state", "live");
+  });
+
+  it("lets the viewer scroll back: new lines wait below, the box opens, the arrow brings them down", async () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    for (let n = 1; n <= 5; n++) await caption("uw_agent_scribe", attrs("uw_participant_p1", `TR1-${n}`, true), `Câu ${n}`);
+    const region = screen.getByRole("region", { name: "Phụ đề đã nói" });
+    // jsdom lays nothing out: the lines are 300 px tall in a 70 px box scrolled to its bottom.
+    let lineHeight = 300;
+    let top = 230;
+    Object.defineProperties(region, {
+      scrollHeight: { configurable: true, get: () => lineHeight },
+      clientHeight: { configurable: true, get: () => 70 },
+      scrollTop: { configurable: true, get: () => top, set: (v: number) => (top = v) },
+    });
+    Object.defineProperty(region.firstElementChild, "offsetHeight", { configurable: true, get: () => lineHeight });
+    const scrollTo = vi.fn();
+    region.scrollTo = scrollTo as unknown as typeof region.scrollTo;
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-6", true), "Câu 6");
+    expect(screen.queryByTestId("meeting-caption-latest")).not.toBeInTheDocument();
+    fireEvent.wheel(region, { deltaY: -40 });
+    const latest = await screen.findByRole("button", { name: "Về câu mới nhất" });
+    expect(region).toHaveAttribute("data-reading");
+    expect(screen.queryByTestId("meeting-caption-unseen")).not.toBeInTheDocument();
+    // A new line while reading back does not pull the viewer down; the arrow says it came.
+    lineHeight = 330;
+    await caption("uw_agent_scribe", attrs("uw_participant_p2", "TR2-1", true), "Câu mới");
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(screen.getByTestId("meeting-caption-unseen")).toBeInTheDocument();
+    fireEvent.click(latest);
+    expect(screen.queryByTestId("meeting-caption-latest")).not.toBeInTheDocument();
+    expect(region).not.toHaveAttribute("data-reading");
+    expect(scrollTo).toHaveBeenCalledWith({ top: 330, behavior: "smooth" });
+  });
+
+  it("follows again once the viewer scrolls back to the bottom themselves", async () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    for (let n = 1; n <= 4; n++) await caption("uw_agent_scribe", attrs("uw_participant_p1", `TR1-${n}`, true), `Câu ${n}`);
+    const region = screen.getByRole("region", { name: "Phụ đề đã nói" });
+    let top = 100;
+    Object.defineProperties(region, {
+      scrollHeight: { configurable: true, get: () => 300 },
+      clientHeight: { configurable: true, get: () => 70 },
+      scrollTop: { configurable: true, get: () => top, set: (v: number) => (top = v) },
+    });
+    region.scrollTo = vi.fn() as unknown as typeof region.scrollTo;
+    fireEvent.keyDown(region, { key: "ArrowUp" });
+    expect(await screen.findByTestId("meeting-caption-latest")).toBeInTheDocument();
+    top = 230;
+    fireEvent.scroll(region);
+    expect(screen.queryByTestId("meeting-caption-latest")).not.toBeInTheDocument();
   });
 
   it("lights its voice line from the room's loudest speaker", () => {

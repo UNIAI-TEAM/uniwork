@@ -149,6 +149,12 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 .animate-caption-chip-in { animation: caption-chip-in 0.4s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
 .animate-caption-breathe { animation: caption-breathe 1.2s ease-in-out infinite; }
 .animate-caption-listening { animation: caption-breathe 2.4s ease-in-out infinite; }
+/* Reading back, the caption box opens upwards: the room it gains is revealed from its old top edge. */
+@keyframes caption-reveal {
+  from { clip-path: inset(calc(var(--cap-lh, 28px) * 3.4) 0 0 0 round 20px); }
+  to { clip-path: inset(0 round 20px); }
+}
+.animate-caption-reveal { animation: caption-reveal 0.32s cubic-bezier(0.22, 0.8, 0.24, 1); }
 .animate-caption-thumb-sweep {
   background-image: linear-gradient(100deg, var(--meeting-bar-chip-bg) 20%, var(--meeting-caption-sweep) 50%, var(--meeting-bar-chip-bg) 80%);
   background-size: 250% 100%;
@@ -257,7 +263,8 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   /* Caption words fade in and out; nothing breathes or sweeps. */
   .animate-caption-breathe,
   .animate-caption-listening,
-  .animate-caption-thumb-sweep { animation: none; }
+  .animate-caption-thumb-sweep,
+  .animate-caption-reveal { animation: none; }
   .border-beam::before { animation: none; }
   /* Thư ký UNI's mark stands still; the words beside it carry the state. */
   [data-scribe-mark], [data-scribe-mark] * { animation: none !important; }

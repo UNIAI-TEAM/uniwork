@@ -4170,6 +4170,8 @@
       "announceOff": "Thư ký UNI đã dừng ghi lời",
       "announceFailed": "Thư ký UNI gặp sự cố nên không ghi lời thoại. Hệ thống tự thử lại sau ít phút.",
       "captionsLabel": "Phụ đề",
+      "captionsHistory": "Phụ đề đã nói",
+      "captionsLatest": "Về câu mới nhất",
       "unknownSpeaker": "Người nói",
       "captionLanguage": "Ngôn ngữ phụ đề",
       "captionOriginal": "Bản gốc",

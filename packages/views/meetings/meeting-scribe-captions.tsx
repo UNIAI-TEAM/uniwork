@@ -1,24 +1,27 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useRemoteParticipants, useRoomContext } from "@livekit/components-react";
 import { type Room, RoomEvent } from "livekit-client";
+import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { type CaptionLanguage, useSetCaptionLanguage } from "@uniwork/core/meetings/captions";
 import { ScribeMark, ScribeVoiceLine } from "@uniwork/ui/brand/scribe-mark";
 import { type Tint, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MEETING_AVATAR_TINTS } from "./meeting-detail/avatar-tint";
-import { CaptionText, useGlide, useLanguageThumb } from "./meeting-scribe-caption-motion";
+import { CaptionText, useCaptionScroll, useLanguageThumb } from "./meeting-scribe-caption-motion";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 
 /** The text-stream topic the AI scribe publishes captions on (spec D7). */
 export const SCRIBE_CAPTION_TOPIC = "uw.caption";
-const SHOWN_LINES = 3;
+// The lines a viewer can scroll back through; the whole meeting is in the transcript tab.
+const KEPT_LINES = 50;
 // Translations kept for the lines on screen and a few that may still arrive.
-const KEPT_TRANSLATIONS = 20;
+const KEPT_TRANSLATIONS = 60;
 const ORIGINAL = "original";
 // The agent drops a final that waited 3 s for its batch; this covers that and the call itself.
 const TRANSLATION_WAIT_MS = 5000;
@@ -47,11 +50,11 @@ export function scribeTranslationTopic(lang: string): string {
  * Applies one caption from the agent: the interim and final texts of a
  * segment share its id and the newer one replaces the older in place; a
  * final is never overwritten by an interim that arrives late. The newest
- * SHOWN_LINES segments stay.
+ * KEPT_LINES segments stay.
  */
 export function applyScribeCaption(lines: readonly ScribeCaption[], c: ScribeCaption): ScribeCaption[] {
   const at = lines.findIndex((l) => l.segmentId === c.segmentId);
-  if (at < 0) return [...lines, c].slice(-SHOWN_LINES);
+  if (at < 0) return [...lines, c].slice(-KEPT_LINES);
   if (lines[at]?.final && !c.final) return [...lines];
   const next = [...lines];
   next[at] = c;
@@ -355,6 +358,57 @@ function speakerTint(identity: string): Tint {
 }
 
 /**
+ * One caption line. Memoized on its own fields, so the fifty lines a viewer
+ * can scroll back through stay still while interim words repaint the newest.
+ */
+const CaptionLine = memo(function CaptionLine({
+  identity,
+  name,
+  avatarUrl,
+  showWho,
+  text,
+  final,
+  variant,
+  pending,
+}: {
+  identity: string;
+  name: string;
+  avatarUrl: string | undefined;
+  showWho: boolean;
+  text: string;
+  final: boolean;
+  variant: string;
+  pending: boolean;
+}) {
+  const tint = speakerTint(identity);
+  return (
+    <p data-final={final ? "1" : "0"} className="mt-0.5 first:mt-0">
+      {showWho ? (
+        <span
+          className={cn(
+            "me-2 inline-flex animate-caption-chip-in items-center gap-1.5 align-[1px] text-label leading-none font-semibold",
+            tintForegroundClass[tint],
+          )}
+        >
+          <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size={20} tint={tint} />
+          {name}
+        </span>
+      ) : null}
+      <CaptionText
+        text={text}
+        variant={variant}
+        className={cn(
+          "transition-colors duration-500",
+          final ? "text-meeting-bar-foreground" : "text-meeting-bar-foreground/60",
+          // Its translation is on its way: the line breathes until it arrives.
+          pending && "animate-caption-breathe",
+        )}
+      />
+    </p>
+  );
+});
+
+/**
  * The room's captions from the AI scribe: who said it, interim words dimmed,
  * in the picked language. `joining`: the scribe is on its way in, and the box
  * says so until it arrives and starts listening. Looks and moves as the
@@ -378,8 +432,8 @@ export function MeetingScribeCaptions({
   const { lines, state, ready, skipReason } = useScribeCaptions(enabled, lang);
   const said = useSpokenOnce(ready);
   const notice = useTranslationNotice(lang, state, skipReason);
-  const flow = useRef<HTMLDivElement>(null);
-  useGlide(flow);
+  const view = useRef<HTMLDivElement>(null);
+  const { reading, unseen, latest } = useCaptionScroll(view, lines);
   const thumb = useLanguageThumb(lang || ORIGINAL);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
@@ -395,7 +449,12 @@ export function MeetingScribeCaptions({
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-translation-notice">
         {notice}
       </p>
-      <div className="relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3">
+      {/* Reading back, the box opens upwards over the stage: its negative margin keeps the room it takes in the
+          footer, so the tiles never reflow while someone scrolls. */}
+      <div
+        data-reading={reading ? "" : undefined}
+        className="relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px] data-reading:-mt-[calc(var(--cap-lh)*3.4)] data-reading:animate-caption-reveal"
+      >
         {/* Joining or translating, the scribe is busy rather than listening: the light gathers and travels. */}
         <ScribeVoiceLine level={() => roomLoudness(room)} processing={joining || translating} />
         <div className="flex min-h-8 flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -456,12 +515,20 @@ export function MeetingScribeCaptions({
             </ToggleGroup>
           ) : null}
         </div>
-        {/* Two lines in full, the one before fading out at the top edge as the newest wraps in below. */}
+        {/* Two lines in full, the one before fading out at the top edge as the newest wraps in below. Scrolled
+            back, it opens to six and new lines wait below until the viewer comes back down. */}
         <div
-          aria-hidden
-          className="relative mt-1.5 flex h-[2.6lh] flex-col justify-end overflow-hidden text-title-sm leading-6 font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] sm:text-title sm:leading-7"
+          ref={view}
+          role="region"
+          aria-label={t("meetings.scribe.captionsHistory")}
+          // A scroll region keyboard users can reach (WCAG 2.1.1); the live announcer above stays the screen reader's feed.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          data-reading={reading ? "" : undefined}
+          className="pointer-events-auto relative mt-1.5 flex h-[calc(var(--cap-lh)*2.6)] flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] sm:text-title data-reading:h-[calc(var(--cap-lh)*6)] data-reading:pe-10 [&::-webkit-scrollbar]:hidden"
         >
-          <div ref={flow}>
+          {/* mt-auto, not justify-end: a column justified to its end cannot scroll back to what overflows its start. */}
+          <div className="mt-auto">
             {lines.length === 0 ? (
               <p className="animate-caption-listening text-meeting-bar-muted-foreground">
                 {/* Keyed so "joining" gives way to "listening" the way a caption word arrives. */}
@@ -470,39 +537,41 @@ export function MeetingScribeCaptions({
                 </span>
               </p>
             ) : (
-              lines.map((l, i) => {
-                const tint = speakerTint(l.identity);
-                const name = nameOf(l.identity);
-                return (
-                  <p key={l.segmentId} data-final={l.final ? "1" : "0"} className="mt-0.5 first:mt-0">
-                    {/* The speaker shows when the voice changes, not on every line they say. */}
-                    {i === 0 || lines[i - 1]?.identity !== l.identity ? (
-                      <span
-                        className={cn(
-                          "me-2 inline-flex animate-caption-chip-in items-center gap-1.5 align-[1px] text-label leading-none font-semibold",
-                          tintForegroundClass[tint],
-                        )}
-                      >
-                        <MeetingPersonAvatar name={name} avatarUrl={avatarOf(l.identity)} size={20} tint={tint} />
-                        {name}
-                      </span>
-                    ) : null}
-                    <CaptionText
-                      text={l.text}
-                      variant={l.translated ? `t:${lang}` : "o"}
-                      className={cn(
-                        "transition-colors duration-500",
-                        l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-foreground/60",
-                        // Its translation is on its way: the line breathes until it arrives.
-                        l.pending && "animate-caption-breathe",
-                      )}
-                    />
-                  </p>
-                );
-              })
+              lines.map((l, i) => (
+                <CaptionLine
+                  key={l.segmentId}
+                  identity={l.identity}
+                  name={nameOf(l.identity)}
+                  avatarUrl={avatarOf(l.identity)}
+                  // The speaker shows when the voice changes, not on every line they say.
+                  showWho={i === 0 || lines[i - 1]?.identity !== l.identity}
+                  text={l.text}
+                  final={l.final}
+                  variant={l.translated ? `t:${lang}` : "o"}
+                  pending={Boolean(l.pending)}
+                />
+              ))
             )}
           </div>
         </div>
+        {reading ? (
+          <Button
+            type="button"
+            variant="meetingChip"
+            size="icon"
+            onClick={latest}
+            aria-label={t("meetings.scribe.captionsLatest")}
+            title={t("meetings.scribe.captionsLatest")}
+            data-testid="meeting-caption-latest"
+            className="pointer-events-auto absolute right-3 bottom-3 z-10 animate-caption-chip-in rounded-full"
+          >
+            <ArrowDown aria-hidden className="size-4" />
+            {/* New lines came while reading back. */}
+            {unseen ? (
+              <span aria-hidden data-testid="meeting-caption-unseen" className="absolute top-0.5 right-0.5 size-2 rounded-full bg-tint-violet-foreground" />
+            ) : null}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

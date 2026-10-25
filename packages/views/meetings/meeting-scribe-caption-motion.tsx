@@ -10,25 +10,79 @@ const WORD_OUT_MS = 170;
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
 /**
- * Older lines glide up when a new one wraps in, instead of jumping. The
- * glide starts from where the eye sees the lines, so a line that wraps
- * mid-glide carries on from there. Reduced motion: they jump.
+ * The caption box follows the newest line, scrolling smoothly as lines wrap
+ * in, until the viewer scrolls back to read: then new lines do not pull them
+ * down, the box opens taller (`reading`), and `unseen` says lines arrived.
+ * Scrolling back to the bottom, or `latest()`, follows again. Only the
+ * viewer's own wheel, swipe or keys leave the bottom, so the box's own smooth
+ * scrolls never count as reading. Reduced motion: it jumps instead of gliding.
+ * `content` is what the box shows; each change of it is a chance it grew.
  */
-export function useGlide(ref: RefObject<HTMLElement | null>) {
-  const top = useRef<number | null>(null);
+export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: unknown) {
+  const [reading, setReading] = useState(false);
+  const [unseen, setUnseen] = useState(false);
+  const seen = useRef({ height: 0, box: 0 });
   useLayoutEffect(() => {
-    const el = ref.current;
+    const el = view.current;
     if (!el) return;
-    const prev = top.current;
-    top.current = el.offsetTop;
-    if (prev === null || prev === el.offsetTop || typeof el.animate !== "function" || reducedMotion()) return;
-    const seen = new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
-    el.getAnimations().forEach((a) => a.cancel());
-    el.animate([{ transform: `translateY(${prev - el.offsetTop + seen}px)` }, { transform: "none" }], {
-      duration: 520,
-      easing: "cubic-bezier(0.22, 0.8, 0.24, 1)",
-    });
-  });
+    // The lines' own height: the box's scrollHeight also grows when the box opens over fewer lines.
+    const height = (el.firstElementChild as HTMLElement | null)?.offsetHeight ?? el.scrollHeight;
+    const grew = height > seen.current.height;
+    // Opening taller keeps the lines where the eye left them: the room it gains shows older lines above.
+    const opened = el.clientHeight - seen.current.box;
+    seen.current = { height, box: el.clientHeight };
+    if (reading) {
+      if (opened > 0) el.scrollTop -= opened;
+      if (grew && !unseen) setUnseen(true);
+    } else if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+      el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? "auto" : "smooth" });
+    }
+  }, [view, reading, unseen, content]);
+  useEffect(() => {
+    const el = view.current;
+    if (!el) return;
+    // Something above to read back to, or the box would open on nothing.
+    const leave = () => {
+      if (el.scrollHeight > el.clientHeight + 1) setReading(true);
+    };
+    let touchY = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) leave();
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+    };
+    // A finger moving down drags the lines down: back towards older ones.
+    const onTouchMove = (e: TouchEvent) => {
+      if ((e.touches[0]?.clientY ?? 0) - touchY > 6) leave();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "Home") leave();
+    };
+    const onScroll = () => {
+      if (el.scrollHeight - el.scrollTop - el.clientHeight <= 2) {
+        setReading(false);
+        setUnseen(false);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("keydown", onKey);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("keydown", onKey);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [view]);
+  const latest = () => {
+    setReading(false);
+    setUnseen(false);
+  };
+  return { reading, unseen, latest };
 }
 
 /**
