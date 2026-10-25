@@ -91,7 +91,7 @@ function HtmlMark({ className }: MarkProps) {
   return (
     <svg aria-hidden focusable="false" className={className} viewBox="0 0 240 240" fill="none">
     <rect width="240" height="240" rx="48" fill="#0FA3A3"/>
-    <path d="M92 72L44 120L92 168M148 72L196 120L148 168" stroke="white" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M92 72L44 120L92 168M148 72L196 120L148 168" stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }

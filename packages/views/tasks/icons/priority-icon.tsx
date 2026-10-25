@@ -32,10 +32,11 @@ export function PriorityIcon({
         className={cn("size-3.5 shrink-0", color, className)}
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
       >
-        <line x1="3" y1="8" x2="13" y2="8" />
+        {/* 2px on screen at every size, the weight base.css gives the Lucide icons. */}
+        <line x1="3" y1="8" x2="13" y2="8" vectorEffect="non-scaling-stroke" />
       </svg>
     );
   }
@@ -56,7 +57,8 @@ export function PriorityIcon({
           x2="8"
           y2="8.6"
           stroke="var(--background, #fff)"
-          strokeWidth="1.7"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
         />
         <circle cx="8" cy="11" r="0.95" fill="var(--background, #fff)" />

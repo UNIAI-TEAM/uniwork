@@ -20,14 +20,16 @@ const TILE_TO = "#A23CF2";
 
 /** Three voice bars, then three written lines: the scribe hears the room and writes it down. */
 function Strokes({ glyph }: { glyph?: boolean }) {
+  // Among line icons the glyph strokes in screen pixels, as base.css strokes the Lucide icons; the tile scales.
+  const ve = glyph ? "non-scaling-stroke" : undefined;
   return (
     <>
-      <path data-part="b1" d="M11 20.5V27.5" />
-      <path data-part="b2" d="M17 15V33" />
-      <path data-part="b3" d="M23 19V29" />
-      <path data-part="l1" pathLength={1} d="M29.5 18H37.5" />
-      <path data-part="l2" pathLength={1} strokeOpacity={glyph ? undefined : 0.85} d="M29.5 24H37.5" />
-      <path data-part="l3" pathLength={1} strokeOpacity={glyph ? undefined : 0.7} d="M29.5 30H34" />
+      <path data-part="b1" vectorEffect={ve} d="M11 20.5V27.5" />
+      <path data-part="b2" vectorEffect={ve} d="M17 15V33" />
+      <path data-part="b3" vectorEffect={ve} d="M23 19V29" />
+      <path data-part="l1" vectorEffect={ve} pathLength={1} d="M29.5 18H37.5" />
+      <path data-part="l2" vectorEffect={ve} pathLength={1} strokeOpacity={glyph ? undefined : 0.85} d="M29.5 24H37.5" />
+      <path data-part="l3" vectorEffect={ve} pathLength={1} strokeOpacity={glyph ? undefined : 0.7} d="M29.5 30H34" />
     </>
   );
 }
@@ -79,8 +81,8 @@ export const ScribeMark = forwardRef<SVGSVGElement, ScribeMarkProps>(function Sc
 
 /**
  * The same bars and lines in one colour, no tile, for a slot among other line
- * icons (a property row, a form field, a menu): it takes the text colour and a
- * stroke as heavy as lucide's 2/24.
+ * icons (a property row, a form field, a menu): it takes the text colour and the
+ * same 2px on-screen stroke base.css gives the Lucide icons.
  */
 export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function ScribeGlyph({ size = 24, className, ...rest }, ref) {
   return (
@@ -91,7 +93,7 @@ export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function Scrib
       height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={2.9}
+      strokeWidth={2}
       strokeLinecap="round"
       aria-hidden
       focusable={false}
