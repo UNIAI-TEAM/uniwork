@@ -92,6 +92,7 @@ function valueKeys(field: string, value: string, resourceType?: string): string[
   if (field === "priority") return [`tasks.priority_${value}`];
   if (field === "assignee_kind") return [`settings.audit.actor_kind.${value}`];
   if (field === "visibility") return [`settings.audit.values.visibility.${value}`];
+  if (field === "ask_uni_write_ceiling") return [`settings.aiAccess.askWriteCeiling.${value}`];
   if (field !== "status") return [];
   const task = `tasks.status_${value}`;
   const meeting = `meetings.status_${value}`;

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Plug, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { ConnectedApp } from "@uniwork/core/api/endpoints/connect";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import { useMcpPolicy, useOrgConnectedApps, useRevokeOrgConnectedApp, useSetMcpPolicy, useSetMcpWritePolicy } from "@uniwork/core/connect";
 import { useOrgMembership } from "@uniwork/core/organizations";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -13,6 +14,7 @@ import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
 import { AiAskModelsSection } from "./ai-ask-models-section";
+import { AiAskWritePolicySection } from "./ai-ask-write-policy-section";
 import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
@@ -49,6 +51,8 @@ export function AiAccessTab() {
   const setWrite = useSetMcpWritePolicy(org);
   const grants = useOrgConnectedApps(org, { enabled: isAdmin });
   const revoke = useRevokeOrgConnectedApp(org);
+  // The write ceiling route is refused while Ask UNI actions are off, so the section waits for them.
+  const askActions = useAiCapabilities(workspace.id).data?.actions.enabled === true;
   const [pending, setPending] = useState<ConnectedApp | null>(null);
   // One formatter per render. A date the server drifted on ("" or garbage)
   // reads as "", never a RangeError that would unmount the whole tab.
@@ -162,6 +166,7 @@ export function AiAccessTab() {
       ) : null}
 
       <AiAskModelsSection orgSlug={org} />
+      {askActions ? <AiAskWritePolicySection orgSlug={org} /> : null}
 
       <SettingsSection title={t("grantsTitle")}>
         {grants.isPending ? (

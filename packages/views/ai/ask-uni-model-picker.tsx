@@ -145,26 +145,19 @@ export function AskUniModelPicker() {
     })),
   ];
   return (
-    <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger
-          render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("model.label_with", { model: current })} />}
-        >
-          <AskUniProviderMark look={look} size={14} />
-          {current}
-          <ChevronDown aria-hidden />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" className="min-w-60">
-          {rows.map((row) => (
-            <ModelRow key={row.modelKey || "auto"} row={row} chosen={row.modelKey === model} effort={effort} onPick={pick} />
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {model === "opus" ? (
-        <p role="status" className="basis-full text-caption text-muted-foreground">
-          {t("model.opus_note")}
-        </p>
-      ) : null}
-    </>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger
+        render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("model.label_with", { model: current })} />}
+      >
+        <AskUniProviderMark look={look} size={14} />
+        {current}
+        <ChevronDown aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="min-w-60">
+        {rows.map((row) => (
+          <ModelRow key={row.modelKey || "auto"} row={row} chosen={row.modelKey === model} effort={effort} onPick={pick} />
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

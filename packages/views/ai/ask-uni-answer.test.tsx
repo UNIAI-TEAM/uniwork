@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachments";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { AiFileNote, AiMessage } from "@uniwork/core/types";
+import { AiProposalSchema, type AiFileNote, type AiMessage } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
 import { isInAppHref } from "./ask-uni-links";
@@ -24,7 +24,7 @@ initI18n();
 const cite = { source_id: "S1", kind: "task", title: "Thiết kế trang chủ", quote: "Hạn thứ sáu, chưa có người nhận", href: "/acme/team/tasks/T1" };
 
 function msg(over: Partial<AiMessage> = {}): AiMessage {
-  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], created_at: "", ...over };
+  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], created_at: "", ...over };
 }
 
 function mount(message: AiMessage, props: Partial<Parameters<typeof AskUniMessageTurn>[0]> = {}) {
@@ -141,7 +141,7 @@ describe("AskUniMessageTurn", () => {
   });
 
   it("shows the message's own stored steps as a collapsed line", () => {
-    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {} }, { tool: "get_task", label: "B", counts: {} }] }));
+    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {}, note: "", thought: "", kind: "" }, { tool: "get_task", label: "B", counts: {}, note: "", thought: "", kind: "" }] }));
     expect(screen.getByRole("button", { name: "Xong sau 2 bước" })).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -257,6 +257,42 @@ describe("AskUniMessageTurn", () => {
     unmount();
     mount(msg({ content: "a" }));
     expect(screen.getByText(/^UNI/)).toBeInTheDocument();
+  });
+
+  describe("the proposal card", () => {
+    const proposal = AiProposalSchema.parse({
+      id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending", mode: "ask",
+      preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] },
+    });
+    const serveActions = (enabled: boolean, ceiling = "plan") =>
+      requestMock.mockImplementation((path: string) =>
+        Promise.resolve(path === "/api/v1/workspaces/ws1/ai/capabilities" ? { enabled: true, ask_uni: true, actions: { enabled, ceiling, mode: "ask" } } : {}),
+      );
+    const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+    it("offers the buttons while actions are on", async () => {
+      serveActions(true);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      expect(await screen.findByRole("button", { name: "Áp dụng" })).toBeInTheDocument();
+    });
+
+    it("keeps the rows as history, with no button, once actions are off", async () => {
+      serveActions(false);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
+
+    it("keeps the rows as history under an off ceiling too, where the server refuses every decision", async () => {
+      serveActions(true, "off");
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
   });
 
   describe("files the question carried", () => {

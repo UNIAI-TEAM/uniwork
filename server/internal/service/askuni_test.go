@@ -34,21 +34,6 @@ func askFixture(t *testing.T) (*AskUNIService, *provider.Fake, db.User, db.User,
 	return s, fake, ua, ub, w
 }
 
-func TestAskUniToolsAreReadOnly(t *testing.T) {
-	r := AskUniTools(&AskUNIService{})
-	if r.MutationCount() != 0 {
-		t.Fatalf("Ask UNI registry has %d write tools; V1 is read-only (spec F-09 §2 #8)", r.MutationCount())
-	}
-	if len(r) != 5 {
-		t.Fatalf("expected 5 read tools, got %v", r.Names())
-	}
-	for _, tool := range r {
-		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || len(tool.Schema) == 0 {
-			t.Fatalf("incomplete tool %+v", tool.Name)
-		}
-	}
-}
-
 func usageCount(t *testing.T, s *AskUNIService, orgID string) int64 {
 	t.Helper()
 	rows, err := s.q.AiUsageByDay(context.Background(), db.AiUsageByDayParams{

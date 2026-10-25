@@ -144,6 +144,37 @@ func TestAnthropicSendsEffortOnlyToModelsThatTakeIt(t *testing.T) {
 	}
 }
 
+// TestAnthropicAsksForAdaptiveThinkingOnlyWhereItCan: a thinking call to a
+// model that thinks adaptively asks for a summarized thought and sends no
+// temperature; an older model, or a call without Thinking, is unchanged.
+func TestAnthropicAsksForAdaptiveThinkingOnlyWhereItCan(t *testing.T) {
+	a, bodies := anthropicStub(t, endTurnReply)
+	for _, c := range []struct {
+		model    string
+		thinking bool
+	}{{"claude-opus-4-6", true}, {"claude-haiku-4-5-20251001", true}, {"claude-opus-4-6", false}} {
+		req := CompletionRequest{Model: c.model, Thinking: c.thinking, MaxTokens: 64, Messages: []Message{{Role: "user", Content: "q"}}}
+		if _, err := a.Complete(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	thinking, _ := (*bodies)[0]["thinking"].(map[string]any)
+	if thinking["type"] != "adaptive" || thinking["display"] != "summarized" {
+		t.Fatalf("opus-4-6 thinking = %v", (*bodies)[0]["thinking"])
+	}
+	if _, ok := (*bodies)[0]["temperature"]; ok {
+		t.Fatalf("a thinking call sent a temperature: %v", (*bodies)[0]["temperature"])
+	}
+	for i, name := range map[int]string{1: "haiku-4-5", 2: "no Thinking"} {
+		if _, ok := (*bodies)[i]["thinking"]; ok {
+			t.Fatalf("%s: thinking was sent: %v", name, (*bodies)[i]["thinking"])
+		}
+	}
+	if _, ok := (*bodies)[2]["temperature"]; !ok {
+		t.Fatalf("opus-4-6 without thinking lost its temperature")
+	}
+}
+
 func TestAnthropicStrictToolCarriesAdditionalPropertiesFalse(t *testing.T) {
 	a, bodies := anthropicStub(t, endTurnReply)
 	schema := json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`)

@@ -63,6 +63,7 @@ func tenantExportIncludes(table string) bool {
 // tenantExportIncludedTables is every tenant table the zip contains, one
 // JSONL file each. data_subject_requests is the dossier itself.
 var tenantExportIncludedTables = []string{
+	"agent_action_proposals",
 	"agents",
 	"ai_attachments",
 	"ai_conversations",

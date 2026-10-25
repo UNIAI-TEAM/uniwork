@@ -519,6 +519,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/me/delete":                                  {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/ai-consent":                               {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/push-previews":                            {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/ask-uni-mode":                             {class: isoSelf, reason: "the person's own Ask UNI mode (users.ask_uni_mode): it names no tenant row, takes no id and changes only the caller's account"},
 	"DELETE /api/v1/me/ai-consent":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
@@ -839,10 +840,27 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/privacy/deletion/cancel": {
 		skipControl: "no deletion is scheduled in this run, so the owner's cancel would answer 404; TestPrivacyDeletionCoversTheDelay covers that path",
 	},
-	"PUT /api/v1/tasks/{taskID}":                                                                       {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
-	"POST /api/v1/tasks/{taskID}/attachments":                                                          {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
-	"DELETE /api/v1/tasks/{taskID}/reactions":                                                          {body: isoJSON(map[string]any{"emoji": "👍"})},
-	"POST /api/v1/tasks/{taskID}/reactions":                                                            {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"PUT /api/v1/tasks/{taskID}":                    {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
+	"POST /api/v1/tasks/{taskID}/attachments":       {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
+	"DELETE /api/v1/tasks/{taskID}/reactions":       {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"POST /api/v1/tasks/{taskID}/reactions":         {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"POST /api/v1/ai/proposals/{proposalID}/apply":  {control: []int{http.StatusConflict}, reason: "the seeded row is rejected, so the owner's own call reaches the row and answers 409 proposal_not_pending, which a broken route would not; the refusal to an outsider is 404 before any state check"},
+	"POST /api/v1/ai/proposals/{proposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/proposals/{proposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"PATCH /api/v1/ai/proposals/{proposalID}":       {body: isoJSON(map[string]any{"changes": map[string]any{"title": "edited"}}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply": {
+		body: func(_ *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"proposal_ids": []string{tn.ids["aiProposal"]}}}
+		},
+		control: []int{http.StatusConflict}, reason: "as apply: the owner's own call names the rejected seed row and answers 409 proposal_not_pending; the body-id case in isoReferences applies a pending row of the tenant's own and attacks with A's"},
+	"PUT /api/v1/orgs/{org}/ai/ask-write-policy": {reason: "the attack on A sends ceiling off, which would shut A's Ask UNI writes, so A's tenant digest catches a breach; every other tenant's own call sends plan, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			ceiling := "plan"
+			if tn == w.alpha {
+				ceiling = "off"
+			}
+			return isoBody{json: map[string]any{"ceiling": ceiling}}
+		}},
 	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
 	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},

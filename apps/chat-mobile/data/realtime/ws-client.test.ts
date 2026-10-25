@@ -97,37 +97,37 @@ describe("WSClient presence beat", () => {
     client.disconnect();
   });
 
-  it("supersedes a pending beat when another is sent", async () => {
+  it("a new beat settles the one still waiting with null and takes the next ack", async () => {
     const { client, socket } = connectAuthenticatedClient();
     const first = client.sendPresenceBeat(true);
     const second = client.sendPresenceBeat(false);
     await expect(first).resolves.toBeNull();
-    expect(socket.frames().at(-1)).toEqual({
-      type: "presence.beat",
-      payload: { state: "online", visible: false },
-    });
     socket.receive({ type: "presence.ack", payload: { online_user_ids: ["u3"] } });
     await expect(second).resolves.toEqual(["u3"]);
     client.disconnect();
   });
 
-  it("resolves null when presence.ack never arrives", async () => {
+  it("settles with null when no ack arrives within 10 seconds", async () => {
     const { client } = connectAuthenticatedClient();
     const pending = client.sendPresenceBeat(true);
-    await vi.advanceTimersByTimeAsync(10_001);
+    vi.advanceTimersByTime(10_000);
     await expect(pending).resolves.toBeNull();
     client.disconnect();
   });
 
-  it("returns null when the socket is not authenticated yet", async () => {
+  it("sends nothing and settles with null before the socket is authenticated", async () => {
     const client = makeClient();
     client.connect();
+    const socket = MockWebSocket.instances[0]!;
+    socket.open();
     await expect(client.sendPresenceBeat(true)).resolves.toBeNull();
+    expect(socket.frames().some((f) => (f as { type: string }).type === "presence.beat")).toBe(false);
     client.disconnect();
   });
 
-  it("resolves null when presence.ack carries no user list", async () => {
+  it("ignores an ack no beat waits for, and reads an ack without ids as null", async () => {
     const { client, socket } = connectAuthenticatedClient();
+    socket.receive({ type: "presence.ack", payload: { online_user_ids: ["u2"] } });
     const pending = client.sendPresenceBeat(true);
     socket.receive({ type: "presence.ack", payload: {} });
     await expect(pending).resolves.toBeNull();
@@ -139,12 +139,6 @@ describe("WSClient presence beat", () => {
     const pending = client.sendPresenceBeat(true);
     socket.receive({ type: "presence.ack", payload: { online_user_ids: "x" } });
     await expect(pending).resolves.toBeNull();
-    client.disconnect();
-  });
-
-  it("ignores presence.ack when no beat is waiting", () => {
-    const { client, socket } = connectAuthenticatedClient();
-    socket.receive({ type: "presence.ack", payload: { online_user_ids: ["u2"] } });
     client.disconnect();
   });
 

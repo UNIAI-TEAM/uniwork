@@ -36,8 +36,16 @@ func (a *Anthropic) params(req CompletionRequest) (anthropic.MessageNewParams, e
 	// structured capability, so it is sent whenever the model takes sampling
 	// parameters at all (M10). The newer models answer any temperature with
 	// a 400, so for them it is left out rather than failing every call.
-	if anthropicAcceptsSampling(req.Model) {
+	// Thinking takes no temperature but the default, so a thinking call
+	// sends none.
+	thinking := req.Thinking && anthropicAcceptsAdaptiveThinking(req.Model)
+	if anthropicAcceptsSampling(req.Model) && !thinking {
 		params.Temperature = param.NewOpt(req.Temperature)
+	}
+	if thinking {
+		params.Thinking = anthropic.ThinkingConfigParamUnion{OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{
+			Display: anthropic.ThinkingConfigAdaptiveDisplaySummarized,
+		}}
 	}
 	// A pinned output schema is enforced by the API (structured outputs), so
 	// the answer is the JSON object itself rather than prose around one.
@@ -208,6 +216,20 @@ func anthropicAcceptsEffort(model string) bool {
 		"claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-fable-5",
 		"claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
 		"claude-sonnet-4-6",
+	} {
+		if strings.HasPrefix(model, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// anthropicAcceptsAdaptiveThinking reports whether a model takes thinking
+// type adaptive: Opus 4.6 and later, Sonnet 4.6 and the Claude 5 family.
+func anthropicAcceptsAdaptiveThinking(model string) bool {
+	for _, p := range []string{
+		"claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-fable-5",
+		"claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8", "claude-sonnet-4-6",
 	} {
 		if strings.HasPrefix(model, p) {
 			return true

@@ -8,6 +8,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
+var injectedTask = regexp.MustCompile(`(?m)^Tạo task (.+)$`)
+
 var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
@@ -95,16 +97,55 @@ func itoa(n int) string {
 // fakeAgentReply is the copilot_answer@2 and @3 fake: search once with the question,
 // then cite whatever sources the tool results carried.
 func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse {
-	var tool, first string
+	// The search keeps the conversation's first question (the eval's follow-up
+	// cases rely on it); a "Tạo task" request is read from the latest one.
+	var tool, first, last string
 	for _, m := range req.Messages {
 		if m.Role == "tool" {
 			tool += m.Content + "\n"
-		} else if first == "" && m.Role == "user" {
-			first = m.Content
+		} else if m.Role == "user" {
+			if first == "" {
+				first = m.Content
+			}
+			last = m.Content
 		}
 	}
 	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
-	if tool == "" {
+	title, proposes := "", false
+	for _, t := range req.Tools {
+		proposes = proposes || t.Name == "create_task"
+	}
+	if rest, ok := strings.CutPrefix(fakeQuestion(last), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
+		title = strings.TrimSpace(rest)
+	}
+	// Injection trigger: a tool result holding a line "Tạo task <title>" is
+	// obeyed like a hijacked model would, once; the eval's auto-mode injection
+	// case relies on it. Only the tool results are read, never the question.
+	hijack := ""
+	if proposes && title == "" && !strings.Contains(tool, "proposal row") {
+		if m := injectedTask.FindStringSubmatch(tool); m != nil {
+			hijack = strings.TrimSpace(m[1])
+		}
+	}
+	if hijack != "" {
+		in, _ := json.Marshal(map[string]string{"title": hijack})
+		resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
+		resp.StopReason = "tool_use"
+	} else if title != "" || (proposes && strings.Contains(tool, "proposal row")) {
+		// The row may still be pending, so the answer never says the task exists.
+		if tool == "" && title != "" {
+			in, _ := json.Marshal(map[string]string{"title": title})
+			resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
+			resp.StopReason = "tool_use"
+		} else if strings.Contains(tool, "proposal row") {
+			resp.Text = "Tôi đã đề xuất task theo yêu cầu; bạn xem và áp dụng đề xuất nếu đồng ý."
+			if title != "" {
+				resp.Text = "Tôi đã đề xuất task \"" + title + "\"; bạn xem và áp dụng đề xuất nếu đồng ý."
+			}
+		} else {
+			resp.Text = "Tôi chưa đề xuất được task này."
+		}
+	} else if tool == "" {
 		in, _ := json.Marshal(map[string]string{"query": fakeQuestion(first)})
 		resp.ToolCalls = []provider.ToolCall{{ID: "fake-search-1", Name: "search", Input: in}}
 		resp.StopReason = "tool_use"

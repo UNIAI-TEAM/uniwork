@@ -11,6 +11,7 @@ import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniHeader } from "./ask-uni-header";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
+import { AskUniSourcesBar } from "./ask-uni-sources-bar";
 import { AskUniThread } from "./ask-uni-thread";
 import { useAskUniAttachments } from "./use-ask-uni-attachments";
 
@@ -61,6 +62,7 @@ export function AskUniPanel() {
       {...dropHandlers}
     >
       <AskUniHeader />
+      <AskUniSourcesBar />
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
         {empty ? (
           <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} model={model} look={look} />

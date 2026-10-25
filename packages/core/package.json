@@ -45,6 +45,7 @@
     "./billing/quota-threshold-bus": "./billing/quota-threshold-bus.ts",
     "./ai": "./ai/hooks.ts",
     "./ai/stream": "./ai/use-ask-uni-stream.ts",
+    "./ai/proposals": "./ai/proposal-hooks.ts",
     "./ai/attachments": "./ai/use-ask-attachments.ts",
     "./ai/model-choice": "./ai/model-choice-store.ts",
     "./ai/office": "./ai/office-hooks.ts",
