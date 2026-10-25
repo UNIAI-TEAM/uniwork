@@ -95,6 +95,25 @@ beforeEach(() => {
 });
 
 describe("MeetingSheet · create", () => {
+  it("opens every member on focus, ticks several without typing and unticks on a second click", async () => {
+    const dialog = openCreate();
+    const search = within(dialog).getByRole("combobox");
+    fireEvent.focus(search);
+    const list = await within(dialog).findByRole("listbox");
+    expect(list).toHaveAttribute("aria-multiselectable", "true");
+    // The host is not offered: they are in the meeting already.
+    expect((await within(list).findAllByRole("option")).map((o) => o.textContent)).toEqual(["HVHà Vũ", "MTMinh Trần"]);
+    fireEvent.click(within(list).getByRole("option", { name: "Hà Vũ" }));
+    fireEvent.click(within(list).getByRole("option", { name: "Minh Trần" }));
+    expect(within(dialog).getByRole("listbox")).toBeInTheDocument();
+    expect(within(list).getByRole("option", { name: "Hà Vũ" })).toHaveAttribute("aria-selected", "true");
+    expect(within(list).getByRole("option", { name: "Minh Trần" })).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getByText("3 người · gồm bạn")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("option", { name: "Hà Vũ" }));
+    expect(within(list).getByRole("option", { name: "Hà Vũ" })).toHaveAttribute("aria-selected", "false");
+    expect(within(dialog).getByText("2 người · gồm bạn")).toBeInTheDocument();
+  });
+
   it("opens on the title and keeps the e2e contract", async () => {
     const dialog = openCreate();
     const title = within(dialog).getByLabelText("Tiêu đề");

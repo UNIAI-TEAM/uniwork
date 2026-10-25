@@ -136,8 +136,8 @@ export function MeetingQuickCard({
   const nameOf = (userId: string) => members.find((m) => m.user_id === userId)?.display_name ?? t("meetings.formerMember");
   const chosen = useMemo(() => new Set(draft.people.map((p) => p.userId)), [draft.people]);
   const userId = useAuthStore((s) => s.user?.id);
-  // The creator hosts, so the search offers everyone else.
-  const exclude = useMemo(() => new Set([...(userId ? [userId] : []), ...chosen]), [userId, chosen]);
+  // The creator hosts, so the checklist offers everyone else.
+  const hidden = useMemo(() => new Set(userId ? [userId] : []), [userId]);
 
   const slot = scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone);
   const minutes = durationMinutes(draft.start, draft.end);
@@ -326,8 +326,11 @@ export function MeetingQuickCard({
             // Kit `.qc-field` stays 36 on a phone too (the sheet's control grows to 44 there).
             className="mt-4 max-sm:[&>div:first-child]:h-9"
             members={members}
-            exclude={exclude}
-            onPick={(userId) => patch({ people: [...draft.people, { userId, role: "MEMBER" }] })}
+            hidden={hidden}
+            chosen={chosen}
+            onToggle={(id) =>
+              patch({ people: chosen.has(id) ? draft.people.filter((p) => p.userId !== id) : [...draft.people, { userId: id, role: "MEMBER" }] })
+            }
             loadState={membersPending ? "pending" : membersError ? "error" : "ready"}
             onRetry={() => void refetchMembers()}
             readOnly={busy}

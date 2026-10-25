@@ -1,6 +1,6 @@
 "use client";
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Search, UserPlus, X } from "lucide-react";
+import { Check, Search, UserPlus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import type { Member } from "@uniwork/core/types";
@@ -23,17 +23,18 @@ function fold(text: string): string {
 const MAX_ROWS = 4;
 
 /**
- * The search-first picker (create brief §2.4): typing opens a listbox of the
- * members not chosen yet (4 rows of 44, then it scrolls); Enter adds the
- * active one, the input clears and keeps focus. Esc closes the list without
- * closing the sheet.
+ * The member checklist: focusing or clicking the field opens every member the
+ * meeting may invite (4 rows of 44, then it scrolls), each ticked once chosen;
+ * a click or Enter ticks or unticks the active one and the list stays open for
+ * the next. Typing only narrows the list. Esc closes it without closing the sheet.
  */
 export function PeopleSearch({
   id,
   labelledBy,
   members,
-  exclude,
-  onPick,
+  hidden,
+  chosen,
+  onToggle,
   loadState,
   onRetry,
   readOnly,
@@ -42,8 +43,10 @@ export function PeopleSearch({
   id: string;
   labelledBy: string;
   members: readonly Member[];
-  exclude: ReadonlySet<string>;
-  onPick: (userId: string) => void;
+  /** Never offered: the host, and people the server refuses to invite again. */
+  hidden: ReadonlySet<string>;
+  chosen: ReadonlySet<string>;
+  onToggle: (userId: string) => void;
   loadState: "ready" | "pending" | "error";
   onRetry: () => void;
   readOnly?: boolean;
@@ -56,14 +59,17 @@ export function PeopleSearch({
   const [active, setActive] = useState(0);
   const options = useMemo(() => {
     const needle = fold(query.trim());
-    return members.filter((m) => !exclude.has(m.user_id) && (!needle || fold(`${m.display_name} ${m.email}`).includes(needle)));
-  }, [members, exclude, query]);
-  const others = members.filter((m) => !exclude.has(m.user_id)).length;
+    return members.filter((m) => !hidden.has(m.user_id) && (!needle || fold(`${m.display_name} ${m.email}`).includes(needle)));
+  }, [members, hidden, query]);
+  const others = members.filter((m) => !hidden.has(m.user_id)).length;
   const pick = (m: Member | undefined) => {
     if (!m) return;
-    onPick(m.user_id);
-    setQuery("");
-    setActive(0);
+    onToggle(m.user_id);
+    // A search found its person: clear it, so the whole list is there for the next one.
+    if (query) {
+      setQuery("");
+      setActive(0);
+    }
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -82,7 +88,7 @@ export function PeopleSearch({
       setOpen(false);
     }
   };
-  const showList = open && !readOnly && (query.trim() !== "" || loadState !== "ready" || options.length > 0);
+  const showList = open && !readOnly;
   return (
     <div className={cn("relative", className)}>
       <div className={cn(CONTROL, "flex w-full items-center gap-2 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-ring group-data-[fresh]/sheet:px-3")}>
@@ -105,7 +111,8 @@ export function PeopleSearch({
             setActive(0);
             setOpen(true);
           }}
-          onFocus={() => setOpen(query.trim() !== "")}
+          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
           className="h-full min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground group-data-[fresh]/sheet:h-5"
@@ -116,6 +123,7 @@ export function PeopleSearch({
           id={listId}
           role="listbox"
           aria-labelledby={labelledBy}
+          aria-multiselectable
           className="absolute inset-x-0 top-full z-10 mt-1 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-(--menu-shadow)"
           style={{ maxHeight: `${MAX_ROWS * 44 + 10}px` }}
         >
@@ -133,23 +141,35 @@ export function PeopleSearch({
               {others === 0 ? t("meetings.noOtherMembers") : t("meetings.noPeopleMatch")}
             </li>
           ) : (
-            options.map((m, i) => (
-              // The combobox input drives these rows from the keyboard (arrows + Enter, aria-activedescendant).
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-              <li
-                key={m.user_id}
-                id={`${listId}-${m.user_id}`}
-                role="option"
-                aria-selected={i === active}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => pick(m)}
-                className={cn("flex h-11 cursor-default items-center gap-2.5 rounded-sm px-2 text-body", i === active && "bg-surface-hover")}
-              >
-                <MeetingPersonAvatar name={m.display_name} avatarUrl={m.avatar_url} size={24} tint={meetingAvatarTint(m.user_id, members)} />
-                <span className="min-w-0 truncate">{m.display_name}</span>
-              </li>
-            ))
+            options.map((m, i) => {
+              const on = chosen.has(m.user_id);
+              return (
+                // The combobox input drives these rows from the keyboard (arrows + Enter, aria-activedescendant).
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                <li
+                  key={m.user_id}
+                  id={`${listId}-${m.user_id}`}
+                  role="option"
+                  aria-selected={on}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => pick(m)}
+                  className={cn("flex h-11 cursor-default items-center gap-2.5 rounded-sm px-2 text-body", i === active && "bg-surface-hover")}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "grid size-4 shrink-0 place-items-center rounded-[4px] border",
+                      on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background",
+                    )}
+                  >
+                    {on ? <Check className="size-3" strokeWidth={3} /> : null}
+                  </span>
+                  <MeetingPersonAvatar name={m.display_name} avatarUrl={m.avatar_url} size={24} tint={meetingAvatarTint(m.user_id, members)} />
+                  <span className="min-w-0 truncate">{m.display_name}</span>
+                </li>
+              );
+            })
           )}
         </ul>
       ) : null}
@@ -202,8 +222,8 @@ export function PeopleField({
   const phone = useMediaQuery("(max-width: 639px)");
   const [picking, setPicking] = useState(false);
   const byId = new Map(members.map((m) => [m.user_id, m]));
-  const chosen = new Set([host.userId, ...people.map((p) => p.userId)]);
-  const exclude = new Set([...chosen, ...(removed ?? [])]);
+  const picked = new Set(people.map((p) => p.userId));
+  const hidden = new Set([host.userId, ...(removed ?? [])]);
   const labelId = `${idPrefix}-people-label`;
   const searchId = `${idPrefix}-people`;
   const nameOf = (userId: string) => byId.get(userId)?.display_name ?? t("meetings.formerMember");
@@ -212,7 +232,7 @@ export function PeopleField({
   const role = (userId: string, next: DraftRole) => onChange(setRole(people, userId, next));
   const secretary = people.find((p) => p.role === "SECRETARY");
   const showSearch = !edit || adding;
-  const toggle = (userId: string) => (chosen.has(userId) ? remove(userId) : add(userId));
+  const toggle = (userId: string) => (picked.has(userId) ? remove(userId) : add(userId));
   const search = showSearch && phone && variant === "rows" ? (
     <button
       type="button"
@@ -229,8 +249,9 @@ export function PeopleField({
         id={searchId}
         labelledBy={labelId}
         members={members}
-        exclude={exclude}
-        onPick={add}
+        hidden={hidden}
+        chosen={picked}
+        onToggle={toggle}
         loadState={isPending ? "pending" : isError ? "error" : "ready"}
         onRetry={() => void refetch()}
         readOnly={readOnly}
@@ -244,7 +265,7 @@ export function PeopleField({
         <PhonePeoplePicker
           members={removed?.size ? members.filter((m) => !removed.has(m.user_id)) : members}
           hostId={host.userId}
-          chosen={new Set(people.map((p) => p.userId))}
+          chosen={picked}
           onToggle={toggle}
           onClose={() => setPicking(false)}
         />
