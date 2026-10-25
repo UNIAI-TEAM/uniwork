@@ -322,11 +322,13 @@ export function WorkspaceTopBar({
           <div className="flex min-w-0 flex-1 items-center">
             <WorkspaceSwitcher current={workspace} placement="header" />
           </div>
-          {/* On the app plane the field needs its own surface, or it sinks into the grey. */}
-          <SearchTrigger className="lg:w-96 lg:border-border lg:bg-page-canvas" />
-          <div className="flex flex-1 items-center justify-end gap-2">
-            {/* The AI entry reads as one at a glance: a labelled pill, not one more grey glyph. */}
+          {/* One field on the app plane, as in ClickUp: search, then the AI pill at its end. The field carries
+              the surface, or it sinks into the grey. */}
+          <div className="flex h-8 w-96 items-center rounded-md border border-border bg-page-canvas pe-1">
+            <SearchTrigger className="h-full min-w-0 flex-1 rounded-e-none bg-transparent sm:w-auto" />
             <AskUniButton labeled />
+          </div>
+          <div className="flex flex-1 items-center justify-end gap-2">
             {actions}
             <AccountMenu placement="header" />
           </div>

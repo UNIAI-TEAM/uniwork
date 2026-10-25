@@ -11,7 +11,8 @@ import { useWorkspace } from "../layout/workspace-context";
 
 /**
  * Top-bar "Hỏi UNI". Renders nothing while the server has no provider (spec §3.2). `labeled` is the desktop bar's
- * AI pill (the UNI mark and the name on the brand tint, like ClickUp's AI entry); without it, an icon in the cluster.
+ * AI pill inside the search field, after ClickUp's "AI Chats": the UNI mark and the name inside a ring drawn from the
+ * brand gradient, which spins while the pill is hovered or focused. Without it, an icon in the cluster.
  */
 export function AskUniButton({ labeled = false }: { labeled?: boolean }) {
   const { t } = useTranslation();
@@ -33,7 +34,8 @@ export function AskUniButton({ labeled = false }: { labeled?: boolean }) {
             size={labeled ? "sm" : "icon"}
             className={
               labeled
-                ? "h-8 gap-1.5 rounded-full bg-brand-subtle px-3 font-medium text-brand-subtle-foreground ring-1 ring-brand/25 hover:bg-brand-subtle hover:text-brand-subtle-foreground hover:ring-brand/60 dark:hover:bg-brand-subtle"
+                ? // isolate: the ring and its cover sit under the label but above the button's own (transparent) fill.
+                  "group/ai relative isolate h-6 gap-1.5 overflow-hidden rounded-full bg-transparent px-2.5 text-caption font-medium text-foreground hover:bg-transparent dark:hover:bg-transparent"
                 : "text-muted-foreground"
             }
             aria-label={name}
@@ -44,7 +46,18 @@ export function AskUniButton({ labeled = false }: { labeled?: boolean }) {
       >
         {labeled ? (
           <>
-            <Logo variant="mark" size={12} decorative />
+            {/* A square of the conic gradient, larger than the pill, centred on it: its 1px rim shows past the cover. */}
+            <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-full">
+              <span
+                data-slot="ask-uni-ring"
+                className="absolute top-1/2 left-1/2 size-40 -translate-1/2 bg-[conic-gradient(var(--brand),var(--brand-accent),var(--brand-subtle-foreground),var(--brand))] motion-safe:group-hover/ai:animate-[spin_1.5s_linear_infinite] motion-safe:group-focus-visible/ai:animate-[spin_1.5s_linear_infinite]"
+              />
+            </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-px -z-10 rounded-full bg-page-canvas transition-[inset] group-hover/ai:inset-[1.5px] group-focus-visible/ai:inset-[1.5px]"
+            />
+            <Logo variant="mark" size={11} decorative />
             {name}
           </>
         ) : (

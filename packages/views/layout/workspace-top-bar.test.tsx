@@ -220,7 +220,7 @@ describe("WorkspaceTopBar", () => {
     useSearchStore.setState({ open: false });
   });
 
-  it("on a desktop bar, shows Ask UNI as a labelled AI pill, a wide search, and an account avatar that says it opens a menu", async () => {
+  it("on a desktop bar, puts Ask UNI inside the search field as a pill with a brand gradient ring, as ClickUp's AI entry", async () => {
     requestMock.mockReset();
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(
@@ -232,9 +232,19 @@ describe("WorkspaceTopBar", () => {
     renderTopBar();
     const ask = await screen.findByRole("button", { name: "Hỏi UNI" });
     expect(ask).toHaveTextContent("Hỏi UNI");
-    expect(ask).toHaveClass("rounded-full", "bg-brand-subtle", "text-brand-subtle-foreground");
+    expect(ask).toHaveClass("rounded-full", "isolate");
     expect(ask.querySelector("svg")).not.toBeNull();
-    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toHaveClass("lg:w-96");
+    // The ring is drawn from the brand tokens and only turns on hover or focus, never under reduced motion.
+    const ring = ask.querySelector('[data-slot="ask-uni-ring"]');
+    expect(ring?.className).toContain("var(--brand)");
+    expect(ring?.className).toContain("var(--brand-accent)");
+    expect(ring).toHaveClass("motion-safe:group-hover/ai:animate-[spin_1.5s_linear_infinite]");
+    // One field: the search trigger and the pill share it, search first.
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    const field = search.parentElement as HTMLElement;
+    expect(field).toHaveClass("w-96", "border-border", "bg-page-canvas");
+    expect(field).toContainElement(ask);
+    expect(search.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
     // A 32px avatar with a chevron: the control reads as a menu, not a lone picture.
     expect(account.querySelector('[data-slot="account-chevron"]')).not.toBeNull();
