@@ -262,7 +262,7 @@ func registerAI(r api, h Routes) {
 		summary: "Apply an Ask UNI memory proposal",
 		description: "Người hỏi bấm Nhớ / Lưu / Quên trên thẻ đề xuất bộ nhớ: thêm, sửa hoặc xóa mục bộ nhớ của chính mình, ghi audit ai_memory.* (không kèm chữ) có metadata.via ask_uni; bấm hai lần chỉ chạy một lần. " +
 			"Không bao giờ tự áp dụng, ở mọi chế độ; cờ ask_uni_actions và trần ghi không liên quan. Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại); cờ ask_uni_memory tắt -> 403 ai_memory_disabled; mất quyền workspace -> 403. " +
-			"Mục update/forget nhắm tới đã bị xóa -> 404 ai_memory_not_found. 409 kèm dòng hiện tại trong error.fields.proposal: proposal_not_pending, proposal_expired (quá 24 giờ), ai_memory_off (người hỏi tắt Dùng bộ nhớ), ai_memory_full, ai_memory_duplicate.",
+			"Mục update/forget nhắm tới đã bị xóa -> 404 ai_memory_not_found. 409 kèm dòng hiện tại trong error.fields.proposal: proposal_not_pending, proposal_expired (quá 24 giờ), ai_memory_off (người hỏi tắt Dùng bộ nhớ), ai_memory_full, ai_memory_duplicate, ai_memory_changed (mục update/forget nhắm tới đã đổi loại hoặc chữ từ khi UNI đề xuất; không đổi gì, dòng giữ pending).",
 		tags: []string{"ai"},
 		sdo:  sdo.AiMemoryProposalDTO{},
 		auth: true,

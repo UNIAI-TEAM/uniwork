@@ -253,6 +253,52 @@ func TestApplyMemoryProposalRefusals(t *testing.T) {
 	}
 }
 
+// An update or forget whose entry was edited after UNI proposed it answers
+// ai_memory_changed with the row, still pending, and changes nothing: the
+// card showed the entry as it was, so applying it would lose the edit.
+func TestApplyMemoryProposalRefusesAChangedEntry(t *testing.T) {
+	ctx := context.Background()
+	w, m := memDecideWorld(t)
+	u, org := w.x.ua.ID, w.x.w.OrganizationID
+	city := memEntry(t, m, u, org, "fact", "Tôi làm ở Hà Nội")
+	tone := memEntry(t, m, u, org, "preference", "Trả lời ngắn")
+	rows := storeMemoryProposals(t, w, w.tc, updateDraft(city, "fact", "Tôi làm ở Đà Nẵng"), forgetDraft(tone))
+	hue := "Tôi làm ở Huế"
+	if _, err := m.Update(ctx, u, org, city.ID, nil, &hue); err != nil {
+		t.Fatal(err)
+	}
+	// A kind change counts as a change too.
+	fact := "fact"
+	if _, err := m.Update(ctx, u, org, tone.ID, &fact, nil); err != nil {
+		t.Fatal(err)
+	}
+	before := entryBodies(t, w, u)
+	for _, row := range rows {
+		p, err := m.ApplyProposal(ctx, u, row.ID)
+		memCode(t, err, "ai_memory_changed")
+		if p.ID != row.ID || p.Status != "pending" {
+			t.Fatalf("%s refusal carries %+v, want the row pending", row.Action, p)
+		}
+		if got := memoryRow(t, w, row.ID); got.Status != "pending" || got.DecidedAt.Valid {
+			t.Fatalf("%s row = %+v", row.Action, got)
+		}
+	}
+	if got := entryBodies(t, w, u); !slices.Equal(got, before) {
+		t.Fatalf("memory = %v, want %v", got, before)
+	}
+	if len(w.m.memory) != 0 {
+		t.Fatalf("metrics %v, want none", w.m.memory)
+	}
+	// Put back as the card showed it, the update applies.
+	hanoi := "Tôi làm ở Hà Nội"
+	if _, err := m.Update(ctx, u, org, city.ID, nil, &hanoi); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := m.ApplyProposal(ctx, u, rows[0].ID); err != nil || p.Status != "applied" {
+		t.Fatalf("apply after the entry is back = %+v, %v", p, err)
+	}
+}
+
 // Memory is not one of Ask UNI's write actions: with them off and the ceiling
 // off, a memory proposal still applies.
 func TestApplyMemoryProposalWithActionsOff(t *testing.T) {

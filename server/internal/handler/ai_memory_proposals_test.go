@@ -90,6 +90,19 @@ func TestMemoryProposalRoutesMapErrors(t *testing.T) {
 		t.Fatalf("edit entry: %d %v", s, out)
 	}
 	w.conflict(t, "POST", base+coffee+"/undo", nil, "undo_unavailable", "applied")
+	// An update proposed when the entry still read "cà phê": the entry changed
+	// since, so applying it is refused with the row, still pending.
+	stale, err := w.q.AiInsertMemoryProposal(context.Background(), db.AiInsertMemoryProposalParams{
+		ID: util.NewID(), OrganizationID: w.orgID, WorkspaceID: w.wsID, ConversationID: util.NewID(), MessageID: util.NewID(),
+		Position: 1, Action: "update", MemoryID: pgtype.Text{String: memID, Valid: true},
+		Kind: pgtype.Text{String: "fact", Valid: true}, Body: pgtype.Text{String: "Tôi thích nước chanh", Valid: true},
+		BeforeKind: pgtype.Text{String: "fact", Valid: true}, BeforeBody: pgtype.Text{String: "Tôi thích cà phê", Valid: true},
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedBy: w.ownerID, CreatedByKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.conflict(t, "POST", base+stale.ID+"/apply", nil, "ai_memory_changed", "pending")
 
 	hue := w.memProposal(t, "remember", "", "Tôi ở Huế", time.Hour)
 	if s, out := w.call(t, w.owner, "POST", base+hue+"/reject", nil); s != 200 || out["status"] != "rejected" {

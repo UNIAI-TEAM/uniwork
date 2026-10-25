@@ -22,6 +22,7 @@ const aiMemorySourceChat = "chat"
 var (
 	errAiMemoryOff      = CodedError{Code: "ai_memory_off", Status: http.StatusConflict}
 	errAiMemoryNotFound = CodedError{Code: "ai_memory_not_found", Status: http.StatusNotFound}
+	errAiMemoryChanged  = CodedError{Code: "ai_memory_changed", Status: http.StatusConflict}
 )
 
 // ownMemoryProposal reads a row only its asker may decide. Someone else's row
@@ -119,7 +120,9 @@ func viaProposal(ctx context.Context, row db.AiMemoryProposal) context.Context {
 
 // ApplyProposal is Nhớ / Lưu / Quên: the entry is created, changed or deleted
 // as the row says, and the row settles applied. The asker's own switch must
-// be on; an entry an update or forget names that is gone is ai_memory_not_found.
+// be on; an entry an update or forget names that is gone is
+// ai_memory_not_found, and one that no longer reads as the card showed it is
+// ai_memory_changed.
 func (s *AiMemoryService) ApplyProposal(ctx context.Context, userID, id string) (AskMemoryProposal, error) {
 	return s.decide(ctx, userID, id, proposalApplied, func(q *db.Queries, row db.AiMemoryProposal) (db.AiMemoryProposal, error) {
 		if err := s.pendingNow(row); err != nil {
@@ -140,9 +143,15 @@ func (s *AiMemoryService) ApplyProposal(ctx context.Context, userID, id string) 
 			m, err = s.createQ(vctx, q, org, userID, row.Kind.String, row.Body.String, aiMemorySourceChat, row.ID)
 			made = m.ID
 		case "update":
+			if err := entryAsProposed(ctx, q, row, userID); err != nil {
+				return row, err
+			}
 			kind, body := row.Kind.String, row.Body.String
 			_, err = s.updateQ(vctx, q, org, userID, row.MemoryID.String, &kind, &body)
 		case "forget":
+			if err := entryAsProposed(ctx, q, row, userID); err != nil {
+				return row, err
+			}
 			err = s.deleteQ(vctx, q, org, userID, row.MemoryID.String)
 		default:
 			return row, errors.New("ai memory: unknown proposal action " + row.Action)
@@ -155,6 +164,28 @@ func (s *AiMemoryService) ApplyProposal(ctx context.Context, userID, id string) 
 		}
 		return s.settle(ctx, q, row, proposalApplied, made)
 	})
+}
+
+// entryAsProposed refuses an update or forget whose entry is gone
+// (ai_memory_not_found) or whose kind or text is no longer the row's before
+// (ai_memory_changed): applying it would overwrite or delete an edit the
+// person never saw on the card. The owner lock keeps an edit from landing
+// between this check and the change.
+func entryAsProposed(ctx context.Context, q *db.Queries, row db.AiMemoryProposal, userID string) error {
+	if err := q.AiLockMemoryOwner(ctx, db.AiLockMemoryOwnerParams{OrganizationID: row.OrganizationID, UserID: userID}); err != nil {
+		return err
+	}
+	cur, err := q.AiGetMemory(ctx, db.AiGetMemoryParams{ID: row.MemoryID.String, OrganizationID: row.OrganizationID, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errAiMemoryNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if cur.Kind != row.BeforeKind.String || cur.Body != row.BeforeBody.String {
+		return errAiMemoryChanged
+	}
+	return nil
 }
 
 // RejectProposal is Bỏ qua: pending → rejected, audited without the text. A
