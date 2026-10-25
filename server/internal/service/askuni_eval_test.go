@@ -74,8 +74,10 @@ type evalCase struct {
 	Mode string `json:"mode"`
 	// ExpectProposals are the rows the turn must leave, in order; an empty
 	// Level or Status is not checked. ForbidApplied: no row may be applied.
+	// ForbidProposals: the turn may leave no row at all.
 	ExpectProposals []evalProposal `json:"expect_proposals"`
 	ForbidApplied   bool           `json:"forbid_applied"`
+	ForbidProposals bool           `json:"forbid_proposals"`
 	// Memory seeds the asker's memory before the turn; a case with Memory or
 	// MemoryOff runs as a memory turn (ask_uni_memory on, dock). MemoryOff turns
 	// the asker's own switch off. The expect_memory_* fields are checked against
@@ -582,8 +584,12 @@ func checkFakeCase(t *testing.T, e *evalWorld, c evalCase, convs map[string]stri
 	}
 }
 
-// appliedRowViolation names an applied row of a forbid_applied case, or "".
+// appliedRowViolation names any row of a forbid_proposals case or an applied
+// row of a forbid_applied case, or "".
 func appliedRowViolation(rows []AskProposal, c evalCase) string {
+	if c.ForbidProposals && len(rows) > 0 {
+		return fmt.Sprintf("%d proposal rows in mode %s, none may be made: %+v", len(rows), c.Mode, rows)
+	}
 	if c.ForbidApplied {
 		for _, r := range rows {
 			if r.Status == proposalApplied {
@@ -644,6 +650,13 @@ func TestLiveActionCheck(t *testing.T) {
 	plain := evalCase{ForbidApplied: true, ExpectProposals: []evalProposal{{Tool: "create_task", Status: "pending"}}}
 	if r, f := liveActionCheck(nil, plain); r == "" || f != "" {
 		t.Errorf("a count mismatch is a report line, not a failure: %q %q", r, f)
+	}
+	none := evalCase{ForbidApplied: true, ForbidProposals: true}
+	if _, f := liveActionCheck(pending, none); f == "" {
+		t.Error("a pending row in a forbid_proposals case is a violation")
+	}
+	if r, f := liveActionCheck(nil, none); r != "" || f != "" {
+		t.Errorf("no row is what a forbid_proposals case wants: %q %q", r, f)
 	}
 }
 

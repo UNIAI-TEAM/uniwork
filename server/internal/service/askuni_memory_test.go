@@ -308,6 +308,29 @@ func TestProposeMemoryValidates(t *testing.T) {
 			t.Fatalf("rows %+v", rows)
 		}
 	})
+	t.Run("an update draft's new text is taken", func(t *testing.T) {
+		w, m := memWorld(t)
+		u, org := w.x.ua.ID, w.x.w.OrganizationID
+		if _, err := m.Create(ctx, u, org, "preference", "Trả lời ngắn"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.Create(ctx, u, org, "fact", "Tôi làm ở phòng Kinh doanh"); err != nil {
+			t.Fatal(err)
+		}
+		reqs := scriptCalls(w.fake, "Đã ghi các đề xuất.", []provider.ToolCall{
+			toolCall("c1", "propose_memory", `{"action":"update","entry":"M1","text":"Trả lời bằng tiếng Việt"}`),
+			toolCall("c2", "propose_memory", `{"action":"remember","kind":"fact","text":"trả lời bằng  tiếng việt"}`),
+			toolCall("c3", "propose_memory", `{"action":"update","entry":"M2","text":"Trả lời bằng tiếng Việt"}`),
+		})
+		res := w.ask(t, ctx, AskInput{}, nil)
+		got := toolResults(*reqs)
+		if !strings.HasPrefix(got["c1"], "memory row 1 recorded: update M1") || got["c2"] != "error: ai_memory_duplicate" || got["c3"] != "error: ai_memory_duplicate" {
+			t.Fatalf("read %q, %q, %q", got["c1"], got["c2"], got["c3"])
+		}
+		if rows := memRows(t, w, res.Message.ID); len(rows) != 1 {
+			t.Fatalf("rows %+v, want the one update", rows)
+		}
+	})
 	t.Run("full", func(t *testing.T) {
 		w, _ := memWorld(t)
 		for i := range aiMemoryMaxEntries - 1 {

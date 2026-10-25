@@ -163,14 +163,19 @@ func (m *askMemoryTurn) draft(args json.RawMessage) (d askMemoryDraft, line, cod
 		}
 		d.Body = body
 	}
-	// The cap and duplicates count this turn's remember drafts as entries.
-	taken := slices.Clone(m.entries)
+	// The cap counts this turn's remember drafts as entries; duplicates also
+	// count the new text of its update drafts, so two cards never save one text.
+	taken, adds := slices.Clone(m.entries), 0
 	for _, e := range m.drafts {
-		if e.Action == "remember" {
+		switch e.Action {
+		case "remember":
+			adds++
+			taken = append(taken, db.AiMemory{ID: "draft", Body: e.Body})
+		case "update":
 			taken = append(taken, db.AiMemory{ID: "draft", Body: e.Body})
 		}
 	}
-	if a.Action == "remember" && len(taken) >= aiMemoryMaxEntries {
+	if a.Action == "remember" && len(m.entries)+adds >= aiMemoryMaxEntries {
 		return askMemoryDraft{}, "", errAiMemoryFull.Code
 	}
 	if a.Text != nil && aiMemoryTaken(taken, cur.ID, d.Body) {
