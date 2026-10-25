@@ -42,7 +42,7 @@ from scribe.keyterms import KeytermRefresher, build_keyterms
 from scribe.notice import NOTICE_PATH, NoticeLedger, frames_of, read_notice
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once, stop_track
 from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
@@ -116,6 +116,9 @@ async def entrypoint(ctx: JobContext) -> None:
     cadence = ExtractCadence(extract)
     transcribers: dict[str, TrackTranscriber] = {}
     tasks: set[asyncio.Task] = set()
+    # Each track's transcribe task, and the transcribers of tracks that left (their STT time still counts).
+    running: dict[str, asyncio.Task] = {}
+    ended: list[TrackTranscriber] = []
     vad_model = ctx.proc.userdata["vad"]
     keyterms: list[str] = []
 
@@ -224,9 +227,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
         def maybe_start(track: rtc.Track, pub: rtc.RemoteTrackPublication) -> None:
             if track.kind == rtc.TrackKind.KIND_AUDIO and pub.source == rtc.TrackSource.SOURCE_MICROPHONE:
-                start_once(
+                task = start_once(
                     transcribers, tasks, track.sid, lambda: new_transcriber(p, track), lambda t: transcribe(t, track)
                 )
+                if task is not None:
+                    running[track.sid] = task
 
         def on_sub(track: rtc.Track, pub: rtc.RemoteTrackPublication, who: rtc.RemoteParticipant) -> None:
             if who.identity == p.identity:
@@ -236,6 +241,20 @@ async def entrypoint(ctx: JobContext) -> None:
         for pub in p.track_publications.values():
             if pub.track is not None:
                 maybe_start(pub.track, pub)
+
+    def stop(sid: str) -> None:
+        if (t := stop_track(transcribers, running, sid)) is not None:
+            ended.append(t)
+
+    def on_left(p: rtc.RemoteParticipant) -> None:
+        # The SDK drops the participant before any per-track event can name its tracks.
+        for sid in [sid for sid, t in transcribers.items() if t.identity == p.identity]:
+            stop(sid)
+
+    # A track that leaves must close its stream (stop_track): a reload otherwise captions every line twice.
+    ctx.room.on("track_unsubscribed", lambda track, _pub, _who: stop(track.sid))
+    ctx.room.on("track_unpublished", lambda pub, _who: stop(pub.sid))
+    ctx.room.on("participant_disconnected", on_left)
 
     def on_attributes(changed: dict[str, str], p: rtc.Participant) -> None:
         # Spec §4.3: the server set or cleared uw.shared_mic; reopen that
@@ -322,7 +341,7 @@ async def entrypoint(ctx: JobContext) -> None:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         await cadence.final()
-        session_ms = sum(t.session_ms for t in transcribers.values())
+        session_ms = sum(t.session_ms for t in [*transcribers.values(), *ended])
         if not reports_finished(disconnect["reason"]):
             log.info("replaced by another connection; the run is not ours to finish")
         else:

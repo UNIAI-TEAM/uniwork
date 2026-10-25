@@ -376,13 +376,28 @@ def start_once(
     sid: str,
     make: Callable[[], T],
     run: Callable[[T], Coroutine[object, object, None]],
-) -> None:
+) -> asyncio.Task | None:
     """Starts one transcriber per track. It is registered before its task is
     scheduled: a rejoin leaves the first join's track_subscribed listener
-    behind, so one track can be announced twice before any task runs."""
+    behind, so one track can be announced twice before any task runs.
+    Returns the task it started, None when the track already had one."""
     if sid in transcribers:
-        return
+        return None
     t = transcribers[sid] = make()
     task = asyncio.create_task(run(t))
     tasks.add(task)
     task.add_done_callback(tasks.discard)
+    return task
+
+
+def stop_track[U](transcribers: dict[str, U], running: dict[str, asyncio.Task], sid: str) -> U | None:
+    """Ends the transcriber of a track that left: unsubscribed, unpublished,
+    or its participant gone. Its stream must close, because WebRTC may hand
+    the track's receiver to the next track the participant publishes (a page
+    reload), and a stream left open then transcribes that one a second time:
+    every line twice. The transcriber leaves the map, so the same track can
+    start again, and is returned so its session time still counts."""
+    t = transcribers.pop(sid, None)
+    if (task := running.pop(sid, None)) is not None:
+        task.cancel()
+    return t

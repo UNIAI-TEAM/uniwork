@@ -9,7 +9,7 @@ import numpy as np
 from livekit import rtc
 
 from scribe.stt import FakeSTT
-from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once, stop_track
 
 RATE, FRAME = 16000, 160  # 10 ms frames
 
@@ -146,6 +146,41 @@ async def test_one_transcriber_per_track_when_the_track_is_announced_twice():
     start_once(transcribers, tasks, "TR_a", make_one, run)
     await asyncio.gather(*tasks)
     assert len(made) == 1 and ran == made and transcribers == {"TR_a": made[0]}
+
+
+async def test_a_track_that_left_stops_its_stream_and_can_start_again():
+    """A reload leaves the old mic track's stream open, and WebRTC hands its
+    receiver to the new track: both transcribed the same voice, every line twice."""
+    transcribers: dict = {}
+    tasks: set = set()
+    running: dict = {}
+    made: list = []
+    stopped: list = []
+
+    def make_one():
+        made.append(object())
+        return made[-1]
+
+    async def run(t):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            stopped.append(t)
+            raise
+
+    running["TR_a"] = start_once(transcribers, tasks, "TR_a", make_one, run)
+    await asyncio.sleep(0)
+    assert stop_track(transcribers, running, "TR_a") is made[0]
+    await asyncio.gather(*tasks, return_exceptions=True)
+    assert stopped == [made[0]] and transcribers == {} and running == {}
+    # A second leave of the same track (unsubscribed, then unpublished) is a no-op.
+    assert stop_track(transcribers, running, "TR_a") is None
+    # The same track coming back gets a transcriber again.
+    again = start_once(transcribers, tasks, "TR_a", make_one, run)
+    assert again is not None and len(made) == 2
+    assert start_once(transcribers, tasks, "TR_a", make_one, run) is None
+    again.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def test_segment_ids_are_unique_across_jobs_on_the_same_track():
