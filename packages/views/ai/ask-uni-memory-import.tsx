@@ -15,12 +15,12 @@ import { AskUniMemoryReview } from "./ask-uni-memory-review";
 const PASTE_MAX = 20000;
 
 /** The import screen in the dock: copy the export prompt, paste the other AI's answer, split it, review it, save it. */
-export function AskUniMemoryImport({ orgId }: { orgId: string }) {
+export function AskUniMemoryImport({ orgSlug }: { orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory" });
   const setView = useAiPanelStore((s) => s.setView);
-  const memory = useAiMemory(orgId);
-  const splitCall = useSplitAiMemoryImport(orgId);
-  const importCall = useImportAiMemory(orgId);
+  const memory = useAiMemory(orgSlug);
+  const splitCall = useSplitAiMemoryImport(orgSlug);
+  const importCall = useImportAiMemory(orgSlug);
   const [text, setText] = useState("");
   const [split, setSplit] = useState<AiMemoryImportSplit | null>(null);
   const [error, setError] = useState<string | null>(null);

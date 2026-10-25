@@ -28,16 +28,16 @@ type Kind = (typeof GROUPS)[number];
 const NEW: AiMemory = { id: "", kind: "fact", text: "", source: "", created_at: "", updated_at: "" };
 
 /** The memory screen that replaces the conversation in the dock: the switch, the entries by group, edit, add, import, clear. */
-export function AskUniMemory({ orgId }: { orgId: string }) {
+export function AskUniMemory({ orgSlug }: { orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory" });
   const { workspace } = useWorkspace();
   const setView = useAiPanelStore((s) => s.setView);
   const setPrefill = useAiPanelStore((s) => s.setComposerPrefill);
-  const memory = useAiMemory(orgId);
-  const create = useCreateAiMemory(orgId);
-  const update = useUpdateAiMemory(orgId);
-  const remove = useDeleteAiMemory(orgId);
-  const clear = useClearAiMemory(orgId);
+  const memory = useAiMemory(orgSlug);
+  const create = useCreateAiMemory(orgSlug);
+  const update = useUpdateAiMemory(orgSlug);
+  const remove = useDeleteAiMemory(orgSlug);
+  const clear = useClearAiMemory(orgSlug);
   const setOn = useSetAskUniMemory(workspace.id);
   const [adding, setAdding] = useState<Kind | null>(null);
   const [confirming, setConfirming] = useState(false);

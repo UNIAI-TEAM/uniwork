@@ -69,7 +69,7 @@ export function AskUniPanel() {
       <AskUniHeader />
       {memoryView ? null : <AskUniSourcesBar />}
       {memoryView ? (
-        view === "memory-import" ? <AskUniMemoryImport orgId={workspace.organization_id} /> : <AskUniMemory orgId={workspace.organization_id} />
+        view === "memory-import" ? <AskUniMemoryImport orgSlug={workspace.organization_slug} /> : <AskUniMemory orgSlug={workspace.organization_slug} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
           {empty ? (

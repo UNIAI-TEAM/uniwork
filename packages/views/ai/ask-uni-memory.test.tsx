@@ -15,7 +15,8 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: Object.assign(toastMock, { error: vi.fn(), success: vi.fn() }) }));
 
 const entry = (id: string, kind: string, text: string) => ({ id, kind, text, source: "user", created_at: "", updated_at: "" });
-const LIST = "/api/v1/orgs/o1/ai/memory";
+// The fixture workspace is organization "o1" with the slug "acme": the routes take the slug.
+const LIST = "/api/v1/orgs/acme/ai/memory";
 let list = { entries: [entry("m1", "preference", "Trả lời ngắn gọn"), entry("m2", "fact", "Tôi là kế toán")], on: true, limit: 50, remaining: 48 };
 
 const calls = (method: string) => requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === method);
@@ -39,7 +40,7 @@ function mount() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniMemory orgId="o1" />
+        <AskUniMemory orgSlug={workspace.organization_slug} />
       </WorkspaceProvider>,
     ),
   );

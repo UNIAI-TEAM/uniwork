@@ -12,10 +12,11 @@ const UNREADABLE_ROW: AiMemoryProposal = AiMemoryProposalSchema.parse({});
 // shortcut: the fallback limit mirrors the server's 50-entry cap; the real one arrives with every readable list.
 const EMPTY_LIST: AiMemoryList = AiMemoryListSchema.parse({});
 
-const base = (org: string) => `/api/v1/orgs/${org}/ai/memory`;
+// `{org}` is the organization slug, never its id: the server resolves it with orgIDFromSlug.
+const base = (orgSlug: string) => `/api/v1/orgs/${orgSlug}/ai/memory`;
 
-export async function listAiMemory(org: string): Promise<AiMemoryList> {
-  const raw = await request(base(org));
+export async function listAiMemory(orgSlug: string): Promise<AiMemoryList> {
+  const raw = await request(base(orgSlug));
   return parseWithFallback<AiMemoryList>(raw, AiMemoryListSchema, EMPTY_LIST, { endpoint: "GET /api/v1/orgs/{org}/ai/memory" });
 }
 
@@ -24,31 +25,31 @@ async function entryCall(endpoint: string, path: string, method: "POST" | "PATCH
   return parseWithFallback<AiMemory>(raw, AiMemorySchema, UNREADABLE_ENTRY, { endpoint });
 }
 
-export const createAiMemory = (org: string, body: { kind: string; text: string }) =>
-  entryCall("POST /api/v1/orgs/{org}/ai/memory", base(org), "POST", body);
+export const createAiMemory = (orgSlug: string, body: { kind: string; text: string }) =>
+  entryCall("POST /api/v1/orgs/{org}/ai/memory", base(orgSlug), "POST", body);
 
-export const updateAiMemory = (org: string, id: string, body: { kind?: string; text?: string }) =>
-  entryCall("PATCH /api/v1/orgs/{org}/ai/memory/{id}", `${base(org)}/${id}`, "PATCH", body);
+export const updateAiMemory = (orgSlug: string, id: string, body: { kind?: string; text?: string }) =>
+  entryCall("PATCH /api/v1/orgs/{org}/ai/memory/{id}", `${base(orgSlug)}/${id}`, "PATCH", body);
 
-export async function deleteAiMemory(org: string, id: string): Promise<void> {
-  await request(`${base(org)}/${id}`, { method: "DELETE" });
+export async function deleteAiMemory(orgSlug: string, id: string): Promise<void> {
+  await request(`${base(orgSlug)}/${id}`, { method: "DELETE" });
 }
 
 /** The number of entries the server deleted; a malformed answer reads as 0. */
-export async function clearAiMemory(org: string): Promise<number> {
-  const raw = await request(base(org), { method: "DELETE" });
+export async function clearAiMemory(orgSlug: string): Promise<number> {
+  const raw = await request(base(orgSlug), { method: "DELETE" });
   return parseWithFallback<{ deleted: number }>(raw, ClearSchema, { deleted: 0 }, { endpoint: "DELETE /api/v1/orgs/{org}/ai/memory" }).deleted;
 }
 
-export async function splitAiMemoryImport(org: string, text: string): Promise<AiMemoryImportSplit> {
-  const raw = await request(`${base(org)}/import/split`, { method: "POST", body: { text } });
+export async function splitAiMemoryImport(orgSlug: string, text: string): Promise<AiMemoryImportSplit> {
+  const raw = await request(`${base(orgSlug)}/import/split`, { method: "POST", body: { text } });
   return parseWithFallback<AiMemoryImportSplit>(raw, AiMemoryImportSplitSchema, { candidates: [], skipped: [] }, {
     endpoint: "POST /api/v1/orgs/{org}/ai/memory/import/split",
   });
 }
 
-export async function importAiMemory(org: string, entries: { kind: string; text: string }[]): Promise<AiMemoryImportResult> {
-  const raw = await request(`${base(org)}/import`, { method: "POST", body: { entries } });
+export async function importAiMemory(orgSlug: string, entries: { kind: string; text: string }[]): Promise<AiMemoryImportResult> {
+  const raw = await request(`${base(orgSlug)}/import`, { method: "POST", body: { entries } });
   return parseWithFallback<AiMemoryImportResult>(raw, AiMemoryImportResultSchema, { ...EMPTY_LIST, skipped_duplicates: 0 }, {
     endpoint: "POST /api/v1/orgs/{org}/ai/memory/import",
   });

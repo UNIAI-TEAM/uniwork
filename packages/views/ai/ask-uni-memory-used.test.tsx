@@ -7,7 +7,7 @@ import { AskUniMemoryUsed } from "./ask-uni-memory-used";
 
 initI18n();
 const entry = (id: string, text: string) => ({ id, kind: "fact", text, source: "user", created_at: "", updated_at: "" });
-const mount = (ids: string[]) => render(wrapWithNav(<AskUniMemoryUsed memoryIds={ids} orgId="o1" />));
+const mount = (ids: string[]) => render(wrapWithNav(<AskUniMemoryUsed memoryIds={ids} orgSlug="acme" />));
 
 beforeEach(() => {
   requestMock.mockReset();
@@ -19,6 +19,7 @@ describe("AskUniMemoryUsed", () => {
   it("names the first entry, counts the rest and opens the memory screen from the list", async () => {
     mount(["m1", "m2"]);
     expect(await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/)).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs/acme/ai/memory");
     fireEvent.click(screen.getByRole("button", { name: /\+1/ }));
     fireEvent.click(await screen.findByText("Tôi là kế toán"));
     expect(useAiPanelStore.getState().view).toBe("memory");

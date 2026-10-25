@@ -21,13 +21,13 @@ const SAFE_CODE = /^[a-z_]+$/;
 const SETTLED = new Set(["rejected", "undone", "expired"]);
 
 /** Text the model wrote: always a plain text node, never markdown, html or a link. */
-function Row({ proposal: p, conversationId, orgId }: { proposal: AiMemoryProposal; conversationId: string; orgId: string }) {
+function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryProposal; conversationId: string; orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory" });
   const setView = useAiPanelStore((s) => s.setView);
-  const apply = useApplyAiMemoryProposal(conversationId, orgId);
-  const reject = useRejectAiMemoryProposal(conversationId, orgId);
-  const undo = useUndoAiMemoryProposal(conversationId, orgId);
-  const edit = useEditAiMemoryProposal(conversationId, orgId);
+  const apply = useApplyAiMemoryProposal(conversationId, orgSlug);
+  const reject = useRejectAiMemoryProposal(conversationId, orgSlug);
+  const undo = useUndoAiMemoryProposal(conversationId, orgSlug);
+  const edit = useEditAiMemoryProposal(conversationId, orgSlug);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(p.text);
   const [kind, setKind] = useState(p.kind);
@@ -119,12 +119,12 @@ function Row({ proposal: p, conversationId, orgId }: { proposal: AiMemoryProposa
 export function AskUniMemoryCard({
   message,
   conversationId,
-  orgId,
+  orgSlug,
   tainted,
 }: {
   message: Pick<AiMessage, "id" | "memory_proposals">;
   conversationId: string;
-  orgId: string;
+  orgSlug: string;
   tainted: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory.proposal" });
@@ -135,7 +135,7 @@ export function AskUniMemoryCard({
       <div className="overflow-hidden rounded-lg bg-muted/50">
         <ul className="divide-y divide-border">
           {rows.map((p) => (
-            <Row key={p.id || `${p.position}`} proposal={p} conversationId={conversationId} orgId={orgId} />
+            <Row key={p.id || `${p.position}`} proposal={p} conversationId={conversationId} orgSlug={orgSlug} />
           ))}
         </ul>
         {tainted ? (

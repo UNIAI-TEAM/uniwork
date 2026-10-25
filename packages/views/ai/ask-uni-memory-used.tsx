@@ -7,10 +7,10 @@ import { useAiPanelStore } from "@uniwork/core/ai";
 import { useAiMemory } from "@uniwork/core/ai/memory";
 
 /** "Đã dùng bộ nhớ": the entries an answer was written with, read live, so a deleted one shows as deleted. */
-export function AskUniMemoryUsed({ memoryIds, orgId }: { memoryIds: string[]; orgId: string }) {
+export function AskUniMemoryUsed({ memoryIds, orgSlug }: { memoryIds: string[]; orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory.used" });
   const setView = useAiPanelStore((s) => s.setView);
-  const memory = useAiMemory(orgId);
+  const memory = useAiMemory(orgSlug);
   const [open, setOpen] = useState(false);
   if (memoryIds.length === 0 || !memory.data) return null;
   const live = memoryIds.flatMap((id) => memory.data.entries.filter((e) => e.id === id));

@@ -486,7 +486,7 @@ describe("AskUniMessageTurn memory", () => {
     render(wrapWithNav(<WorkspaceProvider workspace={ws} user={me}><AskUniMessageTurn message={message} conversationId="c1" wsId="ws1" /></WorkspaceProvider>));
   beforeEach(() => {
     requestMock.mockImplementation((path: string) =>
-      Promise.resolve(path.endsWith("/ai/capabilities") ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } } : path.endsWith("/ai/memory") ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 } : {}),
+      Promise.resolve(path.endsWith("/ai/capabilities") ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } } : path === "/api/v1/orgs/acme/ai/memory" ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 } : {}),
     );
   });
 

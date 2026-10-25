@@ -106,11 +106,12 @@ export function AskUniMessageTurn({
   // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
   const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
   const stored = !streaming && settled;
-  // Memory proposals do not depend on P3 actions, so the card shows whatever the actions switch says.
-  const orgId = useOptionalWorkspace()?.workspace.organization_id ?? "";
+  // Memory proposals do not depend on P3 actions, so the card shows whatever the actions switch says. The
+  // organization routes take the slug, never the id.
+  const orgSlug = useOptionalWorkspace()?.workspace.organization_slug ?? "";
   const memoryProposals = message.memory_proposals ?? [];
   const memoryIds = message.memory_ids ?? [];
-  const memoryOn = stored && !!conversationId && orgId !== "";
+  const memoryOn = stored && !!conversationId && orgSlug !== "";
   const tainted = useAiConversations(wsId, memoryOn && memoryProposals.length > 0).data?.find((c) => c.id === conversationId)?.tainted ?? false;
   if (message.role === "user") {
     return (
@@ -149,11 +150,11 @@ export function AskUniMessageTurn({
           <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} readOnly={!actionsOn} />
         ) : null}
         {memoryOn && memoryProposals.length > 0 ? (
-          <AskUniMemoryCard message={{ id: message.id, memory_proposals: memoryProposals }} conversationId={conversationId} orgId={orgId} tainted={tainted} />
+          <AskUniMemoryCard message={{ id: message.id, memory_proposals: memoryProposals }} conversationId={conversationId} orgSlug={orgSlug} tainted={tainted} />
         ) : null}
         {memoryOn && memoryIds.length > 0 ? (
           <div className="mt-2">
-            <AskUniMemoryUsed memoryIds={memoryIds} orgId={orgId} />
+            <AskUniMemoryUsed memoryIds={memoryIds} orgSlug={orgSlug} />
           </div>
         ) : null}
         {stored && conversationId ? (

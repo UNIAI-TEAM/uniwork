@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiKeys, useAiPanelStore } from "@uniwork/core/ai";
+import { aiMemoryKeys } from "@uniwork/core/ai/memory";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { AiMemoryProposal, AiMessage } from "@uniwork/core/types";
@@ -20,11 +21,13 @@ const message = (r: AiMemoryProposal): Pick<AiMessage, "id" | "memory_proposals"
 function mount(r: AiMemoryProposal, tainted = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData<AiMessage[]>(aiKeys.messages("c1"), [{ id: "a1", memory_proposals: [r] } as AiMessage]);
+  // The memory list is keyed by the organization slug, as the memory screen reads it.
+  client.setQueryData(aiMemoryKeys.all("acme"), { entries: [], on: true, limit: 50, remaining: 50 });
   const msgs = () => client.getQueryData<AiMessage[]>(aiKeys.messages("c1"))![0]!.memory_proposals;
   // The card renders what the cache holds, as the thread does.
-  const Card = () => <AskUniMemoryCard message={{ id: "a1", memory_proposals: msgs() }} conversationId="c1" orgId="o1" tainted={tainted} />;
+  const Card = () => <AskUniMemoryCard message={{ id: "a1", memory_proposals: msgs() }} conversationId="c1" orgSlug="acme" tainted={tainted} />;
   const view = render(wrapWithNav(<Card />, undefined, client));
-  return { ...view, rerender: () => view.rerender(wrapWithNav(<Card />, undefined, client)) };
+  return { ...view, client, rerender: () => view.rerender(wrapWithNav(<Card />, undefined, client)) };
 }
 
 beforeEach(() => {
@@ -35,7 +38,7 @@ beforeEach(() => {
 describe("AskUniMemoryCard", () => {
   it("shows a remember proposal as plain text and applies it", async () => {
     requestMock.mockResolvedValue(row({ status: "applied" }));
-    const { container, rerender } = mount(row());
+    const { container, rerender, client } = mount(row());
     expect(screen.getByText("Nhớ điều này?")).toBeInTheDocument();
     expect(container.textContent).toContain(TEXT);
     expect(container.querySelector("strong, b, a")).toBeNull();
@@ -43,6 +46,7 @@ describe("AskUniMemoryCard", () => {
     for (const n of ["Nhớ", "Sửa", "Bỏ qua"]) expect(screen.getByRole("button", { name: n })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Nhớ" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/memory-proposals/p1/apply", expect.objectContaining({ method: "POST" })));
+    await waitFor(() => expect(client.getQueryState(aiMemoryKeys.all("acme"))?.isInvalidated).toBe(true));
     await waitFor(() => rerender());
     expect(await screen.findByText("Đã nhớ")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hoàn tác" })).toBeInTheDocument();

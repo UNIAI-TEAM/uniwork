@@ -14,7 +14,8 @@ const i18n = initI18n();
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: Object.assign(toastMock, { error: vi.fn(), success: vi.fn() }) }));
 
-const LIST = "/api/v1/orgs/o1/ai/memory";
+// The fixture workspace is organization "o1" with the slug "acme": the routes take the slug.
+const LIST = "/api/v1/orgs/acme/ai/memory";
 const SPLIT = `${LIST}/import/split`;
 const IMPORT = `${LIST}/import`;
 const cand = (text: string, kind = "fact", extra: Record<string, boolean> = {}) => ({ text, kind, instruction_like: false, duplicate: false, ...extra });
@@ -47,7 +48,7 @@ function mount() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniMemoryImport orgId="o1" />
+        <AskUniMemoryImport orgSlug={workspace.organization_slug} />
       </WorkspaceProvider>,
     ),
   );

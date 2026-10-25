@@ -16,8 +16,8 @@ vi.mock("./ask-uni-sources-bar", () => ({ AskUniSourcesBar: () => <div>sources</
 vi.mock("./ask-uni-composer", () => ({ AskUniComposer: () => <div>composer</div> }));
 vi.mock("./ask-uni-empty", () => ({ AskUniEmptyState: () => <div>empty</div> }));
 vi.mock("./ask-uni-thread", () => ({ AskUniThread: () => <div>thread</div> }));
-vi.mock("./ask-uni-memory", () => ({ AskUniMemory: () => <div>memory-screen</div> }));
-vi.mock("./ask-uni-memory-import", () => ({ AskUniMemoryImport: ({ orgId }: { orgId: string }) => <div>import-screen {orgId}</div> }));
+vi.mock("./ask-uni-memory", () => ({ AskUniMemory: ({ orgSlug }: { orgSlug: string }) => <div>memory-screen {orgSlug}</div> }));
+vi.mock("./ask-uni-memory-import", () => ({ AskUniMemoryImport: ({ orgSlug }: { orgSlug: string }) => <div>import-screen {orgSlug}</div> }));
 vi.mock("./ask-uni-model-picker", () => ({ useAskModelSelection: () => ({ model: "auto", effort: "medium", look: null }) }));
 vi.mock("./ask-uni-page-context", () => ({ useEffectiveFocus: () => null }));
 vi.mock("./use-ask-uni-attachments", () => ({ useAskUniAttachments: () => ({ attach: vi.fn() }) }));
@@ -37,7 +37,8 @@ describe("AskUniPanel screens", () => {
   it("renders the import screen, without sources bar or composer, when view is memory-import", () => {
     useAiPanelStore.setState({ view: "memory-import" });
     mount();
-    expect(screen.getByText("import-screen o1")).toBeInTheDocument();
+    // The organization routes take the slug ("acme"), never the id ("o1").
+    expect(screen.getByText("import-screen acme")).toBeInTheDocument();
     expect(screen.queryByText("sources")).toBeNull();
     expect(screen.queryByText("composer")).toBeNull();
   });
@@ -45,7 +46,7 @@ describe("AskUniPanel screens", () => {
   it("renders the memory screen for memory and the conversation for thread", () => {
     useAiPanelStore.setState({ view: "memory" });
     const { unmount } = mount();
-    expect(screen.getByText("memory-screen")).toBeInTheDocument();
+    expect(screen.getByText("memory-screen acme")).toBeInTheDocument();
     unmount();
     useAiPanelStore.setState({ view: "thread" });
     mount();
