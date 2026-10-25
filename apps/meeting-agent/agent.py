@@ -14,12 +14,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 
 import aiohttp
 from livekit import rtc
 from livekit.agents import AgentServer, AutoSubscribe, JobContext, JobProcess, JobRequest, cli
 from livekit.agents.vad import VADEventType
-from livekit.agents.worker import WorkerPermissions
+from livekit.agents.worker import ServerEnvOption, WorkerPermissions
 from livekit.plugins import silero
 from livekit.protocol import models
 
@@ -65,7 +66,15 @@ def prewarm(proc: JobProcess) -> None:
 server = AgentServer(
     setup_fnc=prewarm,
     port=SETTINGS.health_port,
-    load_threshold=0.7,
+    # Production refuses jobs past 70% CPU; `dev` shares a laptop with the app
+    # and would turn every meeting away, so there it takes them all.
+    load_threshold=ServerEnvOption(dev_default=math.inf, prod_default=0.7),
+    # A job joins only once its process has loaded the VAD and the RTC
+    # library. On a busy host that outlasted the library's 10 s, every spawn
+    # was killed and the scribe walked in minutes late, on the server's
+    # re-dispatch. One warm process in `dev` too, as production keeps four.
+    initialize_process_timeout=30.0,
+    num_idle_processes=ServerEnvOption(dev_default=1, prod_default=4),
     drain_timeout=SETTINGS.drain_timeout_s,
     # The shutdown callbacks (flush, closing extract, /agent/finished) get the
     # 120 s the chart leaves between drain_timeout and the pod's grace period.
