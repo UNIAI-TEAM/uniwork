@@ -74,7 +74,7 @@ export function WorkspaceSwitcher({
       <DropdownMenuTrigger
         render={
           header ? (
-            <Button type="button" variant="ghost" aria-label={label} className="h-9 max-w-72 min-w-0 gap-2 px-1.5" />
+            <Button type="button" variant="ghost" aria-label={label} className="h-8 max-w-72 min-w-0 gap-2 px-1.5" />
           ) : (
             <SidebarMenuButton size="lg" aria-label={label} tooltip={current.name} className="gap-2.5 px-2" />
           )
@@ -88,8 +88,9 @@ export function WorkspaceSwitcher({
             workspace={current}
             className={cn(
               "bg-sidebar-primary font-semibold text-sidebar-primary-foreground",
+              // The header's matches a module tile (IconTile xs), so the bar and the nav read at one size.
               header
-                ? "size-6 rounded-md text-caption"
+                ? "size-5 rounded-[5px] text-caption"
                 : "size-8 rounded-lg text-body group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption",
             )}
           />
@@ -103,14 +104,25 @@ export function WorkspaceSwitcher({
             />
           ) : null}
         </span>
-        <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
-          <span title={current.organization_name} className="block truncate text-caption text-muted-foreground">
-            {current.organization_name}
-          </span>
-          <span title={current.name} className="block truncate text-body font-semibold text-sidebar-foreground">
+        {header ? (
+          // One line at a nav row's size. A person is in one organization (ADR 0032), so its name rides on the
+          // button's label and the menu's group heading instead of a second line.
+          <span
+            title={`${current.organization_name} › ${current.name}`}
+            className="min-w-0 truncate text-body font-medium text-foreground"
+          >
             {current.name}
           </span>
-        </span>
+        ) : (
+          <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
+            <span title={current.organization_name} className="block truncate text-caption text-muted-foreground">
+              {current.organization_name}
+            </span>
+            <span title={current.name} className="block truncate text-body font-semibold text-sidebar-foreground">
+              {current.name}
+            </span>
+          </span>
+        )}
         <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-w-80 min-w-60">

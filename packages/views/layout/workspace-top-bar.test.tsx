@@ -211,6 +211,9 @@ describe("WorkspaceTopBar", () => {
     expect(container.querySelector("header")).toHaveClass("lg:bg-transparent", "lg:border-b-0");
     expect(screen.queryByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeNull();
     const switcher = await screen.findByRole("button", { name: "Acme, Team: chuyển workspace" });
+    // One line at a nav row's size: the organization stays in the name and the menu, not a second line.
+    expect(within(switcher).queryByText("Acme")).toBeNull();
+    expect(within(switcher).getByText("Team")).toHaveClass("text-body", "font-medium");
     const search = screen.getByRole("button", { name: /tìm kiếm/i });
     const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
     expect(switcher.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
