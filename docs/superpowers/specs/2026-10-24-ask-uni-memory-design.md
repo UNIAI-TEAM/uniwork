@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: bộ nhớ (P4)
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-24 (§12); issue UNI-2156; kế hoạch: `docs/superpowers/plans/2026-10-24-ask-uni-p4.md` (duyệt 2026-10-24, đang làm). P3 (UNI-2148, PR #454) đã merge vào develop 2026-10-24.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-24 (§12); issue UNI-2156; kế hoạch: `docs/superpowers/plans/2026-10-24-ask-uni-p4.md` (duyệt 2026-10-24); đã xây trên nhánh `feature/UNI-2156-hoi-uni-v2-p4-bo-nho` (server, giao diện, fake, eval, E2E, tài liệu), chờ review cuối, E2E và PR; eval thật chưa chạy. P3 (UNI-2148, PR #454) đã merge vào develop 2026-10-24.
 
 **Ngày:** 2026-10-24
 **Bổ sung cho:** `docs/superpowers/specs/2026-10-16-ask-uni-agent-design.md` (spec gốc, §3 mục tiêu 7, §6.9, §9) và `docs/superpowers/specs/2026-10-21-ask-uni-ui-parity-design.md` (P2b, dock và ô nhập). Không đổi quyết định nào của hai spec đó.
