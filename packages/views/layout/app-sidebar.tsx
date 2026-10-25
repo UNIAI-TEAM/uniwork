@@ -298,7 +298,6 @@ function ModuleNav({
                             size="xs"
                             variant="solid"
                             tone={moduleTone(module)}
-                            className="[&_svg]:size-3"
                           />
                           <span>{t(key)}</span>
                           {badge ? (
