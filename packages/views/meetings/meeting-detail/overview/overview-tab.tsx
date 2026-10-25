@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNotes } from "@uniwork/core/meetings";
 import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
@@ -69,6 +69,7 @@ function PhoneHistoryRow() {
         onClick={() => setOpen(true)}
         className="flex min-h-13 w-full items-center gap-2 rounded-sm text-left"
       >
+        <RotateCcwClock aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="text-body">{t("meetings.activity")}</span>
         <ChevronRight aria-hidden className="ml-auto size-4 text-muted-foreground" />
       </button>

@@ -107,15 +107,20 @@ export function RailProp({
   );
 }
 
-/** "Lịch sử thao tác ›" (kit `.rail-link`): a body row that opens a drawer; `count` is the muted caption after the label. */
+/**
+ * "Lịch sử thao tác ›" (kit `.rail-link`): a body row that opens a drawer; `count` is the muted caption after the
+ * label, `icon` a muted mark before it, in the property rows' 14px column.
+ */
 export function RailLink({
   children,
   count,
+  icon: Icon,
   onClick,
   className,
 }: {
   children: ReactNode;
   count?: ReactNode;
+  icon?: LucideIcon;
   onClick: () => void;
   className?: string;
 }) {
@@ -129,6 +134,7 @@ export function RailLink({
         className,
       )}
     >
+      {Icon ? <Icon aria-hidden className="mr-2 size-3.5 shrink-0 text-muted-foreground" /> : null}
       {/* With a count, label and count sit in one span (kit `.rail-link > span`). */}
       {count !== undefined ? (
         <span>

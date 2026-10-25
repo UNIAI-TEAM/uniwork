@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCarriedOverItems } from "@uniwork/core/meetings/action-items";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -73,7 +74,9 @@ export function DetailRail() {
           </div>
           {showsHistoryLink(viewer) ? (
             <RailGroup>
-              <RailLink onClick={() => setHistory(true)}>{t("meetings.activity")}</RailLink>
+              <RailLink icon={RotateCcwClock} onClick={() => setHistory(true)}>
+                {t("meetings.activity")}
+              </RailLink>
             </RailGroup>
           ) : null}
           {sections.ai ? (
