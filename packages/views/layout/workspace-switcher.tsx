@@ -7,6 +7,7 @@ import { paths } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { useWorkspaces } from "@uniwork/core/workspaces";
+import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,21 +23,20 @@ import { useNavigation } from "../navigation";
 import { WorkspaceIcon } from "./workspace-icon";
 
 /**
- * Sidebar header: organization › current workspace. The menu groups every
+ * Organization › current workspace: the top bar's start on a desktop shell (as
+ * in ClickUp), the phone sheet's header otherwise. The menu groups every
  * workspace the user can see by organization and ends with "new workspace".
  * Switching is an in-app push, not a reload — the layout resolves the new
  * pair and the realtime provider reconnects on its own.
- *
- * The workspace icon is not decoration: in the collapsed icon rail it is the
- * only thing left of this control, and a rail whose top slot is blank reads
- * as a broken header rather than a nav.
  */
 export function WorkspaceSwitcher({
   current,
   onNavigate,
+  placement = "sidebar",
 }: {
   current: Workspace;
   onNavigate?: () => void;
+  placement?: "sidebar" | "header";
 }) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -58,38 +58,48 @@ export function WorkspaceSwitcher({
     groups.set(w.organization_id, g);
   }
 
+  // Starts with the names on the button (WCAG 2.5.3), then says what it does.
+  // The unread-elsewhere dot is inside a label-overridden button, so its own
+  // label was never read; the fact rides on the name instead.
+  const label = [
+    t("org.switch_named", { organization: current.organization_name, workspace: current.name }),
+    elsewhere ? t("notifications.unread_elsewhere") : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
+  const header = placement === "header";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <SidebarMenuButton
-            size="lg"
-            // Starts with the names on the button (WCAG 2.5.3), then says what it does.
-            // The unread-elsewhere dot is inside a label-overridden button, so
-            // its own label was never read; the fact rides on the name instead.
-            aria-label={[
-              t("org.switch_named", { organization: current.organization_name, workspace: current.name }),
-              elsewhere ? t("notifications.unread_elsewhere") : null,
-            ]
-              .filter(Boolean)
-              .join(". ")}
-            tooltip={current.name}
-            className="gap-2.5 px-2"
-          />
+          header ? (
+            <Button type="button" variant="ghost" aria-label={label} className="h-9 max-w-72 min-w-0 gap-2 px-1.5" />
+          ) : (
+            <SidebarMenuButton size="lg" aria-label={label} tooltip={current.name} className="gap-2.5 px-2" />
+          )
         }
       >
-        {/* aria-hidden, which also keeps it visible in the icon rail: the
-            menu-button primitive makes every other direct span child
-            sr-only there, and the rail was once left with no workspace mark
-            at all. Its meaning (workspace icon, unread dot) is in the aria-label. */}
+        {/* aria-hidden: its meaning (workspace icon, unread dot) is in the
+            aria-label, and the menu-button primitive would otherwise make it
+            sr-only in an icon rail. */}
         <span aria-hidden className="relative shrink-0">
           <WorkspaceIcon
             workspace={current}
-            className="size-8 rounded-lg bg-sidebar-primary text-body font-semibold text-sidebar-primary-foreground group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption"
+            className={cn(
+              "bg-sidebar-primary font-semibold text-sidebar-primary-foreground",
+              header
+                ? "size-6 rounded-md text-caption"
+                : "size-8 rounded-lg text-body group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption",
+            )}
           />
           {elsewhere ? (
             <span
-              className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-surface group-data-[collapsible=icon]:ring-app-shell"
+              className={cn(
+                "absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2",
+                // The dot is cut out of the plane the control sits on: the header's is the app shell.
+                header ? "ring-app-shell" : "ring-surface group-data-[collapsible=icon]:ring-app-shell",
+              )}
             />
           ) : null}
         </span>

@@ -140,7 +140,6 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByRole("button", { name: "Giao diện" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ngôn ngữ" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
 
   it("draws every top-bar action at one size and tone, in one tight cluster", () => {
@@ -148,10 +147,7 @@ describe("WorkspaceTopBar", () => {
     const create = screen.getByRole("button", { name: /tạo việc/i });
     const cluster = create.parentElement;
     expect(cluster).toHaveClass("gap-0.5");
-    const actions = [
-      screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i }),
-      ...within(cluster as HTMLElement).getAllByRole("button"),
-    ];
+    const actions = within(cluster as HTMLElement).getAllByRole("button");
     expect(actions.length).toBeGreaterThanOrEqual(5);
     for (const action of actions) {
       expect(action).toHaveClass("size-8", "text-muted-foreground");
@@ -208,15 +204,34 @@ describe("WorkspaceTopBar", () => {
     await setLocale("vi");
   });
 
-  it("puts the search trigger right after the sidebar toggle and opens the palette", () => {
+  it("on a desktop bar, holds the workspace switcher, search and account, and leaves the sidebar toggle to the sidebar", async () => {
     useSearchStore.setState({ open: false });
-    renderTopBar();
-    const toggle = screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i });
+    const { container } = renderTopBar();
+    // The bar sits on the app plane, outside every card (ClickUp-style shell).
+    expect(container.querySelector("header")).toHaveClass("lg:bg-transparent", "lg:border-b-0");
+    expect(screen.queryByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeNull();
+    const switcher = await screen.findByRole("button", { name: "Acme, Team: chuyển workspace" });
     const search = screen.getByRole("button", { name: /tìm kiếm/i });
-    expect(toggle.nextElementSibling).toBe(search);
+    const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
+    expect(switcher.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(search);
     expect(useSearchStore.getState().open).toBe(true);
     useSearchStore.setState({ open: false });
+  });
+
+  it("on a compact bar, puts the search trigger right after the sidebar toggle, and keeps switcher and account in the sheet", async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 800;
+    try {
+      renderTopBar();
+      const toggle = await screen.findByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i });
+      expect(toggle.nextElementSibling).toBe(screen.getByRole("button", { name: /tìm kiếm/i }));
+      expect(screen.queryByRole("button", { name: /chuyển workspace/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
+    } finally {
+      window.innerWidth = width;
+    }
   });
 });
 

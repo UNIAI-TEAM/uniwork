@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { SidebarTrigger } from "@uniwork/ui/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@uniwork/ui/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -38,10 +38,12 @@ import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
 import { CreateTaskDraftTray } from "../tasks/create-task-draft-tray";
 import { useNavigation } from "../navigation";
+import { AccountMenu } from "./account-menu";
 import { GlobalShortcuts } from "./global-shortcuts";
 import { PAGE_GUTTER } from "./page-header";
 import { PreferenceToastProvider, usePreferenceSavedToast } from "./preference-toast";
 import { useWorkspace } from "./workspace-context";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 
 type ThemeValue = "light" | "dark" | "system";
 
@@ -51,8 +53,23 @@ const THEME_ICONS = {
   system: Monitor,
 } as const;
 
-/** `bare` is the UniChat shell: no top bar (the rail holds its menus), the shortcuts and dialogs stay. */
-export function WorkspaceChrome({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
+/**
+ * The bar across the top of the app, and under it the row of `nav` and the
+ * content, which `frame` wraps (the host's main landmark). `bare` is the
+ * UniChat shell: no top bar (the rail holds its menus), the shortcuts and
+ * dialogs stay.
+ */
+export function WorkspaceChrome({
+  children,
+  bare = false,
+  nav,
+  frame = (content) => content,
+}: {
+  children: ReactNode;
+  bare?: boolean;
+  nav?: ReactNode;
+  frame?: (content: ReactNode) => ReactNode;
+}) {
   const [createOpen, setCreateOpen] = useState(false);
   // Stable, so the shortcut listener is not re-registered on every render.
   const openCreate = useCallback(() => setCreateOpen(true), []);
@@ -92,8 +109,16 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
       {docked ? null : <AskUniLegacyPanel />}
-      <AskUniDock enabled={docked}>{page}</AskUniDock>
-      <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
+      <div className="flex min-h-0 min-w-0 flex-1">
+        {nav}
+        {frame(
+          <AskUniDock enabled={docked} framed={!bare}>
+            {page}
+            {/* The draft tray is the content card's own foot, as ClickUp's is. */}
+            <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
+          </AskUniDock>,
+        )}
+      </div>
     </PreferenceToastProvider>
   );
 }
@@ -208,10 +233,63 @@ export function WorkspaceTopBar({
 }) {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const { isCompact } = useSidebar();
   const { ThemeIcon, themeItems, languageItems } = usePreferenceMenuItems();
   const createLabel = t("topbar.createTask");
   const themeLabel = t("topbar.theme");
   const languageLabel = t("topbar.language");
+
+  // One cluster, tight: 32px targets 2px apart, so the glyphs read as
+  // a toolbar rather than five loose buttons. Touch keeps 44px.
+  const actions = (
+    <div className="flex items-center gap-0.5 @max-[21rem]/topbar:contents">
+      <AskUniButton />
+      <NotificationBell />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+              aria-label={createLabel}
+              onClick={() => onCreateOpenChange(true)}
+            />
+          }
+        >
+          <Plus aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{createLabel}</TooltipContent>
+      </Tooltip>
+      <DropdownMenu>
+        <TopBarMenuTrigger label={themeLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+          <ThemeIcon aria-hidden />
+        </TopBarMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          {themeItems()}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <TopBarMenuTrigger label={languageLabel} className="hidden @min-[21rem]/topbar:inline-flex">
+          <Languages aria-hidden />
+        </TopBarMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          {languageItems()}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <TopBarMenuTrigger label={t("topbar.preferences")} className="@min-[21rem]/topbar:hidden">
+          <Ellipsis aria-hidden />
+        </TopBarMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          {themeItems(themeLabel)}
+          <DropdownMenuSeparator />
+          {languageItems(languageLabel)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 
   return (
     // A query container in rem, so the bar answers to its own width and to
@@ -221,63 +299,37 @@ export function WorkspaceTopBar({
     // 44px touch targets, theme and language fold into one menu and the
     // actions join the bar's own row, so they wrap one at a time, right
     // aligned, instead of running off the edge. One row is 48px tall.
+    //
+    // On a desktop shell the bar sits on the app plane above the three cards,
+    // as in ClickUp: workspace switcher at the start, search in the middle,
+    // actions and the account at the end; the sidebar toggle lives in the
+    // sidebar card. A compact shell keeps the toggle here, because its sidebar
+    // is a sheet, and the switcher and account inside that sheet.
     <header
       className={cn(
-        "@container/topbar flex min-h-12 shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 border-b border-border bg-background py-0.5",
+        "@container/topbar flex min-h-12 shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 border-b border-border bg-background py-0.5 lg:border-b-0 lg:bg-transparent lg:px-2",
         PAGE_GUTTER,
       )}
     >
-      <SidebarTrigger size="icon" className="text-muted-foreground" />
-      <SearchTrigger className="mr-auto" />
-      {/* One cluster, tight: 32px targets 2px apart, so the glyphs read as
-          a toolbar rather than five loose buttons. Touch keeps 44px. */}
-      <div className="flex items-center gap-0.5 @max-[21rem]/topbar:contents">
-        <AskUniButton />
-        <NotificationBell />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                aria-label={createLabel}
-                onClick={() => onCreateOpenChange(true)}
-              />
-            }
-          >
-            <Plus aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{createLabel}</TooltipContent>
-        </Tooltip>
-        <DropdownMenu>
-          <TopBarMenuTrigger label={themeLabel} className="hidden @min-[21rem]/topbar:inline-flex">
-            <ThemeIcon aria-hidden />
-          </TopBarMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            {themeItems()}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <TopBarMenuTrigger label={languageLabel} className="hidden @min-[21rem]/topbar:inline-flex">
-            <Languages aria-hidden />
-          </TopBarMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            {languageItems()}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <TopBarMenuTrigger label={t("topbar.preferences")} className="@min-[21rem]/topbar:hidden">
-            <Ellipsis aria-hidden />
-          </TopBarMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            {themeItems(themeLabel)}
-            <DropdownMenuSeparator />
-            {languageItems(languageLabel)}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {isCompact ? (
+        <>
+          <SidebarTrigger size="icon" className="text-muted-foreground" />
+          <SearchTrigger className="mr-auto" />
+          {actions}
+        </>
+      ) : (
+        <>
+          <div className="flex min-w-0 flex-1 items-center">
+            <WorkspaceSwitcher current={workspace} placement="header" />
+          </div>
+          {/* On the app plane the field needs its own surface, or it sinks into the grey. */}
+          <SearchTrigger className="lg:border-border lg:bg-page-canvas" />
+          <div className="flex flex-1 items-center justify-end gap-2">
+            {actions}
+            <AccountMenu placement="header" />
+          </div>
+        </>
+      )}
       <NewTaskDialog
         workspaceId={workspace.id}
         open={createOpen}
