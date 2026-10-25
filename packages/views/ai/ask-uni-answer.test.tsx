@@ -5,6 +5,7 @@ import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachment
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiFileNote, type AiMessage } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
 import { isInAppHref } from "./ask-uni-links";
@@ -474,5 +475,39 @@ describe("AskUniMessageTurn", () => {
       expect(screen.getByText("Tóm tắt đây.")).toBeInTheDocument();
       expect(document.body.textContent).not.toMatch(/UNI đã đọc|UNI chỉ đọc/);
     });
+  });
+});
+
+describe("AskUniMessageTurn memory", () => {
+  const ws = { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" };
+  const me = { id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "", email_verified_at: "", onboarding_questionnaire: {}, locale: "vi" };
+  const mem = { id: "p1", message_id: "m1", position: 0, action: "remember", memory_id: "", kind: "fact", text: "Tôi là kế toán", before_kind: "", before_text: "", status: "pending", expires_at: "" };
+  const mountMem = (message: AiMessage) =>
+    render(wrapWithNav(<WorkspaceProvider workspace={ws} user={me}><AskUniMessageTurn message={message} conversationId="c1" wsId="ws1" /></WorkspaceProvider>));
+  beforeEach(() => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/ai/capabilities") ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } } : path.endsWith("/ai/memory") ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 } : {}),
+    );
+  });
+
+  it("puts the memory card under the P3 card and shows the used line above the actions", async () => {
+    const proposal = AiProposalSchema.parse({ id: "q1", message_id: "m1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } });
+    mountMem(msg({ content: "Xong.", proposals: [proposal], memory_proposals: [mem], memory_ids: ["e1"] }));
+    const p3 = await screen.findByText("UNI đề xuất · cần bạn xác nhận");
+    const card = screen.getByText("Nhớ điều này?");
+    expect(p3.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const used = await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/);
+    const copy = screen.getByRole("button", { name: "Sao chép" });
+    expect(used.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("does not copy the used line", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mountMem(msg({ content: "Xong.", memory_ids: ["e1"] }));
+    await screen.findByText(/Đã dùng bộ nhớ/);
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(writeText.mock.calls[0]![0]).not.toContain("Đã dùng bộ nhớ");
   });
 });

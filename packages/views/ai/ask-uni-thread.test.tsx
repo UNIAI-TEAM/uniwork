@@ -452,4 +452,15 @@ describe("AskUniThread files", () => {
     expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Trả lời lại" })).toBeNull();
   });
+
+  it("hides regenerate on an answer with memory proposals", async () => {
+    const mem = { id: "p1", message_id: "a1", position: 0, action: "remember", memory_id: "", kind: "fact", text: "Tôi là kế toán", before_kind: "", before_text: "", status: "pending", expires_at: "" };
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/ai/conversations/c1/messages" ? { messages: [history[0], { ...history[1], memory_proposals: [mem] }] } : {}),
+    );
+    mount(stream());
+    expect(await screen.findByText("Nhớ điều này?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Trả lời lại" })).toBeNull();
+  });
 });
