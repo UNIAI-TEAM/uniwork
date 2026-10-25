@@ -16,7 +16,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// importEntry is one entry of a memory_import@1 reply.
+// importEntry is one entry of a memory_import@2 reply.
 type importEntry struct {
 	Text            string `json:"text"`
 	Kind            string `json:"kind"`
@@ -110,6 +110,24 @@ func TestSplitImportClassifies(t *testing.T) {
 	}
 	if !slices.Equal(metrics.memory, []string{"import_split"}) {
 		t.Errorf("metrics = %v", metrics.memory)
+	}
+}
+
+// A secret line is listed as skipped with its reason only: the password the
+// person pasted is never sent back to the screen.
+func TestSplitImportHidesSecretLines(t *testing.T) {
+	m, x, _, _ := importWorld(t, importReply(
+		importEntry{"Tôi làm ở phòng Kinh doanh", "fact", false, ""},
+		importEntry{"Mật khẩu email của tôi là Abc12345", "skip", false, "secret"},
+		importEntry{"Tôi vừa ly hôn", "skip", false, "personal"},
+	))
+	res, err := m.SplitImport(context.Background(), x.ua.ID, x.w.OrganizationID, "- Tôi làm ở phòng Kinh doanh\n- Mật khẩu email của tôi là Abc12345\n- Tôi vừa ly hôn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []AiMemorySkipped{{Text: "", Reason: "secret"}, {Text: "Tôi vừa ly hôn", Reason: "personal"}}
+	if !slices.Equal(res.Skipped, want) {
+		t.Errorf("skipped = %+v, want %+v", res.Skipped, want)
 	}
 }
 
