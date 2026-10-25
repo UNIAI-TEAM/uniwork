@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askUniStream, type AskUniStreamEvent } from "../api/endpoints/ai-stream";
 import { errorCode } from "../api/http";
-import type { AiAttachment, AiCitation, AiMessage, AiProposal, AiStep, AskUniInput } from "../types/ai";
+import type { AiAttachment, AiCitation, AiMemoryProposal, AiMessage, AiProposal, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
 import { useAiPanelStore } from "./store";
 
@@ -26,6 +26,10 @@ export interface AskStreamState {
   followups: string[];
   /** The rows UNI proposes in this turn, as the last `proposal` event told them (an auto-applied row arrives applied). */
   proposals: AiProposal[];
+  /** The memory cards UNI proposes in this turn ("Nhớ điều này?"); never auto-applied. */
+  memoryProposals: AiMemoryProposal[];
+  /** Ids of the memory entries the answer used, as the `memory_used` event told them. */
+  memoryIds: string[];
   /** The answer being regenerated, or null for a fresh question. */
   regenerateOf: string | null;
   /** The model key the turn asked for; "" for Auto. The stored answer's own `model` replaces it on done. */
@@ -55,6 +59,8 @@ const IDLE: AskStreamState = {
   sources: {},
   followups: [],
   proposals: [],
+  memoryProposals: [],
+  memoryIds: [],
   regenerateOf: null,
   model: "",
   attachments: [],
@@ -118,6 +124,8 @@ export function useAskUniStream(wsId: string) {
       setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "", attachments });
       let finished = false;
       let proposals: AiProposal[] = [];
+      let memoryProposals: AiMemoryProposal[] = [];
+      let memoryIds: string[] = [];
       const current = () => seq.current === mySeq && !controller.signal.aborted;
       let settle: (o: AskOutcome) => void = () => undefined;
       const outcome = new Promise<AskOutcome>((resolve) => {
@@ -158,6 +166,14 @@ export function useAskUniStream(wsId: string) {
             proposals = e.proposals;
             setState((s) => ({ ...s, proposals: e.proposals }));
             break;
+          case "memory_proposals":
+            memoryProposals = e.proposals;
+            setState((s) => ({ ...s, memoryProposals: e.proposals }));
+            break;
+          case "memory_used":
+            memoryIds = e.memoryIds;
+            setState((s) => ({ ...s, memoryIds: e.memoryIds }));
+            break;
           case "followups":
             setState((s) => ({ ...s, followups: e.followups }));
             break;
@@ -176,7 +192,14 @@ export function useAskUniStream(wsId: string) {
             settle({ accepted: true });
             // The done frame carries the answer without its rows; the stored answer keeps the ones the turn announced.
             // A stopped turn stored none of them, so they are not kept.
-            const message: AiMessage = proposals.length > 0 && e.message.notice !== "stopped" ? { ...e.message, proposals } : e.message;
+            // The memory cards and the used ids ride the same way; a stopped turn stored neither.
+            const stopped = e.message.notice === "stopped";
+            const message: AiMessage = {
+              ...e.message,
+              ...(proposals.length > 0 && !stopped ? { proposals } : {}),
+              ...(memoryProposals.length > 0 && !stopped ? { memory_proposals: memoryProposals } : {}),
+              ...(memoryIds.length > 0 && !stopped ? { memory_ids: memoryIds } : {}),
+            };
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
             if (conversationId && regenerateOf) {
               // The question is already stored; the new answer takes the old one's place.
@@ -201,6 +224,8 @@ export function useAskUniStream(wsId: string) {
                 attachments,
                 file_notes: [],
                 proposals: [],
+                memory_ids: [],
+                memory_proposals: [],
                 created_at: e.message.created_at,
               };
               qc.setQueryData<AiMessage[]>(aiKeys.messages(conversationId), (old) => [...(old ?? []), userEcho, message]);
@@ -213,7 +238,8 @@ export function useAskUniStream(wsId: string) {
               ...s,
               status: e.message.notice === "stopped" ? "stopped" : "done",
               message,
-              proposals: e.message.notice === "stopped" ? [] : s.proposals,
+              proposals: stopped ? [] : s.proposals,
+              memoryProposals: stopped ? [] : s.memoryProposals,
               // The stored steps add the think step that holds the answer call's thinking.
               steps: message.steps.length > 0 ? message.steps : s.steps,
               thinking: "",
