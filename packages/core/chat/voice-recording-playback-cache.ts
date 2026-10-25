@@ -33,6 +33,12 @@ export function rememberVoiceRecordingPlayback(
   cacheKey: string,
   source: ChatVoiceRecordingPlaybackSource,
 ): void {
+  if (source.kind === "blob") {
+    // A blob holds the whole recording in memory: keep one at a time.
+    for (const [key, entry] of playbackByKey) {
+      if (key !== cacheKey && entry.kind === "blob") releaseVoiceRecordingPlayback(key);
+    }
+  }
   const prev = playbackByKey.get(cacheKey);
   if (prev && prev.url !== source.url && prev.kind === "blob") {
     URL.revokeObjectURL(prev.url);
