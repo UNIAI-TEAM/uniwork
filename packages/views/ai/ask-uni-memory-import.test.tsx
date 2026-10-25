@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n } from "@uniwork/core/i18n";
@@ -94,6 +94,8 @@ describe("AskUniMemoryImport step 1", () => {
   it.each([
     ["ai_memory_import_rate_limited", 429, "Bạn tách quá nhiều lần. Thử lại sau ít phút."],
     ["ai_memory_import_failed", 502, "UNI chưa tách được chữ này. Thử dán lại."],
+    ["ai_rate_limited", 429, "AI đang bận, thử lại sau ít phút."],
+    ["invalid_request", 400, "Chữ dán không hợp lệ."],
   ])("keeps the paste on %s", async (code, status, copy) => {
     requestMock.mockImplementation((path: string) =>
       path === SPLIT ? Promise.reject(new ApiError("x", code, status)) : Promise.resolve({ entries: [], on: true, limit: 50, remaining }),
@@ -185,5 +187,54 @@ describe("AskUniMemoryImport review", () => {
     ticks().forEach((c) => fireEvent.click(c));
     expect(save()).toBeDisabled();
     expect(posted(IMPORT)).toHaveLength(0);
+  });
+});
+
+describe("AskUniMemoryImport edge cases", () => {
+  it("shows a loading line, then an error with a retry, while the memory list is not there", async () => {
+    let fail = true;
+    requestMock.mockImplementation((path: string) => {
+      if (path === LIST) return fail ? Promise.reject(new ApiError("x", "boom", 500)) : Promise.resolve({ entries: [], on: true, limit: 50, remaining });
+      if (path === SPLIT) return Promise.resolve(split);
+      return Promise.resolve(undefined);
+    });
+    mount();
+    paste("- a");
+    fireEvent.click(screen.getByRole("button", { name: "Tách thành từng mục" }));
+    expect(await screen.findByText("Không tải được bộ nhớ.")).toBeInTheDocument();
+    expect(screen.queryByText("Đang tách…")).toBeNull();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Chọn mục muốn giữ")).toBeInTheDocument();
+  });
+
+  it("reports a missing clipboard and a refused write", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không sao chép được");
+    cleanup();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) }, configurable: true });
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không sao chép được");
+  });
+
+  it("counts runes: 300 emoji are valid, 301 block saving", async () => {
+    split = { candidates: [cand("😀".repeat(300))], skipped: [] };
+    await toReview();
+    const save = screen.getByRole("button", { name: "Thêm 1 mục vào bộ nhớ" });
+    expect(save).toBeEnabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" }), { target: { value: "😀".repeat(301) } });
+    expect(save).toBeDisabled();
+    expect(screen.getByText("Mỗi mục là một dòng, 1–300 ký tự.")).toBeInTheDocument();
+  });
+
+  it("renders candidate and skipped text literally", async () => {
+    split = { candidates: [cand("<b>x</b> https://a.b")], skipped: [{ text: "<b>y</b> https://c.d", reason: "" }] };
+    await toReview();
+    expect(screen.getByDisplayValue("<b>x</b> https://a.b")).toBeInTheDocument();
+    expect(screen.getByText("<b>y</b> https://c.d")).toBeInTheDocument();
+    expect(document.querySelector("b, a")).toBeNull();
   });
 });

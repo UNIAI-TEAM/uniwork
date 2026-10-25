@@ -6395,6 +6395,8 @@
         "paste_label": "Chữ dán từ AI khác",
         "paste_placeholder": "Dán câu trả lời vào đây",
         "chars": "{{count}}/{{max}}",
+        "loading": "Đang tải bộ nhớ…",
+        "copy_failed": "Không sao chép được. Hãy chọn chữ và sao chép tay.",
         "split": "Tách thành từng mục",
         "splitting": "Đang tách…",
         "review_title": "Chọn mục muốn giữ",
@@ -6415,7 +6417,9 @@
         "added_skipped_other": "Đã thêm {{count}} mục, {{skipped}} mục đã có, bỏ qua",
         "errors": {
           "ai_memory_import_rate_limited": "Bạn tách quá nhiều lần. Thử lại sau ít phút.",
-          "ai_memory_import_failed": "UNI chưa tách được chữ này. Thử dán lại."
+          "ai_memory_import_failed": "UNI chưa tách được chữ này. Thử dán lại.",
+          "ai_rate_limited": "AI đang bận, thử lại sau ít phút.",
+          "invalid_request": "Chữ dán không hợp lệ."
         }
       },
       "clear_all": "Xóa toàn bộ bộ nhớ",

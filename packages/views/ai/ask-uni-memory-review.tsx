@@ -11,7 +11,8 @@ import { MEMORY_MAX_CHARS } from "./ask-uni-memory-row";
 
 type Row = { text: string; kind: string; checked: boolean; instructionLike: boolean; duplicate: boolean };
 
-const validText = (s: string) => s.trim() !== "" && s.trim().length <= MEMORY_MAX_CHARS;
+// The server counts runes, so an emoji is one character here too.
+const validText = (s: string) => s.trim() !== "" && [...s.trim()].length <= MEMORY_MAX_CHARS;
 
 /** Pre-tick valid, non-duplicate, non-instruction rows in order until the free slots run out. */
 function initialRows(split: AiMemoryImportSplit, remaining: number): Row[] {
@@ -76,7 +77,6 @@ export function AskUniMemoryReview({
                 aria-label={t("entry_label")}
                 aria-invalid={!validText(r.text)}
                 value={r.text}
-                maxLength={MEMORY_MAX_CHARS}
                 onChange={(e) => patch(i, { text: e.target.value.replace(/[\r\n]+/g, " ") })}
                 className="min-w-0 flex-1"
               />

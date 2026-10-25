@@ -6446,6 +6446,8 @@
         "paste_label": "Text pasted from another AI",
         "paste_placeholder": "Paste the answer here",
         "chars": "{{count}}/{{max}}",
+        "loading": "Loading memory…",
+        "copy_failed": "Couldn't copy. Select the text and copy it by hand.",
         "split": "Split into entries",
         "splitting": "Splitting…",
         "review_title": "Choose what to keep",
@@ -6471,7 +6473,9 @@
         "added_skipped_other": "Added {{count}} entries, {{skipped}} already there, skipped",
         "errors": {
           "ai_memory_import_rate_limited": "You split too many times. Try again in a few minutes.",
-          "ai_memory_import_failed": "UNI couldn't split this text. Try pasting it again."
+          "ai_memory_import_failed": "UNI couldn't split this text. Try pasting it again.",
+          "ai_rate_limited": "AI is busy, try again in a few minutes.",
+          "invalid_request": "The pasted text isn't valid."
         }
       },
       "clear_all": "Clear all memory",

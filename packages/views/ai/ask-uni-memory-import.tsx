@@ -39,6 +39,17 @@ export function AskUniMemoryImport({ orgId }: { orgId: string }) {
     }
   };
 
+  // navigator.clipboard is undefined outside secure contexts, and a write can be refused.
+  const copyPrompt = async () => {
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(t("importer.prompt"));
+      toast(t("importer.copied"));
+    } catch {
+      setError(t("importer.copy_failed"));
+    }
+  };
+
   const save = async (entries: { kind: string; text: string }[]) => {
     try {
       const res = await importCall.mutateAsync(entries);
@@ -64,8 +75,15 @@ export function AskUniMemoryImport({ orgId }: { orgId: string }) {
         {split ? (
           memory.data ? (
             <AskUniMemoryReview split={split} remaining={memory.data.remaining} onSave={save} />
+          ) : memory.isError ? (
+            <div className="flex items-center gap-2 text-caption text-destructive">
+              {t("load_error")}
+              <Button type="button" variant="outline" size="sm" onClick={() => void memory.refetch()}>
+                {t("retry")}
+              </Button>
+            </div>
           ) : (
-            <p className="text-caption text-muted-foreground">{t("importer.splitting")}</p>
+            <p className="text-caption text-muted-foreground">{t("importer.loading")}</p>
           )
         ) : (
           <>
@@ -77,12 +95,7 @@ export function AskUniMemoryImport({ orgId }: { orgId: string }) {
                 size="sm"
                 variant="outline"
                 className="self-start"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(t("importer.prompt"))
-                    .then(() => toast(t("importer.copied")))
-                    .catch(() => undefined)
-                }
+                onClick={() => void copyPrompt()}
               >
                 <Copy aria-hidden />
                 {t("importer.copy")}
