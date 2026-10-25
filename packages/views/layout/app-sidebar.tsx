@@ -57,8 +57,8 @@ const navButtonClass =
 
 /**
  * Workspace navigation. On a desktop shell it is the left of three floating
- * cards under the top bar (ClickUp-style): its collapse toggle on top, then the
- * modules and pins; the workspace switcher and the account sit on the top bar.
+ * cards under the top bar (ClickUp-style): the modules and pins, then its
+ * collapse toggle at the foot; the workspace switcher and the account sit on the top bar.
  * On a compact shell it is a sheet that keeps both, since that bar has no room.
  * PRODUCT.md keeps the nav to built surfaces only.
  */
@@ -83,11 +83,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-      ) : (
-        <SidebarHeader className="items-start px-2 pt-2 pb-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-          <SidebarTrigger size="icon" className="text-muted-foreground" />
-        </SidebarHeader>
-      )}
+      ) : null}
 
       <ModuleNav ws={ws} pathname={pathname} onNavigate={dismissSheet} />
 
@@ -99,7 +95,12 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
-      ) : null}
+      ) : (
+        // At the card's foot, not alone on a row above the modules; centred in the icon rail.
+        <SidebarFooter className="items-start px-2 pt-1 pb-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+          <SidebarTrigger size="icon" className="text-muted-foreground" />
+        </SidebarFooter>
+      )}
       <SidebarRail />
     </Sidebar>
   );

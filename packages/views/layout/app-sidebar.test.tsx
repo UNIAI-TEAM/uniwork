@@ -85,13 +85,15 @@ describe("AppSidebar", () => {
     }
   });
 
-  it("on a desktop shell, is a floating card under the top bar that starts with its collapse toggle", () => {
+  it("on a desktop shell, is a floating card under the top bar that ends with its collapse toggle", () => {
     renderSidebar("/acme/team/tasks");
     const sidebar = document.querySelector('[data-slot="sidebar"]');
     expect(sidebar).toHaveAttribute("data-variant", "floating");
     expect(document.querySelector('[data-slot="sidebar-container"]')).toHaveClass("lg:top-12", "lg:pt-0");
-    const header = document.querySelector('[data-slot="sidebar-header"]');
-    expect(within(header as HTMLElement).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
+    // The toggle closes the card (owner's pick), so the card opens straight on the modules.
+    expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
+    const footer = document.querySelector('[data-slot="sidebar-footer"]');
+    expect(within(footer as HTMLElement).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
     // The switcher and the account live on the top bar there.
     expect(screen.queryByRole("button", { name: /chuyển workspace/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
@@ -297,8 +299,8 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     // The rail keeps its own way back open (the edge rail is a drag handle, not this).
-    const header = document.querySelector('[data-slot="sidebar-header"]') as HTMLElement;
-    expect(within(header).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
+    const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
+    expect(within(footer).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
   });
 });
 
