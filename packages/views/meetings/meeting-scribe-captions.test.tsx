@@ -9,6 +9,7 @@ import {
   SCRIBE_CAPTION_TOPIC,
   scribeTranslationTopic,
   useScribeInRoom,
+  useScribeJoinWait,
   useScribePaused,
 } from "./meeting-scribe-captions";
 import { humanParticipants } from "./meeting-signals";
@@ -117,6 +118,17 @@ describe("MeetingScribeCaptions", () => {
     expect(shown("Cảm ơn")?.closest("p")).toHaveTextContent("Lan");
   });
 
+  it("says the scribe is on its way in, its line travelling, until it listens", () => {
+    const { rerender } = render(wrap(<MeetingScribeCaptions enabled joining />));
+    expect(screen.getByText("Thư ký UNI đang vào phòng")).toBeInTheDocument();
+    expect(voiceLine()).toHaveAttribute("data-processing");
+    expect(label().querySelector("[data-scribe-mark]")).toHaveAttribute("data-scribe-state", "joining");
+    rerender(wrap(<MeetingScribeCaptions enabled />));
+    expect(screen.getByText("Đang nghe…")).toBeInTheDocument();
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
+    expect(label().querySelector("[data-scribe-mark]")).toHaveAttribute("data-scribe-state", "live");
+  });
+
   it("lights its voice line from the room's loudest speaker", () => {
     render(wrap(<MeetingScribeCaptions enabled />));
     expect(voiceLine()).not.toBeNull();
@@ -165,8 +177,11 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
     expect(shown("Gửi báo giá")).not.toBeNull();
-    // A Vietnamese final waits for its English: the voice line travels, the screen reader hears it once.
+    // A Vietnamese final waits for its English: the voice line travels, the thumb sweeps, the line
+    // breathes, and the screen reader hears it once.
     expect(voiceLine()).toHaveAttribute("data-processing");
+    expect(screen.getByTestId("meeting-caption-language-thumb")).toHaveClass("animate-caption-thumb-sweep");
+    expect(shown("Gửi báo giá")).toHaveClass("animate-caption-breathe");
     expect(label()).not.toHaveTextContent("Đang dịch…");
     expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Đang dịch…");
     // The line itself is held back from the screen reader until it is in the language it stays in.
@@ -175,16 +190,19 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     await caption("uw_participant_p2", { "uw.segment_id": "TR1-1" }, "Forged", scribeTranslationTopic("en"));
     expect(shown("Forged")).toBeNull();
     await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
-    // The translation runs in over the original, word by word.
+    // The original lifts away first, then the translation runs in word by word.
+    expect(shown("Gửi báo giá")?.querySelector(".animate-caption-word-out")).not.toBeNull();
+    await waitFor(() => expect(shown("Send the quote")).not.toBeNull());
     const words = shown("Send the quote")?.querySelectorAll<HTMLElement>(".animate-caption-word-in");
     expect([...(words ?? [])].map((w) => w.style.animationDelay)).toEqual(["0ms", "18ms", "36ms"]);
     expect(voiceLine()).not.toHaveAttribute("data-processing");
+    expect(screen.getByTestId("meeting-caption-language-thumb")).not.toHaveClass("animate-caption-thumb-sweep");
     expect(shown("Gửi báo giá")).toBeNull();
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Send the quote");
     // Back to the original.
     fireEvent.click(screen.getByRole("button", { name: "Bản gốc" }));
     await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false));
-    expect(shown("Gửi báo giá")).not.toBeNull();
+    await waitFor(() => expect(shown("Gửi báo giá")).not.toBeNull());
     expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } });
   });
 
@@ -227,6 +245,9 @@ describe("MeetingScribeCaptions translation (B9)", () => {
       expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
       // A translation that turns up late changes the bar, never the line already read.
       await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
+      act(() => {
+        vi.advanceTimersByTime(170);
+      });
       expect(shown("Send the quote")).not.toBeNull();
       expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
     } finally {
@@ -234,17 +255,22 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     }
   });
 
-  it("slides a thumb under the picked language, which turns bold, behind short labels", async () => {
+  it("slides a thumb, measured, under the picked language behind short labels", async () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     const original = screen.getByRole("button", { name: "Bản gốc" });
     expect(original).toHaveAttribute("aria-pressed", "true");
     expect(original).toHaveTextContent("Gốc");
-    expect(original.className).toMatch(/aria-pressed:font-semibold/);
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    const english = screen.getByRole("button", { name: "English" });
+    expect(english).toHaveTextContent("EN");
     const thumb = screen.getByTestId("meeting-caption-language-thumb");
-    expect(thumb.style.transform).toBe("translateX(0%)");
-    fireEvent.click(screen.getByRole("button", { name: "English" }));
-    expect(thumb.style.transform).toBe("translateX(200%)");
+    expect(thumb).toHaveAttribute("data-language", "original");
+    // jsdom lays nothing out, so the button's own offsets stand in for the measured ones.
+    Object.defineProperty(english, "offsetLeft", { configurable: true, value: 84 });
+    Object.defineProperty(english, "offsetWidth", { configurable: true, value: 38 });
+    fireEvent.click(english);
+    expect(thumb).toHaveAttribute("data-language", "en");
+    expect(thumb.style.transform).toBe("translateX(84px)");
+    expect(thumb.style.width).toBe("38px");
     await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
   });
 
@@ -326,6 +352,35 @@ describe("useScribeInRoom", () => {
     render(<Probe />);
     expect(screen.getByTestId("scribe")).toHaveTextContent("true");
     expect(lk.remoteOptions[0]).toEqual({ updateOnlyOn: [] });
+  });
+});
+
+describe("useScribeJoinWait", () => {
+  it("holds a joining scribe for 30 s, then lets device captions in, and starts afresh the next time", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      function Probe({ onItsWay }: { onItsWay: boolean }) {
+        return <span data-testid="wait">{String(useScribeJoinWait(onItsWay))}</span>;
+      }
+      const view = render(<Probe onItsWay />);
+      const wait = () => screen.getByTestId("wait");
+      expect(wait()).toHaveTextContent("true");
+      act(() => {
+        vi.advanceTimersByTime(29_999);
+      });
+      expect(wait()).toHaveTextContent("true");
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(wait()).toHaveTextContent("false");
+      // It arrived, then left and is on its way again: a new wait.
+      view.rerender(<Probe onItsWay={false} />);
+      expect(wait()).toHaveTextContent("false");
+      view.rerender(<Probe onItsWay />);
+      expect(wait()).toHaveTextContent("true");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

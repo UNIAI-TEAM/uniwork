@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useId, useRef, type CSSProperties } from "react";
+import { forwardRef, useEffect, useId, useRef } from "react";
 import type { LucideProps } from "lucide-react";
 
 import { cn } from "@uniwork/ui/lib/utils";
@@ -103,12 +103,54 @@ export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function Scrib
   );
 });
 
+// The voice line's lobes, left to right: the tile's two stops and the violets
+// between them, with a pale core where the lobes meet (artwork, not tokens).
+const VOICE_LOBES = ["#5B12EA", "#7C3AED", TILE_TO, "#8B5CF6", "#6D28D9"];
+const VOICE_CORE = "#EBDDFF";
+// Where each lobe sits along the edge (fraction of the width from the middle) and how much of the voice it takes.
+const LOBE_X = [-0.3, -0.15, 0, 0.15, 0.3];
+const LOBE_WEIGHT = [0.55, 0.82, 1, 0.82, 0.55];
+
 /**
- * Thư ký UNI listening, drawn as one line along the bottom edge of the box
- * it sits in (base.css `[data-scribe-voice]`): it thickens and brightens with
- * `level` (0–1, read every frame), and while `processing` it gathers into a
- * short stretch that travels the edge. The parent is `relative` and clips it
- * with its radius. Reduced motion reads no level: the line rests.
+ * One frame of the level the line shows: it rises fast and falls slowly, so
+ * it follows a voice rather than every sample (slower still for reduced motion).
+ */
+export function followVoice(shown: number, target: number, reduced: boolean): number {
+  const level = Math.min(1, Math.max(0, target || 0));
+  const rate = level > shown ? (reduced ? 0.1 : 0.32) : reduced ? 0.035 : 0.07;
+  return shown + (level - shown) * rate;
+}
+
+const rgbOf = new Map<string, string>();
+function rgba(hex: string, alpha: number): string {
+  let rgb = rgbOf.get(hex);
+  if (!rgb) {
+    const n = Number.parseInt(hex.slice(1), 16);
+    rgb = `${n >> 16} ${(n >> 8) & 255} ${n & 255}`;
+    rgbOf.set(hex, rgb);
+  }
+  return `rgb(${rgb} / ${Math.min(1, Math.max(0, alpha)).toFixed(3)})`;
+}
+
+/** A soft ellipse centred on (x, y), fading out from its middle. */
+function glow(ctx: CanvasRenderingContext2D, dpr: number, x: number, y: number, rx: number, ry: number, hex: string, alpha: number) {
+  if (alpha < 0.004 || rx < 1 || ry < 0.4) return;
+  ctx.setTransform(dpr * rx, 0, 0, dpr * ry, dpr * x, dpr * y);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, rgba(hex, alpha));
+  g.addColorStop(0.45, rgba(hex, alpha * 0.42));
+  g.addColorStop(1, rgba(hex, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(-1, -1, 2, 2);
+}
+
+/**
+ * Thư ký UNI listening: a line of violet light along the bottom edge of the
+ * box it sits in, thicker and brighter as `level` (0–1, read every frame)
+ * rises; nothing glows up behind the words. While `processing` (joining,
+ * translating) the light gathers into a short beam that travels the edge.
+ * Reduced motion: the lobes hold still and the beam waits in the middle.
+ * Sits as the first child of a `relative isolate` box that clips it.
  */
 export function ScribeVoiceLine({
   level,
@@ -119,32 +161,62 @@ export function ScribeVoiceLine({
   processing?: boolean;
   className?: string;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLCanvasElement>(null);
   const levelRef = useRef(level);
   levelRef.current = level;
+  const processingRef = useRef(processing);
+  processingRef.current = processing;
   useEffect(() => {
-    const el = ref.current;
-    if (!el || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const canvas = ref.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const move = reduced ? 0 : 1;
+    const phase = LOBE_X.map(() => Math.random() * Math.PI * 2);
     let shown = 0;
-    let written = "";
-    let frame = requestAnimationFrame(function tick() {
-      const target = Math.min(1, Math.max(0, levelRef.current() || 0));
-      // Rises fast, falls slowly: the line follows a voice, not every sample.
-      shown += (target - shown) * (target > shown ? 0.3 : 0.07);
-      const next = shown.toFixed(3);
-      if (next !== written) el.style.setProperty("--voice", (written = next));
-      frame = requestAnimationFrame(tick);
+    let gathered = 0;
+    let frame = requestAnimationFrame(function draw(ts: number) {
+      frame = requestAnimationFrame(draw);
+      const t = ts / 1000;
+      shown = followVoice(shown, levelRef.current(), reduced);
+      gathered += ((processingRef.current ? 1 : 0) - gathered) * 0.07;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!w || !h) return;
+      ctx.globalCompositeOperation = "lighter";
+      // A quiet room still shows the line, breathing.
+      const voice = Math.max(shown, reduced ? 0.16 : 0.14 + 0.05 * Math.sin(t * 1.4));
+      const beam = w / 2 + move * Math.sin((t * 2 * Math.PI) / 1.9) * w * 0.36;
+      LOBE_X.forEach((at, i) => {
+        const weight = LOBE_WEIGHT[i] ?? 1;
+        let x = w / 2 + at * w * (0.78 + 0.3 * shown) + move * Math.sin(t * (0.5 + i * 0.17) + (phase[i] ?? 0)) * w * 0.035;
+        let rx = w * (0.13 + 0.05 * weight + 0.07 * shown);
+        let alpha = 0.3 + 0.7 * voice * weight;
+        x += (beam + (i - 2) * w * 0.022 - x) * gathered;
+        rx += (w * 0.075 - rx) * gathered;
+        alpha += (0.8 - alpha) * gathered;
+        // Centred on the edge, so only its upper half shows.
+        const thick = (1.6 + 3.2 * voice * weight + gathered * 1.6) * (1 + move * 0.1 * Math.sin(t * 2.3 + (phase[i] ?? 0)));
+        glow(ctx, dpr, x, h, rx, thick, VOICE_LOBES[i] ?? TILE_TO, alpha * 1.4);
+        glow(ctx, dpr, x, h, rx * 0.7, thick * 0.5, VOICE_CORE, alpha);
+      });
     });
     return () => cancelAnimationFrame(frame);
   }, []);
   return (
-    <span
+    <canvas
       ref={ref}
       aria-hidden
       data-scribe-voice=""
       data-processing={processing ? "" : undefined}
-      style={{ "--scribe-from": TILE_FROM, "--scribe-to": TILE_TO } as CSSProperties}
-      className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-1", className)}
+      className={cn("pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-3 w-full", className)}
     />
   );
 }

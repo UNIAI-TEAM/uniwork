@@ -29,7 +29,8 @@ import {
   MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
-import { MeetingScribeCaptions, useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
+import { MeetingScribeCaptions, useScribeInRoom, useScribeJoinWait, useScribePaused } from "./meeting-scribe-captions";
+import { scribeChipState } from "./meeting-scribe-chip";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -222,6 +223,11 @@ function ConferenceStage({
   const scribeInRoom = useScribeInRoom();
   const scribePaused = useScribePaused();
   const scribeCaptioning = scribeInRoom && !scribePaused;
+  // On its way in (the chip's "joining"), the scribe's own box says so rather
+  // than handing the viewer device captions for its first seconds.
+  const scribeOnItsWay =
+    caps?.scribe === true && !!meeting && scribeChipState(meeting, scribeInRoom, scribePaused) === "joining";
+  const scribeJoining = useScribeJoinWait(scribeOnItsWay);
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -248,8 +254,12 @@ function ConferenceStage({
   );
   const captions = useMemo(
     () =>
-      scribeCaptioning ? (
-        <MeetingScribeCaptions enabled={captionsOn} meetingId={resolvedMeetingId || undefined} />
+      scribeCaptioning || scribeJoining ? (
+        <MeetingScribeCaptions
+          enabled={captionsOn}
+          joining={!scribeCaptioning}
+          meetingId={resolvedMeetingId || undefined}
+        />
       ) : (
         <MeetingLiveCaptions
           meetingId={resolvedMeetingId}
@@ -257,7 +267,7 @@ function ConferenceStage({
           onError={handleCaptionsError}
         />
       ),
-    [resolvedMeetingId, captionsOn, scribeCaptioning, handleCaptionsError],
+    [resolvedMeetingId, captionsOn, scribeCaptioning, scribeJoining, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(
@@ -268,7 +278,7 @@ function ConferenceStage({
         canHost={canHost.allowed}
         recordingEnabled={recordingEnabled}
         recording={recording}
-        captionsAvailable={scribeInRoom || captionsSupported()}
+        captionsAvailable={scribeInRoom || scribeJoining || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
         onToggleCopilot={toggleCopilot}
@@ -277,7 +287,7 @@ function ConferenceStage({
         copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
   );
 
   return (

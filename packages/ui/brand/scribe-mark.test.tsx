@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-import { ScribeGlyph, ScribeMark, ScribeVoiceLine } from "./scribe-mark";
+import { followVoice, ScribeGlyph, ScribeMark, ScribeVoiceLine } from "./scribe-mark";
 
 afterEach(() => {
   cleanup();
@@ -40,38 +40,65 @@ describe("ScribeMark", () => {
   });
 });
 
+describe("followVoice", () => {
+  it("rises fast and falls slowly, slower still for reduced motion, and clamps the level", () => {
+    expect(followVoice(0, 1, false)).toBeCloseTo(0.32);
+    expect(followVoice(0.32, 0, false)).toBeCloseTo(0.2976);
+    expect(followVoice(0, 1, true)).toBeCloseTo(0.1);
+    expect(followVoice(0, 5, false)).toBeCloseTo(0.32);
+    expect(followVoice(0.5, Number.NaN, false)).toBeCloseTo(0.465);
+  });
+});
+
 describe("ScribeVoiceLine", () => {
-  /** Runs the animation frames by hand. */
+  /** A 2D context that only counts what the line draws. */
+  function fakeContext() {
+    const ctx = {
+      fills: 0,
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      createRadialGradient: () => ({ addColorStop: vi.fn() }),
+      fillRect: () => {
+        ctx.fills += 1;
+      },
+      globalCompositeOperation: "",
+      fillStyle: null as unknown,
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    return ctx;
+  }
   function frames() {
     const queue: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => queue.push(cb));
     const cancel = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
-    return { step: () => queue.shift()?.(0), queue, cancel };
+    return { step: (ts: number) => queue.shift()?.(ts), cancel };
   }
 
-  it("follows the level every frame, rising fast and falling slowly, and stops with the line", () => {
+  it("draws five lobes and their core on the bottom edge every frame, and stops with the line", () => {
+    const ctx = fakeContext();
     const f = frames();
-    let level = 1;
-    const { container, unmount } = render(<ScribeVoiceLine level={() => level} />);
-    const line = container.querySelector<HTMLElement>("[data-scribe-voice]")!;
-    expect(line.getAttribute("aria-hidden")).toBe("true");
-    f.step();
-    expect(line.style.getPropertyValue("--voice")).toBe("0.300");
-    level = 0;
-    f.step();
-    expect(line.style.getPropertyValue("--voice")).toBe("0.279");
+    const level = vi.fn(() => 0.5);
+    const { container, unmount } = render(<ScribeVoiceLine level={level} />);
+    const canvas = container.querySelector("canvas")!;
+    expect(canvas.getAttribute("aria-hidden")).toBe("true");
+    Object.defineProperty(canvas, "clientWidth", { configurable: true, value: 600 });
+    Object.defineProperty(canvas, "clientHeight", { configurable: true, value: 12 });
+    f.step(16);
+    expect(level).toHaveBeenCalledTimes(1);
+    expect(ctx.fills).toBe(10);
+    f.step(32);
+    expect(ctx.fills).toBe(20);
     unmount();
     expect(f.cancel).toHaveBeenCalled();
   });
 
-  it("marks translating for the travelling stretch, and rests under reduced motion", () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
-    const f = frames();
-    const { container } = render(<ScribeVoiceLine level={() => 1} processing />);
-    const line = container.querySelector<HTMLElement>("[data-scribe-voice]")!;
-    expect(line.hasAttribute("data-processing")).toBe(true);
-    expect(f.queue).toHaveLength(0);
-    expect(line.style.getPropertyValue("--voice")).toBe("");
+  it("marks the busy state it gathers into a travelling beam for", () => {
+    fakeContext();
+    frames();
+    const { container, rerender } = render(<ScribeVoiceLine level={() => 0} processing />);
+    expect(container.querySelector("canvas")?.hasAttribute("data-processing")).toBe(true);
+    rerender(<ScribeVoiceLine level={() => 0} />);
+    expect(container.querySelector("canvas")?.hasAttribute("data-processing")).toBe(false);
   });
 });
 
