@@ -870,6 +870,12 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{org}/ai/memory": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"kind": "fact", "text": tn.marker + " added by the route"}}
 	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import/split": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"text": "- " + tn.marker + " split by the route"}}
+	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"entries": []map[string]any{{"kind": "fact", "text": tn.marker + " imported by the route"}}}}
+	}},
 	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                                                    {body: isoJSON(map[string]any{"text": "edited"})},
 	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
 	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},

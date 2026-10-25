@@ -34,6 +34,8 @@ import (
 //	PATCH  /api/v1/orgs/{org}/ai/memory/{memoryID}
 //	DELETE /api/v1/orgs/{org}/ai/memory/{memoryID}
 //	DELETE /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory/import/split
+//	POST   /api/v1/orgs/{org}/ai/memory/import
 //	POST   /api/v1/ai/proposals/{proposalID}/apply
 //	POST   /api/v1/ai/proposals/{proposalID}/reject
 //	POST   /api/v1/ai/proposals/{proposalID}/undo
@@ -233,6 +235,26 @@ func registerAI(r api, h Routes) {
 		tags:        []string{"ai"},
 		sdo:         sdo.AiMemoryClearSDO{},
 		auth:        true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import/split", h.SplitAiMemoryImport, apiOp{
+		summary: "Split text pasted from another AI into memory entries",
+		description: "Gọi model nhanh một lần (thử lại một lần khi sai định dạng, mỗi lần một dòng usage) để tách chữ dán thành tối đa 100 mục preference/fact; dòng đời tư, người khác, bí mật hay không nói về người dùng nằm trong skipped. " +
+			"Không lưu gì, không ghi audit, không ghi chữ dán vào log. Chữ dán là dữ liệu không tin cậy: mục giống mệnh lệnh (link, \"ignore previous\"…) có instruction_like, mục trùng có duplicate. " +
+			"Chữ rỗng hay quá 20.000 ký tự -> 400; quá 5 lần một giờ -> 429 ai_memory_import_rate_limited; model sai định dạng hai lần -> 502 ai_memory_import_failed; hết quota -> 402 ai_quota_exceeded; cờ ask_uni_memory tắt -> 403 ai_memory_disabled. Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSplitSDI{},
+		sdo:  sdo.AiMemoryImportSplitSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import", h.ImportAiMemory, apiOp{
+		summary: "Save the entries the person ticked",
+		description: "Lưu 1–50 mục đã tick trong một transaction (source import, mỗi mục một dòng audit ai_memory.created không kèm chữ); server kiểm lại như thêm tay. " +
+			"Mục sai (kind, chữ rỗng, quá 300 ký tự, xuống dòng) -> 400 và không mục nào được lưu; mục trùng bộ nhớ hay trùng mục trước trong lần lưu thì bỏ qua và đếm trong skipped_duplicates; số mục còn lại vượt chỗ -> 409 ai_memory_full, không mục nào được lưu. " +
+			"Cờ tắt -> 403 ai_memory_disabled. Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSDI{},
+		sdo:  sdo.AiMemoryImportSDO{},
+		auth: true,
 	})
 	r.Post("/ai/memory-proposals/{memoryProposalID}/apply", h.ApplyAiMemoryProposal, apiOp{
 		summary: "Apply an Ask UNI memory proposal",

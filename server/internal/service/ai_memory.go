@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -12,7 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -38,6 +41,7 @@ const (
 	AiMemoryKindPreference = "preference"
 	AiMemoryKindFact       = "fact"
 	aiMemorySourceManual   = "manual"
+	aiMemorySourceImport   = "import"
 )
 
 var (
@@ -56,6 +60,11 @@ type AiMemoryService struct {
 	flags   McpFlags
 	metrics AskAgentMetrics
 	now     func() time.Time
+	// gw splits an import paste; rdb, or splitMem without Redis, counts the
+	// splits per person (R15).
+	gw       *ai.Gateway
+	rdb      *redis.Client
+	splitMem sync.Map
 }
 
 func NewAiMemoryService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *AiMemoryService {
@@ -70,6 +79,9 @@ type AiMemoryList struct {
 	Entries          []db.AiMemory
 	On               bool
 	Limit, Remaining int
+	// SkippedDuplicates is set by ImportMemories only: ticked entries it left
+	// out because memory, or an earlier entry of the save, already had them.
+	SkippedDuplicates int
 }
 
 func (s *AiMemoryService) flagOn(ctx context.Context, userID, orgID string) bool {
@@ -145,6 +157,10 @@ func (s *AiMemoryService) List(ctx context.Context, userID, orgID string) (AiMem
 	if err := s.gate(ctx, userID, orgID); err != nil {
 		return AiMemoryList{}, err
 	}
+	return s.listOf(ctx, userID, orgID)
+}
+
+func (s *AiMemoryService) listOf(ctx context.Context, userID, orgID string) (AiMemoryList, error) {
 	rows, err := s.q.AiListMemories(ctx, db.AiListMemoriesParams{OrganizationID: orgID, UserID: userID})
 	if err != nil {
 		return AiMemoryList{}, err

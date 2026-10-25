@@ -544,6 +544,8 @@ func New(d Deps) http.Handler {
 		UpdateAiMemory:          h.updateAiMemory,
 		DeleteAiMemory:          h.deleteAiMemory,
 		ClearAiMemory:           h.clearAiMemory,
+		SplitAiMemoryImport:     h.splitAiMemoryImport,
+		ImportAiMemory:          h.importAiMemory,
 		SetAskUniMemory:         h.setAskUniMemory,
 		ApplyAiMemoryProposal:   h.applyAiMemoryProposal,
 		RejectAiMemoryProposal:  h.rejectAiMemoryProposal,

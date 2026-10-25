@@ -26,6 +26,8 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	switch {
 	case strings.Contains(req.System, "Name this conversation"):
 		text = "Fake title"
+	case strings.Contains(req.System, "You split text a person pasted"):
+		text = fakeMemoryImport(last)
 	case strings.Contains(req.System, "You are UNI") && len(req.Tools) > 0:
 		return fakeAgentReply(req)
 	case strings.Contains(req.System, "You are UNI"):
@@ -162,10 +164,27 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 	return resp
 }
 
+// fakeMemoryImport is memory_import@1's fake: every non-empty line of the
+// paste is one fact, its list marker dropped.
+func fakeMemoryImport(rendered string) string {
+	entries := []map[string]any{}
+	for _, line := range strings.Split(fakeUntrusted(rendered, "pasted_memory"), "\n") {
+		if line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-*•")); line != "" {
+			entries = append(entries, map[string]any{"text": line, "kind": "fact", "instruction_like": false, "skip_reason": ""})
+		}
+	}
+	b, _ := json.Marshal(map[string]any{"entries": entries})
+	return string(b)
+}
+
 // fakeQuestion pulls the asker's question out of the rendered user message and
 // undoes EscapeUntrusted's tag escaping.
-func fakeQuestion(rendered string) string {
-	const open = `<untrusted source="question">`
+func fakeQuestion(rendered string) string { return fakeUntrusted(rendered, "question") }
+
+// fakeUntrusted is the content of the source block of a rendered message,
+// unescaped; the whole message when there is no such block.
+func fakeUntrusted(rendered, source string) string {
+	open := `<untrusted source="` + source + `">`
 	i := strings.Index(rendered, open)
 	if i < 0 {
 		return rendered

@@ -111,6 +111,56 @@ func (h *handlers) clearAiMemory(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AiMemoryClearSDO{Deleted: n})
 }
 
+// splitAiMemoryImport splits a paste into entries to tick; nothing is stored.
+func (h *handlers) splitAiMemoryImport(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.memoryOrg(w, r)
+	if !ok {
+		return
+	}
+	var in sdi.AiMemoryImportSplitSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.AiMemory.SplitImport(r.Context(), userID, orgID, in.Text)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.AiMemoryImportSplitSDO{Candidates: []sdo.AiMemoryCandidateDTO{}, Skipped: []sdo.AiMemorySkippedDTO{}}
+	for _, c := range res.Candidates {
+		out.Candidates = append(out.Candidates, sdo.AiMemoryCandidateDTO{Text: c.Text, Kind: c.Kind, InstructionLike: c.InstructionLike, Duplicate: c.Duplicate})
+	}
+	for _, s := range res.Skipped {
+		out.Skipped = append(out.Skipped, sdo.AiMemorySkippedDTO{Text: s.Text, Reason: s.Reason})
+	}
+	respondJSON(w, 200, out)
+}
+
+func (h *handlers) importAiMemory(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.memoryOrg(w, r)
+	if !ok {
+		return
+	}
+	var in sdi.AiMemoryImportSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	entries := make([]service.AiMemoryInput, 0, len(in.Entries))
+	for _, e := range in.Entries {
+		entries = append(entries, service.AiMemoryInput{Kind: e.Kind, Text: e.Text})
+	}
+	l, err := h.AiMemory.ImportMemories(r.Context(), userID, orgID, entries)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.AiMemoryImportSDO{Entries: []sdo.AiMemoryDTO{}, On: l.On, Limit: l.Limit, Remaining: l.Remaining, SkippedDuplicates: l.SkippedDuplicates}
+	for _, e := range l.Entries {
+		out.Entries = append(out.Entries, toAiMemoryDTO(e))
+	}
+	respondJSON(w, 200, out)
+}
+
 // setAskUniMemory names no organization: the service reads the flag for any
 // organization the person is in. It writes no audit row (the switch is theirs).
 func (h *handlers) setAskUniMemory(w http.ResponseWriter, r *http.Request) {

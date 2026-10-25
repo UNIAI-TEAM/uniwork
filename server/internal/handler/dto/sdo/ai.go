@@ -414,6 +414,36 @@ type AiMemoryListSDO struct {
 	Remaining int           `json:"remaining" description:"Số mục còn thêm được" example:"49"`
 }
 
+// AiMemoryCandidateDTO is one entry UNI split out of a paste, for the person to tick.
+type AiMemoryCandidateDTO struct {
+	Text            string `json:"text" description:"Một dòng 1–300 ký tự, đã chuẩn hóa" example:"Trả lời ngắn gọn"`
+	Kind            string `json:"kind" description:"preference hoặc fact" example:"preference"`
+	InstructionLike bool   `json:"instruction_like" description:"Mục giống một mệnh lệnh cho AI (model hoặc server đánh dấu); client không tick sẵn" example:"false"`
+	Duplicate       bool   `json:"duplicate" description:"Trùng một mục đã có hoặc một mục trước trong lần dán; client không tick sẵn" example:"false"`
+}
+
+// AiMemorySkippedDTO is a line of the paste UNI left out.
+type AiMemorySkippedDTO struct {
+	Text   string `json:"text" description:"Chữ của dòng bị bỏ" example:"Tôi hay đau đầu"`
+	Reason string `json:"reason" description:"personal, other_person, secret hoặc not_about_user" example:"personal"`
+}
+
+// AiMemoryImportSplitSDO is POST /api/v1/orgs/{org}/ai/memory/import/split.
+type AiMemoryImportSplitSDO struct {
+	Candidates []AiMemoryCandidateDTO `json:"candidates" description:"Tối đa 100 mục để duyệt, theo thứ tự trong chữ dán"`
+	Skipped    []AiMemorySkippedDTO   `json:"skipped" description:"Dòng bị bỏ, chỉ để xem"`
+}
+
+// AiMemoryImportSDO is POST /api/v1/orgs/{org}/ai/memory/import: the memory
+// after the save, as GET answers it, and how many ticked entries it skipped.
+type AiMemoryImportSDO struct {
+	Entries           []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức sau khi lưu, cách trả lời trước, rồi theo thứ tự thêm"`
+	On                bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit             int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining         int           `json:"remaining" description:"Số mục còn thêm được" example:"45"`
+	SkippedDuplicates int           `json:"skipped_duplicates" description:"Số mục đã tick nhưng không lưu vì trùng bộ nhớ hoặc trùng một mục trước trong lần lưu" example:"1"`
+}
+
 // AiMemoryClearSDO is DELETE /api/v1/orgs/{org}/ai/memory.
 type AiMemoryClearSDO struct {
 	Deleted int64 `json:"deleted" description:"Số mục đã xóa" example:"3"`

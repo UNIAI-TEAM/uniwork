@@ -95,6 +95,16 @@ type AiMemoryProposalEditSDI struct {
 	Text *string `json:"text" description:"Chữ sẽ lưu, 1–300 ký tự, một dòng; bỏ trống thì giữ" example:"Gọi tôi là Vinh"`
 }
 
+// AiMemoryImportSplitSDI is POST /api/v1/orgs/{org}/ai/memory/import/split.
+type AiMemoryImportSplitSDI struct {
+	Text string `json:"text" description:"Chữ dán từ ChatGPT, Claude hoặc Gemini, 1–20.000 ký tự; server không lưu chữ này" example:"- Trả lời ngắn gọn"`
+}
+
+// AiMemoryImportSDI is POST /api/v1/orgs/{org}/ai/memory/import.
+type AiMemoryImportSDI struct {
+	Entries []AiMemoryCreateSDI `json:"entries" description:"Các mục người dùng đã tick, 1–50 mục; mỗi mục kiểm như thêm tay"`
+}
+
 // AiMemorySwitchSDI is PUT /api/v1/me/ask-uni-memory.
 type AiMemorySwitchSDI struct {
 	Enabled bool `json:"enabled" description:"true bật Dùng bộ nhớ, false tắt" example:"true"`

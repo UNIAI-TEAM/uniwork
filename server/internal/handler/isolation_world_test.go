@@ -239,6 +239,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.AskUNI.SetReadTools(d.McpTools)
 	d.AiMemory = service.NewAiMemoryService(pool, q, d.Organizations, d.Workspaces)
 	d.AiMemory.SetFlags(d.FeatureFlags)
+	d.AiMemory.SetImport(d.Meetings.AI, d.Redis)
 	d.AskUNI.SetMemory(d.AiMemory)
 	d.CalendarConnections = service.NewCalendarConnectionService(pool, q, d.Workspaces, box, config.Config{
 		FrontendOrigin: "http://localhost:3000",

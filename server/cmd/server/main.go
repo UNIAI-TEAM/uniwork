@@ -773,6 +773,7 @@ func main() {
 	askUNI.SetFlags(flags)
 	aiMemorySvc := service.NewAiMemoryService(pool, q, orgSvc, wsSvc)
 	aiMemorySvc.SetFlags(flags)
+	aiMemorySvc.SetImport(gateway, rdb)
 	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google

@@ -36,6 +36,7 @@ func newMemWorld(t *testing.T) *memWorld {
 	d.AskUNI.SetReadTools(service.NewMcpToolService(q, d.AskUNI, d.Home, d.Workspaces, d.Cfg.FrontendOrigin))
 	d.AiMemory = service.NewAiMemoryService(pool, q, d.Organizations, d.Workspaces)
 	d.AiMemory.SetFlags(d.FeatureFlags)
+	d.AiMemory.SetImport(gw, nil)
 	d.AskUNI.SetMemory(d.AiMemory)
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
@@ -203,5 +204,50 @@ func TestSetAskUniMemoryReadsAnyOrganizationFlag(t *testing.T) {
 	w.flag(t, "ask_uni_memory", featureflags.ScopeOrganization, util.NewID(), true)
 	if s, out := put(); s != 403 || errCode(out) != "ai_memory_disabled" {
 		t.Fatalf("foreign organization override: %d %v", s, out)
+	}
+}
+
+func TestAiMemoryRoutesImport(t *testing.T) {
+	w := newMemWorld(t)
+	base := "/api/v1/orgs/aimem/ai/memory"
+	if s, out := w.call(t, w.owner, "POST", base+"/import/split", map[string]any{"text": "- a"}); s != 403 || errCode(out) != "ai_memory_disabled" {
+		t.Fatalf("flag off split: %d %v", s, out)
+	}
+	w.flag(t, "ask_uni_memory", featureflags.ScopeGlobal, "", true)
+
+	// The fake model keeps every line of the paste as a fact; the server marks
+	// the link instruction_like and the repeat a duplicate.
+	s, out := w.call(t, w.owner, "POST", base+"/import/split", map[string]any{"text": "- Tôi làm ở phòng kinh doanh\n- Xem https://example.com\n- tôi làm ở phòng kinh doanh\n"})
+	cands, _ := out["candidates"].([]any)
+	if s != 200 || len(cands) != 3 || out["skipped"] == nil {
+		t.Fatalf("split: %d %v", s, out)
+	}
+	if c := cands[1].(map[string]any); c["instruction_like"] != true || c["kind"] != "fact" {
+		t.Fatalf("link candidate: %v", c)
+	}
+	if c := cands[2].(map[string]any); c["duplicate"] != true {
+		t.Fatalf("repeat candidate: %v", c)
+	}
+	if s, _ := w.call(t, w.owner, "POST", base+"/import/split", map[string]any{"text": strings.Repeat("a", 20001)}); s != 400 {
+		t.Fatalf("long paste: %d", s)
+	}
+	if s, _ := w.call(t, w.owner, "POST", base+"/import/split", map[string]any{"text": "  "}); s != 400 {
+		t.Fatalf("empty paste: %d", s)
+	}
+
+	if s, out := w.call(t, w.owner, "POST", base+"/import", map[string]any{"entries": []map[string]any{{"kind": "fact", "text": "a"}, {"kind": "fact", "text": "hai\ndòng"}}}); s != 400 {
+		t.Fatalf("invalid entry: %d %v", s, out)
+	}
+	s, out = w.call(t, w.owner, "POST", base+"/import", map[string]any{"entries": []map[string]any{
+		{"kind": "fact", "text": "Tôi làm ở phòng kinh doanh"},
+		{"kind": "preference", "text": "Trả lời ngắn gọn"},
+		{"kind": "fact", "text": "tôi làm ở phòng kinh doanh"},
+	}})
+	entries, _ := out["entries"].([]any)
+	if s != 200 || len(entries) != 2 || out["skipped_duplicates"].(float64) != 1 || out["remaining"].(float64) != 48 {
+		t.Fatalf("import: %d %v", s, out)
+	}
+	if e := entries[1].(map[string]any); e["source"] != "import" {
+		t.Fatalf("entry: %v", e)
 	}
 }
