@@ -339,8 +339,9 @@ export function MeetingScribeCaptions({
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
   const translating = state === "translating";
   return (
-    // `dark`: the stage is dark in both themes; the footer sits outside its scope.
-    <div className={cn("dark pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
+    // `dark`: the stage is dark in both themes; the footer sits outside its scope. A set width,
+    // not w-full: the footer's stack fits its content, so the box would follow its longest line.
+    <div className={cn("dark pointer-events-none w-180 max-w-full", className)} data-testid="meeting-scribe-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech, each once. */}
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-announcer">
         {said.map((l) => `${nameOf(l.identity)}: ${l.text}`).join(" ")}

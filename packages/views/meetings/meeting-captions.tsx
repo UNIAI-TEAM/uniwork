@@ -170,7 +170,8 @@ export function MeetingCaptionsOverlay({
   const { t } = useTranslation();
   const text = paused ? t("meetings.captionsPausedMicOff") : interim || lastFinal;
   return (
-    <div className={cn("pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-captions">
+    // A set width, as the scribe's captions: the footer's stack fits its content.
+    <div className={cn("pointer-events-none w-180 max-w-full", className)} data-testid="meeting-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
       <p role="status" aria-live="polite" className="sr-only">
         {paused ? t("meetings.captionsPausedMicOff") : lastFinal}
