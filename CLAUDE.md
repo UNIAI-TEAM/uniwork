@@ -624,8 +624,7 @@ When adding a shared screen:
   `scripts/lucide-aliases.test.mjs` fails on an alias import or a raw
   `LoaderCircle` at every gate level. Every Lucide icon strokes 2.5px at every
   size (`packages/ui/styles/base.css`, non-scaling); the same test fails on a
-  `strokeWidth` prop or a size off the scale on one, beyond its shrinking
-  baselines.
+  `strokeWidth` prop or a size off the scale on one.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`

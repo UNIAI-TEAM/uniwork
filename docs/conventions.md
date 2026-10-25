@@ -375,15 +375,14 @@ meeting's participants panel, a date field's `CalendarDays`) keeps its own.
 
 | Size | Class | Role |
 | --- | --- | --- |
-| 12px | `size-3` | inside a chip or badge, `IconTile size="xs"` |
-| 14px | `size-3.5` | metadata beside caption text, `IconTile size="sm"` |
+| 12px | `size-3` | inside a chip or badge |
+| 14px | `size-3.5` | metadata beside caption text, `IconTile size="xs"` and `size="sm"` |
 | 16px | `size-4` | buttons, menu items, inputs, page-header glyph (`Button` sizes a bare svg to this) |
 | 20px | `size-5` | header tiles, `IconTile size="md"` |
 | 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
 
-No size between the rows (`size-4.5`, `size-5.5`, `size-2`). `scripts/lucide-aliases.test.mjs`
-fails on one on a Lucide icon; the calls written before the rule sit in its
-shrinking `SIZE_BASELINE` until the icon sweep (UNI-2163) clears them.
+No size between the rows (`size-4.5`, `size-5.5`, `size-2`); `scripts/lucide-aliases.test.mjs`
+fails on one on a Lucide icon.
 
 ### Stroke
 
@@ -396,8 +395,7 @@ CSS pixels, and it outranks any `strokeWidth` an icon is given.
 Do not set `strokeWidth` or `absoluteStrokeWidth` on a Lucide icon; pick the
 role's size instead. There is no exception, including the auth and onboarding
 cards, which used to draw a lighter hairline. `scripts/lucide-aliases.test.mjs`
-holds the rule in `base.css` and fails on a new stroke prop; the props written
-before it sit in its shrinking `STROKE_BASELINE` until the sweep clears them.
+holds the rule in `base.css` and fails on a stroke prop on any Lucide icon.
 Hand-drawn marks (`packages/ui/brand`, the task status and priority icons, the
 file-type marks) are not Lucide and draw their own weight. Beside line icons
 they match 2.5px at the size they render.

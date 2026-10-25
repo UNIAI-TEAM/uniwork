@@ -102,80 +102,12 @@ function iconOffences() {
   return { stroke, size };
 }
 
-// What the icon sweep (UNI-2163) still has to clear. These only shrink: fix a
-// file and delete its line, never add one.
-const STROKE_BASELINE = {
-  "apps/web/platform/unichat-login-gate.tsx": 1,
-  "packages/views/auth/auth-controls.tsx": 1,
-  "packages/views/auth/locale-switch.tsx": 1,
-  "packages/views/auth/password-field.tsx": 2,
-  "packages/views/chat/chat-create-reminder-dialog.tsx": 1,
-  "packages/views/chat/chat-forward-dialog.tsx": 1,
-  "packages/views/chat/chat-poll-message-row.tsx": 1,
-  "packages/views/chat/chat-poll-voters-dialog.tsx": 1,
-  "packages/views/chat/chat-sidebar-header.tsx": 1,
-  "packages/views/chat/chat-sidebar-rows.tsx": 1,
-  "packages/views/chat/selected-member-chips.tsx": 1,
-  "packages/views/chat/workspace-member-picker.tsx": 1,
-  "packages/views/meetings/meeting-background-picker.tsx": 1,
-  "packages/views/meetings/meeting-sheet/people-field.tsx": 1,
-  "packages/views/onboarding/components/step-sidebar.tsx": 1,
-  "packages/views/onboarding/steps/step-welcome.tsx": 1,
-  "packages/views/workspace/accept-invite/switch-steps.tsx": 1,
-};
-const SIZE_BASELINE = {
-  "apps/web/platform/unichat-login-gate.tsx": 1,
-  "packages/views/chat/channel-directory-sheet.tsx": 1,
-  "packages/views/chat/channel-settings-sheet.tsx": 1,
-  "packages/views/chat/chat-composer-parts.tsx": 4,
-  "packages/views/chat/chat-composer.tsx": 2,
-  "packages/views/chat/chat-create-poll-dialog.tsx": 2,
-  "packages/views/chat/chat-create-reminder-dialog.tsx": 2,
-  "packages/views/chat/chat-form-parts.tsx": 1,
-  "packages/views/chat/chat-mention-autocomplete.tsx": 1,
-  "packages/views/chat/chat-message-hover-actions.tsx": 4,
-  "packages/views/chat/chat-message-menu-items.tsx": 9,
-  "packages/views/chat/chat-message-parts.tsx": 4,
-  "packages/views/chat/chat-message-search-bar.tsx": 2,
-  "packages/views/chat/chat-page-empty-conversation.tsx": 1,
-  "packages/views/chat/chat-person-shared-panel.tsx": 1,
-  "packages/views/chat/chat-pinned-messages-bar.tsx": 1,
-  "packages/views/chat/chat-poll-message-row.tsx": 1,
-  "packages/views/chat/chat-post-message-row.tsx": 1,
-  "packages/views/chat/chat-room-bulletin-sheet.tsx": 1,
-  "packages/views/chat/chat-room-member-actions.tsx": 1,
-  "packages/views/chat/chat-settings-ui.tsx": 2,
-  "packages/views/chat/chat-sidebar-header.tsx": 3,
-  "packages/views/chat/chat-sidebar-parts.tsx": 1,
-  "packages/views/chat/chat-sidebar-rows.tsx": 1,
-  "packages/views/chat/chat-voice-message-row.tsx": 1,
-  "packages/views/chat/create-channel-dialog.tsx": 1,
-  "packages/views/chat/dm-settings-sheet.tsx": 1,
-  "packages/views/chat/group-settings-sheet.tsx": 1,
-  "packages/views/chat/message-task-card.tsx": 2,
-  "packages/views/chat/native-chat-panel-bars.tsx": 2,
-  "packages/views/chat/selected-member-chips.tsx": 1,
-  "packages/views/chat/voice-call-ended-panel.tsx": 1,
-  "packages/views/chat/voice-call-floating-panel.tsx": 4,
-  "packages/views/chat/voice-call-log-row.tsx": 1,
-  "packages/views/chat/voice-call-overlay.tsx": 2,
-  "packages/views/chat/voice-call-participants-panel.tsx": 2,
-  "packages/views/chat/voice-call-recording-controls.tsx": 1,
-  "packages/views/chat/voice-call-recording-dialog.tsx": 2,
-  "packages/views/chat/voice-call-recording-player.tsx": 3,
-  "packages/views/chat/voice-call-summary-row.tsx": 1,
-  "packages/views/chat/workspace-member-picker.tsx": 1,
-  "packages/views/chat/workspace-room-member-list.tsx": 1,
-  "packages/views/email-hub/email-hub-thread-toolbar.tsx": 4,
-  "packages/views/notifications/notification-mark.tsx": 1,
-};
-
-test("no Lucide icon sets its own stroke width beyond the shrinking baseline", () => {
-  assert.deepEqual(iconOffences().stroke, STROKE_BASELINE, "a Lucide icon's stroke comes from base.css; drop the prop and its baseline line");
+test("no Lucide icon sets its own stroke width", () => {
+  assert.deepEqual(iconOffences().stroke, {}, "a Lucide icon's stroke comes from base.css; drop the prop");
 });
 
-test("every Lucide icon sits on the size scale beyond the shrinking baseline", () => {
-  assert.deepEqual(iconOffences().size, SIZE_BASELINE, "use size-3, 3.5, 4, 5 or 6 and up; fix the call and its baseline line");
+test("every Lucide icon sits on the size scale", () => {
+  assert.deepEqual(iconOffences().size, {}, "use size-3, 3.5, 4, 5 or 6 and up");
 });
 
 // A loading glyph is <Spinner /> (packages/ui/components/ui/spinner.tsx): one
