@@ -80,7 +80,8 @@ describe("AskUniMemory", () => {
   it("deletes with an undo that creates the entry again", async () => {
     mount();
     await screen.findByText("Trả lời ngắn gọn");
-    fireEvent.click(screen.getAllByRole("button", { name: "Xóa mục này" })[0]!);
+    // Each delete button names its entry, so a screen reader tells the lines apart.
+    fireEvent.click(screen.getByRole("button", { name: "Xóa mục: Trả lời ngắn gọn" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(`${LIST}/m1`, { method: "DELETE" }));
     await waitFor(() => expect(toastMock).toHaveBeenCalled());
     expect(toastMock.mock.calls[0]![0]).toBe("Đã xóa một mục");
@@ -98,7 +99,7 @@ describe("AskUniMemory", () => {
     await user.tab(); // switch
     await user.tab(); // first line
     await user.tab(); // its delete button
-    expect(screen.getAllByRole("button", { name: "Xóa mục này" })[0]).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Xóa mục: Trả lời ngắn gọn" })).toHaveFocus();
     await user.keyboard("{Enter}");
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(`${LIST}/m1`, { method: "DELETE" }));
   });
@@ -122,8 +123,9 @@ describe("AskUniMemory", () => {
     const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
     fireEvent.change(box, { target: { value: "😀".repeat(301) } });
     expect(box).not.toHaveAttribute("maxlength"); // a UTF-16 maxLength would stop an emoji line early
+    // The red border comes with its reason at once, not only after Enter.
+    expect(screen.getByRole("alert")).toHaveTextContent("Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.");
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.");
     expect(calls("PATCH")).toHaveLength(0);
     fireEvent.change(box, { target: { value: "😀".repeat(300) } });
     fireEvent.keyDown(box, { key: "Enter" });

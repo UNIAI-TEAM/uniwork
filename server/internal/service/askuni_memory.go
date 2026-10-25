@@ -20,13 +20,14 @@ import (
 )
 
 // askWithMemory is the dock prompt with the asker's memory for each one
-// without (R8). A turn sent the write tools runs @20 to @23 (UNI-2158), so
-// @14, @15, @18 and @19 are no longer picked.
+// without (R8). A turn sent the write tools runs @20 to @23 (UNI-2158), and a
+// memory turn runs @28 to @35, which add the memory-use lines (UNI-2159), so
+// @12 to @27 are no longer picked.
 var askWithMemory = map[string]string{
-	ai.PromptCopilotAnswerV4: ai.PromptCopilotAnswerV12, ai.PromptCopilotAnswerV5: ai.PromptCopilotAnswerV13,
-	ai.PromptCopilotAnswerV8: ai.PromptCopilotAnswerV16, ai.PromptCopilotAnswerV9: ai.PromptCopilotAnswerV17,
-	ai.PromptCopilotAnswerV20: ai.PromptCopilotAnswerV24, ai.PromptCopilotAnswerV21: ai.PromptCopilotAnswerV25,
-	ai.PromptCopilotAnswerV22: ai.PromptCopilotAnswerV26, ai.PromptCopilotAnswerV23: ai.PromptCopilotAnswerV27,
+	ai.PromptCopilotAnswerV4: ai.PromptCopilotAnswerV28, ai.PromptCopilotAnswerV5: ai.PromptCopilotAnswerV29,
+	ai.PromptCopilotAnswerV8: ai.PromptCopilotAnswerV30, ai.PromptCopilotAnswerV9: ai.PromptCopilotAnswerV31,
+	ai.PromptCopilotAnswerV20: ai.PromptCopilotAnswerV32, ai.PromptCopilotAnswerV21: ai.PromptCopilotAnswerV33,
+	ai.PromptCopilotAnswerV22: ai.PromptCopilotAnswerV34, ai.PromptCopilotAnswerV23: ai.PromptCopilotAnswerV35,
 }
 
 // askMemoryTurn is the asker's memory as one turn sees it: the entries in M#

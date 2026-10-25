@@ -109,7 +109,7 @@ export function AskUniMemoryReview({
           <ul className="mt-1 flex flex-col gap-1">
             {split.skipped.map((s, i) => (
               <li key={i}>
-                {s.text}
+                {s.text || t("importer.hidden_text")}
                 {s.reason ? ` (${t(`importer.reason_${s.reason}`, { defaultValue: s.reason })})` : ""}
               </li>
             ))}

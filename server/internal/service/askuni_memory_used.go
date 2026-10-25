@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// copilot_answer@12 to @19 may end an answer with "<memory_used>M1, M3</memory_used>"
+// copilot_answer@12 to @19 and @24 to @35 may end an answer with "<memory_used>M1, M3</memory_used>"
 // naming the memory entries it used (R12). The server strips the block, stores
 // the entry ids on the answer and sends them as a memory_used event.
 

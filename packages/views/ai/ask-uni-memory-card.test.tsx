@@ -63,9 +63,12 @@ describe("AskUniMemoryCard", () => {
     expect(screen.getByRole("button", { name: "Lưu" })).toBeInTheDocument();
   });
 
-  it("asks to forget an entry", () => {
-    mount(row({ action: "forget", text: "Tôi là kế toán" }));
+  it("asks to forget an entry and shows which one", () => {
+    // A forget row carries the entry in before_*; its own kind and text are empty, as the server stores it.
+    mount(row({ action: "forget", kind: "", text: "", before_kind: "preference", before_text: "Không dùng emoji" }));
     expect(screen.getByText("Quên mục này?")).toBeInTheDocument();
+    expect(screen.getByText("Không dùng emoji")).toBeInTheDocument();
+    expect(screen.getByText("Cách UNI trả lời")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Quên" })).toBeInTheDocument();
   });
 
@@ -73,6 +76,10 @@ describe("AskUniMemoryCard", () => {
     requestMock.mockResolvedValue(row({ text: "Mới" }));
     mount(row());
     fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+    // A wrapping box on its own line, so a 300-character entry reads whole in the narrow dock; a line break is a space.
+    expect(screen.getByLabelText("Chữ sẽ lưu").tagName).toBe("TEXTAREA");
+    fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "Mới\nhơn" } });
+    expect(screen.getByLabelText("Chữ sẽ lưu")).toHaveValue("Mới hơn");
     fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "Mới" } });
     fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
     await waitFor(() =>
@@ -85,8 +92,9 @@ describe("AskUniMemoryCard", () => {
     mount(row());
     fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
     fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "😀".repeat(301) } });
-    fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+    // The red border comes with its reason at once, not only after a save.
     expect(screen.getByRole("alert")).toHaveTextContent("Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
     expect(requestMock).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "😀".repeat(300) } });
     fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));

@@ -33,7 +33,7 @@ var (
 // model said: a link, or a phrase prompt injection is known for.
 var aiMemoryInjectionPattern = regexp.MustCompile(`(?i)https?://|www\.|ignore (all )?(previous|prior)|system prompt|developer mode|you are now|bỏ qua (mọi |tất cả )?(hướng dẫn|chỉ dẫn)`)
 
-// The skip reasons memory_import@1 may give; anything else is not_about_user.
+// The skip reasons memory_import@2 may give; anything else is not_about_user.
 var aiMemorySkipReasons = map[string]bool{"personal": true, "other_person": true, "secret": true, "not_about_user": true}
 
 // AiMemoryImportSplit is what UNI split out of a paste; nothing is stored.
@@ -107,7 +107,7 @@ type aiMemoryImportEntry struct {
 	SkipReason      string `json:"skip_reason"`
 }
 
-// splitCall asks memory_import@1 for the entries. An answer that is not the
+// splitCall asks memory_import@2 for the entries. An answer that is not the
 // schema's JSON, or one cut at the token ceiling (ErrOutputInvalid from the
 // gateway), is asked once more; every attempt is its own usage row.
 func (s *AiMemoryService) splitCall(ctx context.Context, userID, orgID, text string) ([]aiMemoryImportEntry, error) {
@@ -184,7 +184,11 @@ func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiM
 			e.SkipReason = "not_about_user"
 		}
 		if len(out.Skipped) < aiMemoryImportMaxCandidates {
-			out.Skipped = append(out.Skipped, AiMemorySkipped{Text: strings.TrimSpace(text), Reason: e.SkipReason})
+			shown := strings.TrimSpace(text)
+			if e.SkipReason == "secret" {
+				shown = "" // a pasted password is never sent back to the screen
+			}
+			out.Skipped = append(out.Skipped, AiMemorySkipped{Text: shown, Reason: e.SkipReason})
 		}
 	}
 	return out
