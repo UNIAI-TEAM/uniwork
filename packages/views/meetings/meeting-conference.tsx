@@ -136,6 +136,8 @@ function ConferenceStage({
   const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [footerReserve, setFooterReserve] = useState(96);
   const stageContentRef = useRef<HTMLDivElement>(null);
+  // The stage frame the scribe's captions float over (state, so the captions follow it once it mounts).
+  const [stageFrame, setStageFrame] = useState<HTMLDivElement | null>(null);
   const handleFooterReserveChange = useCallback((heightPx: number) => {
     setFooterReserve((prev) => (prev === heightPx ? prev : heightPx));
   }, []);
@@ -259,6 +261,7 @@ function ConferenceStage({
           enabled={captionsOn}
           joining={!scribeCaptioning}
           meetingId={resolvedMeetingId || undefined}
+          stage={stageFrame}
         />
       ) : (
         <MeetingLiveCaptions
@@ -267,7 +270,7 @@ function ConferenceStage({
           onError={handleCaptionsError}
         />
       ),
-    [resolvedMeetingId, captionsOn, scribeCaptioning, scribeJoining, handleCaptionsError],
+    [resolvedMeetingId, captionsOn, scribeCaptioning, scribeJoining, stageFrame, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(
@@ -298,7 +301,10 @@ function ConferenceStage({
           !compact && sidebarPinned ? "gap-3" : "gap-0",
         )}
       >
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border">
+        <div
+          ref={setStageFrame}
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border"
+        >
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <MeetingStageHeader
               meeting={meeting}

@@ -12,6 +12,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MEETING_AVATAR_TINTS } from "./meeting-detail/avatar-tint";
+import { useCaptionFrame } from "./meeting-scribe-caption-frame";
 import { CaptionText, useCaptionScroll, useLanguageThumb } from "./meeting-scribe-caption-motion";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
@@ -418,11 +419,14 @@ export function MeetingScribeCaptions({
   enabled,
   meetingId,
   joining = false,
+  stage = null,
   className,
 }: {
   enabled: boolean;
   meetingId?: string;
   joining?: boolean;
+  /** The meeting's stage frame, which the captions can float over; without it they only dock. */
+  stage?: HTMLElement | null;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -433,7 +437,8 @@ export function MeetingScribeCaptions({
   const said = useSpokenOnce(ready);
   const notice = useTranslationNotice(lang, state, skipReason);
   const view = useRef<HTMLDivElement>(null);
-  const { reading, unseen, latest } = useCaptionScroll(view, lines);
+  const frame = useCaptionFrame(stage);
+  const { reading, unseen, latest } = useCaptionScroll(view, lines, frame.floating ? null : frame.rows);
   const thumb = useLanguageThumb(lang || ORIGINAL);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
@@ -441,7 +446,12 @@ export function MeetingScribeCaptions({
   return (
     // `dark`: the stage is dark in both themes; the footer sits outside its scope. A set width,
     // not w-full: the footer's stack fits its content, so the box would follow its longest line.
-    <div className={cn("dark pointer-events-none w-180 max-w-full", className)} data-testid="meeting-scribe-captions">
+    // Floating, its docked slot takes no room, so the footer gives that height back to the stage.
+    <div
+      className={cn("dark pointer-events-none", frame.floating ? "w-0" : "w-180 max-w-full", className)}
+      data-testid="meeting-scribe-captions"
+      data-placement={frame.floating ? "floating" : "docked"}
+    >
       {/* Interim words change several times a second; only finished sentences reach assistive tech, each once. */}
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-announcer">
         {said.map((l) => `${nameOf(l.identity)}: ${l.text}`).join(" ")}
@@ -452,12 +462,22 @@ export function MeetingScribeCaptions({
       {/* Reading back, the box slides open upwards over the stage: its negative margin keeps the room it takes
           in the footer, so the tiles never reflow while someone scrolls (useCaptionScroll slides both). */}
       <div
+        ref={frame.card}
         data-reading={reading ? "" : undefined}
-        className="relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px]"
+        style={frame.cardStyle}
+        className={cn(
+          "relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px]",
+          // Floating over the room where the viewer put it, at the size they gave it.
+          frame.floating && "pointer-events-auto fixed z-30 flex flex-col",
+          // Dragged over the docking zone: it will dock when let go.
+          frame.dockHint && "ring-2 ring-tint-violet-foreground",
+        )}
       >
+        {frame.handles}
         {/* Joining or translating, the scribe is busy rather than listening: the light gathers and travels. */}
         <ScribeVoiceLine level={() => roomLoudness(room)} processing={joining || translating} />
-        <div className="flex min-h-8 flex-wrap items-center gap-x-2.5 gap-y-1">
+        <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          {frame.grip}
           <p
             aria-hidden
             className="flex items-center gap-2.5 text-caption font-medium tracking-[0.01em] text-meeting-bar-muted-foreground"
@@ -551,7 +571,11 @@ export function MeetingScribeCaptions({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           data-reading={reading ? "" : undefined}
-          className="pointer-events-auto relative mt-1.5 flex h-[calc(var(--cap-lh)*2.6)] flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] data-reading:[mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95),black_calc(100%-1lh*0.6),transparent)] sm:text-title [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            "pointer-events-auto relative mt-1.5 flex flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] data-reading:[mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95),black_calc(100%-1lh*0.6),transparent)] sm:text-title [&::-webkit-scrollbar]:hidden",
+            // Docked, the lines the viewer chose (useCaptionFrame's --cap-rows); floating, what the box leaves it.
+            frame.floating ? "min-h-0 flex-1" : "h-[calc(var(--cap-lh)*var(--cap-rows))]",
+          )}
         >
           {/* mt-auto, not justify-end: a column justified to its end cannot scroll back to what overflows its start. */}
           <div className="mt-auto">

@@ -14,9 +14,8 @@ const gap = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeigh
 
 /** How long the box takes to slide open or shut. */
 const SLIDE_MS = 300;
-/** The box's open and compact heights, in lines (compact is the region's `h-[calc(var(--cap-lh)*2.6)]`). */
+/** The docked box's height in lines when it slides open to read back (no taller box slides). */
 const OPEN_LINES = 6;
-const COMPACT_LINES = 2.6;
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
 /**
@@ -27,9 +26,11 @@ const easeOut = (t: number) => 1 - (1 - t) ** 3;
  * scrolling, follows again and slides the box shut. Only the viewer's own
  * wheel, swipe or keys leave the bottom, so the box's own smooth scrolls never
  * count as reading. `content` is what the box shows: each change of it may
- * have grown it. Reduced motion: it jumps instead of gliding.
+ * have grown it. `compactRows` is the docked box's height in lines; null when
+ * it floats at a size the viewer chose, and then it never slides open.
+ * Reduced motion: it jumps instead of gliding.
  */
-export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: unknown) {
+export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: unknown, compactRows: number | null) {
   const [reading, setReading] = useState(false);
   const [unseen, setUnseen] = useState(false);
   const height = useRef(0);
@@ -45,11 +46,19 @@ export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: u
   useLayoutEffect(() => {
     const el = view.current;
     const card = el?.parentElement;
-    if (!el || !card || slid.current === reading) return;
-    slid.current = reading;
+    if (!el || !card) return;
     const lineHeight = Number.parseFloat(getComputedStyle(card).getPropertyValue("--cap-lh")) || 0;
-    const compact = lineHeight * COMPACT_LINES;
+    const compact = lineHeight * (compactRows ?? 0);
     const open = lineHeight * OPEN_LINES;
+    // Floating at the viewer's size, or docked at least as tall as open: nothing slides, nothing stays inline.
+    if (compactRows === null || compact >= open) {
+      el.style.height = "";
+      card.style.marginTop = "";
+      slid.current = reading;
+      return;
+    }
+    if (slid.current === reading) return;
+    slid.current = reading;
     const place = (h: number) => {
       el.style.height = `${h}px`;
       card.style.marginTop = `${compact - h}px`;
@@ -83,7 +92,7 @@ export function useCaptionScroll(view: RefObject<HTMLElement | null>, content: u
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [view, reading]);
+  }, [view, reading, compactRows]);
   // Unmounted while open: nothing is left inline.
   useEffect(
     () => () => {

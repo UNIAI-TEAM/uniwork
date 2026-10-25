@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { requestMock, wrap } from "../test/api-mock";
 import {
   applyScribeCaption,
@@ -46,6 +47,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  useMeetingRoomPreferencesStore.setState({ captionPlacement: "docked", captionLines: 2, captionFloat: null });
   lk.remote = [];
   lk.remoteOptions = [];
   lk.handlers.clear();
@@ -183,6 +185,38 @@ describe("MeetingScribeCaptions", () => {
     top = 230;
     fireEvent.scroll(region);
     expect(screen.queryByTestId("meeting-caption-latest")).not.toBeInTheDocument();
+  });
+
+  it("floats over the stage and docks again from its grip, moved and resized by keys too", () => {
+    const stage = document.createElement("div");
+    stage.getBoundingClientRect = () => ({ left: 40, top: 60, width: 1000, height: 600, right: 1040, bottom: 660, x: 40, y: 60, toJSON: () => ({}) }) as DOMRect;
+    render(wrap(<MeetingScribeCaptions enabled stage={stage} />));
+    const root = screen.getByTestId("meeting-scribe-captions");
+    const card = () => root.querySelector<HTMLElement>("[data-reading], .isolate")!;
+    expect(root).toHaveAttribute("data-placement", "docked");
+    // Docked, Shift + arrows show more or fewer whole lines.
+    fireEvent.keyDown(screen.getByTestId("meeting-caption-grip"), { key: "ArrowUp", shiftKey: true });
+    expect(useMeetingRoomPreferencesStore.getState().captionLines).toBe(3);
+    expect(card().style.getPropertyValue("--cap-rows")).toBe("3.6");
+    fireEvent.click(screen.getByRole("button", { name: "Tách khung phụ đề ra" }));
+    expect(root).toHaveAttribute("data-placement", "floating");
+    // Its first place: the stage's bottom-right corner, above the control bar.
+    expect(card().style).toMatchObject({ left: "468px", top: "396px", width: "560px", height: "168px" });
+    expect(screen.getAllByTestId(/meeting-caption-resize-/)).toHaveLength(8);
+    fireEvent.keyDown(screen.getByTestId("meeting-caption-grip"), { key: "ArrowLeft" });
+    expect(card().style.left).toBe("452px");
+    fireEvent.keyDown(screen.getByTestId("meeting-caption-grip"), { key: "ArrowDown", shiftKey: true });
+    expect(card().style.height).toBe("184px");
+    expect(useMeetingRoomPreferencesStore.getState().captionFloat).toMatchObject({ x: 412, width: 560, height: 184 });
+    fireEvent.click(screen.getByRole("button", { name: "Neo khung phụ đề lại" }));
+    expect(root).toHaveAttribute("data-placement", "docked");
+    expect(screen.queryAllByTestId(/meeting-caption-resize-[-0-9]/)).toHaveLength(0);
+  });
+
+  it("only docks without a stage to float over", () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    expect(screen.queryByTestId("meeting-caption-grip")).not.toBeInTheDocument();
+    expect(screen.getByTestId("meeting-scribe-captions")).toHaveAttribute("data-placement", "docked");
   });
 
   it("lights its voice line from the room's loudest speaker", () => {
