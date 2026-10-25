@@ -118,11 +118,9 @@ function CollapseRow() {
   const label = t(collapsed ? "nav.expand_sidebar" : "nav.collapse_sidebar");
   const Icon = collapsed ? ChevronsRight : ChevronsLeft;
   return (
-    <SidebarMenuButton tooltip={label} className={navButtonClass} onClick={toggleSidebar}>
-      {/* The module tile's box, so the chevrons line up with the icons above. */}
-      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
-        <Icon className="size-4" />
-      </span>
+    // Centred in the full-width row: it is the card's closing action, not one more module row.
+    <SidebarMenuButton tooltip={label} className={`${navButtonClass} justify-center`} onClick={toggleSidebar}>
+      <Icon aria-hidden className="size-4 shrink-0" />
       <span>{label}</span>
     </SidebarMenuButton>
   );

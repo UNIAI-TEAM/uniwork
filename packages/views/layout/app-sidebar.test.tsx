@@ -98,7 +98,10 @@ describe("AppSidebar", () => {
       expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
       // A full-width row with a named action, not a bare icon in the corner; it renames itself once collapsed.
       const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
-      fireEvent.click(within(footer).getByRole("button", { name: "Thu gọn thanh bên" }));
+      const collapse = within(footer).getByRole("button", { name: "Thu gọn thanh bên" });
+      // The row spans the card, so its chevrons and label sit centred in it.
+      expect(collapse).toHaveClass("justify-center");
+      fireEvent.click(collapse);
       expect(sidebar).toHaveAttribute("data-state", "collapsed");
       expect(within(footer).getByRole("button", { name: "Mở rộng thanh bên" })).toHaveAttribute("data-slot", "sidebar-menu-button");
       // The switcher and the account live on the top bar there.
