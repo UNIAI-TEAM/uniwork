@@ -469,7 +469,9 @@ describe("useAskModelChoice", () => {
     const { result } = setup();
     act(() => void result.current.ask({ question: "q", conversation_id: "c1" }));
     emit({ type: "memory_proposals", proposals: [memRow] });
+    emit({ type: "memory_used", memoryIds: ["e1"] });
     emit({ type: "done", message: msg({ notice: "stopped" }), usage: usage0 });
+    expect(result.current.state.memoryIds).toEqual([]);
     expect(result.current.state.message?.memory_proposals).toEqual([]);
     expect(result.current.state.memoryProposals).toEqual([]);
   });

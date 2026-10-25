@@ -240,6 +240,7 @@ export function useAskUniStream(wsId: string) {
               message,
               proposals: stopped ? [] : s.proposals,
               memoryProposals: stopped ? [] : s.memoryProposals,
+              memoryIds: stopped ? [] : s.memoryIds,
               // The stored steps add the think step that holds the answer call's thinking.
               steps: message.steps.length > 0 ? message.steps : s.steps,
               thinking: "",

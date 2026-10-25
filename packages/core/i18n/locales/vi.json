@@ -6431,8 +6431,7 @@
         "edit_cancel": "Hủy",
         "edit_text": "Chữ sẽ lưu",
         "was": "Trước đây",
-        "tainted": "UNI đã đọc nội dung người khác viết trong cuộc trò chuyện này. Chỉ nhớ nếu đúng là ý bạn.",
-        "step": "Đề xuất nhớ"
+        "tainted": "UNI đã đọc nội dung người khác viết trong cuộc trò chuyện này. Chỉ nhớ nếu đúng là ý bạn."
       },
       "used": {
         "label": "Đã dùng bộ nhớ: {{text}}",

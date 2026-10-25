@@ -6484,8 +6484,7 @@
         "edit_cancel": "Cancel",
         "edit_text": "Text to save",
         "was": "Before",
-        "tainted": "UNI read content written by other people in this conversation. Only remember it if it is really what you mean.",
-        "step": "Proposing a memory"
+        "tainted": "UNI read content written by other people in this conversation. Only remember it if it is really what you mean."
       },
       "used": {
         "label": "Used memory: {{text}}",
