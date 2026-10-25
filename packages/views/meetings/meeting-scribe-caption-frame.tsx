@@ -30,27 +30,31 @@ const DOCK_ZONE = 120;
 const DRAG_SLOP = 4;
 /** One arrow-key step, for the keyboard way to move and resize (WCAG 2.5.7). */
 const KEY_STEP = 16;
-/** A floating box above the control bar's height when it first floats without a drag. */
+/** The strip a floating box keeps clear above the room's bottom edge: the control bar and its margin. */
 const BAR_CLEARANCE = 96;
 
 type Size = { width: number; height: number };
 
-/** Keeps a floating box inside the room, at least its minimum size, at most the room's width and 60% of its height. */
+/**
+ * Keeps a floating box inside the room, at least its minimum size, at most the room's width and 60% of its
+ * height, and above the control bar's strip: it floats over the bar's layer, and must never hide the mic
+ * or leave buttons.
+ */
 export function clampFloat(r: CaptionFloatRect, room: Size): CaptionFloatRect {
   const width = Math.min(Math.max(r.width, FLOAT_MIN.width), Math.max(FLOAT_MIN.width, room.width - 2 * MARGIN));
   const height = Math.min(Math.max(r.height, FLOAT_MIN.height), Math.max(FLOAT_MIN.height, room.height * FLOAT_MAX_HEIGHT));
   return {
     x: Math.min(Math.max(r.x, MARGIN), Math.max(MARGIN, room.width - width - MARGIN)),
-    y: Math.min(Math.max(r.y, MARGIN), Math.max(MARGIN, room.height - height - MARGIN)),
+    y: Math.min(Math.max(r.y, MARGIN), Math.max(MARGIN, room.height - height - BAR_CLEARANCE)),
     width,
     height,
   };
 }
 
-/** Dropped near an edge, the box sits flush against it, a margin away. */
+/** Dropped near an edge, the box sits flush against it, a margin away (the bottom one: just above the bar). */
 export function snapFloat(r: CaptionFloatRect, room: Size): CaptionFloatRect {
   const right = room.width - r.width - MARGIN;
-  const bottom = room.height - r.height - MARGIN;
+  const bottom = room.height - r.height - BAR_CLEARANCE;
   const x = Math.abs(r.x - MARGIN) < SNAP ? MARGIN : Math.abs(r.x - right) < SNAP ? right : r.x;
   const y = Math.abs(r.y - MARGIN) < SNAP ? MARGIN : Math.abs(r.y - bottom) < SNAP ? bottom : r.y;
   return { ...r, x, y };

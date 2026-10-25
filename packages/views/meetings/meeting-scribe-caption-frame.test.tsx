@@ -6,15 +6,20 @@ const room = { width: 1000, height: 600 };
 describe("clampFloat", () => {
   it("keeps a floating box inside the room, between its minimum size and the room's width or 60% of its height", () => {
     expect(clampFloat({ x: -50, y: -50, width: 100, height: 50 }, room)).toEqual({ x: 12, y: 12, ...FLOAT_MIN });
-    expect(clampFloat({ x: 900, y: 500, width: 2000, height: 900 }, room)).toEqual({ x: 12, y: 228, width: 976, height: 360 });
+    expect(clampFloat({ x: 900, y: 500, width: 2000, height: 900 }, room)).toEqual({ x: 12, y: 144, width: 976, height: 360 });
     expect(clampFloat({ x: 300, y: 200, width: 400, height: 160 }, room)).toEqual({ x: 300, y: 200, width: 400, height: 160 });
+  });
+
+  it("never lets the box down over the control bar's strip, so the mic and leave buttons stay in reach", () => {
+    const low = clampFloat({ x: 300, y: 560, width: 400, height: 160 }, room);
+    expect(low.y + low.height).toBe(room.height - 96);
   });
 });
 
 describe("snapFloat", () => {
   it("sits a box dropped near an edge flush against it, and leaves one in the open where it was", () => {
     expect(snapFloat({ x: 25, y: 30, width: 400, height: 160 }, room)).toMatchObject({ x: 12, y: 12 });
-    expect(snapFloat({ x: 580, y: 420, width: 400, height: 160 }, room)).toMatchObject({ x: 588, y: 428 });
+    expect(snapFloat({ x: 580, y: 330, width: 400, height: 160 }, room)).toMatchObject({ x: 588, y: 344 });
     expect(snapFloat({ x: 300, y: 200, width: 400, height: 160 }, room)).toMatchObject({ x: 300, y: 200 });
   });
 });
