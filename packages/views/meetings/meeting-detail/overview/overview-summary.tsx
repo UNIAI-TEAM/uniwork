@@ -1,11 +1,12 @@
 "use client";
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, Info, Sparkles } from "lucide-react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Info, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api/http";
 import { useMeetingMinutes } from "@uniwork/core/meetings/minutes";
 import { useMeetingSummaryRun } from "@uniwork/core/meetings/summary";
 import { useFullTranscript } from "@uniwork/core/meetings/transcript";
+import { ScribeMark, type ScribeMarkState } from "@uniwork/ui/brand/scribe-mark";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { meetingLocale, splitIsoLocal } from "../../meeting-datetime";
@@ -17,7 +18,6 @@ import { useSummaryGeneration } from "../../meeting-summary/use-summary-generati
 import { useDetail } from "../detail-context";
 import { clock } from "../format";
 import { kitButton } from "../ui/kit-buttons";
-import { NoticeLine } from "../ui/notice-line";
 import { Byline, Section } from "../ui/section";
 import { TextButton } from "../ui/text-button";
 import { TEXT_BUTTON_HIT } from "./overview-recap";
@@ -150,6 +150,41 @@ function SummaryProse({ text, finalized, spaced }: { text: string; finalized: bo
   );
 }
 
+/**
+ * Why there is no summary to read, as one calm card: Thư ký UNI's mark in the
+ * state it is in, the sentence, what still reads, and the one thing to do.
+ */
+function SummaryStateCard({
+  mark,
+  title,
+  caption,
+  captionId,
+  action,
+  role,
+}: {
+  mark: ScribeMarkState;
+  title: ReactNode;
+  caption?: ReactNode;
+  captionId?: string;
+  action?: ReactNode;
+  role?: "alert";
+}) {
+  return (
+    <div role={role} className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-4 max-sm:flex-wrap">
+      <ScribeMark size={32} state={mark} />
+      <div className="min-w-0 flex-1">
+        <p className="text-body font-medium text-foreground">{title}</p>
+        {caption ? (
+          <p id={captionId} className="mt-0.5 text-caption text-pretty text-muted-foreground">
+            {caption}
+          </p>
+        ) : null}
+      </div>
+      {action ? <div className="shrink-0 max-sm:basis-full max-sm:pl-11">{action}</div> : null}
+    </div>
+  );
+}
+
 /** Tóm tắt (brief §2.6 + AfterAIStates c1–c3): the AI's prose with its byline, or why there is none yet. */
 export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
   const { t, i18n } = useTranslation();
@@ -163,22 +198,20 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
   const retry = gen.showGenerate && (failure?.retryable ?? false);
 
   const failed = failure ? (
-    <NoticeLine
-      tone="destructive"
-      icon={CircleAlert}
+    <SummaryStateCard
+      mark="failed"
       role="alert"
+      title={failure.text || (attempts > 1 ? t("meetings.detail.overview.failedTimes", { count: attempts }) : t("meetings.detail.overview.failed"))}
       caption={now ? t("meetings.detail.overview.failedKeep", { sources: sourceWords(sourceCounts(times), t, locale, { lead: true }) }) : undefined}
-    >
-      {/* One 24 row, the retry 12 after the sentence (kit `.ai-err .notice`). */}
-      <span className="flex items-center gap-2">
-        <span>{failure.text || (attempts > 1 ? t("meetings.detail.overview.failedTimes", { count: attempts }) : t("meetings.detail.overview.failed"))}</span>
-        {retry ? (
-          <TextButton className={cn("ml-1 shrink-0", TEXT_BUTTON_HIT)} onClick={gen.requestGenerate}>
+      action={
+        retry ? (
+          <Button type="button" variant="outline" className={cn(kitButton.sm, kitButton.outline)} onClick={gen.requestGenerate}>
+            <RotateCcw aria-hidden />
             {t("common.retry")}
-          </TextButton>
-        ) : null}
-      </span>
-    </NoticeLine>
+          </Button>
+        ) : undefined
+      }
+    />
   ) : null;
 
   const running = (
@@ -211,29 +244,29 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
     ) : state === "failed" ? (
       failed
     ) : state === "none" ? (
-      <div className="flex flex-col items-start gap-3">
-        <div>
-          <p className="text-body">{gen.aiOn || !gen.capsLoaded ? t("meetings.detail.overview.none") : t("meetings.aiUnavailable")}</p>
-          {gen.showGenerate ? (
-            <p id={reasonId} className="mt-0.5 text-caption text-muted-foreground">
-              {gen.hasSource && now ? t("meetings.detail.overview.noneFrom", { sources: now }) : t("meetings.summaryNeedsSource")}
-            </p>
-          ) : null}
-        </div>
-        {gen.showGenerate ? (
-          <Button
-            type="button"
-            variant="outline"
-            className={cn(kitButton.sm, kitButton.outline)}
-            aria-disabled={gen.blockedReason !== null || undefined}
-            aria-describedby={gen.hasSource ? undefined : reasonId}
-            onClick={gen.requestGenerate}
-          >
-            <Sparkles aria-hidden />
-            {t("meetings.detail.overview.generate")}
-          </Button>
-        ) : null}
-      </div>
+      <SummaryStateCard
+        mark={gen.aiOn || !gen.capsLoaded ? "idle" : "off"}
+        title={gen.aiOn || !gen.capsLoaded ? t("meetings.detail.overview.none") : t("meetings.aiUnavailable")}
+        captionId={reasonId}
+        caption={
+          gen.showGenerate ? (gen.hasSource && now ? t("meetings.detail.overview.noneFrom", { sources: now }) : t("meetings.summaryNeedsSource")) : undefined
+        }
+        action={
+          gen.showGenerate ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(kitButton.sm, kitButton.outline)}
+              aria-disabled={gen.blockedReason !== null || undefined}
+              aria-describedby={gen.hasSource ? undefined : reasonId}
+              onClick={gen.requestGenerate}
+            >
+              <Sparkles aria-hidden />
+              {t("meetings.detail.overview.generate")}
+            </Button>
+          ) : undefined
+        }
+      />
     ) : undefined;
 
   return (

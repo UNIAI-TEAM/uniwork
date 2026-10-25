@@ -1,17 +1,16 @@
 "use client";
 import { useState } from "react";
-import { ChevronRight, RotateCcwClock } from "lucide-react";
+import { ChevronRight, ListChecks, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNotes } from "@uniwork/core/meetings";
 import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { ActionItemsBoard } from "../close-out/action-items-board";
 import { useDetail } from "../detail-context";
-import { clock } from "../format";
-import { NotesFeed } from "../live/notes-feed";
+import { NoteRows, NotesFeed } from "../live/notes-feed";
 import { HistoryDrawer } from "../rail/history-drawer";
 import { showsHistoryLink } from "../rail/rail-model";
 import { Section } from "../ui/section";
-import { TimeGutterRow } from "../ui/time-row";
 import { OverviewRecap, RecapSection, recapDrawn } from "./overview-recap";
 import { OverviewSummary, useOverviewSummary, type OverviewSummaryModel } from "./overview-summary";
 
@@ -33,24 +32,9 @@ function PhoneNotes() {
   const { data, isError } = useNotes(meeting.id);
   if (isError) return <NotesFeed variant="overview" />;
   if (!data?.length) return null;
-  // shortcut: mirrors NotesFeed's NoteRows (author only when it changes); use it once live/notes-feed.tsx exports it.
   return (
     <RecapSection id="ghi-chu" title={t("meetings.detail.notes.title")} count={data.length}>
-      <ol className="flex flex-col gap-2">
-        {data.map((note, i) => {
-          const changed = i === 0 || data[i - 1]!.author_id !== note.author_id;
-          return (
-            <TimeGutterRow
-              key={note.id}
-              time={clock(note.created_at)}
-              author={changed ? note.display_name?.trim() || t("meetings.formerMember") : undefined}
-              className={changed && i > 0 ? "mt-2" : undefined}
-            >
-              <span className="break-words whitespace-pre-wrap">{note.body}</span>
-            </TimeGutterRow>
-          );
-        })}
-      </ol>
+      <NoteRows notes={data} />
     </RecapSection>
   );
 }
@@ -84,7 +68,7 @@ const ITEMS_LATER = {
   failed: "meetings.detail.overview.itemsAfterFailed",
 } as const;
 
-/** Việc cần làm: C's board, or — while no summary has proposed any — one line saying when they come. */
+/** Việc cần làm: C's board, or — while no summary has proposed any — a quiet placeholder saying when they come. */
 function ActionItems({ model }: { model: OverviewSummaryModel | null }) {
   const { t } = useTranslation();
   const { meeting } = useDetail();
@@ -92,7 +76,14 @@ function ActionItems({ model }: { model: OverviewSummaryModel | null }) {
   const state = model?.state;
   const waiting = state === "running" || state === "none" || state === "failed";
   if (waiting && model?.gen.aiOn !== false && items?.items.length === 0) {
-    return <Section id="action-items" title={t("meetings.detail.overview.itemsTitle")} count={t(ITEMS_LATER[state])} />;
+    return (
+      <Section id="action-items" title={t("meetings.detail.overview.itemsTitle")}>
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-4 py-3">
+          <IconTile icon={ListChecks} size="sm" tone="muted" />
+          <p className="text-body text-muted-foreground">{t(ITEMS_LATER[state])}</p>
+        </div>
+      </Section>
+    );
   }
   return <ActionItemsBoard />;
 }

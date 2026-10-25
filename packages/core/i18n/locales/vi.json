@@ -4038,7 +4038,6 @@
       "votePromptAnnounce": "Mời bỏ phiếu: {{title}}",
       "votePending": "Có nội dung đang chờ bạn bỏ phiếu",
       "votedDecisions": "Đã biểu quyết",
-      "votedTally": "{{yes}} tán thành · {{no}} không tán thành · {{abstain}} không ý kiến",
       "activityMotionDetail": "\"{{title}}\"",
       "activityMotionDetailOutcome": "\"{{title}}\" · {{outcome}}",
       "rulePass": "Thông qua khi {{share}} {{base}} tán thành.",
@@ -4046,7 +4045,10 @@
       "ruleShare_TWO_THIRDS": "ít nhất hai phần ba",
       "ruleBase_PRESENT": "số người có mặt",
       "ruleBase_ALL_MEMBERS": "tổng thành viên cuộc họp",
-      "ruleSilence": "Ai không bỏ phiếu được tính là không tán thành."
+      "ruleSilence": "Ai không bỏ phiếu được tính là không tán thành.",
+      "tallyYes": "{{n}} tán thành",
+      "tallyNo": "{{n}} không tán thành",
+      "tallyAbstain": "{{n}} không ý kiến"
     },
     "editSectionFormal": "Điểm danh",
     "actionItemsSection": {

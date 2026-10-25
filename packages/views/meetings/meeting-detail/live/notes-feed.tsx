@@ -5,18 +5,20 @@ import { useAddNote, useNotes } from "@uniwork/core/meetings";
 import type { MeetingNote } from "@uniwork/core/types/meeting";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../../../toast-api-error";
+import { MeetingPersonAvatar } from "../../meeting-person";
 import { MeetingRowsSkeleton, MeetingSectionError } from "../../meeting-section-state";
+import { meetingAvatarTint } from "../avatar-tint";
 import { useDetail } from "../detail-context";
 import { clock } from "../format";
 import { Section } from "../ui/section";
-import { TimeGutterRow } from "../ui/time-row";
 import { AddMotionLine } from "./strip-vote-block";
 
 type Variant = "overview" | "live" | "scheduled";
 
 /**
- * The shared notes (kit `.rows.notes`): a 56 time gutter, the author only when
- * it changes, the text in body-lg. `live` is the body of the "Ghi chú chung"
+ * The shared notes, read like a conversation: a run of one author's notes
+ * opens with their face, name and time, and the notes after it in the run
+ * show their time in the face's gutter on hover; the text in body-lg. `live` is the body of the "Ghi chú chung"
  * tab with the composer (focused on load for the secretary, not on phone); `scheduled` is a
  * "Ghi chú" section with the composer (notes written ahead go into the
  * minutes) and, for whoever clerks, "+ Thêm biểu quyết"; `overview` is the
@@ -79,21 +81,41 @@ function Feed({ variant }: { variant: Variant }) {
   );
 }
 
-function NoteRows({ notes, className }: { notes: MeetingNote[]; className?: string }) {
+export function NoteRows({ notes, className }: { notes: MeetingNote[]; className?: string }) {
   const { t } = useTranslation();
+  const { memberIndex } = useDetail();
   return (
-    <ol className={cn("flex flex-col gap-2", className)}>
+    <ol className={cn("flex flex-col", className)}>
       {notes.map((note, i) => {
         const changed = i === 0 || notes[i - 1]!.author_id !== note.author_id;
+        const member = memberIndex.memberOf(note.author_id);
+        const name = note.display_name?.trim() || member?.display_name || t("meetings.formerMember");
+        const time = clock(note.created_at);
         return (
-          <TimeGutterRow
-            key={note.id}
-            time={clock(note.created_at)}
-            author={changed ? note.display_name?.trim() || t("meetings.formerMember") : undefined}
-            className={cn(changed && i > 0 && "mt-2")}
-          >
-            <span className="break-words whitespace-pre-wrap">{note.body}</span>
-          </TimeGutterRow>
+          <li key={note.id} className={cn("group/note grid grid-cols-[32px_minmax(0,1fr)] gap-x-3", changed ? "mt-4 first:mt-0" : "mt-1.5")}>
+            {changed ? (
+              <>
+                <span aria-hidden className="row-span-2 mt-0.5 inline-flex">
+                  <MeetingPersonAvatar
+                    name={name}
+                    avatarUrl={member?.avatar_url}
+                    size={28}
+                    tint={meetingAvatarTint(member ? note.author_id : null, memberIndex.members)}
+                  />
+                </span>
+                <p className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate text-body font-semibold">{name}</span>
+                  <time className="font-mono text-caption font-medium text-muted-foreground tabular-nums">{time}</time>
+                </p>
+              </>
+            ) : (
+              // A note that continues the run shows its time only on hover or focus, as the gutter stays quiet.
+              <time className="pt-1 font-mono text-micro font-medium text-muted-foreground tabular-nums opacity-0 group-hover/note:opacity-100 group-focus-within/note:opacity-100">
+                {time}
+              </time>
+            )}
+            <p className="col-start-2 min-w-0 max-w-150 text-body-lg break-words whitespace-pre-wrap">{note.body}</p>
+          </li>
         );
       })}
     </ol>

@@ -4039,7 +4039,6 @@
       "votePromptAnnounce": "Your vote is needed: {{title}}",
       "votePending": "A vote is waiting for you",
       "votedDecisions": "Voted",
-      "votedTally": "{{yes}} for · {{no}} against · {{abstain}} abstained",
       "activityMotionDetail": "\"{{title}}\"",
       "activityMotionDetailOutcome": "\"{{title}}\" · {{outcome}}",
       "rulePass": "Passes when {{share}} of {{base}} vote yes.",
@@ -4047,7 +4046,10 @@
       "ruleShare_TWO_THIRDS": "at least two thirds",
       "ruleBase_PRESENT": "those present",
       "ruleBase_ALL_MEMBERS": "all meeting members",
-      "ruleSilence": "Anyone who does not vote counts as not in favour."
+      "ruleSilence": "Anyone who does not vote counts as not in favour.",
+      "tallyYes": "{{n}} for",
+      "tallyNo": "{{n}} against",
+      "tallyAbstain": "{{n}} abstained"
     },
     "editSectionFormal": "Attendance",
     "actionItemsSection": {

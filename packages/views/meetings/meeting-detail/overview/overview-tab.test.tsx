@@ -299,7 +299,10 @@ describe("OverviewTab › AI states (AfterAIStates)", () => {
     expect(within(section).getByText("Đã biểu quyết")).toBeInTheDocument();
     expect(within(section).getByText("Thông qua kế hoạch quý IV")).toBeInTheDocument();
     expect(within(section).getByText("09:20")).toBeInTheDocument();
-    expect(within(section).getByText(/3 tán thành · 1 không tán thành · 0 không ý kiến/)).toBeInTheDocument();
+    expect(within(section).getByText("Thông qua")).toBeInTheDocument();
+    for (const count of ["3 tán thành", "1 không tán thành", "0 không ý kiến", "Cần 3/4 phiếu tán thành"]) {
+      expect(within(section).getByText(count)).toBeInTheDocument();
+    }
   });
 });
 
