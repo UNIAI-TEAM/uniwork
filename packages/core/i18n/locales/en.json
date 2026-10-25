@@ -269,6 +269,23 @@
           "c59253aa471b10dfba393387e89f84323c95f6590": "On the website, the task demos on phones show a grouped list so task details fit the screen instead of being cut off sideways.",
           "cff18730616d298ece7119b09d7576642209166ce": "Chat fixes: when someone replies to your thread, the thread shows as unread until you open it, and its read state no longer moves back; follow-up reminder notices are marked read when you complete or delete the reminder; @ suggestions show up to 20 people, and typing more letters narrows them; a task can be linked to only one thread; day labels in the room list follow the message's day correctly."
         }
+      },
+      "v1_9_0": {
+        "title": "Meeting action items, clearer folder upload and sturdier Chat calls",
+        "summary": "Meeting pages have an action items list for handing out work after a meeting and carrying unfinished work over to the next one. Folder upload in Documents accepts older-format Office files and warns before uploading when the browser cannot read a file. Ask UNI shows statuses more cleanly, and Chat calls carry on when the server restarts.",
+        "note": "If folder upload warns that the browser cannot read a file, open UniWork Office to upload that folder, or choose to upload the remaining files.",
+        "features": {
+          "c42a543eee4c12d2612f4619acd5b0a02bac821e3": "Meeting action items: on the meeting page, the secretary can review, assign, skip, restore or add items, then turn the whole batch into tasks. Each assignee gets one notification for the batch, each task shows which meeting it came from, and unfinished work carries over to the next meeting. The meeting page is also reorganized by meeting stage; inviting someone who is waiting to join now lets them in at once, and quick meetings use the creator's time zone instead of UTC."
+        },
+        "improvements": {
+          "c5a748062298e681c7f210d9fe482b678f356dad1": "Chat calls are now saved on the server: if the server restarts mid-call, a call that is ringing or in progress can still be answered, joined and ended as usual, and the call log message still records the right outcome.",
+          "c9f738cbd0e4831e41a30592743d62b28efe410b1": "Folder upload in Documents: if the browser cannot read some files, usually because their Windows path is too long, UniWork warns you before uploading, lists those files and lets you open UniWork Office to upload the folder or upload the remaining files. A long file name in the upload dialog no longer pushes the buttons outside the dialog."
+        },
+        "fixes": {
+          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1": "Folder upload in Documents: valid Word, Excel and PowerPoint files in the older formats (.doc, .xls, .ppt) are no longer reported as having the wrong format, and a file the browser cannot read no longer shows a dropped connection followed by useless retries.",
+          "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Ask UNI answers show only the status name you see on screen, without an internal status code in brackets such as \"To do (todo)\". Asking for tasks by a status name your team created, such as \"Waiting for QA\", also finds the right tasks.",
+          "cc8f02e00827170d00e7198c4e86696d603f9e452": "Chat call recording: when two people start recording the same call at the same time, the call now gets one recording instead of two duplicates."
+        }
       }
     }
   },

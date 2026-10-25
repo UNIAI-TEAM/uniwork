@@ -269,6 +269,23 @@
           "c59253aa471b10dfba393387e89f84323c95f6590": "Trên trang giới thiệu, bản minh họa công việc trên điện thoại hiện dạng danh sách theo nhóm để thông tin công việc vừa màn hình, không bị cắt ngang.",
           "cff18730616d298ece7119b09d7576642209166ce": "Sửa lỗi Chat: khi có người trả lời chủ đề của bạn, chủ đề hiện là chưa đọc cho tới khi bạn mở nó, và trạng thái đã đọc không bị lùi lại; thông báo nhắc theo dõi được đánh dấu đã đọc khi bạn hoàn tất hoặc xóa nhắc đó; gợi ý khi gõ @ hiện tối đa 20 người, gõ thêm chữ để lọc; một công việc chỉ nối được với một chủ đề; nhãn ngày ở danh sách phòng tính đúng theo ngày của tin nhắn."
         }
+      },
+      "v1_9_0": {
+        "title": "Việc cần làm sau cuộc họp, tải thư mục rõ ràng hơn và cuộc gọi Chat bền hơn",
+        "summary": "Trang cuộc họp có danh sách Việc cần làm để giao việc sau họp và mang việc chưa xong sang buổi sau. Tải thư mục lên Tài liệu nhận đúng tệp Office định dạng cũ và cảnh báo trước khi tải nếu trình duyệt không đọc được tệp. Hỏi UNI ghi trạng thái gọn hơn, và cuộc gọi trong Chat vẫn tiếp tục được khi máy chủ khởi động lại.",
+        "note": "Khi tải thư mục cảnh báo có tệp trình duyệt không đọc được, hãy mở UniWork Office để tải thư mục đó, hoặc chọn tải các tệp còn lại.",
+        "features": {
+          "c42a543eee4c12d2612f4619acd5b0a02bac821e3": "Việc cần làm sau cuộc họp: trên trang cuộc họp, thư ký duyệt, giao người, bỏ qua, khôi phục hoặc thêm việc, rồi giao cả loạt thành task. Người được giao nhận một thông báo cho cả loạt, task ghi rõ đến từ cuộc họp nào, và việc chưa xong được mang sang cuộc họp sau. Trang cuộc họp cũng được sắp xếp lại theo từng giai đoạn; mời người đang chờ vào phòng giờ cho họ vào ngay, và cuộc họp nhanh dùng múi giờ của người tạo thay vì UTC."
+        },
+        "improvements": {
+          "c5a748062298e681c7f210d9fe482b678f356dad1": "Cuộc gọi trong Chat được lưu trên máy chủ: nếu máy chủ khởi động lại giữa chừng, cuộc gọi đang đổ chuông hoặc đang diễn ra vẫn nhận, vào và kết thúc được như bình thường, và tin nhắn nhật ký cuộc gọi vẫn ghi đúng kết quả.",
+          "c9f738cbd0e4831e41a30592743d62b28efe410b1": "Tải thư mục lên Tài liệu: nếu có tệp trình duyệt không đọc được, thường do đường dẫn trên Windows quá dài, UniWork cảnh báo trước khi tải, liệt kê các tệp đó và cho chọn mở UniWork Office để tải thư mục hoặc tải các tệp còn lại. Tên tệp dài trong hộp thoại tải lên không còn đẩy nút ra ngoài khung."
+        },
+        "fixes": {
+          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1": "Tải thư mục lên Tài liệu: tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) hợp lệ không còn bị báo sai định dạng, và tệp trình duyệt không đọc được không còn bị báo mất kết nối rồi thử lại vô ích.",
+          "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Câu trả lời của Hỏi UNI chỉ ghi tên trạng thái như trên màn hình, không còn kèm mã trạng thái nội bộ trong ngoặc như \"Cần làm (todo)\". Hỏi công việc theo tên trạng thái mà nhóm tự đặt, ví dụ \"Chờ QA\", cũng tìm đúng công việc.",
+          "cc8f02e00827170d00e7198c4e86696d603f9e452": "Ghi âm cuộc gọi trong Chat: khi hai người cùng bắt đầu ghi âm một cuộc gọi cùng lúc, cuộc gọi chỉ có một bản ghi âm thay vì hai bản trùng nhau."
+        }
       }
     }
   },
