@@ -23,13 +23,19 @@ export function rsvpOf(responseStatus: string | undefined): Rsvp {
   }
 }
 
-/** "1 nhận lời · 1 chưa phản hồi": accepted, maybe, declined, waiting, zeros left out. */
-export function rsvpTallyText(responses: readonly (string | undefined)[], t: Translate): string {
+/** The tally in parts, each with its answer: accepted, maybe, declined, waiting, zeros left out. */
+export function rsvpTallyParts(responses: readonly (string | undefined)[], t: Translate): { rsvp: Rsvp; text: string }[] {
   const count: Record<Rsvp, number> = { yes: 0, maybe: 0, no: 0, wait: 0 };
   for (const r of responses) count[rsvpOf(r)] += 1;
   return (["yes", "maybe", "no", "wait"] as const)
     .filter((k) => count[k] > 0)
-    .map((k) => t(`meetings.detail.rail.rsvp_${k}`, { count: count[k] }))
+    .map((k) => ({ rsvp: k, text: t(`meetings.detail.rail.rsvp_${k}`, { count: count[k] }) }));
+}
+
+/** "1 nhận lời · 1 chưa phản hồi": the tally in one line of words. */
+export function rsvpTallyText(responses: readonly (string | undefined)[], t: Translate): string {
+  return rsvpTallyParts(responses, t)
+    .map((p) => p.text)
     .join(" · ");
 }
 

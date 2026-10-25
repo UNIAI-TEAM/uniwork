@@ -88,7 +88,8 @@ describe("DetailRail rows", () => {
 
   it("shows a scheduled member the RSVP tally, and never asks for the guest links (ScheduledMember)", async () => {
     renderRail("m3", { viewer: "minh" });
-    expect(await within(rail()).findByText("1 nhận lời · 1 chưa phản hồi")).toBeInTheDocument();
+    expect(await within(rail()).findByText("1 nhận lời")).toHaveAttribute("data-rsvp", "yes");
+    expect(within(rail()).getByText("1 chưa phản hồi")).toHaveAttribute("data-rsvp", "wait");
     expect(within(rail()).getByText("3 người")).toBeInTheDocument();
     expect(within(rail()).queryByText("Thư ký")).not.toBeInTheDocument();
     expect(within(rail()).getByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();

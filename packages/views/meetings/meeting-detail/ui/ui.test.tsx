@@ -292,21 +292,6 @@ describe("AvatarStack", () => {
     expect(screen.queryByText("LT")).toBeNull();
     expect(screen.getByText("+2")).toBeInTheDocument();
   });
-
-  it("draws the RSVP dot per person and opens the gap for it", () => {
-    const { container } = render(
-      <AvatarStack
-        people={[
-          { id: "a", name: "Hà Vũ", tint: "pink", rsvp: "yes" },
-          { id: "b", name: "Minh Trần", tint: "teal", rsvp: "wait" },
-        ]}
-      />,
-    );
-    expect(container.firstElementChild).toHaveClass("gap-1.5");
-    expect(container.querySelector("[data-rsvp='yes']")).toHaveClass("bg-success");
-    expect(container.querySelector("[data-rsvp='wait']")).toHaveClass("inset-ring-input");
-    expect(screen.getByText("HV")).toHaveClass("bg-tint-pink", "size-5");
-  });
 });
 
 describe("overlays", () => {

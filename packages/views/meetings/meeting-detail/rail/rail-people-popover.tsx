@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowRightLeft, Crown, Ellipsis, Mail, UserMinus, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, ChevronRight, Crown, Ellipsis, Mail, UserMinus, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
 import { useAttendanceFinalized, useMeetingAttendance } from "@uniwork/core/meetings/attendance";
@@ -26,11 +26,22 @@ import { AvatarStack } from "../ui/avatar-stack";
 import { kitButton } from "../ui/kit-buttons";
 import { Dialog440, SideSheet } from "../ui/overlay";
 import { RailProp } from "../ui/rail";
-import { attendedText, isLive, rsvpOf, rsvpTallyText } from "./rail-model";
+import { attendedText, isLive, rsvpTallyParts, rsvpTallyText, type Rsvp } from "./rail-model";
 import { RailPopover, useRailPopover } from "./rail-popover";
 
 /** More people than this read in a 480 drawer instead of a popover (brief §2.6). */
 const POPOVER_LIMIT = 8;
+
+/** Faces the rail's narrow value column holds beside the count and its chevron; the count says the rest, so no "+n". */
+const RAIL_FACES = 3;
+
+/** The answer's mark before each part of the tally: filled when answered, an open ring while waiting. */
+const RSVP_MARK: Record<Rsvp, string> = {
+  yes: "bg-success",
+  maybe: "bg-warning",
+  no: "bg-destructive",
+  wait: "inset-ring-[1.5px] inset-ring-muted-foreground",
+};
 
 /** Host first, then the roster as the server orders it. */
 function useRoster() {
@@ -44,8 +55,9 @@ function useRoster() {
 }
 
 /**
- * The rail's people row: "Người dự" with faces and RSVP dots before the
- * meeting ("3 người" + "1 nhận lời · 1 chưa phản hồi"), "3/3 có mặt" after;
+ * The rail's people row: "Người dự" with a few faces and the count, and
+ * under them the answers, each marked by its colour ("● 1 nhận lời
+ * ○ 1 chưa phản hồi"), before the meeting; "3/3 có mặt" after;
  * while live it is "Lời mời" with the answers. It opens the roster, where
  * the host adds, removes, hands over and gives duties (≤ 8 in a popover,
  * more in a drawer).
@@ -61,7 +73,8 @@ export function RailPeopleRow() {
   const canManage = canHost && (displayStatus === "SCHEDULED" || live);
   const rsvpByParticipant = new Map(invitations.map((i) => [i.participant_id, i.response_status]));
   const others = ordered.filter((p) => p.user_id !== meeting.host_user_id);
-  const tally = rsvpTallyText(others.map((p) => rsvpByParticipant.get(p.id)), t);
+  const answers = others.map((p) => rsvpByParticipant.get(p.id));
+  const tally = rsvpTallyText(answers, t);
   const nameOf = (p: MeetingParticipant) =>
     p.display_name_snapshot || memberIndex.memberOf(p.user_id)?.display_name || t("meetings.formerMember");
 
@@ -84,17 +97,12 @@ export function RailPeopleRow() {
   }
 
   if (ordered.length === 0) return null;
-  const dots = displayStatus === "SCHEDULED" || displayStatus === "MISSED";
-  const people = ordered.map((p) => {
-    const answer = rsvpOf(rsvpByParticipant.get(p.id));
-    return {
-      id: p.id,
-      name: nameOf(p),
-      avatarUrl: memberIndex.memberOf(p.user_id)?.avatar_url,
-      tint: meetingAvatarTint(p.principal_type === "USER" ? p.user_id : null, memberIndex.members),
-      rsvp: dots && p.user_id !== meeting.host_user_id ? (answer === "maybe" ? "wait" : answer) : undefined,
-    } as const;
-  });
+  const people = ordered.map((p) => ({
+    id: p.id,
+    name: nameOf(p),
+    avatarUrl: memberIndex.memberOf(p.user_id)?.avatar_url,
+    tint: meetingAvatarTint(p.principal_type === "USER" ? p.user_id : null, memberIndex.members),
+  }));
   const value = ended && roll ? attendedText(roll.summary, t) : t("meetings.detail.rail.people_count", { count: ordered.length });
   const sub = ended || viewer === "outsider" ? undefined : tally || undefined;
   const action = t(ended ? "meetings.detail.rail.seeRoll" : canManage ? "meetings.detail.rail.seeAndAdd" : "meetings.detail.rail.seeList");
@@ -104,14 +112,29 @@ export function RailPeopleRow() {
       <RailProp
         icon={Users}
         label={t("meetings.detail.rail.people")}
+        // Faces, count and chevron hold one line: the chevron never drops under them on its own.
+        chevron={false}
         value={
-          <>
-            <AvatarStack people={people} className="-my-0.5 mr-1.5" />
-            <span className="whitespace-nowrap">{value}</span>
-          </>
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+            <AvatarStack people={people.slice(0, RAIL_FACES)} className="-my-0.5" />
+            <span>
+              {value}
+              <ChevronRight aria-hidden className="ml-1 inline-block size-3 -translate-y-px text-muted-foreground" />
+            </span>
+          </span>
         }
-        // RSVP dots hang below the faces: the tally clears them (kit `.prop-v:has(.rsvp) .prop-sub`).
-        sub={sub ? <span className={dots ? "mt-1.25 block" : undefined}>{sub}</span> : undefined}
+        sub={
+          sub ? (
+            <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              {rsvpTallyParts(answers, t).map((part) => (
+                <span key={part.rsvp} data-rsvp={part.rsvp} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <span aria-hidden className={cn("size-2 shrink-0 rounded-full", RSVP_MARK[part.rsvp])} />
+                  {part.text}
+                </span>
+              ))}
+            </span>
+          ) : undefined
+        }
         onClick={popover.toggle}
         ariaLabel={t("meetings.detail.rail.peopleAria", { value: sub ? `${value}, ${sub}` : value, action })}
       />
