@@ -1,11 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
-import type { MeetingActivityItem } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../../../test/api-mock";
 import { DetailContext } from "../detail-context";
 import { demo, detailValue } from "../test-fixtures";
-import { continuesRun, HistoryDrawer } from "./history-drawer";
+import { HistoryDrawer } from "./history-drawer";
 
 const lan = demo.users.lan.id;
 
@@ -104,29 +103,19 @@ describe("HistoryDrawer (ported from the activity timeline)", () => {
     expect(screen.queryByText(/PASSED|DRAFT/)).not.toBeInTheDocument();
   });
 
-  it("names a person once for a run of their actions", async () => {
+  it("marks each action with its kind on the timeline and names who did it on every row", async () => {
     activityRespond(() =>
       Promise.resolve({
         activity: [
+          { id: "b2", event_type: "MEETING_ENDED", actor_id: lan, from_state: "IN_PROGRESS", to_state: "ENDED", occurred_at: "2026-09-22T02:35:00Z" },
           { id: "b1", event_type: "MOTION_OPENED", actor_id: lan, occurred_at: "2026-09-22T02:30:00Z", payload: { title: "A" } },
-          { id: "b0", event_type: "ATTENDANCE_FINALIZED", actor_id: lan, occurred_at: "2026-09-22T02:25:00Z" },
+          { id: "b0", event_type: "MEETING_STARTED", actor_id: lan, from_state: "SCHEDULED", to_state: "IN_PROGRESS", occurred_at: "2026-09-22T02:25:00Z" },
         ],
       }),
     );
     renderDrawer();
-    const [first, second] = await screen.findAllByRole("listitem");
-    expect(within(first!).getByText("Lan Phạm")).not.toHaveClass("sr-only");
-    expect(within(second!).getByText(/Lan Phạm/)).toHaveClass("sr-only");
-  });
-});
-
-describe("continuesRun", () => {
-  const row = (actor_id: string, occurred_at: string) => ({ id: occurred_at, event_type: "X", actor_id, occurred_at }) as MeetingActivityItem;
-  it("joins one person's rows ten minutes apart at most, and the system's empty and named ids", () => {
-    expect(continuesRun(undefined, row("a", "2026-01-01T00:00:00Z"))).toBe(false);
-    expect(continuesRun(row("a", "2026-01-01T00:10:00Z"), row("a", "2026-01-01T00:00:00Z"))).toBe(true);
-    expect(continuesRun(row("a", "2026-01-01T00:11:00Z"), row("a", "2026-01-01T00:00:00Z"))).toBe(false);
-    expect(continuesRun(row("a", "2026-01-01T00:01:00Z"), row("b", "2026-01-01T00:00:00Z"))).toBe(false);
-    expect(continuesRun(row("", "2026-01-01T00:01:00Z"), row("system", "2026-01-01T00:00:00Z"))).toBe(true);
+    const rows = await screen.findAllByRole("listitem");
+    expect(rows.map((row) => row.dataset.kind)).toEqual(["ended", "governance", "started"]);
+    for (const row of rows) expect(within(row).getByText("Lan Phạm")).not.toHaveClass("sr-only");
   });
 });
