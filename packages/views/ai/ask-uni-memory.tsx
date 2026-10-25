@@ -21,7 +21,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { useWorkspace } from "../layout/workspace-context";
-import { AskUniMemoryRow } from "./ask-uni-memory-row";
+import { AskUniMemoryRow, useMemoryErrorText } from "./ask-uni-memory-row";
 
 const GROUPS = ["preference", "fact"] as const;
 type Kind = (typeof GROUPS)[number];
@@ -42,13 +42,11 @@ export function AskUniMemory({ orgSlug }: { orgSlug: string }) {
   const [adding, setAdding] = useState<Kind | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorText = useMemoryErrorText();
 
   const entries = memory.data?.entries ?? [];
   const limit = memory.data?.limit ?? 50;
-  const message = (err: unknown) => {
-    const code = errorCode(err);
-    return code === "ai_memory_full" ? t("full", { limit }) : t(`errors.${code}`, { defaultValue: t("errors.default") });
-  };
+  const message = (err: unknown) => (errorCode(err) === "ai_memory_full" ? t("full", { limit }) : errorText(err));
   const fail = (err: unknown) => setError(message(err));
   const run = (call: Promise<unknown>) => {
     setError(null);

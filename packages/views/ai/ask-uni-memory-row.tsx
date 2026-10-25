@@ -3,12 +3,32 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { errorCode } from "@uniwork/core/api/http";
 import type { AiMemory } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 
 export const MEMORY_MAX_CHARS = 300;
+
+/** Characters as the server counts them: runes, so an emoji is one. */
+export const runeCount = (s: string) => [...s].length;
+
+const SAFE_CODE = /^[a-z_]+$/;
+
+/**
+ * Copy for a refused memory call: the memory screen's own key, then Ask UNI's shared AI copy (quota, provider down),
+ * then the default. The split puts its own `importer.errors` copy first.
+ */
+export function useMemoryErrorText() {
+  const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  return (err: unknown, scope: "errors" | "importer.errors" = "errors"): string => {
+    const code = errorCode(err) ?? "";
+    if (!SAFE_CODE.test(code)) return t("memory.errors.default");
+    const own = scope === "errors" ? [`memory.errors.${code}`] : [`memory.importer.errors.${code}`, `memory.errors.${code}`];
+    return t([...own, `errors.${code}`, "memory.errors.default"]);
+  };
+}
 
 /**
  * One memory line. Click (or Enter on it) opens an editor with the kind; Enter saves, Escape cancels, an empty or
@@ -45,6 +65,7 @@ export function AskUniMemoryRow({
     const next = text.trim();
     if (next === "" || (next === entry.text && kind === entry.kind)) return close();
     if (saving) return;
+    if (runeCount(next) > MEMORY_MAX_CHARS) return setError(t("errors.invalid_request"));
     setSaving(true);
     setError(null);
     const failure = await onSave({ kind, text: next });
@@ -60,7 +81,7 @@ export function AskUniMemoryRow({
           autoFocus
           aria-label={t("entry_label")}
           placeholder={t("entry_placeholder", { max: MEMORY_MAX_CHARS })}
-          maxLength={MEMORY_MAX_CHARS}
+          aria-invalid={runeCount(text.trim()) > MEMORY_MAX_CHARS}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

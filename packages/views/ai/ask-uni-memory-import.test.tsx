@@ -92,11 +92,28 @@ describe("AskUniMemoryImport step 1", () => {
     expect(btn).toBeDisabled();
   });
 
+  it("counts the paste in runes, as the server does: 20,000 emoji may be split", () => {
+    mount();
+    const btn = screen.getByRole("button", { name: "Tách thành từng mục" });
+    paste("😀".repeat(20000));
+    expect(screen.getByText("20000/20000")).toBeInTheDocument();
+    expect(btn).toBeEnabled();
+    paste("😀".repeat(20001));
+    expect(btn).toBeDisabled();
+  });
+
   it.each([
     ["ai_memory_import_rate_limited", 429, "Bạn tách quá nhiều lần. Thử lại sau ít phút."],
     ["ai_memory_import_failed", 502, "UNI chưa tách được chữ này. Thử dán lại."],
     ["ai_rate_limited", 429, "AI đang bận, thử lại sau ít phút."],
     ["invalid_request", 400, "Chữ dán không hợp lệ."],
+    // The gateway's own codes reuse Ask UNI's shared AI copy.
+    ["ai_quota_exceeded", 402, "Tổ chức đã hết hạn mức token AI của tháng."],
+    ["ai_disabled", 503, "AI chưa được cấu hình trên server."],
+    ["ai_provider_error", 502, "Dịch vụ AI đang gặp sự cố, thử lại sau ít phút."],
+    ["ai_provider_timeout", 504, "UNI trả lời quá lâu, thử lại nhé."],
+    ["ai_refused", 422, "Mô hình từ chối xử lý chữ này. Bỏ bớt phần nhạy cảm rồi thử lại."],
+    ["organization_suspended", 403, "Tổ chức này đang tạm ngưng hoạt động."],
   ])("keeps the paste on %s", async (code, status, copy) => {
     requestMock.mockImplementation((path: string) =>
       path === SPLIT ? Promise.reject(new ApiError("x", code, status)) : Promise.resolve({ entries: [], on: true, limit: 50, remaining }),

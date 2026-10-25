@@ -10,14 +10,12 @@ import {
   useRejectAiMemoryProposal,
   useUndoAiMemoryProposal,
 } from "@uniwork/core/ai/memory";
-import { errorCode } from "@uniwork/core/api/http";
 import type { AiMemoryProposal, AiMessage } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
-import { MEMORY_MAX_CHARS } from "./ask-uni-memory-row";
+import { MEMORY_MAX_CHARS, runeCount, useMemoryErrorText } from "./ask-uni-memory-row";
 
-const SAFE_CODE = /^[a-z_]+$/;
 const SETTLED = new Set(["rejected", "undone", "expired"]);
 
 /** Text the model wrote: always a plain text node, never markdown, html or a link. */
@@ -32,16 +30,19 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
   const [text, setText] = useState(p.text);
   const [kind, setKind] = useState(p.kind);
   const [error, setError] = useState("");
+  const errorText = useMemoryErrorText();
   const busy = apply.isPending || reject.isPending || undo.isPending || edit.isPending;
 
   const action = p.action === "update" || p.action === "forget" ? p.action : "remember";
   const run = (start: (cb: { onError: (e: unknown) => void; onSuccess?: () => void }) => void) => {
     setError("");
-    start({ onError: (e) => setError(errorCode(e) ?? "default") });
+    start({ onError: (e) => setError(errorText(e)) });
   };
   const save = () => {
     const next = text.trim();
     if (next === "") return;
+    // The server counts runes: no maxLength, which would cut an emoji line early.
+    if (runeCount(next) > MEMORY_MAX_CHARS) return setError(t("errors.invalid_request"));
     run((cb) => edit.mutate({ id: p.id, body: { kind, text: next } }, { ...cb, onSuccess: () => setEditing(false) }));
   };
 
@@ -52,7 +53,13 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
       <p className="text-caption font-medium text-muted-foreground">{t(`proposal.title_${action}`)}</p>
       {editing ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <Input aria-label={t("proposal.edit_text")} maxLength={MEMORY_MAX_CHARS} value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1" />
+          <Input
+            aria-label={t("proposal.edit_text")}
+            aria-invalid={runeCount(text.trim()) > MEMORY_MAX_CHARS}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="min-w-0 flex-1"
+          />
           <Select
             items={[{ value: "preference", label: t("kind_preference") }, { value: "fact", label: t("kind_fact") }]}
             value={kind}
@@ -83,7 +90,7 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
       )}
       {error ? (
         <p role="alert" className="mt-1.5 text-caption text-destructive">
-          {t(`errors.${SAFE_CODE.test(error) ? error : "default"}`, { defaultValue: t("errors.default") })}
+          {error}
         </p>
       ) : null}
       {editing ? null : status === "pending" ? (
@@ -131,7 +138,8 @@ export function AskUniMemoryCard({
   const rows = [...message.memory_proposals].sort((a, b) => a.position - b.position);
   if (rows.length === 0) return null;
   return (
-    <section aria-label={t("title_remember")} className="mt-3 flex flex-col gap-2" data-slot="ask-uni-memory-card">
+    // Rows may remember, update or forget, so the region has a neutral name.
+    <section aria-label={t("region")} className="mt-3 flex flex-col gap-2" data-slot="ask-uni-memory-card">
       <div className="overflow-hidden rounded-lg bg-muted/50">
         <ul className="divide-y divide-border">
           {rows.map((p) => (

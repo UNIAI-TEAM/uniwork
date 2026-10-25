@@ -288,7 +288,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
     // 1. A stated preference: a card, and nothing is remembered until the asker says so.
     await box.fill("Từ giờ trả lời tôi bằng gạch đầu dòng");
     await dock.getByRole("button", { name: "Gửi" }).click();
-    const card = dock.getByRole("region", { name: "Nhớ điều này?" });
+    const card = dock.getByRole("region", { name: "Đề xuất bộ nhớ" });
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expect(card.getByText("Từ giờ trả lời tôi bằng gạch đầu dòng")).toBeVisible();
     await card.getByRole("button", { name: "Nhớ", exact: true }).click();

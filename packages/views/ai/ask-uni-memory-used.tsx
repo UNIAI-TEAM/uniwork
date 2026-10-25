@@ -28,7 +28,9 @@ export function AskUniMemoryUsed({ memoryIds, orgSlug }: { memoryIds: string[]; 
     <div className="flex flex-col gap-1">
       <div className={line}>
         <Brain aria-hidden className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate">{t("label", { text: first!.text })}</span>
+        <button type="button" className="min-w-0 truncate text-left hover:underline" onClick={() => setView("memory")}>
+          {t("label", { text: first!.text })}
+        </button>
         {rest.length > 0 ? (
           <button
             type="button"

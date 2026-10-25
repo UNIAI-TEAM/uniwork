@@ -25,6 +25,12 @@ describe("AskUniMemoryUsed", () => {
     expect(useAiPanelStore.getState().view).toBe("memory");
   });
 
+  it("opens the memory screen from a single used entry", async () => {
+    mount(["m1"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Đã dùng bộ nhớ: Trả lời ngắn gọn" }));
+    expect(useAiPanelStore.getState().view).toBe("memory");
+  });
+
   it("says so when every used entry is deleted", async () => {
     mount(["gone"]);
     expect(await screen.findByText("Đã dùng bộ nhớ (mục đã xóa)")).toBeInTheDocument();

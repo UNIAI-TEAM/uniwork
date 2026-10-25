@@ -5,12 +5,12 @@ import { ArrowLeft, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
-import { errorCode } from "@uniwork/core/api/http";
 import { useAiMemory, useImportAiMemory, useSplitAiMemoryImport } from "@uniwork/core/ai/memory";
 import type { AiMemoryImportSplit } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { AskUniMemoryReview } from "./ask-uni-memory-review";
+import { runeCount, useMemoryErrorText } from "./ask-uni-memory-row";
 
 const PASTE_MAX = 20000;
 
@@ -24,11 +24,9 @@ export function AskUniMemoryImport({ orgSlug }: { orgSlug: string }) {
   const [text, setText] = useState("");
   const [split, setSplit] = useState<AiMemoryImportSplit | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const message = (err: unknown, scope: "errors" | "importer.errors") => {
-    const code = errorCode(err);
-    return t(`${scope}.${code}`, { defaultValue: t("errors.default") });
-  };
+  const message = useMemoryErrorText();
+  // The server counts runes, so an emoji is one character here too.
+  const chars = runeCount(text);
 
   const doSplit = async () => {
     setError(null);
@@ -109,10 +107,10 @@ export function AskUniMemoryImport({ orgSlug }: { orgSlug: string }) {
               onChange={(e) => setText(e.target.value)}
             />
             <div className="flex items-center gap-2">
-              <span className="flex-1 text-caption text-muted-foreground">{t("importer.chars", { count: text.length, max: PASTE_MAX })}</span>
+              <span className="flex-1 text-caption text-muted-foreground">{t("importer.chars", { count: chars, max: PASTE_MAX })}</span>
               <Button
                 type="button"
-                disabled={text.trim() === "" || text.length > PASTE_MAX || splitCall.isPending}
+                disabled={text.trim() === "" || chars > PASTE_MAX || splitCall.isPending}
                 onClick={() => void doSplit()}
               >
                 {splitCall.isPending ? t("importer.splitting") : t("importer.split")}

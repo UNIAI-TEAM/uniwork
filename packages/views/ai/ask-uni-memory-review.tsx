@@ -7,12 +7,12 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
-import { MEMORY_MAX_CHARS } from "./ask-uni-memory-row";
+import { MEMORY_MAX_CHARS, runeCount } from "./ask-uni-memory-row";
 
 type Row = { text: string; kind: string; checked: boolean; instructionLike: boolean; duplicate: boolean };
 
 // The server counts runes, so an emoji is one character here too.
-const validText = (s: string) => s.trim() !== "" && [...s.trim()].length <= MEMORY_MAX_CHARS;
+const validText = (s: string) => s.trim() !== "" && runeCount(s.trim()) <= MEMORY_MAX_CHARS;
 
 /** Pre-tick valid, non-duplicate, non-instruction rows in order until the free slots run out. */
 function initialRows(split: AiMemoryImportSplit, remaining: number): Row[] {

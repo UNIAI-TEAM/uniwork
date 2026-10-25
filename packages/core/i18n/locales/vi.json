@@ -6419,7 +6419,8 @@
           "ai_memory_import_rate_limited": "Bạn tách quá nhiều lần. Thử lại sau ít phút.",
           "ai_memory_import_failed": "UNI chưa tách được chữ này. Thử dán lại.",
           "ai_rate_limited": "AI đang bận, thử lại sau ít phút.",
-          "invalid_request": "Chữ dán không hợp lệ."
+          "invalid_request": "Chữ dán không hợp lệ.",
+          "ai_refused": "Mô hình từ chối xử lý chữ này. Bỏ bớt phần nhạy cảm rồi thử lại."
         }
       },
       "clear_all": "Xóa toàn bộ bộ nhớ",
@@ -6439,13 +6440,20 @@
         "ai_memory_full": "Bộ nhớ đã đầy. Xóa bớt mục cũ rồi thử lại.",
         "ai_memory_duplicate": "Mục này đã có trong bộ nhớ.",
         "ai_memory_not_found": "Mục này không còn trong bộ nhớ.",
-        "ai_memory_invalid": "Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.",
+        "ai_memory_changed": "Mục này đã đổi từ khi UNI đề xuất. Mở Bộ nhớ để xem.",
+        "ai_memory_unavailable": "Bộ nhớ chưa dùng được trên máy chủ này.",
+        "invalid_request": "Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.",
+        "not_found": "Không còn tìm thấy mục này. Có thể nó đã bị xóa ở nơi khác.",
+        "forbidden": "Bạn không có quyền làm việc này.",
+        "member_deactivated": "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
+        "organization_suspended": "Tổ chức này đang tạm ngưng hoạt động.",
         "proposal_expired": "Đề xuất đã hết hạn.",
         "proposal_not_pending": "Đề xuất này đã được xử lý.",
         "undo_unavailable": "Mục đã thay đổi nên không hoàn tác được.",
         "default": "Chưa thực hiện được. Thử lại sau."
       },
       "proposal": {
+        "region": "Đề xuất bộ nhớ",
         "title_remember": "Nhớ điều này?",
         "title_update": "Sửa mục trong bộ nhớ?",
         "title_forget": "Quên mục này?",
@@ -6473,35 +6481,7 @@
         "label": "Đã dùng bộ nhớ: {{text}}",
         "more": "+{{count}}",
         "deleted": "Đã dùng bộ nhớ (mục đã xóa)",
-        "list": "Các mục UNI đã dùng",
-        "entry_deleted": "Mục đã xóa"
-      },
-      "import_flow": {
-        "title": "Nhập từ AI khác",
-        "back": "Quay lại Bộ nhớ",
-        "prompt_label": "Prompt để hỏi AI khác",
-        "prompt": "Hãy liệt kê những gì bạn biết về tôi để tôi chuyển sang một trợ lý AI khác. Chỉ ghi hai nhóm:\nSỞ THÍCH — cách tôi muốn được trả lời: văn phong, giọng điệu, định dạng, những điều nên tránh.\nCÔNG VIỆC — vai trò, nhóm, dự án tôi đang làm, công cụ và cách tôi làm việc, việc tôi đang ưu tiên.\nMỗi ý một dòng, bắt đầu bằng \"- \", ngắn gọn, không ghi ngày. Không ghi đời tư, sức khỏe, thông tin về người khác, mật khẩu, khóa hay số tài khoản. Không thêm lời mở đầu hay kết luận.",
-        "copy": "Sao chép",
-        "copied": "Đã sao chép",
-        "instructions": "Dán vào ChatGPT, Claude hoặc Gemini, rồi dán câu trả lời của nó vào ô bên dưới.",
-        "paste_label": "Câu trả lời của AI khác",
-        "paste_placeholder": "Dán câu trả lời vào đây",
-        "paste_count": "{{count}}/{{max}}",
-        "split": "Tách thành từng mục",
-        "splitting": "Đang tách…",
-        "review_title": "Chọn mục cần nhớ",
-        "room": "Còn {{count}} chỗ trống",
-        "no_room": "Bộ nhớ đã đầy, không chọn thêm được.",
-        "select_entry": "Chọn mục này",
-        "instruction_like": "Giống một mệnh lệnh. UNI không làm theo bộ nhớ như lệnh.",
-        "duplicate": "Đã có trong bộ nhớ",
-        "skipped_other": "Bỏ qua {{count}} dòng (đời tư, người khác, mật khẩu…)",
-        "skip_reason": "Lý do bỏ qua",
-        "no_candidates": "UNI không tìm thấy mục nào để nhớ trong câu trả lời này.",
-        "save_other": "Thêm {{count}} mục vào bộ nhớ",
-        "saved_other": "Đã thêm {{count}} mục",
-        "saved_skipped_other": "Bỏ qua {{count}} mục đã có",
-        "split_error": "Chưa tách được. Dán lại hoặc thử lại sau."
+        "list": "Các mục UNI đã dùng"
       }
     }
   },

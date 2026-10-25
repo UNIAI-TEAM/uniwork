@@ -6475,7 +6475,8 @@
           "ai_memory_import_rate_limited": "You split too many times. Try again in a few minutes.",
           "ai_memory_import_failed": "UNI couldn't split this text. Try pasting it again.",
           "ai_rate_limited": "AI is busy, try again in a few minutes.",
-          "invalid_request": "The pasted text isn't valid."
+          "invalid_request": "The pasted text isn't valid.",
+          "ai_refused": "The model declined to process this text. Remove the sensitive parts and try again."
         }
       },
       "clear_all": "Clear all memory",
@@ -6497,13 +6498,20 @@
         "ai_memory_full": "Memory is full. Delete some entries and try again.",
         "ai_memory_duplicate": "This entry is already in memory.",
         "ai_memory_not_found": "This entry is no longer in memory.",
-        "ai_memory_invalid": "This entry isn't valid. Each entry is one line, 1–300 characters.",
+        "ai_memory_changed": "This entry has changed since UNI suggested it. Open Memory to check.",
+        "ai_memory_unavailable": "Memory isn't available on this server.",
+        "invalid_request": "This entry isn't valid. Each entry is one line, 1–300 characters.",
+        "not_found": "This item can no longer be found. It may have been deleted elsewhere.",
+        "forbidden": "You don't have permission to do this.",
+        "member_deactivated": "Your account in this organization is deactivated.",
+        "organization_suspended": "This organization is currently suspended.",
         "proposal_expired": "This proposal has expired.",
         "proposal_not_pending": "This proposal was already handled.",
         "undo_unavailable": "The entry has changed, so this can't be undone.",
         "default": "Couldn't do that. Try again later."
       },
       "proposal": {
+        "region": "Memory proposals",
         "title_remember": "Remember this?",
         "title_update": "Change an entry in memory?",
         "title_forget": "Forget this entry?",
@@ -6531,39 +6539,7 @@
         "label": "Used memory: {{text}}",
         "more": "+{{count}}",
         "deleted": "Used memory (entry deleted)",
-        "list": "Entries UNI used",
-        "entry_deleted": "Entry deleted"
-      },
-      "import_flow": {
-        "title": "Import from another AI",
-        "back": "Back to Memory",
-        "prompt_label": "Prompt to ask the other AI",
-        "prompt": "List what you know about me so I can move to another AI assistant. Use only two groups:\nPREFERENCES — how I want to be answered: writing style, tone, format, things to avoid.\nWORK — my role, team, projects I work on, tools and how I work, what I am prioritizing.\nOne item per line, starting with \"- \", short, no dates. Do not include personal life, health, information about other people, passwords, keys or account numbers. Add no introduction or conclusion.",
-        "copy": "Copy",
-        "copied": "Copied",
-        "instructions": "Paste it into ChatGPT, Claude or Gemini, then paste its answer into the box below.",
-        "paste_label": "The other AI's answer",
-        "paste_placeholder": "Paste the answer here",
-        "paste_count": "{{count}}/{{max}}",
-        "split": "Split into entries",
-        "splitting": "Splitting…",
-        "review_title": "Choose what to remember",
-        "room": "{{count}} slots left",
-        "no_room": "Memory is full; you can't select more.",
-        "select_entry": "Select this entry",
-        "instruction_like": "Reads like a command. UNI doesn't follow memory as a command.",
-        "duplicate": "Already in memory",
-        "skipped_one": "Skipped {{count}} line (personal, other people, passwords…)",
-        "skipped_other": "Skipped {{count}} lines (personal, other people, passwords…)",
-        "skip_reason": "Reason skipped",
-        "no_candidates": "UNI found nothing to remember in this answer.",
-        "save_one": "Add {{count}} entry to memory",
-        "save_other": "Add {{count}} entries to memory",
-        "saved_one": "{{count}} entry added",
-        "saved_other": "{{count}} entries added",
-        "saved_skipped_one": "{{count}} entry already there was skipped",
-        "saved_skipped_other": "{{count}} entries already there were skipped",
-        "split_error": "Couldn't split it. Paste again or try later."
+        "list": "Entries UNI used"
       }
     }
   },

@@ -101,17 +101,19 @@ export function AskUniMessageTurn({
   const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
   // With actions off, the ceiling off (the server refuses every decision then) or not read yet, the card is history: its rows, no button.
   const hasProposals = (message.proposals?.length ?? 0) > 0;
-  const actions = useAiCapabilities(wsId, wsId !== "" && hasProposals).data?.actions;
+  const memoryProposals = message.memory_proposals ?? [];
+  const memoryIds = message.memory_ids ?? [];
+  const hasMemory = memoryProposals.length > 0 || memoryIds.length > 0;
+  const caps = useAiCapabilities(wsId, wsId !== "" && (hasProposals || hasMemory)).data;
+  const actions = caps?.actions;
   const actionsOn = actions?.enabled === true && actions.ceiling !== "off";
   // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
   const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
   const stored = !streaming && settled;
-  // Memory proposals do not depend on P3 actions, so the card shows whatever the actions switch says. The
-  // organization routes take the slug, never the id.
+  // Memory proposals do not depend on P3 actions; with the memory flag off (or not read yet) an old answer shows no
+  // memory card or used line, so it reads no memory. The organization routes take the slug, never the id.
   const orgSlug = useOptionalWorkspace()?.workspace.organization_slug ?? "";
-  const memoryProposals = message.memory_proposals ?? [];
-  const memoryIds = message.memory_ids ?? [];
-  const memoryOn = stored && !!conversationId && orgSlug !== "";
+  const memoryOn = stored && !!conversationId && orgSlug !== "" && caps?.memory.enabled === true;
   const tainted = useAiConversations(wsId, memoryOn && memoryProposals.length > 0).data?.find((c) => c.id === conversationId)?.tainted ?? false;
   if (message.role === "user") {
     return (

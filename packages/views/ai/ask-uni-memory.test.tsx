@@ -116,6 +116,37 @@ describe("AskUniMemory", () => {
     expect(screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" })).toHaveValue("Tôi là kế toán");
   });
 
+  it("counts runes in the editor: 301 emoji are refused before any call, 300 save", async () => {
+    mount();
+    fireEvent.click(await screen.findByText("Trả lời ngắn gọn"));
+    const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
+    fireEvent.change(box, { target: { value: "😀".repeat(301) } });
+    expect(box).not.toHaveAttribute("maxlength"); // a UTF-16 maxLength would stop an emoji line early
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.");
+    expect(calls("PATCH")).toHaveLength(0);
+    fireEvent.change(box, { target: { value: "😀".repeat(300) } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(`${LIST}/m1`, { method: "PATCH", body: { kind: "preference", text: "😀".repeat(300) } }));
+  });
+
+  it.each([
+    ["invalid_request", 400, "Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự."],
+    ["not_found", 404, "Không còn tìm thấy mục này."],
+    ["member_deactivated", 403, "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa."],
+    ["ai_memory_unavailable", 503, "Bộ nhớ chưa dùng được trên máy chủ này."],
+  ])("explains %s on a refused save", async (code, status, copy) => {
+    mount();
+    fireEvent.click(await screen.findByText("Trả lời ngắn gọn"));
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      init?.method === "PATCH" ? Promise.reject(new ApiError("x", code, status)) : Promise.resolve(list),
+    );
+    const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
+    fireEvent.change(box, { target: { value: "Trả lời khác" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  });
+
   it("adds a fact", async () => {
     mount();
     await screen.findByText("Tôi là kế toán");

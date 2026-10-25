@@ -39,6 +39,7 @@ describe("AskUniMemoryCard", () => {
   it("shows a remember proposal as plain text and applies it", async () => {
     requestMock.mockResolvedValue(row({ status: "applied" }));
     const { container, rerender, client } = mount(row());
+    expect(screen.getByRole("region", { name: "Đề xuất bộ nhớ" })).toBeInTheDocument();
     expect(screen.getByText("Nhớ điều này?")).toBeInTheDocument();
     expect(container.textContent).toContain(TEXT);
     expect(container.querySelector("strong, b, a")).toBeNull();
@@ -77,6 +78,37 @@ describe("AskUniMemoryCard", () => {
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/memory-proposals/p1", expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ text: "Mới" }) })),
     );
+  });
+
+  it("counts runes when editing: 300 emoji save, 301 are refused before any call", async () => {
+    requestMock.mockResolvedValue(row({ text: "😀".repeat(300) }));
+    mount(row());
+    fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+    fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "😀".repeat(301) } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Mục không hợp lệ. Mỗi mục là một dòng, 1–300 ký tự.");
+    expect(requestMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Chữ sẽ lưu"), { target: { value: "😀".repeat(300) } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/memory-proposals/p1", expect.objectContaining({ body: expect.objectContaining({ text: "😀".repeat(300) }) })),
+    );
+  });
+
+  it("says the entry changed since UNI proposed it and keeps the buttons", async () => {
+    const pending = row({ action: "update", before_text: "Tôi là kế toán", text: "Tôi là trưởng phòng" });
+    requestMock.mockRejectedValue(new ApiError("changed", "ai_memory_changed", 409, undefined, { proposal: pending }));
+    mount(pending);
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mục này đã đổi từ khi UNI đề xuất. Mở Bộ nhớ để xem.");
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeInTheDocument();
+  });
+
+  it("gives a deleted proposal its own copy, not the generic one", async () => {
+    requestMock.mockRejectedValue(new ApiError("gone", "not_found", 404));
+    mount(row());
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ qua" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không còn tìm thấy mục này.");
   });
 
   it("has no buttons once expired", () => {

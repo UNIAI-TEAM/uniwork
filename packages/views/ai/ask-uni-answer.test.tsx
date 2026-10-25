@@ -484,17 +484,25 @@ describe("AskUniMessageTurn memory", () => {
   const mem = { id: "p1", message_id: "m1", position: 0, action: "remember", memory_id: "", kind: "fact", text: "Tôi là kế toán", before_kind: "", before_text: "", status: "pending", expires_at: "" };
   const mountMem = (message: AiMessage) =>
     render(wrapWithNav(<WorkspaceProvider workspace={ws} user={me}><AskUniMessageTurn message={message} conversationId="c1" wsId="ws1" /></WorkspaceProvider>));
-  beforeEach(() => {
+  // The workspace is organization "o1" with the slug "acme": the memory routes take the slug.
+  const MEMORY = "/api/v1/orgs/acme/ai/memory";
+  const answerWith = (memoryEnabled: boolean) =>
     requestMock.mockImplementation((path: string) =>
-      Promise.resolve(path.endsWith("/ai/capabilities") ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" } } : path === "/api/v1/orgs/acme/ai/memory" ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 } : {}),
+      Promise.resolve(
+        path.endsWith("/ai/capabilities")
+          ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" }, memory: { enabled: memoryEnabled, on: true } }
+          : path === MEMORY
+            ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 }
+            : {},
+      ),
     );
-  });
+  beforeEach(() => answerWith(true));
 
   it("puts the memory card under the P3 card and shows the used line above the actions", async () => {
     const proposal = AiProposalSchema.parse({ id: "q1", message_id: "m1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } });
     mountMem(msg({ content: "Xong.", proposals: [proposal], memory_proposals: [mem], memory_ids: ["e1"] }));
     const p3 = await screen.findByText("UNI đề xuất · cần bạn xác nhận");
-    const card = screen.getByText("Nhớ điều này?");
+    const card = await screen.findByText("Nhớ điều này?");
     expect(p3.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const used = await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/);
     const copy = screen.getByRole("button", { name: "Sao chép" });
@@ -509,5 +517,17 @@ describe("AskUniMessageTurn memory", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     expect(writeText.mock.calls[0]![0]).not.toContain("Đã dùng bộ nhớ");
+  });
+
+  it("shows no memory card or used line, and reads no memory, with the memory flag off", async () => {
+    answerWith(false);
+    mountMem(msg({ content: "Xong.", memory_proposals: [mem], memory_ids: ["e1"] }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+    // Let the capabilities answer land; with the flag on the card shows by then.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(screen.getByText("Xong.")).toBeInTheDocument();
+    expect(screen.queryByText("Nhớ điều này?")).toBeNull();
+    expect(screen.queryByText(/Đã dùng bộ nhớ/)).toBeNull();
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/ai/memory"))).toBe(false);
   });
 });
