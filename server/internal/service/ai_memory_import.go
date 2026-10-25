@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -161,7 +162,7 @@ func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiM
 					key := aiMemoryKey(valid)
 					out.Candidates = append(out.Candidates, AiMemoryCandidate{
 						Text: valid, Kind: e.Kind, Duplicate: seen[key],
-						InstructionLike: e.InstructionLike || aiMemoryInjectionPattern.MatchString(valid),
+						InstructionLike: e.InstructionLike || aiMemoryInjectionPattern.MatchString(injectionForm(valid)),
 					})
 					seen[key] = true
 				}
@@ -177,6 +178,19 @@ func importCandidates(entries []aiMemoryImportEntry, existing []db.AiMemory) AiM
 		}
 	}
 	return out
+}
+
+// injectionForm is the text aiMemoryInjectionPattern is matched against, so
+// spacing tricks do not slip past it: format characters (zero-width spaces)
+// dropped, NFC, every run of whitespace one space.
+func injectionForm(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, s)
+	return strings.Join(strings.Fields(norm.NFC.String(s)), " ")
 }
 
 // ImportMemories saves the entries the person ticked, all or none: an invalid
@@ -201,6 +215,7 @@ func (s *AiMemoryService) ImportMemories(ctx context.Context, userID, orgID stri
 		}
 		entries[i].Text = text
 	}
+	var out AiMemoryList
 	skipped := 0
 	err := s.inTx(ctx, func(q *db.Queries) error {
 		if err := q.AiLockMemoryOwner(ctx, db.AiLockMemoryOwnerParams{OrganizationID: orgID, UserID: userID}); err != nil {
@@ -227,13 +242,15 @@ func (s *AiMemoryService) ImportMemories(ctx context.Context, userID, orgID stri
 				return err
 			}
 		}
-		return nil
+		// Read back inside the transaction: once it commits there is no read
+		// left to fail and answer 500 for a save that happened.
+		out, err = s.listOf(ctx, q, userID, orgID)
+		return err
 	})
 	if err != nil {
 		return AiMemoryList{}, err
 	}
 	s.observe("import_saved")
-	l, err := s.listOf(ctx, userID, orgID)
-	l.SkippedDuplicates = skipped
-	return l, err
+	out.SkippedDuplicates = skipped
+	return out, nil
 }

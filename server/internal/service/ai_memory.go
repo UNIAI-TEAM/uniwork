@@ -157,15 +157,15 @@ func (s *AiMemoryService) List(ctx context.Context, userID, orgID string) (AiMem
 	if err := s.gate(ctx, userID, orgID); err != nil {
 		return AiMemoryList{}, err
 	}
-	return s.listOf(ctx, userID, orgID)
+	return s.listOf(ctx, s.q, userID, orgID)
 }
 
-func (s *AiMemoryService) listOf(ctx context.Context, userID, orgID string) (AiMemoryList, error) {
-	rows, err := s.q.AiListMemories(ctx, db.AiListMemoriesParams{OrganizationID: orgID, UserID: userID})
+func (s *AiMemoryService) listOf(ctx context.Context, q *db.Queries, userID, orgID string) (AiMemoryList, error) {
+	rows, err := q.AiListMemories(ctx, db.AiListMemoriesParams{OrganizationID: orgID, UserID: userID})
 	if err != nil {
 		return AiMemoryList{}, err
 	}
-	off, err := s.q.GetUserAskUniMemoryOff(ctx, userID)
+	off, err := q.GetUserAskUniMemoryOff(ctx, userID)
 	if err != nil {
 		return AiMemoryList{}, err
 	}

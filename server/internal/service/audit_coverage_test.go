@@ -2406,9 +2406,9 @@ func (f *auditFixture) memoryProposal(t *testing.T) string {
 	return row.ID
 }
 
-// A memory proposal's apply and undo write the ai_memory.* row of the
-// command they run, which the table above covers by action through the
-// manual commands.
+// A memory proposal's apply and undo, and an import, write the ai_memory.*
+// row of the command they run, which the table above covers by action
+// through the manual commands.
 func TestMemoryProposalCommandsWriteTheirRows(t *testing.T) {
 	for command, c := range map[string]struct {
 		action string
@@ -2416,6 +2416,10 @@ func TestMemoryProposalCommandsWriteTheirRows(t *testing.T) {
 	}{
 		"ApplyProposal": {audit.ActionAIMemoryCreated, func(m *AiMemoryService, f *auditFixture, id string) error {
 			_, err := m.ApplyProposal(f.ctx, f.owner.ID, id)
+			return err
+		}},
+		"ImportMemories": {audit.ActionAIMemoryCreated, func(m *AiMemoryService, f *auditFixture, _ string) error {
+			_, err := m.ImportMemories(f.ctx, f.owner.ID, f.orgID, []AiMemoryInput{{Kind: "fact", Text: "Tôi làm ở Huế"}})
 			return err
 		}},
 		"UndoProposal": {audit.ActionAIMemoryDeleted, func(m *AiMemoryService, f *auditFixture, id string) error {
