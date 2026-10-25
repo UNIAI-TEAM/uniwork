@@ -10,7 +10,7 @@ import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniHeader } from "./ask-uni-header";
 import { AskUniMemory } from "./ask-uni-memory";
-import { AskUniMemoryImport } from "./ask-uni-memory-import";
+import { AskUniMemoryHelp } from "./ask-uni-memory-help";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
 import { AskUniSourcesBar } from "./ask-uni-sources-bar";
@@ -41,7 +41,9 @@ export function AskUniPanel() {
   const { i18n } = useTranslation();
   const conversationId = useAiPanelStore((s) => s.conversationId);
   const view = useAiPanelStore((s) => s.view);
-  const memoryView = view === "memory" || view === "memory-import";
+  const memoryView = view === "memory";
+  const memoryHelp = useAiPanelStore((s) => s.memoryHelp);
+  const setMemoryHelp = useAiPanelStore((s) => s.setMemoryHelp);
   // The panel owns the stream so the thread and the composer share one live turn.
   const stream = useAskUniStream(workspace.id);
   const { model, effort, look } = useAskModelSelection(workspace.id);
@@ -69,7 +71,7 @@ export function AskUniPanel() {
       <AskUniHeader />
       {memoryView ? null : <AskUniSourcesBar />}
       {memoryView ? (
-        view === "memory-import" ? <AskUniMemoryImport orgSlug={workspace.organization_slug} /> : <AskUniMemory orgSlug={workspace.organization_slug} />
+        <AskUniMemory orgSlug={workspace.organization_slug} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
           {empty ? (
@@ -82,7 +84,17 @@ export function AskUniPanel() {
               askDefaults={{ model, effort, locale: i18n.language }}
             />
           )}
-          <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={streaming} attachments={canAttach ? attachments : undefined} />
+          {memoryHelp ? <AskUniMemoryHelp orgSlug={workspace.organization_slug} /> : null}
+          <AskUniComposer
+            // Sending is the end of "edit by chat": the strip has done its job.
+            onSend={(input, display) => {
+              setMemoryHelp(false);
+              return stream.ask(input, display);
+            }}
+            onStop={stream.stop}
+            streaming={streaming}
+            attachments={canAttach ? attachments : undefined}
+          />
         </div>
       )}
       {isDragOver ? <DropOverlay /> : null}
