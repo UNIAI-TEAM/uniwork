@@ -347,9 +347,11 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
-  /* Thư ký UNI's caption box: frosted glass over the stage, lit along its top
-     edge, floating a little above it (the owner's approved preview). */
-  --meeting-caption-glass: rgb(20 20 26 / 0.64);
+  /* Thư ký UNI's caption box: a near-opaque dark surface, lit along its top
+     edge, floating a little above the stage. Opaque enough that its faintest
+     words keep AA over a white slide when it floats over a screen share
+     (tokens.test.ts; at 64% they measured 1.78:1). */
+  --meeting-caption-glass: rgb(20 20 26 / 0.94);
   --meeting-caption-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 24px 60px -28px rgb(0 0 0 / 0.85);
   /* The scribe tile's violet (#A23CF2) the language thumb sweeps with while a translation is on its way. */
   --meeting-caption-sweep: rgb(162 60 242 / 0.45);
@@ -602,9 +604,11 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
-  /* Thư ký UNI's caption box: frosted glass over the stage, lit along its top
-     edge, floating a little above it (the owner's approved preview). */
-  --meeting-caption-glass: rgb(20 20 26 / 0.64);
+  /* Thư ký UNI's caption box: a near-opaque dark surface, lit along its top
+     edge, floating a little above the stage. Opaque enough that its faintest
+     words keep AA over a white slide when it floats over a screen share
+     (tokens.test.ts; at 64% they measured 1.78:1). */
+  --meeting-caption-glass: rgb(20 20 26 / 0.94);
   --meeting-caption-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 24px 60px -28px rgb(0 0 0 / 0.85);
   /* The scribe tile's violet (#A23CF2) the language thumb sweeps with while a translation is on its way. */
   --meeting-caption-sweep: rgb(162 60 242 / 0.45);

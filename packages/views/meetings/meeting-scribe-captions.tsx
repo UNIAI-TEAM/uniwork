@@ -471,6 +471,8 @@ export function MeetingScribeCaptions({
           frame.floating && "pointer-events-auto fixed z-30 flex flex-col",
           // Dragged over the docking zone: it will dock when let go.
           frame.dockHint && "ring-2 ring-tint-violet-foreground",
+          // The lines' region masks its own edges, focus ring included: the card shows its keyboard focus.
+          "has-[[data-caption-region]:focus-visible]:outline-2 has-[[data-caption-region]:focus-visible]:outline-offset-2 has-[[data-caption-region]:focus-visible]:outline-(--ring)",
         )}
       >
         {frame.handles}
@@ -567,6 +569,7 @@ export function MeetingScribeCaptions({
           ref={view}
           role="region"
           aria-label={t("meetings.scribe.captionsHistory")}
+          data-caption-region=""
           // A scroll region keyboard users can reach (WCAG 2.1.1); the live announcer above stays the screen reader's feed.
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
