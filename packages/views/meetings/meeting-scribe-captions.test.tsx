@@ -29,6 +29,7 @@ const room = {
   },
   unregisterTextStreamHandler: (topic: string) => lk.handlers.delete(topic),
   getParticipantByIdentity: (id: string) => lk.people.get(id),
+  activeSpeakers: [] as { audioLevel: number }[],
 };
 
 vi.mock("@livekit/components-react", () => ({
@@ -62,6 +63,13 @@ async function caption(from: string, attrs: Record<string, string>, text: string
   });
 }
 
+/** The words a caption line shows: each word is its own span, so match the line's text as a whole. */
+const shown = (text: string) =>
+  screen.queryAllByText((_, el) => el?.hasAttribute("data-caption-text") === true && el.textContent === text)[0] ?? null;
+
+/** The scribe's voice line along the bottom edge; it travels while a translation is awaited. */
+const voiceLine = () => screen.getByTestId("meeting-scribe-captions").querySelector("[data-scribe-voice]");
+
 const attrs = (identity: string, seg: string, final: boolean) => ({
   "uw.participant_identity": identity,
   "uw.segment_id": seg,
@@ -85,15 +93,34 @@ describe("MeetingScribeCaptions", () => {
   it("shows who said what, interim dimmed then replaced by the final", async () => {
     render(wrap(<MeetingScribeCaptions enabled />));
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", false), "Chốt ship");
-    const interim = screen.getByText("Chốt ship");
-    expect(interim.closest("[data-final]")).toHaveAttribute("data-final", "0");
-    expect(screen.getByText("Lan:", { exact: false })).toBeInTheDocument();
+    expect(shown("Chốt ship")?.closest("[data-final]")).toHaveAttribute("data-final", "0");
+    expect(screen.getByText("Lan")).toBeInTheDocument();
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Chốt ship thứ Sáu");
-    expect(screen.queryByText("Chốt ship")).not.toBeInTheDocument();
-    expect(screen.getByText("Chốt ship thứ Sáu").closest("[data-final]")).toHaveAttribute("data-final", "1");
+    expect(shown("Chốt ship")).toBeNull();
+    expect(shown("Chốt ship thứ Sáu")?.closest("[data-final]")).toHaveAttribute("data-final", "1");
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Chốt ship thứ Sáu");
     await caption("uw_agent_scribe", attrs("uw_participant_p2", "TR2-1", true), "Đồng ý");
-    expect(screen.getAllByText("Minh:", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Minh")).toBeInTheDocument();
+  });
+
+  it("names the speaker when the voice changes, not on every line they say", async () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Chốt ship");
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-2", true), "thứ Sáu nhé");
+    expect(screen.getAllByText("Lan")).toHaveLength(1);
+    await caption("uw_agent_scribe", attrs("uw_participant_p2", "TR2-1", true), "Đồng ý");
+    expect(screen.getAllByText("Lan")).toHaveLength(1);
+    expect(screen.getByText("Minh")).toBeInTheDocument();
+    // Back to Lan after Minh: the voice changed again, so her name heads the line.
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-3", true), "Cảm ơn");
+    expect(screen.getAllByText("Lan")).toHaveLength(2);
+    expect(shown("Cảm ơn")?.closest("p")).toHaveTextContent("Lan");
+  });
+
+  it("lights its voice line from the room's loudest speaker", () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    expect(voiceLine()).not.toBeNull();
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
   });
 
   it("ignores captions sent by anyone but the agent", async () => {
@@ -131,30 +158,33 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "English" }));
     // Nothing waits for a translation yet: no promise of one.
-    expect(label()).not.toHaveTextContent("Đang dịch…");
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "en" } }),
     );
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
-    expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
-    // A Vietnamese final waits for its English: the bar says so, the screen reader hears it once.
-    expect(label()).toHaveTextContent("Đang dịch…");
+    expect(shown("Gửi báo giá")).not.toBeNull();
+    // A Vietnamese final waits for its English: the voice line travels, the screen reader hears it once.
+    expect(voiceLine()).toHaveAttribute("data-processing");
+    expect(label()).not.toHaveTextContent("Đang dịch…");
     expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Đang dịch…");
     // The line itself is held back from the screen reader until it is in the language it stays in.
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("");
     // Only the agent's translation counts.
     await caption("uw_participant_p2", { "uw.segment_id": "TR1-1" }, "Forged", scribeTranslationTopic("en"));
-    expect(screen.queryByText("Forged")).not.toBeInTheDocument();
+    expect(shown("Forged")).toBeNull();
     await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
-    expect(screen.getByText("Send the quote")).toBeInTheDocument();
-    expect(label()).not.toHaveTextContent("Đang dịch…");
-    expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    // The translation runs in over the original, word by word.
+    const words = shown("Send the quote")?.querySelectorAll<HTMLElement>(".animate-caption-word-in");
+    expect([...(words ?? [])].map((w) => w.style.animationDelay)).toEqual(["0ms", "18ms", "36ms"]);
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
+    expect(shown("Gửi báo giá")).toBeNull();
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Send the quote");
     // Back to the original.
     fireEvent.click(screen.getByRole("button", { name: "Bản gốc" }));
     await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false));
-    expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
+    expect(shown("Gửi báo giá")).not.toBeNull();
     expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } });
   });
 
@@ -163,7 +193,7 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
     await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("vi"))).toBe(true));
     await caption("uw_agent_scribe", { ...attrs("uw_participant_p1", "TR1-1", true), "uw.language": "vi-VN" }, "Chốt lịch");
-    expect(label()).not.toHaveTextContent("Đang dịch…");
+    expect(voiceLine()).not.toHaveAttribute("data-processing");
     expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("");
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Chốt lịch");
   });
@@ -187,31 +217,35 @@ describe("MeetingScribeCaptions translation (B9)", () => {
       await act(async () => {});
       expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
       await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
-      expect(label()).toHaveTextContent("Đang dịch…");
+      expect(voiceLine()).toHaveAttribute("data-processing");
       act(() => {
         vi.advanceTimersByTime(5000);
       });
-      expect(label()).not.toHaveTextContent("Đang dịch…");
+      expect(voiceLine()).not.toHaveAttribute("data-processing");
       expect(label()).toHaveTextContent("Chưa có bản dịch, đang hiện bản gốc");
       expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Chưa có bản dịch, đang hiện bản gốc");
       expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
       // A translation that turns up late changes the bar, never the line already read.
       await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
-      expect(screen.getByText("Send the quote")).toBeInTheDocument();
+      expect(shown("Send the quote")).not.toBeNull();
       expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("marks the picked language with more than a grey: the brand fill and a tick", async () => {
+  it("slides a thumb under the picked language, which turns bold, behind short labels", async () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     const original = screen.getByRole("button", { name: "Bản gốc" });
     expect(original).toHaveAttribute("aria-pressed", "true");
-    expect(original.className).toMatch(/aria-pressed:bg-brand\b/);
+    expect(original).toHaveTextContent("Gốc");
     expect(original.className).toMatch(/aria-pressed:font-semibold/);
-    expect(original.querySelector("svg")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "English" }).querySelector("svg")).toBeNull();
+    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    const thumb = screen.getByTestId("meeting-caption-language-thumb");
+    expect(thumb.style.transform).toBe("translateX(0%)");
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(thumb.style.transform).toBe("translateX(200%)");
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
   });
 
   it("goes back to the original when the server refuses", async () => {

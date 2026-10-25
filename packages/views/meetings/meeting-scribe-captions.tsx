@@ -1,14 +1,17 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useRemoteParticipants, useRoomContext } from "@livekit/components-react";
-import { RoomEvent } from "livekit-client";
-import { Check } from "lucide-react";
+import { type Room, RoomEvent } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { type CaptionLanguage, useSetCaptionLanguage } from "@uniwork/core/meetings/captions";
-import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
+import { ScribeMark, ScribeVoiceLine } from "@uniwork/ui/brand/scribe-mark";
+import { type Tint, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MEETING_AVATAR_TINTS } from "./meeting-detail/avatar-tint";
+import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 
 /** The text-stream topic the AI scribe publishes captions on (spec D7). */
 export const SCRIBE_CAPTION_TOPIC = "uw.caption";
@@ -28,6 +31,8 @@ type ScribeCaption = {
   language?: string;
   /** When the final arrived, so its translation is waited for a short while only. */
   finalAt?: number;
+  /** The text shown is the picked language's translation, not what was said. */
+  translated?: boolean;
 };
 
 /** The topic one language's translated captions ride on (spec §5.3). */
@@ -142,7 +147,12 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
     return () => window.clearTimeout(id);
   }, [deadline]);
   // A line without its translation (yet) shows the original.
-  const shown = lang ? lines.map((l) => (l.final ? { ...l, text: translated.get(l.segmentId) ?? l.text } : l)) : lines;
+  const shown = lang
+    ? lines.map((l) => {
+        const text = l.final ? translated.get(l.segmentId) : undefined;
+        return text === undefined ? l : { ...l, text, translated: true };
+      })
+    : lines;
   const newestForeign = [...lines].reverse().find((l) => l.final && Boolean(lang) && baseLanguage(l.language) !== lang);
   const state: TranslationState = !newestForeign || !awaiting(newestForeign)
     ? "idle"
@@ -250,6 +260,74 @@ function useCaptionLanguage(meetingId: string | undefined) {
   return { lang, pick };
 }
 
+const LANGUAGES = [
+  [ORIGINAL, "meetings.scribe.captionOriginal", "meetings.scribe.captionOriginalShort"],
+  ["vi", "meetings.scribe.captionVietnamese", "meetings.scribe.captionVietnameseShort"],
+  ["en", "meetings.scribe.captionEnglish", "meetings.scribe.captionEnglishShort"],
+] as const;
+
+/**
+ * How loud the room is now, 0–1, for the scribe's voice line. LiveKit reports
+ * a linear level (10^(dBov/20)) in which speech sits around 0.03–0.3; the
+ * square root spreads that over the line's range.
+ */
+function roomLoudness(room: Room): number {
+  const level = room.activeSpeakers.reduce((max, p) => Math.max(max, p.audioLevel), 0);
+  return Math.min(1, Math.sqrt(level) * 1.6);
+}
+
+/** A speaker keeps one tint wherever their name shows, without any state to hold it. */
+function speakerTint(identity: string): Tint {
+  let h = 0;
+  for (const c of identity) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return MEETING_AVATAR_TINTS[Math.abs(h) % MEETING_AVATAR_TINTS.length]!;
+}
+
+/**
+ * Older lines glide up when a new one wraps in, instead of jumping. The
+ * glide starts from where the eye sees the lines, so a line that wraps
+ * mid-glide carries on from there. Reduced motion: they jump.
+ */
+function useGlide(ref: RefObject<HTMLElement | null>) {
+  const top = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const prev = top.current;
+    top.current = el.offsetTop;
+    if (prev === null || prev === el.offsetTop || typeof el.animate !== "function") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const seen = new DOMMatrixReadOnly(getComputedStyle(el).transform).m42;
+    el.getAnimations().forEach((a) => a.cancel());
+    el.animate([{ transform: `translateY(${prev - el.offsetTop + seen}px)` }, { transform: "none" }], {
+      duration: 450,
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+    });
+  });
+}
+
+/**
+ * A caption's words, each sharpening in as it arrives (base.css
+ * `animate-caption-word-in`). Spans are keyed by position, so only the words
+ * just heard animate; `stagger` runs a whole new text in word by word.
+ */
+function CaptionWords({ text, stagger }: { text: string; stagger: boolean }) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((w, i) => (
+      <Fragment key={i}>
+        {i > 0 ? " " : null}
+        <span
+          className="inline-block animate-caption-word-in"
+          style={stagger ? { animationDelay: `${Math.min(i * 18, 360)}ms` } : undefined}
+        >
+          {w}
+        </span>
+      </Fragment>
+    ));
+}
+
 /** The room's captions from the AI scribe: who said it, interim words dimmed, in the picked language. */
 export function MeetingScribeCaptions({
   enabled,
@@ -262,12 +340,16 @@ export function MeetingScribeCaptions({
 }) {
   const { t } = useTranslation();
   const room = useRoomContext();
+  const avatarOf = useRoomAvatarOf();
   const { lang, pick } = useCaptionLanguage(meetingId);
   const { lines, state, ready } = useScribeCaptions(enabled, lang);
   const said = useSpokenOnce(ready);
   const notice = useTranslationNotice(lang, state);
+  const flow = useRef<HTMLDivElement>(null);
+  useGlide(flow);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
+  const picked = Math.max(0, LANGUAGES.findIndex(([value]) => value === (lang || ORIGINAL)));
   return (
     // `dark`: the stage is dark in both themes; the footer sits outside its scope.
     <div className={cn("dark pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
@@ -278,16 +360,17 @@ export function MeetingScribeCaptions({
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-translation-notice">
         {notice}
       </p>
-      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <p aria-hidden className="text-caption text-meeting-bar-muted-foreground" data-testid="meeting-caption-label">
-            <ScribeMark className="mr-1.5 inline-block size-3.5 align-[-3px]" />
+      <div className="relative isolate overflow-hidden rounded-2xl bg-meeting-bar-bg px-4 pt-2.5 pb-3.5 ring-1 ring-meeting-bar-border">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <p
+            aria-hidden
+            className="flex items-center gap-2 text-caption text-meeting-bar-muted-foreground"
+            data-testid="meeting-caption-label"
+          >
+            <ScribeMark state="live" className="size-5" />
             {t("meetings.scribe.captionsLabel")}
-            {state === "translating" ? (
-              <span className="ml-2">{t("meetings.scribe.captionTranslating")}</span>
-            ) : state === "original" ? (
-              <span className="ml-2">{t("meetings.scribe.captionUntranslated")}</span>
-            ) : null}
+            {/* Translating shows on the voice line; only a translation that never came is said in words. */}
+            {state === "original" ? <span>{t("meetings.scribe.captionUntranslated")}</span> : null}
           </p>
           {meetingId ? (
             <ToggleGroup
@@ -299,47 +382,73 @@ export function MeetingScribeCaptions({
                 else if (next === "vi" || next === "en") pick(next);
               }}
               aria-label={t("meetings.scribe.captionLanguage")}
-              size="sm"
-              className="pointer-events-auto"
+              className="pointer-events-auto relative isolate ms-auto grid grid-cols-3 rounded-full bg-meeting-bar-chip-bg p-0.5 ring-1 ring-meeting-bar-border"
             >
-              {(
-                [
-                  [ORIGINAL, "meetings.scribe.captionOriginal"],
-                  ["vi", "meetings.scribe.captionVietnamese"],
-                  ["en", "meetings.scribe.captionEnglish"],
-                ] as const
-              ).map(([value, key]) => {
-                const pressed = (lang || ORIGINAL) === value;
-                return (
-                  <ToggleGroupItem
-                    key={value}
-                    value={value}
-                    // The bar is near black: the picked language takes the brand fill and a tick, never a grey that vanishes.
-                    className="text-caption text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground aria-pressed:bg-brand aria-pressed:font-semibold aria-pressed:text-brand-foreground aria-pressed:hover:bg-brand/90 aria-pressed:hover:text-brand-foreground pointer-coarse:min-h-11"
-                  >
-                    {pressed ? <Check aria-hidden className="size-3.5" /> : null}
-                    {t(key)}
-                  </ToggleGroupItem>
-                );
-              })}
+              {/* The picked language sits on a thumb that slides between the three. */}
+              <span
+                aria-hidden
+                data-testid="meeting-caption-language-thumb"
+                className="absolute inset-y-0.5 left-0.5 -z-10 w-[calc((100%-0.25rem)/3)] rounded-full bg-meeting-bar-chip-hover ring-1 ring-meeting-bar-border transition-transform duration-300 ease-(--ease-out-quart)"
+                style={{ transform: `translateX(${picked * 100}%)` }}
+              />
+              {LANGUAGES.map(([value, name, short]) => (
+                <ToggleGroupItem
+                  key={value}
+                  value={value}
+                  aria-label={t(name)}
+                  title={t(name)}
+                  className="h-7 min-w-10 text-caption font-medium text-meeting-bar-muted-foreground group-data-[spacing=0]/toggle-group:rounded-full group-data-[spacing=0]/toggle-group:px-2.5 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-full group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-full hover:bg-transparent hover:text-meeting-bar-foreground aria-pressed:bg-transparent aria-pressed:font-semibold aria-pressed:text-meeting-bar-foreground pointer-coarse:min-h-11"
+                >
+                  {t(short)}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
           ) : null}
         </div>
-        {/* Three lines at most, newest at the bottom: older words slide off the top. */}
-        <div aria-hidden className="flex max-h-[3lh] flex-col justify-end overflow-hidden text-body">
-          {lines.length === 0 ? (
-            <p className="text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
-          ) : (
-            lines.map((l) => (
-              <p key={l.segmentId} data-final={l.final ? "1" : "0"}>
-                <span className="font-medium text-meeting-bar-foreground">{`${nameOf(l.identity)}: `}</span>
-                <span className={l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground"}>
-                  {l.text}
-                </span>
-              </p>
-            ))
-          )}
+        {/* Two lines in full, the one before fading out at the top edge as the newest wraps in below. */}
+        <div
+          aria-hidden
+          className="relative mt-1.5 flex h-[2.6lh] flex-col justify-end overflow-hidden text-title-sm font-medium tracking-normal [mask-image:linear-gradient(to_bottom,transparent,black_1lh)] sm:text-title"
+        >
+          <div ref={flow}>
+            {lines.length === 0 ? (
+              <p className="text-meeting-bar-muted-foreground">{t("meetings.captionsListening")}</p>
+            ) : (
+              lines.map((l, i) => {
+                const tint = speakerTint(l.identity);
+                const name = nameOf(l.identity);
+                return (
+                  <p key={l.segmentId} data-final={l.final ? "1" : "0"}>
+                    {/* The speaker shows when the voice changes, not on every line they say. */}
+                    {i === 0 || lines[i - 1]?.identity !== l.identity ? (
+                      <span
+                        className={cn(
+                          "me-2 inline-flex animate-caption-word-in items-center gap-1.5 align-[1px] text-caption font-semibold",
+                          tintForegroundClass[tint],
+                        )}
+                      >
+                        <MeetingPersonAvatar name={name} avatarUrl={avatarOf(l.identity)} size={20} tint={tint} />
+                        {name}
+                      </span>
+                    ) : null}
+                    {/* A translation remounts the words, so it runs in over the original. */}
+                    <span
+                      key={l.translated ? `t:${lang}` : "o"}
+                      data-caption-text=""
+                      className={cn(
+                        "transition-colors duration-500",
+                        l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground",
+                      )}
+                    >
+                      <CaptionWords text={l.text} stagger={Boolean(l.translated)} />
+                    </span>
+                  </p>
+                );
+              })
+            )}
+          </div>
         </div>
+        <ScribeVoiceLine level={() => roomLoudness(room)} processing={state === "translating"} />
       </div>
     </div>
   );

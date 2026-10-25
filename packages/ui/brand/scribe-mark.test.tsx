@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-import { ScribeGlyph, ScribeMark } from "./scribe-mark";
+import { ScribeGlyph, ScribeMark, ScribeVoiceLine } from "./scribe-mark";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("ScribeMark", () => {
   it("is decoration by default and names its state for the motion rules", () => {
@@ -33,6 +37,41 @@ describe("ScribeMark", () => {
     expect(container.querySelector("rect")?.getAttribute("fill")).toBeNull();
     expect(container.querySelector("rect")?.getAttribute("class")).toContain("stroke-border");
     expect(container.querySelector("circle")).toBeNull();
+  });
+});
+
+describe("ScribeVoiceLine", () => {
+  /** Runs the animation frames by hand. */
+  function frames() {
+    const queue: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => queue.push(cb));
+    const cancel = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    return { step: () => queue.shift()?.(0), queue, cancel };
+  }
+
+  it("follows the level every frame, rising fast and falling slowly, and stops with the line", () => {
+    const f = frames();
+    let level = 1;
+    const { container, unmount } = render(<ScribeVoiceLine level={() => level} />);
+    const line = container.querySelector<HTMLElement>("[data-scribe-voice]")!;
+    expect(line.getAttribute("aria-hidden")).toBe("true");
+    f.step();
+    expect(line.style.getPropertyValue("--voice")).toBe("0.300");
+    level = 0;
+    f.step();
+    expect(line.style.getPropertyValue("--voice")).toBe("0.279");
+    unmount();
+    expect(f.cancel).toHaveBeenCalled();
+  });
+
+  it("marks translating for the travelling stretch, and rests under reduced motion", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    const f = frames();
+    const { container } = render(<ScribeVoiceLine level={() => 1} processing />);
+    const line = container.querySelector<HTMLElement>("[data-scribe-voice]")!;
+    expect(line.hasAttribute("data-processing")).toBe(true);
+    expect(f.queue).toHaveLength(0);
+    expect(line.style.getPropertyValue("--voice")).toBe("");
   });
 });
 

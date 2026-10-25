@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId } from "react";
+import { forwardRef, useEffect, useId, useRef, type CSSProperties } from "react";
 import type { LucideProps } from "lucide-react";
 
 import { cn } from "@uniwork/ui/lib/utils";
@@ -102,3 +102,49 @@ export const ScribeGlyph = forwardRef<SVGSVGElement, LucideProps>(function Scrib
     </svg>
   );
 });
+
+/**
+ * Thư ký UNI listening, drawn as one line along the bottom edge of the box
+ * it sits in (base.css `[data-scribe-voice]`): it thickens and brightens with
+ * `level` (0–1, read every frame), and while `processing` it gathers into a
+ * short stretch that travels the edge. The parent is `relative` and clips it
+ * with its radius. Reduced motion reads no level: the line rests.
+ */
+export function ScribeVoiceLine({
+  level,
+  processing = false,
+  className,
+}: {
+  level: () => number;
+  processing?: boolean;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const levelRef = useRef(level);
+  levelRef.current = level;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let shown = 0;
+    let written = "";
+    let frame = requestAnimationFrame(function tick() {
+      const target = Math.min(1, Math.max(0, levelRef.current() || 0));
+      // Rises fast, falls slowly: the line follows a voice, not every sample.
+      shown += (target - shown) * (target > shown ? 0.3 : 0.07);
+      const next = shown.toFixed(3);
+      if (next !== written) el.style.setProperty("--voice", (written = next));
+      frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <span
+      ref={ref}
+      aria-hidden
+      data-scribe-voice=""
+      data-processing={processing ? "" : undefined}
+      style={{ "--scribe-from": TILE_FROM, "--scribe-to": TILE_TO } as CSSProperties}
+      className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-1", className)}
+    />
+  );
+}
