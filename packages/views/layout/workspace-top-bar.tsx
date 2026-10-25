@@ -243,7 +243,7 @@ export function WorkspaceTopBar({
   // a toolbar rather than five loose buttons. Touch keeps 44px.
   const actions = (
     <div className="flex items-center gap-0.5 @max-[21rem]/topbar:contents">
-      <AskUniButton />
+      {isCompact ? <AskUniButton /> : null}
       <NotificationBell />
       <Tooltip>
         <TooltipTrigger
@@ -323,8 +323,10 @@ export function WorkspaceTopBar({
             <WorkspaceSwitcher current={workspace} placement="header" />
           </div>
           {/* On the app plane the field needs its own surface, or it sinks into the grey. */}
-          <SearchTrigger className="lg:border-border lg:bg-page-canvas" />
+          <SearchTrigger className="lg:w-96 lg:border-border lg:bg-page-canvas" />
           <div className="flex flex-1 items-center justify-end gap-2">
+            {/* The AI entry reads as one at a glance: a labelled pill, not one more grey glyph. */}
+            <AskUniButton labeled />
             {actions}
             <AccountMenu placement="header" />
           </div>

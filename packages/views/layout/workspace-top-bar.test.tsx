@@ -220,6 +220,27 @@ describe("WorkspaceTopBar", () => {
     useSearchStore.setState({ open: false });
   });
 
+  it("on a desktop bar, shows Ask UNI as a labelled AI pill, a wide search, and an account avatar that says it opens a menu", async () => {
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/workspaces/ws1/ai/capabilities"
+          ? { enabled: true, ask_uni: true, meeting_summary: true, quota: { used_tokens: 0, limit_tokens: 500000 } }
+          : {},
+      ),
+    );
+    renderTopBar();
+    const ask = await screen.findByRole("button", { name: "Hỏi UNI" });
+    expect(ask).toHaveTextContent("Hỏi UNI");
+    expect(ask).toHaveClass("rounded-full", "bg-brand-subtle", "text-brand-subtle-foreground");
+    expect(ask.querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toHaveClass("lg:w-96");
+    const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
+    // A 32px avatar with a chevron: the control reads as a menu, not a lone picture.
+    expect(account.querySelector('[data-slot="account-chevron"]')).not.toBeNull();
+    expect(account.querySelector('[data-slot="avatar"][style*="width: 32px"]')).not.toBeNull();
+  });
+
   it("on a compact bar, puts the search trigger right after the sidebar toggle, and keeps switcher and account in the sheet", async () => {
     const width = window.innerWidth;
     window.innerWidth = 800;

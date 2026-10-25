@@ -38,7 +38,7 @@ export function AccountMenu({ placement, onNavigate }: { placement: "sidebar" | 
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   // Starts with what the button shows, so a voice-control user can say the name they see (WCAG 2.5.3).
   const label = t("nav.account_named", { name: user.display_name, email: user.email });
-  const avatar = (size: "sm" | "lg", className?: string) => (
+  const avatar = (size: "lg", className?: string) => (
     <ActorAvatar
       name={user.display_name}
       initials={initialOf(user.display_name)}
@@ -55,11 +55,16 @@ export function AccountMenu({ placement, onNavigate }: { placement: "sidebar" | 
           <TooltipTrigger
             render={
               <DropdownMenuTrigger
-                render={<Button type="button" variant="ghost" size="icon" className="text-muted-foreground" aria-label={label} />}
+                render={
+                  <Button type="button" variant="ghost" className="h-9 gap-1 rounded-full pr-1.5 pl-0.5 text-muted-foreground" aria-label={label} />
+                }
               />
             }
           >
-            {avatar("sm")}
+            {/* The initials' muted fill is the app plane's grey: give the circle the card surface and an edge. */}
+            {avatar("lg", "bg-page-canvas text-foreground ring-1 ring-border")}
+            {/* Says there is a menu behind the picture. */}
+            <ChevronDown aria-hidden data-slot="account-chevron" className="size-3.5" />
           </TooltipTrigger>
           <TooltipContent side="bottom">{user.display_name}</TooltipContent>
         </Tooltip>
