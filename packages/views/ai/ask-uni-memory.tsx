@@ -45,17 +45,26 @@ export function AskUniMemory({ orgId }: { orgId: string }) {
 
   const entries = memory.data?.entries ?? [];
   const limit = memory.data?.limit ?? 50;
-  const fail = (err: unknown) => {
+  const message = (err: unknown) => {
     const code = errorCode(err);
-    setError(code === "ai_memory_full" ? t("full", { limit }) : t(`errors.${code}`, { defaultValue: t("errors.default") }));
+    return code === "ai_memory_full" ? t("full", { limit }) : t(`errors.${code}`, { defaultValue: t("errors.default") });
   };
+  const fail = (err: unknown) => setError(message(err));
   const run = (call: Promise<unknown>) => {
     setError(null);
     return call.catch(fail);
   };
 
-  const save = (e: AiMemory, patch: { kind: string; text: string }) =>
-    void run(e.id === "" ? create.mutateAsync(patch) : update.mutateAsync({ id: e.id, body: patch }));
+  // The row keeps its editor open on a refusal and shows this text itself.
+  const save = async (e: AiMemory, patch: { kind: string; text: string }) => {
+    setError(null);
+    try {
+      await (e.id === "" ? create.mutateAsync(patch) : update.mutateAsync({ id: e.id, body: patch }));
+      return null;
+    } catch (err) {
+      return message(err);
+    }
+  };
   const del = (e: AiMemory) =>
     void run(
       remove.mutateAsync(e.id).then(() =>
@@ -129,7 +138,6 @@ export function AskUniMemory({ orgId }: { orgId: string }) {
                       entry={{ ...NEW, kind }}
                       startEditing
                       onSave={(p) => save(NEW, p)}
-                      onDelete={() => setAdding(null)}
                       onCancel={() => setAdding(null)}
                     />
                   ) : null}

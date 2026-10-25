@@ -80,6 +80,7 @@ describe("AskUniComposer", () => {
     mount();
     await waitFor(() => expect(inline()).toEqual([{ type: "text", text: "Cập nhật bộ nhớ của tôi: " }]));
     expect(useAiPanelStore.getState().composerPrefill).toBeNull();
+    expect(box().editor.isFocused).toBe(true);
   });
 
   it("holds the chips, the box and the buttons in one frame", async () => {

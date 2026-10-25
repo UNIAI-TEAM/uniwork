@@ -22,8 +22,9 @@ export function AskUniMemoryRow({
   onCancel,
 }: {
   entry: AiMemory;
-  onSave: (patch: { kind: string; text: string }) => void;
-  onDelete: () => void;
+  /** Resolves with the error to show, or null once saved; the editor stays open until then. */
+  onSave: (patch: { kind: string; text: string }) => Promise<string | null>;
+  onDelete?: () => void;
   startEditing?: boolean;
   onCancel?: () => void;
 }) {
@@ -38,15 +39,23 @@ export function AskUniMemoryRow({
     setKind(entry.kind);
     onCancel?.();
   };
-  const commit = () => {
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const commit = async () => {
     const next = text.trim();
-    if (next !== "" && (next !== entry.text || kind !== entry.kind)) onSave({ kind, text: next });
-    close();
+    if (next === "" || (next === entry.text && kind === entry.kind)) return close();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    const failure = await onSave({ kind, text: next });
+    setSaving(false);
+    if (failure === null) close();
+    else setError(failure);
   };
 
   if (editing) {
     return (
-      <li className="flex items-center gap-2 py-1">
+      <li className="flex flex-wrap items-center gap-2 py-1">
         <Input
           autoFocus
           aria-label={t("entry_label")}
@@ -56,7 +65,7 @@ export function AskUniMemoryRow({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing) return;
-            if (e.key === "Enter") commit();
+            if (e.key === "Enter") void commit();
             else if (e.key === "Escape") close();
           }}
           className="min-w-0 flex-1"
@@ -75,6 +84,11 @@ export function AskUniMemoryRow({
             <SelectItem value="fact">{t("kind_fact")}</SelectItem>
           </SelectContent>
         </Select>
+        {error ? (
+          <p role="alert" className="w-full text-caption text-destructive">
+            {error}
+          </p>
+        ) : null}
       </li>
     );
   }
@@ -89,16 +103,18 @@ export function AskUniMemoryRow({
         {entry.text}
       </button>
       {/* Hidden until the line is hovered or holds focus; it stays in the tab order. */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={t("delete_entry")}
-        className="text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
-        onClick={onDelete}
-      >
-        <Trash2 aria-hidden />
-      </Button>
+      {onDelete ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("delete_entry")}
+          className="text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
+          onClick={onDelete}
+        >
+          <Trash2 aria-hidden />
+        </Button>
+      ) : null}
     </li>
   );
 }

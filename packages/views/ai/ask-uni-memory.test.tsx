@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
@@ -86,6 +87,32 @@ describe("AskUniMemory", () => {
     expect(action.label).toBe("Hoàn tác");
     action.onClick();
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(LIST, { method: "POST", body: { kind: "preference", text: "Trả lời ngắn gọn" } }));
+  });
+
+  it("reaches the delete button by keyboard and deletes with Enter", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByText("Trả lời ngắn gọn");
+    await user.tab(); // back
+    await user.tab(); // switch
+    await user.tab(); // first line
+    await user.tab(); // its delete button
+    expect(screen.getAllByRole("button", { name: "Xóa mục này" })[0]).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(`${LIST}/m1`, { method: "DELETE" }));
+  });
+
+  it("keeps the editor and the typed text when a save fails", async () => {
+    mount();
+    fireEvent.click(await screen.findByText("Trả lời ngắn gọn"));
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      init?.method === "PATCH" ? Promise.reject(new ApiError("dup", "ai_memory_duplicate", 409)) : Promise.resolve(list),
+    );
+    const box = screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" });
+    fireEvent.change(box, { target: { value: "Tôi là kế toán" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mục này đã có trong bộ nhớ.");
+    expect(screen.getByRole("textbox", { name: "Nội dung mục bộ nhớ" })).toHaveValue("Tôi là kế toán");
   });
 
   it("adds a fact", async () => {
