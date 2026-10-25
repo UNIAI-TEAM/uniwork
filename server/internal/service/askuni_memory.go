@@ -20,12 +20,13 @@ import (
 )
 
 // askWithMemory is the dock prompt with the asker's memory for each one
-// without (R8).
+// without (R8). A turn sent the write tools runs @20 to @23 (UNI-2158), so
+// @14, @15, @18 and @19 are no longer picked.
 var askWithMemory = map[string]string{
 	ai.PromptCopilotAnswerV4: ai.PromptCopilotAnswerV12, ai.PromptCopilotAnswerV5: ai.PromptCopilotAnswerV13,
-	ai.PromptCopilotAnswerV6: ai.PromptCopilotAnswerV14, ai.PromptCopilotAnswerV7: ai.PromptCopilotAnswerV15,
 	ai.PromptCopilotAnswerV8: ai.PromptCopilotAnswerV16, ai.PromptCopilotAnswerV9: ai.PromptCopilotAnswerV17,
-	ai.PromptCopilotAnswerV10: ai.PromptCopilotAnswerV18, ai.PromptCopilotAnswerV11: ai.PromptCopilotAnswerV19,
+	ai.PromptCopilotAnswerV20: ai.PromptCopilotAnswerV24, ai.PromptCopilotAnswerV21: ai.PromptCopilotAnswerV25,
+	ai.PromptCopilotAnswerV22: ai.PromptCopilotAnswerV26, ai.PromptCopilotAnswerV23: ai.PromptCopilotAnswerV27,
 }
 
 // askMemoryTurn is the asker's memory as one turn sees it: the entries in M#

@@ -104,19 +104,24 @@ func TestTurnMemoryReadsOnlyTheAskersMemoryInThisOrganization(t *testing.T) {
 func TestAgentPicksMemoryPrompt(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct {
-		name          string
-		actions, mem  bool
-		prompt        string
-		wantMemoryRow bool
+		name                   string
+		actions, mem, thinking bool
+		prompt                 string
+		wantMemoryRow          bool
 	}{
-		{"memory and writes", true, true, ai.PromptCopilotAnswerV14, true},
-		{"memory only", false, true, ai.PromptCopilotAnswerV12, true},
-		{"switch off, writes", true, false, ai.PromptCopilotAnswerV6, false},
-		{"switch off", false, false, ai.PromptCopilotAnswerV4, false},
+		{"memory and writes", true, true, false, ai.PromptCopilotAnswerV24, true},
+		{"memory, writes, narrated", true, true, true, ai.PromptCopilotAnswerV26, true},
+		{"memory only", false, true, false, ai.PromptCopilotAnswerV12, true},
+		{"switch off, writes", true, false, false, ai.PromptCopilotAnswerV20, false},
+		{"switch off", false, false, false, ai.PromptCopilotAnswerV4, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w, m := memWorld(t)
-			w.s.SetFlags(withActions{agentFlagFake{org: w.x.w.OrganizationID}, c.actions})
+			var flags McpFlags = withActions{agentFlagFake{org: w.x.w.OrganizationID}, c.actions}
+			if c.thinking {
+				flags = withThinking{flags}
+			}
+			w.s.SetFlags(flags)
 			if _, err := m.Create(ctx, w.x.ua.ID, w.x.w.OrganizationID, "preference", "Trả lời ngắn"); err != nil {
 				t.Fatal(err)
 			}
@@ -124,7 +129,8 @@ func TestAgentPicksMemoryPrompt(t *testing.T) {
 				t.Fatal(err)
 			}
 			reqs := scriptCalls(w.fake, "Xong.")
-			res := w.ask(t, ctx, AskInput{}, nil)
+			var events []AskEvent // a narrated prompt needs the stream
+			res := w.ask(t, ctx, AskInput{}, &events)
 			p, _ := ai.LookupPrompt(c.prompt)
 			first := (*reqs)[0]
 			if first.System != p.System {
