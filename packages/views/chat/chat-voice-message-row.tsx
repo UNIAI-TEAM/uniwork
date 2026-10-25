@@ -101,7 +101,7 @@ function VoicePlayer({
           ) : playing ? (
             <Pause className="size-4 fill-current" aria-hidden />
           ) : (
-            <Play className="size-4.5 fill-current" aria-hidden />
+            <Play className="size-4 fill-current" aria-hidden />
           )}
         </Button>
         <span className="flex min-w-0 flex-1 flex-col gap-1">

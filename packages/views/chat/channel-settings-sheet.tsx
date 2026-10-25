@@ -326,7 +326,7 @@ export function ChannelSettingsSheet({
                     className={`${CHAT_SELECT_TRIGGER_CLASS} pr-3 [&>svg:last-child]:size-4.5`}
                     aria-labelledby="channel-settings-project-label"
                   >
-                    <Folder className="size-4.5 text-muted-foreground" aria-hidden />
+                    <Folder className="size-4 text-muted-foreground" aria-hidden />
                     <SelectValue placeholder={t("chat.channel.project_none")} />
                   </SelectTrigger>
                   <SelectContent>

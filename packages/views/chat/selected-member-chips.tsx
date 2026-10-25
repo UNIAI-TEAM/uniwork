@@ -102,7 +102,7 @@ export function SelectedMemberChips({
                   data-chip-remove=""
                   onClick={() => remove(member.user_id, index)}
                 >
-                  <X aria-hidden className="size-3.75" strokeWidth={2.4} />
+                  <X aria-hidden className="size-3.5" />
                 </Button>
               </li>
             );

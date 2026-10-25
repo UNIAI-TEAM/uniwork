@@ -118,7 +118,7 @@ export function ChatReactionChips({
           onClick={() => onReact(message)}
           className="relative inline-flex size-7 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
         >
-          <FaceSlightlySmiling className="size-3.75" aria-hidden />
+          <FaceSlightlySmiling className="size-3.5" aria-hidden />
         </button>
       ) : null}
     </div>
@@ -225,19 +225,19 @@ export function ChatMessageMeta({
         <CheckCheck
           role="img"
           aria-label={t("chat.read_receipt")}
-          className={cn("size-3.75", onBrand ? "text-chat-bubble-own-foreground" : inline === "media" ? undefined : "text-brand")}
+          className={cn("size-3.5", onBrand ? "text-chat-bubble-own-foreground" : inline === "media" ? undefined : "text-brand")}
         />
       ) : tick === "delivered" ? (
         <CheckCheck
           role="img"
           aria-label={t("chat.receipt_delivered")}
           className={cn(
-            "size-3.75",
+            "size-3.5",
             onBrand ? "text-chat-bubble-own-foreground/60" : inline === "media" ? "opacity-60" : "text-muted-foreground",
           )}
         />
       ) : tick === "sent" ? (
-        <Check role="img" aria-label={t("chat.receipt_sent")} className="size-3.75" />
+        <Check role="img" aria-label={t("chat.receipt_sent")} className="size-3.5" />
       ) : null}
       {showReadReceipt ? (
         <span

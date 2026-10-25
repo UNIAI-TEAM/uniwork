@@ -196,7 +196,7 @@ export function StepWelcome({
                     {pending === "next" ? (
                       <Spinner strokeWidth={1.75} />
                     ) : (
-                      <ArrowRight className="size-4" strokeWidth={1.75} />
+                      <ArrowRight className="size-4" />
                     )}
                   </span>
                 </Button>
