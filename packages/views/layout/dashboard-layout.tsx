@@ -6,6 +6,7 @@ import { PublicConfigFlagsProvider } from "@uniwork/core/feature-flags";
 import { setCurrentWorkspace } from "@uniwork/core/platform";
 import { WSProvider } from "@uniwork/core/realtime";
 import { SidebarInset, SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppSidebar } from "./app-sidebar";
 import { DashboardGuard } from "./dashboard-guard";
 import { NavigationProgress } from "./navigation-progress";
@@ -68,7 +69,8 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                   <EntitlementGateToastHost />
                   <WorkspaceChatPresence />
                   <WorkspaceChatAttention />
-                  <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
+                  {/* A column: the top bar across the app, then the row of nav and content. */}
+                  <SidebarProvider className="h-svh flex-col bg-app-shell" hasExternalTrigger>
                     {/* First in the DOM so it is the first tab stop; visible only
                         while focused. */}
                     <a
@@ -77,18 +79,31 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                     >
                       {t("nav.skip_to_content")}
                     </a>
-                    {chatOnly ? <WorkspaceRail /> : <AppSidebar />}
-                    {/* clip, not hidden: an sr-only or other absolute node inside a
-                        page's inner scroller overflows this positioned frame, and a
-                        hidden frame still scrolls under scrollIntoView or focus,
-                        dragging the top bar off screen (UNI-1995). */}
-                    <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-clip outline-hidden">
-                      <BrowserNotificationsPrompt />
-                      <NavigationProgress />
-                      <WorkspaceChrome bare={chatOnly}>{children}</WorkspaceChrome>
-                      <WorkspaceChatToast />
-                      {extra}
-                    </SidebarInset>
+                    <WorkspaceChrome
+                      bare={chatOnly}
+                      nav={chatOnly ? <WorkspaceRail /> : <AppSidebar />}
+                      frame={(content) => (
+                        // clip, not hidden: an sr-only or other absolute node inside a
+                        // page's inner scroller overflows this positioned frame, and a
+                        // hidden frame still scrolls under scrollIntoView or focus,
+                        // dragging the page off screen (UNI-1995). On a desktop
+                        // workspace shell the frame is the app plane: its cards draw
+                        // their own surface (AskUniDock).
+                        <SidebarInset
+                          id={MAIN_CONTENT_ID}
+                          tabIndex={-1}
+                          className={cn("relative overflow-clip outline-hidden", !chatOnly && "lg:bg-transparent")}
+                        >
+                          <BrowserNotificationsPrompt />
+                          <NavigationProgress />
+                          {content}
+                          <WorkspaceChatToast />
+                          {extra}
+                        </SidebarInset>
+                      )}
+                    >
+                      {children}
+                    </WorkspaceChrome>
                   </SidebarProvider>
                 </ChatVoiceCallHost>
               </WSProvider>
