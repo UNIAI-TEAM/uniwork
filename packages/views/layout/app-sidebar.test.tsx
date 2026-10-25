@@ -86,17 +86,27 @@ describe("AppSidebar", () => {
   });
 
   it("on a desktop shell, is a floating card under the top bar that ends with its collapse toggle", () => {
-    renderSidebar("/acme/team/tasks");
-    const sidebar = document.querySelector('[data-slot="sidebar"]');
-    expect(sidebar).toHaveAttribute("data-variant", "floating");
-    expect(document.querySelector('[data-slot="sidebar-container"]')).toHaveClass("lg:top-12", "lg:pt-0");
-    // The toggle closes the card (owner's pick), so the card opens straight on the modules.
-    expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
-    const footer = document.querySelector('[data-slot="sidebar-footer"]');
-    expect(within(footer as HTMLElement).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
-    // The switcher and the account live on the top bar there.
-    expect(screen.queryByRole("button", { name: /chuyển workspace/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
+    // A wide desktop: between 1024 and 1279px the primitive parks the sidebar collapsed.
+    const width = window.innerWidth;
+    window.innerWidth = 1440;
+    try {
+      renderSidebar("/acme/team/tasks");
+      const sidebar = document.querySelector('[data-slot="sidebar"]');
+      expect(sidebar).toHaveAttribute("data-variant", "floating");
+      expect(document.querySelector('[data-slot="sidebar-container"]')).toHaveClass("lg:top-12", "lg:pt-0");
+      // The toggle closes the card (owner's pick), so the card opens straight on the modules.
+      expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
+      // A full-width row with a named action, not a bare icon in the corner; it renames itself once collapsed.
+      const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
+      fireEvent.click(within(footer).getByRole("button", { name: "Thu gọn thanh bên" }));
+      expect(sidebar).toHaveAttribute("data-state", "collapsed");
+      expect(within(footer).getByRole("button", { name: "Mở rộng thanh bên" })).toHaveAttribute("data-slot", "sidebar-menu-button");
+      // The switcher and the account live on the top bar there.
+      expect(screen.queryByRole("button", { name: /chuyển workspace/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
+    } finally {
+      window.innerWidth = width;
+    }
   });
 
   it("renders the workspace sections as real links that navigate through the adapter", () => {
@@ -300,7 +310,7 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     // The rail keeps its own way back open (the edge rail is a drag handle, not this).
     const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
-    expect(within(footer).getByRole("button", { name: /ẩn\/hiện thanh bên/i })).toHaveAttribute("data-slot", "sidebar-trigger");
+    expect(within(footer).getByRole("button", { name: "Mở rộng thanh bên" })).toHaveAttribute("data-slot", "sidebar-menu-button");
   });
 });
 

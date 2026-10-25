@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useId, useRef } from "react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
@@ -22,7 +23,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarTrigger,
   useSidebar,
 } from "@uniwork/ui/components/ui/sidebar";
 import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
@@ -96,13 +96,35 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarFooter>
       ) : (
-        // At the card's foot, not alone on a row above the modules; centred in the icon rail.
-        <SidebarFooter className="items-start px-2 pt-1 pb-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-          <SidebarTrigger size="icon" className="text-muted-foreground" />
+        // A full-width row at the card's foot, like the modules above it, not a bare icon in a corner.
+        <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <CollapseRow />
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       )}
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The collapse toggle, named for what it does next; ⌘B still toggles it (the sidebar primitive). */
+function CollapseRow() {
+  const { t } = useTranslation();
+  const { state, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed";
+  const label = t(collapsed ? "nav.expand_sidebar" : "nav.collapse_sidebar");
+  const Icon = collapsed ? ChevronsRight : ChevronsLeft;
+  return (
+    <SidebarMenuButton tooltip={label} className={navButtonClass} onClick={toggleSidebar}>
+      {/* The module tile's box, so the chevrons line up with the icons above. */}
+      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
+        <Icon className="size-4" />
+      </span>
+      <span>{label}</span>
+    </SidebarMenuButton>
   );
 }
 
