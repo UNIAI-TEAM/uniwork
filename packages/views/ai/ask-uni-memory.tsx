@@ -180,7 +180,7 @@ export function AskUniMemory({ orgSlug }: { orgSlug: string }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={clear.isPending}>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={clear.isPending} onClick={clearAll}>
+            <AlertDialogAction variant="destructive" disabled={clear.isPending} onClick={clearAll}>
               {t("clear_confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>

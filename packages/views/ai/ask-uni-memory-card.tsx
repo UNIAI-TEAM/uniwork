@@ -12,8 +12,8 @@ import {
 } from "@uniwork/core/ai/memory";
 import type { AiMemoryProposal, AiMessage } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
+import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { MEMORY_MAX_CHARS, runeCount, useMemoryErrorText } from "./ask-uni-memory-row";
 
 const SETTLED = new Set(["rejected", "undone", "expired"]);
@@ -31,6 +31,8 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
   const [kind, setKind] = useState(p.kind);
   const [error, setError] = useState("");
   const errorText = useMemoryErrorText();
+  const tooLong = editing && runeCount(text.trim()) > MEMORY_MAX_CHARS;
+  const shownError = error || (tooLong ? t("errors.invalid_request") : "");
   const busy = apply.isPending || reject.isPending || undo.isPending || edit.isPending;
 
   const action = p.action === "update" || p.action === "forget" ? p.action : "remember";
@@ -42,39 +44,45 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
     const next = text.trim();
     if (next === "") return;
     // The server counts runes: no maxLength, which would cut an emoji line early.
-    if (runeCount(next) > MEMORY_MAX_CHARS) return setError(t("errors.invalid_request"));
+    if (runeCount(next) > MEMORY_MAX_CHARS) return;
     run((cb) => edit.mutate({ id: p.id, body: { kind, text: next } }, { ...cb, onSuccess: () => setEditing(false) }));
   };
 
-  const kindLabel = p.kind === "preference" || p.kind === "fact" ? t(`kind_${p.kind}`) : "";
+  // A forget row stores the entry it removes in before_*; its own kind and text are empty.
+  const shownKind = action === "forget" ? p.before_kind : p.kind;
+  const shownText = action === "forget" ? p.before_text : p.text;
+  const kindLabel = shownKind === "preference" || shownKind === "fact" ? t(`kind_${shownKind}`) : "";
   const status = p.status;
   return (
     <li className="px-3 py-2.5">
       <p className="text-caption font-medium text-muted-foreground">{t(`proposal.title_${action}`)}</p>
       {editing ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <Input
+        <div className="mt-1.5 flex flex-col gap-2">
+          {/* Its own line and wrapping, so a 300-character entry reads whole in the narrow dock; an entry is one line. */}
+          <Textarea
             aria-label={t("proposal.edit_text")}
-            aria-invalid={runeCount(text.trim()) > MEMORY_MAX_CHARS}
+            aria-invalid={tooLong}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="min-w-0 flex-1"
+            onChange={(e) => setText(e.target.value.replace(/[\r\n]+/g, " "))}
+            className="min-h-0"
           />
-          <Select
-            items={[{ value: "preference", label: t("kind_preference") }, { value: "fact", label: t("kind_fact") }]}
-            value={kind}
-            onValueChange={(v) => v && setKind(v)}
-          >
-            <SelectTrigger aria-label={t("kind_label")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="preference">{t("kind_preference")}</SelectItem>
-              <SelectItem value="fact">{t("kind_fact")}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button type="button" size="sm" disabled={busy} onClick={save}>{t("proposal.edit_save")}</Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t("proposal.edit_cancel")}</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              items={[{ value: "preference", label: t("kind_preference") }, { value: "fact", label: t("kind_fact") }]}
+              value={kind}
+              onValueChange={(v) => v && setKind(v)}
+            >
+              <SelectTrigger aria-label={t("kind_label")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="preference">{t("kind_preference")}</SelectItem>
+                <SelectItem value="fact">{t("kind_fact")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" size="sm" disabled={busy} onClick={save}>{t("proposal.edit_save")}</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t("proposal.edit_cancel")}</Button>
+          </div>
         </div>
       ) : (
         <div className={SETTLED.has(status) ? "mt-1 opacity-60" : "mt-1"}>
@@ -84,13 +92,13 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
               {p.before_text}
             </p>
           ) : null}
-          <p className="text-body break-words whitespace-pre-wrap text-foreground">{p.text}</p>
+          <p className="text-body break-words whitespace-pre-wrap text-foreground">{shownText}</p>
           {kindLabel ? <p className="mt-0.5 text-caption text-muted-foreground">{kindLabel}</p> : null}
         </div>
       )}
-      {error ? (
+      {shownError ? (
         <p role="alert" className="mt-1.5 text-caption text-destructive">
-          {error}
+          {shownError}
         </p>
       ) : null}
       {editing ? null : status === "pending" ? (

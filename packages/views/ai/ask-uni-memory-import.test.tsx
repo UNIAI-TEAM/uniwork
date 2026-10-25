@@ -130,7 +130,8 @@ describe("AskUniMemoryImport review", () => {
   it("pre-ticks valid rows; instruction-like and duplicate rows stay off with their reason; skipped rows have no tick", async () => {
     split = {
       candidates: [cand("Một"), cand("Hai", "fact", { instruction_like: true }), cand("Ba", "fact", { duplicate: true })],
-      skipped: [{ text: "Số tài khoản 123", reason: "secret" }],
+      // The server sends a secret line back without its text.
+      skipped: [{ text: "", reason: "secret" }],
     };
     await toReview();
     expect(ticks().map((c) => c.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
@@ -138,7 +139,7 @@ describe("AskUniMemoryImport review", () => {
     expect(screen.getByText("Đã có trong bộ nhớ")).toBeInTheDocument();
     const group = screen.getByText(/Bỏ qua 1 dòng/).closest("details") as HTMLElement;
     expect(group).not.toHaveAttribute("open");
-    expect(within(group).getByText(/Số tài khoản 123/)).toBeInTheDocument();
+    expect(within(group).getByText("Đã ẩn nội dung (mật khẩu hay khóa)")).toBeInTheDocument();
     expect(within(group).queryByRole("checkbox")).toBeNull();
   });
 
