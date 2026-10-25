@@ -159,7 +159,7 @@ describe("WSClient presence beat", () => {
 
   it("times out a superseding beat when ack never arrives", async () => {
     const { client } = connectAuthenticatedClient();
-    client.sendPresenceBeat(true);
+    void client.sendPresenceBeat(true);
     await vi.advanceTimersByTimeAsync(5_000);
     const second = client.sendPresenceBeat(false);
     await vi.advanceTimersByTimeAsync(10_001);
