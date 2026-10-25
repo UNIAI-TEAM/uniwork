@@ -52,7 +52,7 @@ function BackgroundTile({
         {children}
         {selected ? (
           <span className="absolute right-1 bottom-1 flex size-4.5 items-center justify-center rounded-full bg-brand text-brand-foreground">
-            <Check aria-hidden className="size-3" strokeWidth={3} />
+            <Check aria-hidden className="size-3" />
           </span>
         ) : null}
       </span>

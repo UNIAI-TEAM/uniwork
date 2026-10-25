@@ -165,7 +165,7 @@ export function ChatPollMessageRow({
           {poll.question}
         </p>
         <p id={hintId} className="mt-px mb-2 flex items-center gap-1.25 text-caption text-muted-foreground">
-          {poll.settings.hide_results_until_vote ? <EyeOff className="size-3.25 shrink-0" aria-hidden /> : null}
+          {poll.settings.hide_results_until_vote ? <EyeOff className="size-3.5 shrink-0" aria-hidden /> : null}
           {[
             multiple ? t("chat.message_list.poll_pick_many") : t("chat.message_list.poll_pick_one"),
             poll.settings.hide_results_until_vote ? t("chat.poll_setting_hide_results") : null,
@@ -202,7 +202,7 @@ export function ChatPollMessageRow({
                   selected ? "border-brand bg-brand text-brand-foreground" : "border-faint-foreground",
                 )}
               >
-                {selected ? <Check className="size-3" strokeWidth={3.5} /> : null}
+                {selected ? <Check className="size-3" /> : null}
               </span>
             );
             const voteButton = (

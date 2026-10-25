@@ -163,7 +163,7 @@ export function PeopleSearch({
                       on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background",
                     )}
                   >
-                    {on ? <Check className="size-3" strokeWidth={3} /> : null}
+                    {on ? <Check className="size-3" /> : null}
                   </span>
                   <MeetingPersonAvatar name={m.display_name} avatarUrl={m.avatar_url} size={24} tint={meetingAvatarTint(m.user_id, members)} />
                   <span className="min-w-0 truncate">{m.display_name}</span>

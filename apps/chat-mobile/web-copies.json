@@ -76,7 +76,7 @@
       "packages/views/chat/native-chat-live-region.tsx": "1d165ee6bdae8fc6f2a4469999ea5a06f9f50d1365cfa965946b0c71e597edb4"
     },
     "apps/chat-mobile/lib/call-log-display.ts": {
-      "packages/views/chat/voice-call-log-row.tsx": "edd51acff6fd1ab04d766c69b2fd8e64e17edaf0290e528d91a002eb8782307e"
+      "packages/views/chat/voice-call-log-row.tsx": "f0d3c2f9f083520eaa880abd7b2c89dc9d4450fa2280e4c5903ee8a34445fe53"
     },
     "apps/chat-mobile/lib/call-ringtone.ts": {
       "packages/views/chat/use-call-ringtone.ts": "fc0d16409dfe702fc9d9fa062050819441848a1c98c706bc5cee812ee69d1279"
@@ -98,8 +98,8 @@
       "packages/views/chat/chat-expression-utils.ts": "f5f0a0f88762b9aaadcab0e8df3186fd8ff09e03b4687360dc8c7fda8018ca95"
     },
     "apps/chat-mobile/lib/message-display.ts": {
-      "packages/views/chat/chat-poll-message-row.tsx": "229d2a150095e3914d31a76e45988870f490d0f7268c56839821da365bf42c1c",
-      "packages/views/chat/voice-call-log-row.tsx": "edd51acff6fd1ab04d766c69b2fd8e64e17edaf0290e528d91a002eb8782307e"
+      "packages/views/chat/chat-poll-message-row.tsx": "d38f9e3532a8c9cf23f37a89e54453d15dfbfb6d30666bbdd485110cea02bef7",
+      "packages/views/chat/voice-call-log-row.tsx": "f0d3c2f9f083520eaa880abd7b2c89dc9d4450fa2280e4c5903ee8a34445fe53"
     },
     "apps/chat-mobile/lib/message-format.ts": {
       "packages/views/chat/chat-message-body.tsx": "c8d39c21e4ec3c3fa6747a622628b32fee7f40a26504d8ca01ca80e81556b7b8"

@@ -143,7 +143,7 @@ export function VoiceCallRecordingDialog({
             className="flex flex-col gap-2.5 rounded-lg bg-destructive-soft px-3.5 py-3 text-destructive-soft-foreground"
           >
             <span className="flex items-center gap-2.5 text-body font-medium">
-              <CircleAlert aria-hidden className="size-4.5 shrink-0" />
+              <CircleAlert aria-hidden className="size-4 shrink-0" />
               {t("chat.voice_call_recording_error")}
             </span>
             <span className="pl-7">
@@ -153,7 +153,7 @@ export function VoiceCallRecordingDialog({
                 className="h-8.5 rounded-full px-3.5 text-label font-semibold text-foreground"
                 onClick={retry}
               >
-                <RefreshCw aria-hidden className="size-3.75" />
+                <RefreshCw aria-hidden className="size-4" />
                 {t("common.retry")}
               </Button>
             </span>

@@ -51,7 +51,7 @@ export function LocaleSwitch({ className }: { className?: string }) {
         className,
       )}
     >
-      <Globe aria-hidden className="ml-1.5 size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+      <Globe aria-hidden className="ml-1.5 size-3.5 shrink-0 text-muted-foreground" />
       <div className="relative grid grid-cols-2">
         {/* The thumb: one segment wide, moved with transform only, in the
             app's selected-row wash. A white thumb vanished against the pill in

@@ -49,7 +49,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
     <span aria-hidden className={cn("relative inline-flex size-9 shrink-0", dimmed && "opacity-70")}>
       {n.actor_kind === "agent" ? (
         <span className="flex size-9 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
-          <Bot className="size-4.5" />
+          <Bot className="size-4" />
         </span>
       ) : (
         <Avatar className="size-9">

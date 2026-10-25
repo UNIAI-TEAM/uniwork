@@ -25,6 +25,7 @@ function ProgressCircle({ progress, children }: { progress: number; children?: R
         fill="none"
         stroke="currentColor"
         strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
         strokeDasharray="3.14 0"
         strokeDashoffset={-0.7}
       />
@@ -79,6 +80,7 @@ function BlockedIcon() {
         y2={CENTER - FILL_RADIUS * Math.sin(-Math.PI * 0.25)}
         stroke="currentColor"
         strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
       />
     </ProgressCircle>
@@ -93,6 +95,7 @@ function CancelledIcon() {
         fill="none"
         stroke="currentColor"
         strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
       />
     </ProgressCircle>

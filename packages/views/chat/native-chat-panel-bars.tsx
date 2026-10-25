@@ -77,7 +77,7 @@ export function ChatAnchorBar({ onBackToLatest }: { onBackToLatest: () => void }
   const { t } = useTranslation();
   return (
     <div className="flex min-h-13 shrink-0 items-center gap-2.5 border-b border-border bg-info-soft py-1.5 pr-2.5 pl-4 text-info-soft-foreground">
-      <Search aria-hidden className="size-4.5 shrink-0" />
+      <Search aria-hidden className="size-4 shrink-0" />
       <p className="min-w-0 flex-1 truncate text-body font-semibold">{t("chat.search_jump_banner")}</p>
       <Button
         type="button"
@@ -111,7 +111,7 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
       )}
       onClick={onClick}
     >
-      <ArrowDown className="size-4.5" aria-hidden />
+      <ArrowDown className="size-4" aria-hidden />
       <span aria-hidden>{t("chat.search_back_to_latest")}</span>
       {newCount > 0 ? (
         <span
