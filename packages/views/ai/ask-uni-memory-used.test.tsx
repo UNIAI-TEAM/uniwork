@@ -16,18 +16,24 @@ beforeEach(() => {
 });
 
 describe("AskUniMemoryUsed", () => {
-  it("names the first entry, counts the rest and opens the memory screen from the list", async () => {
+  it("is one chip with the count that opens the list and the memory screen", async () => {
     mount(["m1", "m2"]);
-    expect(await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/)).toBeInTheDocument();
+    const chip = await screen.findByRole("button", { name: "Dùng 2 mục bộ nhớ" });
     expect(requestMock).toHaveBeenCalledWith("/api/v1/orgs/acme/ai/memory");
-    fireEvent.click(screen.getByRole("button", { name: /\+1/ }));
-    fireEvent.click(await screen.findByText("Tôi là kế toán"));
+    // The entries stay folded until asked for: the chip does not quote a truncated entry.
+    expect(chip).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Trả lời ngắn gọn")).toBeNull();
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Trả lời ngắn gọn")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Tôi là kế toán"));
     expect(useAiPanelStore.getState().view).toBe("memory");
   });
 
-  it("opens the memory screen from a single used entry", async () => {
+  it("opens the memory screen from the list's link", async () => {
     mount(["m1"]);
-    fireEvent.click(await screen.findByRole("button", { name: "Đã dùng bộ nhớ: Trả lời ngắn gọn" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Dùng 1 mục bộ nhớ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mở Bộ nhớ" }));
     expect(useAiPanelStore.getState().view).toBe("memory");
   });
 

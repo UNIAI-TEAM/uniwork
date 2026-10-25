@@ -67,9 +67,8 @@ describe("ai panel page context", () => {
     expect(useAiPanelStore.getState().view).toBe("thread");
     s.setView("memory");
     expect(useAiPanelStore.getState().view).toBe("memory");
-    s.setView("memory-import");
     s.bindWorkspace("w1");
-    expect(useAiPanelStore.getState().view).toBe("memory-import");
+    expect(useAiPanelStore.getState().view).toBe("memory");
     s.bindWorkspace("w2");
     expect(useAiPanelStore.getState().view).toBe("thread");
     s.setView("memory");
@@ -79,6 +78,22 @@ describe("ai panel page context", () => {
     s.toggle();
     s.toggle();
     expect(useAiPanelStore.getState().view).toBe("thread");
+  });
+
+  it("the memory help strip opens on the thread and goes with a workspace change or close", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setView("memory");
+    s.openMemoryHelp();
+    expect(useAiPanelStore.getState()).toMatchObject({ view: "thread", memoryHelp: true });
+    s.setMemoryHelp(false);
+    expect(useAiPanelStore.getState().memoryHelp).toBe(false);
+    s.openMemoryHelp();
+    s.bindWorkspace("w2");
+    expect(useAiPanelStore.getState().memoryHelp).toBe(false);
+    s.openMemoryHelp();
+    s.setOpen(false);
+    expect(useAiPanelStore.getState().memoryHelp).toBe(false);
   });
 
   it("composerPrefill is set and cleared", () => {

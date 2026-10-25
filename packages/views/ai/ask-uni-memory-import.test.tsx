@@ -40,7 +40,7 @@ beforeEach(async () => {
     if (path === IMPORT) return importAnswer();
     return Promise.resolve(undefined);
   });
-  useAiPanelStore.setState({ view: "memory-import", composerPrefill: null, workspaceId: "ws1" });
+  useAiPanelStore.setState({ view: "memory", composerPrefill: null, workspaceId: "ws1" });
 });
 afterEach(() => void i18n.changeLanguage("vi"));
 
@@ -48,7 +48,7 @@ function mount() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniMemoryImport orgSlug={workspace.organization_slug} />
+        <AskUniMemoryImport orgSlug={workspace.organization_slug} defaultOpen />
       </WorkspaceProvider>,
     ),
   );
@@ -163,19 +163,41 @@ describe("AskUniMemoryImport review", () => {
     expect(ticks().map((c) => c.getAttribute("aria-checked"))).toEqual(["false", "true", "true", "false"]);
   });
 
-  it("saves the ticked entries with the edited kind and text, then goes back to memory with a toast", async () => {
+  it("saves the ticked entries with the edited kind and text, then folds the import away with a toast", async () => {
     await toReview();
     const box = screen.getAllByRole("textbox", { name: "Nội dung mục bộ nhớ" })[1] as HTMLInputElement;
     fireEvent.change(box, { target: { value: "Tôi là kế toán trưởng" } });
-    await userEvent.click(screen.getAllByRole("combobox", { name: "Loại" })[0] as HTMLElement);
-    await userEvent.click(await screen.findByRole("option", { name: "Về bạn" }));
+    // The kind is a two-way switch on each row, not a menu.
+    await userEvent.click(within(screen.getAllByRole("group", { name: "Loại" })[0] as HTMLElement).getByRole("button", { name: "Về bạn" }));
     fireEvent.click(screen.getByRole("button", { name: "Thêm 2 mục vào bộ nhớ" }));
-    await waitFor(() => expect(useAiPanelStore.getState().view).toBe("memory"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Thêm 2 mục vào bộ nhớ" })).toBeNull());
+    expect(screen.getByRole("button", { name: "Nhập từ AI khác" })).toHaveAttribute("aria-expanded", "false");
     expect(posted(IMPORT)[0]?.[1]).toEqual({
       method: "POST",
       body: { entries: [{ kind: "fact", text: "Trả lời ngắn" }, { kind: "fact", text: "Tôi là kế toán trưởng" }] },
     });
     expect(toastMock).toHaveBeenCalledWith("Đã thêm 2 mục");
+  });
+
+  it("goes back to the paste, kept, from the pick step", async () => {
+    await toReview();
+    fireEvent.click(screen.getByRole("button", { name: "Dán lại" }));
+    expect(screen.getByRole("textbox", { name: "Chữ dán từ AI khác" })).toHaveValue("- a\n- b");
+  });
+
+  it("stays folded until its title is pressed", async () => {
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniMemoryImport orgSlug={workspace.organization_slug} />
+        </WorkspaceProvider>,
+      ),
+    );
+    const title = screen.getByRole("button", { name: "Nhập từ AI khác" });
+    expect(title).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: "Chữ dán từ AI khác" })).toBeNull();
+    fireEvent.click(title);
+    expect(await screen.findByRole("textbox", { name: "Chữ dán từ AI khác" })).toBeInTheDocument();
   });
 
   it("mentions skipped duplicates in the toast", async () => {
@@ -190,7 +212,7 @@ describe("AskUniMemoryImport review", () => {
     await toReview();
     fireEvent.click(screen.getByRole("button", { name: "Thêm 2 mục vào bộ nhớ" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Xóa bớt mục cũ rồi thử lại");
-    expect(useAiPanelStore.getState().view).toBe("memory-import");
+    expect(useAiPanelStore.getState().view).toBe("memory");
     expect(ticks()).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Thêm 2 mục vào bộ nhớ" })).toBeEnabled();
   });

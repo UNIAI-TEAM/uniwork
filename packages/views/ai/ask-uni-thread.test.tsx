@@ -205,6 +205,40 @@ describe("AskUniThread", () => {
     await screen.findByText("Hỏi");
     expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
   });
+
+  it("keeps a reader at the bottom when the box shrinks, and leaves one who scrolled up", async () => {
+    // The memory strip above the composer shrinks the thread's box without changing its content.
+    let resized = () => {};
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          resized = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      mount(stream());
+      await screen.findByText("Có 3 task quá hạn.");
+      const box = screen.getByRole("list").parentElement as HTMLElement;
+      Object.defineProperty(box, "scrollHeight", { configurable: true, value: 900 });
+      Object.defineProperty(box, "clientHeight", { configurable: true, value: 100 });
+      Object.defineProperty(box, "scrollTop", { configurable: true, writable: true, value: 800 });
+      fireEvent.scroll(box);
+      box.scrollTop = 750; // the box shrank by 50px: still pinned, now 50px short of the bottom
+      act(() => resized());
+      expect(box.scrollTop).toBe(900);
+
+      box.scrollTop = 0;
+      fireEvent.scroll(box);
+      act(() => resized());
+      expect(box.scrollTop).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("AskUniThread sources", () => {
