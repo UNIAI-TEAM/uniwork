@@ -386,10 +386,10 @@ fails on one on a Lucide icon.
 
 ### Stroke
 
-One line weight on screen: every Lucide icon strokes 2.5px at every size.
+One line weight on screen: every Lucide icon strokes 2px at every size.
 Lucide scales its stroke with the 24px viewBox, so its default 2 drew 1px at
 12px and 1.67px at 20px, and one screen showed four weights.
-`packages/ui/styles/base.css` makes the stroke non-scaling at 2.5, measured in
+`packages/ui/styles/base.css` makes the stroke non-scaling at 2, measured in
 CSS pixels, and it outranks any `strokeWidth` an icon is given.
 
 Do not set `strokeWidth` or `absoluteStrokeWidth` on a Lucide icon; pick the
@@ -398,7 +398,7 @@ cards, which used to draw a lighter hairline. `scripts/lucide-aliases.test.mjs`
 holds the rule in `base.css` and fails on a stroke prop on any Lucide icon.
 Hand-drawn marks (`packages/ui/brand`, the task status and priority icons, the
 file-type marks) are not Lucide and draw their own weight. Beside line icons
-they match 2.5px at the size they render.
+they match 2px at the size they render.
 
 ### Meaning
 
