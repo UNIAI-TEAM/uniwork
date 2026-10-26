@@ -61,7 +61,8 @@ export function AskAnswerCard({
   const text = shown ? (shown.content === "" && shown.notice ? noticeText(tAi, shown.notice) : shown.content) : "";
   // Shared means this answer: a newer one has not been.
   const shared = !!shown?.content && share.isSuccess && share.variables === forChat(shown.content);
-  const pills = shown ? linkableCitations(shown.citations) : [];
+  // The text drops its [Sn] markers, so a pill is just where a source opens: one per place.
+  const pills = shown ? linkableCitations(shown.citations).filter((c, i, all) => all.findIndex((o) => o.href === c.href) === i) : [];
 
   return (
     <div className="flex flex-col gap-3.5" data-testid="meeting-ask-uni">
@@ -109,7 +110,6 @@ export function AskAnswerCard({
                     href={c.href}
                     className="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-surface px-2 text-caption font-medium text-foreground ring-1 ring-border hover:bg-surface-hover pointer-coarse:h-11"
                   >
-                    <span className="tabular-nums text-muted-foreground">[{c.source_id}]</span>
                     <span className="truncate">{citationLabel(tAi, c)}</span>
                   </AppLink>
                 </li>

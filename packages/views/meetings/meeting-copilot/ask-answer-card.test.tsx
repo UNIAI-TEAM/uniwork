@@ -115,7 +115,17 @@ describe("AskAnswerCard", () => {
       }),
     );
     const list = screen.getByRole("list", { name: "Nguồn" });
-    expect(Array.from(list.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["[S2]Giao ban", "[S1]Họp quý"]);
+    // The markers are stripped from the text, so a pill's "[Sn]" would point at nothing.
+    expect(Array.from(list.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Giao ban", "Họp quý"]);
+  });
+
+  it("gives two sources that open the same place one pill", () => {
+    const href = "/o/w/meetings/m1#transcript";
+    const cite = (source_id: string, quote: string) => ({ source_id, kind: "transcript", title: "Giao ban", quote, href });
+    render(card({ answer: message({ content: "Hai câu [S1][S2].", citations: [cite("S1", "a"), cite("S2", "b")] }) }));
+    const links = within(screen.getByRole("list", { name: "Nguồn" })).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).not.toHaveTextContent("[S");
   });
 
   it("says why an answer has no text", () => {
