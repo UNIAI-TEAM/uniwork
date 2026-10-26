@@ -119,20 +119,6 @@ export function MeetingRoomTranscript({
   const [flash, setFlash] = useState<string | null>(null);
   const lastId = segments.at(-1)?.id;
 
-  useLayoutEffect(() => {
-    const el = scrollEl.current;
-    if (!el) return;
-    const before = seen.current;
-    const first = segments[0]?.id;
-    if (before.first !== undefined && first !== before.first && before.height > 0) {
-      // An older page came in above: the line the reader was on stays put.
-      el.scrollTop = before.top + (el.scrollHeight - before.height);
-    } else if (atBottom.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-    seen.current = { first, height: el.scrollHeight, top: el.scrollTop };
-  }, [segments]);
-
   useEffect(() => {
     if (searchOpen) searchEl.current?.focus();
   }, [searchOpen]);
@@ -145,15 +131,19 @@ export function MeetingRoomTranscript({
     target.scrollIntoView({ block: "center" });
     setFlash(focusSegmentId);
     const timer = setTimeout(() => setFlash(null), FLASH_MS);
-    return () => clearTimeout(timer);
+    // A new focus, or none, within the two seconds must not leave the old line marked.
+    return () => {
+      clearTimeout(timer);
+      setFlash(null);
+    };
   }, [focusSegmentId]);
 
   const folded = searchOpen ? fold(query.trim()) : "";
   const groups = useMemo(() => {
     const out: Group[] = [];
     for (const segment of segments) {
+      if (folded && !fold(segment.text).includes(folded)) continue;
       const matches = folded ? matchRanges(segment.text, folded) : [];
-      if (folded && matches.length === 0) continue;
       // A room-mic line (it carries a label) is not its device's person: no face, no colour.
       const identity = segment.participant_id && !segment.speaker_label ? PARTICIPANT_IDENTITY_PREFIX + segment.participant_id : null;
       const name = transcriptSpeaker(segment, t);
@@ -164,6 +154,23 @@ export function MeetingRoomTranscript({
     }
     return out;
   }, [segments, folded, t]);
+
+  // Runs on the rendered groups, not only the lines: a search changes the height too, and a
+  // stale height would throw the next older page's correction off. The first-line check
+  // keeps a search change from counting as a page landing above.
+  useLayoutEffect(() => {
+    const el = scrollEl.current;
+    if (!el) return;
+    const before = seen.current;
+    const first = segments[0]?.id;
+    if (before.first !== undefined && first !== before.first && before.height > 0) {
+      // An older page came in above: the line the reader was on stays put.
+      el.scrollTop = before.top + (el.scrollHeight - before.height);
+    } else if (atBottom.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+    seen.current = { first, height: el.scrollHeight, top: el.scrollTop };
+  }, [segments, groups]);
 
   const onScroll = () => {
     const el = scrollEl.current;
@@ -181,6 +188,8 @@ export function MeetingRoomTranscript({
     el.scrollTop = el.scrollHeight;
     atBottom.current = true;
     setFollowing(true);
+    // The pill unmounts with this click; keep keyboard focus in the transcript.
+    el.focus({ preventScroll: true });
   };
 
   if (segments.length === 0 && !older.hasOlder) {
@@ -188,6 +197,12 @@ export function MeetingRoomTranscript({
   }
 
   const lastGroup = groups.at(-1);
+  const lastVisibleId = lastGroup?.lines.at(-1)?.segment.id;
+  // Unread: a line the search shows arrived after the newest one when the reader left the bottom.
+  const unread =
+    !following &&
+    lastVisibleId !== undefined &&
+    segments.findIndex((x) => x.id === lastVisibleId) > segments.findIndex((x) => x.id === seenLast);
   const liveAt = lastGroup?.lines.at(-1)?.segment.id === lastId ? lastGroup?.lines.at(-1)?.segment.spoken_at : undefined;
 
   return (
@@ -235,7 +250,7 @@ export function MeetingRoomTranscript({
             )}
           </ol>
         </div>
-        {!following && lastId !== seenLast ? (
+        {unread ? (
           <Button
             type="button"
             size="sm"

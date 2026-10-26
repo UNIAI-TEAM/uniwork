@@ -126,19 +126,45 @@ describe("MeetingRoomTranscript", () => {
     expect(onOpenLink.mock.calls).toEqual([["decision"], ["task"]]);
   });
 
-  it("scrolls a focused line into view and marks it for two seconds", () => {
-    vi.useFakeTimers();
+  describe("a focused line", () => {
+    const original = Element.prototype.scrollIntoView;
     const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-    render(view({ segments: [line("s1"), line("s2"), line("s3")], focusSegmentId: "s3" }));
-    const target = screen.getByText("Câu s3");
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
-    expect(scrollIntoView.mock.contexts[0]).toBe(target);
-    expect(target).toHaveClass("bg-brand-subtle");
-    act(() => {
-      vi.advanceTimersByTime(2_000);
+    beforeEach(() => {
+      scrollIntoView.mockReset();
+      Element.prototype.scrollIntoView = scrollIntoView;
     });
-    expect(target).not.toHaveClass("bg-brand-subtle");
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+
+    it("scrolls into view and is marked for two seconds", () => {
+      vi.useFakeTimers();
+      render(view({ segments: [line("s1"), line("s2"), line("s3")], focusSegmentId: "s3" }));
+      const target = screen.getByText("Câu s3");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(target);
+      expect(target).toHaveClass("bg-brand-subtle");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(target).not.toHaveClass("bg-brand-subtle");
+    });
+
+    it("loses its mark when the focus is dropped before the two seconds are up", () => {
+      vi.useFakeTimers();
+      const qc = client();
+      const segments = [line("s1"), line("s2"), line("s3")];
+      const { rerender } = render(view({ segments, focusSegmentId: "s3" }, qc));
+      const target = screen.getByText("Câu s3");
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      rerender(view({ segments, focusSegmentId: null }, qc));
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(target).not.toHaveClass("bg-brand-subtle");
+    });
   });
 
   it("filters lines by the search, ignoring tone marks, and marks what matched", () => {
@@ -165,6 +191,44 @@ describe("MeetingRoomTranscript", () => {
     expect(screen.queryByText(/thanh toán/)).toBeNull();
   });
 
+  it("keeps the reader's place when an older page lands after the search shrank the list", () => {
+    const qc = client();
+    const segments = [line("a", { text: "QR một" }), line("b", { text: "khác" }), line("c", { text: "QR hai" })];
+    const { rerender } = render(view({ searchOpen: true, segments }, qc));
+    const el = screen.getByTestId("meeting-room-transcript");
+    const box = stubScroll(el);
+    box.height = 1000;
+    box.top = 100;
+    fireEvent.scroll(el);
+
+    box.height = 300;
+    fireEvent.change(screen.getByRole("textbox", { name: "Tìm trong lời thoại" }), { target: { value: "qr" } });
+    expect(box.top).toBe(100);
+
+    box.height = 500;
+    rerender(view({ searchOpen: true, segments: [line("z", { text: "QR cũ" }), ...segments] }, qc));
+    expect(box.top).toBe(300);
+  });
+
+  it("offers the jump only for a new line the search shows", () => {
+    const qc = client();
+    const segments = [line("a", { text: "QR một" }), line("b", { text: "khác" })];
+    const { rerender } = render(view({ searchOpen: true, segments }, qc));
+    fireEvent.change(screen.getByRole("textbox", { name: "Tìm trong lời thoại" }), { target: { value: "qr" } });
+    const el = screen.getByTestId("meeting-room-transcript");
+    const box = stubScroll(el);
+    box.height = 1000;
+    box.top = 100;
+    fireEvent.scroll(el);
+
+    const more = [...segments, line("c", { text: "không khớp" })];
+    rerender(view({ searchOpen: true, segments: more }, qc));
+    expect(screen.queryByRole("button", { name: "Về mới nhất" })).toBeNull();
+
+    rerender(view({ searchOpen: true, segments: [...more, line("d", { text: "QR mới" })] }, qc));
+    expect(screen.getByRole("button", { name: "Về mới nhất" })).toBeInTheDocument();
+  });
+
   it("offers a jump to the latest line when one arrives while the reader is scrolled up, without moving them", () => {
     const qc = client();
     const { rerender } = render(view({ segments: [line("a"), line("b")] }, qc));
@@ -180,6 +244,8 @@ describe("MeetingRoomTranscript", () => {
     expect(box.top).toBe(200);
     fireEvent.click(screen.getByRole("button", { name: "Về mới nhất" }));
     expect(box.top).toBe(1100);
+    // The pill leaves with the click; focus stays in the transcript instead of falling to the page.
+    expect(el).toHaveFocus();
     fireEvent.scroll(el);
     expect(screen.queryByRole("button", { name: "Về mới nhất" })).toBeNull();
   });
