@@ -1,6 +1,6 @@
 # App-dev — Thư ký AI (`meeting-agent`) trên host development
 
-> **Trạng thái:** in-progress — thiết kế đã chốt 2026-10-26; kế hoạch: `docs/superpowers/plans/2026-10-26-meeting-agent-app-dev.md`; chưa triển khai code.
+> **Trạng thái:** in-progress — code trên nhánh `feature/meeting-agent-app-dev`; kế hoạch: `docs/superpowers/plans/2026-10-26-meeting-agent-app-dev.md`; kiểm tra host ở §8 còn pending.
 
 **Ngày:** 2026-10-26
 
@@ -198,8 +198,10 @@ gắn trong `agent.py`, spec này không đổi số đó) để xả đoạn v�
 `/agent/finished`. `stop_grace_period` 150 giây phủ hai khoảng đó. Hết giờ,
 Docker dừng process. Sweep sẵn có gửi lần chạy mới khi worker mới đã đăng ký.
 
-Worker không đăng ký được LiveKit: healthcheck `/worker` đỏ,
-`restart: unless-stopped` dựng lại. Sweep coi dispatch không thành `ACTIVE`
+Worker không đăng ký được LiveKit: worker LiveKit tự reconnect; healthcheck
+`/worker` đỏ chỉ báo trạng thái, không khiến Docker restart container đang
+chạy — container chỉ được tạo lại khi process thoát (`restart: unless-stopped`).
+Sweep coi dispatch không thành `ACTIVE`
 trong 60 giây là một lỗi. Lần thứ ba thì run `FAILED`, thử lại sau 10 phút.
 Hành vi sweep này đã có. Spec này không đổi.
 
