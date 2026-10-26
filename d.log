@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr8r1-go-service-f.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr8r1-go-service-f.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr8r1-go-service-f.log; grep -E "^=== RUN" /tmp/pr8r1-go-service-f.log | tail -1
+DONE_FILE=yes
+1124
+=== RUN   TestRollbackRestoresAdoptedPendingFile
