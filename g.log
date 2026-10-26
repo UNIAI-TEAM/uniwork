@@ -1,0 +1,110 @@
+$ cd /tmp/devbase && node --test --test-reporter=spec scripts/app-dev-env.test.mjs scripts/office/alert-metrics.test.mjs > /tmp/pr8r2-scripts-dev.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr8r2-scripts-dev.log | grep -E "✖|✔|Error|expected|actual|\+|-  |ℹ" | head -120; echo; echo "SCRIPTS_DEV_EXIT=$rc"; [ $rc -eq 0 ]
+✔ business env files carry no secrets (4.800562ms)
+✖ compose files pin registry images (1.991709ms)
+✔ Jenkinsfile deploys by SSH without a latest tag (0.447603ms)
+✖ every metric in an alert expr is registered by D server code (154.722279ms)
+✔ the Office and UniWork AI alerts are present and read registered metrics (179.646899ms)
+✔ an unregistered name is reported with the alert that uses it (120.55029ms)
+✔ a name that appears only in a Go comment is not registered (0.369497ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 5
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 513.322979
+✖ failing tests:
+✖ compose files pin registry images (1.991709ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /subnet: 10\.230\.19\.0\/24/. Input:
+  'name: uniwork-app-dev\n' +
+    '\n' +
+    'services:\n' +
+    '  uniwork-office-engine:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-office-engine:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-office-engine.env\n' +
+    '        required: true\n' +
+    '    init: true\n' +
+    '    read_only: true\n' +
+    '    tmpfs:\n' +
+    '      - /tmp:size=512m,mode=1777\n' +
+    '    mem_limit: 2g\n' +
+    '    cpus: 2\n' +
+    '    pids_limit: 256\n' +
+    '    cap_drop:\n' +
+    '      - ALL\n' +
+    '    cap_add:\n' +
+    '      - CHOWN\n' +
+    '      - SETUID\n' +
+    '      - SETGID\n' +
+    '      - KILL\n' +
+    '      - DAC_OVERRIDE\n' +
+    '      - FOWNER\n' +
+    '    security_opt:\n' +
+    '      - no-new-privileges:true\n' +
+    '    stop_grace_period: 15s\n' +
+    '    ports:\n' +
+    '      - "127.0.0.1:8090:8090"\n' +
+    '    healthcheck:\n' +
+    '      test:\n' +
+    '        [\n' +
+    '          "CMD",\n' +
+    '          "node",\n' +
+    '          "-e",\n' +
+    `          "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",\n` +
+    '        ]\n' +
+    '      interval: 10s\n' +
+    '      timeout: 3s\n' +
+    '      retries: 3\n' +
+    '      start_period: 15s\n' +
+    '    restart: unless-stopped\n' +
+    '\n' +
+    '  uniwork-be:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-be.env\n' +
+    '        required: true\n' +
+    '    environment:\n' +
+    '      OFFICE_ENGINE_URL: http://uniwork-office-engine:8090\n' +
+    '    ports:\n' +
+    '      - "8086:8080"\n' +
+    '    depends_on:\n' +
+    '      uniwork-office-engine:\n' +
+    '        condition: service_healthy\n' +
+    '    healthcheck:\n' +
+    '      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]\n' +
+    '      interval: 10s\n' +
+    '      timeout: 3s\n' +
+    '      retries: 12\n' +
+    '      start_period: 60s\n' +
+    '    restart: unless-stopped\n' +
+    '\n' +
+    '  uniwork-fe:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-fe.env\n' +
+    '        required: true\n' +
+    '    ports:\n' +
+    '      - "3008:3000"\n' +
+    '    restart: unless-stopped\n' +
+    '\n' +
+    'networks:\n' +
+    '  default:\n' +
+    '    ipam:\n' +
+    '      config:\n' +
+    actual: 'name: uniwork-app-dev\n\nservices:\n  uniwork-office-engine:\n    image: registry-harbor.ubos.vn/uniwork/uniwork-office-engine:${UNIWORK_IMAGE_TAG:?}\n    env_file:\n      - path: env/uniwork-office-engine.env\n        required: true\n    init: true\n    read_only: true\n    tmpfs:\n      - /tmp:size=512m,mode=1777\n    mem_limit: 2g\n    cpus: 2\n    pids_limit: 256\n    cap_drop:\n      - ALL\n    cap_add:\n      - CHOWN\n      - SETUID\n      - SETGID\n      - KILL\n      - DAC_OVERRIDE\n      - FOWNER\n    security_opt:\n      - no-new-privileges:true\n    stop_grace_period: 15s\n    ports:\n      - "127.0.0.1:8090:8090"\n    healthcheck:\n      test:\n        [\n          "CMD",\n          "node",\n          "-e",\n          "fetch(\'http://127.0.0.1:8090/healthz\').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",\n        ]\n      interval: 10s\n      timeout: 3s\n      retries: 3\n      start_period: 15s\n    restart: unless-stopped\n\n  uniwork-be:\n    image: registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG:?}\n    env_file:\n      - path: env/uniwork-be.env\n        required: true\n    environment:\n      OFFICE_ENGINE_URL: http://uniwork-office-engine:8090\n    ports:\n      - "8086:8080"\n    depends_on:\n      uniwork-office-engine:\n        condition: service_healthy\n    healthcheck:\n      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]\n      interval: 10s\n      timeout: 3s\n      retries: 12\n      start_period: 60s\n    restart: unless-stopped\n\n  uniwork-fe:\n    image: registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG:?}\n    env_file:\n      - path: env/uniwork-fe.env\n        required: true\n    ports:\n      - "3008:3000"\n    restart: unless-stopped\n\nnetworks:\n  default:\n    ipam:\n      config:\n        - subnet: 10.250.0.0/24\n',
+    expected: /subnet: 10\.230\.19\.0\/24/,
+✖ every metric in an alert expr is registered by D server code (154.722279ms)
+  AssertionError [ERR_ASSERTION]: alerts on metrics no server code registers
+  + actual - expected
+  + [
+  +   'MeetingScribeSttErrors: scribe_stt_errors_total',
+  +   'MeetingScribeSttErrors: scribe_stt_sessions_opened_total',
+  +   'MeetingScribeCapacityHigh: lk_agents_worker_load',
+  +   'MeetingScribeCapacityHigh: lk_agents_active_job_count'
+  + ]
+    actual: [ 'MeetingScribeSttErrors: scribe_stt_errors_total', 'MeetingScribeSttErrors: scribe_stt_sessions_opened_total', 'MeetingScribeCapacityHigh: lk_agents_worker_load', 'MeetingScribeCapacityHigh: lk_agents_active_job_count' ],
+    expected: [],
+
+SCRIPTS_DEV_EXIT=1

@@ -1,0 +1,123 @@
+$ node --test --test-reporter=spec scripts/app-dev-env.test.mjs scripts/office/alert-metrics.test.mjs scripts/office/g5g6g7/g8-19/server-row.test.mjs scripts/office/g5g6g7/g8-19/inbox.test.mjs > /tmp/pr8r2-scripts-head.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr8r2-scripts-head.log | grep -E "✖|✔|Error|expected|actual|\+|-  |ℹ" | head -120; echo; echo "SCRIPTS_HEAD_EXIT=$rc"; [ $rc -eq 0 ]
+✔ business env files carry no secrets (4.144569ms)
+✖ compose files pin registry images (1.500795ms)
+✔ Jenkinsfile deploys by SSH without a latest tag (0.834055ms)
+✖ every metric in an alert expr is registered by D server code (213.786214ms)
+✔ the Office and UniWork AI alerts are present and read registered metrics (134.148612ms)
+✔ an unregistered name is reported with the alert that uses it (119.42963ms)
+✔ a name that appears only in a Go comment is not registered (0.384846ms)
+✔ mentionToken is the editor's token (server/internal/mentions/mentions.go:21-24) (1.745925ms)
+✔ mentionBody names B twice and A (the author) once, with Vietnamese text, and no outer whitespace (0.759113ms)
+✔ rowsForComment picks the document rows of one comment (1.662731ms)
+✔ decideG8A05: B gets exactly one document_mentioned row, A and C none, C never a candidate, bodies byte-equal -> PASS (1.025331ms)
+✔ decideG8A05: two rows for B (the duplicate token notified twice) -> FAIL; a merged count > 1 -> FAIL (0.647465ms)
+✔ decideG8A05: a self-mention row for A, or any row for the non-reader C -> FAIL (0.49209ms)
+✔ decideG8A05: C offered by the desktop picker or the REST picker, or B missing from it -> FAIL (0.713398ms)
+✔ decideG8A05: a body that differs between hosts (even by whitespace) -> FAIL; a failed desktop create -> FAIL (0.446619ms)
+✔ titleKeyFor mirrors notification-title.tsx notificationTitleKey: no document name -> _untitled (0.514892ms)
+✔ expectedTitle renders the real en and vi templates with the row params (20.193516ms)
+✔ normalizeRowText drops the param markers and collapses whitespace (0.474542ms)
+✔ decideG8A06: en + vi title on the row, mark read only for B, A untouched -> PASS (0.554315ms)
+✔ decideG8A06: a missing en or vi title, or the same text in both locales -> FAIL (0.580481ms)
+✔ decideG8A06: read state is per person: A's count moved, B's did not, or A could mark B's row -> FAIL (0.629237ms)
+✔ decideG8A06: a plain comment notified B, or the author notified themself -> FAIL (0.466488ms)
+✔ runInbox G8-A05: desktop picker, desktop create as A, one row for B -> PASS; the document is in W1 shared to B only (23.271877ms)
+✔ runInbox G8-A05: a duplicate notification or C in the picker -> FAIL (33.246635ms)
+✔ runInbox G8-A06: en + vi titles on B's W2 Inbox row, B marks it read, A cannot -> PASS (34.126639ms)
+✔ runInbox: a row other than A05/A06 is refused (FAIL) (23.952526ms)
+✔ runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276) (17.897329ms)
+✔ runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object] (51.822951ms)
+✔ openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind (0.836406ms)
+✖ the planned commands are the ones contract-collab.md section 12 lists for each row (go and node only) (23.93157ms)
+✔ expandRunPattern turns grouped and top-level alternatives into bare alternatives (2.120352ms)
+✔ every -run alternative of every row, grouped ones expanded, matches at least one existing Test func in the packages it names (a dead alternative proves nothing) (166.587955ms)
+✔ G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none) (5.100072ms)
+✔ --dry-run runs nothing and --then is only echoed; an unknown row or argument exits 2 (16.836333ms)
+✔ a passing go run passes the row; the filtered output is kept (10.407988ms)
+✔ a go run that matched no test is FAIL even though go exited 0 (8.318651ms)
+✔ a test named by -run that was SKIPped is FAIL; the same skip without -run (./migrations) is only listed (22.985221ms)
+✔ a failing go run is FAIL (1) and the --then command is not run (8.934684ms)
+✔ --then runs after success and its exit code is the row's (77 stays 77, 0 stays 0, 1 stays 1) (30.863606ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 36
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 544.30415
+✖ failing tests:
+✖ compose files pin registry images (1.500795ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /subnet: 10\.230\.19\.0\/24/. Input:
+  'name: uniwork-app-dev\n' +
+    '\n' +
+    'services:\n' +
+    '  uniwork-office-engine:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-office-engine:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-office-engine.env\n' +
+    '        required: true\n' +
+    '    init: true\n' +
+    '    read_only: true\n' +
+    '    tmpfs:\n' +
+    '      - /tmp:size=512m,mode=1777\n' +
+    '    mem_limit: 2g\n' +
+    '    cpus: 2\n' +
+    '    pids_limit: 256\n' +
+    '    cap_drop:\n' +
+    '      - ALL\n' +
+    '    cap_add:\n' +
+    '      - CHOWN\n' +
+    '      - SETUID\n' +
+    '      - SETGID\n' +
+    '      - KILL\n' +
+    '      - DAC_OVERRIDE\n' +
+    '      - FOWNER\n' +
+    '    security_opt:\n' +
+    '      - no-new-privileges:true\n' +
+    '    stop_grace_period: 15s\n' +
+    '    ports:\n' +
+    '      - "127.0.0.1:8090:8090"\n' +
+    '    healthcheck:\n' +
+    '      test:\n' +
+    '        [\n' +
+    '          "CMD",\n' +
+    '          "node",\n' +
+    '          "-e",\n' +
+    `          "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",\n` +
+    '        ]\n' +
+    '      interval: 10s\n' +
+    '      timeout: 3s\n' +
+    '      retries: 3\n' +
+    '      start_period: 15s\n' +
+    '    restart: unless-stopped\n' +
+    '\n' +
+    '  uniwork-be:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-be.env\n' +
+    '        required: true\n' +
+    '    environment:\n' +
+    '      OFFICE_ENGINE_URL: http://uniwork-office-engine:8090\n' +
+    '    ports:\n' +
+    '      - "8086:8080"\n' +
+    '    depends_on:\n' +
+    '      uniwork-office-engine:\n' +
+    '        condition: service_healthy\n' +
+    '    healthcheck:\n' +
+    '      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]\n' +
+    '      interval: 10s\n' +
+    '      timeout: 3s\n' +
+    '      retries: 12\n' +
+    '      start_period: 60s\n' +
+    '    restart: unless-stopped\n' +
+    '\n' +
+    '  uniwork-fe:\n' +
+    '    image: registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG:?}\n' +
+    '    env_file:\n' +
+    '      - path: env/uniwork-fe.env\n' +
+    '        required: true\n' +
+    '    ports:\n' +
+    '      - "3008:3000"\n' +
+
+SCRIPTS_HEAD_EXIT=1

@@ -1,0 +1,51 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd /tmp/devbase/server; go run ./cmd/migrate up >/dev/null 2>&1; go test -count=20 -race -run '^TestInviteLinkJoinsDoNotDeadlockSmallPool$' ./internal/service > /tmp/pr8r2-race-dev.log 2>&1; rc=$?; grep -E "^(ok|FAIL|--- FAIL)" /tmp/pr8r2-race-dev.log | sort | uniq -c | head; grep -c "WARNING: DATA RACE" /tmp/pr8r2-race-dev.log | sed "s/^/RACES=/"; grep -A70 -m1 "WARNING: DATA RACE" /tmp/pr8r2-race-dev.log | cut -c1-200; echo; echo "RACE_DEV_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+      2 FAIL
+      1 FAIL	github.com/unicomhub/uniwork/server/internal/service	7.860s
+      1 --- FAIL: TestInviteLinkJoinsDoNotDeadlockSmallPool (0.40s)
+RACES=1
+WARNING: DATA RACE
+Write at 0x00c0004db7b8 by goroutine 43:
+  github.com/unicomhub/uniwork/server/internal/meetings.(*FakeProvider).IssueJoinCredential()
+      /tmp/devbase/server/internal/meetings/fake.go:94 +0x68
+  github.com/unicomhub/uniwork/server/internal/service.(*MeetingService).Join()
+      /tmp/devbase/server/internal/service/meeting_admission.go:71 +0x861
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool.func1()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:96 +0x185
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool.gowrap2()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:98 +0xf7
+
+Previous write at 0x00c0004db7b8 by goroutine 41:
+  github.com/unicomhub/uniwork/server/internal/meetings.(*FakeProvider).IssueJoinCredential()
+      /tmp/devbase/server/internal/meetings/fake.go:94 +0x68
+  github.com/unicomhub/uniwork/server/internal/service.(*MeetingService).Join()
+      /tmp/devbase/server/internal/service/meeting_admission.go:71 +0x861
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool.func1()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:96 +0x185
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool.gowrap2()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:98 +0xf7
+
+Goroutine 43 (running) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:93 +0x1b04
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+
+Goroutine 41 (finished) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestInviteLinkJoinsDoNotDeadlockSmallPool()
+      /tmp/devbase/server/internal/service/meeting_p0_load_test.go:93 +0x1b04
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+==================
+--- FAIL: TestInviteLinkJoinsDoNotDeadlockSmallPool (0.40s)
+    testing.go:1865: race detected during execution of test
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	7.860s
+FAIL
+
+RACE_DEV_EXIT=1

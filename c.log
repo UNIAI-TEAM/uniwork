@@ -1,0 +1,4 @@
+$ git fetch -q origin develop; rm -rf /tmp/devbase; git worktree add -f /tmp/devbase FETCH_HEAD >/dev/null 2>&1; ln -sfn "$PWD/node_modules" /tmp/devbase/node_modules; git -C /tmp/devbase log --oneline -1; test -f /tmp/devbase/server/go.mod; rc=$?; echo; echo "DEVBASE_EXIT=$rc"; [ $rc -eq 0 ]
+226f5068b Merge pull request #457 from UNIAI-TEAM/feature/UNI-billing-audit-fixes
+
+DEVBASE_EXIT=0
