@@ -12,12 +12,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // appCapabilityWorld is one organization with an owner and an outsider who
@@ -110,8 +113,8 @@ func TestOfficeAppCapabilitiesFreshDeploymentDefaults(t *testing.T) {
 	if out["sync_feed"] != true || out["sync_write"] != true {
 		t.Fatalf("sync capabilities = %v/%v, want both true", out["sync_feed"], out["sync_write"])
 	}
-	if out["offline_library"] != false || out["ai_uniwork"] != false {
-		t.Fatalf("offline/ai = %v/%v, want both false", out["offline_library"], out["ai_uniwork"])
+	if out["offline_library"] != false || out["ai_uniwork"] != false || out["drive_connector"] != false {
+		t.Fatalf("offline/ai/drive = %v/%v/%v, want all false", out["offline_library"], out["ai_uniwork"], out["drive_connector"])
 	}
 	if formats, ok := out["ai_uniwork_formats"].([]any); !ok || len(formats) != 0 {
 		t.Fatalf("ai_uniwork_formats = %v, want an empty list", out["ai_uniwork_formats"])
@@ -303,9 +306,168 @@ func TestOfficeAppCapabilitiesOpenAPI(t *testing.T) {
 	if !ok {
 		t.Fatal("the SDO schema is missing from the spec")
 	}
-	for _, field := range []string{"sync_feed", "sync_write", "offline_library", "ai_uniwork", "ai_uniwork_formats", "ttl_seconds"} {
+	for _, field := range []string{"sync_feed", "sync_write", "offline_library", "ai_uniwork", "ai_uniwork_formats", "drive_connector", "ttl_seconds"} {
 		if _, ok := schema.Properties[field]; !ok {
 			t.Errorf("SDO schema is missing %s", field)
 		}
+	}
+}
+
+// drive_connector is true only when the drive_connector flag is enabled for
+// the caller (user > organization > global) AND the server's Drive OAuth
+// provider + secretbox are available; a non-member is still refused (spec
+// §17.1, plan B10).
+type trueThenFalseDriveFlagProvider struct {
+	reads atomic.Int32
+}
+
+func (*trueThenFalseDriveFlagProvider) Name() string { return "true-then-false-drive" }
+
+func (p *trueThenFalseDriveFlagProvider) Lookup(_ context.Context, key string) (featureflag.Decision, bool) {
+	if key != "drive_connector" {
+		return featureflag.Decision{}, false
+	}
+	return featureflag.Decision{Enabled: p.reads.Add(1) == 1}, true
+}
+
+func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	q := db.New(pool)
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	ownerToken, ownerID := filesRegister(t, srv, "app-cap-drive-owner@example.test")
+	memberToken, memberID := filesRegister(t, srv, "app-cap-drive-member@example.test")
+	outsiderToken, _ := filesRegister(t, srv, "app-cap-drive-outsider@example.test")
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", ownerToken, map[string]string{"name": "App Cap Drive", "slug": "app-cap-drive"})
+	if res.StatusCode != 201 {
+		t.Fatalf("org: %d %v", res.StatusCode, out)
+	}
+	orgID := out["organization"].(map[string]any)["id"].(string)
+	if err := q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
+		OrganizationID: orgID, UserID: memberID, Role: service.OrgRoleMember,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	getDriveCapFrom := func(target *httptest.Server, token string) bool {
+		t.Helper()
+		r, body := doJSON(t, target, "GET", "/api/v1/orgs/"+orgID+"/office/capabilities", token, nil)
+		if r.StatusCode != http.StatusOK {
+			t.Fatalf("capabilities: %d %v", r.StatusCode, body)
+		}
+		v, ok := body["drive_connector"].(bool)
+		if !ok {
+			t.Fatalf("drive_connector missing or not bool: %v", body)
+		}
+		return v
+	}
+
+	// Non-member still refused.
+	if r, _ := doJSON(t, srv, "GET", "/api/v1/orgs/"+orgID+"/office/capabilities", outsiderToken, nil); r.StatusCode != http.StatusForbidden {
+		t.Fatalf("outsider = %d, want 403", r.StatusCode)
+	}
+
+	// Nil provider (router fallback with OfficeCapabilities == nil and DriveConnections == nil) -> false even when flag is on.
+	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", true)
+	if getDriveCapFrom(srv, ownerToken) {
+		t.Fatal("nil provider: drive_connector = true, want false")
+	}
+
+	// Flag on + provider unavailable (no OAuth credentials configured) via router fallback -> false.
+	box := testDriveSecretBox(t)
+	unavailDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	unavailDrive.SetFlags(d.FeatureFlags)
+	unavailDeps := d
+	unavailDeps.DriveConnections = unavailDrive
+	unavailSrv := httptest.NewServer(New(unavailDeps))
+	t.Cleanup(unavailSrv.Close)
+	if getDriveCapFrom(unavailSrv, ownerToken) {
+		t.Fatal("provider unavailable: drive_connector = true, want false")
+	}
+
+	// Router fallback (OfficeCapabilities left nil, available DriveConnections):
+	// flag off -> false; flag on -> 200 and drive_connector == true.
+	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
+	availDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	availDrive.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		FrontendOrigin:    "http://localhost:3000",
+		APIPublicURL:      srv.URL,
+		DriveFakeProvider: true,
+	})
+	availDrive.SetFlags(d.FeatureFlags)
+	fallbackDeps := d
+	fallbackDeps.DriveConnections = availDrive
+	fallbackSrv := httptest.NewServer(New(fallbackDeps))
+	t.Cleanup(fallbackSrv.Close)
+	if getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("flag off: drive_connector = true, want false")
+	}
+
+	// Flag on + provider available via router.go fallback -> 200 and drive_connector == true.
+	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", true)
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("flag on + provider available (router fallback): drive_connector = false, want true")
+	}
+
+	// Explicit service SetDrive(nil) and typed-nil *DriveConnectionService -> false even when flag is on.
+	capsSvc := service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+	capsSvc.SetDrive(availDrive)
+	capsSvc.SetDrive(nil)
+	explicitDeps := d
+	explicitDeps.OfficeCapabilities = capsSvc
+	explicitSrv := httptest.NewServer(New(explicitDeps))
+	t.Cleanup(explicitSrv.Close)
+	if getDriveCapFrom(explicitSrv, ownerToken) {
+		t.Fatal("SetDrive(nil): drive_connector = true, want false")
+	}
+	var nilDrive *service.DriveConnectionService
+	capsSvc.SetDrive(nilDrive)
+	if getDriveCapFrom(explicitSrv, ownerToken) {
+		t.Fatal("typed-nil *DriveConnectionService: drive_connector = true, want false")
+	}
+
+	// Organization override: global off, org on -> true; org off -> false.
+	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
+	setFlagOverride(t, "drive_connector", featureflags.ScopeOrganization, orgID, true)
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("org override on: drive_connector = false, want true")
+	}
+	setFlagOverride(t, "drive_connector", featureflags.ScopeOrganization, orgID, false)
+	if getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("org override off: drive_connector = true, want false")
+	}
+
+	// Per-user override on for owner only -> true for owner, false for another member of the same org.
+	setFlagOverride(t, "drive_connector", featureflags.ScopeUser, ownerID, true)
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("owner with user override on: drive_connector = false, want true")
+	}
+	if getDriveCapFrom(fallbackSrv, memberToken) {
+		t.Fatal("member without user override: drive_connector = true, want false")
+	}
+
+	// Single evaluation per capability request: a flag source that answers true
+	// then false produces drive_connector == true on the first request and false
+	// on the second.
+	oneShotFlags := featureflag.NewService(&trueThenFalseDriveFlagProvider{})
+	oneShotDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	oneShotDrive.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		FrontendOrigin:    "http://localhost:3000",
+		APIPublicURL:      srv.URL,
+		DriveFakeProvider: true,
+	})
+	oneShotDrive.SetFlags(oneShotFlags)
+	oneShotDeps := d
+	oneShotDeps.FeatureFlags = oneShotFlags
+	oneShotDeps.DriveConnections = oneShotDrive
+	oneShotSrv := httptest.NewServer(New(oneShotDeps))
+	t.Cleanup(oneShotSrv.Close)
+	if !getDriveCapFrom(oneShotSrv, ownerToken) {
+		t.Fatal("first request with true-then-false flag source: drive_connector = false, want true (single evaluation per request)")
+	}
+	if getDriveCapFrom(oneShotSrv, ownerToken) {
+		t.Fatal("second request with true-then-false flag source: drive_connector = true, want false")
 	}
 }
