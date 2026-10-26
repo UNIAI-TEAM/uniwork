@@ -496,3 +496,134 @@ describe("useAskModelChoice", () => {
     expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([]);
   });
 });
+
+describe("useAskUniStream transient mode (drive_file)", () => {
+  const usage0 = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
+
+  afterEach(() => {
+    useAiPanelStore.getState().reset();
+  });
+
+  it("two questions in a row append to transientMessages, send transient + transcript without conversation_id, and never touch aiKeys.messages or aiKeys.conversations", () => {
+    const { result, qc } = setup();
+    const setQueryData = vi.spyOn(qc, "setQueryData");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    act(() => void result.current.ask({ question: "Tóm tắt các mốc", focus: { kind: "drive_file", id: "df1" }, conversation_id: "should-be-dropped" }));
+    expect(askUniStream).toHaveBeenLastCalledWith(
+      "ws1",
+      {
+        question: "Tóm tắt các mốc",
+        focus: { kind: "drive_file", id: "df1" },
+        transient: true,
+        transcript: [],
+      },
+      expect.anything(),
+    );
+
+    emit({ type: "run", runId: "r1", conversationId: "" });
+    expect(useAiPanelStore.getState().conversationId).toBeNull();
+    emit({ type: "done", message: msg({ id: "a1", content: "Hai mốc chính: 10/11 và 01/12." }), usage: usage0 });
+
+    expect(setQueryData).not.toHaveBeenCalled();
+    const invalidatedKeys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(invalidatedKeys).not.toContain(JSON.stringify(aiKeys.conversations("ws1")));
+    expect(invalidatedKeys.some((k) => k.includes('"messages"'))).toBe(false);
+    expect(invalidatedKeys).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(aiKeys.capabilities("ws1")),
+        JSON.stringify(aiKeys.usages()),
+      ]),
+    );
+
+    const storedAfter1 = useAiPanelStore.getState().transientMessages;
+    expect(storedAfter1.map((m) => [m.role, m.content])).toEqual([
+      ["user", "Tóm tắt các mốc"],
+      ["assistant", "Hai mốc chính: 10/11 và 01/12."],
+    ]);
+
+    // Second question sends the first turn in transcript
+    act(() => void result.current.ask({ question: "Liệt kê ai phụ trách gì", focus: { kind: "drive_file", id: "df1" } }));
+    expect(askUniStream).toHaveBeenLastCalledWith(
+      "ws1",
+      {
+        question: "Liệt kê ai phụ trách gì",
+        focus: { kind: "drive_file", id: "df1" },
+        transient: true,
+        transcript: [
+          { role: "user", text: "Tóm tắt các mốc" },
+          { role: "assistant", text: "Hai mốc chính: 10/11 và 01/12." },
+        ],
+      },
+      expect.anything(),
+    );
+
+    emit({ type: "run", runId: "r2", conversationId: "" });
+    emit({ type: "done", message: msg({ id: "a2", content: "Minh phụ trách beta." }), usage: usage0 });
+
+    expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content])).toEqual([
+      ["user", "Tóm tắt các mốc"],
+      ["assistant", "Hai mốc chính: 10/11 và 01/12."],
+      ["user", "Liệt kê ai phụ trách gì"],
+      ["assistant", "Minh phụ trách beta."],
+    ]);
+    expect(setQueryData).not.toHaveBeenCalled();
+  });
+
+  it("stop mid-stream in transient mode keeps partial text in transientMessages, writes no cache, and schedules no 1500 ms revisit", () => {
+    vi.useFakeTimers();
+    try {
+      const { result, qc } = setup();
+      const setQueryData = vi.spyOn(qc, "setQueryData");
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+      act(() => void result.current.ask({ question: "Rủi ro là gì?", focus: { kind: "drive_file", id: "df1" } }));
+      emit({ type: "run", runId: "r1", conversationId: "" });
+      emit({ type: "delta", text: "Rủi ro lớn nhất là " });
+      act(() => result.current.stop());
+
+      expect(opts.signal.aborted).toBe(true);
+      expect(result.current.state.status).toBe("stopped");
+      expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content, m.notice])).toEqual([
+        ["user", "Rủi ro là gì?", ""],
+        ["assistant", "Rủi ro lớn nhất là ", "stopped"],
+      ]);
+      expect(setQueryData).not.toHaveBeenCalled();
+
+      const keysBeforeTimer = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+      expect(keysBeforeTimer).not.toContain(JSON.stringify(aiKeys.conversations("ws1")));
+      expect(keysBeforeTimer.some((k) => k.includes('"messages"'))).toBe(false);
+
+      const callCount = invalidate.mock.calls.length;
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(invalidate.mock.calls.length).toBe(callCount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("slides the transcript window past 20 turns and marks transientWindowTrimmed", () => {
+    const { result } = setup();
+    for (let i = 1; i <= 10; i += 1) {
+      useAiPanelStore.getState().appendTransientTurn(
+        msg({ id: `u${i}`, role: "user", content: `Q${i}` }),
+        msg({ id: `a${i}`, role: "assistant", content: `A${i}` }),
+      );
+    }
+    expect(useAiPanelStore.getState().transientMessages).toHaveLength(20);
+    expect(useAiPanelStore.getState().transientWindowTrimmed).toBe(false);
+
+    // Turn 21 added -> window trims oldest turn
+    useAiPanelStore.getState().appendTransientTurn(
+      msg({ id: "u11", role: "user", content: "Q11" }),
+      msg({ id: "a11", role: "assistant", content: "A11" }),
+    );
+    expect(useAiPanelStore.getState().transientWindowTrimmed).toBe(true);
+
+    act(() => void result.current.ask({ question: "Q12", focus: { kind: "drive_file", id: "df1" } }));
+    const sentBody = vi.mocked(askUniStream).mock.calls.at(-1)?.[1];
+    expect(sentBody?.transcript).toHaveLength(20);
+    expect(sentBody?.transcript?.[0]).toEqual({ role: "user", text: "Q2" });
+    expect(sentBody?.transcript?.[19]).toEqual({ role: "assistant", text: "A11" });
+  });
+});

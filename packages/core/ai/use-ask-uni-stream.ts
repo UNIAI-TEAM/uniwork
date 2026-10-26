@@ -6,8 +6,7 @@ import { askUniStream, type AskUniStreamEvent } from "../api/endpoints/ai-stream
 import { errorCode } from "../api/http";
 import type { AiAttachment, AiCitation, AiMemoryProposal, AiMessage, AiProposal, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
-import { useAiPanelStore } from "./store";
-
+import { buildTransientTranscript, useAiPanelStore } from "./store";
 type AskStreamStatus = "idle" | "streaming" | "done" | "stopped" | "error";
 
 export interface AskStreamState {
@@ -74,21 +73,28 @@ export function useAskUniStream(wsId: string) {
   const qc = useQueryClient();
   const boundWs = useAiPanelStore((s) => s.workspaceId);
   const [state, setState] = useState<AskStreamState>(IDLE);
+  const stateRef = useRef<AskStreamState>(IDLE);
+  stateRef.current = state;
   const seq = useRef(0);
   const ctrl = useRef<AbortController | null>(null);
   const turnConversation = useRef<string | null>(null);
-  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnTransient = useRef(false);
+  const turnAttachments = useRef<AiAttachment[]>([]);
+  const transientIdSeq = useRef(0);
+  const refetchTimer = useRef<number | null>(null);
 
-  // A stopped or failed run may be billed, and a new conversation must show in the history list.
-  const refreshAfterEnd = useCallback(() => {
-    void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
-    void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
-    void qc.invalidateQueries({ queryKey: aiKeys.usages() });
-  }, [qc, wsId]);
-
+  // A stopped or failed run may be billed, and a new conversation must show in the history list (unless transient).
+  const refreshAfterEnd = useCallback(
+    (transient = false) => {
+      if (!transient) void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
+      void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
+      void qc.invalidateQueries({ queryKey: aiKeys.usages() });
+    },
+    [qc, wsId],
+  );
   const abort = useCallback(() => {
     seq.current += 1; // events of the aborted turn are no longer current
-    if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    if (refetchTimer.current !== null) window.clearTimeout(refetchTimer.current);
     refetchTimer.current = null;
     ctrl.current?.abort();
     ctrl.current = null;
@@ -112,16 +118,59 @@ export function useAskUniStream(wsId: string) {
     prevConversation.current = conversationId;
   }, [conversationId, abort]);
 
+  // Clearing the transient transcript (closing panel, changing focus, picking history, "Hội thoại mới") aborts any transient turn and resets stream state.
+  const transientEpoch = useAiPanelStore((s) => s.transientEpoch);
+  const prevTransientEpoch = useRef(transientEpoch);
+  useEffect(() => {
+    if (prevTransientEpoch.current !== transientEpoch) {
+      abort();
+      setState(IDLE);
+      prevTransientEpoch.current = transientEpoch;
+    }
+  }, [transientEpoch, abort]);
+
   const ask = useCallback(
     (input: AskUniInput, display?: { attachments: AiAttachment[] }): Promise<AskOutcome> => {
       abort();
       const mySeq = seq.current;
       const controller = new AbortController();
       ctrl.current = controller;
-      turnConversation.current = input.conversation_id ?? null;
-      const regenerateOf = input.regenerate_message_id ?? null;
+      const isTransient = Boolean(input.transient || input.focus?.kind === "drive_file");
+      turnTransient.current = isTransient;
+      const storeState = useAiPanelStore.getState();
+      const { transcript, trimmed } = isTransient
+        ? buildTransientTranscript(storeState.transientMessages)
+        : { transcript: undefined, trimmed: false };
+      if (isTransient && trimmed) {
+        storeState.setTransientWindowTrimmed(true);
+      }
+      const wireInput: AskUniInput = isTransient
+        ? {
+            question: input.question,
+            ...(input.focus ? { focus: { kind: input.focus.kind, id: input.focus.id } } : {}),
+            ...(input.mentions ? { mentions: input.mentions } : {}),
+            ...(input.locale ? { locale: input.locale } : {}),
+            ...(input.model ? { model: input.model } : {}),
+            ...(input.effort ? { effort: input.effort } : {}),
+            ...(input.attachment_ids ? { attachment_ids: input.attachment_ids } : {}),
+            ...(input.mode ? { mode: input.mode } : {}),
+            transient: true,
+            transcript: input.transcript ?? transcript ?? [],
+          }
+        : input;
+      turnConversation.current = isTransient ? null : (wireInput.conversation_id ?? null);
+      const regenerateOf = isTransient ? null : (wireInput.regenerate_message_id ?? null);
       const attachments = display?.attachments ?? [];
-      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null, regenerateOf, model: input.model ?? "", attachments });
+      turnAttachments.current = attachments;
+      setState({
+        ...IDLE,
+        status: "streaming",
+        question: wireInput.question,
+        conversationId: isTransient ? null : (wireInput.conversation_id ?? null),
+        regenerateOf,
+        model: wireInput.model ?? "",
+        attachments,
+      });
       let finished = false;
       let proposals: AiProposal[] = [];
       let memoryProposals: AiMemoryProposal[] = [];
@@ -143,9 +192,13 @@ export function useAskUniStream(wsId: string) {
         switch (e.type) {
           case "run":
             settle({ accepted: true });
-            turnConversation.current = e.conversationId;
-            setState((s) => ({ ...s, conversationId: e.conversationId }));
-            if (useAiPanelStore.getState().conversationId === null) useAiPanelStore.getState().select(e.conversationId);
+            if (!isTransient) {
+              turnConversation.current = e.conversationId;
+              setState((s) => ({ ...s, conversationId: e.conversationId }));
+              if (useAiPanelStore.getState().conversationId === null && e.conversationId !== "") {
+                useAiPanelStore.getState().select(e.conversationId);
+              }
+            }
             break;
           case "step":
             // The call's thinking leads to this step; its text was the note the step now carries.
@@ -179,7 +232,7 @@ export function useAskUniStream(wsId: string) {
             break;
           case "title":
             // The title lands after done; the conversation lists refetch rather than take the frame's payload.
-            void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
+            if (!isTransient) void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
             break;
           case "delta":
             setState((s) => ({ ...s, draft: s.draft + e.text }));
@@ -200,6 +253,49 @@ export function useAskUniStream(wsId: string) {
               ...(memoryProposals.length > 0 && !stopped ? { memory_proposals: memoryProposals } : {}),
               ...(memoryIds.length > 0 && !stopped ? { memory_ids: memoryIds } : {}),
             };
+            if (isTransient) {
+              transientIdSeq.current += 1;
+              const answerId = message.id || `transient-a-${transientIdSeq.current}`;
+              const userEcho: AiMessage = {
+                id: `transient-u-${transientIdSeq.current}-${answerId}`,
+                role: "user",
+                content: wireInput.question,
+                citations: [],
+                notice: "",
+                steps: [],
+                followups: [],
+                focus: null,
+                mentions: [],
+                model: "",
+                attachments,
+                file_notes: [],
+                proposals: [],
+                memory_ids: [],
+                memory_proposals: [],
+                created_at: e.message.created_at,
+              };
+              const storedAnswer: AiMessage = {
+                ...message,
+                id: answerId,
+                steps: message.steps.length > 0 ? message.steps : stateRef.current.steps,
+                followups: message.followups.length > 0 ? message.followups : stateRef.current.followups,
+                citations: message.citations.length > 0 ? message.citations : stateRef.current.citations,
+              };
+              useAiPanelStore.getState().appendTransientTurn(userEcho, storedAnswer);
+              void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
+              void qc.invalidateQueries({ queryKey: aiKeys.usages() });
+              setState((s) => ({
+                ...s,
+                status: e.message.notice === "stopped" ? "stopped" : "done",
+                message: storedAnswer,
+                proposals: stopped ? [] : s.proposals,
+                memoryProposals: stopped ? [] : s.memoryProposals,
+                memoryIds: stopped ? [] : s.memoryIds,
+                steps: storedAnswer.steps,
+                thinking: "",
+              }));
+              break;
+            }
             const conversationId = turnConversation.current ?? useAiPanelStore.getState().conversationId;
             if (conversationId && regenerateOf) {
               // The question is already stored; the new answer takes the old one's place.
@@ -211,7 +307,7 @@ export function useAskUniStream(wsId: string) {
               const userEcho: AiMessage = {
                 id: `pending-${e.message.id}`,
                 role: "user",
-                content: input.question,
+                content: wireInput.question,
                 citations: [],
                 notice: "",
                 steps: [],
@@ -250,22 +346,22 @@ export function useAskUniStream(wsId: string) {
           case "error":
             finished = true;
             settle({ accepted: false, code: e.code, message: "" });
-            refreshAfterEnd();
+            refreshAfterEnd(isTransient);
             setState((s) => ({ ...s, status: "error", errorCode: e.code }));
             break;
         }
       };
 
-      askUniStream(wsId, input, { signal: controller.signal, onEvent }).then(
+      askUniStream(wsId, wireInput, { signal: controller.signal, onEvent }).then(
         () => {
-          if (current() && !finished) refreshAfterEnd();
+          if (current() && !finished) refreshAfterEnd(isTransient);
           if (current() && !finished) setState((s) => ({ ...s, status: "error", errorCode: "stream_ended" }));
           settle({ accepted: false, code: "stream_ended", message: "" });
         },
         (err: unknown) => {
           // After done the stream stays open only for the title frame; losing it loses nothing.
           if (!current() || finished) return;
-          refreshAfterEnd();
+          refreshAfterEnd(isTransient);
           const code = errorCode(err) ?? "internal";
           setState((s) => ({ ...s, status: "error", errorCode: code }));
           settle({ accepted: false, code, message: err instanceof Error ? err.message : "" });
@@ -278,18 +374,67 @@ export function useAskUniStream(wsId: string) {
 
   const stop = useCallback(() => {
     abort();
+    const isTransient = turnTransient.current;
+    if (isTransient) {
+      const snap = stateRef.current;
+      if (snap.status === "streaming") {
+        transientIdSeq.current += 1;
+        const seqId = transientIdSeq.current;
+        const nowIso = new Date().toISOString();
+        const userEcho: AiMessage = {
+          id: `transient-u-stopped-${seqId}`,
+          role: "user",
+          content: snap.question,
+          citations: [],
+          notice: "",
+          steps: [],
+          followups: [],
+          focus: null,
+          mentions: [],
+          model: "",
+          attachments: turnAttachments.current,
+          file_notes: [],
+          proposals: [],
+          memory_ids: [],
+          memory_proposals: [],
+          created_at: nowIso,
+        };
+        const stoppedAnswer: AiMessage = {
+          id: `transient-a-stopped-${seqId}`,
+          role: "assistant",
+          content: snap.draft,
+          citations: snap.citations,
+          notice: "stopped",
+          steps: snap.steps,
+          followups: [],
+          focus: null,
+          mentions: [],
+          model: snap.model,
+          attachments: [],
+          file_notes: [],
+          proposals: [],
+          memory_ids: [],
+          memory_proposals: [],
+          created_at: nowIso,
+        };
+        useAiPanelStore.getState().appendTransientTurn(userEcho, stoppedAnswer);
+        setState((s) => ({ ...s, status: "stopped", message: stoppedAnswer, proposals: [], memoryProposals: [], memoryIds: [], thinking: "" }));
+      }
+      // Transient turns are never stored on the server: refresh quota/usages only, no message invalidation or 1,500 ms revisit.
+      refreshAfterEnd(true);
+      return;
+    }
     setState((s) => (s.status === "streaming" ? { ...s, status: "stopped" } : s));
     const conversationId = turnConversation.current;
     // The server stores the question and the partial answer with notice "stopped".
-    refreshAfterEnd();
+    refreshAfterEnd(false);
     if (!conversationId) return;
     void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
     // shortcut: fixed 1500 ms retry, the server stores the stopped turn only after it notices the cancel; upgrade to polling or a server event if that lags.
-    refetchTimer.current = setTimeout(() => {
+    refetchTimer.current = window.setTimeout(() => {
       refetchTimer.current = null;
       void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
     }, 1500);
   }, [abort, qc, refreshAfterEnd]);
-
   return { state, ask, stop };
 }
