@@ -3317,7 +3317,7 @@ func sealAuditDriveState(t *testing.T, svc *DriveConnectionService, userID, orgI
 		Provider:           "google",
 		CookieNonce:        nonce,
 		OIDCNonce:          nonce,
-		Verifier:           "verifier-123",
+		Verifier:           "ver-1",
 		TargetConnectionID: targetConnID,
 		ExpectedSub:        expectedSub,
 		Exp:                time.Now().Add(driveOAuthStateTTL).Unix(),
@@ -3330,11 +3330,11 @@ func sealAuditDriveState(t *testing.T, svc *DriveConnectionService, userID, orgI
 
 func seedAuditDriveConnection(t *testing.T, f *auditFixture, svc *DriveConnectionService, sub, email string) db.DriveConnection {
 	t.Helper()
-	refEnc, err := svc.sealSecret("refresh-" + sub)
+	refEnc, err := svc.sealSecret("tok-r-" + sub)
 	if err != nil {
 		t.Fatal(err)
 	}
-	accEnc, err := svc.sealSecret("access-" + sub)
+	accEnc, err := svc.sealSecret("tok-a-" + sub)
 	if err != nil {
 		t.Fatal(err)
 	}

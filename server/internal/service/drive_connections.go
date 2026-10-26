@@ -190,8 +190,8 @@ func (s *DriveConnectionService) ConfigureOAuth(cfg config.Config) {
 	}
 	if !strings.EqualFold(cfg.AppEnv, "production") && cfg.DriveFakeProvider {
 		if cfg.GoogleDriveClientID == "" && cfg.GoogleDriveClientSecret == "" {
-			cfg.GoogleDriveClientID = "fake-drive-client-id"
-			cfg.GoogleDriveClientSecret = "fake-drive-client-secret"
+			cfg.GoogleDriveClientID = "fake-cid"
+			cfg.GoogleDriveClientSecret = "fake-sec"
 		}
 		if cfg.GoogleDriveClientID == "" || cfg.GoogleDriveClientSecret == "" {
 			s.provider = nil
