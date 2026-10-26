@@ -68,6 +68,9 @@ func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, conf
 	if err != nil {
 		return nil, nil, err
 	}
+	if testAfterCloseOrgRowLock != nil {
+		testAfterCloseOrgRowLock(actorID, orgID)
+	}
 	switch {
 	case m.DeactivatedAt.Valid:
 		return nil, nil, errMemberDeactivated()

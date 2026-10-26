@@ -143,20 +143,22 @@ func cleanUpDriveGrantsAfterCommit(ctx context.Context, drive *DriveConnectionSe
 	if drive.testBeforePostCommitClean != nil {
 		drive.testBeforePostCommitClean(subs)
 	}
-	baseCtx := context.WithoutCancel(ctx)
 	timeout := driveRevocationPostCommitTimeout
 	if drive.postCommitTimeout > 0 {
 		timeout = drive.postCommitTimeout
 	}
+	cleanCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
 	seen := make(map[string]bool, len(subs))
 	for _, sub := range subs {
 		if sub == "" || seen[sub] {
 			continue
 		}
+		if cleanCtx.Err() != nil {
+			break
+		}
 		seen[sub] = true
-		subCtx, cancel := context.WithTimeout(baseCtx, timeout)
-		drive.ProcessOneRevocation(subCtx, sub)
-		cancel()
+		drive.ProcessOneRevocation(cleanCtx, sub)
 	}
 }
 
@@ -252,7 +254,7 @@ func (s *DriveConnectionService) executeClaimedRevocation(ctx context.Context, g
 	if err != nil {
 		revokeErr = errDriveRevocationUnsealFailed
 	} else {
-		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveRevocationHTTPTimeout)
+		revokeCtx, cancel := detachedStepContext(ctx, driveRevocationHTTPTimeout)
 		revokeErr = s.tokenRevoker().RevokeToken(revokeCtx, token)
 		cancel()
 	}
@@ -383,7 +385,7 @@ func (s *DriveConnectionService) resolveRevocationAttempt(ctx context.Context, g
 	if s.resolveTimeout > 0 {
 		timeout = s.resolveTimeout
 	}
-	resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	resolveCtx, cancel := detachedStepContext(ctx, timeout)
 	defer cancel()
 	ctx = resolveCtx
 	tx, err := s.pool.Begin(ctx)
@@ -407,6 +409,17 @@ func (s *DriveConnectionService) resolveRevocationAttempt(ctx context.Context, g
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// detachedStepContext detaches ctx from caller cancellation while preserving
+// any existing deadline on ctx that is sooner than stepTimeout (R3-6).
+func detachedStepContext(ctx context.Context, stepTimeout time.Duration) (context.Context, context.CancelFunc) {
+	if dl, ok := ctx.Deadline(); ok {
+		if rem := time.Until(dl); rem < stepTimeout {
+			stepTimeout = rem
+		}
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), stepTimeout)
 }
 
 // PurgeExpiredRevocations deletes resolved or cancelled drive_grant_revocations

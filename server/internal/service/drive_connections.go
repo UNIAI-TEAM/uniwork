@@ -917,6 +917,7 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 var (
 	testAfterLifecycleGrantLocks func(subs []string)
 	testAfterHelperFirstDriveSub func(userID, orgID, sub string)
+	testAfterCloseOrgRowLock     func(userID, orgID string)
 )
 
 // lockAllDriveGrantSubsForUserInTx discovers and acquires all global

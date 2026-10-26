@@ -74,7 +74,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := lockMembership(ctx, qtx, userID); err != nil {
 		return err
 	}
-	if err := lockAllDriveGrantSubsForUserInTx(ctx, qtx, userID); err != nil {
+	if err := lockDeleteAccountOrganizationAndGrantLocks(ctx, qtx, userID, owned > 0, closeSlug); err != nil {
 		return err
 	}
 	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
@@ -232,6 +232,43 @@ func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug stri
 		}
 	}
 	return nil, nil, errCloseConfirmMismatch()
+}
+
+// lockDeleteAccountOrganizationAndGrantLocks acquires the sole-owned
+// organization's member and organization row locks (when closing an owned
+// organization) BEFORE acquiring the sorted all-organization drive_grant:<sub>
+// advisory lock union (R3-1). This keeps the global lock order across all
+// membership commands: organization/member row locks -> sorted drive_grant:<sub>
+// union -> drive_connections row locks.
+func lockDeleteAccountOrganizationAndGrantLocks(ctx context.Context, q *db.Queries, userID string, hasOwned bool, closeSlug string) error {
+	if hasOwned {
+		orgs, err := activeOrganizations(ctx, q, userID)
+		if err != nil {
+			return err
+		}
+		var targetID string
+		for _, o := range orgs {
+			if o.Role == OrgRoleOwner && o.Slug == closeSlug {
+				targetID = o.ID
+				break
+			}
+		}
+		if targetID == "" {
+			return errCloseConfirmMismatch()
+		}
+		if _, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
+			OrganizationID: targetID, UserID: userID,
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrForbidden
+			}
+			return err
+		}
+		if _, err := q.LockOrganizationForUpdate(ctx, targetID); err != nil {
+			return err
+		}
+	}
+	return lockAllDriveGrantSubsForUserInTx(ctx, q, userID)
 }
 
 // ownerMustTransfer is owner_must_transfer naming the first organization the
