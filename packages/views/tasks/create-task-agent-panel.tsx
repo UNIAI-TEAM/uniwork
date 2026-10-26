@@ -261,7 +261,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         targetDriveFileId = linkedFileId;
         const detailFile = await queryClient.fetchQuery({
           queryKey: driveLibraryKeys.detail(workspaceId, linkedFileId),
-          queryFn: ({ signal }) => getDriveFile(workspaceId, linkedFileId, AbortSignal.any([controller.signal, signal])),
+          queryFn: () => getDriveFile(workspaceId, linkedFileId, controller.signal),
           staleTime: 0,
         }).catch(() => null);
         if (controller.signal.aborted) return;

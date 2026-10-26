@@ -755,8 +755,8 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
           };
         }
         if (path === "/api/v1/workspaces/ws1/drive-files/df_fresh_prior") {
+          if (detailCallCount === 0) detailSignal = init?.signal;
           detailCallCount += 1;
-          detailSignal = init?.signal;
           return {
             file: {
               id: "df_fresh_prior",
@@ -836,7 +836,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       "Tài liệu này đã được dùng để tạo 3 việc (bởi Lan). Tạo thêm có thể trùng.",
     );
     expect(detailCallCount).toBeGreaterThanOrEqual(1);
-    expect(detailSignal).toBeInstanceOf(AbortSignal);
+    expect(detailSignal).toBe(linkSignal);
     const sendAnywayBtn = screen.getByRole("button", { name: /Vẫn gửi cho UNI/ });
     expect(sendAnywayBtn).toHaveAttribute("aria-describedby", warning.id);
     expect(proposeCallCount).toBe(0);

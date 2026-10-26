@@ -23,7 +23,7 @@ export interface DriveProposalReviewContextValue {
    * mounted (after showing a localized error toast so the caller keeps the draft).
    */
   open: (proposal: DriveTaskProposal) => boolean;
-  isMounted?: boolean;
+  isMounted: boolean;
 }
 
 const DriveProposalReviewContext = createContext<((proposal: DriveTaskProposal) => void) | null>(null);
