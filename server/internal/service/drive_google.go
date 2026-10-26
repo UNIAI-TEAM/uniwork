@@ -256,7 +256,7 @@ type FakeDriveProvider struct {
 func NewFakeDriveProvider(cfg config.Config) *FakeDriveProvider {
 	clientID := cfg.GoogleDriveClientID
 	if clientID == "" {
-		clientID = "fake-drive-client-id"
+		clientID = "fake-cid"
 	}
 	redirect := cfg.DriveGoogleRedirectURL()
 	if cfg.APIPublicURL == "" {
@@ -265,17 +265,33 @@ func NewFakeDriveProvider(cfg config.Config) *FakeDriveProvider {
 	return &FakeDriveProvider{
 		ClientID:    clientID,
 		RedirectURL: redirect,
-		AuthURL:     driveGoogleAuthURL,
+		AuthURL:     redirect,
 		idTokens:    make(map[string]DriveIDTokenClaims),
 	}
 }
 
 func (f *FakeDriveProvider) AuthCodeURL(state, codeChallenge, prompt, loginHint string) string {
+	return f.CallbackURL(state, "fake-user", codeChallenge, prompt, loginHint, "")
+}
+
+// CallbackURL builds the local callback URL for FakeDriveProvider (`{API_PUBLIC_URL}/api/v1/drive-connections/google/callback?code=<fake code>&state=<sealed state>&...`)
+// so that opening authorization_url in DRIVE_FAKE_PROVIDER=1 mode completes the
+// full connect -> callback -> list -> disconnect flow offline without touching
+// any Google host (spec §5.2, R1-4).
+func (f *FakeDriveProvider) CallbackURL(state, fakeCode, codeChallenge, prompt, loginHint, oidcNonce string) string {
 	authURL := f.AuthURL
 	if authURL == "" {
-		authURL = driveGoogleAuthURL
+		authURL = f.RedirectURL
+	}
+	if authURL == "" {
+		authURL = "http://localhost:8080/api/v1/drive-connections/google/callback"
+	}
+	if fakeCode == "" {
+		fakeCode = "fake-user"
 	}
 	q := url.Values{
+		"code":                  {fakeCode},
+		"state":                 {state},
 		"client_id":             {f.ClientID},
 		"redirect_uri":          {f.RedirectURL},
 		"response_type":         {"code"},
@@ -283,13 +299,15 @@ func (f *FakeDriveProvider) AuthCodeURL(state, codeChallenge, prompt, loginHint 
 		"access_type":           {"offline"},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
-		"state":                 {state},
 	}
 	if prompt != "" {
 		q.Set("prompt", prompt)
 	}
 	if loginHint != "" {
 		q.Set("login_hint", loginHint)
+	}
+	if oidcNonce != "" {
+		q.Set("nonce", oidcNonce)
 	}
 	return authURL + "?" + q.Encode()
 }

@@ -372,6 +372,16 @@ func (s *DriveConnectionService) StartOAuth(ctx context.Context, actor Actor, wo
 		return "", "", err
 	}
 	challenge := oauth2.S256ChallengeFromVerifier(verifier)
+	if fake, ok := s.provider.(*FakeDriveProvider); ok {
+		fakeCode := "fake-" + strings.ToLower(actor.ID)
+		if expectedSub != "" {
+			if trimmed, ok := strings.CutPrefix(expectedSub, "fake-sub-"); ok && trimmed != "" {
+				fakeCode = trimmed
+			}
+		}
+		u := fake.CallbackURL(sealedState, fakeCode, challenge, prompt, loginHint, oidcNonce)
+		return u, cookieNonce, nil
+	}
 	u := s.provider.AuthCodeURL(sealedState, challenge, prompt, loginHint)
 	if u != "" && oidcNonce != "" && !strings.Contains(u, "nonce=") {
 		sep := "?"
