@@ -265,6 +265,7 @@ function extractSharingState(
   if (candidate === false) return "private";
   return "unknown";
 }
+
 function mapPickerDocuments(
   docs: GooglePickerDocument[] | undefined,
   picker: GooglePickerNamespace,
@@ -310,6 +311,7 @@ function configureNoFolderSelection(view: GoogleDocsViewInstance): GoogleDocsVie
   view.setSelectFolderEnabled?.(false);
   return view;
 }
+
 /**
  * Real Google Picker adapter that loads `https://apis.google.com/js/api.js` once,
  * calls `gapi.load("picker")`, and configures My Drive, Shared with me, and
@@ -466,6 +468,7 @@ function isFakeWindowOverrideAllowed(): boolean {
   if (typeof window === "undefined") return false;
   return runtimeConfig().allowFakeDrivePicker === true;
 }
+
 function isDrivePickerAdapter(
   value: DrivePickerAdapter | DrivePickerOpenResult,
 ): value is DrivePickerAdapter {

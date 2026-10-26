@@ -37,6 +37,7 @@ const DEFAULTS: RuntimeConfig = {
   clientPlatform: "web",
   allowFakeDrivePicker: false,
 };
+
 let current: RuntimeConfig = { ...DEFAULTS };
 
 /** Called once by the platform layer at boot. Later calls merge over earlier ones. */

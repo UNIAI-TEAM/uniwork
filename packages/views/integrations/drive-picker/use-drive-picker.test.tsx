@@ -907,7 +907,7 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     );
   });
 
-  it("marks the account lost via refetch only on connection-broken picker-token errors (auth_failed / 401), while network/5xx/malformed errors show a retry toast and keep the account usable (R1-2)", async () => {
+  it("marks the account lost via refetch only on connection-broken picker-token errors (auth_failed / 401), while network/5xx/malformed/403-org-suspended errors show a retry toast and keep the account usable (R1-2, R2-3)", async () => {
     const toastErrorSpy = vi.spyOn(toast, "error");
     const fakeAdapter = createFakeDrivePickerAdapter();
 
@@ -936,7 +936,13 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
           // 2nd attempt: malformed 200 -> retry toast, account stays usable
           return Promise.resolve({ malformed: true });
         }
-        // 3rd attempt: connection-broken auth_failed (401) -> server marks needs_reconnect, hook refetches & opens account step
+        if (tokenAttempt === 3) {
+          // 3rd attempt: 403 organization_suspended -> transient toast with Retry, no reconnect dialog (R2-3)
+          return Promise.reject(
+            new ApiError("Tổ chức đang tạm ngưng.", "organization_suspended", 403),
+          );
+        }
+        // 4th attempt: connection-broken auth_failed (401) -> server marks needs_reconnect, hook refetches & opens account step
         serverLost = true;
         return Promise.reject(
           new ApiError("Refresh token invalid", "auth_failed", 401),
@@ -975,7 +981,20 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     );
     expect(screen.queryByTestId("drive-picker-account-dc_1")).not.toBeInTheDocument();
 
-    // Attempt 3: 401 auth_failed -> refetches connections, opens account dialog with dc_1 marked "Mất kết nối"
+    // Attempt 3: 403 organization_suspended -> toast with Retry, no reconnect dialog (R2-3)
+    toastErrorSpy.mockClear();
+    fireEvent.click(screen.getByTestId("open-picker-btn"));
+    await waitFor(() =>
+      expect(toastErrorSpy).toHaveBeenCalledWith(
+        "Tổ chức đang tạm ngưng.",
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Thử lại" }),
+        }),
+      ),
+    );
+    expect(screen.queryByTestId("drive-picker-account-dc_1")).not.toBeInTheDocument();
+
+    // Attempt 4: 401 auth_failed -> refetches connections, opens account dialog with dc_1 marked "Mất kết nối"
     toastErrorSpy.mockClear();
     fireEvent.click(screen.getByTestId("open-picker-btn"));
     await waitFor(() =>

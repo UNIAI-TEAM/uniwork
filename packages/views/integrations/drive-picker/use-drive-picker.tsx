@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ApiError, errorCode } from "@uniwork/core/api";
+import { errorCode } from "@uniwork/core/api";
 import {
   isDriveConnectionLost,
   useDriveConnections,
@@ -71,28 +71,18 @@ export function driveLinkErrorReason(
 /**
  * Whether a `POST .../picker-token` failure means the Google Drive connection
  * itself has lost authorization (`auth_failed` / `drive_connection_lost` /
- * `needs_reconnect` or an explicit 401/403 connection-broken response, per
- * contract §2 and R1-2). Network drops, 429/5xx, `feature_disabled`, and
- * malformed 200 responses are NOT connection-broken and leave the account usable.
+ * `needs_reconnect`, per contract §2 and R1-2 / R2-3). Network drops, 429/5xx,
+ * non-connection 401/403 codes (such as `organization_suspended` or
+ * `member_deactivated`), `feature_disabled`, and malformed 200 responses are
+ * NOT connection-broken and leave the account usable.
  */
 export function isPickerTokenConnectionBrokenError(err: unknown): boolean {
   const code = errorCode(err);
-  if (
+  return (
     code === "auth_failed" ||
     code === "drive_connection_lost" ||
     code === "needs_reconnect"
-  ) {
-    return true;
-  }
-  if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-    return (
-      code !== "blocked_by_workspace_admin" &&
-      code !== "drive_grant_required" &&
-      code !== "drive_file_not_accessible" &&
-      code !== "forbidden"
-    );
-  }
-  return false;
+  );
 }
 
 function presentLinkOutcomeToasts(
