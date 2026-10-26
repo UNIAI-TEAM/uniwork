@@ -1,6 +1,50 @@
 package handler
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+// A subtree over the 1000-row cap is refused with 422 trash_too_large through
+// both routes that trash, and nothing moves.
+func TestTaskTrashTooLargeIs422(t *testing.T) {
+	srv, token, wsID, _, pool := suiteMutationWorldPool(t)
+	base := "/api/v1/workspaces/" + wsID
+
+	_, out := doJSON(t, srv, "POST", base+"/tasks", token, map[string]any{"title": "Big root"})
+	root := out["task"].(map[string]any)
+	rootID := root["id"].(string)
+	var orgID, creator string
+	if err := pool.QueryRow(context.Background(), `SELECT organization_id, created_by FROM tasks WHERE id = $1`, rootID).Scan(&orgID, &creator); err != nil {
+		t.Fatal(err)
+	}
+	// 1000 children + the root = 1001 rows, one over taskTrashMaxNodes.
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO tasks (id, workspace_id, organization_id, number, title, description, created_by, creator_type, creator_id, last_activity_at, parent_task_id)
+		SELECT 'bigtree' || lpad(g::text, 5, '0'), $1, $2,
+		       (SELECT COALESCE(max(number), 0) FROM tasks WHERE workspace_id = $1) + g,
+		       'seed ' || g, '', $3, 'member', $3, now(), $4
+		FROM generate_series(1, 1000) g`, wsID, orgID, creator, rootID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, call := range []struct {
+		method, path string
+		body         any
+	}{
+		{"DELETE", "/api/v1/tasks/" + rootID, nil},
+		{"POST", base + "/tasks/batch-delete", map[string]any{"task_ids": []string{rootID}}},
+	} {
+		res, out := doJSON(t, srv, call.method, call.path, token, call.body)
+		e, _ := out["error"].(map[string]any)
+		if res.StatusCode != 422 || e["code"] != "trash_too_large" {
+			t.Fatalf("%s %s = %d %v, want 422 trash_too_large", call.method, call.path, res.StatusCode, out)
+		}
+	}
+	if res, _ := doJSON(t, srv, "GET", "/api/v1/tasks/"+rootID, token, nil); res.StatusCode != 200 {
+		t.Fatalf("refused trash moved the root: %d", res.StatusCode)
+	}
+}
 
 func trashItems(t *testing.T, body map[string]any) []any {
 	t.Helper()
