@@ -73,7 +73,7 @@ function ModeRadio({ ref, checked, tone, disabled, describedBy, onPick, onKeyDow
       onClick={disabled ? undefined : onPick}
       onKeyDown={onKeyDown}
       className={cn(
-        "inline-flex h-6.5 items-center gap-1 rounded-lg pr-2.25 pl-1.75 text-caption transition-colors pointer-coarse:h-9.5 pointer-coarse:min-w-11 pointer-coarse:justify-center pointer-coarse:px-0 [&_svg]:size-3.5",
+        "inline-flex h-6.5 items-center gap-1 rounded-lg pr-2.25 pl-1.75 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center pointer-coarse:px-0 [&_svg]:size-3.5",
         checked ? cn("bg-surface font-semibold shadow-sm", tone) : "font-medium text-muted-foreground hover:text-foreground",
         disabled && "cursor-not-allowed text-faint-foreground hover:text-faint-foreground",
       )}

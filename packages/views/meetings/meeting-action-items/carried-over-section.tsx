@@ -108,7 +108,7 @@ export function MeetingCarriedOverSection({
           variant === "room" ? (
             <button
               type="button"
-              className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-left text-label font-medium text-foreground hover:bg-surface-hover"
+              className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-left text-label font-medium text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
             >
               <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
               <span className="flex-1">{t("meetings.panel.actions.carried", { count: total })}</span>
