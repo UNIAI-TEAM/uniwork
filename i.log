@@ -1,0 +1,6 @@
+$ ls -la /tmp/sync1-cover-go-service-b.out; b=$(git hash-object -w /tmp/sync1-cover-go-service-b.out); echo "COVER_BLOB=go-service-b=$b"; git push origin "$b:refs/test-artifacts/pr8-develop-r2/go-service-b-4299d61ff" > /tmp/sync1-push-go-service-b.log 2>&1; rc=$?; tail -2 /tmp/sync1-push-go-service-b.log; echo "COVER_PUSH_EXIT=$rc"; [ $rc -eq 0 ]
+-rw-r--r-- 1 ubuntu ubuntu 3505950 Oct 26 07:10 /tmp/sync1-cover-go-service-b.out
+COVER_BLOB=go-service-b=cca3682d89bd2e1078ac075f493660443a211e60
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+COVER_PUSH_EXIT=1

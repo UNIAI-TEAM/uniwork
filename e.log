@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-go-service-b.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-go-service-b.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/sync1-go-service-b.log; grep -E "^=== RUN" /tmp/sync1-go-service-b.log | tail -1; rc=$(cat /tmp/sync1-go-service-b.exit 2>/dev/null || echo 99); echo "TEST_GO_EXIT=$rc"; [ $rc -eq 0 ]
+DONE_FILE=yes
+825
+=== RUN   TestWorkspaceUnchangedLegacyPrefixIsNotRevalidated
+TEST_GO_EXIT=1
