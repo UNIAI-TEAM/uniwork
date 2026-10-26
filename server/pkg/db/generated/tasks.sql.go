@@ -200,7 +200,7 @@ INSERT INTO tasks (
   $23, $24, $25,
   $26, $27, $28::jsonb
 )
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type CreateTaskParams struct {
@@ -302,6 +302,11 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -410,7 +415,7 @@ INSERT INTO tasks (
   $7, 'human', 'member', $8,
   $9, 'human', $10, $11, 'welcome', $12, $13
 )
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type CreateWelcomeTaskParams struct {
@@ -482,6 +487,11 @@ func (q *Queries) CreateWelcomeTask(ctx context.Context, arg CreateWelcomeTaskPa
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -536,7 +546,7 @@ func (q *Queries) DeleteTaskDependency(ctx context.Context, arg DeleteTaskDepend
 }
 
 const findActiveDuplicateTask = `-- name: FindActiveDuplicateTask :one
-SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
@@ -601,12 +611,17 @@ func (q *Queries) FindActiveDuplicateTask(ctx context.Context, arg FindActiveDup
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks WHERE id = $1
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE id = $1
 `
 
 // tenant: by-id
@@ -649,12 +664,17 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
 
 const getTaskInWorkspace = `-- name: GetTaskInWorkspace :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
@@ -705,12 +725,17 @@ func (q *Queries) GetTaskInWorkspace(ctx context.Context, arg GetTaskInWorkspace
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
 
 const getTaskInWorkspaceByIdentifier = `-- name: GetTaskInWorkspaceByIdentifier :one
-SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
 WHERE t.organization_id = $1
@@ -773,12 +798,17 @@ func (q *Queries) GetTaskInWorkspaceByIdentifier(ctx context.Context, arg GetTas
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
 
 const getWelcomeTask = `-- name: GetWelcomeTask :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND created_by = $3
@@ -830,6 +860,11 @@ func (q *Queries) GetWelcomeTask(ctx context.Context, arg GetWelcomeTaskParams) 
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -900,7 +935,7 @@ func (q *Queries) ListAssigneeFrequency(ctx context.Context, arg ListAssigneeFre
 }
 
 const listChildTasks = `-- name: ListChildTasks :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND parent_task_id = $3
@@ -958,6 +993,11 @@ func (q *Queries) ListChildTasks(ctx context.Context, arg ListChildTasksParams) 
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -970,7 +1010,7 @@ func (q *Queries) ListChildTasks(ctx context.Context, arg ListChildTasksParams) 
 }
 
 const listChildrenByParents = `-- name: ListChildrenByParents :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND parent_task_id = ANY($3::text[])
@@ -1028,6 +1068,11 @@ func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByP
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -1040,7 +1085,7 @@ func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByP
 }
 
 const listMyTasks = `-- name: ListMyTasks :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND (
@@ -1122,6 +1167,11 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -1251,7 +1301,7 @@ func (q *Queries) ListTaskDependenciesInWorkspace(ctx context.Context, arg ListT
 }
 
 const listTasksByIdentifier = `-- name: ListTasksByIdentifier :many
-SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, (upper(w.task_prefix) = upper($1))::bool AS current_match
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id, (upper(w.task_prefix) = upper($1))::bool AS current_match
 FROM tasks t
 INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
@@ -1326,6 +1376,11 @@ func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIden
 			&i.Task.LastActivityAt,
 			&i.Task.StartAt,
 			&i.Task.DueAt,
+			&i.Task.TrashedAt,
+			&i.Task.TrashedBy,
+			&i.Task.PurgeAfter,
+			&i.Task.TrashBatchID,
+			&i.Task.TrashedProjectID,
 			&i.CurrentMatch,
 		); err != nil {
 			return nil, err
@@ -1339,7 +1394,7 @@ func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIden
 }
 
 const listTasksByWorkspace = `-- name: ListTasksByWorkspace :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1 AND workspace_id = $2
 ORDER BY status, position, created_at
 `
@@ -1394,6 +1449,11 @@ func (q *Queries) ListTasksByWorkspace(ctx context.Context, arg ListTasksByWorks
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -1471,7 +1531,7 @@ func (q *Queries) NextTaskNumber(ctx context.Context, arg NextTaskNumberParams) 
 }
 
 const queryTasks = `-- name: QueryTasks :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE tasks.organization_id = $1
   AND tasks.workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
@@ -1558,6 +1618,11 @@ func (q *Queries) QueryTasks(ctx context.Context, arg QueryTasksParams) ([]Task,
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -1580,7 +1645,7 @@ UPDATE tasks SET
 WHERE id = $1
   AND organization_id = $5
   AND workspace_id = $6
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskAssigneeParams struct {
@@ -1638,6 +1703,11 @@ func (q *Queries) SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1651,7 +1721,7 @@ UPDATE tasks SET
 WHERE id = $1
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskDueDateParams struct {
@@ -1705,6 +1775,11 @@ func (q *Queries) SetTaskDueDate(ctx context.Context, arg SetTaskDueDateParams) 
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1718,7 +1793,7 @@ UPDATE tasks SET
 WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskParentParams struct {
@@ -1772,6 +1847,11 @@ func (q *Queries) SetTaskParent(ctx context.Context, arg SetTaskParentParams) (T
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1785,7 +1865,7 @@ UPDATE tasks SET
 WHERE id = $1
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskProjectIDParams struct {
@@ -1839,6 +1919,11 @@ func (q *Queries) SetTaskProjectID(ctx context.Context, arg SetTaskProjectIDPara
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1853,7 +1938,7 @@ UPDATE tasks SET
 WHERE id = $3
   AND organization_id = $4
   AND workspace_id = $5
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskScheduleTimesParams struct {
@@ -1909,6 +1994,11 @@ func (q *Queries) SetTaskScheduleTimes(ctx context.Context, arg SetTaskScheduleT
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1922,7 +2012,7 @@ UPDATE tasks SET
 WHERE id = $1
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskStartDateParams struct {
@@ -1976,6 +2066,11 @@ func (q *Queries) SetTaskStartDate(ctx context.Context, arg SetTaskStartDatePara
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -1993,7 +2088,7 @@ UPDATE tasks SET
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type UpdateTaskParams struct {
@@ -2055,6 +2150,11 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }

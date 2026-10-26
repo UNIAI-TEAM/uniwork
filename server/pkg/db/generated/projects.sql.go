@@ -84,7 +84,7 @@ INSERT INTO projects (
   $1, $2, $3, $4, $5, $6, $7, $8,
   $9, $10, $11, $12, $13, $14, $15
 )
-RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after
 `
 
 type CreateProjectParams struct {
@@ -142,6 +142,9 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }
@@ -309,7 +312,7 @@ func (q *Queries) DeleteTaskViewsByProjectScope(ctx context.Context, arg DeleteT
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
 `
 
@@ -340,6 +343,9 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (Project
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }
@@ -550,7 +556,7 @@ func (q *Queries) ListProjectTitlesForDuplicateCheck(ctx context.Context, arg Li
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR priority = $4)
@@ -596,6 +602,9 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -735,7 +744,7 @@ WHERE id = $13
   AND organization_id = $14
   AND workspace_id = $15
   AND revision = $16
-RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after
 `
 
 type UpdateProjectParams struct {
@@ -795,6 +804,9 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }

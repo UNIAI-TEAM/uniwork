@@ -208,7 +208,7 @@ func (q *Queries) ListHomeMeetings(ctx context.Context, arg ListHomeMeetingsPara
 }
 
 const listHomeMyWork = `-- name: ListHomeMyWork :many
-SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at FROM tasks t
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
@@ -293,6 +293,11 @@ func (q *Queries) ListHomeMyWork(ctx context.Context, arg ListHomeMyWorkParams) 
 			&i.LastActivityAt,
 			&i.StartAt,
 			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
 		); err != nil {
 			return nil, err
 		}

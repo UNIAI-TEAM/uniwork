@@ -246,6 +246,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.trashed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.restored` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id`, `revision_before`, `revision` | `title`, `status`, `priority`, `due_date` | workspace | outbox |
 | `task_label.created` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
 | `task_label.deleted` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
@@ -264,6 +266,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | — | workspace | outbox |
 | `project.created` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.deleted` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.trashed` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.restored` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.updated` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
