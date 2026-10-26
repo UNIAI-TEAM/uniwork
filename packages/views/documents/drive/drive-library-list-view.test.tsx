@@ -398,6 +398,31 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  it("truncates a very long account email in the add button but keeps the full accessible name (WIRE-V2-01)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      return Promise.resolve({ files: [driveFile()], total_count: 1, next_cursor: null });
+    });
+    const longEmail = `${"very.long.local.part.".repeat(3)}name@subdomain.example-company.com`;
+
+    render(
+      withFlag(
+        <DriveLibraryListView
+          wsId={WS}
+          accountId="conn1"
+          connections={[
+            { id: "conn1", google_email: longEmail, needs_reconnect: false, linked_file_count: 1 },
+          ]}
+        />,
+      ),
+    );
+
+    const addBtn = await screen.findByRole("button", { name: `Thêm từ ${longEmail}` });
+    expect(addBtn).toHaveClass("min-w-0", "max-w-full");
+    expect(addBtn).toHaveAttribute("title", `Thêm từ ${longEmail}`);
+    expect(screen.getByText(`Thêm từ ${longEmail}`)).toHaveClass("truncate");
+  });
+
   it("shows loading skeleton, empty state with active 'Thêm từ…' buttons, and error state with retry (§7.10)", async () => {
     // 1. Loading skeleton
     requestMock.mockImplementation((path: string) => {

@@ -286,11 +286,13 @@ function DriveLibraryListBody({
       ref={addBtnRef}
       type="button"
       size="sm"
+      className="min-w-0 max-w-full"
+      title={addLabel}
       aria-disabled={addDisabled || undefined}
       onClick={handleAddFromDrive}
     >
-      <Plus aria-hidden className="size-4" />
-      {addLabel}
+      <Plus aria-hidden className="size-4 shrink-0" />
+      <span className="truncate">{addLabel}</span>
     </Button>
   );
 
@@ -306,7 +308,7 @@ function DriveLibraryListBody({
           </div>
           {navButton ? <div className="shrink-0">{navButton}</div> : null}
         </div>
-        <div className="flex basis-full flex-wrap items-center justify-start gap-2 sm:basis-auto">
+        <div className="flex min-w-0 basis-full flex-wrap items-center justify-start gap-2 sm:basis-auto">
           {brokenAccount ? (
             <AppLink
               href={reconnectHref}
