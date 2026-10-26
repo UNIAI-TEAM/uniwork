@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5g7-develop-pr8; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+4299d61ffebb6b975d97cd254573bd2b38fa7121
+4299d61ffebb6b975d97cd254573bd2b38fa7121
+4299d61ff test(scripts): exempt develop's dc59c569d from the history check
+0e16b56e1 chore: merge develop 226f5068b into the PR 8 branch (UNI-923)
+2d6504671 test(office): follow develop's straight-quote titles and audit coverage tests in G8-19
+
+SYNCED_EXIT=0
