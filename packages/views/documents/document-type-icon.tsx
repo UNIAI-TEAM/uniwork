@@ -5,7 +5,20 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { FileTypeMark, isFileMarkFormat } from "./file-type-marks";
 
-export type DocumentIconFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "txt" | "html" | "page" | "folder" | "file";
+export type DocumentIconFormat =
+  | "docx"
+  | "xlsx"
+  | "pptx"
+  | "pdf"
+  | "md"
+  | "txt"
+  | "html"
+  | "page"
+  | "folder"
+  | "file"
+  | "google_doc"
+  | "google_sheet"
+  | "google_slide";
 
 /** The lowercase extension of a file name, or "" when it has none. */
 export function fileExtension(name: string | null | undefined): string {
@@ -35,7 +48,8 @@ export function DocumentTypeIcon({
   decorative?: boolean;
 }) {
   const { t } = useTranslation();
-  const normalized = format?.toLowerCase() ?? "file";
+  const raw = format?.toLowerCase() ?? "file";
+  const normalized = raw === "markdown" ? "md" : raw === "text" ? "txt" : raw === "generic" ? "file" : raw;
   const label = labelFor(normalized, t);
   if (isFileMarkFormat(normalized)) {
     return (
@@ -68,6 +82,12 @@ function labelFor(format: string, t: (key: string) => string): string {
       return t("documents.file_types.page");
     case "folder":
       return t("documents.file_types.folder");
+    case "google_doc":
+      return t("documents.file_types.google_doc");
+    case "google_sheet":
+      return t("documents.file_types.google_sheet");
+    case "google_slide":
+      return t("documents.file_types.google_slide");
     default:
       return t("documents.file_types.file");
   }

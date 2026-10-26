@@ -626,4 +626,135 @@ describe("AskUniComposer", () => {
     expect(onSend.mock.calls[0]![0]).not.toHaveProperty("mode");
   });
 
+
+  describe("drive_file focus (spec §9)", () => {
+    it("renders the context chip, reader line with account email, and transient footer, and sends only kind+id without conversation_id", async () => {
+      const { onSend } = mount();
+      act(() =>
+        useAiPanelStore.getState().openWithFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+          openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+        }),
+      );
+      const chip = await screen.findByTitle("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh");
+      expect(chip).toHaveTextContent("Kế hoạch ra mắt Q4— UNI đang dùng tài liệu này làm ngữ cảnh");
+      const nameSpan = within(chip).getByText("Kế hoạch ra mắt Q4");
+      expect(nameSpan).toHaveClass("truncate", "sm:max-w-[60%]", "sm:shrink-0");
+      expect(nameSpan).toHaveAttribute("title", "Kế hoạch ra mắt Q4");
+      expect(nameSpan.parentElement).toHaveClass("flex-col", "sm:flex-row", "sm:gap-1");
+      expect(within(chip).getByText(/UNI đang dùng tài liệu này làm ngữ cảnh/)).toHaveClass("min-w-0", "truncate");
+      expect(
+        screen.getByText(
+          "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản uni-work1@gmail.com khi trả lời.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeInTheDocument();
+      expect(box()).toHaveAttribute("aria-placeholder", "Hỏi về tài liệu…");
+
+      type("Tóm tắt các mốc");
+      key("Enter");
+      expect(onSend).toHaveBeenCalledTimes(1);
+      const payload = onSend.mock.calls[0]![0];
+      expect(payload.focus).toEqual({ kind: "drive_file", id: "df1" });
+      expect(payload).not.toHaveProperty("conversation_id");
+    });
+
+    it("shows the sliding-window notice line when transientWindowTrimmed is true", async () => {
+      mount();
+      act(() => {
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+        });
+        useAiPanelStore.getState().setTransientWindowTrimmed(true);
+      });
+      expect(await screen.findByText("UNI chỉ nhớ các lượt gần nhất")).toBeInTheDocument();
+    });
+
+    it("does not duplicate a Drive refusal in the composer (the thread's StreamError owns it)", async () => {
+      const { onSend } = mount();
+      onSend.mockResolvedValueOnce({ accepted: false, code: "drive_format_unsupported", message: "" });
+      act(() =>
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Tệp lạ.zip",
+          accountEmail: "uni-work1@gmail.com",
+          openUrl: "https://drive.google.com/file/d/ext-1/view?authuser=uni-work1%40gmail.com",
+        }),
+      );
+      type("Tóm tắt");
+      key("Enter");
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("still shows a non-Drive refusal alert in the composer", async () => {
+      const { onSend } = mount();
+      onSend.mockResolvedValueOnce({ accepted: false, code: "ai_rate_limited", message: "" });
+      act(() =>
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+        }),
+      );
+      type("Tóm tắt");
+      key("Enter");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang hỏi quá nhanh");
+    });
+
+    it("ignores a drive_file page chip when a saved conversation is open so conversation_id is kept and no Drive reader line or footer shows, and select(null) shows the page chip again", async () => {
+      const { onSend } = mount();
+      act(() => {
+        useAiPanelStore.getState().setPage({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+        });
+        useAiPanelStore.getState().select("c1");
+      });
+      expect(
+        screen.queryByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+      ).toBeNull();
+      expect(
+        screen.queryByText(/Nội dung tài liệu xem trên Google Drive/),
+      ).toBeNull();
+      expect(
+        screen.queryByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeNull();
+
+      type("Tiếp tục hội thoại đã lưu");
+      key("Enter");
+      expect(onSend).toHaveBeenCalledTimes(1);
+      const payload = onSend.mock.calls[0]![0];
+      expect(payload.conversation_id).toBe("c1");
+      expect(payload.focus).toBeUndefined();
+      expect(payload).not.toHaveProperty("transient");
+
+      act(() => {
+        useAiPanelStore.getState().select(null);
+      });
+      expect(
+        await screen.findByTitle("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
 });

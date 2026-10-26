@@ -1287,7 +1287,16 @@
         "privacy.deletion_requested": "Organization deletion requested",
         "privacy.deletion_cancelled": "Organization deletion cancelled",
         "privacy.organization_deleted": "Organization deleted",
-        "webhook.deliver": "Webhook delivered"
+        "webhook.deliver": "Webhook delivered",
+        "drive_file.linked": "Google Drive file linked",
+        "drive_file.access_granted": "Granted UniWork read access to Google Drive file",
+        "drive_file.access_changed": "Changed Google Drive reading account",
+        "drive_file.access_lost": "Google Drive file access lost",
+        "drive_file.unlinked": "Google Drive file unlinked",
+        "drive_file.rebound": "Rebound Google Drive file to another account",
+        "drive_file.read": "UNI read Google Drive file",
+        "drive_task_proposal.created": "UNI proposed tasks from document",
+        "drive_task_proposal.tasks_created": "Created tasks from UNI proposal"
       },
       "resources": {
         "task": "Task",
@@ -1306,7 +1315,8 @@
         "user": "User",
         "session": "Session",
         "meeting": "Meeting",
-        "meeting_motion": "Vote item"
+        "meeting_motion": "Vote item",
+        "drive_file": "Google Drive file"
       },
       "fields": {
         "title": "Title",
@@ -7291,6 +7301,7 @@
       "kind": {
         "task": "Task",
         "document": "Document",
+        "drive_file": "Google Drive file",
         "meeting": "Meeting",
         "project": "Project",
         "member": "Person",
@@ -7310,6 +7321,8 @@
       "copy": "Copy",
       "copied": "Copied",
       "regenerate": "Regenerate",
+      "ask_again": "Ask again",
+      "propose_tasks_from_drive": "Create tasks from this document",
       "helpful": "Helpful",
       "not_helpful": "Not right",
       "feedback_title": "What was wrong with the answer?",
@@ -7340,6 +7353,12 @@
       "ai_attachments_too_large": "The attached files are too large. Each file can be up to 20 MB (an image up to 7.5 MB and 8000 × 8000 pixels), and 20 MB in total.",
       "ai_attachment_unreadable": "UNI couldn't open an attached file (it's damaged or password-protected). Remove it or attach another copy.",
       "media_unsupported": "UNI can't read this file type yet. Use an image, PDF, DOCX, XLSX, PPTX or a text file.",
+      "drive_format_unsupported": "UNI can't read this format yet.",
+      "drive_access_required": "Let UniWork read this file on Google Drive before asking UNI.",
+      "drive_source_changed": "The Google Drive connection or file changed while UNI was reading. Ask again.",
+      "drive_file_not_accessible": "Your Google Drive account no longer has access to this file.",
+      "drive_unavailable": "Google Drive isn't responding right now. Ask again in a few minutes.",
+      "drive_extract_unavailable": "UNI couldn't read this Office file right now. Ask again in a few minutes.",
       "not_found": "That file can't be used any more. Attach it again and resend.",
       "default": "Your question wasn't sent. Check your connection, then ask again."
     },
@@ -7383,6 +7402,7 @@
         "task": "Task",
         "meeting": "Meeting",
         "document": "Document",
+        "drive_file": "Document",
         "project": "Project",
         "room": "Chat room",
         "email_thread": "Email",
@@ -7419,14 +7439,26 @@
     "ask_about_task": "Ask UNI about this task",
     "ask_about_meeting": "Ask UNI about this meeting",
     "ask_about_document": "Ask UNI about this document",
+    "ask_about_drive_file": "Ask UNI about this Google Drive file",
     "ask_about_project": "Ask UNI about this project",
     "ask_about_room": "Ask UNI about this chat",
     "placeholder_task": "Ask about this task…",
     "placeholder_meeting": "Ask about this meeting…",
     "placeholder_document": "Ask about this document…",
+    "placeholder_drive_file": "Ask about the document…",
     "placeholder_project": "Ask about this project…",
     "placeholder_room": "Ask about this chat…",
     "page_chip": "This page: {{label}}",
+    "drive": {
+      "context_chip": "{{name}} — UNI is using this document as context",
+      "context_chip_suffix": "UNI is using this document as context",
+      "context_chip_unnamed": "Google Drive file — UNI is using this document as context",
+      "reader_line": "View the document content on Google Drive. UNI reads the file using {{email}} when answering.",
+      "reader_line_no_email": "View the document content on Google Drive. UNI reads the file using your Google Drive account when answering.",
+      "footer": "UNI reads the document when answering, stores no copy of the content, and this conversation is not saved.",
+      "window_trimmed": "UNI only remembers the most recent turns",
+      "open_on_drive": "Open in Google Drive"
+    },
     "source_bar": {
       "app_soon": "{{name}} · Coming soon",
       "title": "Connected apps",
@@ -7483,6 +7515,7 @@
     },
     "empty": {
       "title": "Ask UNI about your work",
+      "title_drive_file": "Ask UNI about this document",
       "title_anthropic": "What should Claude look into?",
       "task": {
         "1": "Summarize this task",
@@ -7507,6 +7540,12 @@
         "2": "What does this document say about the deadline?",
         "3": "What work is related to this document?",
         "4": "Who owns this content?"
+      },
+      "drive_file": {
+        "1": "Summarize the milestones and risks in this document",
+        "2": "List the milestones and deadlines",
+        "3": "What action items are mentioned in the document?",
+        "4": "Who is responsible for which parts?"
       },
       "room": {
         "1": "Summarize recent discussion",
@@ -11762,7 +11801,10 @@
       "html": "HTML document",
       "file": "File",
       "page": "UniNote",
-      "folder": "Folder"
+      "folder": "Folder",
+      "google_doc": "Google Docs",
+      "google_sheet": "Google Sheets",
+      "google_slide": "Google Slides"
     },
     "page": {
       "title": "Documents",
@@ -14270,5 +14312,169 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "driveLibrary": {
+    "sidebar": {
+      "google_drive": "Google Drive",
+      "account_row": "Drive: {{email}}",
+      "disconnected": "Disconnected"
+    },
+    "file_types": {
+      "google_doc": "Google Docs",
+      "google_sheet": "Google Sheets",
+      "google_slide": "Google Slides",
+      "docx": "Word document",
+      "xlsx": "Excel spreadsheet",
+      "pptx": "PowerPoint presentation",
+      "pdf": "PDF document",
+      "markdown": "Markdown document",
+      "text": "Plain text file",
+      "generic": "Google Drive file"
+    },
+    "list": {
+      "title_all": "Google Drive",
+      "title_account": "Drive: {{email}}",
+      "subtitle_all": "Google Drive files you linked or let UniWork read. Only you see this list; UniWork only stores links.",
+      "subtitle_account": "Files you added from this account · always opened with this account",
+      "subtitle_broken": "Connection expired · reconnect to open these files",
+      "footnote": "Each file is bound to the Google Drive account that picked it. Opening the file and letting UNI read it both use that account. Unlinking leaves the file on Google Drive untouched.",
+      "add_all": "Add from Google Drive",
+      "add_account": "Add from {{email}}",
+      "add_unavailable_hint": "Connect Google Drive or open in the browser to pick files",
+      "manage_connections": "Manage connections",
+      "reconnect_inline": "Disconnected · Reconnect",
+      "columns": {
+        "name": "Name",
+        "account": "Opens with",
+        "access": "Google Drive access",
+        "used_in": "Used in",
+        "tasks_created": "Tasks created"
+      },
+      "access": {
+        "private": "Private",
+        "shared": "Shared",
+        "shared_count_one": "Shared with {{count}} person",
+        "shared_count_other": "Shared with {{count}} people",
+        "shared_drive": "Shared drive",
+        "unknown": "Unknown"
+      },
+      "used_in": {
+        "none": "Not linked to any task",
+        "single": "{{identifier}}",
+        "more_one": "{{identifier}} and {{count}} other task",
+        "more_other": "{{identifier}} and {{count}} other tasks"
+      },
+      "tasks_created_one": "{{count}} task",
+      "tasks_created_other": "{{count}} tasks",
+      "no_account_value": "—",
+      "empty_title": "No Google Drive files have been linked yet.",
+      "empty_description": "Pick files from your Google Drive to link them to tasks or let UNI read them.",
+      "error_title": "Could not load Google Drive files.",
+      "error_description": "Check your connection and try again.",
+      "retry": "Try again",
+      "load_more": "Load more",
+      "loading_more": "Loading more…"
+    },
+    "detail": {
+      "breadcrumb_documents": "Documents",
+      "breadcrumb_drive": "Google Drive",
+      "section_file": "File on Google Drive",
+      "section_meta": "Document details",
+      "modified_by_at": "{{type}} · {{name}} edited {{time}}",
+      "modified_at": "{{type}} · edited {{time}}",
+      "open_on_drive": "Open in Google Drive",
+      "propose_tasks": "Create tasks from document",
+      "ask_uni": "Ask UNI",
+      "access_required_hint": "Let UniWork read this file first",
+      "explainer": "View and edit content on Google using {{email}}. UniWork only stores the link, the tasks using this file, and the activity log; the content stays on Google Drive.",
+      "explainer_no_account": "View and edit content on Google Drive. UniWork only stores the link, the tasks using this file, and the activity log; the content stays on Google Drive.",
+      "props": {
+        "source": "Source",
+        "source_value": "Google Drive · {{type}}",
+        "bound_account": "Bound account",
+        "rebound_by": "(rebound by {{name}})",
+        "bound_connection_lost": "Disconnected",
+        "bound_access_lost": "This account no longer has access to the file",
+        "viewer_account": "You open with",
+        "viewer_account_hint": "Opening in Google Drive and Ask UNI both use this account",
+        "owner": "Owner",
+        "owner_shared_drive": "Shared drive",
+        "linked_by": "Linked by",
+        "linked_by_you": "You · {{date}}",
+        "linked_by_other": "{{name}} · {{date}}",
+        "permissions": "View and edit access",
+        "permissions_value": "As shared on Drive"
+      },
+      "viewer_access": {
+        "unknown_lead": "You haven't let UniWork read this file yet.",
+        "unknown_body": "Linked by {{name}} from {{name}}'s Google Drive. UNI reads files using your own Google Drive account, so it needs your permission once.",
+        "unknown_note": "If Google says you don't have access, ask the owner to share it on Google Drive. UniWork does not share files for you.",
+        "grant_button": "Let UniWork read this file",
+        "lost_body": "Account {{email}} no longer has access to this file.",
+        "lost_body_no_email": "Your Google Drive account no longer has access to this file.",
+        "connection_lost_body": "Google Drive connection {{email}} has expired.",
+        "connection_lost_body_no_email": "Your Google Drive connection has expired.",
+        "reconnect_button": "Reconnect"
+      },
+      "used_in": {
+        "title": "Used in · {{count}}",
+        "empty": "Not linked to any task.",
+        "attach_to_task": "+ Link to task",
+        "task_row": "{{identifier}} · {{title}}"
+      },
+      "tasks_created": {
+        "title": "Tasks created from this document",
+        "summary_one": "{{count}} task created from this document",
+        "summary_other": "{{count}} tasks created from this document",
+        "group_one": "{{date}} · {{name}} · {{count}} task",
+        "group_other": "{{date}} · {{name}} · {{count}} tasks"
+      },
+      "activity": {
+        "title": "Activity in UniWork",
+        "empty": "No activity has been recorded yet.",
+        "error": "Activity could not be loaded.",
+        "actor_you": "You",
+        "actor_unknown": "A member",
+        "tasks_created_one": "{{actor}} created {{count}} task from UNI's proposal",
+        "tasks_created_other": "{{actor}} created {{count}} tasks from UNI's proposal",
+        "linked": "{{actor}} linked this file from Google Drive",
+        "rebound": "{{actor}} rebound this file to another account",
+        "access_granted": "{{actor}} let UniWork read this file",
+        "access_changed": "{{actor}} changed the reading account",
+        "access_lost": "The bound account lost access to this file on Google Drive",
+        "unlinked": "{{actor}} unlinked this file"
+      },
+      "rebind": {
+        "button": "Rebind with another account",
+        "dialog_title": "Rebind with another account",
+        "dialog_description": "Choose one of your active Google Drive accounts to rebind this file.",
+        "account_label": "Google Drive account",
+        "no_active_accounts": "No active Google Drive account is available. Connect an account in Settings › Integrations.",
+        "submit": "Rebind",
+        "submitting": "Rebinding…",
+        "cancel": "Cancel",
+        "failed": "Could not rebind the file. Try again."
+      },
+      "unlink": {
+        "button": "Unlink",
+        "confirm_title_one": "Unlink from {{count}} task?",
+        "confirm_title_other": "Unlink from {{count}} tasks?",
+        "confirm_title_zero": "Unlink this file?",
+        "confirm_body": "Only removes the link in UniWork; the file on Google Drive stays untouched. Tasks already created remain, only losing their link back to the document.",
+        "keep": "Keep",
+        "confirm": "Unlink",
+        "submitting": "Unlinking…",
+        "failed": "Could not unlink the file. Try again."
+      },
+      "not_found": {
+        "title": "This file wasn't found or you don't have permission to view it.",
+        "back": "Back to my Google Drive"
+      },
+      "error": {
+        "title": "Could not load Google Drive file details.",
+        "description": "Check your connection and try again.",
+        "retry": "Try again"
+      }
+    }
   }
 }

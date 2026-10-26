@@ -36,10 +36,16 @@ function DropOverlay() {
 }
 
 /** The docked Ask UNI panel (flag ask_uni_stream): header, the conversation and the composer. */
-export function AskUniPanel() {
+export function AskUniPanel({
+  onProposeDriveTasks,
+}: {
+  /** Optional seam for W6 "Tạo việc từ tài liệu này" suggestion chip in transient Drive answers. */
+  onProposeDriveTasks?: (driveFileId: string) => void;
+} = {}) {
   const { workspace } = useWorkspace();
   const { i18n } = useTranslation();
   const conversationId = useAiPanelStore((s) => s.conversationId);
+  const hasTransientTurns = useAiPanelStore((s) => s.transientMessages.length > 0);
   const view = useAiPanelStore((s) => s.view);
   const memoryView = view === "memory";
   const memoryHelp = useAiPanelStore((s) => s.memoryHelp);
@@ -56,8 +62,8 @@ export function AskUniPanel() {
   // The hook prevents the default of every drag it sees, so with attaching off the dock gets none of its handlers.
   const memoryDrop = canAttach && !memoryView;
   const dropHandlers = memoryDrop ? dropZoneProps : undefined;
-  // A new conversation with nothing in flight starts from suggestions for the open page.
-  const empty = conversationId === null && stream.state.status === "idle";
+  // A new conversation with nothing in flight (and no transient turns) starts from suggestions for the open page.
+  const empty = conversationId === null && !hasTransientTurns && stream.state.status === "idle";
   const askSuggestion = (question: string) =>
     void stream.ask({ question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [], model, effort, locale: i18n.language });
   return (
@@ -82,6 +88,7 @@ export function AskUniPanel() {
               stream={stream}
               wsId={workspace.id}
               askDefaults={{ model, effort, locale: i18n.language }}
+              onProposeDriveTasks={onProposeDriveTasks}
             />
           )}
           {memoryHelp ? <AskUniMemoryHelp orgSlug={workspace.organization_slug} /> : null}
