@@ -73,6 +73,76 @@ func TestComputeViewerAccessStates(t *testing.T) {
 	if state != DriveViewerAccessConnectionLost || cid == nil || *cid != "conn-1" || email != "a@example.com" {
 		t.Fatalf("auth_failed granted access = (%q, %v, %q), want connection_lost", state, cid, email)
 	}
+
+	svc := &DriveFileService{}
+	baseDetail := db.GetDriveFileEnrichedRow{
+		ID:             "df-1",
+		OrganizationID: "org-1",
+		WorkspaceID:    "ws-1",
+		ExternalFileID: "ext-1",
+		Name:           "Spec",
+		MimeType:       DriveMimeGoogleDoc,
+		IconKind:       "google_doc",
+		SharingState:   DriveSharingStateShared,
+		BoundBy:        "u-owner",
+		CreatedBy:      "u-owner",
+	}
+	baseCard := db.ListTaskDriveFilesEnrichedRow{
+		ID:             "df-1",
+		LinkedTaskID:   "task-1",
+		OrganizationID: "org-1",
+		WorkspaceID:    "ws-1",
+		ExternalFileID: "ext-1",
+		Name:           "Spec",
+		MimeType:       DriveMimeGoogleDoc,
+		IconKind:       "google_doc",
+		SharingState:   DriveSharingStateShared,
+		BoundBy:        "u-owner",
+		CreatedBy:      "u-owner",
+	}
+	type capCase struct {
+		name       string
+		role       string
+		aiEnabled  bool
+		accState   string
+		connActive bool
+		wantState  string
+		wantCanAI  bool
+	}
+	for _, tc := range []capCase{
+		{name: "granted-member-ai-on", role: "member", aiEnabled: true, accState: "granted", connActive: true, wantState: DriveViewerAccessGranted, wantCanAI: true},
+		{name: "unknown-member-ai-on", role: "member", aiEnabled: true, accState: "", connActive: false, wantState: DriveViewerAccessUnknown, wantCanAI: false},
+		{name: "lost-member-ai-on", role: "member", aiEnabled: true, accState: "lost", connActive: true, wantState: DriveViewerAccessLost, wantCanAI: false},
+		{name: "connection-lost-member-ai-on", role: "member", aiEnabled: true, accState: "granted", connActive: false, wantState: DriveViewerAccessConnectionLost, wantCanAI: false},
+		{name: "granted-member-ai-off", role: "member", aiEnabled: false, accState: "granted", connActive: true, wantState: DriveViewerAccessGranted, wantCanAI: false},
+		{name: "granted-guest-ai-on", role: "guest", aiEnabled: true, accState: "granted", connActive: true, wantState: DriveViewerAccessGranted, wantCanAI: false},
+	} {
+		aiOn := tc.aiEnabled
+		svc.SetAIEnabled(func() bool { return aiOn })
+		dr := baseDetail
+		dr.ViewerAccessState = pgtype.Text{String: tc.accState, Valid: tc.accState != ""}
+		dr.ViewerConnectionID = pgtype.Text{String: "conn-1", Valid: tc.accState != ""}
+		dr.ViewerAccountEmail = "v@example.com"
+		dr.ViewerConnectionActive = tc.connActive
+		dv := svc.buildDriveFileViewFromDetailRow("u-viewer", db.WorkspaceMember{Role: tc.role}, dr, nil, DriveTasksCreatedSummary{}, nil)
+		if dv.ViewerAccess != tc.wantState || dv.CanAsk != tc.wantCanAI || dv.CanPropose != tc.wantCanAI {
+			t.Fatalf("%s detail: access=%q can_ask=%v can_propose=%v, want access=%q canAI=%v", tc.name, dv.ViewerAccess, dv.CanAsk, dv.CanPropose, tc.wantState, tc.wantCanAI)
+		}
+		cr := baseCard
+		cr.ViewerAccessState = dr.ViewerAccessState
+		cr.ViewerConnectionID = dr.ViewerConnectionID
+		cr.ViewerAccountEmail = dr.ViewerAccountEmail
+		cr.ViewerConnectionActive = dr.ViewerConnectionActive
+		cv := svc.buildDriveTaskFileCardView("u-viewer", db.WorkspaceMember{Role: tc.role}, cr, true, DriveTasksCreatedSummary{})
+		if cv.ViewerAccess != tc.wantState || cv.CanAsk != tc.wantCanAI || cv.CanPropose != tc.wantCanAI {
+			t.Fatalf("%s card: access=%q can_ask=%v can_propose=%v, want access=%q canAI=%v", tc.name, cv.ViewerAccess, cv.CanAsk, cv.CanPropose, tc.wantState, tc.wantCanAI)
+		}
+	}
+
+	receiptLost := buildDriveFileLinkReceipt(db.DriveFile{ID: "df-1", WorkspaceID: "ws-1", ExternalFileID: "ext-1"}, DriveViewerAccessConnectionLost, "conn-1", "a1@example.com")
+	if receiptLost.ViewerAccess != DriveViewerAccessConnectionLost || receiptLost.ViewerAccountEmail != "a1@example.com" {
+		t.Fatalf("receiptLost = %+v", receiptLost)
+	}
 }
 
 func TestNormalizeMetadataForDBAndCursorRoundTrip(t *testing.T) {
@@ -329,10 +399,29 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 		ConnectionID:    connA2.ID,
 		ExternalFileIDs: []string{"ext-override-1"},
 	})
-	if err != nil || len(r3) != 1 || r3[0].Outcome != DriveFileLinkOutcomeAlreadyLinked || r3[0].AccountEmail != "a1@example.com" {
+	if err != nil || len(r3) != 1 || r3[0].Outcome != DriveFileLinkOutcomeAlreadyLinked || r3[0].AccountEmail != "a1@example.com" || r3[0].File.ViewerAccess != DriveViewerAccessGranted {
 		t.Fatalf("third Link diff conn = %+v, err=%v", r3, err)
 	}
 
+	// 3b (F08). When kept connA1 has auth_failed_at set and owner links with active connA2,
+	// the already_linked receipt reports viewer_access=connection_lost and keeps a1@example.com, consistent with Get.
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_connections SET auth_failed_at = now() WHERE id = $1`, connA1.ID); err != nil {
+		t.Fatalf("mark connA1 auth_failed: %v", err)
+	}
+	r3Lost, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connA2.ID,
+		ExternalFileIDs: []string{"ext-override-1"},
+	})
+	if err != nil || len(r3Lost) != 1 || r3Lost[0].Outcome != DriveFileLinkOutcomeAlreadyLinked || r3Lost[0].AccountEmail != "a1@example.com" || r3Lost[0].File.ViewerAccess != DriveViewerAccessConnectionLost {
+		t.Fatalf("already_linked with lost kept conn = %+v, err=%v", r3Lost, err)
+	}
+	getLost, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileID)
+	if err != nil || getLost.ViewerAccess != DriveViewerAccessConnectionLost || getLost.CanAsk || getLost.CanPropose {
+		t.Fatalf("Get with lost kept conn = %+v, err=%v", getLost, err)
+	}
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_connections SET auth_failed_at = NULL WHERE id = $1`, connA1.ID); err != nil {
+		t.Fatalf("clear connA1 auth_failed: %v", err)
+	}
 	// 4. Owner (bound_by) calls ChangeReadAccount (PUT .../access) -> 409 use_rebind.
 	_, err = env.fileSvc.ChangeReadAccount(ctx, Human(env.owner.ID), env.wsA.ID, fileID, connA2.ID)
 	var ce CodedError
@@ -457,7 +546,7 @@ func TestDriveFileVisibilityGateGrantAccessAndUnlinkReLink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("peer Get with visible task: %v", err)
 	}
-	if peerDetail.ViewerAccess != DriveViewerAccessUnknown || peerDetail.UsedInCount != 1 || peerDetail.UsedInTasks[0].TaskID != taskVisible.ID {
+	if peerDetail.ViewerAccess != DriveViewerAccessUnknown || peerDetail.CanAsk || peerDetail.CanPropose || peerDetail.UsedInCount != 1 || peerDetail.UsedInTasks[0].TaskID != taskVisible.ID {
 		t.Fatalf("peerDetail = %+v", peerDetail)
 	}
 	// Owner sees both tasks (UsedInCount=2).
@@ -488,7 +577,7 @@ func TestDriveFileVisibilityGateGrantAccessAndUnlinkReLink(t *testing.T) {
 		t.Fatalf("re-Link to taskVisible: %v", err)
 	}
 	grantedView, err := env.fileSvc.GrantAccess(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB.ID)
-	if err != nil || grantedView.ViewerAccess != DriveViewerAccessGranted || grantedView.ViewerAccountEmail != "vis-b@example.com" {
+	if err != nil || grantedView.ViewerAccess != DriveViewerAccessGranted || !grantedView.CanAsk || !grantedView.CanPropose || grantedView.ViewerAccountEmail != "vis-b@example.com" {
 		t.Fatalf("peer GrantAccess = %+v, err=%v", grantedView, err)
 	}
 	// Idempotent second POST GrantAccess returns 200 with kept account.

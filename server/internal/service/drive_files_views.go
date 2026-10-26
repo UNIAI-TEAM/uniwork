@@ -396,7 +396,7 @@ func (s *DriveFileService) buildDriveFileViewFromDetailRow(
 		BoundBy:   r.BoundBy,
 		CreatedBy: r.CreatedBy,
 	})
-	canAI := s.isNotGuest(member) && s.isAIEnabled()
+	canAI := viewerAccess == DriveViewerAccessGranted && s.isNotGuest(member) && s.isAIEnabled()
 
 	if visibleTasks == nil {
 		visibleTasks = []DriveLinkedTaskRef{}
@@ -520,7 +520,7 @@ func (s *DriveFileService) buildDriveTaskFileCardView(
 		t := r.AccessLostAt.Time.UTC()
 		accessLostAt = &t
 	}
-	canAI := s.isNotGuest(member) && s.isAIEnabled()
+	canAI := viewerAccess == DriveViewerAccessGranted && s.isNotGuest(member) && s.isAIEnabled()
 
 	return DriveTaskFileCardView{
 		ID:                     r.ID,
@@ -555,11 +555,14 @@ func (s *DriveFileService) buildDriveTaskFileCardView(
 	}
 }
 
-func buildDriveFileLinkReceipt(f db.DriveFile, viewerConnID, viewerEmail string) DriveFileLinkReceiptView {
+func buildDriveFileLinkReceipt(f db.DriveFile, viewerAccess, viewerConnID, viewerEmail string) DriveFileLinkReceiptView {
 	var driveID *string
 	if f.DriveID.Valid && f.DriveID.String != "" {
 		v := f.DriveID.String
 		driveID = &v
+	}
+	if viewerAccess == "" {
+		viewerAccess = DriveViewerAccessGranted
 	}
 	cid := viewerConnID
 	return DriveFileLinkReceiptView{
@@ -573,7 +576,7 @@ func buildDriveFileLinkReceipt(f db.DriveFile, viewerConnID, viewerEmail string)
 		SharingState:       f.SharingState,
 		WebViewLink:        f.WebViewLink,
 		OpenURL:            BuildDriveOpenURL(f.WebViewLink, f.ExternalFileID, viewerEmail),
-		ViewerAccess:       DriveViewerAccessGranted,
+		ViewerAccess:       viewerAccess,
 		ViewerConnectionID: &cid,
 		ViewerAccountEmail: viewerEmail,
 	}

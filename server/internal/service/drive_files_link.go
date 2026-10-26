@@ -222,10 +222,10 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 
 	var fileRow db.DriveFile
 	outcome := DriveFileLinkOutcomeLinked
+	viewerAccess := DriveViewerAccessGranted
 	viewerConnID := conn.ID
 	viewerEmail := conn.GoogleEmail
 	accountEmailOnAlreadyLinked := ""
-
 	if !hasExisting {
 		fileRow, err = qtx.CreateDriveFile(ctx, db.CreateDriveFileParams{
 			ID:                     util.NewID(),
@@ -284,12 +284,18 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 			return DriveFileLinkItemResult{}, err
 		}
 	} else {
-		fileRow, outcome, viewerConnID, viewerEmail, accountEmailOnAlreadyLinked, err = s.linkExistingFileInTx(
+		exRes, err := s.linkExistingFileInTx(
 			ctx, qtx, actor, ws, existing, conn, externalFileID, params,
 		)
 		if err != nil {
 			return DriveFileLinkItemResult{}, err
 		}
+		fileRow = exRes.fileRow
+		outcome = exRes.outcome
+		viewerAccess = exRes.viewerAccess
+		viewerConnID = exRes.viewerConnID
+		viewerEmail = exRes.viewerEmail
+		accountEmailOnAlreadyLinked = exRes.accountEmail
 	}
 
 	if taskID != "" {
@@ -298,13 +304,22 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 		}
 	}
 
-	receipt := buildDriveFileLinkReceipt(fileRow, viewerConnID, viewerEmail)
+	receipt := buildDriveFileLinkReceipt(fileRow, viewerAccess, viewerConnID, viewerEmail)
 	return DriveFileLinkItemResult{
 		ExternalFileID: externalFileID,
 		Outcome:        outcome,
 		File:           &receipt,
 		AccountEmail:   accountEmailOnAlreadyLinked,
 	}, nil
+}
+
+type linkedExistingResult struct {
+	fileRow      db.DriveFile
+	outcome      string
+	viewerAccess string
+	viewerConnID string
+	viewerEmail  string
+	accountEmail string
 }
 
 func (s *DriveFileService) linkExistingFileInTx(
@@ -316,7 +331,7 @@ func (s *DriveFileService) linkExistingFileInTx(
 	conn db.DriveConnection,
 	externalFileID string,
 	params normalizedDriveMetadataParams,
-) (db.DriveFile, string, string, string, string, error) {
+) (linkedExistingResult, error) {
 	fileRow, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		Name:                   params.Name,
@@ -334,13 +349,16 @@ func (s *DriveFileService) linkExistingFileInTx(
 		WorkspaceID:            ws.ID,
 	})
 	if err != nil {
-		return db.DriveFile{}, "", "", "", "", err
+		return linkedExistingResult{}, err
 	}
 
-	outcome := DriveFileLinkOutcomeLinked
-	viewerConnID := conn.ID
-	viewerEmail := conn.GoogleEmail
-	accountEmailOnAlreadyLinked := ""
+	res := linkedExistingResult{
+		fileRow:      fileRow,
+		outcome:      DriveFileLinkOutcomeLinked,
+		viewerAccess: DriveViewerAccessGranted,
+		viewerConnID: conn.ID,
+		viewerEmail:  conn.GoogleEmail,
+	}
 
 	acc, aerr := qtx.GetDriveFileAccessByUserForUpdate(ctx, db.GetDriveFileAccessByUserForUpdateParams{
 		OrganizationID: ws.OrganizationID,
@@ -349,7 +367,7 @@ func (s *DriveFileService) linkExistingFileInTx(
 		UserID:         actor.ID,
 	})
 	if aerr != nil && !errors.Is(aerr, pgx.ErrNoRows) {
-		return db.DriveFile{}, "", "", "", "", aerr
+		return linkedExistingResult{}, aerr
 	}
 	hasAcc := aerr == nil
 
@@ -362,7 +380,7 @@ func (s *DriveFileService) linkExistingFileInTx(
 			UserID:         actor.ID,
 			ConnectionID:   conn.ID,
 		}); err != nil {
-			return db.DriveFile{}, "", "", "", "", err
+			return linkedExistingResult{}, err
 		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 			OrganizationID: ws.OrganizationID,
@@ -392,10 +410,10 @@ func (s *DriveFileService) linkExistingFileInTx(
 				"user_id":       actor.ID,
 			},
 		}); err != nil {
-			return db.DriveFile{}, "", "", "", "", err
+			return linkedExistingResult{}, err
 		}
 	} else if acc.State == "granted" {
-		outcome = DriveFileLinkOutcomeAlreadyLinked
+		res.outcome = DriveFileLinkOutcomeAlreadyLinked
 		if acc.ConnectionID == conn.ID {
 			if _, err := qtx.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
 				OrganizationID: ws.OrganizationID,
@@ -404,30 +422,34 @@ func (s *DriveFileService) linkExistingFileInTx(
 				UserID:         actor.ID,
 				ConnectionID:   conn.ID,
 			}); err != nil {
-				return db.DriveFile{}, "", "", "", "", err
+				return linkedExistingResult{}, err
 			}
-			viewerConnID = conn.ID
-			viewerEmail = conn.GoogleEmail
-			accountEmailOnAlreadyLinked = conn.GoogleEmail
+			res.viewerConnID = conn.ID
+			res.viewerEmail = conn.GoogleEmail
+			res.accountEmail = conn.GoogleEmail
 		} else {
-			keptEmail := conn.GoogleEmail
+			var keptEmail string
+			keptActive := false
 			if keptConn, kerr := qtx.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
 				ID:             acc.ConnectionID,
 				OrganizationID: ws.OrganizationID,
 				UserID:         actor.ID,
-			}); kerr == nil && keptConn.GoogleEmail != "" {
+			}); kerr == nil {
 				keptEmail = keptConn.GoogleEmail
+				keptActive = !keptConn.DisconnectedAt.Valid && !keptConn.AuthFailedAt.Valid
 			}
-			viewerConnID = acc.ConnectionID
-			viewerEmail = keptEmail
-			accountEmailOnAlreadyLinked = keptEmail
+			res.viewerAccess, _, _ = computeViewerAccess("granted", acc.ConnectionID, keptEmail, !keptActive, !keptActive)
+			res.viewerConnID = acc.ConnectionID
+			res.viewerEmail = keptEmail
+			res.accountEmail = keptEmail
 		}
 	} else {
 		if existing.BoundBy == actor.ID && existing.ConnectionID != conn.ID {
 			fileRow, err = s.rebindFileInTx(ctx, qtx, actor, ws, existing, conn, params)
 			if err != nil {
-				return db.DriveFile{}, "", "", "", "", err
+				return linkedExistingResult{}, err
 			}
+			res.fileRow = fileRow
 		} else {
 			if _, err := qtx.UpsertDriveFileAccessGranted(ctx, db.UpsertDriveFileAccessGrantedParams{
 				ID:             util.NewID(),
@@ -437,7 +459,7 @@ func (s *DriveFileService) linkExistingFileInTx(
 				UserID:         actor.ID,
 				ConnectionID:   conn.ID,
 			}); err != nil {
-				return db.DriveFile{}, "", "", "", "", err
+				return linkedExistingResult{}, err
 			}
 			events := []audit.Event{{
 				Topic:   "drive_file.access_changed",
@@ -455,7 +477,7 @@ func (s *DriveFileService) linkExistingFileInTx(
 					WorkspaceID:    ws.ID,
 					ConnectionID:   conn.ID,
 				}); cerr == nil {
-					fileRow = cleared
+					res.fileRow = cleared
 					events = append(events, audit.Event{
 						Topic:   "drive_file.updated",
 						Version: 1,
@@ -479,12 +501,12 @@ func (s *DriveFileService) linkExistingFileInTx(
 					"google_sub":    conn.GoogleSub,
 				},
 			}, events...); err != nil {
-				return db.DriveFile{}, "", "", "", "", err
+				return linkedExistingResult{}, err
 			}
 		}
 	}
 
-	return fileRow, outcome, viewerConnID, viewerEmail, accountEmailOnAlreadyLinked, nil
+	return res, nil
 }
 
 func shouldMarkDriveAccessLost(err error) bool {
