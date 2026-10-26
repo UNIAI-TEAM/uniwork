@@ -1,0 +1,51 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144 REQUIRE_XLSX_GATEWAY=1; pnpm test --continue > /tmp/pr8r2-unit.log 2>&1; rc=$?; grep -E "Tasks:|Failed:|FAIL |✗|×|ERROR: Coverage|threshold|Test Files|Tests  " /tmp/pr8r2-unit.log | head -80; tail -25 /tmp/pr8r2-unit.log; echo; echo "UNIT_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  46 passed (46)
+@uniwork/chat-desktop:test:  Test Files  21 passed (21)
+@uniwork/chat-desktop:test:       Tests  262 passed (262)
+@uniwork/office-engine-app:test:  Test Files  12 passed (12)
+@uniwork/office-engine-app:test:       Tests  142 passed | 12 skipped (157)
+@uniwork/views:test:      ✓ keeps a file at or below threshold on the single-request /documents/files path  2705ms
+@uniwork/views:test:      ✓ shows a loading toast with a Cancel action when dropping a file above threshold and suppresses toast.error on cancel  1261ms
+@uniwork/views:test:      ✓ takes no edit-lock pre-check for small files at or below the chunked threshold  470ms
+@uniwork/ui:test:  Test Files  43 passed (43)
+@uniwork/ui:test:       Tests  367 passed (367)
+@uniwork/office-engine:test:  Test Files  72 passed | 1 skipped (73)
+@uniwork/office-engine:test:       Tests  933 passed | 5 skipped (938)
+@uniwork/web:test:  Test Files  37 passed (37)
+@uniwork/web:test:       Tests  362 passed (362)
+@uniwork/core:test:  ✓ billing/quota-threshold-bus.test.ts (1 test) 7ms
+@uniwork/core:test:  Test Files  351 passed (351)
+@uniwork/core:test:       Tests  4039 passed (4039)
+@uniwork/views:test:      ✓ holds the panel's primary, like ×, while a guest link's retry is in flight  312ms
+@uniwork/views:test:      ✓ offers the column-end button below the virtualization threshold too  579ms
+@uniwork/views:test:  Test Files  846 passed (846)
+@uniwork/views:test:       Tests  8728 passed (8728)
+ Tasks:    8 successful, 8 total
+@uniwork/views:test:  ✓ settings/billing-api-error.test.ts (1 test) 59ms
+@uniwork/views:test:  ✓ meetings/meeting-background-image.test.ts (2 tests) 76ms
+@uniwork/views:test:  ✓ email-hub/email-hub-sender-avatar-context.test.ts (2 tests) 59ms
+@uniwork/views:test:  ✓ chat/chat-messages.test.ts (1 test) 72ms
+@uniwork/views:test:  ✓ agents/agent-badge.test.tsx (1 test) 102ms
+@uniwork/views:test:  ✓ chat/chat-reactions.test.ts (1 test) 69ms
+@uniwork/views:test: 
+@uniwork/views:test:  Test Files  846 passed (846)
+@uniwork/views:test:       Tests  8728 passed (8728)
+@uniwork/views:test:    Start at  02:45:59
+@uniwork/views:test:    Duration  771.15s (transform 58.33s, setup 183.29s, import 442.24s, tests 1190.31s, environment 247.39s)
+@uniwork/views:test: 
+@uniwork/views:test:  % Coverage report from v8
+@uniwork/views:test: 
+@uniwork/views:test: =============================== Coverage summary ===============================
+@uniwork/views:test: Statements   : 85.11% ( 45390/53326 )
+@uniwork/views:test: Branches     : 79.08% ( 40341/51011 )
+@uniwork/views:test: Functions    : 80.89% ( 11645/14395 )
+@uniwork/views:test: Lines        : 87.35% ( 40013/45803 )
+@uniwork/views:test: ================================================================================
+
+ Tasks:    8 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    12m53.234s 
+
+
+UNIT_EXIT=0
