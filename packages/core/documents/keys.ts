@@ -145,6 +145,14 @@ export const documentKeys = {
   /** Placeholder key for a view that has no asset id yet; never fetched. */
   assetIdle: (wsId: string, documentId: string) =>
     [...documentKeys.all, wsId, "asset", documentId, "idle"] as const,
+  /**
+   * The bytes a media viewer shows for one file version (UNI-2166, r1
+   * prototype: a blob through the bearer download route). Outside the detail
+   * prefix like `asset`, and keyed by the version id, so a realtime frame never
+   * refetches a video and a new version always does.
+   */
+  media: (wsId: string, documentId: string, versionId: string) =>
+    [...documentKeys.all, wsId, "media", documentId, versionId] as const,
   comments: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "comments"] as const,
   /**

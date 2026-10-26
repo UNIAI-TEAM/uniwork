@@ -32,17 +32,21 @@ const ZOOM_IN_SHORTCUT = createShortcutChord("Plus");
 const ZOOM_OUT_SHORTCUT = createShortcutChord("Minus");
 const FIT_SHORTCUT = createShortcutChord("0");
 
-function ToolbarButton({
+/** One icon button of the zoom toolbar; a surface adds its own (fullscreen) beside ZoomControls. */
+export function ZoomToolbarButton({
   onClick,
   disabled,
   label,
   shortcut,
+  compact,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   label: string;
   shortcut?: ShortcutChord;
+  /** 24px target for a status bar (the genoffice frames' bar height); coarse pointers still get 44px. */
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -54,7 +58,7 @@ function ToolbarButton({
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            className={cn("flex items-center justify-center rounded-md pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40", compact ? "size-6" : "size-7")}
           />
         }
       >
@@ -72,25 +76,33 @@ export function ZoomControls({
   canvas,
   disabled,
   className,
+  compact,
+  children,
 }: {
   canvas: ZoomCanvasApi;
   /** Set while the surface shows something other than the canvas (e.g. source view). */
   disabled?: boolean;
   className?: string;
+  /** The status-bar size: 24px buttons and 14px glyphs instead of 28px and 16px. */
+  compact?: boolean;
+  /** Extra toolbar buttons (a ZoomToolbarButton) placed after the zoom group, inside its tooltip provider. */
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
+  const icon = compact ? "size-3.5" : "size-4";
 
   return (
     <TooltipProvider delay={300}>
       <div className={cn("flex items-center gap-0.5", className)}>
-        <ToolbarButton
+        <ZoomToolbarButton
           onClick={canvas.zoomOut}
+          compact={compact}
           disabled={!canvas.canZoomOut || disabled}
           label={t("editor.canvas.zoom_out")}
           shortcut={ZOOM_OUT_SHORTCUT}
         >
-          <Minus className="size-4" />
-        </ToolbarButton>
+          <Minus className={icon} />
+        </ZoomToolbarButton>
         {/* Fixed width so the toolbar doesn't jitter as digits change. */}
         <span
           className="w-12 select-none text-center text-caption tabular-nums text-muted-foreground"
@@ -98,29 +110,33 @@ export function ZoomControls({
         >
           {canvas.zoomPercent}%
         </span>
-        <ToolbarButton
+        <ZoomToolbarButton
           onClick={canvas.zoomIn}
+          compact={compact}
           disabled={!canvas.canZoomIn || disabled}
           label={t("editor.canvas.zoom_in")}
           shortcut={ZOOM_IN_SHORTCUT}
         >
-          <Plus className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
+          <Plus className={icon} />
+        </ZoomToolbarButton>
+        <ZoomToolbarButton
           onClick={canvas.fit}
+          compact={compact}
           disabled={disabled}
           label={t("editor.canvas.zoom_fit")}
           shortcut={FIT_SHORTCUT}
         >
-          <Frame className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
+          <Frame className={icon} />
+        </ZoomToolbarButton>
+        <ZoomToolbarButton
           onClick={canvas.zoomToActualSize}
+          compact={compact}
           disabled={disabled}
           label={t("editor.canvas.zoom_actual")}
         >
-          <Maximize className="size-4" />
-        </ToolbarButton>
+          <Maximize className={icon} />
+        </ZoomToolbarButton>
+        {children}
       </div>
     </TooltipProvider>
   );
