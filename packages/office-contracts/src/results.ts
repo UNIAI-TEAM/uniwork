@@ -107,6 +107,27 @@ export const convertResultSchema = z.object({
 });
 export type ConvertResult = z.infer<typeof convertResultSchema>;
 
+export const extractTextFormats = ["docx", "xlsx", "pptx"] as const;
+export const extractTextFormatSchema = z.enum(extractTextFormats);
+export type ExtractTextFormat = (typeof extractTextFormats)[number];
+
+export const extractTextPayloadSchema = z.object({
+  text: z.string(),
+  truncated: z.boolean(),
+  format: extractTextFormatSchema,
+});
+export type ExtractTextPayload = z.infer<typeof extractTextPayloadSchema>;
+
+/** extract_text completes inline on the job status without an output target. */
+export const extractTextResultSchema = z.object({
+  ...resultBase,
+  operation: z.literal("extract_text"),
+  format: extractTextFormatSchema.optional(),
+  result: extractTextPayloadSchema,
+  warnings: warningList.optional(),
+});
+export type ExtractTextResult = z.infer<typeof extractTextResultSchema>;
+
 /** capability is a catalogue read: no grant, no engine, no object. */
 export const capabilityResultSchema = z.object({
   ...resultBase,
