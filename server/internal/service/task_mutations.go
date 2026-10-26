@@ -155,7 +155,8 @@ func (s *TaskService) BatchUpdateTasks(ctx context.Context, actor Actor, workspa
 
 // BatchDeleteTasks moves every listed id and its subtasks to the trash in one
 // batch (TrashMany) and answers how many rows went. Unknown non-empty ids fail
-// the whole batch; empty strings are ignored.
+// the whole batch; empty strings are skipped, and a list of only empty strings
+// is a bad request.
 func (s *TaskService) BatchDeleteTasks(ctx context.Context, actor Actor, workspaceID string, taskIDs []string) (int, error) {
 	res, err := s.TrashMany(ctx, actor, workspaceID, taskIDs)
 	return len(res.IDs), err
