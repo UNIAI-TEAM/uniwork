@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: tự chủ có kiểm soát (làm mọi thao tác trong quyền)
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-26; issue UNI-2170 (cha: epic UNI-415); kế hoạch: thùng rác `docs/superpowers/plans/2026-10-26-task-project-trash.md`, khung chung đợt 1 `docs/superpowers/plans/2026-10-26-ask-uni-full-actions-p1.md`; cả hai đã duyệt 2026-10-26. Thùng rác (§8.1) code xong trên UNI-2171, chờ PR; đợt 1 chưa bắt đầu.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-26; issue UNI-2170 (cha: epic UNI-415); kế hoạch: thùng rác `docs/superpowers/plans/2026-10-26-task-project-trash.md`, khung chung đợt 1 `docs/superpowers/plans/2026-10-26-ask-uni-full-actions-p1.md`; cả hai đã duyệt 2026-10-26. Thùng rác (§8.1) code xong trên UNI-2171; thùng rác chung (§8.1.1, duyệt 2026-10-26) đang làm theo `docs/superpowers/plans/2026-10-26-shared-trash.md`; đợt 1 chưa bắt đầu.
 
 **Ngày:** 2026-10-26
 **Bổ sung cho:**
@@ -219,7 +219,51 @@ Người xây dựng chọn cách báo kết quả về server, hình dạng s�
 
   Không task nào mất theo dự án.
 - "Xoá vĩnh viễn" là lệnh riêng, mức 3 nhóm 1.
-- Có màn hình hoặc mục "Thùng rác" cho task và dự án, theo kiểu thùng rác tài liệu.
+- Có một **thùng rác chung** của workspace, mô tả ở §8.1.1 (chủ sản phẩm chốt 2026-10-26, thay cho hai trang thùng rác riêng của task và dự án).
+
+#### 8.1.1 Thùng rác chung (chủ sản phẩm chốt 2026-10-26)
+
+Một chỗ duy nhất để xem và lấy lại mọi thứ đã xóa trong workspace: công việc, dự án và tài liệu.
+
+- **Lối vào:**
+  - mục "Thùng rác" trong menu avatar, ngay dưới "Cài đặt";
+  - mục đó mở tab "Thùng rác" trong Cài đặt, nhóm Workspace (`?tab=trash`), cạnh Workspace, Thành viên, Trạng thái, Nhãn.
+- **Không còn lối vào nào khác cho công việc và dự án:**
+  - bỏ nút "Thùng rác" ở đầu trang Công việc và trang Dự án;
+  - bỏ hai trang `/tasks/trash` và `/projects/trash`;
+  - toast "Đã chuyển vào thùng rác" kèm "Hoàn tác" sau khi xóa vẫn giữ nguyên.
+- **Tài liệu giữ nguyên** (chủ sản phẩm chốt):
+  - màn Thùng rác trong trang Tài liệu, thông báo trỏ tới nó và mọi thao tác ở đó không đổi;
+  - tài liệu đã xóa cũng hiện trong thùng rác chung;
+  - khi workspace không dùng được Tài liệu thì thùng rác chung không có dòng tài liệu và không có lựa chọn "Tài liệu" trong bộ lọc.
+- **Đầu trang:** tiêu đề "Thùng rác", một câu nói mục đã xóa nằm ở đây 30 ngày rồi tự xóa vĩnh viễn.
+- **Thanh lọc:**
+  - ô tìm theo tên;
+  - lọc Loại: Tất cả, Công việc, Dự án, Tài liệu;
+  - lọc Người xóa: Mọi người, Tôi, hoặc một thành viên.
+- **Bảng**, một dòng cho mỗi lần xóa, mục mới xóa nằm trên cùng, cuộn hoặc bấm để tải thêm:
+  - Tên: biểu tượng của loại, tên, mã task với công việc; dòng phụ nói loại và phần đi kèm ("kèm 1 việc con", "1 công việc sẽ gắn lại khi khôi phục", "kèm 12 mục");
+  - Vị trí: dự án của công việc lúc bị xóa, tên workspace với dự án, đường dẫn thư mục với tài liệu;
+  - Xóa lúc (thời gian tương đối), Người xóa, Còn (số ngày tới lúc tự xóa vĩnh viễn, tô đỏ khi còn từ 7 ngày trở xuống);
+  - menu "⋯" của dòng: Khôi phục, Xóa vĩnh viễn; Xóa vĩnh viễn hỏi lại trước khi làm.
+- **Ai thấy gì, ai làm gì:** mỗi loại giữ đúng luật đang có.
+  - Công việc: mọi thành viên thấy và khôi phục, xóa vĩnh viễn được.
+  - Dự án: mọi thành viên thấy; chỉ người tạo, người phụ trách hoặc quản trị viên khôi phục hay xóa vĩnh viễn được.
+  - Tài liệu: thấy và làm được như ở màn thùng rác của trang Tài liệu.
+  - Người không được làm thì thấy dòng nhưng hai lệnh bị khóa, có lời giải thích.
+- Lỗi khi khôi phục hay xóa vẫn báo như hiện có: trùng tên dự án (409 `duplicate_project_title`), quá nhiều mục (422 `trash_too_large`), mục đã không còn.
+- **Không làm trong đợt này:** nút "Xóa hết", chọn nhiều dòng để khôi phục hay xóa cùng lúc, số đếm trên menu hay trên tab.
+- **Người viết chốt (đọc lại khi duyệt):**
+  - Dòng tài liệu là đúng những gì màn thùng rác của trang Tài liệu trả về cho người đang xem, với cùng bộ lọc quyền; "Xóa lúc", "Người xóa" và "Còn" lấy từ thời điểm, người và hạn tự xóa của chính tài liệu. Tài liệu "Lưu trữ" không phải đã xóa nên không hiện. Lệnh trên dòng tài liệu bật khi màn thùng rác tài liệu cũng bật nó.
+  - Mỗi lần xóa là một dòng, như danh sách hiện có của từng loại: task cha đứng đại diện cho cả lô, việc con trong lô không thành dòng riêng; tài liệu theo đúng cách màn thùng rác tài liệu gom dòng.
+  - Tab hiện cho mọi thành viên workspace, không cần quyền quản trị.
+  - Hai trang `/tasks/trash`, `/projects/trash` và đường dẫn của chúng bị xóa hẳn, không chuyển hướng: chúng chưa từng ra bản chính thức nên không có liên kết cũ hay thông báo nào trỏ tới.
+  - Ô tìm và lọc người xóa áp trước khi chia trang. Không thêm sự kiện realtime mới: các sự kiện xóa, khôi phục, xóa vĩnh viễn đang có của task, dự án và tài liệu làm mới thùng rác chung.
+  - Thùng rác trống nói "Thùng rác trống"; lọc mà không còn dòng nào thì nói không có mục nào khớp và cho bỏ lọc.
+  - API đọc gộp gọi qua dịch vụ của từng loại (task, dự án, tài liệu) chứ không gọi thẳng truy vấn của chúng, nên không cần ngoại lệ trong arch test hay ADR mới.
+- **Để người xây dựng quyết:**
+  - cách đọc gộp ba nguồn để mục mới xóa đứng trên cùng qua nhiều trang (gợi ý: một API đọc thùng rác chung, giữ luật quyền của từng nguồn);
+  - tên và hình dạng API; Khôi phục và Xóa vĩnh viễn dùng lại API sẵn có của từng loại.
 - Sự kiện realtime và audit cho xoá, khôi phục và xoá vĩnh viễn đi theo luật hiện có: outbox, payload chỉ có id, catalogue ba nơi.
 - Isolation matrix có route mới.
 
