@@ -329,6 +329,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 variant="meetingChip"
                 size="icon"
                 className="hidden size-9 lg:inline-flex"
+                data-panel-toggle
                 aria-label={sidebarOpen ? t("meetings.closeSidebar") : t("meetings.openSidebarPanel")}
                 aria-pressed={sidebarOpen}
                 onClick={onToggleSidebar}

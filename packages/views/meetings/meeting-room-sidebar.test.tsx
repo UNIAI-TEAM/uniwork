@@ -97,6 +97,20 @@ describe("MeetingSidebarDock", () => {
     );
     expect(screen.getByRole("tab")).not.toHaveFocus();
   });
+
+  it("hands focus to the active tab again on a new focus request while open", () => {
+    const dock = (request: number) => (
+      <MeetingSidebarDock open focusRequest={request}>
+        <button type="button" role="tab" aria-selected="true">
+          Votes
+        </button>
+      </MeetingSidebarDock>
+    );
+    const { rerender } = render(dock(0));
+    expect(screen.getByRole("tab")).not.toHaveFocus();
+    rerender(dock(1));
+    expect(screen.getByRole("tab")).toHaveFocus();
+  });
 });
 
 describe("MeetingRoomSidebar", () => {

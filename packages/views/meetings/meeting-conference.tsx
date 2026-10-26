@@ -178,8 +178,19 @@ function ConferenceStage({
     [compact],
   );
   const openPeople = useCallback(() => openSidebarTab("participants"), [openSidebarTab]);
-  const openMotions = useCallback(() => openSidebarTab("motions"), [openSidebarTab]);
+  // The prompt's card goes away under its own button once Votes is on screen,
+  // so the keyboard follows to the Votes tab.
+  const [dockFocusRequest, setDockFocusRequest] = useState(0);
+  const openMotions = useCallback(() => {
+    openSidebarTab("motions");
+    setDockFocusRequest((n) => n + 1);
+  }, [openSidebarTab]);
   const toggleSidebar = useCallback(() => setSidebarPinned((v) => !v), []);
+  // The panel's own collapse button leaves with the panel; the header's toggle reopens it.
+  const collapseSidebar = useCallback(() => {
+    setSidebarPinned(false);
+    stageFrame?.querySelector<HTMLElement>("[data-panel-toggle]")?.focus();
+  }, [stageFrame]);
   const openSidebarSheet = useCallback(() => setSidebarSheetOpen(true), []);
   const toggleCaptions = useCallback(() => {
     setCaptionsError(null);
@@ -255,7 +266,7 @@ function ConferenceStage({
       onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
-      onCollapse={compact ? undefined : toggleSidebar}
+      onCollapse={compact ? undefined : collapseSidebar}
       scribeOn={scribeInRoom}
       liveItemsUnseen={liveItems.count}
       onCopilotSectionChange={setCopilotSection}
@@ -396,6 +407,7 @@ function ConferenceStage({
         {!compact ? (
           <MeetingSidebarDock
             open={sidebarPinned}
+            focusRequest={dockFocusRequest}
             className="min-h-0 w-[22rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border xl:w-[24rem]"
           >
             {renderSidebar()}

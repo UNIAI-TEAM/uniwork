@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -20,6 +20,7 @@ vi.mock("@livekit/components-react", () => ({
   RoomAudioRenderer: () => null,
   StartMediaButton: () => null,
   useIsRecording: () => false,
+  useParticipants: () => [],
   useRemoteParticipants: () => [],
   useSpeakingParticipants: () => [],
   useTracks: () => [],
@@ -32,8 +33,8 @@ vi.mock("./meeting-room-avatars", () => ({
   MeetingRoomAvatarsProvider: ({ children }: { children: ReactNode }) => children,
   useRoomAvatarOf: () => () => undefined,
 }));
-vi.mock("./meeting-stage-header", () => ({ MeetingStageHeader: () => null }));
-vi.mock("./meeting-room-sidebar", () => ({
+vi.mock("./meeting-room-sidebar", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./meeting-room-sidebar")>()),
   MeetingRoomSidebar: ({
     tab,
     onTabChange,
@@ -46,9 +47,11 @@ vi.mock("./meeting-room-sidebar", () => ({
     tabsEnd?: ReactNode;
   }) => (
     <div data-testid="room-sidebar" data-tab={tab}>
-      <button type="button" onClick={() => onTabChange("chat")}>
-        chat-tab
-      </button>
+      {["chat", "motions"].map((id) => (
+        <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => onTabChange(id)}>
+          {`${id}-tab`}
+        </button>
+      ))}
       {onCollapse ? (
         <button type="button" onClick={onCollapse}>
           collapse
@@ -57,7 +60,6 @@ vi.mock("./meeting-room-sidebar", () => ({
       {tabsEnd}
     </div>
   ),
-  MeetingSidebarDock: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./meeting-control-bar", () => ({ MeetingControlBar: () => null }));
 vi.mock("./meeting-stage-footer", () => ({
@@ -110,8 +112,20 @@ describe("MeetingConference side panel", () => {
     expect(screen.getByTestId("room-sidebar")).toHaveAttribute("data-tab", "motions");
     expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "chat-tab" }));
+    fireEvent.click(screen.getByRole("tab", { name: "chat-tab" }));
     expect(screen.getByTestId("meeting-vote-prompt")).toBeInTheDocument();
+  });
+
+  it("hands focus to the Votes tab when the prompt goes away under its own button", () => {
+    renderConference();
+    fireEvent.click(screen.getByTestId("meeting-vote-prompt"));
+    // The panel is already open, on another tab.
+    fireEvent.click(screen.getByRole("tab", { name: "chat-tab" }));
+    const promptButton = screen.getByTestId("meeting-vote-prompt");
+    promptButton.focus();
+
+    fireEvent.click(promptButton);
+    expect(screen.getByRole("tab", { name: "motions-tab" })).toHaveFocus();
   });
 
   it("collapses the docked panel from its tab row, bringing the prompt back", () => {
@@ -119,8 +133,12 @@ describe("MeetingConference side panel", () => {
     fireEvent.click(screen.getByTestId("meeting-vote-prompt"));
     expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "collapse" }));
+    const collapse = screen.getByRole("button", { name: "collapse" });
+    collapse.focus();
+    fireEvent.click(collapse);
     expect(screen.getByTestId("meeting-vote-prompt")).toBeInTheDocument();
+    // The button left with the panel; the keyboard lands on the header's toggle that reopens it.
+    expect(screen.getByRole("button", { name: "Mở bảng phụ" })).toHaveFocus();
   });
 
   it("opens the panel as a bottom sheet on a phone, with no collapse button", async () => {
@@ -132,5 +150,9 @@ describe("MeetingConference side panel", () => {
     expect(sidebar.closest("[data-side]")).toHaveAttribute("data-side", "bottom");
     expect(screen.queryByRole("button", { name: "collapse" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
+
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Đóng" }));
+    await waitFor(() => expect(screen.queryByTestId("room-sidebar")).not.toBeInTheDocument());
+    expect(screen.getByTestId("meeting-vote-prompt")).toBeInTheDocument();
   });
 });

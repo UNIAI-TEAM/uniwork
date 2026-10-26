@@ -27,26 +27,31 @@ const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2
  * chat draft and scroll survive) but leaves the page: `hidden` drops it from
  * layout at once, with no width animation reflowing the video grid, and
  * `inert` keeps its controls out of the tab order. Opened by the viewer, it
- * hands focus to the active tab so the keyboard lands where the eye does.
+ * hands focus to the active tab so the keyboard lands where the eye does; a
+ * new `focusRequest` does the same for a panel that is already open.
  */
 export function MeetingSidebarDock({
   open,
+  focusRequest = 0,
   className,
   children,
 }: {
   open: boolean;
+  focusRequest?: number;
   className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(open);
+  const lastRequest = useRef(focusRequest);
 
   useEffect(() => {
-    if (open && !wasOpen.current) {
+    if (open && (!wasOpen.current || focusRequest !== lastRequest.current)) {
       ref.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
     }
     wasOpen.current = open;
-  }, [open]);
+    lastRequest.current = focusRequest;
+  }, [open, focusRequest]);
 
   return (
     <div
