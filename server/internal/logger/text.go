@@ -13,8 +13,6 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/lmittmann/tint"
 )
 
 const (
@@ -41,8 +39,7 @@ var dimKeys = []string{
 	"actor_kind",
 }
 
-// lockedWriter is the single Write gate shared by the text line and the tint
-// fallback, so one line is one Write.
+// lockedWriter serializes Write so concurrent Handle calls do not interleave lines.
 type lockedWriter struct {
 	mu *sync.Mutex
 	w  io.Writer
@@ -60,7 +57,6 @@ type textHandler struct {
 	color bool
 	pre   []slog.Attr
 	group string
-	tint  slog.Handler
 }
 
 func newTextHandler(w io.Writer, level slog.Leveler, color bool) slog.Handler {
@@ -68,13 +64,7 @@ func newTextHandler(w io.Writer, level slog.Leveler, color bool) slog.Handler {
 		level = slog.LevelDebug
 	}
 	lw := lockedWriter{mu: &sync.Mutex{}, w: w}
-	h := &textHandler{w: lw, level: level, color: color}
-	h.tint = tint.NewTextHandler(lw, &tint.Options{
-		Level:      level,
-		TimeFormat: textTimeFormat,
-		NoColor:    !color,
-	})
-	return h
+	return &textHandler{w: lw, level: level, color: color}
 }
 
 func (h *textHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -85,13 +75,9 @@ func (h *textHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= min
 }
 
-func (h *textHandler) Handle(ctx context.Context, r slog.Record) error {
-	attrs := h.collect(r)
-	if h.group != "" || attrsHaveGroup(attrs) {
-		return h.tint.Handle(ctx, r)
-	}
+func (h *textHandler) Handle(_ context.Context, r slog.Record) error {
 	var buf bytes.Buffer
-	h.writeLine(&buf, r, attrs)
+	h.writeLine(&buf, r, h.collect(r))
 	_, err := h.w.Write(buf.Bytes())
 	return err
 }
@@ -101,8 +87,7 @@ func (h *textHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		return h
 	}
 	h2 := h.clone()
-	h2.pre = append(h2.pre, attrs...)
-	h2.tint = h.tint.WithAttrs(attrs)
+	h2.pre = append(h2.pre, flattenAttrs(h.group, attrs)...)
 	return h2
 }
 
@@ -116,7 +101,6 @@ func (h *textHandler) WithGroup(name string) slog.Handler {
 	} else {
 		h2.group = h.group + "." + name
 	}
-	h2.tint = h.tint.WithGroup(name)
 	return h2
 }
 
@@ -129,20 +113,43 @@ func (h *textHandler) clone() *textHandler {
 func (h *textHandler) collect(r slog.Record) []slog.Attr {
 	out := make([]slog.Attr, 0, len(h.pre)+r.NumAttrs())
 	out = append(out, h.pre...)
+	var rec []slog.Attr
 	r.Attrs(func(a slog.Attr) bool {
-		out = append(out, a)
+		rec = append(rec, a)
 		return true
 	})
+	out = append(out, flattenAttrs(h.group, rec)...)
 	return out
 }
 
-func attrsHaveGroup(attrs []slog.Attr) bool {
-	for _, a := range attrs {
-		if kind, ok := safeKind(a.Value); ok && kind == slog.KindGroup {
-			return true
-		}
+func joinPrefix(prefix, key string) string {
+	if prefix == "" {
+		return key
 	}
-	return false
+	if key == "" {
+		return prefix
+	}
+	return prefix + "." + key
+}
+
+func flattenAttrs(prefix string, attrs []slog.Attr) []slog.Attr {
+	var out []slog.Attr
+	for _, a := range attrs {
+		if a.Equal(slog.Attr{}) {
+			continue
+		}
+		if kind, ok := safeKind(a.Value); ok && kind == slog.KindGroup {
+			children := a.Value.Group()
+			if len(children) == 0 {
+				continue
+			}
+			childPrefix := joinPrefix(prefix, a.Key)
+			out = append(out, flattenAttrs(childPrefix, children)...)
+			continue
+		}
+		out = append(out, slog.Attr{Key: joinPrefix(prefix, a.Key), Value: a.Value})
+	}
+	return out
 }
 
 func safeKind(v slog.Value) (k slog.Kind, ok bool) {
@@ -154,12 +161,19 @@ func safeKind(v slog.Value) (k slog.Kind, ok bool) {
 	return v.Resolve().Kind(), true
 }
 
+func attrBaseKey(key string) string {
+	if i := strings.LastIndex(key, "."); i >= 0 {
+		return key[i+1:]
+	}
+	return key
+}
+
 func (h *textHandler) writeLine(buf *bytes.Buffer, r slog.Record, attrs []slog.Attr) {
 	writeTime(buf, r.Time, h.color)
 	buf.WriteByte(' ')
 	writeLevel(buf, r.Level, h.color)
 	buf.WriteByte(' ')
-	buf.WriteString(quoteIfNeeded(r.Message))
+	buf.WriteString(quoteMessage(r.Message))
 
 	var kept []slog.Attr
 	for _, a := range attrs {
@@ -240,10 +254,11 @@ func (h *textHandler) writeAttr(buf *bytes.Buffer, a slog.Attr, msg string, dim 
 }
 
 func (h *textHandler) valueColor(msg string, a slog.Attr) string {
-	if a.Key == "err" || a.Key == "error" {
+	base := attrBaseKey(a.Key)
+	if base == "err" || base == "error" {
 		return ansiBrightRed
 	}
-	if msg == "http request" && a.Key == "status" {
+	if msg == "http request" && base == "status" {
 		if n, ok := statusCode(a.Value); ok {
 			switch {
 			case n >= 500:
@@ -366,6 +381,32 @@ func formatValue(v slog.Value) (s string) {
 	default:
 		return fmt.Sprint(v.Any())
 	}
+}
+
+func quoteMessage(s string) string {
+	if messageNeedsQuoting(s) {
+		return strconv.Quote(s)
+	}
+	return s
+}
+
+func messageNeedsQuoting(s string) bool {
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c < utf8.RuneSelf {
+			if c < 0x20 {
+				return true
+			}
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError || !unicode.IsPrint(r) {
+			return true
+		}
+		i += size
+	}
+	return false
 }
 
 func quoteIfNeeded(s string) string {

@@ -34,7 +34,7 @@ Thành công khi, với `LOG_FORMAT` khác `json`:
 - `LOG_FORMAT=json` (không phân biệt hoa thường, có trim) → `slog.JSONHandler`. Không ANSI.
 - Mọi giá trị khác, kể cả trống → handler text ở `server/internal/logger/text.go`.
 
-Handler text tự viết mọi record không nằm trong group. Record nằm trong group (handler đã `.WithGroup` với tên khác rỗng) ủy thác cả dòng cho `tint`, cùng `TimeFormat` và cùng cờ màu. Attr có value là group (`slog.KindGroup`, kể cả sau `Resolve`) cũng ủy thác cả record cho `tint`. Không xếp một nửa dòng. `tint` không còn là đường mặc định của dòng phẳng.
+Handler text ghi mọi record trên một dòng, kể cả khi handler đã `.WithGroup` hoặc attr mang `slog.KindGroup`: flatten trong cùng writer một dòng, key nối bằng dấu chấm (`g.method=GET`), cùng quy tắc quote và cùng thứ tự sáng/đuôi mờ. Nhờ vậy value group có xuống dòng hoặc ESC không thể in byte ESC thô hay cắt record thành hai dòng vật lý.
 
 Màu của format text, đúng thứ tự này:
 
@@ -96,7 +96,7 @@ Test trong `server/internal/logger`, ghi vào `bytes.Buffer`. Seam là `buildHan
 - `http request` với `method`, `path`, `status=500`, `duration`, `user_id`, `room_id`, `trace_id`: bốn field đầu đứng trước `user_id`, `user_id` đứng trước `room_id`, `room_id` đứng trước `trace_id`. `status=500` nằm trong ANSI đỏ. `status=404` với level Info thì nhãn `INF` xanh và số `404` vàng. Chuỗi `"500"` không tô. Key và value `trace_id` mờ. `trace_id` lặp hai lần thì cả hai đứng cuối, theo thứ tự thu thập. Không có `duration` thì không có chuỗi `duration=`.
 - Warn với `room_id`, `error`, `organization_id`: `room_id` và `error` đứng trước `organization_id`. Value `error` đỏ và reset trước field sau. `organization_id` mờ.
 - `err` chứa xuống dòng hoặc ESC thì record vẫn một `\n` cuối dòng. ESC trong value là chuỗi `\x1b` đã quote. Khi màu tắt, dòng đó không có byte ESC. `Error()` panic thì value là `!PANIC`, field sau vẫn có.
-- `.WithGroup("g")` in kiểu `tint`, có `g.method=GET`. Attr `slog.KindGroup` cũng có dạng key của `tint` (`g.method=`). `LOG_LEVEL=warn` thì dòng Info không được ghi. `Write` trả lỗi thì `Handle` trả lỗi đó.
+- `.WithGroup("g")` in trên handler text, có `g.method=GET`. Attr `slog.KindGroup` cũng flatten thành `g.method=`. Value group có xuống dòng hoặc ESC vẫn một dòng vật lý, ESC trong value là `\x1b` đã quote. `LOG_LEVEL=warn` thì dòng Info không được ghi. `Write` trả lỗi thì `Handle` trả lỗi đó.
 
 `RequestLogger` không đổi. Test của nó vẫn gắn `slog.TextHandler` riêng.
 

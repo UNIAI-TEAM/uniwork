@@ -135,6 +135,30 @@ func TestTextWarnDimsTenantIDs(t *testing.T) {
 	}
 }
 
+func TestTextMessageQuoting(t *testing.T) {
+	httpLine := render(t, false, slog.LevelInfo, "http request", "method", "GET")
+	if strings.Contains(httpLine, `"http request"`) {
+		t.Fatalf("http message quoted: %q", httpLine)
+	}
+	chatLine := render(t, false, slog.LevelWarn, "chat: thread participants not read", "room_id", "r1")
+	if strings.Contains(chatLine, `"chat:`) {
+		t.Fatalf("chat message quoted: %q", chatLine)
+	}
+	for _, color := range []bool{false, true} {
+		msgNL := render(t, color, slog.LevelInfo, "line\nbreak")
+		if strings.Count(msgNL, "\n") != 1 || !strings.Contains(stripANSI(msgNL), `"line\nbreak"`) {
+			t.Fatalf("color %v newline message: %q", color, msgNL)
+		}
+		msgEsc := render(t, color, slog.LevelInfo, "a\x1bb")
+		if bytes.Contains([]byte(stripANSI(msgEsc)), []byte{0x1b}) {
+			t.Fatalf("color %v raw ESC in message", color)
+		}
+		if !strings.Contains(stripANSI(msgEsc), `\x1b`) {
+			t.Fatalf("color %v message escape not quoted: %q", color, stripANSI(msgEsc))
+		}
+	}
+}
+
 func TestTextQuotesNewlinesAndESC(t *testing.T) {
 	for _, color := range []bool{false, true} {
 		got := render(t, color, slog.LevelWarn, "x", "err", "boom\nnext", "room_id", "r1")
@@ -155,10 +179,6 @@ func TestTextQuotesNewlinesAndESC(t *testing.T) {
 	backslash := render(t, false, slog.LevelInfo, "x", "path", `a\b`)
 	if !strings.Contains(backslash, `path=a\b`) || strings.Contains(backslash, `path="`) {
 		t.Fatalf("backslash was quoted: %s", backslash)
-	}
-	msg := render(t, false, slog.LevelInfo, "line\nbreak")
-	if strings.Count(msg, "\n") != 1 || !strings.Contains(msg, `"line\nbreak"`) {
-		t.Fatalf("message not quoted: %q", msg)
 	}
 }
 
@@ -223,7 +243,7 @@ func TestTextLevelOffsetAndFilter(t *testing.T) {
 	}
 }
 
-func TestTextGroupFallsBackToTint(t *testing.T) {
+func TestTextGroupPrefixesKeys(t *testing.T) {
 	var buf bytes.Buffer
 	h := newTextHandler(&buf, slog.LevelDebug, false).WithGroup("g")
 	if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "http request", "method", "GET")); err != nil {
@@ -241,6 +261,51 @@ func TestTextGroupFallsBackToTint(t *testing.T) {
 	}
 	if !strings.Contains(stripANSI(buf.String()), "g.method=GET") {
 		t.Fatalf("kind group: %s", buf.String())
+	}
+
+	for _, color := range []bool{false, true} {
+		buf.Reset()
+		h = newTextHandler(&buf, slog.LevelDebug, color).WithGroup("g")
+		if err := h.Handle(context.Background(), fixedRecord(slog.LevelWarn, "x", "err", "boom\nnext", "err", "a\x1bb")); err != nil {
+			t.Fatal(err)
+		}
+		got := buf.String()
+		if strings.Count(got, "\n") != 1 {
+			t.Fatalf("color %v split line: %q", color, got)
+		}
+		plain := stripANSI(got)
+		if color == false && bytes.Contains([]byte(plain), []byte{0x1b}) {
+			t.Fatalf("color off has raw ESC: %q", plain)
+		}
+		if !strings.Contains(plain, `"boom\nnext"`) || !strings.Contains(plain, `\x1b`) {
+			t.Fatalf("color %v group err quote: %q", color, plain)
+		}
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, false).WithGroup("g").WithGroup("inner")
+	if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "x", "method", "GET")); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "g.inner.method=GET") {
+		t.Fatalf("nested group: %s", buf.String())
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, false).
+		WithAttrs([]slog.Attr{slog.String("component", "server")}).
+		WithGroup("g")
+	if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "x", "method", "GET")); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "component=server") || !strings.Contains(got, "g.method=GET") {
+		t.Fatalf("with attrs then group: %s", got)
+	}
+	comp := strings.Index(got, "component=server")
+	gmeth := strings.Index(got, "g.method=GET")
+	if comp < 0 || gmeth < comp {
+		t.Fatalf("order: %s", got)
 	}
 }
 
