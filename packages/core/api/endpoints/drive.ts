@@ -134,11 +134,26 @@ const DriveFileLinkItemSchema = z.object({
 
 export type DriveFileLinkItem = z.infer<typeof DriveFileLinkItemSchema>;
 
+/**
+ * Parses each item in `results` individually so a single malformed element in a
+ * 20-file batch is dropped instead of wiping out the 19 valid link outcomes (R1-7).
+ */
 const DriveFileLinkResultsSchema = z.object({
-  results: z.array(DriveFileLinkItemSchema),
+  results: z.array(z.unknown()).transform((items) => {
+    const valid: DriveFileLinkItem[] = [];
+    for (const item of items) {
+      const parsed = DriveFileLinkItemSchema.safeParse(item);
+      if (parsed.success) {
+        valid.push(parsed.data);
+      }
+    }
+    return valid;
+  }),
 });
 
-export type DriveFileLinkResults = z.infer<typeof DriveFileLinkResultsSchema>;
+export type DriveFileLinkResults = {
+  results: DriveFileLinkItem[];
+};
 
 export interface LinkDriveFilesBody {
   connection_id: string;

@@ -125,10 +125,10 @@ describe("drive endpoints", () => {
 
   it("getDrivePickerToken posts an empty body and parses the picker token SDO", async () => {
     const tokenPayload = {
-      access_token: "ya29.fake-picker-token",
+      access_token: "picker-tok",
       expires_at: "2026-10-26T11:00:00Z",
-      developer_key: "dev_key_1",
-      app_id: "123456789",
+      developer_key: "dev-key",
+      app_id: "app-1",
     };
     requestMock.mockResolvedValueOnce(tokenPayload);
     const res = await getDrivePickerToken("ws 1", "dc/1");
@@ -219,7 +219,7 @@ describe("drive endpoints", () => {
     });
   });
 
-  it("linkDriveFiles degrades a malformed response to an empty results list", async () => {
+  it("linkDriveFiles degrades a malformed response to an empty results list and drops only malformed items in a batch", async () => {
     requestMock.mockResolvedValueOnce({ results: [{ external_file_id: 99 }] });
     await expect(
       linkDriveFiles("ws1", { connection_id: "dc_1", external_file_ids: ["gdoc_1"] }),
@@ -229,5 +229,29 @@ describe("drive endpoints", () => {
     await expect(
       linkDriveFiles("ws1", { connection_id: "dc_1", external_file_ids: ["gdoc_1"] }),
     ).resolves.toEqual({ results: [] });
+
+    requestMock.mockResolvedValueOnce({
+      results: [
+        { external_file_id: 99 },
+        {
+          external_file_id: "gdoc_2",
+          outcome: "linked",
+        },
+      ],
+    });
+    const partial = await linkDriveFiles("ws1", {
+      connection_id: "dc_1",
+      external_file_ids: ["gdoc_1", "gdoc_2"],
+    });
+    expect(partial.results).toEqual([
+      {
+        external_file_id: "gdoc_2",
+        outcome: "linked",
+        file: undefined,
+        account_email: undefined,
+        error_code: undefined,
+        error_message: undefined,
+      },
+    ]);
   });
 });

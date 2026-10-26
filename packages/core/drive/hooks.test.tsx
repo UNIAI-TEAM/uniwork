@@ -105,10 +105,10 @@ describe("drive hooks", () => {
   it("useDrivePickerToken fetches a short-lived picker token imperatively without caching", async () => {
     const qc = new QueryClient();
     const tokenPayload = {
-      access_token: "ya29.short-lived",
+      access_token: "picker-tok",
       expires_at: "2026-10-26T11:00:00Z",
-      developer_key: "dev_key",
-      app_id: "123456",
+      developer_key: "dev-key",
+      app_id: "app-1",
     };
     requestMock.mockResolvedValueOnce(tokenPayload);
 

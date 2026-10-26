@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiError, errorCode } from "@uniwork/core/api";
 import {
   isDriveConnectionLost,
   useDriveConnections,
@@ -15,9 +16,10 @@ import {
 import { paths } from "@uniwork/core/paths";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
+import { apiErrorCopy } from "../../api-error-copy";
 import { useWorkspace } from "../../layout/workspace-context";
-import { useNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
+import { useDriveConnectPopup } from "../use-drive-connect-popup";
 import {
   resolveDrivePickerAdapter,
   type DrivePickedFile,
@@ -48,11 +50,11 @@ export function requiresTaskLinkConfirmation(files: DrivePickedFile[]): boolean 
  * its localized sentence under `drive.picker.errors`.
  */
 export function driveLinkErrorReason(
-  errorCode: string | undefined,
+  code: string | undefined,
   t: (key: string) => string,
   errorMessage?: string,
 ): string {
-  switch (errorCode) {
+  switch (code) {
     case "drive_grant_required":
       return t("errors.drive_grant_required");
     case "drive_file_not_accessible":
@@ -63,6 +65,124 @@ export function driveLinkErrorReason(
       return t("errors.drive_unavailable");
     default:
       return errorMessage?.trim() ? errorMessage : t("errors.link_failed");
+  }
+}
+
+/**
+ * Whether a `POST .../picker-token` failure means the Google Drive connection
+ * itself has lost authorization (`auth_failed` / `drive_connection_lost` /
+ * `needs_reconnect` or an explicit 401/403 connection-broken response, per
+ * contract §2 and R1-2). Network drops, 429/5xx, `feature_disabled`, and
+ * malformed 200 responses are NOT connection-broken and leave the account usable.
+ */
+export function isPickerTokenConnectionBrokenError(err: unknown): boolean {
+  const code = errorCode(err);
+  if (
+    code === "auth_failed" ||
+    code === "drive_connection_lost" ||
+    code === "needs_reconnect"
+  ) {
+    return true;
+  }
+  if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+    return (
+      code !== "blocked_by_workspace_admin" &&
+      code !== "drive_grant_required" &&
+      code !== "drive_file_not_accessible" &&
+      code !== "forbidden"
+    );
+  }
+  return false;
+}
+
+function presentLinkOutcomeToasts(
+  results: DriveFileLinkResults,
+  pickedFiles: DrivePickedFile[],
+  fallbackEmail: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): void {
+  // Malformed / empty link response (or missing items for picked files):
+  // never fail silently — report an error toast and treat missing files as
+  // not linked (R1-7).
+  if (results.results.length === 0 && pickedFiles.length > 0) {
+    toast.error(t("errors.link_failed"));
+    return;
+  }
+
+  const pickedNameById = new Map(pickedFiles.map((f) => [f.id, f.name]));
+  let linkedCount = 0;
+  const alreadyLinkedItems: Array<{ fileName: string; email: string }> = [];
+  const seenFileIds = new Set<string>();
+
+  for (const item of results.results) {
+    seenFileIds.add(item.external_file_id);
+    const fileName =
+      item.file?.name ??
+      pickedNameById.get(item.external_file_id) ??
+      item.external_file_id;
+    switch (item.outcome) {
+      case "linked":
+        linkedCount += 1;
+        break;
+      case "already_linked": {
+        const email = (
+          item.account_email ??
+          item.file?.viewer_account_email ??
+          fallbackEmail
+        ).trim();
+        alreadyLinkedItems.push({ fileName, email });
+        break;
+      }
+      case "error": {
+        const reason = driveLinkErrorReason(item.error_code, t, item.error_message);
+        toast.error(
+          fileName ? t("errors.file_error_named", { name: fileName, reason }) : reason,
+        );
+        break;
+      }
+      default:
+        toast.error(
+          fileName
+            ? t("errors.file_error_named", {
+                name: fileName,
+                reason: t("errors.link_failed"),
+              })
+            : t("errors.link_failed"),
+        );
+        break;
+    }
+  }
+
+  if (alreadyLinkedItems.length > 3) {
+    const email = alreadyLinkedItems[0]?.email ?? "";
+    toast.info(
+      email
+        ? t("outcomes.already_linked_many", { count: alreadyLinkedItems.length, email })
+        : t("outcomes.already_linked_many_no_email", { count: alreadyLinkedItems.length }),
+    );
+  } else {
+    for (const entry of alreadyLinkedItems) {
+      if (entry.email) {
+        toast.info(
+          entry.fileName
+            ? t("outcomes.already_linked_named", { name: entry.fileName, email: entry.email })
+            : t("outcomes.already_linked", { email: entry.email }),
+        );
+      } else {
+        toast.info(
+          entry.fileName
+            ? t("outcomes.already_linked_named_no_email", { name: entry.fileName })
+            : t("outcomes.already_linked_no_email"),
+        );
+      }
+    }
+  }
+
+  if (pickedFiles.some((file) => !seenFileIds.has(file.id))) {
+    toast.error(t("errors.link_failed"));
+  }
+  if (linkedCount > 0) {
+    toast.success(t("outcomes.linked", { count: linkedCount }));
   }
 }
 
@@ -95,6 +215,11 @@ export interface UseDrivePickerOptions {
     results: DriveFileLinkResults,
     context: { connectionId: string; pickedFiles: DrivePickedFile[] },
   ) => void;
+  /**
+   * Fired after the user picks files (and confirms the Q6 dialog when
+   * task-bound), both when `linkOnPick` is false (draft / custom caller) and
+   * before `linkDriveFiles` when `linkOnPick` is true.
+   */
   onPicked?: (context: {
     connectionId: string;
     pickedFiles: DrivePickedFile[];
@@ -125,44 +250,20 @@ export function useDrivePicker({
 }: UseDrivePickerOptions): UseDrivePickerReturn {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "drive.picker" });
   const { workspace } = useWorkspace();
-  const navigation = useNavigation();
   const connectionsQuery = useDriveConnections(wsId);
   const pickerTokenMutation = useDrivePickerToken(wsId);
   const linkFilesMutation = useLinkDriveFiles(wsId);
 
-  const [locallyLostIds, setLocallyLostIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(
-    null,
-  );
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [pickerRunning, setPickerRunning] = useState(false);
-  const [pendingConfirm, setPendingConfirm] =
-    useState<PendingTaskConfirmation | null>(null);
+  const [waitingForConnections, setWaitingForConnections] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingTaskConfirmation | null>(null);
 
   const activeRequestRef = useRef<DrivePickerOpenRequest>({});
+  const busyRef = useRef(false);
 
   const reconnectHref = `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=integrations&connect=drive`;
-
-  const isConnectionLost = useCallback(
-    (conn: DriveConnection): boolean =>
-      isDriveConnectionLost(conn) || locallyLostIds.has(conn.id),
-    [locallyLostIds],
-  );
-
-  const markConnectionLost = useCallback(
-    (connectionId: string) => {
-      setLocallyLostIds((prev) => {
-        if (prev.has(connectionId)) return prev;
-        const next = new Set(prev);
-        next.add(connectionId);
-        return next;
-      });
-      void connectionsQuery.refetch();
-    },
-    [connectionsQuery],
-  );
 
   const rememberConnection = useCallback(
     (connectionId: string) => {
@@ -184,84 +285,49 @@ export function useDrivePicker({
         remembered = null;
       }
       if (remembered) {
-        const match = connections.find(
-          (c) => c.id === remembered && !isConnectionLost(c),
-        );
+        const match = connections.find((c) => c.id === remembered && !isDriveConnectionLost(c));
         if (match) return match.id;
       }
-      const firstActive = connections.find((c) => !isConnectionLost(c));
+      const firstActive = connections.find((c) => !isDriveConnectionLost(c));
       return firstActive?.id ?? connections[0]?.id ?? null;
     },
-    [isConnectionLost, storage, wsId],
+    [storage, wsId],
   );
 
+  const connectPopup = useDriveConnectPopup({
+    wsId,
+    onSettled: () => {
+      void connectionsQuery.refetch().then((res) => {
+        const refreshed = res.data?.connections;
+        if (!refreshed || refreshed.length === 0) return;
+        setSelectedConnectionId((prev) => {
+          if (prev) {
+            const existing = refreshed.find((c) => c.id === prev && !isDriveConnectionLost(c));
+            if (existing) return existing.id;
+          }
+          return resolveDefaultConnectionId(refreshed);
+        });
+      });
+    },
+  });
+
   const handleLinkResults = useCallback(
-    (
-      results: DriveFileLinkResults,
-      connectionId: string,
-      pickedFiles: DrivePickedFile[],
-    ) => {
-      const pickedNameById = new Map(pickedFiles.map((f) => [f.id, f.name]));
+    (results: DriveFileLinkResults, connectionId: string, pickedFiles: DrivePickedFile[]) => {
       const fallbackEmail =
-        connectionsQuery.data?.connections.find((c) => c.id === connectionId)
-          ?.google_email ?? "";
-
-      let linkedCount = 0;
-      for (const item of results.results) {
-        const fileName =
-          item.file?.name ?? pickedNameById.get(item.external_file_id) ?? item.external_file_id;
-        switch (item.outcome) {
-          case "linked":
-            linkedCount += 1;
-            break;
-          case "already_linked": {
-            const email =
-              item.account_email ?? item.file?.viewer_account_email ?? fallbackEmail;
-            toast.info(
-              fileName
-                ? t("outcomes.already_linked_named", { name: fileName, email })
-                : t("outcomes.already_linked", { email }),
-            );
-            break;
-          }
-          case "error": {
-            const reason = driveLinkErrorReason(
-              item.error_code,
-              t,
-              item.error_message,
-            );
-            toast.error(
-              fileName
-                ? t("errors.file_error_named", { name: fileName, reason })
-                : reason,
-            );
-            break;
-          }
-          default:
-            break;
-        }
-      }
-
-      if (linkedCount > 0) {
-        toast.success(t("outcomes.linked", { count: linkedCount }));
-      }
+        connectionsQuery.data?.connections.find((c) => c.id === connectionId)?.google_email ?? "";
+      presentLinkOutcomeToasts(results, pickedFiles, fallbackEmail, t);
       onLinked?.(results, { connectionId, pickedFiles });
     },
     [connectionsQuery.data?.connections, onLinked, t],
   );
 
   const executeLinkOrCallback = useCallback(
-    async (
-      connectionId: string,
-      files: DrivePickedFile[],
-      linkOnPick: boolean,
-    ) => {
+    async (connectionId: string, files: DrivePickedFile[], linkOnPick: boolean) => {
       onPicked?.({ connectionId, pickedFiles: files });
       if (!linkOnPick) {
         setPendingConfirm(null);
         return;
       }
-
       try {
         const res = await linkFilesMutation.mutateAsync({
           connection_id: connectionId,
@@ -280,25 +346,47 @@ export function useDrivePicker({
 
   const launchPickerForConnection = useCallback(
     async (connectionId: string, req: DrivePickerOpenRequest) => {
-      rememberConnection(connectionId);
+      busyRef.current = true;
       setPickerRunning(true);
 
       let tokenData: DrivePickerToken | null = null;
+      let tokenErr: unknown = null;
       try {
         tokenData = await pickerTokenMutation.mutateAsync(connectionId);
-      } catch {
+      } catch (err) {
+        tokenErr = err;
         tokenData = null;
       }
 
       if (!tokenData) {
+        busyRef.current = false;
         setPickerRunning(false);
-        markConnectionLost(connectionId);
-        setSelectedConnectionId(connectionId);
-        setAccountDialogOpen(true);
-        toast.error(t("errors.token_failed"));
+
+        if (tokenErr !== null && isPickerTokenConnectionBrokenError(tokenErr)) {
+          // Only a genuine connection-broken error refetches connections and
+          // opens the account dialog for reconnect (R1-2).
+          setSelectedConnectionId(connectionId);
+          setAccountDialogOpen(true);
+          toast.error(t("errors.token_failed"));
+          void connectionsQuery.refetch();
+          return;
+        }
+
+        const message =
+          (tokenErr !== null ? apiErrorCopy(tokenErr) : undefined) ??
+          t("errors.token_transient_failed");
+        toast.error(message, {
+          action: {
+            label: t("errors.retry"),
+            onClick: () => {
+              void launchPickerForConnection(connectionId, req);
+            },
+          },
+        });
         return;
       }
 
+      rememberConnection(connectionId);
       setAccountDialogOpen(false);
       const resolvedAdapter = resolveDrivePickerAdapter(adapter);
       const result = await resolvedAdapter.open({
@@ -310,12 +398,10 @@ export function useDrivePicker({
         multiselect: req.multiselect ?? true,
         title: t("title"),
       });
+      busyRef.current = false;
       setPickerRunning(false);
 
-      if (result.status === "cancelled") {
-        return;
-      }
-
+      if (result.status === "cancelled") return;
       if (result.status === "error") {
         toast.error(t("errors.script_load_failed"), {
           action: {
@@ -342,11 +428,11 @@ export function useDrivePicker({
     },
     [
       adapter,
+      connectionsQuery,
       executeLinkOrCallback,
       forTask,
       i18n.language,
       i18n.resolvedLanguage,
-      markConnectionLost,
       pickerTokenMutation,
       rememberConnection,
       t,
@@ -356,27 +442,31 @@ export function useDrivePicker({
 
   const openWithConnections = useCallback(
     (connections: DriveConnection[], request: DrivePickerOpenRequest) => {
+      connectPopup.clearNotice();
+
       if (connections.length === 0) {
-        navigation.push(reconnectHref);
+        // R1-4: never navigate away from a host dialog when no account is
+        // connected — open the account step in place so the user can run the
+        // W1 OAuth popup flow right here.
+        setSelectedConnectionId(null);
+        setAccountDialogOpen(true);
         return;
       }
 
       if (request.connectionId) {
         const target = connections.find((c) => c.id === request.connectionId);
-        if (target && !isConnectionLost(target)) {
+        if (target && !isDriveConnectionLost(target)) {
           void launchPickerForConnection(target.id, request);
           return;
         }
-        setSelectedConnectionId(
-          target?.id ?? resolveDefaultConnectionId(connections),
-        );
+        setSelectedConnectionId(target?.id ?? resolveDefaultConnectionId(connections));
         setAccountDialogOpen(true);
         return;
       }
 
       if (connections.length === 1) {
         const only = connections[0]!;
-        if (!isConnectionLost(only)) {
+        if (!isDriveConnectionLost(only)) {
           void launchPickerForConnection(only.id, request);
           return;
         }
@@ -388,58 +478,90 @@ export function useDrivePicker({
       setSelectedConnectionId(resolveDefaultConnectionId(connections));
       setAccountDialogOpen(true);
     },
-    [
-      isConnectionLost,
-      launchPickerForConnection,
-      navigation,
-      reconnectHref,
-      resolveDefaultConnectionId,
-    ],
+    [connectPopup, launchPickerForConnection, resolveDefaultConnectionId],
   );
 
   const open = useCallback(
     (request: DrivePickerOpenRequest = {}) => {
+      if (
+        busyRef.current ||
+        pickerRunning ||
+        waitingForConnections ||
+        pickerTokenMutation.isPending ||
+        linkFilesMutation.isPending
+      ) {
+        return;
+      }
       activeRequestRef.current = request;
       if (connectionsQuery.data) {
         openWithConnections(connectionsQuery.data.connections, request);
         return;
       }
-      void connectionsQuery.refetch().then((res) => {
-        openWithConnections(res.data?.connections ?? [], request);
-      });
-    },
-    [connectionsQuery, openWithConnections],
-  );
 
-  const handleReconnect = useCallback(() => {
-    setAccountDialogOpen(false);
-    navigation.push(reconnectHref);
-  }, [navigation, reconnectHref]);
+      // R1-3: wait while the connections list is loading; if it failed, show
+      // an error toast with retry and never navigate away or claim 0 accounts.
+      busyRef.current = true;
+      setWaitingForConnections(true);
+      const showConnectionsLoadError = () => {
+        toast.error(t("errors.connections_load_failed"), {
+          action: { label: t("errors.retry"), onClick: () => open(request) },
+        });
+      };
+      void connectionsQuery
+        .refetch()
+        .then((res) => {
+          busyRef.current = false;
+          setWaitingForConnections(false);
+          if (!res.data || res.isError) {
+            showConnectionsLoadError();
+            return;
+          }
+          openWithConnections(res.data.connections, request);
+        })
+        .catch(() => {
+          busyRef.current = false;
+          setWaitingForConnections(false);
+          showConnectionsLoadError();
+        });
+    },
+    [
+      connectionsQuery,
+      linkFilesMutation.isPending,
+      openWithConnections,
+      pickerRunning,
+      pickerTokenMutation.isPending,
+      t,
+      waitingForConnections,
+    ],
+  );
 
   const connections = connectionsQuery.data?.connections ?? [];
   const pending =
-    pickerRunning ||
-    pickerTokenMutation.isPending ||
-    linkFilesMutation.isPending;
+    waitingForConnections || pickerRunning || pickerTokenMutation.isPending || linkFilesMutation.isPending;
 
   const dialogs: ReactNode = (
     <>
       <DrivePickerAccountDialog
         open={accountDialogOpen}
-        onOpenChange={setAccountDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setAccountDialogOpen(nextOpen);
+          if (!nextOpen) connectPopup.clearNotice();
+        }}
         connections={connections}
         selectedConnectionId={selectedConnectionId}
         onSelectConnection={(id) => setSelectedConnectionId(id)}
-        isConnectionLost={isConnectionLost}
-        onReconnect={() => handleReconnect()}
+        isConnectionLost={isDriveConnectionLost}
+        onReconnect={(conn) => connectPopup.connect(conn)}
+        onConnectNew={() => connectPopup.connect()}
         onContinue={() => {
           if (!selectedConnectionId) return;
-          void launchPickerForConnection(
-            selectedConnectionId,
-            activeRequestRef.current,
-          );
+          void launchPickerForConnection(selectedConnectionId, activeRequestRef.current);
         }}
         submitting={pickerRunning || pickerTokenMutation.isPending}
+        connectBusy={connectPopup.busy}
+        popupPending={connectPopup.popupPending}
+        onFocusPopup={connectPopup.focusPopup}
+        connectNotice={connectPopup.notice}
       />
       <DrivePickerTaskConfirmDialog
         open={pendingConfirm !== null}
@@ -458,10 +580,5 @@ export function useDrivePicker({
     </>
   );
 
-  return {
-    open,
-    pending,
-    dialogs,
-    reconnectHref,
-  };
+  return { open, pending, dialogs, reconnectHref };
 }

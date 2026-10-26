@@ -14284,6 +14284,10 @@
       "account_step": {
         "title": "Chọn tài khoản Google Drive",
         "description": "Chọn tài khoản để mở Google Picker. UniWork sẽ gắn tệp bạn chọn với tài khoản này.",
+        "empty_title": "Kết nối Google Drive",
+        "empty_description": "Kết nối tài khoản Google Drive để chọn và liên kết tệp ngay tại đây.",
+        "connect": "Kết nối Google Drive",
+        "connecting": "Đang kết nối…",
         "status_active": "Đang hoạt động",
         "status_lost": "Mất kết nối",
         "reconnect": "Kết nối lại",
@@ -14305,12 +14309,18 @@
         "linked_one": "Đã liên kết {{count}} tệp từ Google Drive.",
         "linked_other": "Đã liên kết {{count}} tệp từ Google Drive.",
         "already_linked": "Đã có trong Drive: {{email}}",
-        "already_linked_named": "{{name}} — Đã có trong Drive: {{email}}"
+        "already_linked_no_email": "Đã có trong Drive",
+        "already_linked_named": "{{name}} — Đã có trong Drive: {{email}}",
+        "already_linked_named_no_email": "{{name}} — Đã có trong Drive",
+        "already_linked_many": "{{count}} tệp đã có trong Drive: {{email}}",
+        "already_linked_many_no_email": "{{count}} tệp đã có trong Drive"
       },
       "errors": {
         "script_load_failed": "Không mở được Google Picker. Kiểm tra kết nối mạng rồi thử lại.",
+        "connections_load_failed": "Không tải được danh sách tài khoản Google Drive. Kiểm tra kết nối mạng rồi thử lại.",
         "retry": "Thử lại",
         "token_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
+        "token_transient_failed": "Không lấy được phiên Google Picker. Kiểm tra kết nối mạng rồi thử lại.",
         "drive_grant_required": "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
         "drive_file_not_accessible": "Tài khoản Google Drive này không có quyền truy cập tệp hoặc tệp không còn tồn tại.",
         "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive. Hãy nhờ quản trị viên Google Workspace cho phép ứng dụng UniWork.",

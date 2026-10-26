@@ -14358,6 +14358,10 @@
       "account_step": {
         "title": "Choose a Google Drive account",
         "description": "Choose an account to open Google Picker. UniWork will bind the files you pick to this account.",
+        "empty_title": "Connect Google Drive",
+        "empty_description": "Connect a Google Drive account to pick and link files right here.",
+        "connect": "Connect Google Drive",
+        "connecting": "Connecting…",
         "status_active": "Active",
         "status_lost": "Disconnected",
         "reconnect": "Reconnect",
@@ -14379,12 +14383,18 @@
         "linked_one": "Linked {{count}} file from Google Drive.",
         "linked_other": "Linked {{count}} files from Google Drive.",
         "already_linked": "Already in Drive: {{email}}",
-        "already_linked_named": "{{name}} — Already in Drive: {{email}}"
+        "already_linked_no_email": "Already in Drive",
+        "already_linked_named": "{{name}} — Already in Drive: {{email}}",
+        "already_linked_named_no_email": "{{name}} — Already in Drive",
+        "already_linked_many": "{{count}} files are already in Drive: {{email}}",
+        "already_linked_many_no_email": "{{count}} files are already in Drive"
       },
       "errors": {
         "script_load_failed": "Couldn't open Google Picker. Check your network connection and try again.",
+        "connections_load_failed": "Couldn't load Google Drive accounts. Check your network connection and try again.",
         "retry": "Retry",
         "token_failed": "This Google Drive connection has expired. Reconnect and try again.",
+        "token_transient_failed": "Couldn't start Google Picker. Check your network connection and try again.",
         "drive_grant_required": "You haven't granted UniWork access to this file yet. Pick the file again in Google Picker and try again.",
         "drive_file_not_accessible": "This Google Drive account cannot access the file, or the file no longer exists.",
         "blocked_by_workspace_admin": "Your organization's Google Workspace administrator hasn't allowed UniWork to access Google Drive. Ask your Google Workspace administrator to allow the UniWork app.",

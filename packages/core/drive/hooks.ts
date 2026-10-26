@@ -20,7 +20,6 @@ import { driveKeys } from "./keys";
 
 export {
   driveKeys,
-  getDrivePickerToken,
   isDriveConnectionLost,
   type DriveConnection,
   type DriveConnectionList,
@@ -78,6 +77,7 @@ export function useDisconnectDriveConnection(wsId: string) {
  */
 export function useDrivePickerToken(wsId: string) {
   return useMutation({
+    gcTime: 0,
     mutationFn: (connectionId: string) => getDrivePickerToken(wsId, connectionId),
   });
 }

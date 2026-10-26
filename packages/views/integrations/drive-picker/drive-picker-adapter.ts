@@ -242,17 +242,29 @@ function loadGooglePickerNamespace(): Promise<GooglePickerNamespace> {
   return scriptLoadPromise;
 }
 
+/**
+ * Reads the pre-link sharing flag from a Picker document defensively, failing
+ * safe to `"unknown"` whenever the Picker omits the field so the Q6 task
+ * confirmation dialog is shown rather than silently skipped (R1-5).
+ *
+ * Note for Q2 (real Google verification): confirm the exact sharing field name
+ * exposed on `google.picker.Document` / picked doc payloads against live Google
+ * Picker (`Object.keys(google.picker.Document)` and a picked doc's keys).
+ */
 function extractSharingState(
   doc: GooglePickerDocument,
   picker: GooglePickerNamespace,
 ): "private" | "shared" | "unknown" {
-  const isSharedKey = picker.Document?.IS_SHARED ?? "isShared";
-  const rawShared = doc[isSharedKey] ?? doc.isShared ?? doc.shared;
-  if (rawShared === true) return "shared";
-  if (rawShared === false) return "private";
+  const docConstants = picker.Document as Record<string, string | undefined> | undefined;
+  const dynamicKey = docConstants?.IS_SHARED;
+  const candidate =
+    (typeof dynamicKey === "string" ? doc[dynamicKey] : undefined) ??
+    doc.isShared ??
+    doc.shared;
+  if (candidate === true) return "shared";
+  if (candidate === false) return "private";
   return "unknown";
 }
-
 function mapPickerDocuments(
   docs: GooglePickerDocument[] | undefined,
   picker: GooglePickerNamespace,
@@ -288,12 +300,16 @@ function mapPickerDocuments(
   return picked;
 }
 
+/**
+ * Keeps folder navigation enabled (`setIncludeFolders(true)`) so users can
+ * browse inside folders, while disabling folder selection
+ * (`setSelectFolderEnabled(false)`) per spec §7.1 "không cho chọn thư mục" (R1-6).
+ */
 function configureNoFolderSelection(view: GoogleDocsViewInstance): GoogleDocsViewInstance {
-  view.setIncludeFolders?.(false);
+  view.setIncludeFolders?.(true);
   view.setSelectFolderEnabled?.(false);
   return view;
 }
-
 /**
  * Real Google Picker adapter that loads `https://apis.google.com/js/api.js` once,
  * calls `gapi.load("picker")`, and configures My Drive, Shared with me, and
@@ -446,26 +462,10 @@ export function createFakeDrivePickerAdapter(
   };
 }
 
-function isNonProductionWindowAllowed(): boolean {
+function isFakeWindowOverrideAllowed(): boolean {
   if (typeof window === "undefined") return false;
-  const g = globalThis as { process?: { env?: { NODE_ENV?: string } } };
-  if (g.process?.env?.NODE_ENV && g.process.env.NODE_ENV !== "production") {
-    return true;
-  }
-  try {
-    const host = new URL(runtimeConfig().appUrl).hostname;
-    return (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "[::1]" ||
-      host.endsWith(".localhost") ||
-      host.endsWith(".test")
-    );
-  } catch {
-    return false;
-  }
+  return runtimeConfig().allowFakeDrivePicker === true;
 }
-
 function isDrivePickerAdapter(
   value: DrivePickerAdapter | DrivePickerOpenResult,
 ): value is DrivePickerAdapter {
@@ -496,8 +496,8 @@ function adaptWindowFakeOverride(
 /**
  * Resolves the active `DrivePickerAdapter`:
  * 1. Explicit `adapter` prop / option (used in unit tests).
- * 2. `window.__UNIWORK_FAKE_DRIVE_PICKER__` when running in non-production
- *    (used in Playwright E2E).
+ * 2. `window.__UNIWORK_FAKE_DRIVE_PICKER__` when `runtimeConfig().allowFakeDrivePicker`
+ *    is explicitly enabled (default off).
  * 3. `googleDrivePickerAdapter` (real Google Picker).
  */
 export function resolveDrivePickerAdapter(
@@ -507,7 +507,7 @@ export function resolveDrivePickerAdapter(
   if (
     typeof window !== "undefined" &&
     window.__UNIWORK_FAKE_DRIVE_PICKER__ &&
-    isNonProductionWindowAllowed()
+    isFakeWindowOverrideAllowed()
   ) {
     return adaptWindowFakeOverride(window.__UNIWORK_FAKE_DRIVE_PICKER__);
   }
