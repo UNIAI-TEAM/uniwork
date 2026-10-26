@@ -14387,7 +14387,8 @@
       "viewer_lost": {
         "notice": "Tài khoản {{email}} không còn quyền với tệp này.",
         "notice_no_email": "Tài khoản của bạn không còn quyền với tệp này.",
-        "repick_button": "Cho UniWork đọc tệp"
+        "repick_button": "Cho UniWork đọc tệp",
+        "repicking": "Đang cấp quyền…"
       },
       "viewer_connection_lost": {
         "notice": "Kết nối Google Drive {{email}} đã hết hạn.",

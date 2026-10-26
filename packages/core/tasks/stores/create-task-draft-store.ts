@@ -16,7 +16,6 @@ export type CreateTaskDraftDriveFile = {
   mimeType: string;
   iconKind?: string;
   errorCode?: string;
-  errorMessage?: string;
 };
 
 export type CreateTaskDraft = {

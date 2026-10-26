@@ -14461,7 +14461,8 @@
       "viewer_lost": {
         "notice": "Account {{email}} no longer has access to this file.",
         "notice_no_email": "Your account no longer has access to this file.",
-        "repick_button": "Let UniWork read this file"
+        "repick_button": "Let UniWork read this file",
+        "repicking": "Granting access…"
       },
       "viewer_connection_lost": {
         "notice": "Google Drive connection {{email}} has expired.",

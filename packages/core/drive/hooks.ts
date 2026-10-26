@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  changeDriveFileAccess,
   disconnectDriveConnection,
   getDrivePickerToken,
   grantDriveFileAccess,
@@ -164,34 +163,6 @@ export function useGrantDriveFileAccess(wsId: string, taskId?: string) {
     }) => {
       const file = await grantDriveFileAccess(wsId, driveFileId, connectionId);
       if (!file) throw new Error("drive_access_grant_response_invalid");
-      return file;
-    },
-    onSuccess: () => {
-      if (taskId) {
-        void qc.invalidateQueries({ queryKey: driveKeys.task(wsId, taskId) });
-      }
-      void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
-    },
-  });
-}
-
-/**
- * Switches the caller's reading account for a Drive file (`PUT /workspaces/{ws}/drive-files/{driveFileID}/access`).
- * Awaits the server response and invalidates the task's Drive files key (when
- * provided) plus `driveKeys.workspace(wsId)`.
- */
-export function useChangeDriveFileAccess(wsId: string, taskId?: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      driveFileId,
-      connectionId,
-    }: {
-      driveFileId: string;
-      connectionId: string;
-    }) => {
-      const file = await changeDriveFileAccess(wsId, driveFileId, connectionId);
-      if (!file) throw new Error("drive_access_change_response_invalid");
       return file;
     },
     onSuccess: () => {

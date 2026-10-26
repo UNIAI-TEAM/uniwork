@@ -362,18 +362,3 @@ export async function grantDriveFileAccess(
   );
 }
 
-export async function changeDriveFileAccess(
-  workspaceId: string,
-  driveFileId: string,
-  connectionId: string,
-): Promise<DriveFile | null> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/drive-files/${enc(driveFileId)}/access`,
-    { method: "PUT", body: { connection_id: connectionId } },
-  );
-  return (
-    parseWithFallback<{ file: DriveFile } | null>(raw, DriveFileResponseSchema, null, {
-      endpoint: "PUT /api/v1/workspaces/{ws}/drive-files/{driveFileID}/access",
-    })?.file ?? null
-  );
-}

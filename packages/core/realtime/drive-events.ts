@@ -33,6 +33,8 @@ export function driveFrameKeys(
   if (type.startsWith("drive_file.")) {
     if (!ownWorkspace) return [];
     const keys: (readonly unknown[])[] = [driveKeys.workspace(wsId)];
+    // Include the explicit task key alongside the workspace prefix so callers
+    // inspecting exact task-scoped invalidations see both immediately.
     if (payload.task_id) {
       keys.push(driveKeys.task(wsId, payload.task_id));
     }

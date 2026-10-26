@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  changeDriveFileAccess,
   disconnectDriveConnection,
   getDrivePickerToken,
   grantDriveFileAccess,
@@ -417,41 +416,5 @@ describe("drive endpoints", () => {
   it("grantDriveFileAccess degrades a malformed response to null", async () => {
     requestMock.mockResolvedValueOnce({ file: { id: 42 } });
     await expect(grantDriveFileAccess("ws1", "df1", "dc2")).resolves.toBeNull();
-  });
-
-  it("changeDriveFileAccess puts connection_id and parses the DriveFileSDO response", async () => {
-    requestMock.mockResolvedValueOnce({
-      file: {
-        id: "df_1",
-        organization_id: "org_1",
-        workspace_id: "ws_1",
-        external_file_id: "gdoc_1",
-        name: "Kế hoạch ra mắt Q4",
-        mime_type: "application/vnd.google-apps.document",
-        web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
-        open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=mai2%40gmail.com",
-        connection_id: "dc_1",
-        bound_account_email: "uni-work1@gmail.com",
-        bound_by_id: "u_1",
-        created_by: "u_1",
-        created_at: "2026-10-26T08:15:00Z",
-        viewer_access: "granted",
-        viewer_connection_id: "dc_3",
-        viewer_account_email: "mai2@gmail.com",
-      },
-    });
-
-    const file = await changeDriveFileAccess("ws 1", "df 1", "dc_3");
-    expect(requestMock).toHaveBeenCalledWith(
-      "/api/v1/workspaces/ws%201/drive-files/df%201/access",
-      { method: "PUT", body: { connection_id: "dc_3" } },
-    );
-    expect(file?.viewer_connection_id).toBe("dc_3");
-    expect(file?.viewer_account_email).toBe("mai2@gmail.com");
-  });
-
-  it("changeDriveFileAccess degrades a malformed response to null", async () => {
-    requestMock.mockResolvedValueOnce({ file: null });
-    await expect(changeDriveFileAccess("ws1", "df1", "dc3")).resolves.toBeNull();
   });
 });

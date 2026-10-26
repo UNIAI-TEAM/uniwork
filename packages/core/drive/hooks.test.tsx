@@ -3,7 +3,6 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   driveKeys,
-  useChangeDriveFileAccess,
   useDisconnectDriveConnection,
   useDriveConnections,
   useDrivePickerToken,
@@ -286,50 +285,6 @@ describe("drive hooks", () => {
     expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/drive-files/df_1/access", {
       method: "POST",
       body: { connection_id: "dc_2" },
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.task("ws1", "t1") });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
-  });
-
-  it("useChangeDriveFileAccess awaits the server and invalidates driveKeys.task and driveKeys.workspace", async () => {
-    const qc = new QueryClient();
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    requestMock.mockResolvedValueOnce({
-      file: {
-        id: "df_1",
-        organization_id: "org1",
-        workspace_id: "ws1",
-        external_file_id: "gdoc_1",
-        name: "Kế hoạch ra mắt Q4",
-        mime_type: "application/vnd.google-apps.document",
-        web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
-        open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=mai2%40gmail.com",
-        connection_id: "dc_1",
-        bound_account_email: "uni-work1@gmail.com",
-        bound_by_id: "u_1",
-        created_by: "u_1",
-        created_at: "2026-10-26T08:15:00Z",
-        viewer_access: "granted",
-        viewer_connection_id: "dc_3",
-        viewer_account_email: "mai2@gmail.com",
-      },
-    });
-
-    const { result } = renderHook(() => useChangeDriveFileAccess("ws1", "t1"), {
-      wrapper: createWrapper(qc),
-    });
-
-    await act(async () => {
-      const file = await result.current.mutateAsync({
-        driveFileId: "df_1",
-        connectionId: "dc_3",
-      });
-      expect(file.viewer_account_email).toBe("mai2@gmail.com");
-    });
-
-    expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/drive-files/df_1/access", {
-      method: "PUT",
-      body: { connection_id: "dc_3" },
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.task("ws1", "t1") });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
