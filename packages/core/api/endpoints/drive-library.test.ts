@@ -86,11 +86,12 @@ describe("drive-library endpoints", () => {
   });
 
   it("listDriveFiles omits empty query parameters and accepts omitted optional fields", async () => {
-    const minimalFile = validFile();
-    delete (minimalFile as Record<string, unknown>).viewer_connection_id;
-    delete (minimalFile as Record<string, unknown>).viewer_account_email;
-    delete (minimalFile as Record<string, unknown>).tasks_created;
-    minimalFile.tasks_created = { count: 0 };
+    const minimalFile: Record<string, unknown> = {
+      ...validFile(),
+      tasks_created: { count: 0 },
+    };
+    delete minimalFile.viewer_connection_id;
+    delete minimalFile.viewer_account_email;
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ files: [minimalFile], total_count: 1, next_cursor: null }),
     );
