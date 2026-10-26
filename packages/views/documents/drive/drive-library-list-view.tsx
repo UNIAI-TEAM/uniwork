@@ -88,8 +88,10 @@ export function DriveLibraryListView({
   onAddFromDrive,
 }: DriveLibraryListViewProps) {
   const { t } = useTranslation();
-  const { connections: defaultConnections } = useDriveLibraryConnections(wsId);
+  const { connections: defaultConnections, isLoading: defaultConnectionsLoading } =
+    useDriveLibraryConnections(wsId);
   const connections = connectionsProp ?? defaultConnections;
+  const connectionsLoading = connectionsProp === undefined && defaultConnectionsLoading;
   const context = useOptionalWorkspace();
   const { searchParams, replace } = useNavigation();
   const addBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -100,14 +102,19 @@ export function DriveLibraryListView({
   );
   const settingsIntegrationsHref = `${wsPaths.settings()}?tab=integrations`;
 
-  const selectedConnection = accountId
-    ? connections.find((c) => c.id === accountId) ?? null
-    : null;
+  const selectedConnection =
+    !connectionsLoading && accountId
+      ? connections.find((c) => c.id === accountId) ?? null
+      : null;
   const effectiveAccountId = selectedConnection ? selectedConnection.id : null;
   const brokenAccount = Boolean(selectedConnection?.needs_reconnect);
 
-  const query = useDriveFiles(wsId, { connectionId: effectiveAccountId });
+  const query = useDriveFiles(wsId, {
+    connectionId: effectiveAccountId,
+    enabled: !connectionsLoading,
+  });
   const files = query.data?.pages.flatMap((p) => p.files) ?? [];
+
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
   // It never opens the Picker automatically.
   const pickParam = searchParams.get("pick") === "1";
@@ -136,8 +143,7 @@ export function DriveLibraryListView({
 
   const addDisabled = brokenAccount || !onAddFromDrive;
   const addHint = !onAddFromDrive && !brokenAccount ? t("driveLibrary.list.add_unavailable_hint") : undefined;
-  const headerAddHintId = addHint ? "drive-library-add-hint-header" : undefined;
-  const emptyAddHintId = addHint ? "drive-library-add-hint-empty" : undefined;
+  const addHintId = addHint ? "drive-library-add-hint" : undefined;
 
   const addButton = (
     <Button
@@ -145,7 +151,7 @@ export function DriveLibraryListView({
       type="button"
       size="sm"
       aria-disabled={addDisabled || undefined}
-      aria-describedby={headerAddHintId}
+      aria-describedby={addHintId}
       onClick={() => {
         if (addDisabled || !onAddFromDrive) return;
         onAddFromDrive(effectiveAccountId);
@@ -177,14 +183,14 @@ export function DriveLibraryListView({
             {navButton}
           </div>
           {addHint ? (
-            <p id={headerAddHintId} className="text-caption text-muted-foreground">
+            <p id={addHintId} className="text-caption text-muted-foreground">
               {addHint}
             </p>
           ) : null}
         </div>
       </div>
 
-      {query.isPending ? (
+      {connectionsLoading || query.isPending ? (
         <div
           role="status"
           className="space-y-2"
@@ -216,27 +222,20 @@ export function DriveLibraryListView({
           description={t("driveLibrary.list.empty_description")}
           actions={
             !brokenAccount ? (
-              <div className="flex flex-col items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-disabled={addDisabled || undefined}
-                  aria-describedby={emptyAddHintId}
-                  onClick={() => {
-                    if (addDisabled || !onAddFromDrive) return;
-                    onAddFromDrive(effectiveAccountId);
-                  }}
-                >
-                  <Plus aria-hidden className="size-4" />
-                  {addLabel}
-                </Button>
-                {addHint ? (
-                  <p id={emptyAddHintId} className="text-caption text-muted-foreground">
-                    {addHint}
-                  </p>
-                ) : null}
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-disabled={addDisabled || undefined}
+                aria-describedby={addHintId}
+                onClick={() => {
+                  if (addDisabled || !onAddFromDrive) return;
+                  onAddFromDrive(effectiveAccountId);
+                }}
+              >
+                <Plus aria-hidden className="size-4" />
+                {addLabel}
+              </Button>
             ) : undefined
           }
         />

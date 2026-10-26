@@ -153,7 +153,7 @@ export function DriveViewerAccessBlock({
 export interface DriveUnlinkConfirmSectionProps {
   usedInCount: number;
   pending: boolean;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean> | boolean;
 }
 
 /**
@@ -166,17 +166,31 @@ export function DriveUnlinkConfirmSection({
 }: DriveUnlinkConfirmSectionProps) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const busy = pending || submitting;
 
   const title =
     usedInCount > 0
       ? t("driveLibrary.detail.unlink.confirm_title", { count: usedInCount })
       : t("driveLibrary.detail.unlink.confirm_title_zero");
 
+  const handleConfirm = async () => {
+    if (busy) return;
+    setSubmitting(true);
+    const ok = await onConfirm();
+    if (ok) {
+      setConfirming(false);
+    } else {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <>
       <Button
         type="button"
         variant="outline"
+        disabled={submitting}
         className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={() => setConfirming(true)}
       >
@@ -184,7 +198,7 @@ export function DriveUnlinkConfirmSection({
       </Button>
       <AlertDialog
         open={confirming}
-        onOpenChange={(next) => (!next && !pending ? setConfirming(false) : undefined)}
+        onOpenChange={(next) => (!next && !busy ? setConfirming(false) : undefined)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -194,17 +208,17 @@ export function DriveUnlinkConfirmSection({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>
+            <AlertDialogCancel disabled={busy}>
               {t("driveLibrary.detail.unlink.keep")}
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={pending}
-              aria-busy={pending || undefined}
-              onClick={onConfirm}
+              disabled={busy}
+              aria-busy={busy || undefined}
+              onClick={() => void handleConfirm()}
             >
               {t(
-                pending
+                busy
                   ? "driveLibrary.detail.unlink.submitting"
                   : "driveLibrary.detail.unlink.confirm",
               )}
@@ -294,10 +308,10 @@ export function DriveRebindSection({
               {t("driveLibrary.detail.rebind.no_active_accounts")}
             </p>
           ) : (
-            <fieldset className="flex flex-col gap-2">
-              <legend id="drive-rebind-account-legend" className="mb-1 text-caption font-medium text-foreground">
+            <div className="flex flex-col gap-2">
+              <p id="drive-rebind-account-legend" className="mb-1 text-caption font-medium text-foreground">
                 {t("driveLibrary.detail.rebind.account_label")}
-              </legend>
+              </p>
               <RadioGroup
                 aria-labelledby="drive-rebind-account-legend"
                 value={resolvedConnectionId}
@@ -316,7 +330,7 @@ export function DriveRebindSection({
                   </label>
                 ))}
               </RadioGroup>
-            </fieldset>
+            </div>
           )}
 
           <DialogFooter>

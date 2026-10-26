@@ -91,7 +91,20 @@ export function useUnlinkDriveFile(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (driveFileId: string) => unlinkDriveFile(wsId, driveFileId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: driveLibraryKeys.lists(wsId) }),
+    onSuccess: async (_ok, driveFileId) => {
+      const detailKey = driveLibraryKeys.detail(wsId, driveFileId);
+      await Promise.all([
+        qc.invalidateQueries({
+          queryKey: driveLibraryKeys.workspace(wsId),
+          predicate: (q) =>
+            !(
+              q.queryKey.length === detailKey.length &&
+              detailKey.every((k, i) => q.queryKey[i] === k)
+            ),
+        }),
+        qc.invalidateQueries({ queryKey: detailKey, refetchType: "none" }),
+      ]);
+    },
   });
 }
 
@@ -105,6 +118,7 @@ export function useRebindDriveFile(wsId: string, driveFileId: string) {
     mutationFn: async (body: RebindDriveFileBody) => {
       const updated = await rebindDriveFile(wsId, driveFileId, body);
       if (!updated) {
+        await qc.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) });
         throw new Error("drive file rebind not verifiable");
       }
       return updated;

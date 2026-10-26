@@ -312,12 +312,17 @@ describe("DriveFileDetailView (4.2)", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(unlinkBtn));
 
-    // Re-open and confirm unlink
+    // Re-open and double-click confirm unlink -> only one DELETE fires and dialog closes on success (W8-R2-04)
     fireEvent.click(unlinkBtn);
     const dialogAgain = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialogAgain).getByRole("button", { name: t("driveLibrary.detail.unlink.confirm") }));
+    const confirmBtn = within(dialogAgain).getByRole("button", {
+      name: t("driveLibrary.detail.unlink.confirm"),
+    });
+    fireEvent.click(confirmBtn);
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=drive"));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     const detailCalls = requestMock.mock.calls.filter(([path]) => path === DETAIL_URL);
     const getDetailCalls = detailCalls.filter(
       ([, opts]) =>
@@ -408,6 +413,8 @@ describe("DriveFileDetailView (4.2)", () => {
     fireEvent.click(rebindBtn);
 
     const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radiogroup", { name: t("driveLibrary.detail.rebind.account_label") })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("group", { name: t("driveLibrary.detail.rebind.account_label") })).toBeNull();
     expect(within(dialog).getByRole("radio", { name: "uni-work2@gmail.com" })).toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
 

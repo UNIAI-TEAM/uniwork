@@ -254,15 +254,17 @@ export function DriveFileDetailView({
   const creations = (file.task_creations ?? []).filter((g) => g.tasks.length > 0);
   const totalCreatedCount = file.tasks_created?.count ?? 0;
 
-  const handleUnlink = async () => {
+  const handleUnlink = async (): Promise<boolean> => {
     try {
       await unlinkMutation.mutateAsync(file.id);
       if (nav?.push) {
         nav.push(driveLibraryHref);
       }
+      return true;
     } catch (error) {
       const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
       toast.error(msg ?? t("driveLibrary.detail.unlink.failed"));
+      return false;
     }
   };
 
@@ -519,7 +521,7 @@ export function DriveFileDetailView({
             <DriveUnlinkConfirmSection
               usedInCount={usedInTotal}
               pending={unlinkMutation.isPending}
-              onConfirm={() => void handleUnlink()}
+              onConfirm={handleUnlink}
             />
           ) : null}
         </aside>

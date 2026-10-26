@@ -108,15 +108,19 @@ describe("driveLibraryKeys and hooks", () => {
     expect((query?.options as { refetchOnWindowFocus?: boolean } | undefined)?.refetchOnWindowFocus).toBe(true);
   });
 
-  it("useUnlinkDriveFile awaits the server, invalidates driveLibraryKeys.lists(wsId), and does not refetch the active detail query", async () => {
+  it("useUnlinkDriveFile awaits the server, invalidates sibling ['drive', wsId, ...] keys, marks the detail stale without refetching while mounted", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ file: sampleFile() }));
     const detailHook = renderHook(() => useDriveFile("ws1", "df1"), {
       wrapper: makeWrapper(qc),
     });
     await waitFor(() => expect(detailHook.result.current.isSuccess).toBe(true));
 
+    const siblingKey = ["drive", "ws1", "connections"] as const;
+    qc.setQueryData(siblingKey, [{ id: "conn1" }]);
+    expect(qc.getQueryState(siblingKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(driveLibraryKeys.detail("ws1", "df1"))?.isInvalidated).toBe(false);
+
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
     const removeSpy = vi.spyOn(qc, "removeQueries");
     const { result } = renderHook(() => useUnlinkDriveFile("ws1"), {
       wrapper: makeWrapper(qc),
@@ -124,7 +128,8 @@ describe("driveLibraryKeys and hooks", () => {
 
     await result.current.mutateAsync("df1");
     expect(removeSpy).not.toHaveBeenCalled();
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveLibraryKeys.lists("ws1") });
+    expect(qc.getQueryState(siblingKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(driveLibraryKeys.detail("ws1", "df1"))?.isInvalidated).toBe(true);
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 
@@ -148,5 +153,21 @@ describe("driveLibraryKeys and hooks", () => {
     expect(updated.bound_account_email).toBe("lan@gmail.com");
     expect(qc.getQueryData< { bound_account_email: string }>(driveLibraryKeys.detail("ws1", "df1"))?.bound_account_email).toBe("lan@gmail.com");
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["drive", "ws1"] });
+  });
+
+  it("useRebindDriveFile still invalidates ['drive', wsId] when a 200 response body is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ file: null }));
+    const siblingKey = ["drive", "ws1", "connections"] as const;
+    qc.setQueryData(siblingKey, [{ id: "conn1" }]);
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useRebindDriveFile("ws1", "df1"), {
+      wrapper: makeWrapper(qc),
+    });
+
+    await expect(result.current.mutateAsync({ connection_id: "conn2" })).rejects.toThrow(
+      "drive file rebind not verifiable",
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["drive", "ws1"] });
+    expect(qc.getQueryState(siblingKey)?.isInvalidated).toBe(true);
   });
 });

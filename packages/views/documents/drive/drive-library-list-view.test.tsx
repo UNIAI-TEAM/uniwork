@@ -14,6 +14,7 @@ import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { DocumentsPageView } from "../documents-page-view";
 import { buildDocumentsViewUrl, viewFromSearchParams } from "../documents-view-url";
 import { DriveLibraryListView } from "./drive-library-list-view";
+import * as driveConnectionsModule from "./use-drive-library-connections";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
 const { t } = initI18n();
@@ -332,13 +333,16 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
     );
     expect(await screen.findByText(t("driveLibrary.list.empty_title"))).toBeInTheDocument();
-    // Disabled 'Thêm từ…' buttons link to visible text-caption hints via aria-describedby (W8-R1-10)
+    // Disabled 'Thêm từ…' buttons point to a single visible text-caption hint in the header via aria-describedby (W8-R1-10, W8-R2-03)
+    const hints = screen.getAllByText(t("driveLibrary.list.add_unavailable_hint"));
+    expect(hints).toHaveLength(1);
     const disabledAddBtns = screen.getAllByRole("button", { name: t("driveLibrary.list.add_all") });
+    expect(disabledAddBtns).toHaveLength(2);
     for (const btn of disabledAddBtns) {
       expect(btn).toHaveAttribute("aria-disabled", "true");
       const descId = btn.getAttribute("aria-describedby");
-      expect(descId).toBeTruthy();
-      expect(document.getElementById(descId!)).toHaveTextContent(t("driveLibrary.list.add_unavailable_hint"));
+      expect(descId).toBe("drive-library-add-hint");
+      expect(document.getElementById(descId!)).toBe(hints[0]);
     }
     emptyRender.unmount();
 
@@ -424,5 +428,43 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     // Retry load more -> succeeds
     fireEvent.click(within(alertBox).getByRole("button", { name: t("driveLibrary.list.retry") }));
     expect(await screen.findByText("Trang 2 thành công")).toBeInTheDocument();
+  });
+
+  it("waits for connections to finish loading before firing the list query or resolving effectiveAccountId (W8-R2-02)", async () => {
+    const connSpy = vi
+      .spyOn(driveConnectionsModule, "useDriveLibraryConnections")
+      .mockReturnValue({ connections: [], isLoading: true });
+
+    requestMock.mockResolvedValue({
+      files: [driveFile({ id: "df1", name: "Tệp của conn2", connection_id: "conn2" })],
+      total_count: 1,
+      next_cursor: null,
+    });
+
+    const { rerender } = render(
+      withFlag(<DriveLibraryListView wsId={WS} accountId="conn2" />),
+    );
+
+    // While connections are loading, show skeleton and do not issue the un-filtered list request
+    expect(screen.getByRole("status", { name: t("documents.library.loading") })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(requestMock).not.toHaveBeenCalled();
+
+    // Once connections resolve, query fires with connection_id=conn2 and header renders account title
+    connSpy.mockReturnValue({ connections, isLoading: false });
+    rerender(withFlag(<DriveLibraryListView wsId={WS} accountId="conn2" />));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Drive: uni-work2@gmail.com" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Tệp của conn2")).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(requestMock.mock.calls[0]?.[0]).toBe(
+      `/api/v1/workspaces/${WS}/drive-files?connection_id=conn2&limit=50`,
+    );
+
+    connSpy.mockRestore();
   });
 });

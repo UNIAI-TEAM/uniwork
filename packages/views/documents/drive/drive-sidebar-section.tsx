@@ -16,6 +16,7 @@ export interface DriveSidebarSectionProps {
   view: LibraryView;
   onSelect: (account: string | null) => void;
 }
+
 /**
  * Sidebar section for Documents › Google Drive (spec §7.6, 4.1).
  * Renders "Google Drive" right under "Thư mục của tôi" with the total count,
