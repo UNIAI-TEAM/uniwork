@@ -252,7 +252,7 @@ describe("ai panel transient mode (drive_file)", () => {
     });
   });
 
-  it("does not bump transientEpoch on dismissPage with no transient turn or on select(conv_new) / setConversationFromRun after the page chip is dismissed", () => {
+  it("bumps transientEpoch when dismissing an active drive_file page chip in a fresh thread, and does not bump when already dismissed or on select(conv_new) / setConversationFromRun afterward", () => {
     const s = useAiPanelStore.getState();
     s.bindWorkspace("w1");
     s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
@@ -260,18 +260,24 @@ describe("ai panel transient mode (drive_file)", () => {
     s.dismissPage();
     expect(useAiPanelStore.getState()).toMatchObject({
       pageDismissed: "drive_file:df1",
-      transientEpoch: epoch0,
+      transientEpoch: epoch0 + 1,
+    });
+    // Dismissing again when already dismissed does not bump
+    s.dismissPage();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      pageDismissed: "drive_file:df1",
+      transientEpoch: epoch0 + 1,
     });
     s.select("conv_new");
     expect(useAiPanelStore.getState()).toMatchObject({
       conversationId: "conv_new",
-      transientEpoch: epoch0,
+      transientEpoch: epoch0 + 1,
     });
     s.select(null);
     s.setConversationFromRun("conv_run");
     expect(useAiPanelStore.getState()).toMatchObject({
       conversationId: "conv_run",
-      transientEpoch: epoch0,
+      transientEpoch: epoch0 + 1,
     });
   });
 

@@ -297,11 +297,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   dismissPage: () =>
     set((s) => ({
       pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null,
-      ...(s.page?.kind === "drive_file" &&
-      !s.focus &&
-      (s.transientMessages.length > 0 || s.transientWindowTrimmed)
-        ? clearedTransient(s)
-        : {}),
+      ...(s.page?.kind === "drive_file" && !s.focus ? clearedTransient(s) : {}),
     })),
   appendTransientTurn: (question, answer) =>
     set((s) => {

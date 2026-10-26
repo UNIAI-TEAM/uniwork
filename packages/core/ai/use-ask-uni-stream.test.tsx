@@ -665,4 +665,23 @@ describe("useAskUniStream transient mode (drive_file)", () => {
     const stored = qc.getQueryData<{ id: string; content: string }[]>(aiKeys.messages("conv_new"));
     expect(stored?.find((m) => m.id === "m-saved")?.content).toBe("Câu trả lời đầy đủ");
   });
+
+  it("aborts an in-flight first transient turn and keeps transientMessages empty when the drive_file page chip is dismissed before delta", () => {
+    const { result } = setup();
+    act(() => {
+      useAiPanelStore.getState().setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    });
+
+    act(() => void result.current.ask({ question: "Tóm tắt mục tiêu", focus: { kind: "drive_file", id: "df1" } }));
+    emit({ type: "run", runId: "r-first-transient", conversationId: "" });
+    expect(opts.signal.aborted).toBe(false);
+
+    act(() => {
+      useAiPanelStore.getState().dismissPage();
+    });
+
+    expect(opts.signal.aborted).toBe(true);
+    expect(result.current.state.status).toBe("idle");
+    expect(useAiPanelStore.getState().transientMessages).toEqual([]);
+  });
 });
