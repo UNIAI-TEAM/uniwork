@@ -1,0 +1,5 @@
+$ for i in $(seq 1 90); do curl -sf http://localhost:18571/healthz >/dev/null && curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done; curl -sf http://localhost:18571/readyz && echo READY; curl -s -o /dev/null -w "OFFICE_HTTP=%{http_code}\n" http://localhost:3000/apps/office; curl -s -o /dev/null -w "RELEASES_JSON_HTTP=%{http_code}\n" http://localhost:3000/downloads/office/releases.json; true
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991792710000500_documents_acl_owner_index"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}
+READY
+OFFICE_HTTP=200
+RELEASES_JSON_HTTP=404
