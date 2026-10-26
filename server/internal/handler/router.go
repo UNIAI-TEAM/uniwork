@@ -203,6 +203,9 @@ func New(d Deps) http.Handler {
 	}
 	if d.OfficeCapabilities == nil && d.Organizations != nil {
 		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+		if d.DriveConnections != nil {
+			d.OfficeCapabilities.SetDrive(d.DriveConnections)
+		}
 	}
 	if d.DocumentChanges == nil && d.Documents != nil {
 		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)

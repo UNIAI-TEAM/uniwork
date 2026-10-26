@@ -865,6 +865,8 @@ func main() {
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
+	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
+	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -916,19 +918,20 @@ func main() {
 		// the conversation store why the key above exists, and the process's
 		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
 		// attaches the run counters built above.
-		AIUniwork:       aiUniworkSvc,
-		OfficeLaunch:    officeLaunchSvc,
-		Office:          officeSvc,
-		Preview:         previewSvc,
-		MembershipCache: membershipCache,
-		HTTPMetrics:     httpMetrics,
-		WebVitals:       webVitals(reg),
-		MobileEvents:    mobileEvents(reg),
-		Readiness:       readiness,
-		Admin:           adminSvc,
-		DemoRequests:    service.NewDemoRequestService(pool, q),
-		Version:         version,
-		Commit:          commit,
+		AIUniwork:          aiUniworkSvc,
+		OfficeLaunch:       officeLaunchSvc,
+		Office:             officeSvc,
+		OfficeCapabilities: officeCapabilitiesSvc,
+		Preview:            previewSvc,
+		MembershipCache:    membershipCache,
+		HTTPMetrics:        httpMetrics,
+		WebVitals:          webVitals(reg),
+		MobileEvents:       mobileEvents(reg),
+		Readiness:          readiness,
+		Admin:              adminSvc,
+		DemoRequests:       service.NewDemoRequestService(pool, q),
+		Version:            version,
+		Commit:             commit,
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

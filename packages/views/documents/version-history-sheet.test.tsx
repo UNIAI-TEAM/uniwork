@@ -544,4 +544,80 @@ describe("VersionHistorySheet", () => {
     const row = (await screen.findByText(t("documents.versions.row_version", { no: 1 }))).closest("li") as HTMLElement;
     expect(within(row).getByText(new RegExp(t(key)))).toBeInTheDocument();
   });
+
+  it("opens LegacyFormatDialog with version and operation=view for a legacy version row on a converted document", async () => {
+    mockApi({
+      rows: [
+        {
+          id: "v2",
+          document_id: "d1",
+          version: 2,
+          kind: "file",
+          reason: "upload",
+          mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          size_bytes: 4096,
+          created_at: "2026-09-28T03:00:00Z",
+        },
+        {
+          id: "v1",
+          document_id: "d1",
+          version: 1,
+          kind: "file",
+          reason: "upload",
+          mime_type: "application/msword",
+          size_bytes: 2048,
+          created_at: "2026-09-27T03:00:00Z",
+        },
+      ],
+    });
+    const createSession = vi.fn(async () => ({
+      launch_ticket: `ticket_${"a".repeat(32)}`,
+      launch_url: `uniwork-office://open?ticket=ticket_${"a".repeat(32)}`,
+      expires_at: "2026-10-26T00:00:00Z",
+      document_id: "d1",
+      operation: "view" as const,
+      version: 1,
+    }));
+    render(
+      wrap(
+        <VersionHistorySheet
+          open
+          onOpenChange={vi.fn()}
+          wsId={WS}
+          doc={pageDocument({
+            kind: "file",
+            current_version: 2,
+            file: {
+              file_id: "f2",
+              version_id: "v2",
+              version: 2,
+              filename: "báo-cáo.docx",
+              mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              size_bytes: 4096,
+              checksum_sha256: "a".repeat(64),
+            },
+          })}
+          desktopOpen={{
+            deploymentId: "dep-1",
+            channel: "stable",
+            savedVersion: 2,
+            createSession,
+            launch: vi.fn(async () => "launched" as const),
+          }}
+        />,
+      ),
+    );
+
+    await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+    expect(screen.queryByRole("button", { name: t("documents.file.open_version", { no: 2 }) })).toBeNull();
+    const openV1 = screen.getByRole("button", { name: t("documents.file.open_version", { no: 1 }) });
+    fireEvent.click(openV1);
+
+    const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
+    fireEvent.click(within(dialog).getByRole("button", { name: t("office.desktop.action") }));
+    await waitFor(() => expect(createSession).toHaveBeenCalledWith("d1", expect.objectContaining({
+      operation: "view",
+      version: 1,
+    })));
+  });
 });

@@ -62,7 +62,7 @@ export function formatSearchPath(
 export interface DocumentsSearchResultsProps {
   search: UseDocumentsSearchResult;
   onSelectFolder: (folderId: string) => void;
-  onSelectDocument: (documentId: string) => void;
+  onSelectDocument: (documentId: string, item: Pick<DocumentSummary, "id" | "kind" | "title" | "format">) => void;
   /** The caller's personal root folder id, once known, so ancestor paths use the i18n label. */
   myFolderId?: string | null;
 }
@@ -208,7 +208,7 @@ export function DocumentsSearchResults({
                       type="button"
                       onClick={() => {
                         if (isFolder) onSelectFolder(item.id);
-                        else onSelectDocument(item.id);
+                        else onSelectDocument(item.id, item);
                       }}
                       className="flex min-h-11 w-full min-w-0 items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/40 pointer-coarse:min-h-11"
                     >

@@ -89,3 +89,60 @@ export function officeModuleForFormat(format: string | null | undefined): Office
 export function officeFrameSrc(module: OfficeModule, version: string): string {
   return `/office-frame/${module}/${encodeURIComponent(version)}/index.html`;
 }
+
+export type LegacyOfficeFormat = "doc" | "xls" | "ppt";
+
+export interface LegacyOfficeFormatInput {
+  format?: string | null;
+  name?: string | null;
+  filename?: string | null;
+  extension?: string | null;
+  mime?: string | null;
+  mime_type?: string | null;
+}
+
+const LEGACY_FORMAT_BY_EXTENSION: Readonly<Record<string, LegacyOfficeFormat>> = {
+  doc: "doc",
+  xls: "xls",
+  ppt: "ppt",
+};
+
+const LEGACY_FORMAT_BY_MIME: Readonly<Record<string, LegacyOfficeFormat>> = {
+  "application/msword": "doc",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.ms-powerpoint": "ppt",
+};
+
+function normalizedExtension(input: LegacyOfficeFormatInput): string {
+  const explicit = input.extension?.trim().replace(/^\.+/, "").toLowerCase();
+  if (explicit) return explicit;
+  const rawName = (input.filename ?? input.name ?? "").trim();
+  const dot = rawName.lastIndexOf(".");
+  return dot > 0 && dot < rawName.length - 1 ? rawName.slice(dot + 1).toLowerCase() : "";
+}
+
+/**
+ * Resolves the legacy binary Office format (`doc` | `xls` | `ppt`) for a file by
+ * its extension (which wins when present so a double-extension name like
+ * `a.doc.pdf` stays `.pdf`) or its MIME type (`application/msword`,
+ * `application/vnd.ms-excel`, `application/vnd.ms-powerpoint`). Returns `null`
+ * for OOXML (`.docx`/`.xlsx`/`.pptx`) and every other format.
+ */
+export function legacyOfficeFormat(input: LegacyOfficeFormatInput | null | undefined): LegacyOfficeFormat | null {
+  if (!input) return null;
+  const explicitFormat = input.format?.trim().toLowerCase();
+  if (explicitFormat) {
+    return Object.hasOwn(LEGACY_FORMAT_BY_EXTENSION, explicitFormat) ? LEGACY_FORMAT_BY_EXTENSION[explicitFormat]! : null;
+  }
+  const ext = normalizedExtension(input);
+  if (ext) {
+    return Object.hasOwn(LEGACY_FORMAT_BY_EXTENSION, ext) ? LEGACY_FORMAT_BY_EXTENSION[ext]! : null;
+  }
+  const rawMime = (input.mime ?? input.mime_type ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  return Object.hasOwn(LEGACY_FORMAT_BY_MIME, rawMime) ? LEGACY_FORMAT_BY_MIME[rawMime]! : null;
+}
+
+/** True for legacy binary Office formats (`.doc`, `.xls`, `.ppt`) by extension or MIME type. */
+export function isLegacyOfficeFormat(input: LegacyOfficeFormatInput | null | undefined): boolean {
+  return legacyOfficeFormat(input) !== null;
+}
