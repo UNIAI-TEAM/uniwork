@@ -1,0 +1,18 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development AI_PROVIDER=fake DEV_VERIFICATION_CODE=123456 DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1; unset OPENAI_API_KEY; pnpm --filter @uniwork/web build > /tmp/pr8r1-web-build.log 2>&1; rc=$?; tail -15 /tmp/pr8r1-web-build.log; echo "WEB_BUILD_EXIT=$rc"; (PORT=14100 nohup pnpm --filter @uniwork/web start > /tmp/pr8r1-web.log 2>&1 &); sleep 2; echo started
+ 1: 0xe48bbe node::OOMErrorHandler(char const*, v8::OOMDetails const&) [/exec-daemon/node]
+ 2: 0x1248d00 v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [/exec-daemon/node]
+ 3: 0x1248fd7 v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [/exec-daemon/node]
+ 4: 0x1477ee5  [/exec-daemon/node]
+ 5: 0x1491779 v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags) [/exec-daemon/node]
+ 6: 0x1465e78 v8::internal::HeapAllocator::AllocateRawWithLightRetrySlowPath(int, v8::internal::AllocationType, v8::internal::AllocationOrigin, v8::internal::AllocationAlignment) [/exec-daemon/node]
+ 7: 0x1466da5 v8::internal::HeapAllocator::AllocateRawWithRetryOrFailSlowPath(int, v8::internal::AllocationType, v8::internal::AllocationOrigin, v8::internal::AllocationAlignment) [/exec-daemon/node]
+ 8: 0x143f9ae v8::internal::Factory::NewFillerObject(int, v8::internal::AllocationAlignment, v8::internal::AllocationType, v8::internal::AllocationOrigin) [/exec-daemon/node]
+ 9: 0x18a22bc v8::internal::Runtime_AllocateInYoungGeneration(int, unsigned long*, v8::internal::Isolate*) [/exec-daemon/node]
+10: 0x7fa8bb66caf6 
+Failed to type check.
+
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 build: `node scripts/office-frame-sync.mjs --ensure && next build`
+Exit status 1
+WEB_BUILD_EXIT=1
+started
