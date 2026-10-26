@@ -725,3 +725,85 @@ func TestAiMessagesNoticeDownFillsNoticeRows(t *testing.T) {
 		}
 	}
 }
+
+// UNI-2213 (C5): 9991792910000010 widens document_versions_reason_check with
+// 'converted_version' and adds converted_from_version + converted_from_checksum;
+// its down migration rewrites any converted_version rows to 'upload' before
+// restoring the 984 CHECK constraint and dropping the two provenance columns.
+func TestDocumentVersionsConvertedReasonUpAndDown(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, mime_type, size_bytes, checksum_sha256,
+		converted_from_version, converted_from_checksum,
+		created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000002', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 2, 'file', 'converted_version',
+		'01FILE00000000000000000002', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		2048, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		'01USER00000000000000000001', 'human'
+	)`); err != nil {
+		t.Fatal("insert converted_version row:", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000003', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 3, 'file', 'bogus_reason',
+		'01FILE00000000000000000003', '01USER00000000000000000001', 'human'
+	)`); err == nil {
+		t.Fatal("expected document_versions_reason_check to refuse bogus_reason")
+	}
+	// Re-open savepoint / fresh tx to test down migration after failed statement.
+	_ = tx.Rollback(ctx)
+	tx, err = pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, mime_type, size_bytes, checksum_sha256,
+		converted_from_version, converted_from_checksum,
+		created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000002', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 2, 'file', 'converted_version',
+		'01FILE00000000000000000002', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		2048, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		'01USER00000000000000000001', 'human'
+	)`); err != nil {
+		t.Fatal("insert converted_version row before down:", err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792910000010_document_versions_converted_reason.down.sql")); err != nil {
+		t.Fatal("down migration:", err)
+	}
+	var reason string
+	if err := tx.QueryRow(ctx, `SELECT reason FROM document_versions WHERE id = '01CONVVER00000000000000002'`).Scan(&reason); err != nil {
+		t.Fatal(err)
+	}
+	if reason != "upload" {
+		t.Fatalf("reason after down = %q, want upload", reason)
+	}
+}
