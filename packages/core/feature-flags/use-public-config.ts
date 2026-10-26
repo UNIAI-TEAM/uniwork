@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPublicConfig, type PublicConfig } from "../api/endpoints/config";
+import { EMPTY_CONFIG, getPublicConfig, type PublicConfig } from "../api/endpoints/config";
+
+export { EMPTY_CONFIG };
 
 const publicConfigKey = ["public-config"] as const;
 

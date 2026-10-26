@@ -27,6 +27,7 @@ import type { WSEventType } from "../types/events";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { driveFrameKeys } from "./drive-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
@@ -113,13 +114,10 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
-    pushCalendar();
-    return keys;
   }
-
-  const documentFrame = documentFrameKeys(wsId, type, payload);
-  if (documentFrame) {
-    for (const k of documentFrame) push(k);
+  (documentFrameKeys(wsId, type, payload) ?? driveFrameKeys(wsId, type, payload))?.forEach(push);
+  if (keys.length > 0) {
+    pushCalendar();
     return keys;
   }
 

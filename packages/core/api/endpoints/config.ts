@@ -165,6 +165,18 @@ const DocumentsConfigSchema = z
     limits: docs?.limits ?? DEFAULT_DOCUMENT_LIMITS,
   }));
 
+const DEFAULT_DRIVE_CONFIG = { available: false } as const;
+
+const DriveConfigSchema = z
+  .object({
+    available: z.boolean().optional().catch(false),
+  })
+  .optional()
+  .catch(undefined)
+  .transform((drive) => ({
+    available: drive?.available ?? false,
+  }));
+
 const CapabilityEntrySchema = z
   .object({
     status: z.string(),
@@ -203,6 +215,7 @@ const ConfigSchema = z.object({
   // A drifted origin drops to "absent": links then carry no profile and the app keeps its server.
   office_api_origin: z.string().trim().min(1).optional().catch(undefined),
   documents: DocumentsConfigSchema,
+  drive: DriveConfigSchema,
   // A drifted UniChat block reads as "nothing published", never as a broken config.
   unichat_installers: InstallerChannelsSchema.optional().catch(undefined),
   unichat_stores: UniChatStoresSchema.optional().catch(undefined),
@@ -226,20 +239,24 @@ export interface PublicConfig {
   office_api_origin?: string;
   /** System-wide document size limits and web-open thresholds (SIZE-W1a). */
   documents?: { limits: DocumentLimits };
+  /** Whether the Google Drive connector provider is configured and ready (UNI-2186). */
+  drive?: { available: boolean };
 }
 
 // No guessed fallback here: an id the server never advertised must leave the
 // desktop open action closed, not send a possibly-wrong deployment binding.
 const NO_STORES = { ios: "", android: "", testflight: "", play_internal: "" };
-const EMPTY: PublicConfig = {
+export const EMPTY_CONFIG: PublicConfig = {
   flags: {},
   rum_sample_rate: 0,
   work_management_capabilities: {},
   office_installers: { dev: [], beta: [], stable: [] },
   documents: { limits: DEFAULT_DOCUMENT_LIMITS },
-  unichat_installers: { dev: [], beta: [], stable: [] }, unichat_stores: NO_STORES,
+  drive: DEFAULT_DRIVE_CONFIG,
+  unichat_installers: { dev: [], beta: [], stable: [] },
+  unichat_stores: NO_STORES,
 };
-
+const EMPTY = EMPTY_CONFIG;
 type WireConfig = Omit<PublicConfig, "office_installers" | "unichat_installers"> & {
   office_installer_urls?: z.infer<typeof OfficeInstallerURLsSchema>;
   office_installers?: z.infer<typeof InstallerChannelsSchema>;
@@ -269,6 +286,7 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     office_deployment_id: parsed.office_deployment_id,
     office_api_origin: parsed.office_api_origin,
     documents: parsed.documents ?? { limits: DEFAULT_DOCUMENT_LIMITS },
+    drive: parsed.drive ?? DEFAULT_DRIVE_CONFIG,
     unichat_installers: unichat,
     unichat_stores: parsed.unichat_stores ?? NO_STORES,
   };

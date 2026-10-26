@@ -42,6 +42,7 @@ describe("config endpoints", () => {
           },
         },
       },
+      drive: { available: false },
     });
     expect(cfg.office_deployment_id).toBeUndefined();
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/api/v1/config?organization_id=org1");
@@ -65,6 +66,7 @@ describe("config endpoints", () => {
           },
         },
       },
+      drive: { available: false },
     };
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: "nope", rum_sample_rate: 7 }));
     expect(await getPublicConfig()).toEqual(empty);
@@ -373,6 +375,16 @@ describe("config endpoints", () => {
       const limits = (await getPublicConfig()).documents?.limits;
       expect(limits?.upload_extensions).toBeUndefined();
       expect(limits && "upload_extensions" in limits).toBe(false);
+    }
+  });
+
+  it("reads drive.available and defaults missing or malformed values to false", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, drive: { available: true } }));
+    expect((await getPublicConfig()).drive).toEqual({ available: true });
+
+    for (const drifted of [{ available: "yes" }, { available: 1 }, {}, "yes", null, [1]]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, drive: drifted }));
+      expect((await getPublicConfig()).drive).toEqual({ available: false });
     }
   });
 });
