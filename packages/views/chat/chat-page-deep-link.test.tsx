@@ -39,7 +39,7 @@ vi.mock("../../core/realtime/provider", async (orig) => ({
 
 vi.mock("./chat-voice-call-host", async (orig) => ({
   ...(await orig<typeof import("./chat-voice-call-host")>()),
-  useChatVoiceCall: () => ({ startCall: vi.fn(), acceptCall: vi.fn(), declineCall: vi.fn(), inCall: false }),
+  useChatVoiceCall: () => ({ startCall: vi.fn(), inCall: false }),
 }));
 
 const reader: User = {

@@ -85,3 +85,20 @@ func (s *ChatService) UnreadSummary(ctx context.Context, userID string) (ChatUnr
 	}
 	return out, nil
 }
+
+// UnreadBadge is the app icon's count for the person: every unread message
+// they can reach, each workspace's channels plus the organizations' DMs and
+// groups once (UnreadSummary), as UniChat mobile draws it
+// (apps/chat-mobile/lib/workspace-unread.ts › appBadgeCount). The push
+// consumer sends it to iPhones with each chat push.
+func (s *ChatService) UnreadBadge(ctx context.Context, userID string) (int, error) {
+	summary, err := s.UnreadSummary(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	total := max(0, summary.Direct.Unread)
+	for _, w := range summary.Workspaces {
+		total += max(0, w.Unread)
+	}
+	return total, nil
+}

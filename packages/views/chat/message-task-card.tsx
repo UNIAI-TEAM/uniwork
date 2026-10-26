@@ -21,7 +21,7 @@ import { useChatMessageLinksFor } from "./chat-message-links-context";
 import { CHAT_BUBBLE_OTHER, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE, chatBubbleShape } from "./chat-message-row";
 import { formatTaskDue } from "./chat-info-panel-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 
 function MessageTaskLinkRow({
   workspaceId,
@@ -126,7 +126,7 @@ function MessageTaskLinkRow({
                 ) : null}
                 {task.due_date ? (
                   <span className="inline-flex items-center gap-1 tabular-nums">
-                    <Calendar className="size-3.25" aria-hidden />
+                    <Calendar className="size-3.5" aria-hidden />
                     {formatTaskDue(task.due_date, i18n.language)}
                   </span>
                 ) : null}
@@ -227,7 +227,7 @@ export function MessageTaskCard({
       data-testid="message-task-card"
     >
       <p className="flex items-center gap-1.5 px-0.5 text-label text-muted-foreground">
-        <CircleCheck className="size-3.75 shrink-0" aria-hidden />
+        <CircleCheck className="size-3.5 shrink-0" aria-hidden />
         {isOwn ? t("chat.link.card_created_from_yours") : t("chat.link.card_created_from_this")}
       </p>
       {taskLinks.map((link) => (

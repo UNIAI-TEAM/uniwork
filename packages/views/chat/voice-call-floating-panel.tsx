@@ -238,7 +238,7 @@ export function VoiceCallFloatingPanel({
                 onClick={onMaximize}
                 onPointerDown={(event) => event.stopPropagation()}
               >
-                <Maximize2 aria-hidden className="size-4.5" />
+                <Maximize2 aria-hidden className="size-4" />
               </Button>
             ) : null}
             {footer}
@@ -294,7 +294,7 @@ export function VoiceCallFloatingPanel({
                   aria-label={t("chat.voice_call_restore")}
                   onClick={onMinimize}
                 >
-                  <Minimize2 aria-hidden className="size-4.5" />
+                  <Minimize2 aria-hidden className="size-4" />
                 </Button>
               ) : null}
             </div>
@@ -363,7 +363,7 @@ export function VoiceCallFloatingPanel({
                   aria-label={t("chat.voice_call_minimize")}
                   onClick={onMinimize}
                 >
-                  <Minimize2 aria-hidden className="size-4.5" />
+                  <Minimize2 aria-hidden className="size-4" />
                 </Button>
               ) : null}
               {onMaximize ? (
@@ -376,7 +376,7 @@ export function VoiceCallFloatingPanel({
                   aria-label={t("chat.voice_call_fullscreen")}
                   onClick={onMaximize}
                 >
-                  <Maximize2 aria-hidden className="size-4.5" />
+                  <Maximize2 aria-hidden className="size-4" />
                 </Button>
               ) : null}
             </div>

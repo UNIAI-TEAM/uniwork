@@ -132,9 +132,12 @@ const historicalCommitExceptions = new Map([
   ["9c94b49eb656ba34ad9cf3415aa13746400d912c", "(test): fix test billing_vnpay_test.go"],
   ["1f375e0f006bbac633448fcbfe0478dada0afbd1", "UNI-1808 (feat): spec và plan tích hợp pavietnam"],
   ["30b6eb6b60bfa2f242bad5a0d1ad4880f88c745e", "(feat): plan deploy development"],
-  ["3adf1f657e3d0388ed5c1b44050c70d621e05bfc", "(ci): change branch build develop"],
-  ["874a6e438e7e1de93cf5b334faede1e907604255", "(ci): fix ci dev"],
   ["4b7e81b2a54c53b5a0760d09eb884004f26a0cea", "(ci): fix ci dev"],
+  ["874a6e438e7e1de93cf5b334faede1e907604255", "(ci): fix ci dev"],
+  ["3adf1f657e3d0388ed5c1b44050c70d621e05bfc", "(ci): change branch build develop"],
+  ["ff4fd69124d6e429f644ef92a16d31a3d44ab944", "(ci): fix ci and add nginx config"],
+  ["6025d564c988e683b41c3b50dead39cfe7b5a25f", "(deploy): change env"],
+  ["30167c4cd59702adf019e52cd77c6e8c7ed1c779", "(fix): smtp"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
@@ -151,9 +154,10 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // rule, it is a trap for the next person who writes a correct message.
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
-  // 78e441abd, 9c94b49eb, 30b6eb6b6, 3adf1f657, 874a6e438 and 4b7e81b2a were pushed straight to develop without a conventional prefix. Shared history cannot
-  // be rewritten; pin both SHA and subject so a new commit cannot reuse an
-  // exempt subject to escape this check.
+  // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912,
+  // 6025d564c and 30167c4cd were pushed straight to develop without a conventional prefix.
+  // Shared history cannot be rewritten; pin both SHA and subject so a new
+  // commit cannot reuse an exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(Boolean)
@@ -436,8 +440,50 @@ describe("ADR 0011 — apps/chat-mobile", () => {
       const [head, ...steps] = job.split(/^ {6}- /m);
       assert.doesNotMatch(head, /MAESTRO_TEST_/, `${job.split(":")[0]}: the test account belongs on the Maestro steps, not the job env`);
       for (const step of steps.filter((s) => s.includes("MAESTRO_TEST_"))) {
-        assert.match(step, /maestro (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
+        // Directly or through scripts/maestro-retry.sh, the one-retry wrapper every device run uses.
+        assert.match(step, /maestro(-retry\.sh)? (--device \S+ )?test /, `a step that does not run Maestro gets the test account:\n${step}`);
       }
     }
+  });
+});
+
+describe("ADR 0045 — apps/meeting-agent", () => {
+  // The scribe agent is the one place outside server/internal/ai/provider that
+  // holds a model vendor's key, and only for STT. Every LLM call is a request
+  // to the server, which goes through ai.Gateway; an LLM SDK in the agent's
+  // requirements is that rule broken.
+  const app = "apps/meeting-agent";
+  const LLM_SDKS = /^\s*(openai|anthropic|google-genai|google-generativeai|mistralai|cohere|langchain[\w-]*|livekit-plugins-(openai|anthropic|google|groq|mistralai|aws))\b/im;
+
+  test("the agent's requirements name no LLM SDK", () => {
+    const reqs = read(`${app}/requirements.txt`);
+    assert.match(reqs, /^livekit-agents==/m, "livekit-agents must be pinned");
+    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0045)`);
+  });
+
+  test("no agent module imports an LLM SDK", () => {
+    // Transitive dependencies may ship one; the rule is no import, no key.
+    const IMPORT = new RegExp(
+      [
+        String.raw`^\s*(?:from|import)\s+(?:openai|anthropic|google\.generativeai|google\.genai|mistralai|cohere|langchain\w*|livekit\.plugins\.(?:openai|anthropic|google|groq|mistralai|aws))\b`,
+        String.raw`^\s*from\s+livekit\.plugins\s+import\s+[\w ,()]*\b(?:openai|anthropic|google|groq|mistralai|aws)\b`,
+      ].join("|"),
+      "m",
+    );
+    const walk = (dir) =>
+      fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) return e.name.startsWith(".") || e.name === "__pycache__" ? [] : walk(rel);
+        return e.name.endsWith(".py") ? [rel] : [];
+      });
+    const files = walk(app);
+    assert.ok(files.length > 0, `${app} has no Python modules`);
+    const offenders = files.filter((f) => IMPORT.test(read(f)));
+    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0045)`);
+  });
+
+  test("the agent carries its CLAUDE.md and verifies in its own workflow", () => {
+    assert.ok(fs.existsSync(path.join(root, `${app}/CLAUDE.md`)), `${app}/CLAUDE.md is missing`);
+    assert.match(read(".github/workflows/meeting-agent-verify.yml"), /pytest/, "meeting-agent-verify must run pytest");
   });
 });

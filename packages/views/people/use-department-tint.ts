@@ -4,7 +4,7 @@ import { useDepartments } from "@uniwork/core/people";
 import type { Department } from "@uniwork/core/types/people";
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { departmentTints } from "./identity-tint";
+import { departmentTints } from "./department-tints";
 
 /**
  * Every card and row asks for a colour, so the mapping is built once per

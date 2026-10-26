@@ -30,6 +30,7 @@ type Registry struct {
 	AIUniwork     *AIUniwork
 	AIAsk         *AIAsk
 	WebVitals     *WebVitals
+	MobileEvents  *MobileEvents
 	Documents     *Documents
 	Office        *Office
 	OfficeChanges *OfficeChangeFeed
@@ -61,6 +62,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 		reg.MustRegister(NewGraphDirtyCollector(opts.Pool))
+		reg.MustRegister(NewChatReportQueueCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
@@ -94,6 +96,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
+	mobileEvents := NewMobileEvents()
+	reg.MustRegister(mobileEvents.Collectors()...)
 
 	documentMetrics := NewDocuments()
 	reg.MustRegister(documentMetrics.Collectors()...)
@@ -123,6 +127,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		AIUniwork:     aiUniworkMetrics,
 		AIAsk:         aiAskMetrics,
 		WebVitals:     webVitals,
+		MobileEvents:  mobileEvents,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
 		OfficeChanges: officeChangeMetrics,

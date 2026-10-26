@@ -2,8 +2,9 @@
 // native-chat-message-timeline.test.ts (queued entries are PendingSend here),
 // plus the grouping rule of native-chat-message-grouping.ts.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PendingSend } from "./send-pipeline";
+import { setDeviceClock } from "./locale-format";
 import {
   buildMainTimelineMessages,
   buildThreadViewMessages,
@@ -27,11 +28,11 @@ describe("formatMessageDay", () => {
 
   it("uses the weekday within a week and the date beyond it", () => {
     expect(formatMessageDay(new Date(2026, 8, 18, 9, 0).getTime(), "en", labels, now)).toBe("Friday");
-    expect(formatMessageDay(new Date(2026, 7, 2, 9, 0).getTime(), "en", labels, now)).toBe("August 2");
+    expect(formatMessageDay(new Date(2026, 7, 2, 9, 0).getTime(), "en", labels, now)).toBe("2 August");
   });
 
   it("adds the year only for another year", () => {
-    expect(formatMessageDay(new Date(2025, 11, 31, 9, 0).getTime(), "en", labels, now)).toBe("December 31, 2025");
+    expect(formatMessageDay(new Date(2025, 11, 31, 9, 0).getTime(), "en", labels, now)).toBe("31 December 2025");
   });
 
   it("defaults now to the current time", () => {
@@ -54,7 +55,19 @@ describe("formatMessageTime", () => {
     const ts = new Date(2026, 8, 21, 9, 5).getTime();
     expect(formatMessageTime(ts, "vi")).toMatch(/09:05/);
     expect(formatMessageTime(ts, "vi")).toMatch(/09:05/);
-    expect(formatMessageDateTime(ts, "en")).toMatch(/September 21, 2026/);
+    expect(formatMessageDateTime(ts, "en")).toMatch(/21 September 2026/);
+  });
+
+  // The device's 12/24-hour setting wins over the language's default (lib/locale-format.ts).
+  it("follows the phone's 12-hour clock", () => {
+    const ts = new Date(2026, 8, 21, 21, 5).getTime();
+    setDeviceClock(false);
+    try {
+      expect(formatMessageTime(ts, "en")).toMatch(/^0?9:05\s?pm$/i);
+    } finally {
+      setDeviceClock(null);
+    }
+    expect(formatMessageTime(ts, "en")).toBe("21:05");
   });
 });
 
@@ -192,5 +205,28 @@ describe("buildTimelineRows", () => {
       "day",
       "c:false",
     ]);
+  });
+});
+
+describe("messageDayKey's memo", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("answers the same day from memory, past its bound, and after the device's offset moves", () => {
+    const noon = new Date(2026, 9, 21, 12, 0).getTime();
+    const day = new Date(2026, 9, 21).getTime();
+    expect(messageDayKey(noon)).toBe(day);
+    // More timestamps than the memo holds: it starts over and still answers right.
+    for (let n = 0; n <= 10_000; n += 1) messageDayKey(noon + n);
+    expect(messageDayKey(noon)).toBe(day);
+    // A minute on, the offset is looked at again: unchanged, then moved (a trip, a DST change).
+    vi.useFakeTimers({ now: Date.now() + 61_000 });
+    expect(messageDayKey(noon)).toBe(day);
+    const offset = new Date().getTimezoneOffset();
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(offset + 60);
+    vi.setSystemTime(Date.now() + 61_000);
+    expect(messageDayKey(noon)).toBe(day);
   });
 });

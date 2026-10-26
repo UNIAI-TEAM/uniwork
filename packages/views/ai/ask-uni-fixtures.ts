@@ -18,10 +18,10 @@ export const workspace: Workspace = {
 };
 
 export const MODELS = [
-  { key: "haiku", speed: 5, intelligence: 3, cost: 1, enabled: true },
-  { key: "sonnet", speed: 4, intelligence: 4, cost: 2, enabled: true },
-  { key: "opus", speed: 2, intelligence: 5, cost: 5, enabled: true },
-  { key: "fable", speed: 3, intelligence: 4, cost: 3, enabled: false },
+  { key: "haiku", provider: "anthropic", speed: 5, intelligence: 3, cost: 1, enabled: true },
+  { key: "sonnet", provider: "anthropic", speed: 4, intelligence: 4, cost: 2, enabled: true },
+  { key: "opus", provider: "anthropic", speed: 2, intelligence: 5, cost: 5, enabled: true },
+  { key: "fable", provider: "anthropic", speed: 3, intelligence: 4, cost: 3, enabled: false },
 ];
 
 export const capabilities = (models = MODELS) => ({
@@ -47,9 +47,19 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
   }
   if (path.endsWith("/tasks/table/rows")) {
     const q = init?.body?.query?.search?.toLowerCase() ?? "";
-    const rows = q.startsWith("la") ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }] : [];
+    const rows = q.startsWith("la")
+      ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }]
+      : q.startsWith("ori")
+        ? [{ task: task("t2", "Origami kế hoạch"), direct_child_count: 0, labels: [] }]
+        : q.startsWith("hoan")
+          ? [{ task: task("t3", "Hoàn thiện báo cáo"), direct_child_count: 0, labels: [] }]
+          : q.startsWith("việc nh")
+            ? [{ task: task("t4", "Việc nhắc khách"), direct_child_count: 0, labels: [] }]
+            : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
+  const one = /^\/api\/v1\/tasks\/([^/]+)$/.exec(path);
+  if (one) return Promise.resolve({ task: task(one[1]!, "Task") });
   // A query nothing matches ("zz") finds nothing anywhere.
   const none = /[?&]q=zz/.test(path);
   if (path.includes("/projects")) return none ? Promise.resolve({ projects: [], total: 0 }) : Promise.resolve({ projects: [project], total: 1 });

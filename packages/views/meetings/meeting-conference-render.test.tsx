@@ -4,7 +4,8 @@ import { RoomEvent, Track } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
-import { wrapWithNav } from "../test/api-mock";
+import type { Meeting } from "@uniwork/core/types";
+import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingConference } from "./meeting-conference";
 
 /**
@@ -15,6 +16,7 @@ const lk = vi.hoisted(() => {
   let speaking: { identity: string }[] = [];
   const listeners = new Set<() => void>();
   return {
+    remote: [] as { identity: string; isAgent?: boolean; attributes?: Record<string, string> }[],
     tracksCalls: [] as unknown[][],
     renders: { header: 0, sidebar: 0, controlBar: 0, tiles: new Map<string, number>() },
     speaking: {
@@ -45,6 +47,7 @@ vi.mock("@livekit/components-react", () => {
     RoomAudioRenderer: () => null,
     StartMediaButton: () => null,
     useIsRecording: () => false,
+    useRemoteParticipants: () => lk.remote,
     useSpeakingParticipants: () => useSyncExternalStore(lk.speaking.subscribe, lk.speaking.get),
     useTracks: (...args: unknown[]) => {
       lk.tracksCalls.push(args);
@@ -86,7 +89,12 @@ vi.mock("./meeting-control-bar", async () => {
   };
 });
 vi.mock("./meeting-stage-footer", () => ({
-  MeetingStageFooter: ({ controlBar }: { controlBar: ReactNode }) => controlBar,
+  MeetingStageFooter: ({ captions, controlBar }: { captions: ReactNode; controlBar: ReactNode }) => (
+    <>
+      {captions}
+      {controlBar}
+    </>
+  ),
 }));
 vi.mock("./meeting-participant-tile", async () => {
   const { memo } = await import("react");
@@ -102,12 +110,18 @@ vi.mock("./meeting-room-announcers", () => ({
   ParticipantPresenceAnnouncer: () => null,
   ReactionAnnouncer: () => null,
   ScreenShareAnnouncer: () => null,
+  ScribeAnnouncer: () => null,
+  OnOffAnnouncer: () => null,
   useMeetingChatUnread: () => ({ unread: 0, latest: undefined }),
 }));
 vi.mock("./meeting-captions", () => ({
   captionsErrorKey: (c: string) => c,
   captionsSupported: () => false,
-  MeetingLiveCaptions: () => null,
+  MeetingLiveCaptions: () => <div data-testid="device-captions" />,
+}));
+vi.mock("./meeting-scribe-captions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./meeting-scribe-captions")>()),
+  MeetingScribeCaptions: () => <div data-testid="scribe-captions" />,
 }));
 vi.mock("./meeting-camera-background-sync", () => ({ MeetingCameraBackgroundSync: () => null }));
 vi.mock("./meeting-screen-share-notices", () => ({ MeetingScreenShareWatcher: () => null }));
@@ -120,6 +134,7 @@ beforeAll(() => {
   initI18n();
 });
 beforeEach(() => {
+  lk.remote = [];
   lk.tracksCalls = [];
   lk.renders = { header: 0, sidebar: 0, controlBar: 0, tiles: new Map() };
   act(() => lk.speaking.set([]));
@@ -139,7 +154,8 @@ describe("MeetingConference render scoping", () => {
     ]);
     expect(options).toEqual({
       onlySubscribed: true,
-      updateOnlyOn: [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted],
+      // An attribute change admits a held phone caller onto the stage.
+      updateOnlyOn: [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.ParticipantAttributesChanged],
     });
   });
 
@@ -179,5 +195,41 @@ describe("MeetingConference render scoping", () => {
     expect(tileOrder()).not.toContain("p1");
     unmount();
     expect(useMeetingViewSessionStore.getState().hiddenIdentities).toEqual([]);
+  });
+});
+
+describe("MeetingConference caption source", () => {
+  function renderRoom() {
+    return render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+  }
+
+  it("shows each viewer's device captions while there is no scribe", () => {
+    renderRoom();
+    expect(screen.getByTestId("device-captions")).toBeInTheDocument();
+    expect(screen.queryByTestId("scribe-captions")).not.toBeInTheDocument();
+  });
+
+  it("shows the scribe's captions while its STT works", () => {
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } }];
+    renderRoom();
+    expect(screen.getByTestId("scribe-captions")).toBeInTheDocument();
+    expect(screen.queryByTestId("device-captions")).not.toBeInTheDocument();
+  });
+
+  it("shows the scribe on its way in rather than device captions for its first seconds", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/meeting-capabilities") ? { scribe: true } : undefined),
+    );
+    const meeting = { id: "m1", scribe_enabled: true, scribe_status: "DISPATCHED" } as Meeting;
+    render(wrapWithNav(<MeetingConference meetingId="m1" meeting={meeting} workspaceId="w1" onLeave={() => {}} />));
+    expect(await screen.findByTestId("scribe-captions")).toBeInTheDocument();
+    expect(screen.queryByTestId("device-captions")).not.toBeInTheDocument();
+  });
+
+  it("falls back to device captions while the scribe is paused (benchmark #1)", () => {
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
+    renderRoom();
+    expect(screen.getByTestId("device-captions")).toBeInTheDocument();
+    expect(screen.queryByTestId("scribe-captions")).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,246 @@
+{
+  "$comment": "Every permission the release binary asks Android for, after Gradle merged the manifests of every library (Maven ones included), each with who adds it (from), why it stays (reason) and what Play asks of it (play). scripts/mobile-apk-scan.mjs reads the merged manifest of the real APK or AAB: a permission not listed here, or asked for under other minSdkVersion/maxSdkVersion bounds, fails the scan; one listed that the binary no longer asks for is reported, drop it. {package} is the manifest's package. A permission UniChat does not need is removed in app.config.ts › blockedPermissions, not listed here (com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE, from installreferrer through expo-application, is one: the app never reads the install referrer).",
+  "permissions": [
+    {
+      "name": "android.permission.ACCESS_NETWORK_STATE",
+      "from": "@config-plugins/react-native-webrtc (app manifest); also @react-native-community/netinfo, expo-image, expo-updates, @sentry/react-native, firebase-messaging, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
+      "reason": "Whether a network is up: NetInfo drives the offline banner (components/chat/connection-banner.tsx) and resends the outbox when the network returns; WebRTC, expo-updates and Sentry check it before they connect.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.BLUETOOTH",
+      "from": "@config-plugins/react-native-webrtc (app manifest) and @livekit/react-native, both without maxSdkVersion",
+      "reason": "Call audio through a Bluetooth headset on Android 11 and older. Inert from Android 12, where BLUETOOTH_CONNECT takes over; LiveKit declares it uncapped, so a cap here would be overridden by the merge.",
+      "play": "Normal permission up to Android 11, granted at install: no Play Console declaration, nothing for Data safety."
+    },
+    {
+      "name": "android.permission.BLUETOOTH_CONNECT",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "Call audio through a Bluetooth headset on Android 12+: asked when a call starts (data/calls/call-native-sync.ts); refused, the call stays on the phone's own speaker and earpiece.",
+      "play": "Runtime permission (the system's Nearby devices prompt), named in store/listing.md › Quyền. No Play Console declaration; nothing for Data safety (the app reads no Bluetooth data)."
+    },
+    {
+      "name": "android.permission.CAMERA",
+      "from": "@config-plugins/react-native-webrtc (cameraPermission, app manifest); also expo-image-picker",
+      "reason": "Video calls: the camera is on only while the person turns it on in a call, after the app's own explainer (data/permissions.ts).",
+      "play": "Runtime (dangerous) permission, named in store/listing.md › Quyền. Data safety: Photos and videos, as the listing's Quyền riêng tư table declares."
+    },
+    {
+      "name": "android.permission.FOREGROUND_SERVICE",
+      "from": "plugins/with-unichat-calls.js (app manifest); also @livekit/react-native, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
+      "reason": "Starting the call's foreground service (expo.modules.unichatcalls.CallService), which keeps an ongoing call alive with the screen locked or the app in the background.",
+      "play": "Normal permission; the service and its types are declared under Play Console › App content › Foreground service permissions (docs/runbooks/unichat-mobile-release.md)."
+    },
+    {
+      "name": "android.permission.FOREGROUND_SERVICE_CAMERA",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "The camera type of the call's foreground service: video keeps flowing in a video call while the app is in the background.",
+      "play": "Play Console › App content › Foreground service permissions: declared with a video of a call (docs/runbooks/unichat-mobile-release.md); without the declaration the release is rejected."
+    },
+    {
+      "name": "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "The microphone type of the call's foreground service: the person stays audible with the screen locked during a call.",
+      "play": "Play Console › App content › Foreground service permissions: declared with a video of a call (docs/runbooks/unichat-mobile-release.md); without the declaration the release is rejected."
+    },
+    {
+      "name": "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "The phoneCall type of the call's foreground service, which Android 14 starts only for an app that manages its own calls (MANAGE_OWN_CALLS).",
+      "play": "Play Console › App content › Foreground service permissions: declared with a video of a call (docs/runbooks/unichat-mobile-release.md); without the declaration the release is rejected."
+    },
+    {
+      "name": "android.permission.INTERNET",
+      "from": "every networking library (expo-file-system, expo-image, @livekit/react-native, @config-plugins/react-native-webrtc, @sentry/react-native, firebase-messaging)",
+      "reason": "Talking to the UniWork server (REST, WebSocket), LiveKit for calls, Expo push and Sentry: the app does nothing offline but read its own copy.",
+      "play": "Normal permission, granted at install: no Play Console declaration. What goes over the network is declared row by row in the listing's Quyền riêng tư table."
+    },
+    {
+      "name": "android.permission.MANAGE_OWN_CALLS",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "Android 14 starts a phoneCall foreground service only for an app that manages its own calls; UniChat never reads or places a phone call.",
+      "play": "Normal permission, granted at install; covered by the phoneCall foreground-service declaration, nothing for Data safety."
+    },
+    {
+      "name": "android.permission.MODIFY_AUDIO_SETTINGS",
+      "from": "@config-plugins/react-native-webrtc (app manifest); also @livekit/react-native, expo-audio",
+      "reason": "Switching a call or a voice message between speaker, earpiece and headset (audio mode and routing).",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.RECORD_AUDIO",
+      "from": "@config-plugins/react-native-webrtc and expo-audio (microphonePermission, app manifest); also @livekit/react-native",
+      "reason": "Voice and video calls and voice messages: the microphone is on only in a call or while the person records, after the app's own explainer (data/permissions.ts).",
+      "play": "Runtime (dangerous) permission, named in store/listing.md › Quyền. Data safety: Audio, as the listing's Quyền riêng tư table declares (voice messages)."
+    },
+    {
+      "name": "android.permission.USE_BIOMETRIC",
+      "from": "expo-local-authentication",
+      "reason": "App lock (Settings › Lock UniChat): unlocking with the phone's biometrics. The system answers yes or no; no biometric data reaches the app.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.USE_FINGERPRINT",
+      "from": "expo-local-authentication",
+      "reason": "App lock on Android 9 and older, where the fingerprint API predates BiometricPrompt; the system answers yes or no.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.USE_FULL_SCREEN_INTENT",
+      "from": "plugins/with-unichat-calls.js (app manifest)",
+      "reason": "The ringing screen (Answer / Decline) over a locked phone when someone calls; used for nothing else.",
+      "play": "Play Console › App content › Full-screen intent: declared as a calling app. Without approval Android 14+ does not pre-grant it and a call rings as a heads-up notification."
+    },
+    {
+      "name": "android.permission.VIBRATE",
+      "from": "plugins/with-unichat-calls.js (app manifest); also expo-haptics, expo-notifications",
+      "reason": "The incoming call vibrates when the ringer is on vibrate (modules/unichat-calls › CallRinger), and notifications follow the channel's vibration.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.WAKE_LOCK",
+      "from": "plugins/with-unichat-calls.js (app manifest); also @config-plugins/react-native-webrtc, @livekit/react-native, firebase-messaging, androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
+      "reason": "The screen goes off at the ear during a voice call (proximity wake lock, modules/unichat-calls › CallProximity), and FCM keeps the CPU up while a call push is handled.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.BLUETOOTH_ADMIN",
+      "from": "@livekit/react-native, without maxSdkVersion",
+      "reason": "LiveKit's Bluetooth headset routing on Android 11 and older; inert from Android 12, where BLUETOOTH_CONNECT takes over.",
+      "play": "Normal permission up to Android 11, granted at install: no Play Console declaration, nothing for Data safety."
+    },
+    {
+      "name": "android.permission.ACCESS_WIFI_STATE",
+      "from": "@react-native-community/netinfo",
+      "reason": "NetInfo reads the Wi-Fi connection's state to report connectivity; without it NetInfo's Wi-Fi lookup throws. The app uses only whether the phone is online (offline banner, outbox resend).",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.RECEIVE_BOOT_COMPLETED",
+      "from": "expo-notifications; also androidx.work:work-runtime (modules/unichat-background's outbox drain job)",
+      "reason": "expo-notifications re-arms scheduled notifications after the phone restarts (its boot receiver), and WorkManager re-schedules the outbox drain job a restart dropped.",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "android.permission.POST_NOTIFICATIONS",
+      "from": "expo-notifications; also firebase-messaging",
+      "reason": "Showing notifications on Android 13+: new messages, mentions and incoming calls; asked after the app's own explainer, once per phone.",
+      "play": "Runtime permission, named in store/listing.md › Quyền. No Play Console declaration; the push contents are in the listing's Quyền riêng tư table."
+    },
+    {
+      "name": "android.permission.DETECT_SCREEN_CAPTURE",
+      "minSdkVersion": 34,
+      "from": "expo-screen-capture (minSdkVersion 34)",
+      "reason": "On Android 14+ expo-screen-capture registers its screen-capture callback when the module is created; blocked, that registration throws while the bundle loads and the app dies at launch (app.config.ts › blockedPermissions).",
+      "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
+    },
+    {
+      "name": "com.google.android.c2dm.permission.RECEIVE",
+      "from": "com.google.firebase:firebase-messaging, a Maven dependency of expo-notifications",
+      "reason": "Receiving FCM messages from Google Play services: every push (new messages, incoming calls) arrives through it.",
+      "play": "Granted at install: no Play Console declaration. What a push carries is in the listing's Quyền riêng tư table (push rows)."
+    },
+    {
+      "name": "{package}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+      "from": "androidx.core 1.9+ (declares it at signature level and asks for it)",
+      "reason": "ContextCompat.registerReceiver(…, RECEIVER_NOT_EXPORTED) guards a runtime broadcast receiver with it on Android 12 and older, so only this app can send to it.",
+      "play": "The app's own signature-level permission: other apps cannot hold it; nothing for Play."
+    },
+    {
+      "name": "com.sec.android.provider.badge.permission.READ",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Samsung launchers, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.sec.android.provider.badge.permission.WRITE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Samsung launchers, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.htc.launcher.permission.READ_SETTINGS",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on HTC Sense, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.htc.launcher.permission.UPDATE_SHORTCUT",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on HTC Sense, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.sonyericsson.home.permission.BROADCAST_BADGE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on older Sony launchers, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Sony launchers, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.anddoes.launcher.permission.UPDATE_COUNT",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Apex Launcher, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.majeur.launcher.permission.UPDATE_BADGE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Solid Launcher, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.huawei.android.launcher.permission.CHANGE_BADGE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Huawei EMUI, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.huawei.android.launcher.permission.READ_SETTINGS",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Huawei EMUI, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Huawei EMUI, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "android.permission.READ_APP_BADGE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on Samsung launchers (the badge provider's read permission), which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.oppo.launcher.permission.READ_SETTINGS",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on OPPO ColorOS, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "com.oppo.launcher.permission.WRITE_SETTINGS",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on OPPO ColorOS, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "me.everything.badger.permission.BADGE_COUNT_READ",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on EverythingMe Launcher, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    },
+    {
+      "name": "me.everything.badger.permission.BADGE_COUNT_WRITE",
+      "from": "me.leolin:ShortcutBadger 1.1.22, a Maven dependency of expo-notifications (not visible to scripts/android-manifest.mjs)",
+      "reason": "The unread count on the app icon (data/badge.ts › setBadgeCountAsync, cleared by data/local-wipe.ts) on EverythingMe Launcher, which predates Android's notification dots.",
+      "play": "A launcher vendor's own permission, granted at install: no Play Console declaration, nothing for Data safety (only the unread count goes to the launcher, on the phone)."
+    }
+  ]
+}

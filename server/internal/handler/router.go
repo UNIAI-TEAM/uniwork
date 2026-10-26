@@ -37,7 +37,10 @@ type Deps struct {
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
-	Google              GoogleExchanger
+	Google GoogleExchanger
+	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
+	// with Apple route answers 503 and /auth/providers reports apple=false.
+	AppleAuth           *service.AppleAuthService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
 	People              *service.PeopleService
@@ -56,6 +59,8 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
+	// AiMemory is Ask UNI's per-person memory (P4); nil answers 503.
+	AiMemory *service.AiMemoryService
 	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
 	AIBYOK *service.AIBYOKService
 	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
@@ -143,6 +148,8 @@ type Deps struct {
 	Readiness *service.Readiness
 	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
 	WebVitals *metrics.WebVitals
+	// MobileEvents is nil unless METRICS_ADDR is set; /mobile/events then only answers 204.
+	MobileEvents *metrics.MobileEvents
 	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
 	Admin *service.AdminService
 	// Version and Commit are the build stamps main.go carries into /admin/system.
@@ -236,6 +243,7 @@ func New(d Deps) http.Handler {
 		FeatureFlags:         d.FeatureFlags,
 		DocumentOrganization: h.documentFlagOrganization,
 		CallerOrganization:   h.callerFlagOrganization,
+		MeetingOrganization:  h.meetingFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil
@@ -251,9 +259,13 @@ func New(d Deps) http.Handler {
 		Config:                     h.config,
 		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
+		MobileEvents:               h.mobileEvents,
 		CreateDemoRequest:          h.createDemoRequest,
 		AdminListDemoRequests:      h.adminListDemoRequests,
 		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
+		AdminListChatReports:       h.adminListChatReports,
+		AdminResolveChatReport:     h.adminResolveChatReport,
+		AdminRemoveReportedMessage: h.adminRemoveReportedMessage,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
@@ -305,6 +317,7 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		AppleSignIn:           h.appleSignIn,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,
 		DesktopConsentCommand: h.desktopConsentCommand,
@@ -326,6 +339,9 @@ func New(d Deps) http.Handler {
 		RevokeSession:       h.revokeSession,
 		RevokeOtherSessions: h.revokeOtherSessions,
 		DeleteAccount:       h.deleteAccount,
+		SetAIConsent:        h.setAIConsent,
+		WithdrawAIConsent:   h.withdrawAIConsent,
+		SetPushPreviews:     h.setPushPreviews,
 		PatchOnboarding:     h.patchOnboarding,
 		CompleteOnboarding:  h.completeOnboarding,
 		MyInvitations:       h.myInvitations,
@@ -335,6 +351,11 @@ func New(d Deps) http.Handler {
 		GetOrganization:    h.getOrganization,
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
+
+		OrgPushPreviewPolicy:       h.orgPushPreviewPolicy,
+		SetOrgPushPreviewPolicy:    h.setOrgPushPreviewPolicy,
+		OrgMobileSecurityPolicy:    h.orgMobileSecurityPolicy,
+		SetOrgMobileSecurityPolicy: h.setOrgMobileSecurityPolicy,
 
 		ListOrgMembers:      h.listOrgMembers,
 		GetOrgMembershipMe:  h.getOrgMembershipMe,
@@ -520,20 +541,44 @@ func New(d Deps) http.Handler {
 		SubscribePush:              h.subscribePush,
 		UnsubscribePush:            h.unsubscribePush,
 
-		AiCapabilities:       h.aiCapabilities,
-		GetOrgAskModels:      h.getOrgAskModels,
-		SetOrgAskModels:      h.setOrgAskModels,
-		AskUni:               h.askUni,
-		AskUniStream:         h.askUniStream,
-		ChatCatchUp:          h.chatCatchUp,
-		ListAiConversations:  h.listAiConversations,
-		ListAiMessages:       h.listAiMessages,
-		DeleteAiConversation: h.deleteAiConversation,
-		RenameAiConversation: h.renameAiConversation,
-		SetAiFeedback:        h.setAiFeedback,
-		ClearAiFeedback:      h.clearAiFeedback,
-		WorkspaceAiUsage:     h.workspaceAiUsage,
-		OrganizationAiUsage:  h.organizationAiUsage,
+		AiCapabilities:          h.aiCapabilities,
+		UploadAiAttachment:      h.uploadAskAttachment,
+		CancelAiAttachment:      h.cancelAskAttachment,
+		DownloadAiAttachment:    h.downloadAskAttachment,
+		GetOrgAskModels:         h.getOrgAskModels,
+		SetOrgAskModels:         h.setOrgAskModels,
+		GetOrgAskWritePolicy:    h.getOrgAskWritePolicy,
+		SetOrgAskWritePolicy:    h.setOrgAskWritePolicy,
+		SetAskUniMode:           h.setAskUniMode,
+		ListAiMemory:            h.listAiMemory,
+		CreateAiMemory:          h.createAiMemory,
+		UpdateAiMemory:          h.updateAiMemory,
+		DeleteAiMemory:          h.deleteAiMemory,
+		ClearAiMemory:           h.clearAiMemory,
+		SplitAiMemoryImport:     h.splitAiMemoryImport,
+		ImportAiMemory:          h.importAiMemory,
+		SetAskUniMemory:         h.setAskUniMemory,
+		ApplyAiMemoryProposal:   h.applyAiMemoryProposal,
+		RejectAiMemoryProposal:  h.rejectAiMemoryProposal,
+		UndoAiMemoryProposal:    h.undoAiMemoryProposal,
+		EditAiMemoryProposal:    h.editAiMemoryProposal,
+		ApplyAiProposal:         h.applyAiProposal,
+		RejectAiProposal:        h.rejectAiProposal,
+		UndoAiProposal:          h.undoAiProposal,
+		EditAiProposal:          h.editAiProposal,
+		ApplyAiMessageProposals: h.applyAiMessageProposals,
+		SaveAiAnswerDocument:    h.saveAiAnswerAsDocument,
+		AskUni:                  h.askUni,
+		AskUniStream:            h.askUniStream,
+		ChatCatchUp:             h.chatCatchUp,
+		ListAiConversations:     h.listAiConversations,
+		ListAiMessages:          h.listAiMessages,
+		DeleteAiConversation:    h.deleteAiConversation,
+		RenameAiConversation:    h.renameAiConversation,
+		SetAiFeedback:           h.setAiFeedback,
+		ClearAiFeedback:         h.clearAiFeedback,
+		WorkspaceAiUsage:        h.workspaceAiUsage,
+		OrganizationAiUsage:     h.organizationAiUsage,
 
 		AiByokChatCompletions: aiMount.ByokChatCompletions,
 		AiByokMessages:        aiMount.ByokMessages,
@@ -632,13 +677,50 @@ func New(d Deps) http.Handler {
 		MeetingStatistics:              h.meetingStatistics,
 		MeetingActivity:                h.meetingActivity,
 		AppendTranscript:               h.appendTranscript,
-		AppendAgentTranscript:          h.appendAgentTranscript,
+		SetMeetingScribe:               h.setMeetingScribe,
+		SetMeetingAISharing:            h.setMeetingAISharing,
+		GetMeetingSettings:             h.getMeetingSettings,
+		SetMeetingSettings:             h.setMeetingSettings,
+		SetParticipantSharedMic:        h.setParticipantSharedMic,
+		ListSpeakerLabels:              h.listSpeakerLabels,
+		AssignSpeakerLabel:             h.assignSpeakerLabel,
+		RecordMeetingHeld:              h.recordMeetingHeld,
+		CreateMeetingAudioUpload:       h.createMeetingAudioUploadSession,
+		RequestMeetingTranscription:    h.requestMeetingTranscription,
+		ListMeetingTranscriptions:      h.listMeetingTranscriptions,
+		DeleteMeetingTranscription:     h.deleteMeetingTranscription,
+		EditTranscriptSegment:          h.editTranscriptSegment,
+		DeleteTranscriptSegment:        h.deleteTranscriptSegment,
+		DeleteTranscript:               h.deleteTranscript,
+		SetTranscriptRetention:         h.setTranscriptRetention,
+		MeetingDialIn:                  h.meetingDialIn,
+		RotateMeetingDialInPin:         h.rotateMeetingDialInPin,
+		MeetingAgentStarted:            h.meetingAgentStarted,
+		MeetingAgentContext:            h.meetingAgentContext,
+		MeetingAgentSegments:           h.meetingAgentSegments,
+		MeetingAgentFinished:           h.meetingAgentFinished,
+		MeetingAgentExtract:            h.meetingAgentExtract,
+		MeetingAgentTranslate:          h.meetingAgentTranslate,
+		SetCaptionLanguage:             h.setCaptionLanguage,
 		ListTranscript:                 h.listTranscript,
 		AppendChatMessage:              h.appendChatMessage,
 		ListChatMessages:               h.listChatMessages,
 		GetMeetingSummary:              h.getMeetingSummary,
 		CreateSummary:                  h.createSummary,
-		CreateSummaryTasks:             h.createSummaryTasks,
+		MeetingEvidence:                h.meetingEvidence,
+		ListActionItems:                h.listActionItems,
+		ListCarriedOverItems:           h.listCarriedOverItems,
+		GetMeetingMinutes:              h.getMeetingMinutes,
+		CreateMeetingMinutes:           h.createMeetingMinutes,
+		FinalizeMeetingMinutes:         h.finalizeMeetingMinutes,
+		RefreshMeetingMinutes:          h.refreshMeetingMinutes,
+		ReopenMeetingMinutes:           h.reopenMeetingMinutes,
+		AddActionItem:                  h.addActionItem,
+		DismissActionItem:              h.dismissActionItem,
+		RestoreActionItem:              h.restoreActionItem,
+		LinkActionItem:                 h.linkActionItem,
+		ConvertActionItems:             h.convertActionItems,
+		MeetingCatchUp:                 h.meetingCatchUp,
 		StartRecording:                 h.startRecording,
 		StopRecording:                  h.stopRecording,
 		ListRecordings:                 h.listRecordings,
@@ -652,6 +734,7 @@ func New(d Deps) http.Handler {
 		LookupChatUser:                   h.lookupChatUser,
 		GetChatBlockStatus:               h.getChatBlockStatus,
 		BlockChatUser:                    h.blockChatUser,
+		ReportChat:                       h.reportChat,
 		UnblockChatUser:                  h.unblockChatUser,
 		ListChatNicknames:                h.listChatNicknames,
 		SetChatNickname:                  h.setChatNickname,
@@ -663,6 +746,7 @@ func New(d Deps) http.Handler {
 		MintChatVoiceToken:               h.mintChatVoiceToken,
 		ListPendingChatVoiceInvites:      h.listPendingChatVoiceInvites,
 		ListChatCallLogs:                 h.listChatCallLogs,
+		GetChatSync:                      h.getChatSync,
 		GetWorkspaceChatRoom:             h.getWorkspaceChatRoom,
 		EnsureWorkspaceChatRoom:          h.ensureWorkspaceChatRoom,
 		ListChatRooms:                    h.listChatRooms,
@@ -733,6 +817,7 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceInvite:            h.signalChatVoiceInvite,
 		SignalChatVoiceAccept:            h.signalChatVoiceAccept,
 		SignalChatVoiceHangup:            h.signalChatVoiceHangup,
+		SignalChatVoiceDecline:           h.signalChatVoiceDecline,
 		StartChatVoiceRecording:          h.startChatVoiceRecording,
 		StopChatVoiceRecording:           h.stopChatVoiceRecording,
 		GetActiveChatVoiceRecording:      h.getActiveChatVoiceRecording,
@@ -799,19 +884,21 @@ func New(d Deps) http.Handler {
 		AbortUploadSession:           h.abortUploadSession,
 		AbortFrameUploadSession:      h.abortFrameUploadSession,
 
-		MintOfficeFrameToken:     h.mintOfficeFrameToken,
-		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
-		GetOfficeFrameContent:    h.getOfficeFrameContent,
-		UploadOfficeFrameFile:    h.uploadOfficeFrameFile,
-		CommitOfficeFrameVersion: h.commitOfficeFrameVersion,
-		ListOfficeFrameRecents:   h.listOfficeFrameRecents,
-		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
-		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
-		ResolveOfficeFrameAssets: h.resolveOfficeFrameAssets,
-		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
-		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
-		GetOfficeFrameAvatar:     h.getOfficeFrameAvatar,
-		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
+		MintOfficeFrameToken:         h.mintOfficeFrameToken,
+		OpenOfficeFrameDocument:      h.openOfficeFrameDocument,
+		GetOfficeFrameContent:        h.getOfficeFrameContent,
+		UploadOfficeFrameFile:        h.uploadOfficeFrameFile,
+		CommitOfficeFrameVersion:     h.commitOfficeFrameVersion,
+		ListOfficeFrameRecents:       h.listOfficeFrameRecents,
+		UploadOfficeFrameAsset:       h.uploadOfficeFrameAsset,
+		SignOfficeFrameAssets:        h.signOfficeFrameAssets,
+		ResolveOfficeFrameAssets:     h.resolveOfficeFrameAssets,
+		GetOfficeFrameAsset:          h.getOfficeFrameAsset,
+		GetOfficeFrameLinked:         h.getOfficeFrameLinked,
+		GetOfficeFrameAvatar:         h.getOfficeFrameAvatar,
+		ExportOfficeFramePDF:         h.exportOfficeFramePDF,
+		ExportDocumentPage:           h.exportDocumentPage,
+		GetDocumentPageExportFormats: h.getDocumentPageExportFormats,
 
 		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
 		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,

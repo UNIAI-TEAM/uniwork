@@ -29,6 +29,9 @@ const DISABLED: AiCapabilities = {
   quota: { used_tokens: 0, limit_tokens: null },
   models: [],
   auto_model: "",
+  attachments: false,
+  actions: { enabled: false, ceiling: "off", mode: "" },
+  memory: { enabled: false, on: false },
 };
 const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
 const EMPTY_CATCH_UP: ChatCatchUpResponse = {
@@ -69,8 +72,8 @@ export async function chatCatchUp(wsId: string, body: ChatCatchUpInput): Promise
   });
 }
 
-export async function listAiConversations(wsId: string): Promise<AiConversation[]> {
-  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations`);
+export async function listAiConversations(wsId: string, q?: string): Promise<AiConversation[]> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/conversations${q ? `?q=${encodeURIComponent(q)}` : ""}`);
   return parseWithFallback<{ conversations: AiConversation[] }>(
     raw,
     ConversationsResponse,

@@ -105,10 +105,10 @@ func TestDocumentOwnerTransferredRechecksAndSkipsBulk(t *testing.T) {
 
 func TestDocumentOwnerTransferredTitleAndPrefs(t *testing.T) {
 	params := map[string]string{"actor": "An", "document": "Kế hoạch"}
-	if got := Title("vi", KindDocumentOwnerTransferred, params); got != "An đã chuyển cho bạn quyền sở hữu tài liệu “Kế hoạch”." {
+	if got := Title("vi", KindDocumentOwnerTransferred, params); got != "An đã chuyển cho bạn quyền sở hữu tài liệu \"Kế hoạch\"." {
 		t.Fatalf("vi title = %q", got)
 	}
-	if got := Title("en", KindDocumentOwnerTransferred, params); got != "An transferred ownership of “Kế hoạch” to you." {
+	if got := Title("en", KindDocumentOwnerTransferred, params); got != "An transferred ownership of \"Kế hoạch\" to you." {
 		t.Fatalf("en title = %q", got)
 	}
 	if p := DefaultPrefs(KindDocumentOwnerTransferred); !p.InApp || p.Push {

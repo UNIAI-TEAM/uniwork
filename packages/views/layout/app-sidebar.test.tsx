@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
-import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@uniwork/ui/components/ui/sidebar";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AppSidebar } from "./app-sidebar";
 import { WorkspaceProvider } from "./workspace-context";
@@ -38,6 +38,36 @@ function renderSidebar(pathname: string) {
   return nav;
 }
 
+/** A compact shell: the sidebar is a sheet, opened by the top bar's toggle (rendered here beside it). */
+async function renderSheet(pathname: string) {
+  const width = window.innerWidth;
+  window.innerWidth = 800;
+  const nav = {
+    push: vi.fn(), replace: vi.fn(), back: vi.fn(),
+    pathname, searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
+  };
+  const view = render(
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <SidebarProvider>
+          <SidebarTrigger />
+          <AppSidebar />
+        </SidebarProvider>
+      </WorkspaceProvider>,
+      nav,
+    ),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: /ẩn\/hiện thanh bên/i }));
+  await screen.findByRole("button", { name: /chuyển workspace/i });
+  return {
+    nav,
+    restore: () => {
+      view.unmount();
+      window.innerWidth = width;
+    },
+  };
+}
+
 beforeEach(() => {
   requestMock.mockReset();
   requestMock.mockResolvedValue({ workspaces: [workspace] });
@@ -46,12 +76,40 @@ beforeEach(() => {
 });
 
 describe("AppSidebar", () => {
-  it("shows the current account avatar instead of an initials-only dummy", () => {
-    renderSidebar("/acme/team/tasks");
-    expect(screen.getByRole("img", { name: "An" })).toHaveAttribute(
-      "src",
-      "/uploads/avatars/an.png",
-    );
+  it("shows the current account avatar instead of an initials-only dummy", async () => {
+    const sheet = await renderSheet("/acme/team/tasks");
+    try {
+      expect(screen.getByRole("img", { name: "An" })).toHaveAttribute("src", "/uploads/avatars/an.png");
+    } finally {
+      sheet.restore();
+    }
+  });
+
+  it("on a desktop shell, is a floating card under the top bar that ends with its collapse toggle", () => {
+    // A wide desktop: between 1024 and 1279px the primitive parks the sidebar collapsed.
+    const width = window.innerWidth;
+    window.innerWidth = 1440;
+    try {
+      renderSidebar("/acme/team/tasks");
+      const sidebar = document.querySelector('[data-slot="sidebar"]');
+      expect(sidebar).toHaveAttribute("data-variant", "floating");
+      expect(document.querySelector('[data-slot="sidebar-container"]')).toHaveClass("lg:top-12", "lg:pt-0");
+      // The toggle closes the card (owner's pick), so the card opens straight on the modules.
+      expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
+      // A full-width row with a named action, not a bare icon in the corner; it renames itself once collapsed.
+      const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
+      const collapse = within(footer).getByRole("button", { name: "Thu gọn thanh bên" });
+      // The row spans the card, so its chevrons and label sit centred in it.
+      expect(collapse).toHaveClass("justify-center");
+      fireEvent.click(collapse);
+      expect(sidebar).toHaveAttribute("data-state", "collapsed");
+      expect(within(footer).getByRole("button", { name: "Mở rộng thanh bên" })).toHaveAttribute("data-slot", "sidebar-menu-button");
+      // The switcher and the account live on the top bar there.
+      expect(screen.queryByRole("button", { name: /chuyển workspace/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
+    } finally {
+      window.innerWidth = width;
+    }
   });
 
   it("renders the workspace sections as real links that navigate through the adapter", () => {
@@ -108,26 +166,34 @@ describe("AppSidebar", () => {
     }
   });
 
-  it("keeps non-menu controls on the sidebar plane without removing keyboard focus", () => {
-    renderSidebar("/acme/team/tasks");
-    const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
-    const accountButton = screen.getByRole("button", { name: /tài khoản$/ });
+  it("keeps non-menu controls on the sidebar plane without removing keyboard focus", async () => {
+    const sheet = await renderSheet("/acme/team/tasks");
+    try {
+      const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
+      const accountButton = screen.getByRole("button", { name: /tài khoản$/ });
 
-    for (const button of [workspaceButton, accountButton]) {
-      expect(button).not.toHaveClass("ring-1");
-      expect(button).not.toHaveClass("rounded-xl");
-      expect(button.className).not.toMatch(/(?:^|\s)bg-surface(?:\/|\s)/);
-      expect(button.className).toContain("focus-visible:ring-2");
+      for (const button of [workspaceButton, accountButton]) {
+        expect(button).not.toHaveClass("ring-1");
+        expect(button).not.toHaveClass("rounded-xl");
+        expect(button.className).not.toMatch(/(?:^|\s)bg-surface(?:\/|\s)/);
+        expect(button.className).toContain("focus-visible:ring-2");
+      }
+      expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
+      expect(accountButton.parentElement).not.toHaveClass("ring-1");
+    } finally {
+      sheet.restore();
     }
-    expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
-    expect(accountButton.parentElement).not.toHaveClass("ring-1");
   });
 
-  it("starts the switcher's and the account's names with the text they show", () => {
-    renderSidebar("/acme/team/tasks");
-    // WCAG 2.5.3: a voice-control user says what they see.
-    expect(screen.getByRole("button", { name: "Acme, Team: chuyển workspace" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "An, a@b.c: tài khoản" })).toBeInTheDocument();
+  it("starts the switcher's and the account's names with the text they show", async () => {
+    const sheet = await renderSheet("/acme/team/tasks");
+    try {
+      // WCAG 2.5.3: a voice-control user says what they see.
+      expect(screen.getByRole("button", { name: "Acme, Team: chuyển workspace" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "An, a@b.c: tài khoản" })).toBeInTheDocument();
+    } finally {
+      sheet.restore();
+    }
   });
 
   it("says in the switcher's name when another workspace has unread notifications", async () => {
@@ -139,12 +205,16 @@ describe("AppSidebar", () => {
           : { workspaces: [workspace, other] },
       ),
     );
-    renderSidebar("/acme/team/tasks");
-    expect(
-      await screen.findByRole("button", {
-        name: "Acme, Team: chuyển workspace. Có thông báo chưa đọc ở workspace khác",
-      }),
-    ).toBeInTheDocument();
+    const sheet = await renderSheet("/acme/team/tasks");
+    try {
+      expect(
+        await screen.findByRole("button", {
+          name: "Acme, Team: chuyển workspace. Có thông báo chưa đọc ở workspace khác",
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      sheet.restore();
+    }
   });
 
   it("moves a compact active fill without restoring the brand stripe", () => {
@@ -166,11 +236,8 @@ describe("AppSidebar", () => {
     expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-5");
   });
 
-  it("puts the workspace switcher on the top bar's horizon, expanded and collapsed", () => {
+  it("draws module tiles without a stroke override", () => {
     renderSidebar("/acme/team/tasks");
-    const header = document.querySelector('[data-slot="sidebar-header"]');
-    // 48px switcher from the card's 8px inset; the 32px collapsed one 8px lower.
-    expect(header).toHaveClass("lg:pt-0", "lg:group-data-[collapsible=icon]:pt-2");
     const tile = screen.getByRole("link", { name: "Công việc" }).querySelector('[data-slot="icon-tile"]');
     expect(tile?.className).not.toContain("stroke-");
   });
@@ -186,17 +253,21 @@ describe("AppSidebar", () => {
   });
 
   it("keeps log out behind the account menu rather than one click away in the chrome", async () => {
-    const nav = renderSidebar("/acme/team/tasks");
-    expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
+    const sheet = await renderSheet("/acme/team/tasks");
+    try {
+      expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
-    const settings = await screen.findByRole("menuitem", { name: "Cài đặt" });
-    expect(settings).toHaveAttribute("href", "/acme/team/settings");
-    const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
-    fireEvent.click(logout);
+      fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
+      const settings = await screen.findByRole("menuitem", { name: "Cài đặt" });
+      expect(settings).toHaveAttribute("href", "/acme/team/settings");
+      const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
+      fireEvent.click(logout);
 
-    await vi.waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
-    expect(useAuthStore.getState().status).toBe("anon");
+      await vi.waitFor(() => expect(sheet.nav.replace).toHaveBeenCalledWith("/login"));
+      expect(useAuthStore.getState().status).toBe("anon");
+    } finally {
+      sheet.restore();
+    }
   });
 
   it("always shows tasks, my-tasks and projects in the workspace nav", () => {
@@ -240,7 +311,9 @@ describe("AppSidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /tài khoản$/ })).toBeInTheDocument();
+    // The rail keeps its own way back open (the edge rail is a drag handle, not this).
+    const footer = document.querySelector('[data-slot="sidebar-footer"]') as HTMLElement;
+    expect(within(footer).getByRole("button", { name: "Mở rộng thanh bên" })).toHaveAttribute("data-slot", "sidebar-menu-button");
   });
 });
 

@@ -105,7 +105,7 @@ export function SidebarLoadError({ onRetry }: { onRetry?: () => void }) {
       className="mx-1 my-2 flex flex-col gap-3 rounded-[14px] border border-destructive/20 bg-destructive-soft p-3.5 text-destructive-soft-foreground"
     >
       <p className="flex items-start gap-2.5 text-body font-medium text-pretty">
-        <CircleAlert aria-hidden className="mt-0.5 size-4.5 shrink-0" />
+        <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
         {t("chat.sidebar_load_failed")}
       </p>
       {onRetry ? (

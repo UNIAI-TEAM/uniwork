@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { VoiceCallDeviceError } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError } from "@uniwork/core/chat/voice-call-types";
 import type { VoiceCallParticipantTile } from "./voice-call-room-types";
 
 /**

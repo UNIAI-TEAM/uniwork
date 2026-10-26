@@ -35,7 +35,7 @@ import {
   CHAT_SHEET_CLASS,
 } from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 /**
  * One directory: channels you could join and those you are in, each once, by
@@ -289,7 +289,7 @@ export function ChannelDirectorySheet({
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               value={query}

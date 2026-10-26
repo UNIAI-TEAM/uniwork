@@ -61,6 +61,8 @@ describe("MeetingScheduleFields", () => {
     expect(screen.getByLabelText("Giờ bắt đầu")).toBeInTheDocument();
     expect(screen.getByLabelText("Phút kết thúc")).toBeInTheDocument();
     expect(screen.getByText("Kết thúc vào hôm sau")).toBeInTheDocument();
+    // The day picker reads its label and the chosen day, not the label alone.
+    expect(screen.getByRole("button", { name: "Ngày họp Thứ Bảy, 29 tháng 8, 2099" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

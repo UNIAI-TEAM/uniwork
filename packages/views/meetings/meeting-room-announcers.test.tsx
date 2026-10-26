@@ -1,17 +1,21 @@
 import { act, render, screen } from "@testing-library/react";
 import { EventEmitter } from "events";
-import { ConnectionState, RoomEvent, Track } from "livekit-client";
+import { ConnectionState, ParticipantKind, RoomEvent, Track } from "livekit-client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrapWithNav } from "../test/api-mock";
-import { ParticipantPresenceAnnouncer, ScreenShareAnnouncer } from "./meeting-room-announcers";
+import { ParticipantPresenceAnnouncer, ScreenShareAnnouncer, ScribeAnnouncer } from "./meeting-room-announcers";
 import { MeetingStageHeader } from "./meeting-stage-header";
 
-const lk = vi.hoisted(() => ({ room: null as unknown }));
+const lk = vi.hoisted(() => ({
+  room: null as unknown,
+  remote: [] as { identity: string; isAgent?: boolean; attributes?: Record<string, string> }[],
+}));
 
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => lk.room,
   useParticipants: () => [],
+  useRemoteParticipants: () => lk.remote,
 }));
 
 class FakeRoom extends EventEmitter {
@@ -29,6 +33,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.useFakeTimers();
   lk.room = new FakeRoom();
+  lk.remote = [];
 });
 
 afterEach(() => {
@@ -63,6 +68,44 @@ describe("ParticipantPresenceAnnouncer", () => {
       vi.advanceTimersByTime(1500);
     });
     expect(live).toHaveTextContent("Minh đã rời phòng");
+  });
+
+  it("never announces the AI scribe joining", () => {
+    render(<ParticipantPresenceAnnouncer />);
+    const room = lk.room as FakeRoom;
+    const live = screen.getByTestId("meeting-presence-announcer");
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    act(() => {
+      room.emit(RoomEvent.ParticipantConnected, { identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true });
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("");
+  });
+
+  it("announces a phone caller once the host admits them, never while held", () => {
+    render(<ParticipantPresenceAnnouncer />);
+    const room = lk.room as FakeRoom;
+    const live = screen.getByTestId("meeting-presence-announcer");
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    // Held callers join with no attribute, then "waiting"; neither is news.
+    const caller = { identity: "sip_1", name: "0912 345 678", kind: ParticipantKind.SIP, attributes: {} };
+    act(() => {
+      room.emit(RoomEvent.ParticipantConnected, caller);
+      caller.attributes = { "uw.dial_in": "waiting" };
+      room.emit(RoomEvent.ParticipantAttributesChanged, { "uw.dial_in": "waiting" }, caller);
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("");
+    act(() => {
+      caller.attributes = { "uw.dial_in": "admitted" };
+      room.emit(RoomEvent.ParticipantAttributesChanged, { "uw.dial_in": "admitted" }, caller);
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("0912 345 678 đã vào phòng");
   });
 
   it("reads a burst of arrivals as one count", () => {
@@ -257,5 +300,49 @@ describe("MeetingStageHeader recording announcement", () => {
 
     rerender(wrapWithNav(<MeetingStageHeader meetingTitle="Standup" recording={false} />));
     expect(live).toHaveTextContent("Đã dừng ghi hình");
+  });
+});
+
+describe("ScribeAnnouncer", () => {
+  it("says when the AI scribe starts and stops transcribing, as the recording announcer does", () => {
+    vi.useRealTimers();
+    const { rerender } = render(<ScribeAnnouncer />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    expect(live).toHaveAttribute("role", "status");
+    expect(live).toHaveTextContent("");
+
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    rerender(<ScribeAnnouncer />);
+    expect(live).toHaveTextContent("Thư ký UNI đang ghi lời");
+
+    lk.remote = [];
+    rerender(<ScribeAnnouncer />);
+    expect(live).toHaveTextContent("Thư ký UNI đã dừng ghi lời");
+  });
+
+  it("says when the scribe pauses on an STT outage and when it is back", () => {
+    vi.useRealTimers();
+    const meeting = { scribe_enabled: true };
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    const { rerender } = render(<ScribeAnnouncer meeting={meeting} />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "degraded" } }];
+    rerender(<ScribeAnnouncer meeting={meeting} />);
+    expect(live).toHaveTextContent("Thư ký UNI tạm dừng, đang thử lại");
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } }];
+    rerender(<ScribeAnnouncer meeting={meeting} />);
+    expect(live).toHaveTextContent("Thư ký UNI đang ghi lời");
+  });
+
+  it("tells the room once when the scribe's status turns FAILED", () => {
+    vi.useRealTimers();
+    const { rerender } = render(<ScribeAnnouncer meeting={{ scribe_enabled: true, scribe_status: "JOINING" }} />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    expect(live).toHaveTextContent("");
+    rerender(<ScribeAnnouncer meeting={{ scribe_enabled: true, scribe_status: "FAILED" }} />);
+    expect(live).toHaveTextContent("Thư ký UNI gặp sự cố nên không ghi lời thoại");
+    // Turned off by the host: no longer a failure, and nothing new to say.
+    rerender(<ScribeAnnouncer meeting={{ scribe_enabled: false, scribe_status: "FAILED" }} />);
+    expect(live).toHaveTextContent("Thư ký UNI gặp sự cố nên không ghi lời thoại");
   });
 });

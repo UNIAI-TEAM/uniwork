@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import {
   filterMentionCandidates,
   formatComposerMentionDisplay,
   insertMentionToken,
   resolveActiveMentionQuery,
-} from "./chat-mention-utils";
+} from "@uniwork/core/chat/chat-mention-utils";
 
 /** The whole @-word starting at `start` (up to the next space), whatever the caret. */
 function mentionWordAt(text: string, start: number): string | null {

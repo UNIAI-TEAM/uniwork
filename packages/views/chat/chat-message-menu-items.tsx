@@ -182,34 +182,34 @@ export function ChatMessageMenuItems({
         </>
       ) : null}
       <P.Item onClick={() => onReply?.(message)} disabled={!onReply}>
-        <Reply className="size-4.5" aria-hidden />
+        <Reply className="size-4" aria-hidden />
         {t("chat.action_reply")}
       </P.Item>
       {onThread ? (
         <P.Item onClick={() => onThread(message)}>
-          <MessageSquareText className="size-4.5" aria-hidden />
+          <MessageSquareText className="size-4" aria-hidden />
           {t("chat.action_thread")}
         </P.Item>
       ) : null}
       {canEdit && onEdit ? (
         <P.Item onClick={() => onEdit(message)}>
-          <Pencil className="size-4.5" aria-hidden />
+          <Pencil className="size-4" aria-hidden />
           {t("chat.action_edit")}
         </P.Item>
       ) : null}
       <P.Item onClick={() => onCopy?.(message)} disabled={!onCopy}>
-        <Copy className="size-4.5" aria-hidden />
+        <Copy className="size-4" aria-hidden />
         {t("chat.action_copy")}
       </P.Item>
       {onPin ? (
         <P.Item onClick={() => onPin(message)}>
-          <Pin className="size-4.5" aria-hidden />
+          <Pin className="size-4" aria-hidden />
           {message.pinned ? t("chat.action_unpin") : t("chat.action_pin")}
         </P.Item>
       ) : null}
       {onForward && isForwardableChatMessage(message) ? (
         <P.Item onClick={() => onForward(message)}>
-          <Forward className="size-4.5" aria-hidden />
+          <Forward className="size-4" aria-hidden />
           {t("chat.forward.action")}
         </P.Item>
       ) : null}
@@ -217,7 +217,7 @@ export function ChatMessageMenuItems({
         <>
           <P.Separator />
           <P.Item onClick={() => onFollowUp?.(message)} disabled={!onFollowUp}>
-            <Bookmark className="size-4.5" aria-hidden />
+            <Bookmark className="size-4" aria-hidden />
             {t("chat.follow_up.action")}
           </P.Item>
           <P.Item onClick={() => onCreateTask?.(message)} disabled={!onCreateTask}>
@@ -225,7 +225,7 @@ export function ChatMessageMenuItems({
             {t("chat.link.create_task")}
           </P.Item>
           <P.Item onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>
-            <Link2 className="size-4.5" aria-hidden />
+            <Link2 className="size-4" aria-hidden />
             {t("chat.link.link_task")}
           </P.Item>
         </>
@@ -234,7 +234,7 @@ export function ChatMessageMenuItems({
         <>
           <P.Separator />
           <P.Item variant="destructive" onClick={() => onDelete(message)}>
-            <Trash2 className="size-4.5" aria-hidden />
+            <Trash2 className="size-4" aria-hidden />
             {t("chat.action_delete")}
           </P.Item>
         </>

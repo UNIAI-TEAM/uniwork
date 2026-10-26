@@ -23,7 +23,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { CHAT_EMPTY_TILE_CLASS, CHAT_EMPTY_TITLE_CLASS, CHAT_SHEET_CLASS, CHAT_SHEET_HEADER_CLASS } from "./chat-dialog-look";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 
 function threadPreviewBody(raw: string): string {
   const text = raw.trim();

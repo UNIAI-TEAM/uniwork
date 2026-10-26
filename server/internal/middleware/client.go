@@ -21,6 +21,7 @@ const (
 	ctxKeyClientPlatform clientMetadataKey = iota
 	ctxKeyClientVersion
 	ctxKeyClientOS
+	ctxKeyClientUpdateID
 )
 
 // Header names — exported so other packages (request logger, realtime hub)
@@ -29,7 +30,29 @@ const (
 	HeaderClientPlatform = "X-Client-Platform"
 	HeaderClientVersion  = "X-Client-Version"
 	HeaderClientOS       = "X-Client-OS"
+	// HeaderClientUpdateID names the over-the-air JavaScript update a mobile
+	// client runs ("embedded" for the bundle inside the binary), so a server
+	// error can be told apart per OTA, not only per store version.
+	HeaderClientUpdateID = "X-Client-Update-Id"
 )
+
+// maxClientUpdateIDLen caps the header: an EAS update id is a 36-character
+// UUID; anything longer is not one and is not worth a log field.
+const maxClientUpdateIDLen = 64
+
+// SanitizeClientUpdateID keeps an update id that looks like one: letters,
+// digits and '-', at most maxClientUpdateIDLen long. Anything else is "".
+func SanitizeClientUpdateID(v string) string {
+	if v == "" || len(v) > maxClientUpdateIDLen {
+		return ""
+	}
+	for _, c := range v {
+		if !(c == '-' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+			return ""
+		}
+	}
+	return v
+}
 
 // ClientMetadata extracts X-Client-Platform / X-Client-Version / X-Client-OS
 // from the request and stashes them in the request context so downstream
@@ -49,6 +72,9 @@ func ClientMetadata(next http.Handler) http.Handler {
 		if v := r.Header.Get(HeaderClientOS); v != "" {
 			ctx = context.WithValue(ctx, ctxKeyClientOS, v)
 		}
+		if v := SanitizeClientUpdateID(r.Header.Get(HeaderClientUpdateID)); v != "" {
+			ctx = context.WithValue(ctx, ctxKeyClientUpdateID, v)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -61,6 +87,13 @@ func ClientMetadataFromContext(ctx context.Context) (platform, version, os strin
 	version, _ = ctx.Value(ctxKeyClientVersion).(string)
 	os, _ = ctx.Value(ctxKeyClientOS).(string)
 	return platform, version, os
+}
+
+// ClientUpdateIDFromContext returns the OTA update id captured from
+// X-Client-Update-Id, or "" when the client sent none (or not a valid one).
+func ClientUpdateIDFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(ctxKeyClientUpdateID).(string)
+	return v
 }
 
 // SetClientMetadata explicitly attaches client metadata to a context. Used

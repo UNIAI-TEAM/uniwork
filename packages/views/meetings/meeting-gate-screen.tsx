@@ -19,6 +19,7 @@ export function MeetingGateScreen({
   title,
   description,
   actions,
+  notice,
   meetingTitle,
   alert = false,
   busy = false,
@@ -29,6 +30,8 @@ export function MeetingGateScreen({
   title: string;
   description?: string;
   actions?: ReactNode;
+  /** Something to read before going on (the AI scribe's consent notice), above the actions. */
+  notice?: ReactNode;
   /** The meeting's own name, shown small above the state so people know which call this is. */
   meetingTitle?: string;
   /** Errors are announced assertively; waiting and settled states politely. */
@@ -58,6 +61,7 @@ export function MeetingGateScreen({
             </p>
           ) : null}
         </div>
+        {notice ? <div className="w-full">{notice}</div> : null}
         {actions ? <div className="flex flex-wrap items-center justify-center gap-2 pt-1">{actions}</div> : null}
       </div>
     </MeetingCanvas>

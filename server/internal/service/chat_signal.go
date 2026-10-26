@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -45,11 +46,11 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if err != nil {
 		return err
 	}
-	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video, invitees); err != nil {
+	if err := s.trackVoiceCallInvite(ctx, room, callID, userID, callerName, video, invitees); err != nil {
 		return err
 	}
 	if err := s.emitVoiceCallRings(ctx, room, userID, callID, invitees); err != nil {
-		dropVoiceCallInvite(room.ID, callID)
+		s.dropVoiceCallInvite(ctx, room.ID, callID)
 		return err
 	}
 	ev := Event{
@@ -74,9 +75,12 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	if err := s.requireVoiceCallActor(ctx, room, userID, true); err != nil {
 		return err
 	}
-	s.trackVoiceCallAccept(roomID, callID, userID)
-	s.trackVoiceCallParticipant(roomID, callID, userID)
-	s.closeVoiceCallRings(ctx, roomID, []string{userID})
+	s.trackVoiceCallAccept(ctx, room.OrganizationID, roomID, callID, userID)
+	s.trackVoiceCallParticipant(ctx, room.OrganizationID, roomID, callID, userID)
+	// Their ring row closes either way; their phones are told to stop only
+	// when the call rang them (a ring row in the database, or this node's
+	// session), whichever node the answer reached.
+	s.closeAnsweredRing(ctx, room, callID, userID, s.voiceCallInvitee(ctx, roomID, callID, userID))
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{
@@ -102,8 +106,7 @@ func (s *ChatService) SignalVoiceHangup(
 		return err
 	}
 	if voiceCallMultiPartyKind(room.Kind) {
-		key := voiceCallSessionKey(roomID, callID)
-		sess, ok := loadVoiceCallSession(key)
+		sess, ok := s.loadVoiceCallSession(ctx, roomID, callID)
 		if !ok {
 			return ErrForbidden
 		}
@@ -111,7 +114,7 @@ func (s *ChatService) SignalVoiceHangup(
 			return ErrForbidden
 		}
 	}
-	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.trackVoiceCallParticipant(ctx, room.OrganizationID, roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
 	// The session is gone either way, so the other side hears the hangup even
 	// when the call log could not be written.
@@ -124,6 +127,33 @@ func (s *ChatService) SignalVoiceHangup(
 	}
 	pubErr := s.publishVoiceRoomSignal(ctx, room, userID, ev)
 	return errors.Join(logErr, pubErr)
+}
+
+// SignalVoiceDecline is a callee saying no to a call that rings for them. In
+// a DM it is the hangup: the call ends for both, as the call screen's own
+// Decline does. In a group or channel the call goes on without them: the
+// session remembers it, so the pending list and the ring pushes leave them
+// out, and their ring row closes with a ring_closed row that stops their
+// other Android phones. A call this node does not hold, the caller, or
+// someone already in the call or already declined has nothing to decline: no
+// error and nothing sent, so a retried decline from a phone is harmless.
+func (s *ChatService) SignalVoiceDecline(ctx context.Context, userID, workspaceID, roomID, callID string) error {
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
+	}
+	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
+	if err != nil {
+		return err
+	}
+	if !voiceCallMultiPartyKind(room.Kind) {
+		return s.SignalVoiceHangup(ctx, userID, workspaceID, roomID, callID)
+	}
+	if !s.trackVoiceCallDecline(ctx, room.OrganizationID, room.ID, callID, userID) {
+		return nil
+	}
+	s.closeVoiceCallRings(ctx, room, callID, userID, []string{userID})
+	return nil
 }
 
 // SignalTyping broadcasts a typing indicator for a chat room.
@@ -176,6 +206,41 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 	}
 }
 
+// closeRoomNotifications closes the reader's open message notifications of
+// the room (a DM, a mention, a room message) and, when one of those had reached a phone
+// (phone_pushed_at), writes in the same transaction the
+// chat.room.notifications_cleared row the push lane turns into a "read
+// elsewhere" push: the reader's Android phones take those notifications out of
+// the tray and set the icon's count while the app is closed. A read that closed
+// only rows no phone was shown writes nothing, so reading a quiet room, or
+// chatting on the web while each push is held back because the person is
+// reading, wakes no phone. Thread replies and calls stay in the tray, as in the
+// app.
+func (s *ChatService) closeRoomNotifications(ctx context.Context, room db.ChatRoom, userID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+	closed, err := qtx.CloseRoomNotificationGroups(ctx, db.CloseRoomNotificationGroupsParams{
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID), ChatRoomNotifyGroup(room.ID)},
+	})
+	if err != nil {
+		return err
+	}
+	if closed > 0 {
+		if err := auditRecorder.Emit(ctx, qtx, Human(userID), audit.Event{
+			Topic: "chat.room.notifications_cleared", Version: 1,
+			Payload:        map[string]string{"room_id": room.ID, "user_id": userID},
+			OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		}); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // markChatRoomRead moves the caller's read pointer to at and, only when that
 // moves it forward, tells the reader's other tabs and, in a DM, the peer who
 // renders the receipt. Every client that hears chat.room.read reloads its
@@ -195,9 +260,7 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	}
 	// Before the pointer check: a notification that arrived after the last
 	// read still closes, so the next message pushes again (UNI-1665).
-	if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{
-		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
-	}); err != nil {
+	if err := s.closeRoomNotifications(ctx, room, userID); err != nil {
 		slog.WarnContext(ctx, "chat: close room notifications", "room_id", room.ID, "user_id", userID, "error", err)
 	}
 	if member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {

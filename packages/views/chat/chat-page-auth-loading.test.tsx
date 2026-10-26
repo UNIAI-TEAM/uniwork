@@ -10,7 +10,7 @@ beforeAll(() => {
 
 describe("ChatPageAuthLoading", () => {
   it("keeps the page's one h1 and says it is loading, with the shapes hidden", () => {
-    // The skeleton reads the room wallpaper through the rooms query.
+    // The skeleton reads the room's wallpaper through the rooms query (disabled until authed).
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>

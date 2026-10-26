@@ -112,7 +112,10 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	store := storage.NewLocalStorageFromEnv()
 	tasks := service.NewTaskService(pool, q, ws, store)
 	fp := &meetingspkg.FakeProvider{RecordingEnabled: true}
-	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, fp, service.MeetingRuntime{HMACKey: []byte("test")})
+	// Dial-in is configured but stays off until a test wires flags in.
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, fp, service.MeetingRuntime{
+		HMACKey: []byte("test"), DialInEnabled: true, DialInNumber: "+84 28 7300 0000",
+	})
 	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
 	chatSvc.SetConference(fp)
 	chatSvc.SetTasks(tasks)
@@ -130,6 +133,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	}
 	testFlagOverrides = flagOverrides
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
+	adminSvc.SetReportedContentRemover(chatSvc)
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	ents := service.NewEntitlementService(pool, q)
 	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))

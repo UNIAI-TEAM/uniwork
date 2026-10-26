@@ -7,7 +7,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { voiceCallEndedMessage } from "./voice-call-copy";
 import { useVoiceCallFaceIsSquare } from "./voice-call-face";
 import { VoiceCallHangupIcon, VoiceCallLabeledAction } from "./voice-call-floating-panel";
-import type { VoiceCallEndReason, VoiceCallEndedState } from "./voice-call-overlay-types";
+import type { VoiceCallEndReason, VoiceCallEndedState } from "@uniwork/core/chat/voice-call-types";
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 
 /** Reasons where trying again means the same call again, not calling back. */
@@ -96,7 +96,7 @@ export function VoiceCallEndedPanel({
             ariaLabel={retry ? t("common.retry") : t("chat.voice_call_call_back")}
             tone="accept"
             onClick={onRetry}
-            icon={retry ? <RefreshCw aria-hidden className="size-6" /> : <Phone aria-hidden className="size-6.5" />}
+            icon={retry ? <RefreshCw aria-hidden className="size-6" /> : <Phone aria-hidden className="size-6" />}
           />
         ) : null}
         <VoiceCallLabeledAction

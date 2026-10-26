@@ -19,7 +19,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compos
 | `otel-collector` | 4317 | Nhận OTLP/gRPC từ API; exporter `debug` in span ra `docker compose logs otel-collector`. Tempo/Jaeger để sẵn dạng comment trong `deploy/otel-collector.yaml` |
 | `prometheus` | 9091 | Scrape `server:9090` (job `uniwork-api`) và probe `/readyz` qua `blackbox` (job `readyz`); nạp `deploy/alerts.yml` |
 | `blackbox` | — | `prom/blackbox-exporter`, module `http_2xx`, chỉ để probe `/readyz` |
-| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; sáu dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
+| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; bảy dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
 | `loki` | 3100 | Tùy chọn. Datasource đã khai báo; ship log bằng promtail/Docker log driver, API không tự ghi vào Loki |
 
 File này ghi đè env của `server`: `METRICS_ADDR=0.0.0.0:9090`,
@@ -86,7 +86,12 @@ request đó bất kể tỷ lệ; từ tài khoản thường bị bỏ qua. Fl
 
 Listener `METRICS_ADDR` phục vụ `/metrics` với Go/process collector cộng mọi
 metric `uniwork_*`: `http_*` (`method,route,status` — route là pattern Chi,
-không phải path thật), `db_pool_*`, `db_query_duration_seconds{query_name}`,
+không phải path thật; `http_client_requests_total{platform,client_version,client_update,status_class}` cho bản
+app mobile/desktop, nhãn chỉ nhận giá trị từ request đã xác thực, giới hạn theo tiến trình (giá trị không ai gửi trong
+24 giờ nhường chỗ) và `other` cho phần dư; access log còn có `client_update_id`), `db_pool_*`, `db_query_duration_seconds{query_name}`,
 `outbox_*`, `realtime_*`, `meeting_*`, `ai_*`, `web_vitals_seconds{metric,route_pattern}`,
+`mobile_events_total{event,result,os,client_version,client_update}` và
+`mobile_event_duration_seconds{event,os,client_version}` (sự kiện sản phẩm ẩn danh của UniChat mobile,
+`POST /api/v1/mobile/events`; dashboard `unichat-mobile.json`),
 `audit_events_*`, `notifications_*`, `build_info{version,commit}`. Không đổi
 tên metric cũ; alert và dashboard tham chiếu tên trong `server/internal/metrics/*.go`.

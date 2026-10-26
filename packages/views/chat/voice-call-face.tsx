@@ -9,10 +9,10 @@ import { tintSolidClass, type Tint } from "@uniwork/ui/components/common/icon-ti
 import { cn } from "@uniwork/ui/lib/utils";
 import { WorkspaceIcon } from "../layout/workspace-icon";
 import { workspaceTint } from "../layout/workspace-rail";
-import { identityTint } from "../people/identity-tint";
-import { initialsOf, roomInitialsOf } from "./chat-initials";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import { ChatRoomPhoto } from "./chat-room-mark";
-import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 type Face = { tint: Tint; text: string; square: boolean; imageUrl?: string };
 

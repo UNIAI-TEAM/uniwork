@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, formatVoiceCallDuration } from "./call-log-display";
+import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, missedCallCount } from "./call-log-display";
 import { i18n } from "./i18n/singleton";
 
 const call = (outcome: string, caller: string, extra: { video?: boolean; duration_seconds?: number } = {}) => ({
@@ -35,14 +35,6 @@ describe("callLogView (parity with the web call-log row)", () => {
   it("an outcome it does not know still says a call happened", () => {
     expect(label(callLogView(call("", "peer"), "me"))).toBe("Cuộc gọi");
     expect(callLogView(call("", "peer"), "me").missed).toBe(false);
-  });
-});
-
-describe("formatVoiceCallDuration (copy of packages/views/chat/voice-call-duration.ts)", () => {
-  it("formats M:SS under an hour and H:MM:SS above, never negative", () => {
-    expect(formatVoiceCallDuration(125)).toBe("2:05");
-    expect(formatVoiceCallDuration(3_725)).toBe("1:02:05");
-    expect(formatVoiceCallDuration(-3)).toBe("0:00");
   });
 });
 
@@ -115,5 +107,12 @@ describe("callLogSections", () => {
 
   it("an unreadable time joins an untitled group instead of a wrong day", () => {
     expect(shape(callLogSections([log("x", "")], { userId: "me", filter: "all", locale: "vi", labels, now }))).toEqual([["", "x"]]);
+  });
+});
+
+describe("missedCallCount", () => {
+  it("counts only the calls that rang for the reader and went unanswered", () => {
+    expect(missedCallCount([call("unanswered", "peer"), call("unanswered", "me"), call("completed", "peer"), call("unanswered", "other")], "me")).toBe(2);
+    expect(missedCallCount([], "me")).toBe(0);
   });
 });

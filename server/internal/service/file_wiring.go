@@ -17,6 +17,7 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		chat.FileReferenceProvider(),
 		chat.VoiceRecordingFileReferenceProvider(),
 		meetings.FileReferenceProvider(),
+		MeetingTranscriptionProvider{},
 		AuditExportReferenceProvider(),
 		PrivacyExportReferenceProvider(),
 		DocumentDownloadReferenceProvider(),
@@ -27,5 +28,7 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		DocumentAssetReferenceProvider{},
 		// Office engine output while a job is live (G2-02).
 		OfficeJobOutputProvider{},
+		// Files an Ask UNI question carried (UNI-2119).
+		AskUniAttachmentProvider{},
 	}
 }

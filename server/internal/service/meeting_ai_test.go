@@ -49,17 +49,6 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("%d %v", len(segs.Items), err)
 	}
 
-	s.rt.STTAgentSecret = "agent-secret"
-	identity := meetings.IdentityForParticipant(seg.ParticipantID.String)
-	agentSeg, err := s.AppendTranscriptFromAgent(ctx, m.ID, identity, "", "Agent line", time.Time{})
-	if err != nil || agentSeg.Text != "Agent line" {
-		t.Fatalf("agent transcript: %+v %v", agentSeg, err)
-	}
-	segs, err = s.Transcript(ctx, ua.ID, m.ID, FeedQuery{})
-	if err != nil || len(segs.Items) != 2 {
-		t.Fatalf("want 2 segments, got %d %v", len(segs.Items), err)
-	}
-
 	// AI off → 503-coded error; on → row stored with JSON columns.
 	var ce CodedError
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !errors.As(err, &ce) || ce.Code != "ai_not_configured" {
@@ -84,8 +73,11 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if err != nil || latest == nil || latest.ID != sum.ID {
 		t.Fatalf("%+v %v", latest, err)
 	}
-	// Non-host member cannot summarize; can read.
+	// A non-host participant cannot summarize; can read.
 	addMember(t, s, w.ID, ub.ID)
+	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.Summarize(ctx, ub.ID, m.ID, "vi"); err == nil {
 		t.Fatal("member summarized")
 	}
@@ -104,20 +96,27 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
-	res, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{
-		SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, AssigneeID: &ub.ID}},
-	})
-	if err != nil || len(res.Tasks) != 1 {
-		t.Fatalf("%d %v", len(res.Tasks), err)
+	// The stored summary's items are the meeting's action items; the host
+	// reads and converts one.
+	items, err := s.ActionItems(ctx, ua.ID, m.ID)
+	if err != nil || len(items.Items) != 1 || items.Items[0].Item.Title != "Gửi báo cáo" || items.Items[0].Item.SummaryID.String != sum.ID {
+		t.Fatalf("%+v %v", items, err)
 	}
-	tasks := res.Tasks
-	if tasks[0].Title != "Gửi báo cáo" || !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[0].AssigneeID.String != ub.ID {
-		t.Fatalf("stored item with the host's assignee: %+v", tasks[0])
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID, AssigneeID: &ub.ID}})
+	if err != nil || len(links) != 1 {
+		t.Fatalf("%+v %v", links, err)
 	}
-	if tasks[0].OriginType.String != "meeting" || tasks[0].OriginID.String != m.ID {
-		t.Fatalf("origin: type=%s id=%s", tasks[0].OriginType.String, tasks[0].OriginID.String)
+	task, err := s.q.GetTask(ctx, links[0].TaskID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID}); err == nil {
+	if task.Title != "Gửi báo cáo" || strings.Contains(task.Description, "Từ cuộc họp") || task.AssigneeID.String != ub.ID {
+		t.Fatalf("stored item with the host's assignee: %+v", task)
+	}
+	if task.OriginType.String != "meeting" || task.OriginID.String != m.ID {
+		t.Fatalf("origin: type=%s id=%s", task.OriginType.String, task.OriginID.String)
+	}
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", nil); err == nil {
 		t.Fatal("empty items accepted")
 	}
 
@@ -263,7 +262,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
 		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
 	}
-	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@3" {
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@7" {
 		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
@@ -729,10 +728,64 @@ func TestSummaryWindowKeepsTheEnd(t *testing.T) {
 	}
 }
 
-// G18: a long meeting's summary is built from its end - where the decisions
-// are - plus a short opening, with the cut marked, not from its first lines.
+// G18, benchmark #8: a long meeting is read whole, in parts, up to
+// summaryMaxParts budgets of transcript; past that its middle is dropped
+// with the cut marked, keeping a short opening and the end, where the
+// decisions are, and the summary says it is partial.
 func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	var prompts []string
+	fake := &provider.Fake{Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		prompts = append(prompts, req.Messages[len(req.Messages)-1].Content)
+		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s.AI = ai.NewGateway(s.q, &lockedFake{Fake: fake}, NewAIQuota(s.ent), nil, ai.Options{})
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Long")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Add(-2 * time.Hour)
+	filler := strings.Repeat("x", 996)
+	for i := 0; i < 300; i++ {
+		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
+	}
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Parent spec §7.8: a summary that lost lines says so.
+	if !sum.Partial {
+		t.Fatal("summary of a windowed transcript is not marked partial")
+	}
+	if len(prompts) != summaryMaxParts+1 {
+		t.Fatalf("model calls = %d, want %d parts and the reduce", len(prompts), summaryMaxParts)
+	}
+	all := strings.Join(prompts[:summaryMaxParts], "\n")
+	for _, want := range []string{"L000", "L020", "L120", "L299", "lines omitted)"} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("parts lack %q", want)
+		}
+	}
+	for _, gone := range []string{"L040", "L060", "L080"} {
+		if strings.Contains(all, gone) {
+			t.Fatalf("parts kept %q from the middle", gone)
+		}
+	}
+	if !(strings.Index(all, "L020") < strings.Index(all, "lines omitted)") && strings.Index(all, "lines omitted)") < strings.Index(all, "L299")) {
+		t.Fatal("omission marker is not between the opening and the end")
+	}
+}
+
+// Parent spec §7.8: MEETING_SUMMARY_MAX_RUNES lifts the transcript budget, so
+// the same long meeting is summarized whole and not marked partial; the
+// lease grows with the budget.
+func TestSummarizeLongBudgetReadsTheWholeMeeting(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	s.rt.SummaryMaxRunes = 400000
+	if b := s.summaryBudget(); b.rows != 20000 || b.lease != 2*(summaryRunLease+4*time.Minute) {
+		t.Fatalf("budget %+v", b)
+	}
 	ctx := context.Background()
 	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
@@ -747,22 +800,12 @@ func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
 	}
-	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
 		t.Fatal(err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
-	for _, want := range []string{"L000", "L006", "L048", "L099", "(41 lines omitted)"} {
-		if !strings.Contains(prompt, want) {
-			t.Fatalf("prompt lacks %q", want)
-		}
-	}
-	for _, gone := range []string{"L007", "L030", "L047"} {
-		if strings.Contains(prompt, gone) {
-			t.Fatalf("prompt kept %q from the middle", gone)
-		}
-	}
-	if !(strings.Index(prompt, "L006") < strings.Index(prompt, "(41 lines omitted)") &&
-		strings.Index(prompt, "(41 lines omitted)") < strings.Index(prompt, "L048")) {
-		t.Fatal("omission marker is not between the opening and the end")
+	if sum.Partial || !strings.Contains(prompt, "L030") || strings.Contains(prompt, "lines omitted") {
+		t.Fatalf("partial=%v, middle kept=%v", sum.Partial, strings.Contains(prompt, "L030"))
 	}
 }

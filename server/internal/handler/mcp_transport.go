@@ -52,18 +52,24 @@ type mcpBudget interface {
 	Allow(ctx context.Context, subject string) bool
 }
 
-// mcpWriteRefusal is why a write tool may not run for p, or "" when it may.
-// The budget is spent only by a call that would otherwise run.
-func mcpWriteRefusal(ctx context.Context, p service.McpPrincipal, budget mcpBudget) string {
-	switch {
-	case !p.WriteOpen:
-		return "write_disabled: the organization or UniWork has not opened write access for AI apps; only reading is available"
-	case !p.CanWrite():
-		return "insufficient_scope: this connection may only read; reconnect UniWork in the AI app and allow create and edit"
-	case budget != nil && !budget.Allow(ctx, p.GrantID):
-		return "write_rate_limited: too many changes in the last minute; wait a minute and try again"
+// mcpRefusalTexts is the text of each code the shared write gate answers.
+var mcpRefusalTexts = map[string]string{
+	"write_disabled":     "write_disabled: the organization or UniWork has not opened write access for AI apps; only reading is available",
+	"insufficient_scope": "insufficient_scope: this connection may only read; reconnect UniWork in the AI app and allow create and edit",
+	"write_rate_limited": "write_rate_limited: too many changes in the last minute; wait a minute and try again",
+}
+
+// mcpRefusalText is why a write tool may not run for p, or "" when it may.
+func mcpRefusalText(ctx context.Context, p service.McpPrincipal, budget mcpBudget) string {
+	var spend func(context.Context) bool
+	if budget != nil {
+		spend = func(c context.Context) bool { return budget.Allow(c, p.GrantID) }
 	}
-	return ""
+	code := p.WriteGate(spend).Refusal(ctx)
+	if text, ok := mcpRefusalTexts[code]; ok {
+		return text
+	}
+	return code
 }
 
 // mcpHideWriteTools takes the write tools out of tools/list for a principal
@@ -167,7 +173,7 @@ func newMcpHandler(tools ai.Registry, metrics service.McpMetrics, budget mcpBudg
 			// hides every tool whose Kind is not read, so the call gate must
 			// refuse the same set, or a tool with no Kind runs unchecked.
 			if t.Kind != ai.ToolRead {
-				if why := mcpWriteRefusal(ctx, p, budget); why != "" {
+				if why := mcpRefusalText(ctx, p, budget); why != "" {
 					metrics.ObserveTool(t.Name, kind, "refused", time.Since(start))
 					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: why}}}, nil
 				}

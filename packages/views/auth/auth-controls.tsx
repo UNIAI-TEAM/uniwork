@@ -11,6 +11,10 @@ import { cn } from "@uniwork/ui/lib/utils";
  * shape: when these lived in each screen, login drifted to a 48px pill while
  * the screen one click away kept a 40px rectangle.
  */
+/** Inline text link with the same 44px coarse-pointer floor the Button primitive carries. */
+export const AUTH_LINK =
+  "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
+
 export const AUTH_INPUT = "h-11 rounded-xl text-body pointer-coarse:h-11";
 
 /**
@@ -54,7 +58,7 @@ export function AuthSubmit({
         {pending ? (
           <Spinner strokeWidth={1.75} />
         ) : (
-          <ArrowRight className="size-4" strokeWidth={1.75} />
+          <ArrowRight className="size-4" />
         )}
       </span>
     </Button>

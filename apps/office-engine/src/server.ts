@@ -33,7 +33,7 @@ import {
   type OfficeFormat,
 } from "@uniwork/office-contracts";
 import { nodeSha256Hex } from "@uniwork/office-engine/node";
-import { capabilityResult, isBound } from "./capability.ts";
+import { capabilityResult, docsPdfRendererMissing, isBound } from "./capability.ts";
 import { createJobDir, INPUT_NAME, logCleanupFailure, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { boundaryFailure, notFoundRoute, toFailure, unauthenticated, type HttpFailure } from "./errors.ts";
@@ -379,7 +379,8 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     if (!officeFormats.includes(format as OfficeFormat)) {
       throw new EngineContractViolation("query.format", "enum_required", "got " + JSON.stringify(format));
     }
-    send(res, 200, capabilityResult(format as OfficeFormat, deps.config.limits.maxInputBytes));
+    const pdfMissing = docsPdfRendererMissing(deps.config.docsPdfAssetsDir, deps.jobs.sandboxActive);
+    send(res, 200, capabilityResult(format as OfficeFormat, deps.config.limits.maxInputBytes, pdfMissing));
     return;
   }
   if (req.method === "POST" && path === "/v1/jobs") {

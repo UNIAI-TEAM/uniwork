@@ -24,6 +24,10 @@ import (
 //	DELETE /api/v1/me/sessions/{sessionId}
 //	POST  /api/v1/me/sessions/revoke-others
 //	POST  /api/v1/me/delete         (credential rate limit)
+//	PUT   /api/v1/me/ai-consent
+//	DELETE /api/v1/me/ai-consent
+//	PUT   /api/v1/me/ask-uni-mode
+//	PUT   /api/v1/me/ask-uni-memory
 func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",
@@ -135,10 +139,56 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		description: "Ẩn danh hóa tài khoản theo Nghị định 13: cần mật khẩu, hoặc mã MFA, hoặc gõ lại email. " +
 			"Sai bằng chứng không bao giờ là 401 (client sẽ làm mới phiên rồi gửi lại): 403 password_incorrect khi sai mật khẩu, " +
 			"403 mfa_code_incorrect khi sai mã MFA, 400 email_confirmation_mismatch khi email gõ lại không khớp. " +
-			"409 owner_must_transfer khi còn là chủ sở hữu tổ chức.",
+			"409 owner_must_transfer khi còn là chủ sở hữu tổ chức; error.fields nêu tổ chức đó (organization_name, organization_slug) " +
+			"và can_close khi chủ sở hữu là thành viên duy nhất của tổ chức đang hoạt động: gửi lại kèm close_organization = slug đó " +
+			"để đóng tổ chức và xóa tài khoản trong một giao dịch (400 close_confirm_mismatch khi slug không khớp, " +
+			"409 organization_has_members khi tổ chức vừa có thêm thành viên).",
 		tags: []string{"me"},
 		sdi:  sdi.DeleteAccountSDI{},
 		sdo:  sdo.StatusSDO{},
 		auth: true,
+	})
+	r.Put("/me/ai-consent", h.SetAIConsent, apiOp{
+		summary: "Agree to AI processing",
+		description: "Ghi lại người dùng đã đồng ý thông báo xử lý AI (Apple 5.1.2(i)): tên nhà cung cấp và dữ liệu được gửi. " +
+			"version là phiên bản thông báo; đồng ý lại cùng phiên bản không đổi gì. Ghi audit user.ai_consent_granted.",
+		tags: []string{"me"},
+		sdi:  sdi.SetAIConsentSDI{},
+		sdo:  sdo.UserSDO{},
+		auth: true,
+	})
+	r.Put("/me/push-previews", h.SetPushPreviews, apiOp{
+		summary: "Show or hide previews in pushes",
+		description: "Người dùng chọn push có hiện nội dung hay không (show bắt buộc). Ẩn thì push chỉ nói loại việc vừa xảy ra (tin riêng, lượt nhắc tên, cuộc gọi nhỡ…), không tên người, phòng, việc, tài liệu hay chữ trong tin; chuông cuộc gọi đến vẫn hiện tên người gọi. " +
+			"Chính sách ẩn của tổ chức (PUT /orgs/{org}/push-preview-policy) thắng lựa chọn này. Không đổi gì thì không ghi audit; có đổi thì ghi user.push_previews_changed.",
+		tags: []string{"me"},
+		sdi:  sdi.SetPushPreviewsSDI{},
+		sdo:  sdo.UserSDO{},
+		auth: true,
+	})
+	r.Put("/me/ask-uni-mode", h.SetAskUniMode, apiOp{
+		summary: "Set my Ask UNI mode",
+		description: "Chế độ Hỏi UNI của người dùng, nhớ theo người: ask (Hỏi trước), plan (Kế hoạch) hoặc auto (Tự động); giá trị khác -> 400. " +
+			"Mỗi lượt hỏi gửi mode của nó, và server hạ xuống trần của tổ chức. Là cài đặt hiển thị nên không ghi audit. Cờ ask_uni_actions tắt thì 403 ai_actions_disabled.",
+		tags: []string{"me"},
+		sdi:  sdi.AskUniModeSDI{},
+		sdo:  sdo.AskUniModeSDO{},
+		auth: true,
+	})
+	r.Put("/me/ask-uni-memory", h.SetAskUniMemory, apiOp{
+		summary: "Switch my Ask UNI memory on or off",
+		description: "Công tắc Dùng bộ nhớ của người dùng, một công tắc cho mọi tổ chức; tắt thì UNI không đọc và không đề xuất bộ nhớ, các mục vẫn giữ. " +
+			"Cờ ask_uni_memory phải bật ở ít nhất một tổ chức người dùng đang là thành viên, không thì 403 ai_memory_disabled. Là cài đặt của chính người dùng nên không ghi audit.",
+		tags:   []string{"me"},
+		sdi:    sdi.AiMemorySwitchSDI{},
+		status: http.StatusNoContent,
+		auth:   true,
+	})
+	r.Delete("/me/ai-consent", h.WithdrawAIConsent, apiOp{
+		summary:     "Withdraw AI processing consent",
+		description: "Rút lại đồng ý xử lý AI; lần dùng AI tiếp theo trên UniChat mobile hỏi lại. Ghi audit user.ai_consent_withdrawn.",
+		tags:        []string{"me"},
+		sdo:         sdo.UserSDO{},
+		auth:        true,
 	})
 }

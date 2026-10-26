@@ -6,10 +6,19 @@ const notifications = vi.hoisted(() => ({
   requestPermissionsAsync: vi.fn(async () => ({ granted: true })),
   getExpoPushTokenAsync: vi.fn(async () => ({ data: "ExponentPushToken[abc]" })),
   getPermissionsAsync: vi.fn(async () => ({ granted: true })),
+  addPushTokenListener: vi.fn((listener: (token: { type: string; data: unknown }) => void) => {
+    tokenListeners.add(listener);
+    return { remove: () => tokenListeners.delete(listener) };
+  }),
 }));
+const tokenListeners = vi.hoisted(() => new Set<(token: { type: string; data: unknown }) => void>());
+/** FCM or APNs hands the app a device token (a fetch of the token emits it too). */
+function emitDeviceToken(data: unknown) {
+  for (const listener of [...tokenListeners]) listener({ type: "android", data });
+}
 vi.mock("expo-notifications", () => notifications);
 
-// the push preference's one SecureStore key, in memory
+// the push preference's SecureStore key and the VoIP token kept for a later build, in memory
 const store = vi.hoisted(() => ({ values: new Map<string, string>(), failRead: false }));
 vi.mock("expo-secure-store", () => ({
   getItemAsync: vi.fn(async (key: string) => {
@@ -18,6 +27,9 @@ vi.mock("expo-secure-store", () => ({
   }),
   setItemAsync: vi.fn(async (key: string, value: string) => {
     store.values.set(key, value);
+  }),
+  deleteItemAsync: vi.fn(async (key: string) => {
+    store.values.delete(key);
   }),
 }));
 
@@ -36,8 +48,13 @@ beforeEach(() => {
   store.values.clear();
   store.failRead = false;
   vi.spyOn(console, "info").mockImplementation(() => undefined);
+  // data/logger.ts writes to the console in a development build only.
+  (globalThis as { __DEV__?: boolean }).__DEV__ = true;
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  delete (globalThis as { __DEV__?: boolean }).__DEV__;
+  vi.restoreAllMocks();
+});
 
 describe("registerPushToken", () => {
   it("skips registration without an EAS projectId and logs once", async () => {
@@ -61,13 +78,43 @@ describe("registerPushToken", () => {
     expect(notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
   });
 
-  it("creates the high-importance chat channel on Android first", async () => {
+  it("tells the server an Android build draws its own incoming call, so call pushes come data-only", async () => {
     const { registerPushToken } = await load();
-    await registerPushToken({ api, projectId: "p1", platform: "android" });
-    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("chat", expect.objectContaining({ importance: 4 }));
-    expect(notifications.setNotificationChannelAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      notifications.requestPermissionsAsync.mock.invocationCallOrder[0] ?? 0,
-    );
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({
+      endpoint: "ExponentPushToken[abc]",
+      keys: { p256dh: "", auth: "" },
+      platform: "android",
+      call_ui: true,
+      chat_quiet: true,
+    });
+    // Without the native module (callUI false) the server keeps the visible call push; an iPhone never says it.
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: false });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android", chat_quiet: true });
+    await registerPushToken({ api, projectId: "p1", platform: "ios", callUI: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "ios" });
+  });
+
+  it("creates the Android channels before the permission prompt", async () => {
+    const { registerPushToken } = await load();
+    const channels = vi.fn(async () => undefined);
+    await registerPushToken({ api, projectId: "p1", platform: "android", channels });
+    expect(channels).toHaveBeenCalledTimes(1);
+    expect(channels.mock.invocationCallOrder[0]).toBeLessThan(notifications.requestPermissionsAsync.mock.invocationCallOrder[0] ?? 0);
+    // No channels to create on iOS, and none asked for: registration goes on.
+    await registerPushToken({ api, projectId: "p1", platform: "ios", channels });
+    expect(channels).toHaveBeenCalledTimes(1);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "android" })).toBe("ExponentPushToken[abc]");
+  });
+
+  it("asks through the primer when given one, which decides instead of the bare system prompt", async () => {
+    const { registerPushToken } = await load();
+    const ask = vi.fn(async () => true);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", ask })).toBe("ExponentPushToken[abc]");
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    ask.mockResolvedValueOnce(false);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", ask })).toBeNull();
   });
 
   it("stops at a denied permission", async () => {
@@ -89,6 +136,14 @@ describe("unregisterPushToken", () => {
     await unregisterPushToken(api);
     expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
     expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ExponentPushToken[abc]" });
+  });
+
+  it("forgets the token without a call after a sign-out the server made", async () => {
+    const { forgetPushToken, registerPushToken, unregisterPushToken } = await load();
+    await registerPushToken({ api, projectId: "p1", platform: "ios" });
+    forgetPushToken();
+    await unregisterPushToken(api);
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
   });
 });
 
@@ -155,5 +210,265 @@ describe("push preference", () => {
     expect(await setPushEnabled(true, options)).toBe("ExponentPushToken[abc]");
     expect(store.values.get("push_enabled")).toBe("on");
     expect(api.subscribePush).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("watchPushTokenRotation", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("registers again when FCM or APNs replaces the device token, and drops the old Expo token", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "android", callUI: true });
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: true });
+    // Fetching the token at launch emits it: the first one seen is this registration's, not a rotation.
+    emitDeviceToken("fcm-1");
+    emitDeviceToken("fcm-1");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(1);
+
+    notifications.getExpoPushTokenAsync.mockResolvedValueOnce({ data: "ExponentPushToken[new]" });
+    emitDeviceToken("fcm-2");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+    expect(api.subscribePush).toHaveBeenLastCalledWith({
+      endpoint: "ExponentPushToken[new]",
+      keys: { p256dh: "", auth: "" },
+      platform: "android",
+      call_ui: true,
+      chat_quiet: true,
+    });
+    // Never a prompt: only a permission already granted counts.
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ExponentPushToken[abc]" });
+
+    stop();
+    emitDeviceToken("fcm-3");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an unchanged Expo token's subscription and does nothing for a process that registered none", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "ios" });
+    emitDeviceToken({ endpoint: "apns-1" });
+    emitDeviceToken({ endpoint: "apns-2" });
+    await flush();
+    expect(api.subscribePush).not.toHaveBeenCalled();
+
+    await registerPushToken({ api, projectId: "p1", platform: "ios" });
+    emitDeviceToken("apns-3");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("logs a failed registration and leaves the permission alone when it was taken back", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const stop = watchPushTokenRotation({ api, projectId: "p1", platform: "android" });
+    await registerPushToken({ api, projectId: "p1", platform: "android" });
+    emitDeviceToken("fcm-1");
+    api.subscribePush.mockRejectedValueOnce(new Error("offline"));
+    emitDeviceToken("fcm-2");
+    await flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    api.subscribePush.mockRejectedValueOnce("offline");
+    emitDeviceToken("fcm-3");
+    await flush();
+    expect(warn).toHaveBeenCalledTimes(2);
+    notifications.getPermissionsAsync.mockResolvedValueOnce({ granted: false });
+    emitDeviceToken("fcm-4");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(3);
+    stop();
+  });
+});
+
+// docs/adr/0038: an iPhone build with calls registers PushKit's token as a subscription of its own, which the server
+// sends CallKit's pushes to straight through APNs.
+describe("the VoIP token (an iPhone with calls)", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const VOIP = {
+    endpoint: "ab12",
+    keys: { p256dh: "", auth: "" },
+    platform: "ios",
+    transport: "apns_voip",
+    apns_environment: "production",
+    apns_bundle_id: "com.uniworkos.chat",
+  };
+
+  function fakeVoip(token: string | null = "ab12") {
+    let listener: (token: string) => void = () => undefined;
+    const off = vi.fn();
+    const voip = {
+      token: vi.fn(() => token),
+      environment: () => "production",
+      bundleId: () => "com.uniworkos.chat",
+      onToken: vi.fn((next: (token: string) => void) => {
+        listener = next;
+        return off;
+      }),
+    };
+    return { voip, emit: (next: string) => listener(next), off };
+  }
+
+  it("registers with the Expo token, without needing an EAS project or the notification permission", async () => {
+    notifications.requestPermissionsAsync.mockResolvedValueOnce({ granted: false });
+    const { registerPushToken } = await load();
+    const { voip } = fakeVoip();
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", voip })).toBeNull();
+    expect(api.subscribePush).toHaveBeenCalledWith(VOIP);
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip });
+    expect(api.subscribePush).toHaveBeenCalledTimes(2);
+  });
+
+  it("registers nothing with push off, or before PushKit hands a token over", async () => {
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip(null).voip });
+    store.values.set("push_enabled", "off");
+    await registerPushToken({ api, projectId: "p1", platform: "ios", voip: fakeVoip().voip });
+    expect(api.subscribePush).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed VoIP registration and still registers the Expo token", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    api.subscribePush.mockRejectedValueOnce(new Error("offline"));
+    const { registerPushToken } = await load();
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", voip: fakeVoip().voip })).toBe("ExponentPushToken[abc]");
+    api.subscribePush.mockRejectedValueOnce("offline");
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip().voip });
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("registers each token PushKit hands over later, and drops the one it replaced", async () => {
+    const { registerPushToken, watchPushTokenRotation } = await load();
+    const { voip, emit, off } = fakeVoip();
+    const stop = watchPushTokenRotation({ api, projectId: undefined, platform: "ios", voip });
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip });
+    voip.token.mockReturnValue("cd34");
+    emit("cd34");
+    await flush();
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ ...VOIP, endpoint: "cd34" });
+    expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ab12" });
+    // The same token again: registered again (an upsert), nothing dropped.
+    emit("cd34");
+    await flush();
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
+    // A token taken back, or one that comes with push off, registers nothing.
+    emit("");
+    store.values.set("push_enabled", "off");
+    emit("ef56");
+    await flush();
+    expect(api.subscribePush).toHaveBeenCalledTimes(3);
+    stop();
+    expect(off).toHaveBeenCalled();
+  });
+
+  it("goes with the Expo token when push is turned off, even one this process never registered", async () => {
+    const { registerPushToken, setPushEnabled } = await load();
+    const { voip } = fakeVoip();
+    await registerPushToken({ api, projectId: "p1", platform: "ios", voip });
+    await setPushEnabled(false, { api, projectId: "p1", platform: "ios", voip });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ExponentPushToken[abc]" }], [{ endpoint: "ab12" }]]);
+
+    const fresh = await load();
+    api.unsubscribePush.mockClear();
+    await fresh.setPushEnabled(false, { api, projectId: undefined, platform: "ios", voip });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    api.unsubscribePush.mockClear();
+    await fresh.setPushEnabled(false, { api, projectId: undefined, platform: "ios", voip: fakeVoip(null).voip });
+    await fresh.setPushEnabled(false, { api, projectId: undefined, platform: "ios" });
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
+  });
+
+  it("goes at sign-out with the Expo token, and is forgotten after a sign-out the server made", async () => {
+    const { forgetPushToken, registerPushToken, unregisterPushToken } = await load();
+    const { voip } = fakeVoip();
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip });
+    await unregisterPushToken(api);
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    await registerPushToken({ api, projectId: "p1", platform: "ios", voip });
+    forgetPushToken();
+    await unregisterPushToken(api);
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
+  });
+  // A TestFlight build with calls, then the App Store build without them as an update: the apns_voip subscription
+  // stays tied to the same session, the server rings it with VoIP (and so skips the Expo "đang gọi" alert of that
+  // session) while unichat_mobile_calls_ios is on for the person, and nothing on the phone has PushKit to ring.
+  it("is dropped by a later iPhone build without calls, which has no PushKit to name it", async () => {
+    const first = await load();
+    await first.registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip().voip });
+    expect(store.values.get("push_voip_token")).toBe("ab12");
+
+    const update = await load();
+    await update.registerPushToken({ api, projectId: "p1", platform: "ios", voip: null });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.has("push_voip_token")).toBe(false);
+    await update.registerPushToken({ api, projectId: "p1", platform: "ios", voip: null });
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
+  });
+
+  it("is kept to drop at the next launch when the server cannot be told, and Android never looks", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    store.values.set("push_voip_token", "ab12");
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: undefined, platform: "android" });
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
+    api.unsubscribePush.mockRejectedValueOnce(new Error("offline"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    api.unsubscribePush.mockRejectedValueOnce("offline");
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(store.values.get("push_voip_token")).toBe("ab12");
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(api.unsubscribePush).toHaveBeenLastCalledWith({ endpoint: "ab12" });
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("drops the token PushKit replaced while the app was closed", async () => {
+    store.values.set("push_voip_token", "ab12");
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip("cd34").voip });
+    expect(api.subscribePush).toHaveBeenCalledWith({ ...VOIP, endpoint: "cd34" });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.get("push_voip_token")).toBe("cd34");
+  });
+
+  it("goes with push turned off or a sign-out in a build without calls, and is forgotten with the session", async () => {
+    store.values.set("push_voip_token", "ab12");
+    const off = await load();
+    await off.setPushEnabled(false, { api, projectId: undefined, platform: "ios", voip: null });
+    expect(api.unsubscribePush.mock.calls).toEqual([[{ endpoint: "ab12" }]]);
+    expect(store.values.has("push_voip_token")).toBe(false);
+
+    store.values.set("push_voip_token", "ab12");
+    const signOut = await load();
+    await signOut.unregisterPushToken(api);
+    expect(api.unsubscribePush).toHaveBeenCalledTimes(2);
+    expect(store.values.has("push_voip_token")).toBe(false);
+
+    store.values.set("push_voip_token", "ab12");
+    const ended = await load();
+    ended.forgetPushToken();
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("registers still when the keychain cannot keep the token", async () => {
+    const { registerPushToken } = await load();
+    const set = (await import("expo-secure-store")).setItemAsync as unknown as ReturnType<typeof vi.fn>;
+    set.mockRejectedValueOnce(new Error("keychain locked"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios", voip: fakeVoip().voip });
+    expect(api.subscribePush).toHaveBeenCalledWith(VOIP);
+    expect(store.values.has("push_voip_token")).toBe(false);
+  });
+
+  it("reads as none when the keychain cannot be read", async () => {
+    const { registerPushToken } = await load();
+    store.values.set("push_voip_token", "ab12");
+    const get = (await import("expo-secure-store")).getItemAsync as unknown as ReturnType<typeof vi.fn>;
+    get.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("keychain locked"));
+    await registerPushToken({ api, projectId: undefined, platform: "ios" });
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
   });
 });

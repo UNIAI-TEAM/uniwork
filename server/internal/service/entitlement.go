@@ -29,6 +29,9 @@ const (
 	FeatureMeetingMinutes   = "meeting.participant_minutes"
 	FeatureMeetingRecording = "meeting.recording"
 	FeatureMeetingAISummary = "meeting.ai_summary"
+	// FeatureMeetingTranscription is live transcription minutes per month
+	// (spec 2026-10-20-meeting-scribe-agent-design D9), metered by the scribe.
+	FeatureMeetingTranscription = "meeting.transcription"
 	// FeatureStorageBytes is the Documents storage meter (C-01 §14.2):
 	// snapshot mode, counted by CountStorageBytesInOrganization.
 	FeatureStorageBytes = "storage.bytes"
@@ -40,7 +43,7 @@ const (
 // same change that adds its first Consume/Can call.
 var wiredFeatures = map[string]bool{
 	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureTasksMax: true,
-	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
+	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true, FeatureMeetingTranscription: true,
 	FeatureAITokens: true, FeatureStorageBytes: true,
 	FeatureOfficeAIBYOK: true, FeatureOfficeAICloud: true,
 }

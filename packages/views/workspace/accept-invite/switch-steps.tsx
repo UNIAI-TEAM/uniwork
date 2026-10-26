@@ -76,7 +76,7 @@ export function SwitchProgress({ step }: { step: number }) {
                           : "text-muted-foreground ring-input",
                     )}
                   >
-                    {done ? <Check aria-hidden className="size-3.5" strokeWidth={2.5} /> : <span aria-hidden>{number}</span>}
+                    {done ? <Check aria-hidden className="size-3.5" /> : <span aria-hidden>{number}</span>}
                   </StepperIndicator>
                   {number < SWITCH_STEPS.length ? (
                     <StepperSeparator className={cn("mr-2 transition-colors", done ? "bg-primary" : "bg-border")} />

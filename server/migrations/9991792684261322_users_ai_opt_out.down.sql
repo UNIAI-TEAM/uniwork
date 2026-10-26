@@ -1,0 +1,1 @@
+ALTER TABLE users DROP COLUMN IF EXISTS ai_opt_out_at;

@@ -3,7 +3,7 @@
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ChatPersonCard, chatPersonFaceClass, useChatPersonMessage } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 
 type SenderProfile = {
   user_id: string;

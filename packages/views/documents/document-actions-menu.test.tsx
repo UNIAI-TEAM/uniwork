@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { usePageExportUnavailable } from "@uniwork/core/documents/hooks";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -18,7 +21,7 @@ import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommen
 
 const { t } = initI18n();
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(() => "toast-1"), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 /** The labelled action a sonner toast option carries (our shelve undo). */
@@ -105,6 +108,7 @@ async function openMenu() {
 beforeEach(() => {
   requestMock.mockReset();
   requestMock.mockImplementation(() => Promise.resolve({}));
+  usePageExportUnavailable.setState({ formats: [] });
 });
 
 afterEach(() => {
@@ -175,6 +179,7 @@ describe("DocumentHeaderActions", () => {
     const doc = mount({ documents: { default: true } });
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" }));
     expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "document", id: doc.id, label: doc.title });
+    expect(useAiPanelStore.getState().page).toEqual({ kind: "document", id: doc.id, label: doc.title });
   });
 
   it("still shows Ask UNI when comments are disabled", async () => {
@@ -192,7 +197,9 @@ describe("DocumentActionsMenu", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.access_log") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.copy") })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: t("documents.actions.archive") })).toBeInTheDocument();
+    const archive = screen.getByRole("menuitem", { name: t("documents.actions.archive") });
+    // The destructive entry sits apart, after a separator.
+    expect(archive.previousElementSibling).toHaveAttribute("role", "separator");
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
   });
 
@@ -485,6 +492,174 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
   });
 });
 
+
+describe("DocumentActionsMenu page export (UNI-2004)", () => {
+  const page = () => documentFixture({ kind: "page", file: null, title: "Biên bản họp", my_level: "view" });
+  /** `flags` for the host; the page's organization answers `orgFlags` (by default the same). */
+  const renderWithFlags = (
+    doc: Document,
+    flags: Record<string, { default: boolean }>,
+    orgFlags: Record<string, boolean> = Object.fromEntries(Object.entries(flags).map(([key, flag]) => [key, flag.default])),
+    served: readonly string[] | null = ["docx", "pdf"],
+  ) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["office-public-config", ORG], { flags: orgFlags });
+    // The deployment renders both unless a test asks the server (served = null).
+    if (served) client.setQueryData(documentKeys.pageExportFormats(WS, doc.id), served);
+    return render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider(flags))}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DocumentActionsMenu wsId={WS} doc={doc} />
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+        undefined,
+        client,
+      ),
+    );
+  };
+  // follow-6: what the server answers for the formats it renders.
+  const formats = (list: unknown) =>
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/documents/d1/export" ? { formats: list } : {}),
+    );
+  const stubSave = () => {
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:page"), revokeObjectURL: vi.fn() });
+    return vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  };
+
+  it("lets a reader export a page as DOCX and saves the file under the server's name", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("PK", { status: 200, headers: { "Content-Disposition": 'attachment; filename="bien-ban.docx"' } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const click = stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/v1/documents/d1/export");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ format: "docx" });
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe("bien-ban.docx");
+    expect(toast.loading).toHaveBeenCalledWith(t("documents.actions.exporting", { format: "DOCX" }));
+    expect(toast.dismiss).toHaveBeenCalledWith("toast-1");
+  });
+
+  it("names a file the server did not name after the title, without path characters", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("%PDF-", { status: 200 })));
+    const click = stubSave();
+    renderWithFlags(documentFixture({ kind: "page", file: null, title: 'Q4/2026: "Kế hoạch"', my_level: "view" }), {
+      page_export: { default: true },
+    });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe("Q4-2026- -Kế hoạch-.pdf");
+  });
+
+  it("runs one export at a time: the items wait while one is under way", async () => {
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    toast.loading.mockClear();
+    stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await openMenu();
+    const docx = screen.getByRole("menuitem", { name: t("documents.actions.export_docx") });
+    expect(docx).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(docx);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toast.loading).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a retryable engine failure says to try again", 503, { code: "engine_overloaded", fields: { retryable: true } }, "export_failed"],
+    ["a permanent failure gives a next step, not try-again", 409, { code: "invalid_transition", fields: { retryable: false } }, "export_failed_permanent"],
+    ["a page too large to render says so", 413, { code: "upload_bounds", error_class: "quota", fields: { retryable: false } }, "export_too_large"],
+  ])("%s", async (_name, status, error, key) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: "x", ...error } }), { status, headers: { "Content-Type": "application/json" } }),
+      ),
+    );
+    stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t(`documents.actions.${key}`, { format: "DOCX" }), { id: "toast-1" }),
+    );
+  });
+
+  it("says the server cannot export the format when the PDF renderer is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: "engine_incompatible", message: "docs_pdf_assets_missing" } }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    stubSave();
+    const { unmount } = renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t("documents.actions.export_unavailable", { format: "PDF" }), { id: "toast-1" }),
+    );
+    // The deployment cannot render that format: the menu stops offering it, and keeps the other.
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    // For a while: a menu mounted again, on any page, still leaves it out.
+    unmount();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+  });
+
+  it("offers PDF only where the engine has the Docs renderer, and DOCX alone on an unreadable answer (follow-6)", async () => {
+    formats(["docx"]);
+    const { unmount } = renderWithFlags(page(), { page_export: { default: true } }, undefined, null);
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+    unmount();
+    formats("docx, pdf");
+    renderWithFlags(page(), { page_export: { default: true } }, undefined, null);
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+  });
+
+  it("reads page_export where the export route does: at the page's organization", async () => {
+    const { unmount } = renderWithFlags(page(), { page_export: { default: false } }, { page_export: true });
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    unmount();
+    renderWithFlags(page(), { page_export: { default: true } }, { page_export: false });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+  });
+
+  it("offers no export when page_export is off, or on a file document", async () => {
+    const { unmount } = renderWithFlags(page(), { page_export: { default: false } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+    unmount();
+    renderWithFlags(documentFixture(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+  });
+});
 
 describe("DocumentActionsMenu ?panel=versions (UNI-2012)", () => {
   it("opens the version history for any reader, then drops the parameter", async () => {

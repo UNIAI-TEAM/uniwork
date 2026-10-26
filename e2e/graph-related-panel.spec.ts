@@ -18,17 +18,18 @@ test("a task made from a meeting shows where it came from and who owned it", asy
   const meeting = await createInstantMeeting(page, api, host.token, host.wsId, "Giao ban đồ thị");
 
   // CI runs without an AI provider, so the summary the host would generate is
-  // seeded; the tasks are then made the way the host makes them, by summary
-  // id and item index.
-  const summaryId = await seedMeetingSummary(meeting.id, [{ title: "Gửi báo giá e2e" }]);
-  const latest = await page.request.get(`${api}/api/v1/meetings/${meeting.id}/summary`, { headers: auth });
-  expect(latest.ok(), await latest.text()).toBeTruthy();
-  expect(((await latest.json()) as { summary?: { id?: string } }).summary?.id).toBe(summaryId);
-  const created = await page.request.post(`${api}/api/v1/meetings/${meeting.id}/summary/tasks`, {
-    headers: auth, data: { summary_id: summaryId, items: [{ index: 0, assignee_id: null, due_date: null }] },
+  // seeded with its action items; the task is then made the way the host
+  // makes it, by converting the pending item.
+  await seedMeetingSummary(meeting.id, [{ title: "Gửi báo giá e2e" }]);
+  const listed = await page.request.get(`${api}/api/v1/meetings/${meeting.id}/action-items`, { headers: auth });
+  expect(listed.ok(), await listed.text()).toBeTruthy();
+  const { items: [item] } = (await listed.json()) as { items: { id: string }[] };
+  const created = await page.request.post(`${api}/api/v1/meetings/${meeting.id}/action-items/convert`, {
+    headers: auth, data: { items: [{ action_item_id: item!.id, assignee_id: null, due_date: null }] },
   });
   expect(created.ok(), await created.text()).toBeTruthy();
-  const { task_ids: [taskId] } = (await created.json()) as { task_ids: string[] };
+  const { links: [link] } = (await created.json()) as { links: { task_id: string }[] };
+  const taskId = link!.task_id;
 
   const idOf = async (token: string) =>
     ((await (await page.request.get(`${api}/api/v1/me`, { headers: { authorization: `Bearer ${token}` } })).json()) as { user: { id: string } }).user.id;

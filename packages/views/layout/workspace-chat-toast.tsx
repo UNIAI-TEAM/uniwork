@@ -16,7 +16,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { chatPersonFaceClass } from "../chat/chat-person-card";
-import { deserializeMessageBodyToComposerDraft } from "../chat/chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { useNavigation } from "../navigation";
 import { notificationTitleKey } from "../notifications/notification-title";
 import { useWorkspace } from "./workspace-context";

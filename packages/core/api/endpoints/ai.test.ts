@@ -93,6 +93,11 @@ describe("ai endpoints", () => {
     expect(drifted.summary).toBe("Lệch");
     expect(drifted.highlights).toEqual(["a"]);
     expect(drifted.highlight_items).toEqual([]);
+    // The same for the action items: one drifted list empties alone (the phone reads this schema too).
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Lệch", action_items: [{ owner: "An" }] }));
+    const noActions = await chatCatchUp("ws1", { room_id: "r1" });
+    expect(noActions.summary).toBe("Lệch");
+    expect(noActions.action_items).toEqual([]);
   });
 
   it("conversations and messages degrade to empty lists", async () => {
@@ -109,6 +114,25 @@ describe("ai endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     await deleteAiConversation("c1");
     expect((vi.mocked(fetch).mock.calls[4]![1] as RequestInit).method).toBe("DELETE");
+  });
+
+  it("listAiConversations sends q and degrades on a malformed answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: [{ id: "c1" }] }));
+    await listAiConversations("ws1", "viec tre");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toMatch(/\/ai\/conversations\?q=viec%20tre$/);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ conversations: 5 }));
+    expect(await listAiConversations("ws1", "x")).toEqual([]);
+  });
+
+  it("listAiMessages defaults malformed steps, followups, focus and mentions", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, steps: "x", followups: 3, focus: 1, mentions: {} }] }));
+    const [m] = await listAiMessages("c1");
+    expect(m).toMatchObject({ steps: [], followups: [], focus: null, mentions: [] });
+  });
+
+  it("listAiMessages reads the answering model and defaults a malformed one to Auto", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, model: "opus" }, { ...message, id: "m2", model: 7 }, { ...message, id: "m3" }] }));
+    expect((await listAiMessages("c1")).map((m) => m.model)).toEqual(["opus", "", ""]);
   });
 
   it("listAiMessages keeps a message whose notice is malformed and defaults it to empty", async () => {
@@ -130,10 +154,10 @@ describe("ai endpoints", () => {
   });
 
   it("getAiCapabilities reads models and degrades a malformed model list without disabling AI", async () => {
-    const m = { key: "sonnet", speed: 4, intelligence: 4, cost: 3, enabled: true };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m], auto_model: "sonnet" }));
+    const m = { key: "sonnet", provider: "anthropic", speed: 4, intelligence: 4, cost: 3, enabled: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, models: [m, { ...m, key: "opus", provider: 3 }], auto_model: "sonnet" }));
     const caps = await getAiCapabilities("ws1");
-    expect(caps.models).toEqual([m]);
+    expect(caps.models).toEqual([m, { ...m, key: "opus", provider: "" }]);
     expect(caps.auto_model).toBe("sonnet");
     vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true }));
     expect((await getAiCapabilities("ws1")).models).toEqual([]);
@@ -142,6 +166,47 @@ describe("ai endpoints", () => {
     expect(drifted.enabled).toBe(true);
     expect(drifted.models).toEqual([]);
     expect(drifted.auto_model).toBe("");
+  });
+
+  it("message parsing keeps attachments and file_notes, and drops junk", async () => {
+    const att = { id: "a1", name: "q3.pdf", mime: "application/pdf", size: 184320, kind: "pdf" };
+    const note = { name: "q3.pdf", unit: "page", read: 15, total: 80 };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          { ...message, id: "u1", role: "user", attachments: [att, { ...att, id: "a2", size: "big", kind: 3 }] },
+          { ...message, id: "a1x", file_notes: [note, { ...note, read: 0 }] },
+          // An older server sends neither; a drifted one must not drop the turn.
+          { ...message, id: "old" },
+          { ...message, id: "bad", attachments: "x", file_notes: [{ name: 1 }] },
+          { ...message, id: "bad2", attachments: [{ name: "no id" }], file_notes: { a: 1 } },
+        ],
+      }),
+    );
+    const msgs = await listAiMessages("c1");
+    expect(msgs.map((m) => m.id)).toEqual(["u1", "a1x", "old", "bad", "bad2"]);
+    expect(msgs[0]!.attachments).toEqual([att, { ...att, id: "a2", size: 0, kind: "" }]);
+    expect(msgs[0]!.file_notes).toEqual([]);
+    expect(msgs[1]!.file_notes).toEqual([note, { ...note, read: 0 }]);
+    expect(msgs[1]!.attachments).toEqual([]);
+    for (const m of msgs.slice(2)) expect([m.attachments, m.file_notes]).toEqual([[], []]);
+  });
+
+  it("getAiCapabilities degrades a malformed memory block to off without disabling AI", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, memory: "nope" }));
+    expect(await getAiCapabilities("ws1")).toMatchObject({ enabled: true, memory: { enabled: false, on: false } });
+  });
+
+  it("getAiCapabilities reads attachments and a malformed flag hides uploads without disabling AI", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, attachments: true }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(false);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: true, ask_uni: true, attachments: "yes" }));
+    const drifted = await getAiCapabilities("ws1");
+    expect(drifted).toMatchObject({ enabled: true, ask_uni: true, attachments: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ enabled: "yes" }));
+    expect((await getAiCapabilities("ws1")).attachments).toBe(false);
   });
 
   it("ask-models read and write degrade to the sent list on a malformed answer", async () => {

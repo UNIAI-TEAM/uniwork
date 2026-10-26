@@ -3,7 +3,7 @@
 //   buildChatNameContext ← packages/views/chat/chat-page-utils.ts (contacts, room
 //                        members, workspace members; a nickname wins, first entry wins)
 // people-display.test.ts runs the web cases of senderLabelFor.
-import { displayLabelForChatContact, resolveChatNicknameForUser, type ChatContact } from "./rooms-display";
+import { displayLabelForChatContact, resolveChatNicknameForUser, type ChatContact } from "@uniwork/core/chat/contact-labels";
 
 export interface NameContextEntry {
   user_id: string;

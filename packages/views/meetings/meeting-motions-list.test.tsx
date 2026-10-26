@@ -81,10 +81,10 @@ describe("MeetingMotionsList", () => {
   it("asks before deleting a draft, then deletes it", async () => {
     motions = [motion({})];
     renderList();
-    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với “Thông qua kế hoạch”" }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Thao tác với "Thông qua kế hoạch"' }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa" }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText("“Thông qua kế hoạch” sẽ bị xóa khỏi danh sách biểu quyết.")).toBeInTheDocument();
+    expect(within(dialog).getByText('"Thông qua kế hoạch" sẽ bị xóa khỏi danh sách biểu quyết.')).toBeInTheDocument();
     expect(requestMock).not.toHaveBeenCalledWith(
       "/api/v1/meetings/m1/motions/mo1",
       expect.objectContaining({ method: "DELETE" }),
@@ -121,7 +121,7 @@ describe("MeetingMotionsList", () => {
   it("moves a draft into the next draft's slot", async () => {
     motions = [motion({}), motion({ id: "mo2", title: "Bầu thư ký", position: 2 })];
     renderList();
-    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với “Thông qua kế hoạch”" }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Thao tác với "Thông qua kế hoạch"' }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Chuyển xuống" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith(

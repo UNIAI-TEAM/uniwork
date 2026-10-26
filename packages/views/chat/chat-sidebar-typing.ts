@@ -6,8 +6,8 @@ import {
   resolveChatNicknameForUser,
 } from "@uniwork/core/chat/contacts-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
-import { givenNameOf } from "./chat-initials";
-import { formatTypingLabel } from "./typing-indicator";
+import { givenNameOf } from "@uniwork/core/chat/initials";
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 

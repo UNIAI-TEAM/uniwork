@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestMock } from "../test/api-mock";
 import { useNativeVoiceCall } from "./use-native-voice-call";
-import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_RING_TIMEOUT_MS } from "./voice-call-overlay-types";
+import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@uniwork/core/chat/voice-call-types";
 
 const wsHandlers = new Map<string, (payload: unknown) => void>();
 const fakeWs = {

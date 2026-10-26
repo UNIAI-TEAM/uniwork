@@ -33,6 +33,8 @@ vi.mock("@react-native-community/netinfo", () => ({
   },
 }));
 
+vi.mock("../build-info", () => ({ buildInfo: () => ({ version: "0.3.0" }) }));
+
 // Run the provider's effect and its actual WSClient, without rendering RN.
 class MockWebSocket {
   static readonly OPEN = 1;
@@ -61,7 +63,7 @@ const flush = async () => {
   for (let i = 0; i < 4; i++) await Promise.resolve();
 };
 
-async function mount(overrides: { refreshSession?: () => Promise<string | null>; userId?: string | null } = {}) {
+async function mount(overrides: { refreshSession?: () => Promise<string | null>; userId?: string | null; holdOpen?: boolean } = {}) {
   const { RealtimeProvider } = await import("./realtime-provider");
   let token = "token-v1";
   const refreshSession = overrides.refreshSession ?? vi.fn(async () => (token = "token-v2"));
@@ -70,6 +72,7 @@ async function mount(overrides: { refreshSession?: () => Promise<string | null>;
     workspaceSlug: "org/ws",
     getToken: () => token,
     refreshSession,
+    holdOpen: overrides.holdOpen,
     children: null,
   });
   const cleanup = lifecycle.setup!();
@@ -88,6 +91,8 @@ describe("RealtimeProvider", () => {
     configureRuntime({ wsUrl: "wss://example.test" });
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
+    // data/logger.ts writes to the console in a development build only.
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
   });
 
   afterEach(() => {
@@ -96,6 +101,7 @@ describe("RealtimeProvider", () => {
     resetRuntimeConfig();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    delete (globalThis as { __DEV__?: boolean }).__DEV__;
   });
 
   it("dials runtimeConfig().wsUrl with the workspace pair and the device OS", async () => {
@@ -105,6 +111,7 @@ describe("RealtimeProvider", () => {
     expect(url.searchParams.get("workspace_slug")).toBe("org/ws");
     expect(url.searchParams.get("client_os")).toBe("android");
     expect(url.searchParams.get("client_platform")).toBe("mobile");
+    expect(url.searchParams.get("client_version")).toBe("0.3.0");
   });
 
   it("opens one socket per background return; an inactive blip keeps an authenticated socket", async () => {
@@ -127,6 +134,36 @@ describe("RealtimeProvider", () => {
     lifecycle.onAppState!("inactive");
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(3);
+  });
+
+  it("an app switch within the grace keeps the authenticated socket and probes it; a longer absence pauses it", async () => {
+    vi.useFakeTimers();
+    try {
+      ({ cleanup } = await mount());
+      latest().authenticate();
+      const pings = () => latest().sent.filter((f) => JSON.parse(f).type === "ping").length;
+      latest().onmessage?.({ data: JSON.stringify({ type: "pong" }) });
+      lifecycle.onAppState!("background");
+      await vi.advanceTimersByTimeAsync(10_000);
+      lifecycle.onAppState!("active");
+      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(pings()).toBe(2);
+      latest().onmessage?.({ data: JSON.stringify({ type: "pong" }) });
+
+      lifecycle.onAppState!("background");
+      await vi.advanceTimersByTimeAsync(25_000);
+      // Paused: the next return opens one fresh socket.
+      lifecycle.onAppState!("active");
+      expect(MockWebSocket.instances).toHaveLength(2);
+      // Unmounting while away cancels the pending pause.
+      latest().authenticate();
+      lifecycle.onAppState!("background");
+      cleanup?.();
+      cleanup = undefined;
+      await vi.advanceTimersByTimeAsync(25_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("force-reconnects only on the offline → online edge", async () => {
@@ -164,7 +201,7 @@ describe("RealtimeProvider", () => {
     await flush();
     expect(mounted.refreshSession).not.toHaveBeenCalled();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] socket refused"), "not a member of this workspace");
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] socket refused"), { error: "not a member of this workspace" });
     lifecycle.onAppState!("background");
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(2);
@@ -191,15 +228,31 @@ describe("RealtimeProvider", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("a refresh that fails leaves recovery to the next foreground return", async () => {
-    ({ cleanup } = await mount({ refreshSession: () => Promise.reject(new Error("offline")) }));
+  it("a refresh that fails is retried on the backoff, and a foreground return still redials at once", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const refreshSession = vi.fn<() => Promise<string | null>>().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce("token-v2");
+    ({ cleanup } = await mount({ refreshSession }));
     latest().authenticate();
     latest().onclose!({ code: 4001 });
     await flush();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed"), expect.any(Error));
-    lifecycle.onAppState!("active");
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed after 4001, retrying"), { error: "Error", attempt: 0 });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(refreshSession).toHaveBeenCalledTimes(2);
     expect(MockWebSocket.instances).toHaveLength(2);
+    lifecycle.onAppState!("active");
+    expect(MockWebSocket.instances).toHaveLength(3);
+    vi.useRealTimers();
+  });
+
+  it("a call holds the socket open in the background, and the return does not replace it (audit C1)", async () => {
+    ({ cleanup } = await mount({ holdOpen: true }));
+    latest().authenticate();
+    lifecycle.onAppState!("background");
+    expect(latest().sent.map((f) => JSON.parse(f).type)).toContain("auth");
+    lifecycle.onAppState!("active");
+    expect(MockWebSocket.instances).toHaveLength(1);
   });
 
   it("opens nothing without a signed-in user", async () => {

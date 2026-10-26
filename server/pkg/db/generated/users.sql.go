@@ -14,12 +14,13 @@ import (
 const anonymizeUser = `-- name: AnonymizeUser :one
 UPDATE users SET
   email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
-  google_id = NULL,
+  google_id = NULL, apple_id = NULL, apple_client_id = NULL, apple_refresh_token_enc = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
+  ai_consent_version = NULL, ai_consent_at = NULL,
   deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type AnonymizeUserParams struct {
@@ -55,6 +56,15 @@ func (q *Queries) AnonymizeUser(ctx context.Context, arg AnonymizeUserParams) (U
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -95,10 +105,71 @@ func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID str
 	return count, err
 }
 
+const createAppleUser = `-- name: CreateAppleUser :one
+INSERT INTO users (id, email, display_name, apple_id, email_verified_at, locale)
+VALUES ($1, $2, $3, $4, now(), $5)
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
+`
+
+type CreateAppleUserParams struct {
+	ID          string      `json:"id"`
+	Email       string      `json:"email"`
+	DisplayName string      `json:"display_name"`
+	AppleID     pgtype.Text `json:"apple_id"`
+	Locale      string      `json:"locale"`
+}
+
+// Sign in with Apple (ADR 0041): Apple vouches for the address, so it starts
+// verified; no password, onboarding still ahead (onboarded_at stays NULL).
+func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createAppleUser,
+		arg.ID,
+		arg.Email,
+		arg.DisplayName,
+		arg.AppleID,
+		arg.Locale,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+	)
+	return i, err
+}
+
 const createGoogleUser = `-- name: CreateGoogleUser :one
 INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
 VALUES ($1, $2, $3, $4, $5, now(), $6)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type CreateGoogleUserParams struct {
@@ -143,6 +214,15 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -150,7 +230,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, display_name, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type CreateUserParams struct {
@@ -193,6 +273,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -211,7 +300,7 @@ func (q *Queries) DeactivateAllOrganizationMembershipsForUser(ctx context.Contex
 const disableUserMFA = `-- name: DisableUserMFA :one
 UPDATE users SET totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}', updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
@@ -240,6 +329,15 @@ func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -247,7 +345,7 @@ func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
 const enableUserMFA = `-- name: EnableUserMFA :one
 UPDATE users SET mfa_enabled_at = now(), mfa_recovery_codes = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type EnableUserMFAParams struct {
@@ -281,8 +379,39 @@ func (q *Queries) EnableUserMFA(ctx context.Context, arg EnableUserMFAParams) (U
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
+}
+
+const getUserAskUniMemoryOff = `-- name: GetUserAskUniMemoryOff :one
+SELECT ask_uni_memory_off FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserAskUniMemoryOff(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, getUserAskUniMemoryOff, id)
+	var ask_uni_memory_off bool
+	err := row.Scan(&ask_uni_memory_off)
+	return ask_uni_memory_off, err
+}
+
+const getUserAskUniMode = `-- name: GetUserAskUniMode :one
+SELECT ask_uni_mode FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserAskUniMode(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserAskUniMode, id)
+	var ask_uni_mode pgtype.Text
+	err := row.Scan(&ask_uni_mode)
+	return ask_uni_mode, err
 }
 
 const getUserAvatarFileID = `-- name: GetUserAvatarFileID :one
@@ -313,8 +442,51 @@ func (q *Queries) GetUserAvatarFileIDForUpdate(ctx context.Context, id string) (
 	return avatar_file_id, err
 }
 
+const getUserByAppleID = `-- name: GetUserByAppleID :one
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off FROM users WHERE apple_id = $1
+`
+
+func (q *Queries) GetUserByAppleID(ctx context.Context, appleID pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByAppleID, appleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -343,12 +515,21 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE google_id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
@@ -377,12 +558,21 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -411,6 +601,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -453,6 +652,60 @@ func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersBy
 	return items, nil
 }
 
+const linkAppleAccount = `-- name: LinkAppleAccount :one
+UPDATE users SET
+  apple_id = $1,
+  email_verified_at = COALESCE(email_verified_at, now()),
+  updated_at = now()
+WHERE id = $2 AND (apple_id IS NULL OR apple_id = $1)
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
+`
+
+type LinkAppleAccountParams struct {
+	AppleID pgtype.Text `json:"apple_id"`
+	ID      string      `json:"id"`
+}
+
+// Only an account not linked to another Apple subject takes the link.
+func (q *Queries) LinkAppleAccount(ctx context.Context, arg LinkAppleAccountParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkAppleAccount, arg.AppleID, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+	)
+	return i, err
+}
+
 const linkGoogleAccount = `-- name: LinkGoogleAccount :one
 UPDATE users SET
   google_id = $2,
@@ -460,7 +713,7 @@ UPDATE users SET
   avatar_url = COALESCE(avatar_url, $3),
   updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type LinkGoogleAccountParams struct {
@@ -495,8 +748,43 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
+}
+
+const listAIOptedOutUserIDs = `-- name: ListAIOptedOutUserIDs :many
+SELECT id FROM users WHERE id = ANY($1::text[]) AND ai_opt_out_at IS NOT NULL
+`
+
+// Of these people, the ones who declined AI processing: what they wrote stays
+// out of every AI request, whoever makes it (service/ai_opt_out.go).
+func (q *Queries) ListAIOptedOutUserIDs(ctx context.Context, ids []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAIOptedOutUserIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUserAvatarFileIDs = `-- name: ListUserAvatarFileIDs :many
@@ -531,7 +819,7 @@ func (q *Queries) ListUserAvatarFileIDs(ctx context.Context, fileIds []string) (
 const markEmailVerified = `-- name: MarkEmailVerified :one
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error) {
@@ -560,6 +848,15 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -567,7 +864,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error) {
@@ -596,6 +893,15 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -605,7 +911,7 @@ UPDATE users SET
   onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
   updated_at = now()
 WHERE id = $2
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type PatchUserOnboardingParams struct {
@@ -639,6 +945,15 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -667,10 +982,114 @@ func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string)
 	return err
 }
 
+const setAppleRefreshToken = `-- name: SetAppleRefreshToken :exec
+UPDATE users SET apple_client_id = $2, apple_refresh_token_enc = $3, updated_at = now()
+WHERE id = $1 AND apple_id IS NOT NULL
+`
+
+type SetAppleRefreshTokenParams struct {
+	ID                   string      `json:"id"`
+	AppleClientID        pgtype.Text `json:"apple_client_id"`
+	AppleRefreshTokenEnc pgtype.Text `json:"apple_refresh_token_enc"`
+}
+
+// The sealed refresh token of the account's Apple consent and the bundle id it
+// was issued to: account deletion revokes it with that client id.
+func (q *Queries) SetAppleRefreshToken(ctx context.Context, arg SetAppleRefreshTokenParams) error {
+	_, err := q.db.Exec(ctx, setAppleRefreshToken, arg.ID, arg.AppleClientID, arg.AppleRefreshTokenEnc)
+	return err
+}
+
+const setUserAIConsent = `-- name: SetUserAIConsent :one
+UPDATE users SET
+  ai_consent_version = $1,
+  ai_consent_at      = CASE WHEN $1::text IS NULL THEN NULL ELSE now() END,
+  ai_opt_out_at      = CASE WHEN $1::text IS NULL THEN now() ELSE NULL END,
+  updated_at         = now()
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
+`
+
+type SetUserAIConsentParams struct {
+	Version pgtype.Text `json:"version"`
+	ID      string      `json:"id"`
+}
+
+// The person's answer to the AI processing notice (Apple 5.1.2(i)). A NULL
+// version withdraws consent (or declines it) and clears the time with it;
+// declining also keeps the person's messages out of every AI request
+// (ai_opt_out_at), which agreeing again lifts.
+func (q *Queries) SetUserAIConsent(ctx context.Context, arg SetUserAIConsentParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserAIConsent, arg.Version, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+	)
+	return i, err
+}
+
+const setUserAskUniMemoryOff = `-- name: SetUserAskUniMemoryOff :exec
+UPDATE users SET ask_uni_memory_off = $1, updated_at = now() WHERE id = $2
+`
+
+type SetUserAskUniMemoryOffParams struct {
+	Off bool   `json:"off"`
+	ID  string `json:"id"`
+}
+
+func (q *Queries) SetUserAskUniMemoryOff(ctx context.Context, arg SetUserAskUniMemoryOffParams) error {
+	_, err := q.db.Exec(ctx, setUserAskUniMemoryOff, arg.Off, arg.ID)
+	return err
+}
+
+const setUserAskUniMode = `-- name: SetUserAskUniMode :exec
+UPDATE users SET ask_uni_mode = $1::text, updated_at = now() WHERE id = $2
+`
+
+type SetUserAskUniModeParams struct {
+	Mode pgtype.Text `json:"mode"`
+	ID   string      `json:"id"`
+}
+
+func (q *Queries) SetUserAskUniMode(ctx context.Context, arg SetUserAskUniModeParams) error {
+	_, err := q.db.Exec(ctx, setUserAskUniMode, arg.Mode, arg.ID)
+	return err
+}
+
 const setUserMatrixUserID = `-- name: SetUserMatrixUserID :one
 UPDATE users SET matrix_user_id = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type SetUserMatrixUserIDParams struct {
@@ -704,6 +1123,68 @@ func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUser
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+	)
+	return i, err
+}
+
+const setUserPushPreviewsHidden = `-- name: SetUserPushPreviewsHidden :one
+UPDATE users SET
+  push_previews_hidden_at = CASE WHEN $1::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  updated_at              = now()
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
+`
+
+type SetUserPushPreviewsHiddenParams struct {
+	Hidden bool   `json:"hidden"`
+	ID     string `json:"id"`
+}
+
+// Keeps the first time it was hidden, so turning it on twice changes nothing.
+func (q *Queries) SetUserPushPreviewsHidden(ctx context.Context, arg SetUserPushPreviewsHiddenParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserPushPreviewsHidden, arg.Hidden, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -728,7 +1209,7 @@ func (q *Queries) SetUserTOTPSecret(ctx context.Context, arg SetUserTOTPSecretPa
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $2, avatar_file_id = NULL, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type UpdateUserAvatarParams struct {
@@ -764,6 +1245,15 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -771,7 +1261,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 const updateUserAvatarFile = `-- name: UpdateUserAvatarFile :one
 UPDATE users SET avatar_file_id = $2, avatar_url = NULL, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type UpdateUserAvatarFileParams struct {
@@ -808,6 +1298,15 @@ func (q *Queries) UpdateUserAvatarFile(ctx context.Context, arg UpdateUserAvatar
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -815,7 +1314,7 @@ func (q *Queries) UpdateUserAvatarFile(ctx context.Context, arg UpdateUserAvatar
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type UpdateUserPasswordParams struct {
@@ -849,6 +1348,15 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }
@@ -860,7 +1368,7 @@ UPDATE users SET
   timezone     = COALESCE($3, timezone),
   updated_at   = now()
 WHERE id = $4
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type UpdateUserProfileParams struct {
@@ -903,6 +1411,15 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }

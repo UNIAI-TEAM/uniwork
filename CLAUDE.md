@@ -39,6 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0045): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -357,8 +358,21 @@ Every command that changes business state writes an `audit_events` row and its
   a connection to a model host; `internal/ai` never imports `internal/service`
   and only calls sqlc queries named `Ai*`, so the model side of the house
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
-  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
-  `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it.
+  Ask UNI's write tools never run a command in the agent loop: each records an
+  `agent_action_proposals` row, and only the asker's Apply (or Auto mode, for an
+  untainted level-1 row) runs the service command, as `service.Human(asker)`
+  through one shared gate (ADR 0044; ADR 0010 still holds for the agent runtime).
+  `TestAskUniWriteToolsDeclareLevelAndUndo`, `TestAskUniLoopNeverRunsAWriteCommand`,
+  `TestAskUniTaintedTurnNeverAutoApplies`, `TestAskUniModeIsClampedToTheCeiling`,
+  `TestAskUniOnlyTheAskerDecidesAProposal` and `TestAIWriteGateIsShared` hold it.
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0045) is the one
+  exception: it opens its STT vendor connection itself, holds no LLM key, and
+  reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
+  per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything
+  that needs a model is a request the server answers through `ai.Gateway`.
+  `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
+  SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
 - The signed-in desktop app uses the keys the person saved on UniWork only
   through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
   key, and its calls record the `office.byok_desktop` capability while web and
@@ -378,6 +392,20 @@ Every command that changes business state writes an `audit_events` row and its
   (`TestMCPWriteToolsDeclareUndo`), and every row they audit carries
   `metadata.via` (`TestMcpCallCarriesTheVia`,
   `TestRecordWritesTheViaOfTheRequest`).
+- iPhone calls ring through CallKit from VoIP pushes the server sends straight
+  to APNs (ADR 0038): an iPhone's PushKit token is a `push_subscriptions` row
+  with `transport = 'apns_voip'`, and only `server/internal/notification/push_apns.go`
+  sends to it — a ring still within its window or its end, never a chat,
+  missed-call or tray push, since iOS stops waking an app whose VoIP push does
+  not ring CallKit. An end goes once, only to the tokens that ring reached
+  while it is in its window, never to the device session that answered or
+  declined, and never retries the row: iOS shows a call for every VoIP push.
+  `TestAPNsVoIPSenderSkipsWhatCallKitDoesNotRing`,
+  `TestChatPushNeverReachesAPushKitToken`,
+  `TestCallRingClosedEndsTheCallKitRing` and
+  `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
+- Audit rows of Ask UNI memory never carry the entry text (spec 2026-10-24
+  §5.10): `TestAiMemoryAuditCarriesNoText`.
 
 ## Platform Admin and Observability
 
@@ -391,7 +419,12 @@ behind its own gate and never reaches content.
   `server/internal/service/admin_flags.go` call the queries in
   `server/pkg/db/queries/admin.sql` and `server/pkg/db/queries/feature_flags.sql`, and neither
   touches a content service
-  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`.
+  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`. One exception
+  (ADR 0042): the operator's takedown of a reported chat message goes through
+  `ReportedContentRemover.RemoveReportedMessageQ`, which `server/cmd/server/main.go` wires
+  to `ChatService`; it is the console's only content write, and it returns no content.
+  `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds the interface to that one
+  method, `AdminService` to no other content service, and that wiring to the one call site.
 - Every admin write takes a `reason` (≥ 10 characters) and lands in
   `admin_actions` and `audit_events` in one transaction, sharing the trace id.
   A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.
@@ -498,6 +531,17 @@ database and never reveal whether an id exists to a non-member.
   `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
   their own small budget in `server/internal/handler/router/router.go`,
   whose tests pin all of it.
+- A bearer route never answers with a redirect: only the Google sign-in,
+  MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
+  (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
+  native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
+- Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
+  Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
+  the SHA-256 of the raw nonce the app sent. An Apple identity links by `users.apple_id`, by email only when Apple's
+  address is not a private relay and the account's address is verified, never to an MFA account; account deletion
+  revokes the Apple token the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
+  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking` and `TestDeleteAccountRevokesTheAppleToken` hold it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
@@ -578,7 +622,9 @@ When adding a shared screen:
   `pnpm generate:lucide-aliases`), draw a module with `MODULE_ICONS` from
   `packages/views/layout/module-icons.ts`, and show loading with `<Spinner />`.
   `scripts/lucide-aliases.test.mjs` fails on an alias import or a raw
-  `LoaderCircle` at every gate level.
+  `LoaderCircle` at every gate level. Every Lucide icon strokes 1.5px at every
+  size (`packages/ui/styles/base.css`, non-scaling); the same test fails on a
+  `strokeWidth` prop or a size off the scale on one.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`

@@ -13,6 +13,13 @@ export const UserSchema = z.object({
   mfa_enabled_at: z.string().nullable().optional(),
   has_password: z.boolean().optional(),
   platform_role: z.string().optional(),
+  // The AI processing notice the person agreed to (PUT /me/ai-consent); null when never or withdrawn.
+  ai_consent_version: z.string().nullable().optional(),
+  ai_consent_at: z.string().nullable().optional(),
+  // When the person declined (or withdrew) AI processing: their chat messages stay out of every AI request; null otherwise.
+  ai_opt_out_at: z.string().nullable().optional(),
+  // Whether this person's chat pushes show the message's words (PUT /me/push-previews); absent reads as shown.
+  push_previews: z.boolean().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 

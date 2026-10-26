@@ -54,9 +54,9 @@ describe("document_owner_transferred kind", () => {
   it("words the sentence in vi and en as the spec does", async () => {
     const n = notification({ actor: "Bình", document: "Hợp đồng" });
     await setLocale("vi");
-    expect(sentence(n)).toBe("Bình đã chuyển cho bạn quyền sở hữu tài liệu “Hợp đồng”.");
+    expect(sentence(n)).toBe("Bình đã chuyển cho bạn quyền sở hữu tài liệu \"Hợp đồng\".");
     await setLocale("en");
-    expect(sentence(n)).toBe("Bình transferred ownership of “Hợp đồng” to you.");
+    expect(sentence(n)).toBe("Bình transferred ownership of \"Hợp đồng\" to you.");
   });
 
   it("uses a title-less sentence once the name is gone, and it resolves", () => {

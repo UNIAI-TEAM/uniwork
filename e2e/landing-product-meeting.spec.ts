@@ -79,8 +79,11 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await panelToggle.click();
   await expect(panel.getByRole('log')).toContainText('Gửi ghi chú trong phòng họp demo');
   await panel.getByRole('tab', { name: vi.meetings.aiCopilot, exact: true }).click();
-  await expect(panel.getByTestId('meeting-copilot-ask-locked')).toContainText(vi.meetings.comingSoon);
-  await panel.getByRole('button', { name: vi.meetings.generateSummary, exact: true }).click();
+  await expect(panel.getByTestId('meeting-copilot-ask-locked')).toHaveCount(0);
+  await expect(panel.locator('.product-meeting-sample')).toHaveText(vi.landing.lovable.sample);
+  // The summary is there without a manual "generate", and Ask UNI answers about the meeting.
+  await expect(panel).toContainText(vi.landing.meeting.autoSummary);
+  await expect(panel).toContainText(vi.landing.meeting.askAnswer);
   await panel.getByRole('tab', { name: vi.meetings.notes, exact: true }).click();
   await panel.getByRole('textbox', { name: vi.meetings.notesInputLabel }).fill('Chốt lịch triển khai vào thứ Sáu');
   await panel.getByRole('button', { name: vi.meetings.addNote, exact: true }).click();

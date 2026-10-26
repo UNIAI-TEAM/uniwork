@@ -2148,6 +2148,59 @@ func (q *Queries) ListChatMessagesInRoomBetween(ctx context.Context, arg ListCha
 	return items, nil
 }
 
+const listChatMessagesInRoomByIDs = `-- name: ListChatMessagesInRoomByIDs :many
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
+WHERE room_id = $1 AND workspace_id = $2
+  AND id = ANY($3::text[]) AND deleted_at IS NULL
+`
+
+type ListChatMessagesInRoomByIDsParams struct {
+	RoomID      string   `json:"room_id"`
+	WorkspaceID string   `json:"workspace_id"`
+	Ids         []string `json:"ids"`
+}
+
+// GetChatMessageInRoom for many ids at once (the chat sync answer, one read per room).
+func (q *Queries) ListChatMessagesInRoomByIDs(ctx context.Context, arg ListChatMessagesInRoomByIDsParams) ([]ChatMessage, error) {
+	rows, err := q.db.Query(ctx, listChatMessagesInRoomByIDs, arg.RoomID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChatMessage{}
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoomID,
+			&i.WorkspaceID,
+			&i.SenderID,
+			&i.Kind,
+			&i.Body,
+			&i.Metadata,
+			&i.ReplyToMessageID,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.SenderKind,
+			&i.ClientMsgID,
+			&i.ThreadRootID,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.MirroredFromCommentID,
+			&i.FileID,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomAvatarFileIDs = `-- name: ListChatRoomAvatarFileIDs :many
 SELECT avatar_file_id FROM chat_rooms
 WHERE avatar_file_id = ANY($1::text[])
@@ -2790,7 +2843,7 @@ func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec
 UPDATE chat_thread_followers
-SET last_read_at = $3, updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3::timestamptz), updated_at = now()
 WHERE thread_root_id = $1 AND user_id = $2
 `
 
@@ -2804,6 +2857,48 @@ type MarkChatThreadReadParams struct {
 func (q *Queries) MarkChatThreadRead(ctx context.Context, arg MarkChatThreadReadParams) error {
 	_, err := q.db.Exec(ctx, markChatThreadRead, arg.ThreadRootID, arg.UserID, arg.LastReadAt)
 	return err
+}
+
+const moderationRemoveChatMessage = `-- name: ModerationRemoveChatMessage :one
+UPDATE chat_messages
+SET deleted_at = now()
+WHERE id = $1 AND room_id = $2 AND organization_id = $3 AND deleted_at IS NULL
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type ModerationRemoveChatMessageParams struct {
+	ID             string `json:"id"`
+	RoomID         string `json:"room_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The platform operator takes a reported message down (store UGC policy, Apple 1.2): any sender's, in the
+// report's organization (ChatService.RemoveReportedMessageQ, called by AdminService.RemoveReportedMessage).
+func (q *Queries) ModerationRemoveChatMessage(ctx context.Context, arg ModerationRemoveChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, moderationRemoveChatMessage, arg.ID, arg.RoomID, arg.OrganizationID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
 }
 
 const muteChatThreadFollower = `-- name: MuteChatThreadFollower :exec
@@ -3570,7 +3665,7 @@ ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
     WHEN EXCLUDED.reason = 'replied' THEN EXCLUDED.reason
     ELSE EXCLUDED.reason
   END,
-  last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at)
+  last_read_at = GREATEST(chat_thread_followers.last_read_at, EXCLUDED.last_read_at)
 `
 
 type UpsertChatThreadFollowerParams struct {

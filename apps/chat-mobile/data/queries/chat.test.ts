@@ -5,11 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "../chat-api";
-import { CHAT_HISTORY_PAGE_SIZE } from "../chat-timeline";
+import { CHAT_HISTORY_PAGE_SIZE } from "@uniwork/core/chat/room-timeline-pages";
 import {
   discoverableChannelsOptions,
   expressionsOptions,
   followUpsOptions,
+  myChannelsOptions,
+  sharedSummaryOptions,
+  unreadSummaryOptions,
   roomLinksOptions,
   taskOptions,
   nicknamesOptions,
@@ -20,6 +23,8 @@ import {
   roomTimelineOptions,
   threadTimelineOptions,
   workspaceMembersOptions,
+  callRecordingOptions,
+  roomPreviewOptions,
 } from "./chat";
 import { chatKeys } from "./chat-keys";
 
@@ -97,6 +102,38 @@ describe("chat query options", () => {
     expect(roomSearchOptions("w1", "r1", " a ").enabled).toBe(false);
     expect(roomSearchOptions("w1", "r1", "kế").queryKey).toEqual(chatKeys.roomSearch("w1", "r1", "kế"));
     expect(chatApi.listMessagesAround).toHaveBeenCalledWith("w1", "r1", "m1");
+  });
+
+  it("reads a row's preview without marking it read, and polls a live call's recording", async () => {
+    const qc = new QueryClient();
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([]);
+    const recording = vi.spyOn(chatApi, "callRecordingActive").mockResolvedValue(true);
+    await qc.fetchQuery(roomPreviewOptions("w1", "r1", 4));
+    expect(list).toHaveBeenCalledWith("w1", "r1", { limit: 4, markRead: false }, expect.any(AbortSignal));
+    expect(roomPreviewOptions("w1", "r1", 4).queryKey).toEqual(["chat", "w1", "room-preview", "r1"]);
+    expect(roomPreviewOptions("w1", "", 4).enabled).toBe(false);
+    await expect(qc.fetchQuery(callRecordingOptions("w1", "r1", "c1", 15_000))).resolves.toBe(true);
+    expect(recording).toHaveBeenCalledWith("w1", "r1", "c1");
+    expect(callRecordingOptions("w1", "r1", "c1", 15_000)).toMatchObject({ queryKey: ["chat", "w1", "call-recording", "r1", "c1"], enabled: true, refetchInterval: 15_000 });
+    expect(callRecordingOptions("w1", "", "", 15_000).enabled).toBe(false);
+    expect(callRecordingOptions("", "r1", "c1", 15_000).enabled).toBe(false);
+    expect(callRecordingOptions("w1", "r1", "", 15_000).enabled).toBe(false);
+  });
+
+  it("reads the unread summary, the channels I am in and a room's shared files", async () => {
+    const qc = new QueryClient();
+    const unread = vi.spyOn(chatApi, "unreadSummary").mockResolvedValue({ direct: { unread: 0, mentions: 0 }, workspaces: [] });
+    const channels = vi.spyOn(chatApi, "listChannels").mockResolvedValue([]);
+    const shared = vi.spyOn(chatApi, "sharedSummary").mockResolvedValue({ counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }, recent_photos: [] });
+    await qc.fetchQuery(unreadSummaryOptions());
+    await qc.fetchQuery(myChannelsOptions("w1"));
+    await qc.fetchQuery(sharedSummaryOptions("w1", "r1"));
+    expect(unread).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(channels).toHaveBeenCalledWith("w1", "mine");
+    expect(shared).toHaveBeenCalledWith("w1", "r1", expect.any(AbortSignal));
+    expect(unreadSummaryOptions().queryKey).toEqual(chatKeys.unreadSummary());
+    expect(myChannelsOptions("w1").queryKey).toEqual(["chat", "w1", "channels", "mine"]);
+    expect(sharedSummaryOptions("w1", "r1").queryKey).toEqual(["chat", "w1", "shared-summary", "r1"]);
   });
 
   it("asks the rich-kind endpoints the web asks (M3)", async () => {

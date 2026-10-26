@@ -19,9 +19,9 @@ import type {
 } from "@uniwork/core/types/meeting";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { MotionRuleRows, MotionRuleSummary, type MotionRules } from "./meeting-motion-rules";
 
 const MODES: readonly BallotMode[] = ["PUBLIC", "SECRET"];
 const THRESHOLDS: readonly MotionThreshold[] = ["MAJORITY", "TWO_THIRDS"];
@@ -31,55 +31,13 @@ function pick<T extends string>(all: readonly T[], value: unknown, fallback: T):
   return all.find((v) => v === value) ?? fallback;
 }
 
-/** Two side-by-side choices with an optional hint under one of them. */
-function OptionGroup<T extends string>({
-  legend,
-  value,
-  options,
-  onChange,
-}: {
-  legend: string;
-  value: T;
-  options: readonly { value: T; label: string; hint?: string }[];
-  onChange: (value: T) => void;
-}) {
-  const id = useId();
-  const all = options.map((o) => o.value);
+/** The counter shows only near the limit: an empty "0/200" is noise. */
+function Counter({ id, length, max }: { id: string; length: number; max: number }) {
+  if (length < max * 0.9) return null;
   return (
-    <div className="space-y-2">
-      <p id={`${id}-legend`} className="text-label font-medium text-foreground">
-        {legend}
-      </p>
-      <RadioGroup
-        aria-labelledby={`${id}-legend`}
-        value={value}
-        onValueChange={(next) => onChange(pick(all, next, value))}
-        className="gap-2 sm:grid-cols-2"
-      >
-        {options.map((o) => (
-          <Label
-            key={o.value}
-            htmlFor={`${id}-${o.value}`}
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5 font-normal transition-colors duration-fast hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle"
-          >
-            <RadioGroupItem
-              value={o.value}
-              id={`${id}-${o.value}`}
-              aria-describedby={o.hint ? `${id}-${o.value}-hint` : undefined}
-              className="mt-0.5"
-            />
-            <span className="min-w-0 space-y-0.5">
-              <span className="block text-body font-medium text-foreground">{o.label}</span>
-              {o.hint ? (
-                <span id={`${id}-${o.value}-hint`} className="block text-caption text-pretty text-muted-foreground">
-                  {o.hint}
-                </span>
-              ) : null}
-            </span>
-          </Label>
-        ))}
-      </RadioGroup>
-    </div>
+    <span id={id} className="text-caption tabular-nums text-muted-foreground">
+      {length}/{max}
+    </span>
   );
 }
 
@@ -92,9 +50,11 @@ function MotionForm({ meetingId, motion, onDone }: { meetingId: string; motion?:
   const update = useUpdateMotion(meetingId);
   const [title, setTitle] = useState(motion?.title ?? "");
   const [description, setDescription] = useState(motion?.description ?? "");
-  const [mode, setMode] = useState<BallotMode>(() => pick(MODES, motion?.ballot_mode, "PUBLIC"));
-  const [threshold, setThreshold] = useState<MotionThreshold>(() => pick(THRESHOLDS, motion?.threshold, "MAJORITY"));
-  const [base, setBase] = useState<MotionBase>(() => pick(BASES, motion?.base, "PRESENT"));
+  const [rules, setRules] = useState<MotionRules>(() => ({
+    ballot_mode: pick(MODES, motion?.ballot_mode, "PUBLIC"),
+    threshold: pick(THRESHOLDS, motion?.threshold, "MAJORITY"),
+    base: pick(BASES, motion?.base, "PRESENT"),
+  }));
   const [submitError, setSubmitError] = useState<string | null>(null);
   const pending = create.isPending || update.isPending;
   const canSubmit = canSubmitMotion(title, description);
@@ -105,9 +65,7 @@ function MotionForm({ meetingId, motion, onDone }: { meetingId: string; motion?:
     const body: MotionDraftInput = {
       title: title.trim(),
       description: description.trim(),
-      ballot_mode: mode,
-      threshold,
-      base,
+      ...rules,
     };
     const saved = motion ? update.mutateAsync({ motionId: motion.id, ...body }) : create.mutateAsync(body);
     saved.then(
@@ -129,9 +87,7 @@ function MotionForm({ meetingId, motion, onDone }: { meetingId: string; motion?:
         <div className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor={titleId}>{t("meetings.governance.motionTitleLabel")}</Label>
-            <span id={`${titleId}-count`} className="text-caption tabular-nums text-muted-foreground">
-              {title.length}/{MOTION_TITLE_MAX_LENGTH}
-            </span>
+            <Counter id={`${titleId}-count`} length={title.length} max={MOTION_TITLE_MAX_LENGTH} />
           </div>
           <Textarea
             id={titleId}
@@ -139,51 +95,31 @@ function MotionForm({ meetingId, motion, onDone }: { meetingId: string; motion?:
             maxLength={MOTION_TITLE_MAX_LENGTH}
             rows={2}
             placeholder={t("meetings.governance.motionTitlePlaceholder")}
-            aria-describedby={`${titleId}-count`}
+            aria-describedby={title.length >= MOTION_TITLE_MAX_LENGTH * 0.9 ? `${titleId}-count` : undefined}
             onChange={(event) => setTitle(event.target.value)}
+            className="min-h-0 resize-none"
           />
         </div>
         <div className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor={descriptionId}>{t("meetings.governance.motionDescriptionLabel")}</Label>
-            <span id={`${descriptionId}-count`} className="text-caption tabular-nums text-muted-foreground">
-              {description.length}/{MOTION_DESCRIPTION_MAX_LENGTH}
-            </span>
+            <Counter id={`${descriptionId}-count`} length={description.length} max={MOTION_DESCRIPTION_MAX_LENGTH} />
           </div>
           <Textarea
             id={descriptionId}
             value={description}
             maxLength={MOTION_DESCRIPTION_MAX_LENGTH}
-            rows={3}
-            aria-describedby={`${descriptionId}-count`}
+            rows={2}
+            aria-describedby={description.length >= MOTION_DESCRIPTION_MAX_LENGTH * 0.9 ? `${descriptionId}-count` : undefined}
             onChange={(event) => setDescription(event.target.value)}
+            className="min-h-0 resize-none"
           />
         </div>
-        <OptionGroup
-          legend={t("meetings.governance.ballotModeLabel")}
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "PUBLIC", label: t("meetings.governance.ballotMode_PUBLIC") },
-            {
-              value: "SECRET",
-              label: t("meetings.governance.ballotMode_SECRET"),
-              hint: t("meetings.governance.secretHint"),
-            },
-          ]}
-        />
-        <OptionGroup
-          legend={t("meetings.governance.thresholdLabel")}
-          value={threshold}
-          onChange={setThreshold}
-          options={THRESHOLDS.map((v) => ({ value: v, label: t(`meetings.governance.threshold_${v}`) }))}
-        />
-        <OptionGroup
-          legend={t("meetings.governance.baseLabel")}
-          value={base}
-          onChange={setBase}
-          options={BASES.map((v) => ({ value: v, label: t(`meetings.governance.base_${v}`) }))}
-        />
+        {/* The three rules as one compact card; its last line says in words what they add up to. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+          <MotionRuleRows value={rules} onChange={(patch) => setRules((r) => ({ ...r, ...patch }))} />
+          <MotionRuleSummary value={rules} className="bg-muted px-3 py-2.5" />
+        </div>
       </FormDialogBody>
       <FormDialogFooter
         onCancel={onDone}

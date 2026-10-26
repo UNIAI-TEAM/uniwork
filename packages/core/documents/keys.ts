@@ -37,6 +37,10 @@ export const documentKeys = {
   // Prefix of every filtered list entry; `document.lock_changed` invalidates
   // it (rows carry `edit_lock`) without touching detail (UNI-1645).
   listRoot: (wsId: string) => [...documentKeys.workspace(wsId), "list"] as const,
+  // follow-6: what the engine renders, not the page's content, so it sits
+  // outside the workspace root and a `document.*` frame does not refetch it.
+  pageExportFormats: (wsId: string, documentId: string) =>
+    [...documentKeys.all, "page-export-formats", wsId, documentId] as const,
   // Files from chat/task/meeting/email; under the workspace root so a
   // `document.*` invalidation refreshes the section too.
   sources: (wsId: string, filterKey: string = "") =>

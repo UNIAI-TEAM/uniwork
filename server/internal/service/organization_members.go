@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -452,6 +453,16 @@ func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, a
 	}); err != nil {
 		return nil, err
 	}
+	// Ask UNI memory is private to the person and this organization (P4, R18).
+	deleted, err := q.AiDeleteMemoriesForUserInOrg(ctx, db.AiDeleteMemoriesForUserInOrgParams{OrganizationID: orgID, UserID: actorID})
+	if err != nil {
+		return nil, err
+	}
+	meta = maps.Clone(meta)
+	if meta == nil {
+		meta = map[string]any{}
+	}
+	meta["ask_uni_memories_deleted"] = deleted
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		Actor:          audit.User(actorID),

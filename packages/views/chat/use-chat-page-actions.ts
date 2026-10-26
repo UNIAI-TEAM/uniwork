@@ -26,8 +26,8 @@ import type {
 } from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
+import { serializeComposerDraftToMessageBody } from "@uniwork/core/chat/chat-mention-utils";
 
 export function useChatPageActions({
   workspaceId,
@@ -79,8 +79,17 @@ export function useChatPageActions({
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   activeThreadRootId?: string | null;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
-  sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
+  sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutate" | "mutateAsync">;
   sendThreadMessage?: {
+    mutate: (
+      input: {
+        threadRootId: string;
+        body: string;
+        client_msg_id?: string;
+        priority?: string;
+      },
+      options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+    ) => void;
     mutateAsync: (input: {
       threadRootId: string;
       body: string;
@@ -114,7 +123,11 @@ export function useChatPageActions({
   // `sideThreadRootId` is the thread open beside the timeline: its composer
   // has no reply or priority, so the main composer's are neither sent nor cleared.
   const sendMessageBody = useCallback(
-    async (text: string, sideThreadRootId?: string): Promise<boolean> => {
+    async (
+      text: string,
+      sideThreadRootId?: string,
+      options?: { onFailed?: () => void },
+    ): Promise<boolean> => {
       const trimmed = text.trim();
       if (!trimmed) return false;
 
@@ -164,50 +177,46 @@ export function useChatPageActions({
         return true;
       }
 
-      usePendingChatMessagesStore.getState().upsert({
-        workspaceId,
-        roomId,
-        client_msg_id: payload.client_msg_id,
-        body: payload.body,
-        senderId: currentUserId,
-        createdAt: Date.now(),
-        reply_to_message_id: payload.reply_to_message_id,
-        thread_root_id: payload.thread_root_id,
-        priority: payload.priority,
-        status: "sending",
-      });
+      const handleSendSuccess = () => {
+        clearComposerExtras();
+        setConnectError(null);
+      };
+      const handleSendError = (err: unknown) => {
+        if (errorCode(err) === "chat_user_blocked") {
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(t("chat.block_send_error"));
+          options?.onFailed?.();
+          return;
+        }
+        if (isChatSendRateLimited(err)) {
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(t("chat.send_rate_limited"));
+          options?.onFailed?.();
+          return;
+        }
+        if (isRetriableChatSendError(err)) {
+          queueForLater(!isChatSendNetworkError(err));
+          return;
+        }
+        usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+        setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
+        options?.onFailed?.();
+      };
 
-      try {
-        if (sendingInThread && threadRootId && sendThreadMessage) {
-          await sendThreadMessage.mutateAsync({
+      if (sendingInThread && threadRootId && sendThreadMessage) {
+        sendThreadMessage.mutate(
+          {
             threadRootId,
             body: payload.body,
             client_msg_id: payload.client_msg_id,
             priority: payload.priority,
-          });
-        } else {
-          await sendRoomMessage.mutateAsync(payload);
-        }
-        clearComposerExtras();
-        setConnectError(null);
-        return true;
-      } catch (err: unknown) {
-        if (errorCode(err) === "chat_user_blocked") {
-          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(t("chat.block_send_error"));
-        } else if (isChatSendRateLimited(err)) {
-          // Still online: keep the draft so the sender can send it again.
-          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(t("chat.send_rate_limited"));
-        } else if (isRetriableChatSendError(err)) {
-          queueForLater(!isChatSendNetworkError(err));
-          return true;
-        } else {
-          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
-        }
-        return false;
+          },
+          { onSuccess: handleSendSuccess, onError: handleSendError },
+        );
+      } else {
+        sendRoomMessage.mutate(payload, { onSuccess: handleSendSuccess, onError: handleSendError });
       }
+      return true;
     },
     [
       workspaceId,
@@ -238,16 +247,12 @@ export function useChatPageActions({
       // Clear at once: a second Enter finds nothing to send, and text typed
       // while the server answers is not wiped when it does.
       write("");
-      let sent = false;
-      try {
-        sent = await sendMessageBody(text, sideThreadRootId);
-      } finally {
-        // Not sent and not queued: give the words back, ahead of anything typed since.
-        if (!sent) {
-          const typed = read();
-          write(typed ? `${raw}\n${typed}` : raw);
-        }
-      }
+      const restoreDraft = () => {
+        const typed = read();
+        write(typed ? `${raw}\n${typed}` : raw);
+      };
+      const sent = await sendMessageBody(text, sideThreadRootId, { onFailed: restoreDraft });
+      if (!sent) restoreDraft();
     },
     [getDraft, setDraft, mentionCandidates, mentionAllLabel, sendMessageBody],
   );

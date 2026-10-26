@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { VoiceCallEndInit, VoiceCallKind } from "./voice-call-overlay-types";
+import type { VoiceCallEndInit, VoiceCallKind } from "@uniwork/core/chat/voice-call-types";
 import type { VoiceCallConnectionState } from "./voice-call-room-context";
 
 /** A group call its starter sits in alone ends after a minute, and says so. */

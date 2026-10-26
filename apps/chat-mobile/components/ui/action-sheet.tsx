@@ -1,19 +1,26 @@
 // A bottom sheet of actions for a long-press, the same on iOS and Android
-// (Alert takes three buttons at most on Android, ActionSheetIOS is iOS only).
+// (Alert takes three buttons at most on Android, ActionSheetIOS is iOS only),
+// dragged down or flicked to close (components/ui/bottom-sheet.tsx).
 // The canvas look (MobSheets, MobStates): 24pt top corners, a grabber, a bold
 // title, then 48pt rows with an icon, or round tinted tiles four to a row
 // (`layout="tiles"`, the attach sheet), and a "Hủy" pill.
+//
+// The sheet is capped below the top of the screen and its rows scroll past the
+// cap: at a large text size, or with a room's preview lifted above it, a long
+// menu would otherwise clip its last rows. While the rows scroll, a drag on
+// them is the list's and the sheet drags from its grabber, as UIKit's and
+// Material's scrolling sheets do; a menu that fits drags from anywhere.
 import { Ionicons } from "@expo/vector-icons";
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Platform, Pressable, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Platform, Pressable, ScrollView, View } from "react-native";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useRipple } from "@/components/ui/ripple";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
-import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import type { Tint } from "@/lib/tint";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 export interface SheetAction {
@@ -58,38 +65,53 @@ export function useAfterDismiss(onClose: () => void) {
   };
 }
 
-export function SheetGrabber() {
-  return <View className="mx-auto mb-3 mt-2 h-[5px] w-9 rounded-full bg-muted-foreground/30" />;
-}
-
 export function ActionSheet({ visible, onClose, title, label, above, actions, layout = "list" }: Props) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const { choose, onDismiss } = useAfterDismiss(onClose);
+  const ripple = useRipple();
+  // The body's viewport and content heights: it scrolls (and hands the drag to the grabber) only when it overflows.
+  const [viewport, setViewport] = useState(0);
+  const [content, setContent] = useState(0);
+  const overflows = viewport > 0 && content > viewport + 1;
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
-      <Pressable className="flex-1 justify-end bg-black/40 pb-4" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
-        {above}
-      </Pressable>
-      <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityLabel={label}>
-        <SheetGrabber />
-        {title ? (
-          <Text className="px-5 pb-3 text-lg font-display font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
-            {title}
-          </Text>
-        ) : null}
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      onDismiss={onDismiss}
+      above={above}
+      className="pb-2"
+      sizeClassName="max-h-[85%]"
+      dragFrom={overflows ? "handle" : "panel"}
+      accessibilityLabel={label}
+    >
+      {title ? (
+        <Text className="px-5 pb-3 text-title3 font-display font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
+          {title}
+        </Text>
+      ) : null}
+      <ScrollView
+        className="shrink grow-0"
+        scrollEnabled={overflows}
+        onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
+        onContentSizeChange={(_, height) => setContent(height)}
+        testID="action-sheet-body"
+      >
         {layout === "tiles" ? (
           <View className="flex-row flex-wrap px-2.5 pb-3 pt-1">
             {actions.map((action) => (
               <Pressable
                 key={action.key}
                 accessibilityRole="button"
+                // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                accessibilityLabel={action.label}
+                android_ripple={ripple}
                 className="w-1/4 items-center gap-2 rounded-2xl py-2 active:bg-secondary"
                 onPress={() => choose(action.onPress)}
               >
                 <TintTile tint={action.tint ?? "blue"} icon={action.icon ?? "ellipsis-horizontal"} size={60} iconSize={26} className="rounded-full" />
-                <Text className="px-1 text-center text-[13px] font-medium text-foreground" numberOfLines={2}>
+                <Text className="px-1 text-center text-footnote font-medium text-foreground" numberOfLines={2}>
                   {action.label}
                 </Text>
               </Pressable>
@@ -101,21 +123,30 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
               <Pressable
                 key={action.key}
                 accessibilityRole="button"
+                // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                accessibilityLabel={action.label}
+                android_ripple={ripple}
                 className={cn("min-h-[52px] flex-row items-center gap-3.5 px-5 active:bg-secondary", index > 0 && "border-t border-border")}
                 onPress={() => choose(action.onPress)}
               >
-                {action.icon ? <Ionicons name={action.icon} size={20} color={action.destructive ? theme.destructive : theme.mutedForeground} /> : null}
-                <Text className={cn("flex-1 text-base", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
+                {action.icon ? (
+                  <Ionicons name={action.icon} size={20} color={action.destructive ? theme.destructive : theme.mutedForeground} />
+                ) : null}
+                <Text className={cn("flex-1 text-body", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
               </Pressable>
             ))}
           </View>
         )}
-        <View className="px-4 pt-3">
-          <Pressable accessibilityRole="button" className="h-12 items-center justify-center rounded-full bg-muted active:opacity-70" onPress={onClose}>
-            <Text className="text-base font-semibold text-foreground">{t("common.cancel")}</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    </Modal>
+      </ScrollView>
+      <View className="px-4 pt-3">
+        <Pressable
+          accessibilityRole="button"
+          className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
+          onPress={onClose}
+        >
+          <Text className="text-body font-semibold text-foreground">{t("common.cancel")}</Text>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }

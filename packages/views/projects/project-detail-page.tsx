@@ -7,6 +7,7 @@ import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
+import { useAskUniPageContext } from "../ai/ask-uni-page-context";
 import { PinToggleButton } from "../common/pin-toggle-button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import {
@@ -49,6 +50,7 @@ export function ProjectDetailPage({
 }) {
   const { t } = useTranslation();
   const { data: project, isLoading } = useProject(workspaceId, projectId);
+  useAskUniPageContext(project ? { kind: "project", id: projectId, label: project.title } : null);
   const { decideEdit } = useProjectPermissions(workspaceId);
   const sidebarController = useAnimatedRightSidebar(true);
 

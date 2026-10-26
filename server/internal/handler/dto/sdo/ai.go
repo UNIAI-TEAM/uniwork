@@ -16,11 +16,34 @@ type AiCapabilitiesSDO struct {
 	// organization's switch; auto_model is the key Auto resolves to.
 	Models    []AiModelOptionDTO `json:"models" description:"Model Claude chạy được cho Hỏi UNI, theo thứ tự hiển thị"`
 	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
+	// Attachments is false while ask_uni_attachments is off for the caller or
+	// their turn would not run the agent; the client then hides the upload entry.
+	Actions     AiActionsDTO    `json:"actions" description:"Trạng thái hành động ghi của Hỏi UNI cho người gọi"`
+	Memory      AiMemoryCapsDTO `json:"memory" description:"Bộ nhớ của Hỏi UNI cho người gọi"`
+	Attachments bool            `json:"attachments" description:"true khi người gọi được gắn file vào câu hỏi: cờ ask_uni_attachments bật và lượt hỏi chạy agent (cờ ask_uni_agent bật, công cụ đọc và model đã cấu hình); false thì client ẩn nút tải file" example:"true"`
+}
+
+// AiActionsDTO is Ask UNI's write state for the caller.
+type AiActionsDTO struct {
+	Enabled bool   `json:"enabled" description:"Cờ ask_uni_actions bật; false thì client không vẽ chế độ hay thẻ đề xuất" example:"true"`
+	Ceiling string `json:"ceiling" description:"Trần của tổ chức: off, ask, plan hoặc auto" example:"plan"`
+	Mode    string `json:"mode" description:"Chế độ người gọi chạy lượt hỏi sau khi hạ xuống trần: ask, plan hoặc auto; rỗng khi trần là off" example:"ask"`
+}
+
+// AiAttachmentUploadSDO is POST /api/v1/workspaces/{workspaceID}/ai/attachments:
+// a file stored for the caller's next question, not yet attached to one.
+type AiAttachmentUploadSDO struct {
+	FileID string `json:"file_id" description:"ULID tệp; gửi trong attachment_ids của câu hỏi, hoặc DELETE …/ai/attachments/{fileID} để bỏ" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	Name   string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME   string `json:"mime" description:"Loại tệp xét theo nội dung, không theo tên hay Content-Type của client" example:"application/pdf"`
+	Size   int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind   string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
 }
 
 // AiModelOptionDTO is one selectable Ask UNI model.
 type AiModelOptionDTO struct {
 	Key          string `json:"key" description:"haiku, sonnet hoặc opus" example:"sonnet"`
+	Provider     string `json:"provider" description:"Nhà cung cấp chạy model này: anthropic, openai, ollama" example:"anthropic"`
 	Speed        int    `json:"speed" description:"Độ nhanh, 1-5" example:"4"`
 	Intelligence int    `json:"intelligence" description:"Độ thông minh, 1-5" example:"4"`
 	Cost         int    `json:"cost" description:"Nấc chi phí, 1-5, theo giá vào + ra" example:"3"`
@@ -36,19 +59,88 @@ type AskModelsSDO struct {
 type AiCitationDTO struct {
 	SourceID string `json:"source_id" example:"S1"`
 	Quote    string `json:"quote" example:"Hạn: 2026-09-05"`
-	Kind     string `json:"kind" description:"task, meeting, chat, members" example:"task"`
+	Kind     string `json:"kind" description:"task, meeting, document, project, chat, member (một người), members (danh sách thành viên), email_thread" example:"task"`
 	Title    string `json:"title" example:"Viết spec F-09"`
 	Href     string `json:"href" description:"Đường dẫn nội bộ" example:"/acme/team/tasks/01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	ObjectID string `json:"object_id,omitempty" description:"Mã của đối tượng nguồn trỏ tới; vắng khi nguồn không là một đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+}
+
+// AiStepDTO is one tool the agent ran for an answer, or (kind think) the
+// thinking that led to the answer.
+type AiStepDTO struct {
+	Tool    string         `json:"tool" description:"Tên tool đã chạy; rỗng ở bước retry và bước think" example:"search"`
+	Label   string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
+	Counts  map[string]int `json:"counts" description:"Số nguồn mới tìm thấy theo loại" example:"{\"task\":3}"`
+	Note    string         `json:"note" description:"Câu model viết trước khi gọi tool của vòng này, chỉ ở bước đầu của vòng; rỗng nếu không có" example:"Mình xem các việc đang mở để tìm hạn gần nhất."`
+	Thought string         `json:"thought" description:"Tóm tắt suy nghĩ của model trước bước này (ask_uni_thinking); rỗng nếu không có" example:"Cần lọc các việc quá hạn trước."`
+	Kind    string         `json:"kind" description:"Rỗng cho bước tool hoặc retry; think là phần suy nghĩ trước câu trả lời" example:""`
+}
+
+// AiContextRefDTO is an object a question named: its focus or an @-mention.
+type AiContextRefDTO struct {
+	Kind  string `json:"kind" description:"task, meeting, email_thread, document, project, room hoặc member" example:"task"`
+	ID    string `json:"id" description:"Mã của đối tượng" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Title string `json:"title" description:"Tên đối tượng lúc hỏi" example:"Viết spec F-09"`
+}
+
+// AiAttachmentDTO is one file a question carried.
+type AiAttachmentDTO struct {
+	ID   string `json:"id" description:"Id của file trên câu hỏi (không phải file_id lúc tải lên); dùng để tải file về" example:"01K4AIATT0000000000000001"`
+	Name string `json:"name" description:"Tên tệp đã làm sạch" example:"bao-cao-quy-3.pdf"`
+	MIME string `json:"mime" description:"Loại tệp xét theo nội dung" example:"application/pdf"`
+	Size int64  `json:"size" description:"Số byte" example:"184320"`
+	Kind string `json:"kind" description:"image, pdf hoặc text: cách Hỏi UNI đọc tệp này" example:"pdf"`
+}
+
+// AiFileNoteDTO is a file of the turn that UNI read only in part.
+type AiFileNoteDTO struct {
+	Name  string `json:"name" description:"Tên tệp" example:"bao-cao-quy-3.pdf"`
+	Unit  string `json:"unit" description:"Đơn vị đếm: page, slide, row, paragraph hoặc line" example:"page"`
+	Read  int    `json:"read" description:"Số đơn vị đầu đã đọc; 0 khi chỉ đọc được phần đầu của đơn vị thứ nhất" example:"15"`
+	Total int    `json:"total" description:"Tổng số đơn vị của tệp" example:"80"`
 }
 
 // AiMessageDTO is one turn of a conversation.
 type AiMessageDTO struct {
-	ID        string          `json:"id" example:"01K4AIMSG0000000000000001"`
-	Role      string          `json:"role" description:"user hoặc assistant" example:"assistant"`
-	Content   string          `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
-	Citations []AiCitationDTO `json:"citations"`
-	Notice    string          `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
-	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
+	ID        string            `json:"id" example:"01K4AIMSG0000000000000001"`
+	Role      string            `json:"role" description:"user hoặc assistant" example:"assistant"`
+	Content   string            `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
+	Citations []AiCitationDTO   `json:"citations"`
+	Notice    string            `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
+	Steps     []AiStepDTO       `json:"steps" description:"Các bước tool agent đã chạy cho câu trả lời, theo thứ tự" example:"[{\"tool\":\"search\",\"label\":\"quá hạn\",\"counts\":{\"task\":3}}]"`
+	Followups []string          `json:"followups" description:"Câu hỏi gợi ý tiếp theo" example:"[\"Việc nào trễ nhất?\"]"`
+	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
+	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
+	Model     string            `json:"model" description:"Model người hỏi chọn cho câu trả lời (haiku, sonnet, opus); rỗng khi là Tự động" example:"opus"`
+	// Attachments is filled by the list of messages only; the stored answer an
+	// ask or a done event returns is not the question, so it carries none.
+	Attachments []AiAttachmentDTO `json:"attachments" description:"File câu hỏi đã gắn, theo thứ tự gắn; chỉ có trên tin nhắn của người hỏi trong danh sách tin nhắn, rỗng ở mọi tin nhắn khác (kể cả câu trả lời trong done)" example:"[{\"id\":\"01K4AIATT0000000000000001\",\"name\":\"bao-cao-quy-3.pdf\",\"mime\":\"application/pdf\",\"size\":184320,\"kind\":\"pdf\"}]"`
+	// FileNotes is stored on the answer; a question carries none.
+	FileNotes []AiFileNoteDTO `json:"file_notes" description:"Trên câu trả lời: các file của lượt hỏi UNI chỉ đọc một phần (vì vượt phần token dành cho file), theo thứ tự đọc; rỗng khi đọc đủ, khi không có file và ở tin nhắn của người hỏi" example:"[{\"name\":\"bao-cao-quy-3.pdf\",\"unit\":\"page\",\"read\":15,\"total\":80}]"`
+	// Proposals is filled by the list of messages and the proposal event; the
+	// done event's message carries none.
+	Proposals []AiProposalDTO `json:"proposals" description:"Các dòng UNI đề xuất thay đổi trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
+	MemoryIDs []string        `json:"memory_ids" description:"Trên câu trả lời: id các mục bộ nhớ của người hỏi mà UNI đã dùng; rỗng ở mọi tin khác" example:"[\"01K4AIMEM0000000000000001\"]"`
+	// MemoryProposals is filled by the list of messages and the
+	// memory_proposals event; the done event's message carries none.
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Các đề xuất nhớ, sửa, quên mục bộ nhớ UNI đưa ra trong câu trả lời, theo position; rỗng ở mọi tin khác" example:"[]"`
+	CreatedAt       string                `json:"created_at" example:"2026-09-06T08:00:00Z"`
+}
+
+// AiMemoryProposalDTO is one card "Nhớ điều này?" under an answer. It is the
+// asker's own memory, never work data, and only the asker decides it.
+type AiMemoryProposalDTO struct {
+	ID         string `json:"id" example:"01K4AIMPR0000000000000001"`
+	MessageID  string `json:"message_id" example:"01K4AIMSG0000000000000001"`
+	Position   int    `json:"position" description:"Thứ tự trong câu trả lời, từ 1 tới 3" example:"1"`
+	Action     string `json:"action" description:"remember, update hoặc forget" example:"remember"`
+	MemoryID   string `json:"memory_id" description:"Mục bộ nhớ mà update/forget nhắm tới; với remember là mục được tạo khi áp dụng; rỗng khi chưa có" example:""`
+	Kind       string `json:"kind" description:"preference hoặc fact sẽ lưu (remember, update); rỗng với forget" example:"preference"`
+	Text       string `json:"text" description:"Chữ sẽ lưu (remember, update); rỗng với forget" example:"Gọi tôi là anh Vinh"`
+	BeforeKind string `json:"before_kind" description:"Loại của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	BeforeText string `json:"before_text" description:"Chữ của mục lúc đề xuất (update, forget); rỗng với remember" example:""`
+	Status     string `json:"status" description:"pending, applied, rejected, undone; thêm expired (pending quá hạn 24 giờ) tính lúc đọc" example:"pending"`
+	ExpiresAt  string `json:"expires_at" example:"2026-09-07T08:00:00Z"`
 }
 
 // AiUsageDTO is what the call cost.
@@ -76,8 +168,10 @@ type AskStreamRunDTO struct {
 type AskStreamStepDTO struct {
 	Round  int            `json:"round" description:"Số thứ tự vòng gọi tool, từ 1" example:"1"`
 	Phase  string         `json:"phase" description:"tool hoặc retry" example:"tool"`
-	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search_tasks"`
+	Tool   string         `json:"tool" description:"Tên tool vừa chạy; rỗng ở bước retry" example:"search"`
+	Label  string         `json:"label" description:"Từ khóa tìm hoặc tên đối tượng tool mở; rỗng nếu không có" example:"quá hạn"`
 	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
+	Note   string         `json:"note" description:"Câu model viết trước khi gọi tool của vòng này, chỉ ở bước đầu của vòng; rỗng nếu không có" example:"Mình xem các việc đang mở để tìm hạn gần nhất."`
 }
 
 // AskStreamDeltaDTO is the data of event delta.
@@ -85,9 +179,39 @@ type AskStreamDeltaDTO struct {
 	Text string `json:"text" description:"Đoạn chữ nối thêm vào câu trả lời đang hiện" example:"Có 1 việc quá hạn"`
 }
 
+// AskStreamReasoningDTO is the data of event reasoning.
+type AskStreamReasoningDTO struct {
+	Text string `json:"text" description:"Đoạn tóm tắt suy nghĩ nối thêm vào phần suy nghĩ của lần gọi model hiện tại (ask_uni_thinking)" example:"Cần xem các việc đang mở."`
+}
+
 // AskStreamCitationsDTO is the data of event citations.
 type AskStreamCitationsDTO struct {
 	Citations []AiCitationDTO `json:"citations" description:"Nguồn trích dẫn đã kiểm của câu trả lời, theo thứ tự S1, S2…"`
+}
+
+// AskStreamSourcesDTO is the data of event sources: sources a step found
+// that had no S# before.
+type AskStreamSourcesDTO struct {
+	Sources []AiCitationDTO `json:"sources" description:"Nguồn mới của bước vừa chạy, mỗi nguồn một số S# mới"`
+}
+
+// AskStreamFollowupsDTO is the data of event followups, sent before done
+// when the answer suggests questions to ask next.
+type AskStreamFollowupsDTO struct {
+	Followups []string `json:"followups" description:"Câu hỏi gợi ý tiếp theo, tối đa 3, chỉ để đọc dữ liệu" example:"[\"Việc nào trễ nhất?\"]"`
+}
+
+// AskStreamMemoryUsedDTO is the data of event memory_used, sent before done
+// when the answer used entries of the asker's memory.
+type AskStreamMemoryUsedDTO struct {
+	MemoryIDs []string `json:"memory_ids" description:"Id các mục bộ nhớ của người hỏi mà câu trả lời đã dùng" example:"[\"01K4AIMEM0000000000000001\"]"`
+}
+
+// AskStreamTitleDTO is the data of event title, sent after done when UNI named
+// a new conversation; the stream may stay open briefly for it.
+type AskStreamTitleDTO struct {
+	ConversationID string `json:"conversation_id" description:"Hội thoại vừa được UNI đặt tên" example:"01J8Z3Q4X5Y6A7B8C9D0E1F2G3"`
+	Title          string `json:"title" description:"Tên ngắn UNI đặt cho hội thoại, tối đa 40 ký tự. Khung này đến sau done; luồng có thể mở thêm một lúc để chờ nó" example:"Việc trễ dự án Q4"`
 }
 
 // AskStreamUsageDTO is the tokens of a streamed turn.
@@ -104,6 +228,18 @@ type AskStreamDoneDTO struct {
 	Usage   AskStreamUsageDTO `json:"usage" description:"Token của lượt hỏi"`
 }
 
+// AskStreamProposalDTO is the data of event proposal: the turn's rows after the
+// store and any auto-applied ones, before citations.
+type AskStreamProposalDTO struct {
+	Proposals []AiProposalDTO `json:"proposals" description:"Mỗi dòng mang trạng thái của nó; dòng tự áp dụng đến với status applied"`
+}
+
+// AskStreamMemoryProposalsDTO is the data of event memory_proposals: the
+// turn's memory rows after the store, after proposal and before citations.
+type AskStreamMemoryProposalsDTO struct {
+	MemoryProposals []AiMemoryProposalDTO `json:"memory_proposals" description:"Mỗi dòng ở trạng thái pending; người hỏi quyết từng dòng"`
+}
+
 // AskStreamErrorDTO is the data of event error: a code, never text.
 type AskStreamErrorDTO struct {
 	Code string `json:"code" description:"Mã lỗi, cùng mã với JSON của POST …/ai/ask; không có chữ mô tả" example:"ai_provider_error"`
@@ -115,6 +251,7 @@ type AiConversationDTO struct {
 	Title     string `json:"title" example:"task nào quá hạn?"`
 	CreatedAt string `json:"created_at" example:"2026-09-06T08:00:00Z"`
 	UpdatedAt string `json:"updated_at" example:"2026-09-06T08:05:00Z"`
+	Tainted   bool   `json:"tainted" description:"true khi hội thoại đã đọc thứ không phải lời của chính người hỏi (hoặc có từ trước khi theo dõi): từ đó UNI không tự áp dụng gì" example:"false"`
 }
 
 // AiConversationListSDO is GET /api/v1/workspaces/{workspaceID}/ai/conversations.
@@ -170,4 +307,144 @@ type ChatCatchUpSDO struct {
 	Mode           string                     `json:"mode" description:"unread sau last_read; recent khi cửa sổ 48h (chưa join)" example:"unread"`
 	Since          string                     `json:"since" example:"2026-09-11T08:00:00Z"`
 	Usage          AiUsageDTO                 `json:"usage"`
+}
+
+// AiProposalChangeDTO is one field a proposal changed, as an applied row reports it.
+type AiProposalChangeDTO struct {
+	Field string `json:"field" description:"Tên trường đã đổi" example:"status"`
+	From  any    `json:"from" description:"Giá trị trước, dạng đọc được" example:"\"todo\""`
+	To    any    `json:"to" description:"Giá trị sau, dạng đọc được" example:"\"done\""`
+}
+
+// AiProposalResultDTO is what an applied row did; zero values on a row not applied.
+type AiProposalResultDTO struct {
+	ObjectID string                `json:"object_id" description:"Đối tượng đã tạo hoặc sửa" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Href     string                `json:"href" description:"Đường dẫn nội bộ tới đối tượng" example:"/acme/team/tasks/01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Revision int64                 `json:"revision" example:"3"`
+	Changes  []AiProposalChangeDTO `json:"changes"`
+	Note     string                `json:"note" description:"Mã ghi chú của server, không phải chữ giao diện" example:""`
+}
+
+// AiProposalFieldDTO is one field a proposal would change; from and to are readable values.
+type AiProposalFieldDTO struct {
+	Field   string   `json:"field" description:"Client dịch nhãn theo ai.proposal.field.<field>" example:"status"`
+	Type    string   `json:"type" description:"text, markdown, date, datetime, enum, person, project hoặc labels" example:"enum"`
+	From    any      `json:"from" description:"Giá trị trước, dạng đọc được (tên người, dự án, nhãn, trạng thái), không phải mã" example:"\"Cần làm\""`
+	To      any      `json:"to" description:"Giá trị sau, dạng đọc được" example:"\"Hoàn thành\""`
+	Options []string `json:"options,omitempty" description:"Các giá trị chọn được khi type là enum"`
+}
+
+// AiProposalAudienceDTO says who sees a change and who is told.
+type AiProposalAudienceDTO struct {
+	Visibility   string            `json:"visibility" description:"workspace, private, task, document, meeting hoặc room" example:"task"`
+	RoomMembers  int               `json:"room_members,omitempty" description:"Số thành viên phòng khi visibility là room" example:"12"`
+	Notifies     []AiContextRefDTO `json:"notifies" description:"Những người được báo"`
+	NotifiesMore bool              `json:"notifies_more" description:"true khi còn người khác được báo (ví dụ người đã bình luận trước)" example:"false"`
+}
+
+// AiProposalPreviewDTO is what the card shows before anything is written.
+type AiProposalPreviewDTO struct {
+	Target        AiContextRefDTO       `json:"target" description:"Đối tượng bị đổi; id rỗng khi tạo mới"`
+	Fields        []AiProposalFieldDTO  `json:"fields"`
+	Body          string                `json:"body" description:"Chữ nguyên văn sẽ đăng (bình luận, tin chat) hoặc nội dung trang sẽ tạo; hiện bằng chữ thuần"`
+	BodyTruncated bool                  `json:"body_truncated" description:"true khi body chỉ là phần đầu của nội dung (trang dài hơn thẻ hiện được); khi đó không sửa body từ thẻ" example:"false"`
+	Audience      AiProposalAudienceDTO `json:"audience"`
+	Refs          []int                 `json:"refs" description:"position của các dòng mà dòng này trỏ tới qua {{row:N.id}}"`
+}
+
+// AiProposalDTO is one row of a proposal card. A failed apply is answered
+// 409 with the row's code and this row in error.fields.proposal, so a client
+// repaints the card from the same shape whether the call succeeded or not.
+type AiProposalDTO struct {
+	ID        string               `json:"id" example:"01K4AIPRP000000000000001"`
+	MessageID string               `json:"message_id" example:"01K4AIMSG0000000000000001"`
+	Position  int                  `json:"position" description:"Thứ tự trong câu trả lời, từ 1; 0 là dòng Tạo tài liệu" example:"1"`
+	Tool      string               `json:"tool" description:"Tên tool ghi" example:"update_task"`
+	Level     string               `json:"level" description:"l1 (có thể tự áp dụng ở chế độ Tự động) hoặc l2 (luôn chờ người hỏi)" example:"l2"`
+	Mode      string               `json:"mode" description:"Chế độ của lượt đã đề xuất: ask, plan hoặc auto" example:"ask"`
+	Status    string               `json:"status" description:"pending, applying, applied, rejected, failed, undoing, undone; thêm expired (pending quá hạn 24 giờ) và unknown (applying/undoing quá 2 phút) tính lúc đọc" example:"pending"`
+	Decision  string               `json:"decision" description:"Cách dòng được quyết: confirmed, plan, auto hoặc answer; rỗng khi chưa quyết" example:""`
+	Preview   AiProposalPreviewDTO `json:"preview" description:"Những gì thẻ cho xem trước khi ghi gì"`
+	Result    AiProposalResultDTO  `json:"result" description:"Những gì dòng đã làm; giá trị rỗng khi chưa áp dụng"`
+	CanUndo   bool                 `json:"can_undo" description:"true khi dòng đã áp dụng và còn Hoàn tác" example:"false"`
+	ErrorCode string               `json:"error_code" description:"Mã lỗi của dòng failed: not_found, invalid_args, revision_conflict, apply_failed…; rỗng khi không lỗi" example:""`
+	Tainted   bool                 `json:"tainted" description:"Lượt đã đọc thứ không phải lời của người hỏi" example:"false"`
+	ExpiresAt string               `json:"expires_at" example:"2026-09-07T08:00:00Z"`
+}
+
+// AiProposalListSDO is the answer of a call on several rows: every row of the
+// answer in position order, as they stand after the call. When a row stops
+// the run, the answer is 409 with the row's code and these rows in
+// error.fields.proposals.
+type AiProposalListSDO struct {
+	Proposals []AiProposalDTO `json:"proposals" description:"Mọi dòng của câu trả lời theo position, ở trạng thái sau lần gọi"`
+}
+
+// AskUniModeSDO is PUT /api/v1/me/ask-uni-mode.
+type AskUniModeSDO struct {
+	Mode string `json:"mode" example:"plan"`
+}
+
+// AskWritePolicySDO is GET and PUT /api/v1/orgs/{org}/ai/ask-write-policy.
+type AskWritePolicySDO struct {
+	Ceiling string `json:"ceiling" description:"off, ask, plan hoặc auto; chưa đặt thì plan" example:"plan"`
+}
+
+// AiMemoryCapsDTO is Ask UNI's memory state for the caller.
+type AiMemoryCapsDTO struct {
+	Enabled bool `json:"enabled" description:"Cờ ask_uni_memory bật và lượt hỏi chạy agent; false thì client ẩn mọi thứ về bộ nhớ" example:"true"`
+	On      bool `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi (users.ask_uni_memory_off đảo lại)" example:"true"`
+}
+
+// AiMemoryDTO is one entry of the caller's memory.
+type AiMemoryDTO struct {
+	ID        string `json:"id" description:"Mã mục bộ nhớ" example:"01K4AIMEM0000000000000001"`
+	Kind      string `json:"kind" description:"preference (cách UNI trả lời) hoặc fact (về bạn)" example:"fact"`
+	Text      string `json:"text" description:"Một dòng, 1–300 ký tự" example:"Tôi làm ở phòng kinh doanh"`
+	Source    string `json:"source" description:"manual, chat hoặc import" example:"manual"`
+	CreatedAt string `json:"created_at" description:"Thời điểm thêm (RFC 3339)" example:"2026-10-24T09:00:00Z"`
+	UpdatedAt string `json:"updated_at" description:"Thời điểm sửa gần nhất (RFC 3339)" example:"2026-10-24T09:00:00Z"`
+}
+
+// AiMemoryListSDO is GET /api/v1/orgs/{org}/ai/memory.
+type AiMemoryListSDO struct {
+	Entries   []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức, cách trả lời trước, rồi theo thứ tự thêm (cũ trước)"`
+	On        bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit     int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining int           `json:"remaining" description:"Số mục còn thêm được" example:"49"`
+}
+
+// AiMemoryCandidateDTO is one entry UNI split out of a paste, for the person to tick.
+type AiMemoryCandidateDTO struct {
+	Text            string `json:"text" description:"Một dòng 1–300 ký tự, đã chuẩn hóa" example:"Trả lời ngắn gọn"`
+	Kind            string `json:"kind" description:"preference hoặc fact" example:"preference"`
+	InstructionLike bool   `json:"instruction_like" description:"Mục giống một mệnh lệnh cho AI (model hoặc server đánh dấu); client không tick sẵn" example:"false"`
+	Duplicate       bool   `json:"duplicate" description:"Trùng một mục đã có hoặc một mục trước trong lần dán; client không tick sẵn" example:"false"`
+}
+
+// AiMemorySkippedDTO is a line of the paste UNI left out.
+type AiMemorySkippedDTO struct {
+	Text   string `json:"text" description:"Chữ của dòng bị bỏ; rỗng với secret, để mật khẩu không quay lại màn hình" example:"Tôi hay đau đầu"`
+	Reason string `json:"reason" description:"personal, other_person, secret hoặc not_about_user" example:"personal"`
+}
+
+// AiMemoryImportSplitSDO is POST /api/v1/orgs/{org}/ai/memory/import/split.
+type AiMemoryImportSplitSDO struct {
+	Candidates []AiMemoryCandidateDTO `json:"candidates" description:"Tối đa 100 mục để duyệt, theo thứ tự trong chữ dán"`
+	Skipped    []AiMemorySkippedDTO   `json:"skipped" description:"Dòng bị bỏ, chỉ để xem"`
+}
+
+// AiMemoryImportSDO is POST /api/v1/orgs/{org}/ai/memory/import: the memory
+// after the save, as GET answers it, and how many ticked entries it skipped.
+type AiMemoryImportSDO struct {
+	Entries           []AiMemoryDTO `json:"entries" description:"Mục của người gọi trong tổ chức sau khi lưu, cách trả lời trước, rồi theo thứ tự thêm"`
+	On                bool          `json:"on" description:"Công tắc Dùng bộ nhớ của người gọi" example:"true"`
+	Limit             int           `json:"limit" description:"Số mục tối đa" example:"50"`
+	Remaining         int           `json:"remaining" description:"Số mục còn thêm được" example:"45"`
+	SkippedDuplicates int           `json:"skipped_duplicates" description:"Số mục đã tick nhưng không lưu vì trùng bộ nhớ hoặc trùng một mục trước trong lần lưu" example:"1"`
+}
+
+// AiMemoryClearSDO is DELETE /api/v1/orgs/{org}/ai/memory.
+type AiMemoryClearSDO struct {
+	Deleted int64 `json:"deleted" description:"Số mục đã xóa" example:"3"`
 }

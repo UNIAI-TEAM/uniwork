@@ -4,7 +4,7 @@ import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { initials } from "./actor-chip";
-import { identityTint } from "./identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 
 const SIZE = {
   xs: { root: "size-5", text: "text-micro" },

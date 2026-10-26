@@ -7,9 +7,9 @@ import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { initialsOf } from "./chat-initials";
-import { foldVi } from "./chat-search-fold";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
+import { initialsOf } from "@uniwork/core/chat/initials";
+import { foldVi } from "@uniwork/core/chat/search-fold";
 import { chatPersonFaceClass } from "./chat-person-card";
 
 const PANEL_CLASS = "flex flex-col overflow-hidden rounded-xl bg-popover shadow-floating ring-1 ring-border";
@@ -149,7 +149,7 @@ export function ChatMentionAutocomplete({
               >
                 {isAll ? (
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
-                    <Users className="size-4.5" aria-hidden />
+                    <Users className="size-4" aria-hidden />
                   </span>
                 ) : (
                   <ActorAvatar

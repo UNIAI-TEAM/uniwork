@@ -63,6 +63,35 @@ func TestInstantMeeting(t *testing.T) {
 	}
 }
 
+// A meeting made without a zone (every instant one) is set in its creator's,
+// not UTC: the detail page, the minutes and the catch-up read their clock
+// from it.
+func TestMeetingWithoutAZoneTakesTheCreators(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET timezone = 'Asia/Tokyo' WHERE id = $1`, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Now")
+	if err != nil || m.Timezone != "Asia/Tokyo" {
+		t.Fatalf("instant zone = %q %v", m.Timezone, err)
+	}
+	start := time.Now().Add(time.Hour)
+	sm, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "S", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil || sm.Timezone != "Asia/Tokyo" {
+		t.Fatalf("scheduled zone = %q %v", sm.Timezone, err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET timezone = 'Not/AZone' WHERE id = $1`, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	if m, err = s.CreateInstant(ctx, ua.ID, w.ID, "Now"); err != nil || m.Timezone != defaultMeetingTimezone {
+		t.Fatalf("unusable profile zone = %q %v", m.Timezone, err)
+	}
+	if got := meetingClock(db.Meeting{Timezone: "Asia/Tokyo"})(time.Date(2026, 10, 21, 9, 27, 0, 0, time.UTC)); got != "18:27" {
+		t.Fatalf("meeting clock = %q", got)
+	}
+}
+
 func TestHostTransferAndRemove(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	addMember(t, s, w.ID, ub.ID)
@@ -160,6 +189,37 @@ func TestJoinRequestApproveReject(t *testing.T) {
 		if p.UserID.String == ub.ID {
 			t.Fatal("reject created participant")
 		}
+	}
+}
+
+// A member who knocks and is then invited by the host is let in by the
+// invitation; the knock must not stay at the door (UNI-1995 step 1: the host
+// kept "1 người đang chờ" with the guest already on stage).
+func TestInviteSettlesTheInviteesKnock(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	addMember(t, s, w.ID, ub.ID)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Knock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jr, err := s.RequestJoin(ctx, AdmissionContext{MeetingID: m.ID, UserID: ub.ID, DisplayName: "B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.q.GetJoinRequest(ctx, jr.ID)
+	if err != nil || got.Status != JoinApproved || got.ReviewedBy.String != ua.ID {
+		t.Fatalf("knock after invite: %+v %v", got, err)
+	}
+	var events int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'join_request.approved' AND payload::jsonb->>'join_request_id' = $1`, jr.ID).Scan(&events); err != nil || events != 1 {
+		t.Fatalf("join_request.approved rows: %d %v", events, err)
+	}
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err == nil {
+		t.Fatal("the settled knock can still be approved")
 	}
 }
 

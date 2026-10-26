@@ -26,7 +26,7 @@ import {
 } from "./workspace-member-picker-utils";
 import { memberAvatarUrl } from "./chat-member-avatar";
 import { CHAT_FIELD_CLASS, CHAT_PILL_SM_CLASS, CHAT_SECTION_LABEL_CLASS } from "./chat-dialog-look";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 
 /** A person's face in the pickers: two letters on their colour, and the presence dot. */
@@ -109,7 +109,7 @@ export function WorkspaceMemberSearchField({
       >
         <Search
           aria-hidden
-          className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           ref={ref}
@@ -333,7 +333,7 @@ export function WorkspaceMemberPickerList({
                           : "border-input bg-surface text-transparent",
                     )}
                   >
-                    <Check strokeWidth={3.2} className="size-3.5" />
+                    <Check className="size-3.5" />
                   </span>
                 ) : null}
                 <span className={cn("inline-flex shrink-0", locked && "opacity-50")}>

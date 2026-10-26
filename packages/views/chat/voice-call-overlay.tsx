@@ -16,8 +16,8 @@ import type {
   VoiceCallDisconnectInfo,
   VoiceCallEndInit,
   VoiceCallOverlayState,
-} from "./voice-call-overlay-types";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+} from "@uniwork/core/chat/voice-call-types";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 
 // livekit-client is 130 KB gzip and only a connected call needs it, so it
 // loads on the transition to "active" rather than with the chat route
@@ -27,7 +27,7 @@ const ActiveVoiceCallSession = lazy(() =>
   import("./voice-call-overlay-session").then((m) => ({ default: m.ActiveVoiceCallSession })),
 );
 
-export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
+export type { VoiceCallKind, VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 /**
  * A group call someone is asked to join may already be recording. The
@@ -220,7 +220,7 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_decline")}
             tone="decline"
             onClick={onDecline}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
           <VoiceCallLabeledAction
             label={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
@@ -229,9 +229,9 @@ export function VoiceCallOverlay({
             onClick={onAccept}
             icon={
               incomingDeviceError ? (
-                <RefreshCw aria-hidden className="size-6.5" />
+                <RefreshCw aria-hidden className="size-6" />
               ) : (
-                <Phone aria-hidden className="size-6.5" />
+                <Phone aria-hidden className="size-6" />
               )
             }
           />
@@ -250,7 +250,7 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_end")}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
         </PreConnectFloatingCall>
       );
@@ -270,7 +270,7 @@ export function VoiceCallOverlay({
             ariaLabel={cancelLabel}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
         </PreConnectFloatingCall>
       );

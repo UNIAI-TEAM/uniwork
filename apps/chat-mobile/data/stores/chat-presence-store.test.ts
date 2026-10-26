@@ -1,6 +1,6 @@
-// Parity: packages/core/chat/presence-store.test.ts verbatim.
+// Parity: packages/core/chat/presence-store.test.ts verbatim, then the phone's own selectIsOnline at the end.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CHAT_PRESENCE_TTL_MS, usePresenceStore } from "./chat-presence-store";
+import { CHAT_PRESENCE_TTL_MS, selectIsOnline, usePresenceStore } from "./chat-presence-store";
 
 describe("usePresenceStore", () => {
   beforeEach(() => {
@@ -113,5 +113,16 @@ describe("usePresenceStore", () => {
     usePresenceStore.setState({ onlineUserIds: { USER_Y: true } });
     usePresenceStore.getState().prune();
     expect(usePresenceStore.getState().onlineUserIds).toEqual({});
+  });
+});
+
+// The phone's own selector (not in the core file).
+describe("selectIsOnline", () => {
+  it("reads one person by their key, and nobody without an id", () => {
+    const state = { onlineUserIds: { "01JBX4USER": true as const } };
+    expect(selectIsOnline(" 01jbx4user ")(state)).toBe(true);
+    expect(selectIsOnline("01JBX4OTHER")(state)).toBe(false);
+    expect(selectIsOnline(undefined)(state)).toBe(false);
+    expect(selectIsOnline(null)(state)).toBe(false);
   });
 });

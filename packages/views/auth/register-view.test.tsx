@@ -114,6 +114,18 @@ describe("RegisterView", () => {
     expect(nav.push).toHaveBeenCalledWith("/login");
   });
 
+  // Apple 1.2 / Play UGC: signing up is agreeing to terms that forbid objectionable content.
+  it("says signing up agrees to the terms, and links the terms and the privacy policy in the reader's language", () => {
+    const nav = adapter();
+    render(wrap(<RegisterView onSuccess={() => {}} />, nav));
+
+    expect(screen.getByText(/Khi đăng ký, bạn đồng ý với/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Điều khoản sử dụng" }));
+    expect(nav.push).toHaveBeenCalledWith("/vi/terms");
+    fireEvent.click(screen.getByRole("link", { name: "Chính sách quyền riêng tư" }));
+    expect(nav.push).toHaveBeenLastCalledWith("/vi/privacy");
+  });
+
   it("hands the session to onSuccess", async () => {
     const onSuccess = vi.fn();
     requestMock.mockResolvedValue(SESSION);

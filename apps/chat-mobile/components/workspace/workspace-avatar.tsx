@@ -4,16 +4,21 @@
  * A workspace icon URL renders as a squircle logo image, an emoji as
  * text, otherwise the workspace's initial letter sits in a muted tile. A
  * server-relative icon path is made absolute against the API origin inline;
- * RN's <Image> cannot load a relative URL.
+ * an image cannot load a relative URL. expo-image keeps it in memory and on
+ * disk, keyed by its path (lib/media-source.ts), so the presigned icon's new
+ * signature does not download it again.
  */
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { Image, View } from "react-native";
+import { Image } from "expo-image";
+import { View } from "react-native";
 import { letterStyle } from "@/components/people/person-avatar";
 import { Text } from "@/components/ui/text";
-import { identityTint, SOLID_TINT_BG } from "@/lib/identity-tint";
-import { roomInitialsOf } from "@/lib/initials";
+import { SOLID_TINT_BG } from "@/lib/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { roomInitialsOf } from "@uniwork/core/chat/initials";
 import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";
+import { IMAGE_CACHE_POLICY, stableImageSource } from "@/lib/media-source";
 
 interface Props {
   name: string;
@@ -39,7 +44,13 @@ export function WorkspaceAvatar({ name, iconUrl, iconEmoji, size = 24, className
   if (resolved) {
     return (
       <View className={cn("overflow-hidden border border-border", className)} style={box}>
-        <Image source={{ uri: resolved }} resizeMode="cover" accessibilityLabel={name} style={{ width: "100%", height: "100%" }} />
+        <Image
+          source={stableImageSource(resolved)}
+          cachePolicy={IMAGE_CACHE_POLICY}
+          contentFit="cover"
+          accessibilityLabel={name}
+          style={{ width: "100%", height: "100%" }}
+        />
       </View>
     );
   }

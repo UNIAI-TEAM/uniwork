@@ -80,7 +80,7 @@ export function UniChatLoginGate() {
                 </LoginStep>
               </ol>
               <Button type="button" variant="secondary" className={cn(PILL, "mt-5")} onClick={login}>
-                <Globe aria-hidden className="size-4.5" />
+                <Globe aria-hidden className="size-4" />
                 {t("auth.desktop.unichat_login_reopen")}
               </Button>
               <Button type="button" variant="ghost" className="mt-1.5 h-11 rounded-full px-5 text-body text-muted-foreground" onClick={() => setPhase("idle")}>
@@ -131,7 +131,7 @@ function LoginStep({ index, state, children }: { index: number; state: "done" | 
           state === "next" && "bg-border text-foreground",
         )}
       >
-        {state === "done" ? <Check className="size-3.5" strokeWidth={3} /> : index}
+        {state === "done" ? <Check className="size-3.5" /> : index}
       </span>
       {children}
     </li>

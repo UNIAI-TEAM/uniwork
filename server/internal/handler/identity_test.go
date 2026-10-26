@@ -142,6 +142,10 @@ func TestDeleteAccountOverHTTP(t *testing.T) {
 	if res.StatusCode != 409 || out["error"].(map[string]any)["code"] != "owner_must_transfer" {
 		t.Fatalf("owner delete: %d %v", res.StatusCode, out)
 	}
+	// The refusal names the organization, so the phone can say which one to hand over or close.
+	if fields, _ := out["error"].(map[string]any)["fields"].(map[string]any); fields["organization_slug"] == "" || fields["can_close"] == nil {
+		t.Fatalf("owner delete fields: %v", out)
+	}
 	res, member := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{"email": "gone@example.com", "password": "password123", "display_name": "Gone"})
 	if res.StatusCode != 200 {
 		t.Fatal("register member")

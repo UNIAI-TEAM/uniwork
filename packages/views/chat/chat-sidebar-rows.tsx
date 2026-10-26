@@ -197,7 +197,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           {seen ? (
             <CheckCheck
               className={cn("size-4 shrink-0", active ? "text-primary-foreground" : "text-brand")}
-              strokeWidth={2.2}
               aria-label={t("chat.sidebar_seen_aria")}
             />
           ) : null}
@@ -269,7 +268,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
               onFill={active}
             />
             {pinned && !showBadges ? (
-              <Pin className={cn("size-3.75 shrink-0 rotate-45", faint)} aria-label={t("chat.sidebar_conversation_pinned_aria")} />
+              <Pin className={cn("size-3.5 shrink-0 rotate-45", faint)} aria-label={t("chat.sidebar_conversation_pinned_aria")} />
             ) : null}
           </span>
         ) : null}
