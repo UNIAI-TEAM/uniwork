@@ -51,8 +51,17 @@ describe("AskAnswerCard", () => {
     render(card());
     expect(screen.getByText("Đã chốt gì về demo?")).toHaveClass("bg-surface-hover");
     const answer = screen.getByRole("article", { name: "Hỏi UNI" });
-    expect(within(answer).getByText("Lúc 09:05 An chốt demo thứ Sáu [S1].")).toBeInTheDocument();
+    // The [S1] marker gives way to the source pill.
+    expect(within(answer).getByText("Lúc 09:05 An chốt demo thứ Sáu.")).toBeInTheDocument();
     expect(within(answer).getByText("Riêng bạn")).toHaveAttribute("title", "Chỉ bạn thấy câu trả lời này.");
+  });
+
+  it("draws the answer's markdown: bold and a list", () => {
+    render(card({ answer: message({ content: "Giữ **120 triệu**.\n\n- Lịch đăng bài dời\n- Tiền dồn cho tuần ra mắt" }) }));
+    const article = screen.getByRole("article", { name: "Hỏi UNI" });
+    expect(within(article).getByText("120 triệu").tagName).toBe("STRONG");
+    expect(within(article).getByText("Lịch đăng bài dời").tagName).toBe("LI");
+    expect(within(article).getByText("Tiền dồn cho tuần ra mắt").tagName).toBe("LI");
   });
 
   it("while UNI works shows the question only", () => {

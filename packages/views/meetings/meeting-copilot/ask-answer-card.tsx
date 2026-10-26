@@ -10,10 +10,15 @@ import type { AiCitation, AiMessage } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { SafeMarkdown } from "@uniwork/ui/markdown";
 import { AskUniActions } from "../../ai/ask-uni-actions";
 import { citationLabel, linkableCitations, noticeText } from "../../ai/ask-uni-legacy-panel";
+import { isInAppHref } from "../../ai/ask-uni-links";
 import { AppLink } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
+
+// A marker and the space before it: the source pills below carry the sources.
+const CITE_TOKEN = /\s?\[S(\d+)\]/g;
 
 /** "[S2]" points at a source only the asker's panel can open; in chat it is noise. */
 export function forChat(answer: string): string {
@@ -82,7 +87,19 @@ export function AskAnswerCard({
               {t("meetings.panel.composer.private")}
             </span>
           </div>
-          <p className="whitespace-pre-wrap break-words text-body leading-[21px] text-foreground">{text}</p>
+          {/* Markdown as Ask UNI writes it (lists, bold), with the [S#] markers left to the source pills below. */}
+          <SafeMarkdown
+            isLinkAllowed={isInAppHref}
+            renderLink={({ href, children }) => (
+              <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
+                {children}
+              </AppLink>
+            )}
+            inlineToken={{ pattern: CITE_TOKEN, render: () => null }}
+            className="break-words leading-[21px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5"
+          >
+            {text}
+          </SafeMarkdown>
           {pills.length > 0 ? (
             <ul aria-label={tAi("sources")} className="mt-2.5 flex flex-wrap gap-1.5">
               {pills.map((c) => (
