@@ -120,6 +120,20 @@ pipeline {
           }
         }
 
+        stage('Build Meeting Agent') {
+          steps {
+            sh '''
+              set -e
+              docker build \\
+                --memory="${DOCKER_BUILD_MEMORY}" \\
+                --memory-swap="${DOCKER_BUILD_MEMORY}" \\
+                -t "${REGISTRY}/uniwork-meeting-agent:${IMAGE_TAG}" \\
+                apps/meeting-agent
+              docker push "${REGISTRY}/uniwork-meeting-agent:${IMAGE_TAG}"
+            '''
+          }
+        }
+
         stage('Write image tag') {
           steps {
             sh '''
@@ -127,7 +141,7 @@ pipeline {
               mkdir -p target
               printf 'UNIWORK_IMAGE_TAG=%s\n' "${IMAGE_TAG}" > target/image.env
             '''
-            stash name: 'app-dev-deploy', includes: 'deploy/app-dev/docker-compose.yml,deploy/app-dev/docker-compose.secrets.yml,deploy/app-dev/env/uniwork-be.env,deploy/app-dev/env/uniwork-fe.env,deploy/app-dev/env/uniwork-office-engine.env,target/image.env'
+            stash name: 'app-dev-deploy', includes: 'deploy/app-dev/docker-compose.yml,deploy/app-dev/docker-compose.secrets.yml,deploy/app-dev/env/uniwork-be.env,deploy/app-dev/env/uniwork-fe.env,deploy/app-dev/env/uniwork-office-engine.env,deploy/app-dev/env/uniwork-meeting-agent.env,target/image.env'
           }
         }
       }
@@ -153,6 +167,7 @@ pipeline {
                 deploy/app-dev/env/uniwork-be.env \
                 deploy/app-dev/env/uniwork-fe.env \
                 deploy/app-dev/env/uniwork-office-engine.env \
+                deploy/app-dev/env/uniwork-meeting-agent.env \
                 target/image.env \
                 "$dest:${DEPLOY_DIR}/env/"
             '''

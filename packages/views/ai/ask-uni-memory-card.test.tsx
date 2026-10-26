@@ -50,6 +50,10 @@ describe("AskUniMemoryCard", () => {
     await waitFor(() => expect(client.getQueryState(aiMemoryKeys.all("acme"))?.isInvalidated).toBe(true));
     await waitFor(() => rerender());
     expect(await screen.findByText("Đã nhớ")).toBeInTheDocument();
+    // Done, the card is one line: what was kept, undo and the way to the memory screen; no title, no decision buttons.
+    expect(screen.getByText(TEXT)).toBeInTheDocument();
+    expect(screen.queryByText("Nhớ điều này?")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bỏ qua" })).toBeNull();
     expect(screen.getByRole("button", { name: "Hoàn tác" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mở Bộ nhớ" }));
     expect(useAiPanelStore.getState().view).toBe("memory");
@@ -70,6 +74,9 @@ describe("AskUniMemoryCard", () => {
     expect(screen.getByText("Không dùng emoji")).toBeInTheDocument();
     expect(screen.getByText("Cách UNI trả lời")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Quên" })).toBeInTheDocument();
+    // Turning a forget down keeps the entry, and the button says so.
+    expect(screen.getByRole("button", { name: "Giữ lại" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bỏ qua" })).toBeNull();
   });
 
   it("edits the text before saving with PATCH", async () => {
