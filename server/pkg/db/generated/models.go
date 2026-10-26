@@ -1226,6 +1226,41 @@ type DriveGrantRevocation struct {
 	LastError            string             `json:"last_error"`
 }
 
+type DriveTaskProposal struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DriveFileID     string             `json:"drive_file_id"`
+	ConnectionID    string             `json:"connection_id"`
+	RequestedBy     string             `json:"requested_by"`
+	RequestedByKind string             `json:"requested_by_kind"`
+	Prompt          string             `json:"prompt"`
+	ProjectID       pgtype.Text        `json:"project_id"`
+	ParentTaskID    pgtype.Text        `json:"parent_task_id"`
+	ContextTaskID   pgtype.Text        `json:"context_task_id"`
+	Items           []byte             `json:"items"`
+	Truncated       bool               `json:"truncated"`
+	UsageEventID    string             `json:"usage_event_id"`
+	Status          string             `json:"status"`
+	StatusChangedAt pgtype.Timestamptz `json:"status_changed_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type DriveTaskProposalLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ProposalID     string             `json:"proposal_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	ExternalFileID string             `json:"external_file_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Email struct {
 	ID            string             `json:"id"`
 	Kind          string             `json:"kind"`
