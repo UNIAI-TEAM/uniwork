@@ -122,7 +122,7 @@ export function DriveAskUniHeaderButton({
   if (!showAsk) return null;
 
   return (
-    <div className="flex items-center gap-2">
+    <>
       <Button
         type="button"
         variant="outline"
@@ -135,10 +135,13 @@ export function DriveAskUniHeaderButton({
         {t("driveLibrary.detail.ask_uni")}
       </Button>
       {!askGranted ? (
-        <span id="drive-detail-ask-access-hint" className="text-caption text-muted-foreground">
+        <span
+          id="drive-detail-ask-access-hint"
+          className="order-last basis-full text-right text-caption text-muted-foreground sm:order-none sm:basis-auto"
+        >
           {t("driveLibrary.detail.access_required_hint")}
         </span>
       ) : null}
-    </div>
+    </>
   );
 }

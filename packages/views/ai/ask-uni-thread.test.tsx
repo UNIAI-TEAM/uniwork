@@ -615,10 +615,12 @@ describe("AskUniThread transient mode (drive_file, spec §9)", () => {
     );
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("UNI chưa đọc được định dạng này.");
-    expect(screen.getByRole("link", { name: "Mở trên Google Drive" })).toHaveAttribute(
+    const openLink = screen.getByRole("link", { name: "Mở trên Google Drive" });
+    expect(openLink).toHaveAttribute(
       "href",
       "https://drive.google.com/file/d/ext-1/view",
     );
+    expect(openLink).toHaveClass("pointer-coarse:min-h-11");
 
     m.update(
       stream({ status: "error", conversationId: null, question: "Tóm tắt", errorCode: "drive_access_required" }),

@@ -25,7 +25,7 @@ export function AskUniFollowups({
             type="button"
             aria-label={proposeLabel}
             onClick={onProposeTasks}
-            className="rounded-md border border-border px-2.5 py-1.5 text-left text-body text-foreground hover:bg-surface-hover"
+            className="rounded-md border border-border px-2.5 py-1.5 text-left text-body text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
           >
             {proposeLabel}
           </button>
@@ -36,7 +36,7 @@ export function AskUniFollowups({
             type="button"
             aria-label={q}
             onClick={() => onAsk(q)}
-            className="rounded-md border border-border px-2.5 py-1.5 text-left text-body text-foreground hover:bg-surface-hover"
+            className="rounded-md border border-border px-2.5 py-1.5 text-left text-body text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
           >
             {q}
           </button>

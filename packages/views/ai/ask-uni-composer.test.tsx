@@ -639,9 +639,10 @@ describe("AskUniComposer", () => {
           openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
         }),
       );
-      expect(
-        await screen.findByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
-      ).toBeInTheDocument();
+      const chip = await screen.findByTitle("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh");
+      expect(chip).toHaveTextContent("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh");
+      expect(within(chip).getByText("Kế hoạch ra mắt Q4")).toHaveClass("truncate");
+      expect(within(chip).getByText(/UNI đang dùng tài liệu này làm ngữ cảnh/)).toHaveClass("shrink-0");
       expect(
         screen.getByText(
           "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản uni-work1@gmail.com khi trả lời.",
@@ -676,7 +677,7 @@ describe("AskUniComposer", () => {
       expect(await screen.findByText("UNI chỉ nhớ các lượt gần nhất")).toBeInTheDocument();
     });
 
-    it("shows drive_format_unsupported refusal with 'Mở trên Google Drive' link", async () => {
+    it("does not duplicate a Drive refusal in the composer (the thread's StreamError owns it)", async () => {
       const { onSend } = mount();
       onSend.mockResolvedValueOnce({ accepted: false, code: "drive_format_unsupported", message: "" });
       act(() =>
@@ -690,13 +691,23 @@ describe("AskUniComposer", () => {
       );
       type("Tóm tắt");
       key("Enter");
-      const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent("UNI chưa đọc được định dạng này.");
-      const openLink = within(alert).getByRole("link", { name: "Mở trên Google Drive" });
-      expect(openLink).toHaveAttribute(
-        "href",
-        "https://drive.google.com/file/d/ext-1/view?authuser=uni-work1%40gmail.com",
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("still shows a non-Drive refusal alert in the composer", async () => {
+      const { onSend } = mount();
+      onSend.mockResolvedValueOnce({ accepted: false, code: "ai_rate_limited", message: "" });
+      act(() =>
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+        }),
       );
+      type("Tóm tắt");
+      key("Enter");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang hỏi quá nhanh");
     });
 
     it("ignores a drive_file page chip when a saved conversation is open so conversation_id is kept and no Drive reader line or footer shows, and select(null) shows the page chip again", async () => {
@@ -734,7 +745,7 @@ describe("AskUniComposer", () => {
         useAiPanelStore.getState().select(null);
       });
       expect(
-        await screen.findByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+        await screen.findByTitle("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
       ).toBeInTheDocument();
       expect(
         screen.getByText(

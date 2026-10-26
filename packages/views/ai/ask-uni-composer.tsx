@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ExternalLink, Square, X, type LucideIcon } from "lucide-react";
+import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import { askDisplayAttachments, type StagedAskFile } from "@uniwork/core/ai/attachments";
@@ -33,13 +33,34 @@ function namedFile(message: string): string | null {
   }
 }
 
-function Chip({ label, remove, onRemove, icon: Icon }: { label: string; remove: string; onRemove: () => void; icon?: LucideIcon }) {
+function Chip({
+  label,
+  name,
+  suffix,
+  remove,
+  onRemove,
+  icon: Icon,
+}: {
+  label: string;
+  name?: string;
+  suffix?: string;
+  remove: string;
+  onRemove: () => void;
+  icon?: LucideIcon;
+}) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
+    <span title={label} className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
       {Icon ? <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
-      <span className="truncate">{label}</span>
+      {name && suffix ? (
+        <span className="flex min-w-0 items-center">
+          <span className="min-w-0 truncate">{name}</span>
+          <span className="shrink-0 whitespace-nowrap">{suffix}</span>
+        </span>
+      ) : (
+        <span className="truncate">{label}</span>
+      )}
       {/* The primitive carries the 44px coarse-pointer target. */}
-      <Button type="button" variant="ghost" size="icon-xs" aria-label={remove} className="rounded-full text-muted-foreground" onClick={onRemove}>
+      <Button type="button" variant="ghost" size="icon-xs" aria-label={remove} className="shrink-0 rounded-full text-muted-foreground" onClick={onRemove}>
         <X aria-hidden />
       </Button>
     </span>
@@ -147,7 +168,7 @@ export function AskUniComposer({
         : t("drive.context_chip_unnamed")
       : t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) })
     : "";
-
+  const driveSuffix = t("drive.context_chip_suffix");
   // A file still uploading is not yet a file, and a failed one would silently drop out: the question waits for both.
   const filesWait = !!attachments && (attachments.busy || attachments.blocked);
   // Marks the staged chip a refusal names, and says whether one was found.
@@ -188,8 +209,8 @@ export function AskUniComposer({
     }
     void outcome.then((o) => {
       if (o.accepted) taken();
-      // A turn stopped or replaced before it was taken has nothing to report.
-      else if (o.code && !(o.code === "ai_attachment_unreadable" && markUnreadable(sentFiles, o.message))) setRefusal(o.code);
+      // A turn stopped or replaced before it was taken has nothing to report; Drive refusals show in the thread's StreamError.
+      else if (o.code && !o.code.startsWith("drive_") && !(o.code === "ai_attachment_unreadable" && markUnreadable(sentFiles, o.message))) setRefusal(o.code);
     });
   };
 
@@ -207,6 +228,8 @@ export function AskUniComposer({
           <div className="flex flex-wrap gap-1.5">
             <Chip
               label={focusLabel}
+              name={focus.kind === "drive_file" && focus.label ? focus.label : undefined}
+              suffix={focus.kind === "drive_file" && focus.label ? driveSuffix : undefined}
               remove={t("scope.remove", { name: focusLabel })}
               onRemove={() => {
                 setFocus(null);
@@ -220,6 +243,8 @@ export function AskUniComposer({
             <Chip
               icon={entityKindIcon(shownPage.kind === "room" ? "chat" : shownPage.kind)}
               label={pageLabel}
+              name={shownPage.kind === "drive_file" && shownPage.label ? shownPage.label : undefined}
+              suffix={shownPage.kind === "drive_file" && shownPage.label ? driveSuffix : undefined}
               remove={t("scope.remove", { name: pageLabel })}
               onRemove={() => {
                 dismissPage();
@@ -240,20 +265,9 @@ export function AskUniComposer({
         ) : null}
         {attachments ? <AskUniAttachmentRow attachments={attachments} /> : null}
         {refusal ? (
-          <div role="alert" className="flex flex-wrap items-center gap-2 text-caption text-destructive">
-            <span>{t(`errors.${refusal}`, { defaultValue: t("errors.default") })}</span>
-            {refusal === "drive_format_unsupported" && sent?.openUrl ? (
-              <a
-                href={sent.openUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-              >
-                <ExternalLink aria-hidden className="size-3.5" />
-                {t("drive.open_on_drive")}
-              </a>
-            ) : null}
-          </div>
+          <p role="alert" className="text-caption text-destructive">
+            {t(`errors.${refusal}`, { defaultValue: t("errors.default") })}
+          </p>
         ) : null}
         <AskUniEditor
           ref={box}

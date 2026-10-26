@@ -41,7 +41,7 @@ function StreamError({ code, openUrl }: { code: string | null; openUrl?: string 
           href={openUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-1 font-medium text-primary hover:underline pointer-coarse:min-h-11"
         >
           <ExternalLink aria-hidden className="size-3.5" />
           {t("drive.open_on_drive")}

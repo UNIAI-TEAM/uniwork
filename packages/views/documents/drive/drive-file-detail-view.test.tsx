@@ -601,8 +601,9 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(askBtn).toHaveAttribute("aria-disabled", "true");
     const hintId = askBtn.getAttribute("aria-describedby");
     expect(hintId).toBeTruthy();
-    expect(document.getElementById(hintId!)).toHaveTextContent(t("driveLibrary.detail.access_required_hint"));
-
+    const hint = document.getElementById(hintId!);
+    expect(hint).toHaveTextContent(t("driveLibrary.detail.access_required_hint"));
+    expect(hint).toHaveClass("basis-full", "order-last");
     fireEvent.click(askBtn);
     expect(onAsk).not.toHaveBeenCalled();
   });

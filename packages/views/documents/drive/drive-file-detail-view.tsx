@@ -268,7 +268,8 @@ export function DriveFileDetailView({
           },
         ]}
         leaf={<span title={file.name}>{file.name}</span>}
-        actionsClassName="max-w-none flex-wrap justify-end overflow-visible"
+        className="h-auto min-h-12 py-1.5 sm:h-12 sm:py-0"
+        actionsClassName="max-w-none flex-wrap justify-end gap-x-2 gap-y-1 overflow-visible"
         actions={
           <>
             <DriveAskUniHeaderButton

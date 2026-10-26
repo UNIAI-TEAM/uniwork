@@ -7402,6 +7402,7 @@
     "page_chip": "Trang này: {{label}}",
     "drive": {
       "context_chip": "{{name}} — UNI đang dùng tài liệu này làm ngữ cảnh",
+      "context_chip_suffix": " — UNI đang dùng tài liệu này làm ngữ cảnh",
       "context_chip_unnamed": "Tệp Google Drive — UNI đang dùng tài liệu này làm ngữ cảnh",
       "reader_line": "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản {{email}} khi trả lời.",
       "reader_line_no_email": "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản Google Drive của bạn khi trả lời.",
@@ -7464,6 +7465,7 @@
     },
     "empty": {
       "title": "Hỏi UNI về công việc",
+      "title_drive_file": "Hỏi UNI về tài liệu này",
       "title_anthropic": "Cần Claude tìm hiểu gì?",
       "task": {
         "1": "Tóm tắt task này",
@@ -7488,6 +7490,12 @@
         "2": "Tài liệu này nói gì về hạn chót?",
         "3": "Việc nào liên quan đến tài liệu này?",
         "4": "Ai phụ trách nội dung này?"
+      },
+      "drive_file": {
+        "1": "Tóm tắt các mốc và rủi ro trong tài liệu này",
+        "2": "Liệt kê các mốc thời gian và hạn chót",
+        "3": "Những việc cần làm được nêu trong tài liệu?",
+        "4": "Ai chịu trách nhiệm những phần nào?"
       },
       "room": {
         "1": "Tóm tắt trao đổi gần đây",

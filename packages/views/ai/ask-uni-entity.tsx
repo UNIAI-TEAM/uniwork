@@ -261,7 +261,7 @@ export function AskUniSources({ citations }: { citations: AiCitation[] }) {
             return (
               <li key={c.source_id}>
                 {isInAppHref(c.href) ? (
-                  <AppLink href={c.href} className="inline-flex max-w-full items-center gap-1.5 text-caption hover:underline">
+                  <AppLink href={c.href} className="inline-flex max-w-full items-center gap-1.5 text-caption hover:underline pointer-coarse:min-h-11">
                     {body}
                   </AppLink>
                 ) : (

@@ -7451,6 +7451,7 @@
     "page_chip": "This page: {{label}}",
     "drive": {
       "context_chip": "{{name}} — UNI is using this document as context",
+      "context_chip_suffix": " — UNI is using this document as context",
       "context_chip_unnamed": "Google Drive file — UNI is using this document as context",
       "reader_line": "View the document content on Google Drive. UNI reads the file using {{email}} when answering.",
       "reader_line_no_email": "View the document content on Google Drive. UNI reads the file using your Google Drive account when answering.",
@@ -7514,6 +7515,7 @@
     },
     "empty": {
       "title": "Ask UNI about your work",
+      "title_drive_file": "Ask UNI about this document",
       "title_anthropic": "What should Claude look into?",
       "task": {
         "1": "Summarize this task",
@@ -7538,6 +7540,12 @@
         "2": "What does this document say about the deadline?",
         "3": "What work is related to this document?",
         "4": "Who owns this content?"
+      },
+      "drive_file": {
+        "1": "Summarize the milestones and risks in this document",
+        "2": "List the milestones and deadlines",
+        "3": "What action items are mentioned in the document?",
+        "4": "Who is responsible for which parts?"
       },
       "room": {
         "1": "Summarize recent discussion",
