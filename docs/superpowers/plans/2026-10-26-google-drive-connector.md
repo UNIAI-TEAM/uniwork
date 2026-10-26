@@ -112,7 +112,7 @@
 
 ### B4 — Tham chiếu: migration, liên kết, danh sách, chi tiết, bỏ, rebind, quyền người xem (2.x, 4.x) — 3,75d
 - Migration `drive_files` (có `bound_by`, `drive_id`, `drive_modified_by_display`, `sharing_state`), `drive_file_access`, `drive_file_task_links` (§6.2–6.4) + index.
-- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`, khử trùng `already_linked`, luật ghi đè §6.3), `ListWorkspace` (lọc `connection_id`, `linked_by=others`), `Get` (+ `can_unlink`, `can_rebind`, `viewer_account_email`), `ListForTask`, `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind` (kết nối phải thuộc người gọi, chỉ đổi dòng truy cập của người gọi, đặt `bound_by`), `use_rebind` khi người giữ kết nối gắn đổi tài khoản đọc, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
+- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`, khử trùng `already_linked`, luật ghi đè §6.3), `ListWorkspace` (lọc `connection_id`, `linked_by=others`), `Get` (+ `can_unlink`, `can_rebind`, `viewer_account_email`, `bound_by_id`, `bound_by_name`, `created_by_name`; spec §6.2 — mọi danh sách/thẻ hiện tài khoản gắn theo `bound_by`, `linked_by=others` lọc `bound_by` ≠ người xem), `ListForTask`, `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind` (kết nối phải thuộc người gọi, chỉ đổi dòng truy cập của người gọi, đặt `bound_by`), `use_rebind` khi người giữ kết nối gắn đổi tài khoản đọc, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
 - `CreateTaskSDI.drive_files` + gọi `Link` trong transaction tạo việc (`service/task.go`); một tệp lỗi → cả lệnh lỗi kèm chỉ số tệp.
 - Route §7.2–7.7: `POST|GET /workspaces/{workspaceID}/drive-files`, `GET|DELETE /workspaces/{workspaceID}/drive-files/{driveFileID}`, `POST|PUT …/{driveFileID}/access`, `POST …/{driveFileID}/rebind`, `GET /tasks/{taskID}/drive-files`, `DELETE /tasks/{taskID}/drive-files/{driveFileID}`, `POST /workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token`. SDI/SDO có `description`/`example`; `pathParamSDI` cho `driveConnectionID`, `driveFileID`.
 - Audit + outbox: `drive_file.linked|access_granted|access_changed|access_lost|unlinked|rebound` (resource `drive_file`), `task.drive_file_linked|drive_file_unlinked` (resource `task`); sự kiện `drive_file.linked|access_changed|task_linked|unlinked|updated`.
@@ -135,10 +135,10 @@
 - Job lane chậm mỗi giờ (§8.6): mỗi vòng một transaction `DELETE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED LIMIT 500)`; đăng ký trong trình tự tắt của `cmd/server/main.go`; metric `drive_task_proposals_purged_total`, không audit mỗi vòng (mẫu `document_retention_sweep.go`).
 - Test: xóa đúng tập (hết hạn, đã xử lý), hai worker không xóa trùng.
 
-### B8 — Hỏi UNI chế độ tạm thời với focus `drive_file` (3.2, Q10) — 2,5d
+### B8 — Hỏi UNI chế độ tạm thời với focus `drive_file` (3.2, Q10) — 2,75d
 - Focus `drive_file` trong `service/askuni_context.go` (tệp thuộc workspace của lượt hỏi, người hỏi `granted`); nạp nội dung một lần ở lượt đầu qua `drive_content.ReadForAI` (PDF ở `Attachments` lượt đầu); chạy ở cả đường mặc định và đường agent (`ask_uni_agent`).
 - Chế độ `transient` (spec §9): `AskUniSDI` (`handler/dto/sdi/ai.go:9-18`) thêm `transient`, `transcript` có giới hạn; service bỏ qua tạo hội thoại, tin nhắn, trích dẫn ở cả đường mặc định (`askuni.go:259`, `:336`, `:609-636`) và đường agent (`askuni_agent.go:327`), dùng `transcript` làm `History` không tin cậy, trích dẫn chỉ trong phản hồi, kiểm lại focus và đọc lại tệp mỗi yêu cầu; audit `drive_file.read` (`purpose = ask_uni`).
-- Test: `TestAskUniDriveFocusIsNotPersisted` (hai câu hỏi liên tiếp, flag `ask_uni_agent` tắt và bật, không dòng hội thoại/tin nhắn/trích dẫn nào), `transient` + `conversation_id` → 400, focus `drive_file` thiếu `transient` → 400, bản chép quá giới hạn → 400, người hỏi chưa có quyền → câu trả lời nói rõ, không lỗi; cả hai trạng thái flag `ask_uni_agent`; văn bản và PDF; `TestAskUniToolsAreReadOnly` và `TestAskAgentToolsAreReadOnly` vẫn qua (không thêm tool).
+- Test: `TestAskUniDriveFocusIsNotPersisted` (hai câu hỏi liên tiếp, flag `ask_uni_agent` tắt và bật, không dòng hội thoại/tin nhắn/trích dẫn nào), `transient` + `conversation_id` → 400, route stream (`ai_stream.go`) ở chế độ tạm thời: frame `run` có `conversation_id` rỗng, người dùng dừng giữa chừng không để lại dòng nào, focus `drive_file` thiếu `transient` → 400, bản chép quá giới hạn → 400, người hỏi chưa có quyền → câu trả lời nói rõ, không lỗi; cả hai trạng thái flag `ask_uni_agent`; văn bản và PDF; `TestAskUniToolsAreReadOnly` và `TestAskAgentToolsAreReadOnly` vẫn qua (không thêm tool).
 
 ### B9 — ADR 0038 accepted + luật CLAUDE.md — 0,25d (cùng PR với B3)
 - Chuyển ADR ra `docs/adr/`, bảng README, mục Audit and Events của `CLAUDE.md` nêu tên test; `scripts/governance.test.mjs`.
@@ -191,11 +191,12 @@
 - `LibraryView` thêm `{kind: "drive", account}`; URL `…/documents?view=drive[&account=…]` + builder `packages/core/paths/` (`consistency.test.ts`); `?pick=1` chỉ đặt focus vào nút "Thêm từ…".
 - `documents-sidebar.tsx`: nút Google Drive dưới "Thư mục của tôi" (ẩn khi flag `documents` tắt hoặc chưa kết nối), con theo tài khoản + "Người khác liên kết", `aria-current`.
 - Màn danh sách (bảng `table`, cột §7.6, tiêu đề/dòng phụ/chân trang theo prototype, "Thêm từ Google Drive" / "Thêm từ <email>", `CollectionPageState` rỗng/lỗi).
-- Trang `documents/drive/[driveFileId]/page.tsx`: Tài khoản gắn + Bạn mở bằng, Đang dùng ở, Gắn vào việc, Hoạt động (`useResourceHistory(wsId, "drive_file", id)`), Bỏ liên kết (xác nhận, `can_unlink`), Liên kết lại (`can_rebind`), `?propose=1` / `?ask=1` chỉ mở UI.
+- Cột 4.1, lọc "Người khác liên kết" và thẻ trên việc hiện tài khoản gắn theo `bound_by` (spec §6.2), kèm "(gắn lại bởi <tên>)" khi khác người liên kết.
+- Trang `documents/drive/[driveFileId]/page.tsx`: Tài khoản gắn (theo `bound_by`, kèm hậu tố gắn lại) + Bạn mở bằng, Đang dùng ở, Gắn vào việc, Hoạt động (`useResourceHistory(wsId, "drive_file", id)`), Bỏ liên kết (xác nhận, `can_unlink`), Liên kết lại (`can_rebind`), `?propose=1` / `?ask=1` chỉ mở UI.
 - Test: views test từng trạng thái §7.10.
 
-### W9 — Hỏi UNI với tệp Drive (3.2) — 2d
-- `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts`), khóa `ai.ask_about_drive_file`, mở bằng `useAskUniOpener`; chip ngữ cảnh, dòng tài khoản đọc, chân panel "…cuộc trò chuyện này không được lưu"; chế độ tạm thời: bản chép trong store của core (không qua `useAiMessages(conversationId)` của `ask-uni-thread.tsx`), endpoint gửi `transient` + `transcript` mỗi câu hỏi (schema + case malformed), đóng panel hoặc đổi focus xóa bản chép; không thêm mục vào danh sách lịch sử; test hai câu hỏi rồi đóng panel; trích dẫn trỏ tới trang 4.2; gợi ý "Tạo việc từ tài liệu này".
+### W9 — Hỏi UNI với tệp Drive (3.2) — 3d
+- `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts`), khóa `ai.ask_about_drive_file`, mở bằng `useAskUniOpener`; chip ngữ cảnh, dòng tài khoản đọc, chân panel "…cuộc trò chuyện này không được lưu"; chế độ tạm thời: bản chép trong store của core (không qua `useAiMessages(conversationId)` của `ask-uni-thread.tsx`), endpoint gửi `transient` + `transcript` mỗi câu hỏi (schema + case malformed), hợp đồng stream spec §9 (`ai-stream.ts:25` nhận `conversation_id` rỗng; `use-ask-uni-stream.ts` không ghi/vô hiệu `aiKeys.messages` khi `done`, `stop()` không thăm lại 1.500 ms), ẩn phản hồi/tạo lại, cửa sổ trượt 20 lượt/32.000 ký tự, đóng panel/đổi focus/chọn lịch sử/hội thoại mới xóa bản chép; không thêm mục vào danh sách lịch sử; test hai câu hỏi, dừng giữa chừng, lượt thứ 21 trượt cửa sổ, đổi focus; trích dẫn trỏ tới trang 4.2; gợi ý "Tạo việc từ tài liệu này".
 
 ### W10 — Roadmap và thuật ngữ — 0,25d
 - Dòng roadmap cho Drive (comment `PLANNED` của `integrations-tab.tsx` yêu cầu); rà `docs/conventions.md`.
@@ -216,7 +217,7 @@
 - Test: `tests/uniwork-documents-home-model.test.ts` (hiện/ẩn theo capability + kết nối, lọc tài khoản, "Người khác liên kết"), `tests/uniwork-documents-home-ui.test.ts` (jsdom: chọn mục, offline hai trường hợp, mất kết nối).
 
 ### D3 — Panel chi tiết + bỏ liên kết + chuyển giao (4.2 trên app, Q9) — 2d
-- Panel phải mới trong DocumentsHome theo bố cục `UniworkDocInfoPanel.tsx` (§17.3): Tài khoản gắn, Bạn mở bằng, …; "Bỏ liên kết" với hộp xác nhận, ẩn khi `can_unlink = false`.
+- Panel phải mới trong DocumentsHome theo bố cục `UniworkDocInfoPanel.tsx` (§17.3): Tài khoản gắn (theo `bound_by`, khóa `uhDriveReboundBy`), Bạn mở bằng, …; "Bỏ liên kết" với hộp xác nhận, ẩn khi `can_unlink = false`.
 - `webPathOf` + `WorkWebTarget` (`src/shared/uniwork-work-api.ts:174-177`): đích `drive-pick` (`/documents?view=drive&pick=1[&account=]`), `drive-connect`, `drive-file` (`action` `propose`|`ask`|không).
 - Test: `webPathOf` từng đích (id sai → `null`), panel đủ trường, bỏ liên kết gọi IPC và làm mới.
 
@@ -243,10 +244,10 @@
 | Pha | Ngày-người |
 | --- | --- |
 | Spike S1–S5 | 2,5 |
-| Server B1–B10 | 20 |
-| Web W1–W10 | 23,25 |
+| Server B1–B10 | 20,25 |
+| Web W1–W10 | 24,25 |
 | Desktop D1–D4 (lane fork) | 6,5 |
 | Kiểm thử/ra mắt Q1–Q3 | 3 |
-| **Tổng** | **55,25** |
+| **Tổng** | **56,5** |
 
 E1 không tính (công 0,5d + thời gian chờ Google). Với một lane `uniwork` hai người (BE + FE) và một lane fork, lịch khoảng 5–6 tuần; đường găng ở mục Phụ thuộc.
