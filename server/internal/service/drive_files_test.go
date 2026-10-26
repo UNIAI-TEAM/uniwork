@@ -501,6 +501,20 @@ func TestDriveFileVisibilityGateGrantAccessAndUnlinkReLink(t *testing.T) {
 	if err != nil || content.GoogleEmail != "vis-b@example.com" || content.Text != "# Nội dung báo cáo" {
 		t.Fatalf("peer ReadForAI after GrantAccess = %+v, err=%v", content, err)
 	}
+	callsBeforeGate := len(env.googleSrv.Calls())
+	env.fileSvc.SetFlags(driveConnectorFlags(t, false))
+	if _, err := env.contentSvc.ReadForAI(ctx, env.peer.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveUnavailable) {
+		t.Fatalf("ReadForAI with flag off = %v, want ErrDriveUnavailable", err)
+	}
+	env.fileSvc.SetFlags(driveConnectorFlags(t, true))
+	env.svc.SetProvider(nil)
+	if _, err := env.contentSvc.ReadForAI(ctx, env.peer.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveUnavailable) {
+		t.Fatalf("ReadForAI with provider unconfigured = %v, want ErrDriveUnavailable", err)
+	}
+	if gotCalls := len(env.googleSrv.Calls()) - callsBeforeGate; gotCalls != 0 {
+		t.Fatalf("Google calls while flag off / provider unconfigured = %d, want 0", gotCalls)
+	}
+	env.svc.SetProvider(env.fake)
 
 	// Unlink soft-deletes the file and removes all task links; re-linking the same external_file_id creates a new active row.
 	if err := env.fileSvc.Unlink(ctx, Human(env.owner.ID), env.wsA.ID, fileID); err != nil {

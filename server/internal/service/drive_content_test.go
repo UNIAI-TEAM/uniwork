@@ -315,9 +315,12 @@ func (fn driveUnitRowFunc) Scan(dest ...any) error { return fn(dest...) }
 // the real WorkspaceService.requireActorMember gate and the real
 // DriveConnectionService token refresh path without a live Postgres connection.
 type memDriveUnitDBTX struct {
-	mu       sync.Mutex
-	admitted map[string]string             // "wsID|userID" -> orgID
-	conns    map[string]db.DriveConnection // connID -> row
+	mu         sync.Mutex
+	admitted   map[string]string             // "wsID|userID" -> orgID
+	workspaces map[string]db.Workspace       // wsID -> workspace
+	files      map[string]db.DriveFile       // fileID -> row
+	access     map[string]db.DriveFileAccess // "fileID|userID" -> row
+	conns      map[string]db.DriveConnection // connID -> row
 }
 
 func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -371,12 +374,88 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 			*(dest[5].(*bool)) = false
 			return nil
 		})
-	case strings.Contains(sql, "-- name: GetDriveConnection "):
+	case strings.Contains(sql, "-- name: GetWorkspaceByID "):
+		wsID, _ := args[0].(string)
+		row, ok := m.workspaces[wsID]
+		if !ok {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = row.ID
+			*(dest[1].(*string)) = row.Slug
+			*(dest[2].(*string)) = row.Name
+			*(dest[3].(*string)) = row.CreatedBy
+			*(dest[4].(*pgtype.Timestamptz)) = row.CreatedAt
+			*(dest[5].(*pgtype.Timestamptz)) = row.UpdatedAt
+			*(dest[6].(*string)) = row.OrganizationID
+			*(dest[7].(*pgtype.Text)) = row.MatrixRoomID
+			*(dest[8].(*string)) = row.TaskPrefix
+			*(dest[9].(*int64)) = row.TaskCounter
+			*(dest[10].(*string)) = row.Description
+			*(dest[11].(*pgtype.Text)) = row.IconEmoji
+			*(dest[12].(*pgtype.Text)) = row.IconFileID
+			return nil
+		})
+	case strings.Contains(sql, "-- name: GetActiveDriveFileByID "):
+		id, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		wsID, _ := args[2].(string)
+		row, ok := m.files[id]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return scanMemDriveFile(row)
+	case strings.Contains(sql, "-- name: UpdateDriveFileMetadata "):
+		id, _ := args[11].(string)
+		orgID, _ := args[12].(string)
+		wsID, _ := args[13].(string)
+		row, ok := m.files[id]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		row.DriveID, _ = args[0].(pgtype.Text)
+		row.Name, _ = args[1].(string)
+		row.MimeType, _ = args[2].(string)
+		row.IconKind, _ = args[3].(string)
+		row.WebViewLink, _ = args[4].(string)
+		row.OwnerDisplay, _ = args[5].(string)
+		row.DriveModifiedAt, _ = args[6].(pgtype.Timestamptz)
+		row.DriveModifiedByDisplay, _ = args[7].(string)
+		row.SharingState, _ = args[8].(string)
+		row.SharedUserCount, _ = args[9].(pgtype.Int4)
+		row.MetadataRefreshedAt, _ = args[10].(pgtype.Timestamptz)
+		m.files[id] = row
+		return scanMemDriveFile(row)
+	case strings.Contains(sql, "-- name: GetDriveFileAccessByUser "):
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		fileID, _ := args[2].(string)
+		userID, _ := args[3].(string)
+		row, ok := m.access[fileID+"|"+userID]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return scanMemDriveFileAccess(row)
+	case strings.Contains(sql, "-- name: TouchDriveFileAccessCheckedAt "):
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		fileID, _ := args[2].(string)
+		userID, _ := args[3].(string)
+		connID, _ := args[4].(string)
+		row, ok := m.access[fileID+"|"+userID]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.ConnectionID != connID {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		row.State = "granted"
+		m.access[fileID+"|"+userID] = row
+		return scanMemDriveFileAccess(row)
+	case strings.Contains(sql, "-- name: GetDriveConnection ") || strings.Contains(sql, "-- name: GetDriveConnectionAnyState "):
 		id, _ := args[0].(string)
 		orgID, _ := args[1].(string)
 		userID, _ := args[2].(string)
 		row, ok := m.conns[id]
-		if !ok || row.OrganizationID != orgID || row.UserID != userID || row.DisconnectedAt.Valid {
+		allowDisc := strings.Contains(sql, "-- name: GetDriveConnectionAnyState ")
+		if !ok || row.OrganizationID != orgID || row.UserID != userID || (!allowDisc && row.DisconnectedAt.Valid) {
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
 		return driveUnitRowFunc(func(dest ...any) error {
@@ -401,6 +480,52 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 	default:
 		return driveUnitRowFunc(func(...any) error { return errors.New("unexpected QueryRow in memDriveUnitDBTX: " + sql) })
 	}
+}
+
+func scanMemDriveFile(row db.DriveFile) pgx.Row {
+	return driveUnitRowFunc(func(dest ...any) error {
+		*(dest[0].(*string)) = row.ID
+		*(dest[1].(*string)) = row.OrganizationID
+		*(dest[2].(*string)) = row.WorkspaceID
+		*(dest[3].(*string)) = row.ExternalFileID
+		*(dest[4].(*pgtype.Text)) = row.DriveID
+		*(dest[5].(*string)) = row.ConnectionID
+		*(dest[6].(*string)) = row.BoundBy
+		*(dest[7].(*string)) = row.CreatedBy
+		*(dest[8].(*string)) = row.CreatedByKind
+		*(dest[9].(*string)) = row.Name
+		*(dest[10].(*string)) = row.MimeType
+		*(dest[11].(*string)) = row.IconKind
+		*(dest[12].(*string)) = row.WebViewLink
+		*(dest[13].(*string)) = row.OwnerDisplay
+		*(dest[14].(*pgtype.Timestamptz)) = row.DriveModifiedAt
+		*(dest[15].(*string)) = row.DriveModifiedByDisplay
+		*(dest[16].(*string)) = row.SharingState
+		*(dest[17].(*pgtype.Int4)) = row.SharedUserCount
+		*(dest[18].(*pgtype.Timestamptz)) = row.MetadataRefreshedAt
+		*(dest[19].(*pgtype.Timestamptz)) = row.AccessLostAt
+		*(dest[20].(*pgtype.Timestamptz)) = row.CreatedAt
+		*(dest[21].(*pgtype.Timestamptz)) = row.UpdatedAt
+		*(dest[22].(*pgtype.Timestamptz)) = row.UnlinkedAt
+		*(dest[23].(*pgtype.Text)) = row.UnlinkedBy
+		*(dest[24].(*pgtype.Text)) = row.UnlinkedByKind
+		return nil
+	})
+}
+
+func scanMemDriveFileAccess(row db.DriveFileAccess) pgx.Row {
+	return driveUnitRowFunc(func(dest ...any) error {
+		*(dest[0].(*string)) = row.ID
+		*(dest[1].(*string)) = row.OrganizationID
+		*(dest[2].(*string)) = row.WorkspaceID
+		*(dest[3].(*string)) = row.DriveFileID
+		*(dest[4].(*string)) = row.UserID
+		*(dest[5].(*string)) = row.ConnectionID
+		*(dest[6].(*string)) = row.State
+		*(dest[7].(*pgtype.Timestamptz)) = row.GrantedAt
+		*(dest[8].(*pgtype.Timestamptz)) = row.CheckedAt
+		return nil
+	})
 }
 
 func newTestDriveWorkspaceService(admitted map[string]string) *WorkspaceService {
@@ -1984,4 +2109,148 @@ func TestDriveContentSizeCeilings(t *testing.T) {
 	})
 	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-office-chunked-over", DriveContentPurposeTaskProposal)
 	assertTooLarge(t, "Office cap+1 (chunked unknown Content-Length)", dc, err, 5, 1)
+}
+
+// TestDriveContentReadForAIHonorsFlagAndProviderAvailability verifies F01:
+// the real DriveFileService.LookupFileForRead + DriveContentService.ReadForAI
+// path refuses with ErrDriveUnavailable and makes zero Google calls when
+// either the drive_connector feature flag is off for the requester/organization
+// or DriveConnectionService.Available() is false, even when the caller has a
+// stored granted row and a fresh encrypted access token; and succeeds when both
+// the flag is on and the provider is configured.
+func TestDriveContentReadForAIHonorsFlagAndProviderAvailability(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+
+	const (
+		orgID       = "01ORG0000000000000000000F1"
+		wsID        = "01WS00000000000000000000F1"
+		userID      = "01USER000000000000000000F1"
+		connID      = "01CONN000000000000000000F1"
+		driveFileID = "01DFILE00000000000000000F1"
+		extFileID   = "ext-f01-doc"
+	)
+
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       extFileID,
+			Name:     "F01 Private Doc",
+			MimeType: DriveMimePlainText,
+		},
+		DefaultMedia: []byte("private Drive text"),
+	})
+
+	box := testDriveBox(t)
+	seal := func(plain string) string {
+		s, err := box.Seal([]byte(plain))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return base64.StdEncoding.EncodeToString(s)
+	}
+
+	now := time.Now().UTC()
+	memDB := &memDriveUnitDBTX{
+		admitted: map[string]string{wsID + "|" + userID: orgID},
+		workspaces: map[string]db.Workspace{
+			wsID: {
+				ID:             wsID,
+				OrganizationID: orgID,
+				Slug:           "ws-f01",
+				Name:           "WS F01",
+				TaskPrefix:     "F01",
+			},
+		},
+		files: map[string]db.DriveFile{
+			driveFileID: {
+				ID:             driveFileID,
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				ExternalFileID: extFileID,
+				ConnectionID:   connID,
+				BoundBy:        userID,
+				CreatedBy:      userID,
+				CreatedByKind:  "human",
+				Name:           "F01 Private Doc",
+				MimeType:       DriveMimePlainText,
+				IconKind:       "text",
+				SharingState:   DriveSharingStatePrivate,
+			},
+		},
+		access: map[string]db.DriveFileAccess{
+			driveFileID + "|" + userID: {
+				ID:             "01ACC0000000000000000000F1",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				DriveFileID:    driveFileID,
+				UserID:         userID,
+				ConnectionID:   connID,
+				State:          "granted",
+			},
+		},
+		conns: map[string]db.DriveConnection{
+			connID: {
+				ID:              connID,
+				OrganizationID:  orgID,
+				UserID:          userID,
+				Provider:        "google",
+				GoogleSub:       "sub-f01",
+				GoogleEmail:     "f01@example.com",
+				RefreshTokenEnc: seal("tok-r-f01"),
+				AccessTokenEnc:  seal("tok-a-f01"),
+				AccessExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
+				Scopes:          "openid email " + DriveGoogleScope,
+			},
+		},
+	}
+
+	q := db.New(memDB)
+	ws := &WorkspaceService{q: q}
+	connSvc := NewDriveConnectionService(nil, q, ws, box)
+	fileSvc := NewDriveFileService(nil, q, ws, connSvc, gSrv.Client)
+	contentSvc := NewDriveContentService(nil, q, ws, fileSvc, connSvc, gSrv.Client, nil)
+	contentSvc.auditHook = func(_ context.Context, _ audit.Entry) error { return nil }
+
+	fakeProv := NewFakeDriveProvider(config.Config{
+		GoogleDriveClientID:     "cid-f01",
+		GoogleDriveClientSecret: "sec-f01",
+	})
+
+	// 1. Flag off with a granted row + fresh token + configured provider -> unavailable, zero Google calls.
+	connSvc.SetProvider(fakeProv)
+	connSvc.SetFlags(driveConnectorFlags(t, false))
+	fileSvc.SetFlags(driveConnectorFlags(t, false))
+	dc, err := contentSvc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, ErrDriveUnavailable) || dc.Text != "" {
+		t.Fatalf("flag off ReadForAI: dc=%+v err=%v, want ErrDriveUnavailable", dc, err)
+	}
+	if gotCalls := len(gSrv.Calls()); gotCalls != 0 {
+		t.Fatalf("flag off Google calls = %d, want 0", gotCalls)
+	}
+
+	// 2. Provider unconfigured with flag on + granted row + fresh token -> unavailable, zero Google calls.
+	connSvc.SetProvider(nil)
+	connSvc.SetFlags(driveConnectorFlags(t, true))
+	fileSvc.SetFlags(driveConnectorFlags(t, true))
+	dc, err = contentSvc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, ErrDriveUnavailable) || dc.Text != "" {
+		t.Fatalf("provider unconfigured ReadForAI: dc=%+v err=%v, want ErrDriveUnavailable", dc, err)
+	}
+	if gotCalls := len(gSrv.Calls()); gotCalls != 0 {
+		t.Fatalf("provider unconfigured Google calls = %d, want 0", gotCalls)
+	}
+
+	// 3. Flag on + configured provider -> reads content using caller's fresh token.
+	connSvc.SetProvider(fakeProv)
+	dc, err = contentSvc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if err != nil {
+		t.Fatalf("flag on + configured ReadForAI err = %v", err)
+	}
+	if dc.Text != "private Drive text" || dc.GoogleEmail != "f01@example.com" {
+		t.Fatalf("flag on + configured ReadForAI dc = %+v", dc)
+	}
+	if gotCalls := len(gSrv.Calls()); gotCalls != 2 {
+		t.Fatalf("flag on + configured Google calls = %d, want 2 (files.get + media)", gotCalls)
+	}
 }

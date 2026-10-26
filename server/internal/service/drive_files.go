@@ -341,15 +341,21 @@ func (s *DriveFileService) flagEnabledForMember(ctx context.Context, userID, org
 	if s == nil {
 		return false
 	}
-	flags := s.flags
-	if flags == nil && s.connections != nil {
-		flags = s.connections.flags
-	}
-	if flags == nil {
-		return false
-	}
 	ec := featureflag.EvalContext{UserID: userID, OrganizationID: orgID}
-	return flags.IsEnabled(featureflag.WithEvalContext(ctx, ec), "drive_connector", false)
+	evalCtx := featureflag.WithEvalContext(ctx, ec)
+	if s.flags != nil {
+		if !s.flags.IsEnabled(evalCtx, "drive_connector", false) {
+			return false
+		}
+		if s.connections != nil && s.connections.flags != nil && s.connections.flags != s.flags {
+			return s.connections.flags.IsEnabled(evalCtx, "drive_connector", false)
+		}
+		return true
+	}
+	if s.connections != nil && s.connections.flags != nil {
+		return s.connections.flags.IsEnabled(evalCtx, "drive_connector", false)
+	}
+	return false
 }
 
 func (s *DriveFileService) workspaceAndMember(ctx context.Context, actor Actor, workspaceID string) (db.Workspace, db.WorkspaceMember, error) {

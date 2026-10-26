@@ -361,6 +361,9 @@ func (s *DriveFileService) LookupFileForRead(ctx context.Context, requesterID, w
 		}
 		return driveFileAccessRow{}, err
 	}
+	if s.connections == nil || !s.connections.Available() || !s.flagEnabledForMember(ctx, requesterID, ws.OrganizationID) {
+		return driveFileAccessRow{}, ErrDriveUnavailable
+	}
 	f, err := s.q.GetActiveDriveFileByID(ctx, db.GetActiveDriveFileByIDParams{
 		ID:             strings.TrimSpace(driveFileID),
 		OrganizationID: ws.OrganizationID,
