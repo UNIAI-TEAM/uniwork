@@ -5223,6 +5223,13 @@
         "inRoom": "In the room · {{count}}",
         "scribeRole": "AI assistant · taking notes",
         "you": "you"
+      },
+      "votes": {
+        "next": "Up next",
+        "done": "Done",
+        "missing_one": "{{count}} person hasn't voted",
+        "missing_other": "{{count}} people haven't voted",
+        "rulesHelp": "How votes count"
       }
     }
   },

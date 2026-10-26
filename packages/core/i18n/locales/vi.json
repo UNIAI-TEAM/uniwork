@@ -5222,6 +5222,13 @@
         "inRoom": "Trong phòng · {{count}}",
         "scribeRole": "Trợ lý AI · đang ghi",
         "you": "bạn"
+      },
+      "votes": {
+        "next": "Tiếp theo",
+        "done": "Đã xong",
+        "missing_one": "Còn {{count}} người chưa bỏ phiếu",
+        "missing_other": "Còn {{count}} người chưa bỏ phiếu",
+        "rulesHelp": "Cách tính phiếu"
       }
     }
   },

@@ -104,43 +104,61 @@ export function MeetingMotionsList({
       ? `${t("meetings.governance.motionCloseMissing", { count: missing })} ${t("meetings.governance.motionCloseConfirm")}`
       : t("meetings.governance.motionCloseConfirm");
 
+  const room = density === "room";
+  const item = (m: MeetingMotion) => {
+    const draftIndex = drafts.indexOf(m);
+    return (
+      <li key={m.id} className="min-w-0">
+        <MeetingMotionCard
+          meetingId={meetingId}
+          motion={m}
+          isClerk={isClerk}
+          canVote={canVote}
+          inProgress={inProgress}
+          anotherOpen={anotherOpen}
+          canMoveUp={draftIndex > 0}
+          canMoveDown={draftIndex >= 0 && draftIndex < drafts.length - 1}
+          onEdit={() => {
+            setEditing(m);
+            setFormOpen(true);
+          }}
+          onDelete={() => ask("delete", m)}
+          onMove={(direction) => move(m, direction)}
+          onOpen={() => {
+            setOpenTarget(m);
+            setOpenConfirmOpen(true);
+          }}
+          onClose={() => ask("close", m)}
+          room={room}
+        />
+      </li>
+    );
+  };
+  // The room leads with the running vote, then what comes next, then what is settled.
+  const group = (key: "next" | "done", list: MeetingMotion[]) =>
+    list.length > 0 ? (
+      <section className="flex flex-col gap-2">
+        <h3 className="mx-1 mt-1.5 text-caption font-semibold text-muted-foreground">{t(`meetings.panel.votes.${key}`)}</h3>
+        <ul className="flex flex-col gap-2">{list.map(item)}</ul>
+      </section>
+    ) : null;
+
   return (
-    <div className={cn("flex min-h-0 flex-col gap-3", density === "compact" && "px-4 py-4")}>
+    <div className={cn("flex min-h-0 flex-col gap-3", room ? "p-3" : "px-4 py-4")}>
       {motions.length === 0 ? (
         <p className="py-2 text-caption text-muted-foreground">
           {isClerk ? t("meetings.governance.motionsEmptyClerk") : t("meetings.governance.motionsEmpty")}
         </p>
+      ) : room ? (
+        <>
+          {anotherOpen ? (
+            <ul className="flex flex-col gap-3">{motions.filter((m) => m.status === "OPEN").map(item)}</ul>
+          ) : null}
+          {group("next", drafts)}
+          {group("done", motions.filter((m) => m.status !== "OPEN" && m.status !== "DRAFT"))}
+        </>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {motions.map((m) => {
-            const draftIndex = drafts.indexOf(m);
-            return (
-              <li key={m.id} className="min-w-0">
-                <MeetingMotionCard
-                  meetingId={meetingId}
-                  motion={m}
-                  isClerk={isClerk}
-                  canVote={canVote}
-                  inProgress={inProgress}
-                  anotherOpen={anotherOpen}
-                  canMoveUp={draftIndex > 0}
-                  canMoveDown={draftIndex >= 0 && draftIndex < drafts.length - 1}
-                  onEdit={() => {
-                    setEditing(m);
-                    setFormOpen(true);
-                  }}
-                  onDelete={() => ask("delete", m)}
-                  onMove={(direction) => move(m, direction)}
-                  onOpen={() => {
-                    setOpenTarget(m);
-                    setOpenConfirmOpen(true);
-                  }}
-                  onClose={() => ask("close", m)}
-                />
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="flex flex-col gap-3">{motions.map(item)}</ul>
       )}
       {canAdd ? (
         <div>
