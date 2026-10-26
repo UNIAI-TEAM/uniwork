@@ -54,6 +54,7 @@ type Deps struct {
 	EmailHub            *service.EmailHubService
 	Agents              *service.AgentService
 	DriveConnections    *service.DriveConnectionService
+	DriveFiles          *service.DriveFileService
 	Actors              *service.ActorService
 	Audit               *service.AuditService
 	Privacy             *service.PrivacyExportService
@@ -458,6 +459,16 @@ func New(d Deps) http.Handler {
 		CompleteDriveGoogleOAuth:      h.CompleteDriveGoogleOAuth,
 		ListDriveConnections:          h.ListDriveConnections,
 		DisconnectDriveConnection:     h.DisconnectDriveConnection,
+		GetDrivePickerToken:           h.GetDrivePickerToken,
+		LinkDriveFiles:                h.LinkDriveFiles,
+		ListDriveFiles:                h.ListDriveFiles,
+		GetDriveFile:                  h.GetDriveFile,
+		UnlinkDriveFile:               h.UnlinkDriveFile,
+		GrantDriveFileAccess:          h.GrantDriveFileAccess,
+		ChangeDriveFileReadAccount:    h.ChangeDriveFileReadAccount,
+		RebindDriveFile:               h.RebindDriveFile,
+		ListTaskDriveFiles:            h.ListTaskDriveFiles,
+		RemoveTaskDriveFile:           h.RemoveTaskDriveFile,
 		ListTaskChildren:              h.listTaskChildren,
 		ListChildrenByParents:         h.listChildrenByParents,
 		ChildTaskProgress:             h.childTaskProgress,

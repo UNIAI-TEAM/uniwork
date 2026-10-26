@@ -253,6 +253,16 @@ type Routes struct {
 	CompleteDriveGoogleOAuth      http.HandlerFunc
 	ListDriveConnections          http.HandlerFunc
 	DisconnectDriveConnection     http.HandlerFunc
+	GetDrivePickerToken           http.HandlerFunc
+	LinkDriveFiles                http.HandlerFunc
+	ListDriveFiles                http.HandlerFunc
+	GetDriveFile                  http.HandlerFunc
+	UnlinkDriveFile               http.HandlerFunc
+	GrantDriveFileAccess          http.HandlerFunc
+	ChangeDriveFileReadAccount    http.HandlerFunc
+	RebindDriveFile               http.HandlerFunc
+	ListTaskDriveFiles            http.HandlerFunc
+	RemoveTaskDriveFile           http.HandlerFunc
 	ListPins                      http.HandlerFunc
 	CreatePin                     http.HandlerFunc
 	DeletePin                     http.HandlerFunc

@@ -26,8 +26,17 @@ const (
 )
 
 func (h *handlers) driveFlagOrganization(r *http.Request) string {
-	if h.DriveConnections != nil {
-		return h.DriveConnections.FlagOrganization(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
+	userID := middleware.UserID(r.Context())
+	wsID := chi.URLParam(r, "workspaceID")
+	if wsID == "" && h.Tasks != nil {
+		if taskID := chi.URLParam(r, "taskID"); taskID != "" {
+			if t, err := h.Tasks.GetByRef(r.Context(), service.Human(userID), taskID); err == nil {
+				wsID = t.WorkspaceID
+			}
+		}
+	}
+	if h.DriveConnections != nil && wsID != "" {
+		return h.DriveConnections.FlagOrganization(r.Context(), userID, wsID)
 	}
 	return h.documentFlagOrganization(r)
 }
