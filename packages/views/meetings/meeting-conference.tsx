@@ -205,6 +205,8 @@ function ConferenceStage({
   if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
   const copilotBadge = lateMinutes !== null && !catchUpSeen;
   const chatVisible = sidebarTab === "chat" && panelShown;
+  // The Votes tab carries the same ballot as the stage's prompt: one on screen at a time.
+  const votesTabShown = sidebarTab === "motions" && panelShown;
   // The live items the scribe writes are seen once the UNI panel's Việc section is on screen.
   const [copilotSection, setCopilotSection] = useState<CopilotSection>("insights");
   const liveItemsSeeing = copilotActive && copilotSection === "actions";
@@ -213,7 +215,16 @@ function ConferenceStage({
 
   const sheetClose = useMemo(
     () => (
-      <SheetClose render={<Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0" />}>
+      <SheetClose
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-11 shrink-0 rounded-xl bg-surface-hover text-foreground"
+          />
+        }
+      >
         <X aria-hidden className="size-4" />
         <span className="sr-only">{t("common.close")}</span>
       </SheetClose>
@@ -244,6 +255,7 @@ function ConferenceStage({
       onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
+      onCollapse={compact ? undefined : toggleSidebar}
       scribeOn={scribeInRoom}
       liveItemsUnseen={liveItems.count}
       onCopilotSectionChange={setCopilotSection}
@@ -251,8 +263,11 @@ function ConferenceStage({
   );
 
   const prompt = useMemo(
-    () => (resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} /> : null),
-    [resolvedMeetingId, openMotions],
+    () =>
+      resolvedMeetingId ? (
+        <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} hidden={votesTabShown} />
+      ) : null,
+    [resolvedMeetingId, openMotions, votesTabShown],
   );
   const captions = useMemo(
     () =>
@@ -394,8 +409,13 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          {/* Full width on a phone (the sheet's own max-w-sm caps it from sm up): 24rem left a sliver of stage. */}
-          <SheetContent side="right" className="p-0 data-[side=right]:w-full" showCloseButton={false}>
+          {/* Rises from the bottom over the stage, leaving its top in view. */}
+          <SheetContent
+            side="bottom"
+            className="gap-0 overflow-hidden rounded-t-[22px] border-t-0 bg-surface p-0 data-[side=bottom]:h-[72dvh]"
+            showCloseButton={false}
+          >
+            <div aria-hidden className="mx-auto mt-2 mb-1 h-[5px] w-10 shrink-0 rounded-[3px] bg-border" />
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>

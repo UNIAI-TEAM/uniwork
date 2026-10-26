@@ -23,13 +23,17 @@ const open = {
 let motions: unknown[] = [];
 let ballots: unknown[] = [];
 
-function renderPrompt(onOpenTab = vi.fn()) {
-  render(
+function prompt(onOpenTab: () => void, hidden?: boolean) {
+  return (
     <>
       <button type="button">Bật mic</button>
-      {wrapWithNav(<MeetingVotePrompt meetingId="m1" onOpenTab={onOpenTab} />)}
-    </>,
+      {wrapWithNav(<MeetingVotePrompt meetingId="m1" onOpenTab={onOpenTab} hidden={hidden} />)}
+    </>
   );
+}
+
+function renderPrompt(onOpenTab = vi.fn()) {
+  render(prompt(onOpenTab));
   return onOpenTab;
 }
 
@@ -138,5 +142,19 @@ describe("MeetingVotePrompt", () => {
       expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/meetings/m1/motions"))).toBe(true),
     );
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
+  it("stands down while the Votes tab shows the same ballot, and comes back after", async () => {
+    const onOpenTab = vi.fn();
+    const { rerender } = render(prompt(onOpenTab));
+    await screen.findByTestId("meeting-vote-prompt");
+
+    rerender(prompt(onOpenTab, true));
+    expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
+    // The status message stays mounted, so a later card is still announced.
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    rerender(prompt(onOpenTab, false));
+    expect(screen.getByTestId("meeting-vote-prompt")).toBeInTheDocument();
   });
 });
