@@ -531,26 +531,296 @@ describe("Documents unified search (FD-10)", () => {
     expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
   });
 
-  it("renders a single search box in the home header row that takes its own full-width row below the row's container breakpoint and sits beside the title above it (V-F1, V-F3, TRASH-A3)", () => {
-    requestMock.mockResolvedValue({ documents: [], next_cursor: null });
-    renderSearchView();
+  it("places the search box on the filter row (right end) on home, open folder, and list screens, not in the head row (UNI-2205)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path === "/api/v1/documents/fo-open") {
+        return Promise.resolve({
+          document: {
+            id: "fo-open",
+            workspace_id: WS,
+            kind: "folder",
+            title: "Dự án CCB",
+            revision: "1",
+            my_level: "manage",
+            breadcrumbs: [{ id: "fo-open", title: "Dự án CCB" }],
+          },
+        });
+      }
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [summary({ id: "hit-invalid", title: "Tài liệu tìm từ thư mục lỗi" })],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
 
-    // The home board has its own header row (no collection header).
-    const heading = screen.getByRole("heading", { level: 1, name: t("documents.home.sidebar.home") });
-    const row = heading.parentElement!.parentElement!.parentElement!;
+    const { unmount } = render(
+      wrap(
+        <NavigationProvider value={createNav()}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+              <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            </FeatureFlagsProvider>
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    );
+
+    const homeHeading = screen.getByRole("heading", { level: 1, name: t("documents.home.sidebar.home") });
+    const homeHeadRow = homeHeading.parentElement!.parentElement!.parentElement!;
     expect(screen.getAllByRole("searchbox")).toHaveLength(1);
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
-    const searchBox = searchInput.parentElement!;
+    const homeSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(homeSearchInput).toHaveAttribute("placeholder", t("documents.home.search.placeholder"));
+    const homeSearchBox = homeSearchInput.closest<HTMLElement>('[data-slot="documents-search-box"]')!;
+    const homeSearchSlot = homeSearchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
+    expect(homeHeadRow.contains(homeSearchSlot)).toBe(false);
 
-    expect(row.contains(searchBox)).toBe(true);
-    // The row is a size container: the viewport says nothing about the room beside the actions.
-    expect(row.className).toContain("@container");
-    expect(row.className).toContain("flex-wrap");
-    expect(searchBox.className).toContain("order-last");
-    expect(searchBox.className).toContain("basis-full");
-    expect(searchBox.className).toContain("@min-[60rem]:order-none");
-    expect(searchBox.className).toContain("@min-[60rem]:basis-auto");
-    expect(searchBox.className).toContain("@min-[60rem]:w-56");
+    const filterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    const filterRow = filterZone.parentElement!;
+    expect(filterRow.contains(homeSearchSlot)).toBe(true);
+    expect(filterZone.contains(homeSearchSlot)).toBe(false);
+    expect(filterRow.className).toContain("@container");
+    expect(filterRow.className).toContain("flex-wrap");
+    expect(filterRow.className).toContain("@min-[48rem]:flex-nowrap");
+    expect(filterZone.className).toContain("flex-1");
+    expect(filterZone.className).toContain("flex-wrap");
+    expect(homeSearchSlot.className).toContain("basis-full");
+    expect(homeSearchSlot.className).toContain("justify-end");
+    expect(homeSearchSlot.className).toContain("@min-[48rem]:ml-auto");
+    expect(homeSearchSlot.className).toContain("@min-[48rem]:w-80");
+    expect(homeSearchSlot.className).toContain("@min-[48rem]:shrink-0");
+    expect(homeSearchSlot.className).toContain("@min-[48rem]:basis-auto");
+    expect(homeSearchBox.className).toContain("@min-[24rem]:w-56");
+    expect(homeSearchBox.className).toContain("@min-[24rem]:focus-within:w-80");
+    expect(homeSearchBox.className).toContain("@min-[48rem]:w-56");
+    expect(homeSearchBox.className).toContain("@min-[48rem]:focus-within:w-full");
+    unmount();
+
+    // Open folder: search box is on the filter row with folder placeholder, not in breadcrumb head row
+    const { unmount: unmountFolder } = render(
+      wrap(
+        <NavigationProvider value={createNav("folder=fo-open")}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+              <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            </FeatureFlagsProvider>
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    );
+    const folderHeading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    expect(crumb).toContainElement(folderHeading);
+    const folderHeadRow = crumb.parentElement!.parentElement!;
+    const folderSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(folderSearchInput).toHaveAttribute("placeholder", t("documents.home.search.placeholder_folder"));
+    expect(folderHeadRow.contains(folderSearchInput)).toBe(false);
+    const folderFilterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    expect(folderFilterZone.contains(folderSearchInput)).toBe(false);
+    expect(folderFilterZone.parentElement!.contains(folderSearchInput)).toBe(true);
+    unmountFolder();
+
+    // List screen (Recent): search box is on the filter row, not in DocumentsScreenHead
+    const { unmount: unmountList } = render(
+      wrap(
+        <NavigationProvider value={createNav("view=recent")}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+              <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            </FeatureFlagsProvider>
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    );
+    const recentHeading = await screen.findByRole("heading", { level: 1, name: t("documents.home.views.recent") });
+    const recentHeadRow = recentHeading.parentElement!.parentElement!;
+    const recentSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(recentHeadRow.contains(recentSearchInput)).toBe(false);
+    const recentFilterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    expect(recentFilterZone.contains(recentSearchInput)).toBe(false);
+    expect(recentFilterZone.parentElement!.contains(recentSearchInput)).toBe(true);
+
+    // Shelved screen (Lưu trữ): search box is inside ShelvedToolbar (LibraryToolbar), not in DocumentsScreenHead
+    fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.shelved")) })[0]!);
+    const shelvedHeading = await screen.findByRole("heading", { level: 1, name: t("documents.shelved_list.title") });
+    const shelvedHeadRow = shelvedHeading.parentElement!.parentElement!;
+    const shelvedSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(shelvedHeadRow.contains(shelvedSearchInput)).toBe(false);
+    const shelvedFilterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    expect(shelvedFilterZone.contains(shelvedSearchInput)).toBe(false);
+    expect(shelvedFilterZone.parentElement!.contains(shelvedSearchInput)).toBe(true);
+    unmountList();
+
+    // Folder-invalid state (?folder=missing): search box is rendered above the error state and keeps its DOM node + focus when typing (DSR-3, DSR-8)
+    render(
+      wrap(
+        <NavigationProvider value={createNav("folder=missing")}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider({ documents: { default: true } }))}>
+              <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            </FeatureFlagsProvider>
+          </WorkspaceProvider>
+        </NavigationProvider>,
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.home.folder_invalid.title"));
+    const invalidSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    const invalidSearchSlot = invalidSearchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
+    invalidSearchInput.focus();
+    expect(document.activeElement).toBe(invalidSearchInput);
+
+    fireEvent.change(invalidSearchInput, { target: { value: "h" } });
+    expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(invalidSearchInput);
+    expect(invalidSearchInput.closest('[data-slot="documents-search-slot"]')).toBe(invalidSearchSlot);
+    expect(document.activeElement).toBe(invalidSearchInput);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(await screen.findByText("Tài liệu tìm từ thư mục lỗi")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.search.clear") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.home.folder_invalid.title"));
+    expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(invalidSearchInput);
+  });
+
+  it("widens the search box on focus and while non-empty, returns to rest width when empty and blurred, and keeps focus across the active toggle (UNI-2205)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [summary({ id: "hit-1", title: "Hợp đồng tìm thấy" })],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [summary({ id: "doc-1", title: "Tài liệu ban đầu" })], next_cursor: null });
+    });
+
+    renderSearchView();
+    expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
+
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    const searchBox = searchInput.closest<HTMLElement>('[data-slot="documents-search-box"]')!;
+    const searchSlot = searchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
+
+    // Before search is active: filter zone (holding the comboboxes) and DocumentsHomeNote (quick create strip) are visible
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    const filterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    const filterRow = filterZone.parentElement!;
+    expect(filterRow.contains(searchSlot)).toBe(true);
+    expect(filterZone.contains(searchSlot)).toBe(false);
+    expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
+
+    // At rest: outer slot has constant 20rem footprint (@min-[48rem]:w-80 shrink-0) so filters never shift on focus (DSR-10);
+    // inner box is 14rem at rest and animates to full slot width (20rem), and below 48rem stays right-aligned 14rem -> 20rem at >= 24rem (DSV-5)
+    expect(searchSlot).toHaveAttribute("data-expanded", "false");
+    expect(searchSlot.className).toContain("justify-end");
+    expect(searchSlot.className).toContain("@min-[48rem]:w-80");
+    expect(searchSlot.className).toContain("@min-[48rem]:shrink-0");
+    expect(searchBox).toHaveAttribute("data-expanded", "false");
+    expect(searchBox.className).toContain("@min-[24rem]:w-56");
+    expect(searchBox.className).toContain("@min-[24rem]:focus-within:w-80");
+    expect(searchBox.className).toContain("@min-[24rem]:data-[expanded=true]:w-80");
+    expect(searchBox.className).toContain("@min-[48rem]:w-56");
+    expect(searchBox.className).toContain("@min-[48rem]:focus-within:w-full");
+    expect(searchBox.className).toContain("transition-[width]");
+    expect(searchBox.className).toContain("motion-reduce:transition-none");
+
+    // Focus input and type first character -> search becomes active, same input & box elements stay mounted and focused;
+    // filter zone and DocumentsHomeNote hide while active (DSR-1, DSR-6, fix2)
+    searchInput.focus();
+    expect(document.activeElement).toBe(searchInput);
+
+    fireEvent.change(searchInput, { target: { value: "h" } });
+    const afterFirstCharInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(afterFirstCharInput).toBe(searchInput);
+    expect(afterFirstCharInput.parentElement).toBe(searchBox);
+    expect(searchBox.parentElement).toBe(searchSlot);
+    expect(document.activeElement).toBe(searchInput);
+    expect(searchSlot).toHaveAttribute("data-expanded", "true");
+    expect(searchBox).toHaveAttribute("data-expanded", "true");
+    expect(searchInput.className).toContain("pr-8");
+    expect(filterZone.isConnected).toBe(false);
+    expect(filterRow.children).toHaveLength(1);
+    expect(filterRow.firstElementChild).toBe(searchSlot);
+    expect(screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeNull();
+    expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
+
+    expect(await screen.findByText("Hợp đồng tìm thấy")).toBeInTheDocument();
+    expect(document.activeElement).toBe(searchInput);
+
+    // Blurring while query is non-empty keeps the expanded state via data-expanded="true"
+    searchInput.blur();
+    expect(searchSlot).toHaveAttribute("data-expanded", "true");
+    expect(searchBox).toHaveAttribute("data-expanded", "true");
+    expect(searchBox.className).toContain("@min-[48rem]:data-[expanded=true]:w-full");
+
+    // Clearing via clear button returns to rest state and restores filter controls and DocumentsHomeNote
+    const clearBtn = screen.getByRole("button", { name: t("documents.home.search.clear") });
+    fireEvent.click(clearBtn);
+    expect(searchInput).toHaveValue("");
+    expect(searchSlot).toHaveAttribute("data-expanded", "false");
+    expect(searchBox).toHaveAttribute("data-expanded", "false");
+    expect(document.querySelector('[data-slot="documents-filter-zone"]')).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
+    expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
+  });
+
+  it("keeps the same input focused on Lưu trữ while hiding filter controls and the shelved list, and never shows search results on Thùng rác (DSR-1, DSR-4, DSR-6)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [summary({ id: "hit-shelved", title: "Kết quả tìm kiếm Lưu trữ" })],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("shelved") === "true") {
+        return Promise.resolve({
+          documents: [summary({ id: "sh-1", title: "Hồ sơ lưu trữ ban đầu", shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u1" })],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("archived") === "1") {
+        return Promise.resolve({
+          documents: [summary({ id: "tr-1", title: "Tài liệu trong thùng rác", archived_at: "2026-10-12T03:00:00Z" })],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView(createNav("view=shelved"));
+    expect(await screen.findByText("Hồ sơ lưu trữ ban đầu")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
+
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    searchInput.focus();
+    fireEvent.change(searchInput, { target: { value: "k" } });
+
+    // Same input element stays mounted and focused; shelved list and filter controls hide while search results render
+    expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(searchInput);
+    expect(document.activeElement).toBe(searchInput);
+    expect(screen.queryByText("Hồ sơ lưu trữ ban đầu")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeNull();
+    expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
+
+    // Clear query -> shelved list and filter controls return
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.search.clear") }));
+    expect(await screen.findByText("Hồ sơ lưu trữ ban đầu")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
+
+    // Type query again, then switch to Thùng rác -> Trash renders its own table, never search results (DSR-4)
+    fireEvent.change(searchInput, { target: { value: "k" } });
+    expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) })[0]!);
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
+    expect(await screen.findByText("Tài liệu trong thùng rác")).toBeInTheDocument();
+    expect(screen.queryByText("Kết quả tìm kiếm Lưu trữ")).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 });
 
