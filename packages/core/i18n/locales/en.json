@@ -7634,15 +7634,13 @@
     },
     "memory": {
       "button": "Memory",
-      "title": "Memory",
-      "back": "Back to the conversation",
+      "title": "Your memory",
       "switch_label": "Use memory",
       "switch_hint": "UNI uses the entries below to answer the way you like. UNI only remembers what you agree to.",
       "off_note": "UNI is not using memory right now.",
       "group_preference": "How UNI answers",
       "group_fact": "About you",
       "count": "{{count}}/{{limit}}",
-      "add": "Add",
       "add_entry": "Add an entry",
       "entry_placeholder": "One short sentence, up to {{max}} characters",
       "entry_label": "Memory entry text",
@@ -7656,12 +7654,9 @@
       "deleted": "Entry deleted",
       "undo": "Undo",
       "edit_by_chat": "Edit by telling UNI",
-      "edit_prefill": "Update my memory: ",
       "import": "Import from another AI",
       "importer": {
         "title": "Import from another AI",
-        "back": "Back",
-        "step_hint": "Paste this into ChatGPT, Claude or Gemini, then paste its answer into the box below.",
         "prompt": "List what you know about me so I can move it to another AI assistant. Write only two groups:\nPREFERENCES — how I want to be answered: writing style, tone, format, things to avoid.\nWORK — my role, team, the projects I work on, my tools and how I work, what I am prioritizing.\nOne item per line, starting with \"- \", short, no dates. Do not include private life, health, information about other people, passwords, keys or account numbers. Add no introduction or conclusion.",
         "copy": "Copy",
         "copied": "Copied",
@@ -7700,7 +7695,10 @@
           "ai_rate_limited": "AI is busy, try again in a few minutes.",
           "invalid_request": "The pasted text isn't valid.",
           "ai_refused": "The model declined to process this text. Remove the sensitive parts and try again."
-        }
+        },
+        "step_copy": "Copy this prompt into the AI you use",
+        "step_paste": "Paste that AI's answer here",
+        "paste_again": "Paste again"
       },
       "clear_all": "Clear all memory",
       "clear_title": "Clear all memory?",
@@ -7710,8 +7708,8 @@
       "cleared_one": "{{count}} entry deleted",
       "cleared_other": "{{count}} entries deleted",
       "footnote": "Deleting an entry does not delete the conversation where you said it.",
-      "empty_title": "Nothing in memory yet",
-      "empty_description": "Add a few things so UNI answers the way you like, such as how to address you, your writing style or your work.",
+      "empty_title": "Teach UNI about you",
+      "empty_description": "Tell UNI how you like your answers, or something about your work.",
       "load_error": "Couldn't load memory.",
       "retry": "Try again",
       "full": "Memory is full ({{limit}} entries). Delete some to add new ones.",
@@ -7756,13 +7754,34 @@
         "edit_cancel": "Cancel",
         "edit_text": "Text to save",
         "was": "Before",
-        "tainted": "UNI read content written by other people in this conversation. Only remember it if it is really what you mean."
+        "tainted": "UNI read content written by other people in this conversation. Only remember it if it is really what you mean.",
+        "keep": "Keep"
       },
       "used": {
-        "label": "Used memory: {{text}}",
-        "more": "+{{count}}",
         "deleted": "Used memory (entry deleted)",
-        "list": "Entries UNI used"
+        "list": "Entries UNI used",
+        "chip_one": "Used {{count}} memory entry",
+        "chip_other": "Used {{count}} memory entries",
+        "open": "Open memory"
+      },
+      "switch_title": "Use memory when answering",
+      "talk_to_uni": "Tell UNI",
+      "edit_entry_named": "Edit entry: {{text}}",
+      "entry_count": "{{count}}/{{max}}",
+      "help": {
+        "region": "Memory edit suggestions",
+        "summary_one": "UNI remembers {{count}} thing: {{preference}} about how to answer, {{fact}} about you.",
+        "summary_other": "UNI remembers {{count}} things: {{preference}} about how to answer, {{fact}} about you.",
+        "empty": "UNI doesn't remember anything about you yet. Tell it a few things for answers that suit you.",
+        "close": "Close suggestions",
+        "remember_label": "Remember something new",
+        "remember_text": "Remember that ",
+        "name_label": "Change how UNI addresses you",
+        "name_text": "From now on call me ",
+        "role_label": "Update your role",
+        "role_text": "Update my memory: I now work as ",
+        "forget_label": "Drop an entry",
+        "forget_text": "Forget the memory entry "
       }
     }
   },

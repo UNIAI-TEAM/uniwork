@@ -6,7 +6,10 @@ import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { useAiMemory } from "@uniwork/core/ai/memory";
 
-/** "Đã dùng bộ nhớ": the entries an answer was written with, read live, so a deleted one shows as deleted. */
+/**
+ * "Dùng N mục bộ nhớ": a chip under an answer, like ClickUp's memory chip, that unfolds the entries the answer was
+ * written with, read live, so a deleted one drops out (all deleted: the line says so).
+ */
 export function AskUniMemoryUsed({ memoryIds, orgSlug }: { memoryIds: string[]; orgSlug: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.memory.used" });
   const setView = useAiPanelStore((s) => s.setView);
@@ -23,37 +26,33 @@ export function AskUniMemoryUsed({ memoryIds, orgSlug }: { memoryIds: string[]; 
       </p>
     );
   }
-  const [first, ...rest] = live;
   return (
-    <div className="flex flex-col gap-1">
-      <div className={line}>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-0.5 text-caption text-muted-foreground hover:bg-muted hover:text-foreground"
+        onClick={() => setOpen((o) => !o)}
+      >
         <Brain aria-hidden className="size-3.5 shrink-0" />
-        <button type="button" className="min-w-0 truncate text-left hover:underline" onClick={() => setView("memory")}>
-          {t("label", { text: first!.text })}
-        </button>
-        {rest.length > 0 ? (
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-label={t("more", { count: rest.length })}
-            className="inline-flex items-center rounded px-1 hover:bg-muted"
-            onClick={() => setOpen((o) => !o)}
-          >
-            {t("more", { count: rest.length })}
-            <ChevronDown aria-hidden className="size-3" />
-          </button>
-        ) : null}
-      </div>
+        {t("chip", { count: live.length })}
+        <ChevronDown aria-hidden className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
       {open ? (
-        <ul aria-label={t("list")} className="flex flex-col gap-0.5 pl-5">
-          {live.map((e) => (
-            <li key={e.id}>
-              <button type="button" className="text-left text-caption text-foreground hover:underline" onClick={() => setView("memory")}>
-                {e.text}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-0.5 ps-2">
+          <ul aria-label={t("list")} className="flex flex-col gap-0.5">
+            {live.map((e) => (
+              <li key={e.id}>
+                <button type="button" className="text-left text-caption text-foreground hover:underline" onClick={() => setView("memory")}>
+                  {e.text}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="self-start text-caption text-primary hover:underline" onClick={() => setView("memory")}>
+            {t("open")}
+          </button>
+        </div>
       ) : null}
     </div>
   );
