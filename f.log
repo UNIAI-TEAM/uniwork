@@ -1,0 +1,5 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/web test > /tmp/v1-web-cov.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR: Coverage|threshold" /tmp/v1-web-cov.log | tail -20; echo; echo "WEB_TEST_COVERAGE_EXIT=$rc"
+ Test Files  37 passed (37)
+      Tests  367 passed (367)
+
+WEB_TEST_COVERAGE_EXIT=0

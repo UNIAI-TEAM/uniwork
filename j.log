@@ -1,0 +1,7 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/core lint > /tmp/v1-l-core.log 2>&1; rc=$?; tail -25 /tmp/v1-l-core.log; echo; echo "LINT_CORE_EXIT=$rc"
+
+> @uniwork/core@0.0.0 lint /workspace/packages/core
+> eslint . --max-warnings 0
+
+
+LINT_CORE_EXIT=0

@@ -1,0 +1,48 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; (cd apps/web && pnpm exec vitest run features/landing/ --coverage.enabled=false --reporter verbose > /tmp/v1-vw.log 2>&1); rc=$?; grep -E "office-page|office-download|Test Files|Tests |FAIL|skipped" /tmp/v1-vw.log | head -120; echo; echo "VITEST_WEB_LANDING_EXIT=$rc"
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > reads the same-origin manifest and opens on the most stable published channel, the visitor's system first 142ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > leads a Mac whose chip the browser proves with that chip, and shows both chips with help when it cannot 66ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps one editor selector and the selected example, without a second use-case grid 169ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > gives a Linux visitor the .deb, the .AppImage with its size kept whole, and the apt block of the shown channel 90ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > shows a phone the three systems as equal cards, with no picker 45ms
+ ✓ features/landing/office-page.test.tsx > the Office page > offers the builds the release manifest lists, the visitor's first, without guessed download links 78ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps the page usable when the manifest publishes nothing 55ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > shows a system with no build the three systems as equal cards, with no picker 49ms
+ ✓ features/landing/office-page.test.tsx > the Office page > degrades to the quiet fallback when both the manifest and the config answer drift 60ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > opens the picker on the first other system, as keyboard radio tiles whose chips switch the download link 191ms
+ ✓ features/landing/office-page.test.tsx > the Office page > changes the example, capabilities and media together when an editor is selected 93ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > switches channel through the tabs and `?channel=`, with the latest notes and the earlier versions of that channel 65ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > marks the unpublished stable channel coming soon, with no build and no apt block 71ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps storage, connectivity and AI routing facts accessible in vi 105ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps storage, connectivity and AI routing facts accessible in en 85ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > holds the loading shell in the loaded shape until the manifest arrives 44ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > falls back to the current installers with a quiet note when the manifest is unreachable, and recovers through its retry 84ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps the section's loading shell until the manifest arrives 70ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > falls back to the current installers with a quiet note when the manifest is missing, and recovers through its retry 78ms
+ ✓ features/landing/office-page.test.tsx > the Office page > falls back to the published installers and recovers the manifest through its visible retry 93ms
+ ✓ features/landing/office-page.test.tsx > the Office page > keeps editor details available after a failed image, then recovers on tab change 77ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > falls back to the current installers with a quiet note when the manifest is not a manifest, and recovers through its retry 76ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > degrades a drifted manifest build by build, and says so when nothing is published 58ms
+ ✓ features/landing/office-page.test.tsx > the Office page > leads with the promise, a trial button to the download block and a demo request, above the editor preview 47ms
+ ✓ features/landing/office-page.test.tsx > the Office page > sits in the apps family: the app bar over its sections, and the other apps at the foot 37ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > offers a newer release found on a later visit as a notice, and swaps it in only on "Tải lại" 57ms
+ ✓ features/landing/office-download/office-download.test.tsx > the Office Download section > links only to files the manifest lists, and never talks about self-update, signing or checksums 63ms
+ ✓ features/landing/office-page.test.tsx > the Office page > lists every published Linux format and leaves out the one that is not published 149ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > sits in the Linux part of the Download section, on the channel the section shows 68ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > takes the catalogue's most stable channel without a suite prop, and dev when none is published 33ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > never shows a stable line for a stable suite prop while the catalogue publishes no stable 20ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > keeps a stable suite prop while the catalogue publishes stable 12ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > takes the suite from its prop 12ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > shows two ways in, the key, the source, the install line and the fingerprint in vi 14ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > shows two ways in, the key, the source, the install line and the fingerprint in en 14ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > folds the manual steps and the fingerprint into a disclosure that starts collapsed 12ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > gives every copy button its own name in vi 15ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > gives every copy button its own name in en 9ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > copies a block and says so, or says it could not 17ms
+ ✓ features/landing/office-page.test.tsx > the Office page > the apt install block > gives each block its own heading id, so two on one page keep their own label 11ms
+ ✓ features/landing/office-page.test.tsx > the Office page > drops a frame whose image had already failed before it could report an error 49ms
+stderr | features/landing/office-page.test.tsx > the Office page > serves a light and a dark screenshot per editor and language, and drops a frame whose image fails
+ ✓ features/landing/office-page.test.tsx > the Office page > serves a light and a dark screenshot per editor and language, and drops a frame whose image fails 176ms
+ Test Files  11 passed (11)
+      Tests  92 passed (92)
+
+VITEST_WEB_LANDING_EXIT=0

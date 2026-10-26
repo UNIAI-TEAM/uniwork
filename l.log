@@ -1,0 +1,16 @@
+$ pnpm knip > /tmp/v1-knip.log 2>&1; rc=$?; tail -30 /tmp/v1-knip.log; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Your Expo app does not have a 'userInterfaceStyle' setting which can to confusing color scheme behavior. Please set a 'userInterfaceStyle' to remove this warning (recommended 'automatic'). https://docs.expo.dev/develop/user-interface/color-themes
+Unused exports (1)
+FILE_OS  apps/web/features/landing/office-download/manifest.ts:29:14
+Unused exported types (1)
+ReleasesStatus  type  apps/web/features/landing/office-download/use-releases.ts:7:13
+Configuration hints (2)
+esbuild                         knip.json  Remove from ignoreDependencies
+expo-updates  apps/chat-mobile  knip.json  Remove from ignoreDependencies
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1
