@@ -35,6 +35,19 @@ func TestDocumentUpload(t *testing.T) {
 			if res.Access.Level != DocumentLevelManage || res.Document.AclOwnerID.String != env.tn.member.ID {
 				t.Fatalf("creator access = %+v acl=%v", res.Access, res.Document.AclOwnerID)
 			}
+			// An empty action (used by suffix-range size probes) on a fresh document writes no access-log row.
+			pf, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentByteRange{Length: 1}, "")
+			if err != nil {
+				t.Fatalf("open probe: %v", err)
+			}
+			_ = pf.Reader.Close()
+			var probeRows int
+			if err := env.f.pool.QueryRow(ctx, `SELECT count(*) FROM document_access_logs WHERE document_id = $1`, res.Document.ID).Scan(&probeRows); err != nil {
+				t.Fatal(err)
+			}
+			if probeRows != 0 {
+				t.Fatalf("access-log rows after empty-action probe = %d, want 0", probeRows)
+			}
 			got := env.read(t, member, res.Document.ID, 0, DocumentByteRange{})
 			if sha(got) != sha(body) {
 				t.Fatalf("@files-smoke: downloaded checksum %s, uploaded %s", sha(got), sha(body))
@@ -46,12 +59,24 @@ func TestDocumentUpload(t *testing.T) {
 			if n := env.accessLogs(t, res.Document.ID, DocumentAccessDownload); n != 1 {
 				t.Fatalf("download access-log rows = %d, want 1 (reads coalesce within 5 minutes)", n)
 			}
+			// Opening with DocumentAccessView writes a separate view row that coalesces on its own.
+			vf, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentByteRange{Length: 1}, DocumentAccessView)
+			if err != nil {
+				t.Fatalf("open view: %v", err)
+			}
+			_ = vf.Reader.Close()
+			if n := env.accessLogs(t, res.Document.ID, DocumentAccessView); n != 1 {
+				t.Fatalf("view access-log rows = %d, want 1", n)
+			}
+			if n := env.accessLogs(t, res.Document.ID, DocumentAccessDownload); n != 1 {
+				t.Fatalf("download access-log rows after view = %d, want 1", n)
+			}
 		})
 
 		t.Run("readers outside the document see nothing", func(t *testing.T) {
 			res := env.createFile(t, member, "private.pdf", pdfBody("private"))
 			for _, u := range []db.User{env.tn.bMember, env.tn.outsider, env.tn.deact} {
-				_, err := env.svc.OpenDocumentFile(ctx, human(u), res.Document.ID, 0, DocumentByteRange{})
+				_, err := env.svc.OpenDocumentFile(ctx, human(u), res.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 				if err == nil {
 					t.Fatalf("%s read a document outside their workspace", u.ID)
 				}
@@ -61,7 +86,7 @@ func TestDocumentUpload(t *testing.T) {
 				}
 			}
 			other := env.f.tenant(t, "g103o"+strings.ToLower(util.NewID()[21:]))
-			_, err := env.svc.OpenDocumentFile(ctx, human(other.owner), res.Document.ID, 0, DocumentByteRange{})
+			_, err := env.svc.OpenDocumentFile(ctx, human(other.owner), res.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 			wantNotFound(t, err)
 		})
 
@@ -556,7 +581,7 @@ func TestDocumentFileCreateTree(t *testing.T) {
 			t.Fatalf("parent_id = %v, want %s", res.Document.ParentID, parent.ID)
 		}
 		// An ordinary member without a share cannot read the child.
-		_, err = env.svc.OpenDocumentFile(ctx, human(env.tn.creator), res.Document.ID, 0, DocumentByteRange{})
+		_, err = env.svc.OpenDocumentFile(ctx, human(env.tn.creator), res.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 		wantNotFound(t, err)
 	})
 

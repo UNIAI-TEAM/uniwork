@@ -254,7 +254,7 @@ func (c *DocumentDownloadConsumer) writeZip(ctx context.Context, w io.Writer, ac
 		late  []DocumentDownloadSkip
 	)
 	for _, t := range plan {
-		f, err := c.docs.OpenDocumentFile(ctx, actor, t.doc.ID, 0, DocumentByteRange{})
+		f, err := c.docs.OpenDocumentFile(ctx, actor, t.doc.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 		switch {
 		case err == nil:
 		case isGateRefusal(err):

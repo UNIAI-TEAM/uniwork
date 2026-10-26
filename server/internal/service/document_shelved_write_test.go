@@ -542,7 +542,7 @@ func TestShelvedWriteBlockAllowed(t *testing.T) {
 		if _, err := env.svc.GetDocumentComment(env.f.ctx, mgr, comment.ID); err != nil {
 			t.Fatalf("comment row: %v", err)
 		}
-		if _, err := env.svc.OpenDocumentFile(env.f.ctx, mgr, file.Document.ID, 0, DocumentByteRange{}); err != nil {
+		if _, err := env.svc.OpenDocumentFile(env.f.ctx, mgr, file.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload); err != nil {
 			t.Fatalf("download: %v", err)
 		}
 	})

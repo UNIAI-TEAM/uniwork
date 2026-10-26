@@ -10,8 +10,7 @@ import { Faq } from "./faq";
 import { MarketingShell } from "./marketing-shell";
 import { OFFICE_BUSINESS_ANCHOR, OFFICE_EDITOR_ANCHOR, type OfficeEditorKey } from "./office-data";
 import { AppBar } from "./apps/app-bar";
-import { AppDownload } from "./apps/app-download";
-import { AptInstall } from "./apps/apt-install";
+import { OfficeDownload } from "./office-download/office-download";
 import { OtherApps } from "./apps/app-sections";
 import { OfficeEditorTabs } from "./office-editors";
 import { OfficeConnection } from "./office-connection";
@@ -57,9 +56,7 @@ export function OfficePage() {
     <div id="office-faq" className="office-faq"><Faq namespace="landing.office.faq" count={6} title="landing.office.faq.title" className="bg-surface office-faq-section" /></div>
 
     <section id="office-download" className="office-section chapter-soft" aria-labelledby="office-download-title"><div className="chapter-width">
-      <div className="office-heading"><h2 id="office-download-title">{t("landing.office.download.title")}</h2></div>
-      <AppDownload app="office" copy="landing.office" />
-      <AptInstall />
+      <OfficeDownload />
     </div></section>
 
     <section className="office-section chapter-width" aria-labelledby="office-works-title">

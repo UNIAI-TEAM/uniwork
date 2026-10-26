@@ -220,7 +220,7 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 // person: at most mcpTextReadBytes+1 bytes, one more than shown so that "more
 // came" is known.
 func (s *McpToolService) fileHead(ctx context.Context, p McpPrincipal, documentID string) ([]byte, error) {
-	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: mcpTextReadBytes + 1})
+	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: mcpTextReadBytes + 1}, DocumentAccessDownload)
 	if err != nil {
 		return nil, hidden(err)
 	}
