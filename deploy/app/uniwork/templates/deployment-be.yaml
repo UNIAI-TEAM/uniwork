@@ -32,8 +32,9 @@ spec:
         runAsGroup: {{ .Values.be.securityContext.runAsGroup }}
         seccompProfile:
           type: RuntimeDefault
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- include "uniwork.nodeAffinity" . | nindent 8 }}
+      {{- include "uniwork.tolerations" . | nindent 6 }}
       containers:
         - name: uniwork-be
           image: {{ include "uniwork.image" .Values.be.image | quote }}
