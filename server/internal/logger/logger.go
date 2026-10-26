@@ -1,24 +1,26 @@
-// Package logger configures slog for the server: tint-coloured output when
-// stderr is a terminal, plain text when it is redirected, level from
-// LOG_LEVEL, and a helper that lifts request-scoped dimensions (request id,
-// user, client platform) into handler log lines so they match the access log.
+// Package logger configures slog for the server. LOG_FORMAT=json is one JSON
+// object per line. Any other value is the dev text handler, which colours
+// stderr even when it is not a terminal. NO_COLOR and LOG_COLOR=never switch
+// that colour off; LOG_COLOR=auto keeps the old terminal check. LOG_LEVEL
+// selects the minimum level. RequestAttrs lifts request-scoped dimensions
+// into handler log lines so they match the access log.
 package logger
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/lmittmann/tint"
 
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
 
-// isTerminal reports whether f is attached to a terminal. ANSI colour is only
-// emitted in that case, so a redirected log file stays clean.
+// isTerminal reports whether f is attached to a terminal. Only LOG_COLOR=auto
+// consults it. The default text format colours a pipe.
 func isTerminal(f *os.File) bool {
 	fi, err := f.Stat()
 	if err != nil {
@@ -27,22 +29,38 @@ func isTerminal(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
-// newHandler picks the sink by LOG_FORMAT: json for production (one object
-// per line, trace_id and tenant fields from telemetry), tint text otherwise.
-// Either way the telemetry wrapper stamps trace_id on context-aware lines.
-func newHandler() slog.Handler {
-	level := parseLevel(os.Getenv("LOG_LEVEL"))
-	var h slog.Handler
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "json") {
-		h = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-	} else {
-		h = tint.NewTextHandler(os.Stderr, &tint.Options{
-			Level:      level,
-			TimeFormat: "15:04:05.000",
-			NoColor:    !isTerminal(os.Stderr),
-		})
+// colorEnabled decides ANSI for the text format. NO_COLOR wins over
+// LOG_COLOR=always. auto is the only mode that consults the terminal bit.
+// An empty LOG_COLOR, "always", and any other value turn colour on, including
+// when stderr is a pipe.
+func colorEnabled(stderrIsTerminal bool) bool {
+	if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {
+		return false
 	}
-	return telemetry.WrapLogHandler(h)
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_COLOR"))) {
+	case "never":
+		return false
+	case "auto":
+		return stderrIsTerminal
+	default:
+		return true
+	}
+}
+
+// buildHandler is the test seam. newHandler passes os.Stderr and whether that
+// file is a terminal. Colour is decided once, here, not per line.
+func buildHandler(w io.Writer, stderrIsTerminal bool) slog.Handler {
+	level := parseLevel(os.Getenv("LOG_LEVEL"))
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "json") {
+		return telemetry.WrapLogHandler(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}))
+	}
+	return telemetry.WrapLogHandler(newTextHandler(w, level, colorEnabled(stderrIsTerminal)))
+}
+
+// newHandler picks the sink by LOG_FORMAT and wraps it so context-aware lines
+// carry trace and tenant fields.
+func newHandler() slog.Handler {
+	return buildHandler(os.Stderr, isTerminal(os.Stderr))
 }
 
 // Init installs the process-wide slog default so bare slog.Info/Warn calls
