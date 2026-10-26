@@ -10532,7 +10532,7 @@
       "q7": "Has UniWork launched?",
       "a7": "UniWork is in pre-launch. This page separates current capabilities from the roadmap; some features need configuration or a connected service before use.",
       "q8": "What does it cost?",
-      "a8": "Starter is free at this stage. Commercial plans and limits are still being finalized; this is not a promise of unlimited free use forever.",
+      "a8": "Starter is free with clear limits; Team is 499,000 VND/month and Business is 1,499,000 VND/month. Prices and quotas match the in-app catalog — see the public pricing page or Settings › Plan after sign-up.",
       "q9": "Can it run on our own infrastructure?",
       "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
       "q10": "Is there an API?",
@@ -11012,8 +11012,8 @@
         "rows": [
           {
             "subject": "Current plan",
-            "current": "Starter is free during the current stage.",
-            "confirm": "Commercial plans and limits are being finalized; this is not a long-term unlimited-free commitment."
+            "current": "Starter is free; Team and Business are paid monthly on the public pricing page.",
+            "confirm": "Compare limits (members, workspaces, AI, meetings) with your team size before upgrading."
           },
           {
             "subject": "AI and resources",

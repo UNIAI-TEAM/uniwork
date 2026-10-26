@@ -59,6 +59,58 @@ func TestAdminRefundInvoice(t *testing.T) {
 	}
 }
 
+func TestAdminRefundInvoiceAuditRecordsAmount(t *testing.T) {
+	f := newBillingFixture(t)
+	admin := registerVerified(t, f.q, f.auth, "refund-audit-amt@example.com", "Platform")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	adminSvc := NewAdminService(f.pool, f.q, f.billing, f.ent)
+	invID := "01TESTINVOICE0000099"
+	var subID string
+	if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+		id, organization_id, subscription_id, provider, number, status,
+		amount_due, amount_paid, currency, period_start, period_end, paid_at
+	) VALUES ($1, $2, $3, 'manual', 'UW-TEST-AUDIT-AMT', 'paid', 500000, 500000, 'VND', $4, $4, $4)`,
+		invID, f.orgID, subID, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adminSvc.RefundInvoice(f.ctx, admin.ID, invID, "hoàn toàn bộ theo ticket CS audit amount", "", "127.0.0.1", 0); err != nil {
+		t.Fatal(err)
+	}
+	var metaRaw []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 ORDER BY created_at DESC LIMIT 1`,
+		audit.ActionBillingInvoiceRefunded, invID,
+	).Scan(&metaRaw); err != nil {
+		t.Fatal(err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(metaRaw, &meta); err != nil {
+		t.Fatal(err)
+	}
+	if meta["refund_amount"] != float64(500000) {
+		t.Fatalf("audit metadata refund_amount = %v, want 500000", meta["refund_amount"])
+	}
+	var afterRaw []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT "after" FROM admin_actions WHERE target_id = $1 ORDER BY created_at DESC LIMIT 1`, invID,
+	).Scan(&afterRaw); err != nil {
+		t.Fatal(err)
+	}
+	var after map[string]any
+	if err := json.Unmarshal(afterRaw, &after); err != nil {
+		t.Fatal(err)
+	}
+	if after["refund_amount"] != float64(500000) {
+		t.Fatalf("admin after refund_amount = %v, want 500000", after["refund_amount"])
+	}
+}
+
 func TestAdminConfirmInvoiceRefund(t *testing.T) {
 	f := newBillingFixture(t)
 	admin := registerVerified(t, f.q, f.auth, "confirm-refund@example.com", "Platform")
