@@ -1,0 +1,6 @@
+$ ls -la /tmp/sync1-cover-go-rest.out; b=$(git hash-object -w /tmp/sync1-cover-go-rest.out); echo "COVER_BLOB=go-rest=$b"; git push origin "$b:refs/test-artifacts/pr8-develop-r2/go-rest-4299d61ff" > /tmp/sync1-push-go-rest.log 2>&1; rc=$?; tail -2 /tmp/sync1-push-go-rest.log; echo "COVER_PUSH_EXIT=$rc"; [ $rc -eq 0 ]
+-rw-r--r-- 1 ubuntu ubuntu 1186569 Oct 26 07:12 /tmp/sync1-cover-go-rest.out
+COVER_BLOB=go-rest=10390a656ed3f84c6c0b3f4c97ea77b1eb1ed2c5
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+COVER_PUSH_EXIT=1
