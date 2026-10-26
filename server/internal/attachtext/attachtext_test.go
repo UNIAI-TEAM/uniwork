@@ -578,6 +578,19 @@ func TestExtractRefusesAHugeZipDirectory(t *testing.T) {
 	wantRefused(t, mimeDOCX, zipOf(t, entries), "directory")
 }
 
+// When GODEBUG=zipinsecurepath=0 makes archive/zip return (zr, ErrInsecurePath)
+// for an entry with a non-local path, openZip still receives the usable reader
+// from zipbound.NewReader and extracts the document without panicking.
+func TestExtractDocxIgnoresInsecurePathUnderGODEBUG(t *testing.T) {
+	t.Setenv("GODEBUG", "zipinsecurepath=0")
+	data := zipOf(t, map[string]string{
+		"../x":              "ignored",
+		"word/document.xml": `<w:document ` + wNS + `><w:body><w:p><w:r><w:t>An toàn</w:t></w:r></w:p></w:body></w:document>`,
+	})
+	d := mustExtract(t, mimeDOCX, data)
+	wantParts(t, d, "paragraph", "|An toàn")
+}
+
 func TestExtractXlsxRefusesAHugeSheetList(t *testing.T) {
 	wb := `<workbook xmlns="x"><sheets>` + strings.Repeat("<sheet/>", 1_200_000) + `</sheets></workbook>`
 	wantRefused(t, mimeXLSX, xlsxOf(t, map[string]string{"xl/workbook.xml": wb}), "limit")

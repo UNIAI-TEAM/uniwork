@@ -128,31 +128,82 @@ func TestNewReaderRefusesForgedZIP64DirectoryWithoutPreallocation(t *testing.T) 
 		virtualSize   int64  = 200 << 20
 		forgedRecords uint64 = 106*65536 + 2 // 6,946,818 (& 0xffff == 2)
 	)
-	tail := buildZIP64CentralDirTail(virtualSize, []string{"[Content_Types].xml", "word/document.xml"}, forgedRecords, 0)
-	sr := &sparseTailReaderAt{size: virtualSize, tail: tail}
-	cr := &countingReaderAt{r: sr}
+	names := []string{"[Content_Types].xml", "word/document.xml"}
 
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	_, err := NewReader(cr, virtualSize)
-	runtime.ReadMemStats(&after)
+	t.Run("forged_directory_records", func(t *testing.T) {
+		tail := buildZIP64CentralDirTail(virtualSize, names, forgedRecords, 0)
+		sr := &sparseTailReaderAt{size: virtualSize, tail: tail}
+		cr := &countingReaderAt{r: sr}
 
-	if !errors.Is(err, ErrDirectoryTooLarge) {
-		t.Errorf("err = %v, want ErrDirectoryTooLarge", err)
-	}
-	if delta := after.TotalAlloc - before.TotalAlloc; delta > 256<<10 {
-		t.Errorf("TotalAlloc delta = %d bytes, want <= %d (no multi-MiB r.File preallocation)", delta, 256<<10)
-	}
-	if cr.bytes > 2048 {
-		t.Errorf("bytes read = %d, want <= 2048", cr.bytes)
-	}
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_, err := NewReader(cr, virtualSize)
+		runtime.ReadMemStats(&after)
 
-	// A forged ZIP64 directorySize > MaxDirectoryBytes with only 2 records is also refused.
-	sizeTail := buildZIP64CentralDirTail(virtualSize, []string{"[Content_Types].xml", "word/document.xml"}, 2, uint64(MaxDirectoryBytes)+1)
-	_, err = NewReader(&sparseTailReaderAt{size: virtualSize, tail: sizeTail}, virtualSize)
-	if !errors.Is(err, ErrDirectoryTooLarge) {
-		t.Fatalf("forged directorySize: err = %v, want ErrDirectoryTooLarge", err)
-	}
+		if !errors.Is(err, ErrDirectoryTooLarge) {
+			t.Errorf("err = %v, want ErrDirectoryTooLarge", err)
+		}
+		if delta := after.TotalAlloc - before.TotalAlloc; delta > 256<<10 {
+			t.Errorf("TotalAlloc delta = %d bytes, want <= %d (no multi-MiB r.File preallocation)", delta, 256<<10)
+		}
+		if cr.bytes > 2048 {
+			t.Errorf("bytes read = %d, want <= 2048", cr.bytes)
+		}
+	})
+
+	t.Run("forged_directory_size", func(t *testing.T) {
+		sizeTail := buildZIP64CentralDirTail(virtualSize, names, 2, uint64(MaxDirectoryBytes)+1)
+		_, err := NewReader(&sparseTailReaderAt{size: virtualSize, tail: sizeTail}, virtualSize)
+		if !errors.Is(err, ErrDirectoryTooLarge) {
+			t.Fatalf("forged directorySize: err = %v, want ErrDirectoryTooLarge", err)
+		}
+	})
+
+	t.Run("forged_eocd_in_65kib_tail_gap", func(t *testing.T) {
+		// Place the 22-byte EOCD in the gap between size-66,560 (65*1024) and
+		// size-65,558 (22 + 0xffff + 1): trailing padding of 65,536..66,538 bytes.
+		for _, trailing := range []int{65_536, 66_538} {
+			baseTail := buildZIP64CentralDirTail(virtualSize-int64(trailing), names, forgedRecords, 0)
+			paddedTail := make([]byte, len(baseTail)+trailing)
+			copy(paddedTail, baseTail)
+
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			_, err := NewReader(&sparseTailReaderAt{size: virtualSize, tail: paddedTail}, virtualSize)
+			runtime.ReadMemStats(&after)
+
+			if !errors.Is(err, ErrDirectoryTooLarge) {
+				t.Fatalf("trailing=%d: err = %v, want ErrDirectoryTooLarge", trailing, err)
+			}
+			if delta := after.TotalAlloc - before.TotalAlloc; delta > 256<<10 {
+				t.Fatalf("trailing=%d: TotalAlloc delta = %d bytes, want <= %d", trailing, delta, 256<<10)
+			}
+		}
+	})
+
+	t.Run("only_directory_offset_saturated", func(t *testing.T) {
+		tail := buildZIP64CentralDirTail(virtualSize, names, forgedRecords, 0)
+		eocd := tail[len(tail)-eocdLen:]
+		cdLen := uint32(len(tail) - zip64EOCDLen - zip64LocatorLen - eocdLen)
+		// Leave 32-bit records and dirSize small (2 and cdLen) and saturate only
+		// directoryOffset (0xffffffff) so ZIP64 lookup depends on dirOffset.
+		binary.LittleEndian.PutUint16(eocd[8:10], uint16(len(names)))
+		binary.LittleEndian.PutUint16(eocd[10:12], uint16(len(names)))
+		binary.LittleEndian.PutUint32(eocd[12:16], cdLen)
+		binary.LittleEndian.PutUint32(eocd[16:20], 0xffffffff)
+
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_, err := NewReader(&sparseTailReaderAt{size: virtualSize, tail: tail}, virtualSize)
+		runtime.ReadMemStats(&after)
+
+		if !errors.Is(err, ErrDirectoryTooLarge) {
+			t.Fatalf("err = %v, want ErrDirectoryTooLarge", err)
+		}
+		if delta := after.TotalAlloc - before.TotalAlloc; delta > 256<<10 {
+			t.Fatalf("TotalAlloc delta = %d bytes, want <= %d", delta, 256<<10)
+		}
+	})
 }
 
 func TestDirReaderExhaustionStaysExhaustedUntilLifted(t *testing.T) {
@@ -239,6 +290,44 @@ func TestNewReaderOpensNormalOOXMLAndReadsEntriesAfterOpen(t *testing.T) {
 				t.Fatalf("entry len = %d, want %d", len(got), len(c.parts[c.main]))
 			}
 		})
+	}
+}
+
+func TestNewReaderPreservesReaderAndLiftsCapOnErrInsecurePath(t *testing.T) {
+	t.Setenv("GODEBUG", "zipinsecurepath=0")
+	bigPayload := strings.Repeat("<w:p/>", int((MaxDirectoryBytes+EndRecordWindowBytes)/6)+2048)
+	raw := buildArchive(t, map[string]string{
+		"../x":              "ignored",
+		"word/document.xml": bigPayload,
+	})
+	zr, err := NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if !errors.Is(err, zip.ErrInsecurePath) {
+		t.Fatalf("err = %v, want zip.ErrInsecurePath", err)
+	}
+	if zr == nil {
+		t.Fatal("zr = nil alongside zip.ErrInsecurePath, want usable *zip.Reader")
+	}
+	var docFile *zip.File
+	for _, f := range zr.File {
+		if f.Name == "word/document.xml" {
+			docFile = f
+			break
+		}
+	}
+	if docFile == nil {
+		t.Fatal("missing word/document.xml in returned *zip.Reader")
+	}
+	rc, err := docFile.Open()
+	if err != nil {
+		t.Fatalf("Open(word/document.xml): %v", err)
+	}
+	got, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		t.Fatalf("ReadAll(word/document.xml): %v", err)
+	}
+	if string(got) != bigPayload {
+		t.Fatalf("entry len = %d, want %d", len(got), len(bigPayload))
 	}
 }
 
@@ -365,25 +454,65 @@ func buildZIP64Archive(name string, payload []byte) []byte {
 }
 
 func TestNewReaderOpensZIP64ArchiveWithinLimits(t *testing.T) {
-	want := []byte("<w:document/>")
-	raw := buildZIP64Archive("word/document.xml", want)
-	zr, err := NewReader(bytes.NewReader(raw), int64(len(raw)))
-	if err != nil {
-		t.Fatalf("NewReader(ZIP64): %v", err)
-	}
-	if len(zr.File) != 1 || zr.File[0].Name != "word/document.xml" {
-		t.Fatalf("files = %+v, want [word/document.xml]", zr.File)
-	}
-	rc, err := zr.File[0].Open()
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	got, err := io.ReadAll(rc)
-	_ = rc.Close()
-	if err != nil {
-		t.Fatalf("ReadAll: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Fatalf("payload = %q, want %q", got, want)
-	}
+	t.Run("single_entry", func(t *testing.T) {
+		want := []byte("<w:document/>")
+		raw := buildZIP64Archive("word/document.xml", want)
+		zr, err := NewReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			t.Fatalf("NewReader(ZIP64): %v", err)
+		}
+		if len(zr.File) != 1 || zr.File[0].Name != "word/document.xml" {
+			t.Fatalf("files = %+v, want [word/document.xml]", zr.File)
+		}
+		rc, err := zr.File[0].Open()
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		got, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("payload = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("max_directory_minus_one_with_max_comment", func(t *testing.T) {
+		// Build a 1 MiB - 1 (1,048,575-byte) central directory (1,023 entries of
+		// 1,024 B + 1 entry of 1,023 B) with a 65,535-byte comment and ZIP64 end
+		// records, exercising the full 76 KiB EndRecordWindowBytes allowance.
+		const (
+			entries    = 1024
+			commentLen = 0xffff
+		)
+		var names []string
+		for i := range entries {
+			prefix := strconv.Itoa(i) + "/"
+			targetHeaderLen := 1024
+			if i == entries-1 {
+				targetHeaderLen = 1023
+			}
+			nameLen := targetHeaderLen - minCentralDirHeaderBytes
+			names = append(names, prefix+strings.Repeat("a", nameLen-len(prefix)))
+		}
+		const virtualSize int64 = 16 << 20
+		baseTail := buildZIP64CentralDirTail(virtualSize-commentLen, names, entries, 0)
+		binary.LittleEndian.PutUint16(baseTail[len(baseTail)-2:], commentLen)
+		tail := make([]byte, len(baseTail)+commentLen)
+		copy(tail, baseTail)
+		for i := len(baseTail); i < len(tail); i++ {
+			tail[i] = 'c'
+		}
+		zr, err := NewReader(&sparseTailReaderAt{size: virtualSize, tail: tail}, virtualSize)
+		if err != nil {
+			t.Fatalf("NewReader(1MiB-1 dir + 65535B comment): %v", err)
+		}
+		if len(zr.File) != entries {
+			t.Fatalf("len(zr.File) = %d, want %d", len(zr.File), entries)
+		}
+		if len(zr.Comment) != commentLen {
+			t.Fatalf("len(zr.Comment) = %d, want %d", len(zr.Comment), commentLen)
+		}
+	})
 }
