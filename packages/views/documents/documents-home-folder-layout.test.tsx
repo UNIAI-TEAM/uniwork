@@ -382,12 +382,12 @@ describe("folder layout (Folder.dc)", () => {
     // The header row holds the breadcrumb and the actions; the search box sits on the filter row below.
     const box = crumb.parentElement as HTMLElement;
     const row = box.parentElement as HTMLElement;
-    expect(row).toHaveClass("@container", "flex-wrap");
-    expect(row).not.toHaveClass("flex-nowrap", "lg:flex-nowrap");
+    expect(row).toHaveClass("flex-wrap");
+    expect(row).not.toHaveClass("@container", "flex-nowrap", "lg:flex-nowrap");
     const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
     expect(row).not.toContainElement(search);
     expect(typeFilterSelect()!.parentElement).toContainElement(search);
-    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:w-56", "@min-[48rem]:focus-within:w-80");
+    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:grow", "@min-[48rem]:basis-56", "@min-[48rem]:max-w-56", "@min-[48rem]:focus-within:max-w-80");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
     expect(row.lastElementChild).toHaveClass("shrink-0");
     expect(row.lastElementChild).toContainElement(create);
