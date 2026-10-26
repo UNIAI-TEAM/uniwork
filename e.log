@@ -1,0 +1,6 @@
+$ node --test scripts/governance.test.mjs scripts/env-example.test.mjs scripts/events-catalogue.test.mjs > /tmp/pr9r2-scripts.log 2>&1; rc=$?; grep -E "^# (tests|pass|fail)|^not ok|✖" /tmp/pr9r2-scripts.log | head -30; echo; echo "SCRIPTS_EXIT=$rc"; [ $rc -eq 0 ]
+# tests 34
+# pass 34
+# fail 0
+
+SCRIPTS_EXIT=0
