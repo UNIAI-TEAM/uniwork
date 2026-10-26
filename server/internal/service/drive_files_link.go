@@ -187,6 +187,31 @@ func wrapTaskCreateDriveFileError(index int, externalFileID string, err error) e
 	}
 }
 
+// requireCallerConnectionForShare locks the caller's active connection FOR SHARE
+// inside a transaction (before any file lock) and refuses a disconnected or
+// auth-failed connection (F03, spec §8.2b).
+func (s *DriveFileService) requireCallerConnectionForShare(ctx context.Context, q *db.Queries, orgID, userID, connectionID string) (db.DriveConnection, error) {
+	connectionID = strings.TrimSpace(connectionID)
+	if connectionID == "" {
+		return db.DriveConnection{}, ErrNotFound
+	}
+	conn, err := q.GetDriveConnectionForShare(ctx, db.GetDriveConnectionForShareParams{
+		ID:             connectionID,
+		OrganizationID: orgID,
+		UserID:         userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.DriveConnection{}, ErrNotFound
+	}
+	if err != nil {
+		return db.DriveConnection{}, err
+	}
+	if conn.AuthFailedAt.Valid {
+		return db.DriveConnection{}, DriveErrToCodedError(ErrDriveReauthRequired)
+	}
+	return conn, nil
+}
+
 func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	ctx context.Context,
 	qtx *db.Queries,
@@ -197,6 +222,11 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	meta DriveFileMetadata,
 	taskID string,
 ) (DriveFileLinkItemResult, error) {
+	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
+	if err != nil {
+		return DriveFileLinkItemResult{}, err
+	}
+	conn = lockedConn
 	if err := qtx.LockDriveFileWorkspaceExternal(ctx, db.LockDriveFileWorkspaceExternalParams{
 		WorkspaceID:    ws.ID,
 		ExternalFileID: externalFileID,

@@ -68,16 +68,11 @@ func (s *DriveFileService) GrantAccess(ctx context.Context, actor Actor, workspa
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
-	if _, err := qtx.GetDriveConnectionForShare(ctx, db.GetDriveConnectionForShareParams{
-		ID:             conn.ID,
-		OrganizationID: ws.OrganizationID,
-		UserID:         actor.ID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return DriveFileView{}, ErrNotFound
-		}
+	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
+	if err != nil {
 		return DriveFileView{}, err
 	}
+	conn = lockedConn
 	lockedFile, err := qtx.GetActiveDriveFileByIDForUpdate(ctx, db.GetActiveDriveFileByIDForUpdateParams{
 		ID:             fileRow.ID,
 		OrganizationID: ws.OrganizationID,
@@ -230,16 +225,11 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
-	if _, err := qtx.GetDriveConnectionForShare(ctx, db.GetDriveConnectionForShareParams{
-		ID:             conn.ID,
-		OrganizationID: ws.OrganizationID,
-		UserID:         actor.ID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return DriveFileView{}, ErrNotFound
-		}
+	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
+	if err != nil {
 		return DriveFileView{}, err
 	}
+	conn = lockedConn
 	lockedFile, err := qtx.GetActiveDriveFileByIDForUpdate(ctx, db.GetActiveDriveFileByIDForUpdateParams{
 		ID:             fileRow.ID,
 		OrganizationID: ws.OrganizationID,
@@ -368,16 +358,11 @@ func (s *DriveFileService) Rebind(ctx context.Context, actor Actor, workspaceID,
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
-	if _, err := qtx.GetDriveConnectionForShare(ctx, db.GetDriveConnectionForShareParams{
-		ID:             conn.ID,
-		OrganizationID: ws.OrganizationID,
-		UserID:         actor.ID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return DriveFileView{}, ErrNotFound
-		}
+	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
+	if err != nil {
 		return DriveFileView{}, err
 	}
+	conn = lockedConn
 	lockedFile, err := qtx.GetActiveDriveFileByIDForUpdate(ctx, db.GetActiveDriveFileByIDForUpdateParams{
 		ID:             fileRow.ID,
 		OrganizationID: ws.OrganizationID,

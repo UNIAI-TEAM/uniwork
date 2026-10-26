@@ -351,6 +351,48 @@ func TestDriveFileLinkTwoMembersNoCrossEmailLeakAndConcurrentRace(t *testing.T) 
 	if err != nil || len(connsA) != 1 || connsA[0].LinkedFileCount != 1 {
 		t.Fatalf("connsA = %+v, err=%v", connsA, err)
 	}
+
+	// F03: A disconnect that commits while files.get is in flight causes the Link
+	// save transaction (and task-create linking) to reject the disconnected connection
+	// under the FOR SHARE lock without writing any drive_files or access rows.
+	connDisc := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-disc", "owner-disc@example.com")
+	env.googleSrv.SetFile("ext-disc-inflight", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-disc-inflight", Name: "Inflight Disconnect", MimeType: DriveMimeGoogleDoc},
+	})
+	inFlightStarted := make(chan struct{})
+	inFlightRelease := make(chan struct{})
+	var once sync.Once
+	env.googleSrv.SetOverride(func(_ http.ResponseWriter, _ *http.Request, call FakeGoogleDriveCall) bool {
+		if call.FileID == "ext-disc-inflight" && call.Op == "get" {
+			once.Do(func() { close(inFlightStarted) })
+			<-inFlightRelease
+		}
+		return false
+	})
+	var linkDiscErr error
+	linkDone := make(chan struct{})
+	go func() {
+		defer close(linkDone)
+		_, linkDiscErr = env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+			ConnectionID:    connDisc.ID,
+			ExternalFileIDs: []string{"ext-disc-inflight"},
+		})
+	}()
+	<-inFlightStarted
+	if err := env.svc.Disconnect(ctx, Human(env.owner.ID), env.wsA.ID, connDisc.ID); err != nil {
+		close(inFlightRelease)
+		t.Fatalf("Disconnect during files.get: %v", err)
+	}
+	close(inFlightRelease)
+	<-linkDone
+	env.googleSrv.SetOverride(nil)
+	if !errors.Is(linkDiscErr, ErrNotFound) {
+		t.Fatalf("Link after inflight Disconnect = %v, want ErrNotFound", linkDiscErr)
+	}
+	var discFileCount int
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_files WHERE workspace_id = $1 AND external_file_id = 'ext-disc-inflight'`, env.wsA.ID).Scan(&discFileCount); err != nil || discFileCount != 0 {
+		t.Fatalf("discFileCount = %d, err=%v, want 0", discFileCount, err)
+	}
 }
 
 func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
