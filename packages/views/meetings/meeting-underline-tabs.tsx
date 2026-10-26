@@ -62,7 +62,7 @@ export function MeetingUnderlineTabs<T extends string>({
     if (target !== value) onChange(target);
   }
 
-  // Tight padding so the room's five tabs fit a 384px sidebar whole; the row
+  // Tight padding so a row of tabs fits a narrow column (a 384px sidebar) whole; the row
   // still scrolls when badges push it past the edge, and the hidden-scrollbar
   // edge fades so the cut-off tab reads as more to come. `relative` makes the
   // row the tabs' offsetParent, which the scroll-into-view above measures from.
