@@ -1,0 +1,5 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/sync1-go-handler.log | cut -c1-200 | head -150
+ok  	github.com/unicomhub/uniwork/server/internal/handler	1413.856s	coverage: 82.9% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.180s	coverage: 66.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	49.824s	coverage: 99.6% of statements
