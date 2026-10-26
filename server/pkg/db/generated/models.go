@@ -1159,6 +1159,57 @@ type DriveConnection struct {
 	DisconnectedAt    pgtype.Timestamptz `json:"disconnected_at"`
 }
 
+type DriveFile struct {
+	ID                     string             `json:"id"`
+	OrganizationID         string             `json:"organization_id"`
+	WorkspaceID            string             `json:"workspace_id"`
+	ExternalFileID         string             `json:"external_file_id"`
+	DriveID                pgtype.Text        `json:"drive_id"`
+	ConnectionID           string             `json:"connection_id"`
+	BoundBy                string             `json:"bound_by"`
+	CreatedBy              string             `json:"created_by"`
+	CreatedByKind          string             `json:"created_by_kind"`
+	Name                   string             `json:"name"`
+	MimeType               string             `json:"mime_type"`
+	IconKind               string             `json:"icon_kind"`
+	WebViewLink            string             `json:"web_view_link"`
+	OwnerDisplay           string             `json:"owner_display"`
+	DriveModifiedAt        pgtype.Timestamptz `json:"drive_modified_at"`
+	DriveModifiedByDisplay string             `json:"drive_modified_by_display"`
+	SharingState           string             `json:"sharing_state"`
+	SharedUserCount        pgtype.Int4        `json:"shared_user_count"`
+	MetadataRefreshedAt    pgtype.Timestamptz `json:"metadata_refreshed_at"`
+	AccessLostAt           pgtype.Timestamptz `json:"access_lost_at"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
+	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
+	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+}
+
+type DriveFileAccess struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	UserID         string             `json:"user_id"`
+	ConnectionID   string             `json:"connection_id"`
+	State          string             `json:"state"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
+}
+
+type DriveFileTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	TaskID         string             `json:"task_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type DriveGrantRevocation struct {
 	GoogleSub            string             `json:"google_sub"`
 	Generation           int64              `json:"generation"`
