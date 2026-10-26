@@ -1006,6 +1006,28 @@ func validateLegacyConversion(current *db.DocumentVersion, f files.File, conv Do
 	}, pair.toMime, pair.toFormat, nil
 }
 
+// rewriteConvertedDocumentTitle rewrites the document title's trailing legacy
+// extension (case-insensitive .doc / .xls / .ppt matching the live legacy
+// version's format) to the target OOXML extension (.docx / .xlsx / .pptx,
+// lowercase). Any other title (no suffix, a different suffix, or a suffix of
+// another family) is returned unchanged with changed=false (UNI-2213 fix1).
+func rewriteConvertedDocumentTitle(title, fromFormat, toFormat string) (string, bool) {
+	if fromFormat == "" || toFormat == "" {
+		return title, false
+	}
+	legacyExt := "." + strings.ToLower(fromFormat)
+	if len(title) < len(legacyExt) || !strings.EqualFold(title[len(title)-len(legacyExt):], legacyExt) {
+		return title, false
+	}
+	targetExt := "." + strings.ToLower(toFormat)
+	stem := trimTitleRunes(title[:len(title)-len(legacyExt)], documentTitleLimit(DocumentKindFile)-len(targetExt))
+	next, err := normalizeDocumentTitle(DocumentKindFile, stem+targetExt)
+	if err != nil || next == title {
+		return title, false
+	}
+	return next, true
+}
+
 // convertedVersionFilename rewrites the source version's filename extension to
 // the converted version's OOXML extension (.docx, .xlsx, .pptx).
 func (s *DocumentService) convertedVersionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, fallback string) string {
@@ -1054,9 +1076,26 @@ func (s *DocumentService) pointAtNewFileVersion(
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
+	title := doc.Title
+	searchText := doc.SearchText
+	titleChanged := false
+	priorTitle := doc.Title
+	if converted != nil {
+		if nextTitle, ok := rewriteConvertedDocumentTitle(doc.Title, converted.fromFormat, converted.toFormat); ok {
+			normTitle, err := normalizeDocumentTitle(doc.Kind, nextTitle)
+			if err != nil {
+				return DocumentFileResult{}, err
+			}
+			title = normTitle
+			searchText = documentSearchText(normTitle, doc.ContentText)
+			titleChanged = true
+		}
+	}
 	updated, err := q.SetDocumentFileVersion(ctx, db.SetDocumentFileVersionParams{
 		FileVersionID:    pgtype.Text{String: version.ID, Valid: true},
 		CurrentVersion:   versionNo,
+		Title:            title,
+		SearchText:       searchText,
 		UpdatedBy:        actor.ID,
 		UpdatedByKind:    string(actor.Kind),
 		ID:               doc.ID,
@@ -1070,9 +1109,10 @@ func (s *DocumentService) pointAtNewFileVersion(
 		return DocumentFileResult{}, errDocumentVersionConflict(doc.Revision)
 	}
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, documentTitleWriteError(doc.Kind, err)
 	}
 	action := audit.ActionDocumentVersionCreated
+	before := map[string]any{"revision": doc.Revision}
 	changes := map[string]any{"version": versionNo, "version_id": version.ID, "file_id": string(f.ID), "reason": reason}
 	if reason == "restore" {
 		action = audit.ActionDocumentVersionRestored
@@ -1085,6 +1125,10 @@ func (s *DocumentService) pointAtNewFileVersion(
 		changes["converted_from_version"] = converted.fromVersion
 		if converted.fromChecksum != "" {
 			changes["converted_from_checksum"] = converted.fromChecksum
+		}
+		if titleChanged {
+			before["title"] = priorTitle
+			changes["title"] = updated.Title
 		}
 		meta = map[string]any{
 			"converted_from":         converted.fromFormat,
@@ -1109,10 +1153,34 @@ func (s *DocumentService) pointAtNewFileVersion(
 		Action:         action,
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
-		Changes:        audit.Diff(map[string]any{"revision": doc.Revision}, mergeMaps(changes, map[string]any{"revision": updated.Revision})),
+		Changes:        audit.Diff(before, mergeMaps(changes, map[string]any{"revision": updated.Revision})),
 		Metadata:       meta,
 	}, events...); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if titleChanged {
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: updated.OrganizationID,
+			WorkspaceID:    updated.WorkspaceID,
+			Actor:          actor,
+			Action:         audit.ActionDocumentUpdated,
+			ResourceType:   "document",
+			ResourceID:     updated.ID,
+			Changes:        audit.Diff(map[string]any{"title": priorTitle}, map[string]any{"title": updated.Title}),
+			Metadata: map[string]any{
+				"revision":        strconv.FormatInt(updated.Revision, 10),
+				"content_changed": false,
+				"content_bytes":   updated.ContentBytes,
+				"mentions_added":  0,
+			},
+		},
+			audit.Event{Topic: "document.updated", Payload: map[string]string{
+				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+			}},
+			documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeRenamed),
+		); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	return DocumentFileResult{Document: updated, Version: version, File: fileInfoOf(version, f.Filename), Access: access}, nil
 }

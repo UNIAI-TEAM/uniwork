@@ -665,6 +665,26 @@ func TestDocumentCommitLegacyConversionUnit(t *testing.T) {
 	if fpPlain == fpConvDoc || fpConvDoc == fpConvXls {
 		t.Fatalf("commitFingerprint must distinguish conversion pairs: plain=%s doc=%s xls=%s", fpPlain, fpConvDoc, fpConvXls)
 	}
+	for _, tc := range []struct {
+		title, from, to string
+		wantTitle       string
+		wantChanged     bool
+	}{
+		{"Báo cáo ngân sách.xls", "xls", "xlsx", "Báo cáo ngân sách.xlsx", true},
+		{"REPORT.DOC", "doc", "docx", "REPORT.docx", true},
+		{"Deck.PpT", "ppt", "pptx", "Deck.pptx", true},
+		{"Báo cáo ngân sách", "xls", "xlsx", "Báo cáo ngân sách", false},
+		{"x.xls", "doc", "docx", "x.xls", false},
+		{"a.xls notes", "xls", "xlsx", "a.xls notes", false},
+		{"already.docx", "doc", "docx", "already.docx", false},
+		{"backup.xls.bak", "xls", "xlsx", "backup.xls.bak", false},
+	} {
+		got, changed := rewriteConvertedDocumentTitle(tc.title, tc.from, tc.to)
+		if got != tc.wantTitle || changed != tc.wantChanged {
+			t.Fatalf("rewriteConvertedDocumentTitle(%q, %q, %q) = (%q, %v), want (%q, %v)",
+				tc.title, tc.from, tc.to, got, changed, tc.wantTitle, tc.wantChanged)
+		}
+	}
 }
 
 func TestDocumentCommitLegacyConversion(t *testing.T) {
@@ -745,6 +765,10 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 			if res.Document.ID != created.Document.ID || res.Document.CurrentVersion != 2 || res.Document.Revision != created.Document.Revision+1 {
 				t.Fatalf("document = %+v", res.Document)
 			}
+			wantTitle := "Báo cáo " + tc.wantFile
+			if res.Document.Title != wantTitle {
+				t.Fatalf("document.title = %q, want %q", res.Document.Title, wantTitle)
+			}
 			if res.Version.Version != 2 || res.Version.Reason != DocumentVersionReasonConverted {
 				t.Fatalf("version = %+v, want v2 reason=%s", res.Version, DocumentVersionReasonConverted)
 			}
@@ -761,7 +785,7 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 				t.Fatalf("file.filename = %q, want %q", res.File.Filename, tc.wantFile)
 			}
 
-			// Idempotent replay with same key and conversion returns the same version.
+			// Idempotent replay with same key and conversion returns the same version and rewritten title.
 			replay, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
 				UploadID:       up.UploadID,
 				BaseRevision:   created.Document.Revision,
@@ -772,13 +796,17 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 				},
 			})
 			mustf(t, err, "replay converted commit")
-			if replay.Version.ID != res.Version.ID {
-				t.Fatalf("replay version = %s, want %s", replay.Version.ID, res.Version.ID)
+			if replay.Version.ID != res.Version.ID || replay.Document.Title != wantTitle {
+				t.Fatalf("replay version = %s title = %q, want %s %q", replay.Version.ID, replay.Document.Title, res.Version.ID, wantTitle)
 			}
 
-			// GET document resolves the rewritten filename from v1's base name.
+			// GET document resolves the rewritten title, search_text, and filename from v1's base name.
 			gotDoc, err := env.svc.GetDocument(ctx, member, created.Document.ID)
 			mustf(t, err, "get document after conversion")
+			if gotDoc.Document.Title != wantTitle || gotDoc.Document.SearchText != documentSearchText(wantTitle, "") {
+				t.Fatalf("GetDocument title=%q search_text=%q, want %q / %q",
+					gotDoc.Document.Title, gotDoc.Document.SearchText, wantTitle, documentSearchText(wantTitle, ""))
+			}
 			if gotDoc.File == nil || gotDoc.File.Filename != tc.wantFile || gotDoc.File.MimeType != tc.toMime {
 				t.Fatalf("GetDocument file = %+v, want filename=%q mime=%q", gotDoc.File, tc.wantFile, tc.toMime)
 			}
@@ -824,7 +852,9 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 			}
 			if changes["reason"]["to"] != DocumentVersionReasonConverted ||
 				changes["converted_from"]["to"] != tc.fromFormat ||
-				changes["converted_to"]["to"] != tc.toFormat {
+				changes["converted_to"]["to"] != tc.toFormat ||
+				changes["title"]["from"] != created.Document.Title ||
+				changes["title"]["to"] != wantTitle {
 				t.Fatalf("audit changes = %s", rawChanges)
 			}
 			var meta map[string]any
@@ -834,8 +864,162 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 			if meta["converted_from"] != tc.fromFormat || meta["converted_to"] != tc.toFormat {
 				t.Fatalf("audit metadata = %s", rawMeta)
 			}
+			// Rename side effects in the same transaction: document.updated audit row + document.updated frame + renamed notice.
+			if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 1 {
+				t.Fatalf("document.updated audit rows = %d, want 1", n)
+			}
+			if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 1 {
+				t.Fatalf("document.updated outbox rows = %d, want 1", n)
+			}
 		})
 	}
+
+	t.Run("title suffix rewrite rules and rename side effects", func(t *testing.T) {
+		for _, tc := range []struct {
+			name        string
+			fromFormat  string
+			fromFile    string
+			toFormat    string
+			toFile      string
+			initTitle   string
+			wantTitle   string
+			wantRenamed bool
+			buildOOXML  func(t *testing.T, marker string) []byte
+		}{
+			{
+				name:        "xls title rewritten to xlsx",
+				fromFormat:  "xls",
+				fromFile:    "bao-cao-ngan-sach.xls",
+				toFormat:    "xlsx",
+				toFile:      "bao-cao-ngan-sach.xlsx",
+				initTitle:   "Báo cáo ngân sách.xls",
+				wantTitle:   "Báo cáo ngân sách.xlsx",
+				wantRenamed: true,
+				buildOOXML:  xlsxBody,
+			},
+			{
+				name:        "uppercase DOC title rewritten to lowercase docx",
+				fromFormat:  "doc",
+				fromFile:    "report.doc",
+				toFormat:    "docx",
+				toFile:      "report.docx",
+				initTitle:   "REPORT.DOC",
+				wantTitle:   "REPORT.docx",
+				wantRenamed: true,
+				buildOOXML:  docxBody,
+			},
+			{
+				name:        "title without extension unchanged",
+				fromFormat:  "xls",
+				fromFile:    "sheet.xls",
+				toFormat:    "xlsx",
+				toFile:      "sheet.xlsx",
+				initTitle:   "Báo cáo ngân sách",
+				wantTitle:   "Báo cáo ngân sách",
+				wantRenamed: false,
+				buildOOXML:  xlsxBody,
+			},
+			{
+				name:        "other-family suffix unchanged",
+				fromFormat:  "doc",
+				fromFile:    "notes.doc",
+				toFormat:    "docx",
+				toFile:      "notes.docx",
+				initTitle:   "x.xls",
+				wantTitle:   "x.xls",
+				wantRenamed: false,
+				buildOOXML:  docxBody,
+			},
+			{
+				name:        "legacy extension in the middle unchanged",
+				fromFormat:  "xls",
+				fromFile:    "notes.xls",
+				toFormat:    "xlsx",
+				toFile:      "notes.xlsx",
+				initTitle:   "a.xls notes",
+				wantTitle:   "a.xls notes",
+				wantRenamed: false,
+				buildOOXML:  xlsxBody,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				v1Bytes := legacyCFBBody("title-v1-" + tc.name)
+				created, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+					Title:      tc.initTitle,
+					Filename:   tc.fromFile,
+					Body:       bytes.NewReader(v1Bytes),
+					Visibility: documentVisibilityWorkspace,
+				})
+				mustf(t, err, "create legacy document")
+
+				v2Bytes := tc.buildOOXML(t, "title-v2-"+tc.name)
+				up := env.upload(t, member, created.Document.ID, tc.toFile, v2Bytes)
+				res, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+					UploadID:       up.UploadID,
+					BaseRevision:   created.Document.Revision,
+					IdempotencyKey: util.NewID(),
+					Conversion: &DocumentVersionConversion{
+						FromFormat: tc.fromFormat,
+						ToFormat:   tc.toFormat,
+					},
+				})
+				mustf(t, err, "commit converted version")
+				if res.Document.Title != tc.wantTitle {
+					t.Fatalf("response document.title = %q, want %q", res.Document.Title, tc.wantTitle)
+				}
+				stored := env.doc(t, created.Document.ID)
+				if stored.Title != tc.wantTitle {
+					t.Fatalf("stored document.title = %q, want %q", stored.Title, tc.wantTitle)
+				}
+				if stored.SearchText != documentSearchText(tc.wantTitle, "") {
+					t.Fatalf("stored search_text = %q, want %q", stored.SearchText, documentSearchText(tc.wantTitle, ""))
+				}
+
+				var renamedNotices int
+				if err := env.f.pool.QueryRow(ctx,
+					`SELECT count(*) FROM outbox_events WHERE topic = 'document.change_noticed' AND payload::jsonb->>'document_id' = $1 AND payload::jsonb->>'verb' = $2`,
+					created.Document.ID, docNoticeRenamed,
+				).Scan(&renamedNotices); err != nil {
+					t.Fatal(err)
+				}
+				if tc.wantRenamed {
+					if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 1 {
+						t.Fatalf("document.updated audit rows = %d, want 1", n)
+					}
+					if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 1 {
+						t.Fatalf("document.updated outbox rows = %d, want 1", n)
+					}
+					if renamedNotices != 1 {
+						t.Fatalf("renamed change notices = %d, want 1", renamedNotices)
+					}
+					var rawChanges []byte
+					if err := env.f.pool.QueryRow(ctx,
+						`SELECT changes FROM audit_events WHERE action = $1 AND resource_id = $2`,
+						audit.ActionDocumentUpdated, created.Document.ID,
+					).Scan(&rawChanges); err != nil {
+						t.Fatal(err)
+					}
+					var diff map[string]map[string]any
+					if err := json.Unmarshal(rawChanges, &diff); err != nil {
+						t.Fatal(err)
+					}
+					if diff["title"]["from"] != tc.initTitle || diff["title"]["to"] != tc.wantTitle {
+						t.Fatalf("document.updated audit diff = %s, want title %q -> %q", rawChanges, tc.initTitle, tc.wantTitle)
+					}
+				} else {
+					if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 0 {
+						t.Fatalf("document.updated audit rows = %d, want 0 when title unchanged", n)
+					}
+					if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 0 {
+						t.Fatalf("document.updated outbox rows = %d, want 0 when title unchanged", n)
+					}
+					if renamedNotices != 0 {
+						t.Fatalf("renamed change notices = %d, want 0 when title unchanged", renamedNotices)
+					}
+				}
+			})
+		}
+	})
 
 	t.Run("refusals: not_legacy, target_mismatch, not_ooxml, no save back to legacy, viewer", func(t *testing.T) {
 		// 1. Live version is already OOXML (.docx) -> 422 not_legacy.

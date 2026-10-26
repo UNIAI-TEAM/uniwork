@@ -1029,6 +1029,9 @@ func TestDocumentCommitLegacyConversionRoute(t *testing.T) {
 	if ver["version"].(float64) != 2 || ver["reason"] != "converted_version" || ver["converted_from_version"].(float64) != 1 || ver["converted_from_checksum"] == "" {
 		t.Fatalf("version SDO = %v", ver)
 	}
+	if docAfter["title"] != "legacy-brief.docx" {
+		t.Fatalf("document.title = %v, want legacy-brief.docx", docAfter["title"])
+	}
 	if fileAfter["filename"] != "legacy-brief.docx" || fileAfter["mime_type"] != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
 		t.Fatalf("file SDO = %v", fileAfter)
 	}
