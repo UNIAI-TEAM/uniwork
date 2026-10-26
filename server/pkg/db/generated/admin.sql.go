@@ -335,7 +335,7 @@ func (q *Queries) AdminGetInvoiceByID(ctx context.Context, id string) (AdminGetI
 }
 
 const adminGetOrganization = `-- name: AdminGetOrganization :one
-SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,
+SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.deletion_scheduled_at, o.created_at,
   COALESCE(p.code, '')::text AS plan_code,
   (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
   (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
@@ -347,17 +347,18 @@ WHERE o.id = $1
 `
 
 type AdminGetOrganizationRow struct {
-	ID              string             `json:"id"`
-	Slug            string             `json:"slug"`
-	Name            string             `json:"name"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	PlanCode        string             `json:"plan_code"`
-	MemberCount     int64              `json:"member_count"`
-	WorkspaceCount  int64              `json:"workspace_count"`
-	LastActivityAt  pgtype.Timestamptz `json:"last_activity_at"`
+	ID                  string             `json:"id"`
+	Slug                string             `json:"slug"`
+	Name                string             `json:"name"`
+	Status              string             `json:"status"`
+	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	PlanCode            string             `json:"plan_code"`
+	MemberCount         int64              `json:"member_count"`
+	WorkspaceCount      int64              `json:"workspace_count"`
+	LastActivityAt      pgtype.Timestamptz `json:"last_activity_at"`
 }
 
 // tenant: platform
@@ -371,6 +372,7 @@ func (q *Queries) AdminGetOrganization(ctx context.Context, id string) (AdminGet
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 		&i.CreatedAt,
 		&i.PlanCode,
 		&i.MemberCount,

@@ -52,7 +52,7 @@ WHERE (sqlc.narg('status')::text IS NULL OR o.status = sqlc.narg('status')::text
 
 -- name: AdminGetOrganization :one
 -- tenant: platform
-SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,
+SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.deletion_scheduled_at, o.created_at,
   COALESCE(p.code, '')::text AS plan_code,
   (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
   (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,

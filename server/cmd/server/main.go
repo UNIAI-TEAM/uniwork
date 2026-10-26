@@ -684,6 +684,7 @@ func main() {
 	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
 	// The console's takedown of a reported message acts through the chat service, never reading the message.
 	adminSvc.SetReportedContentRemover(chatSvc)
+	adminSvc.SetPrivacyExports(privacySvc)
 	var emailHubBox *secretbox.Box
 	if key, err := secretbox.LoadKey("EMAIL_HUB_CREDENTIAL_KEY"); err == nil {
 		if box, err := secretbox.New(key); err == nil {

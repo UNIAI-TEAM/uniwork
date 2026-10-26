@@ -9,37 +9,39 @@ type Routes struct {
 	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
-	Config                     http.HandlerFunc
-	OfficeDesktopDownload      http.HandlerFunc
-	RUM                        http.HandlerFunc
-	MobileEvents               http.HandlerFunc
-	CreateDemoRequest          http.HandlerFunc
-	AdminListDemoRequests      http.HandlerFunc
-	AdminUpdateDemoRequest     http.HandlerFunc
-	AdminListChatReports       http.HandlerFunc
-	AdminResolveChatReport     http.HandlerFunc
-	AdminRemoveReportedMessage http.HandlerFunc
-	AdminMe                    http.HandlerFunc
-	AdminListOrganizations     http.HandlerFunc
-	AdminGetOrganization       http.HandlerFunc
-	AdminSuspendOrganization   http.HandlerFunc
-	AdminUnsuspendOrganization http.HandlerFunc
-	AdminChangePlan            http.HandlerFunc
-	AdminTrace                 http.HandlerFunc
-	AdminSystem                http.HandlerFunc
-	AdminListFlags             http.HandlerFunc
-	AdminListFlagOverrides     http.HandlerFunc
-	AdminListAllFlagOverrides  http.HandlerFunc
-	AdminSetFlagOverride       http.HandlerFunc
-	AdminDeleteFlagOverride    http.HandlerFunc
-	AdminListPlans             http.HandlerFunc
-	AdminCreatePlan            http.HandlerFunc
-	AdminUpdatePlan            http.HandlerFunc
-	AdminUpdatePlanFeature     http.HandlerFunc
-	AdminListInvoices          http.HandlerFunc
-	AdminListPaymentIntents    http.HandlerFunc
-	AdminRefundInvoice         http.HandlerFunc
-	AdminConfirmInvoiceRefund  http.HandlerFunc
+	Config                            http.HandlerFunc
+	OfficeDesktopDownload             http.HandlerFunc
+	RUM                               http.HandlerFunc
+	MobileEvents                      http.HandlerFunc
+	CreateDemoRequest                 http.HandlerFunc
+	AdminListDemoRequests             http.HandlerFunc
+	AdminUpdateDemoRequest            http.HandlerFunc
+	AdminListChatReports              http.HandlerFunc
+	AdminResolveChatReport            http.HandlerFunc
+	AdminRemoveReportedMessage        http.HandlerFunc
+	AdminMe                           http.HandlerFunc
+	AdminListOrganizations            http.HandlerFunc
+	AdminGetOrganization              http.HandlerFunc
+	AdminSuspendOrganization          http.HandlerFunc
+	AdminScheduleOrganizationDeletion http.HandlerFunc
+	AdminCancelOrganizationDeletion   http.HandlerFunc
+	AdminUnsuspendOrganization        http.HandlerFunc
+	AdminChangePlan                   http.HandlerFunc
+	AdminTrace                        http.HandlerFunc
+	AdminSystem                       http.HandlerFunc
+	AdminListFlags                    http.HandlerFunc
+	AdminListFlagOverrides            http.HandlerFunc
+	AdminListAllFlagOverrides         http.HandlerFunc
+	AdminSetFlagOverride              http.HandlerFunc
+	AdminDeleteFlagOverride           http.HandlerFunc
+	AdminListPlans                    http.HandlerFunc
+	AdminCreatePlan                   http.HandlerFunc
+	AdminUpdatePlan                   http.HandlerFunc
+	AdminUpdatePlanFeature            http.HandlerFunc
+	AdminListInvoices                 http.HandlerFunc
+	AdminListPaymentIntents           http.HandlerFunc
+	AdminRefundInvoice                http.HandlerFunc
+	AdminConfirmInvoiceRefund         http.HandlerFunc
 
 	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
 	// 0031), mounted by registerMCP.

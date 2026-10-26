@@ -53,11 +53,18 @@ type AdminActionDTO struct {
 
 // AdminOrganizationDetailSDO is GET /api/v1/admin/organizations/{orgID}.
 type AdminOrganizationDetailSDO struct {
-	Organization    AdminOrganizationDTO  `json:"organization"`
-	SuspendedAt     *string               `json:"suspended_at" example:"2026-09-06T09:30:00Z"`
-	SuspendedReason *string               `json:"suspended_reason" example:"Khách hàng chưa thanh toán"`
-	Entitlements    []AdminEntitlementDTO `json:"entitlements"`
-	Actions         []AdminActionDTO      `json:"actions" description:"20 thao tác admin gần nhất"`
+	Organization        AdminOrganizationDTO  `json:"organization"`
+	SuspendedAt         *string               `json:"suspended_at" example:"2026-09-06T09:30:00Z"`
+	SuspendedReason     *string               `json:"suspended_reason" example:"Khách hàng chưa thanh toán"`
+	DeletionScheduledAt *string               `json:"deletion_scheduled_at" description:"Thời điểm job xóa cứng; null khi không có lệnh" example:"2026-10-28T09:30:00Z"`
+	Erased              bool                  `json:"erased" description:"true khi tổ chức đã bị xóa cứng" example:"false"`
+	Entitlements        []AdminEntitlementDTO `json:"entitlements"`
+	Actions             []AdminActionDTO      `json:"actions" description:"20 thao tác admin gần nhất"`
+}
+
+// AdminOrganizationDeletionSDO is the schedule and cancel answer.
+type AdminOrganizationDeletionSDO struct {
+	DeletionScheduledAt *string `json:"deletion_scheduled_at" example:"2026-10-28T09:30:00Z"`
 }
 
 // AdminOrganizationSDO wraps one organization after a write.
