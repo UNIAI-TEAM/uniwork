@@ -195,6 +195,10 @@ export function SettingsListItem({
   actions,
   className,
   muted = false,
+  align = "center",
+  rowRef,
+  tabIndex,
+  "data-testid": testId,
 }: {
   /** An avatar, an IconTile or a device glyph. */
   leading?: ReactNode;
@@ -204,18 +208,19 @@ export function SettingsListItem({
   badge?: ReactNode;
   actions?: ReactNode;
   className?: string;
-  /**
-   * Quiets an inactive entry (deactivated, not shipped yet). Only the glyph is
-   * faded; the text drops to muted-foreground, which still meets AA, where an
-   * opacity on the text would not.
-   */
+  /** Quiets an inactive entry (deactivated, not shipped yet). */
   muted?: boolean;
+  /** Top-aligns leading and actions with the title line on multi-line rows. */
+  align?: "center" | "start";
+  rowRef?: Ref<HTMLLIElement>;
+  tabIndex?: number;
+  "data-testid"?: string;
 }) {
   return (
-    <li className={cn("flex min-h-14 flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap", className)}>
-      {leading ? <div className={cn("shrink-0", muted && "opacity-60")}>{leading}</div> : null}
+    <li ref={rowRef} tabIndex={tabIndex} data-testid={testId} className={cn("flex min-h-14 flex-wrap gap-3 rounded-sm px-4 py-2.5 sm:flex-nowrap", align === "start" ? "items-start" : "items-center", className)}>
+      {leading ? <div className={cn("shrink-0", align === "start" && "mt-0.5", muted && "opacity-60")}>{leading}</div> : null}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className={cn("truncate text-body font-medium", muted ? "text-muted-foreground" : "text-foreground")}>
             {title}
           </span>

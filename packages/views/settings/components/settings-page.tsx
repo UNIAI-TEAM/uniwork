@@ -140,6 +140,7 @@ const VALID_TABS = new Set(ALL_TABS.map((tab) => tab.value));
 const DEFAULT_TAB = "profile";
 const TAB_QUERY_KEY = "tab";
 const CONNECT_QUERY_KEY = "connect";
+const INTEGRATION_QUERY_KEY = "integration";
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 // Line-variant TabsTrigger zeroes active background; force surface-selected
@@ -204,8 +205,11 @@ export function SettingsPage() {
     }
     const nextParams = new URLSearchParams(navigation.searchParams);
     nextParams.delete(CONNECT_QUERY_KEY);
-    if (connectFromUrl === "drive" && !nextParams.get(TAB_QUERY_KEY)) {
-      nextParams.set(TAB_QUERY_KEY, "integrations");
+    if (connectFromUrl === "drive") {
+      nextParams.delete(INTEGRATION_QUERY_KEY);
+      if (!nextParams.get(TAB_QUERY_KEY)) {
+        nextParams.set(TAB_QUERY_KEY, "integrations");
+      }
     }
     const qs = nextParams.toString();
     navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
@@ -215,6 +219,7 @@ export function SettingsPage() {
     setFocusDriveRow(false);
     const params = new URLSearchParams(navigation.searchParams);
     params.delete(CONNECT_QUERY_KEY);
+    params.delete(INTEGRATION_QUERY_KEY);
     params.set(TAB_QUERY_KEY, next);
     navigation.replace(`${navigation.pathname}?${params.toString()}`);
   };

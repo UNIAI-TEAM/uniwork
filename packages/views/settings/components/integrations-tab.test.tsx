@@ -188,7 +188,7 @@ describe("IntegrationsTab", () => {
       unmount2();
     });
 
-    it("hides the connect action while the connections list is still loading, then reveals it once loaded", async () => {
+    it("reserves the action slot with a skeleton while the connections list is loading, then reveals the connect button once loaded", async () => {
       const { promise: listPromise, resolve: resolveList } = Promise.withResolvers<unknown>();
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/config") {
@@ -221,38 +221,86 @@ describe("IntegrationsTab", () => {
         ),
       );
 
-      expect(await screen.findByText("Google Drive")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Kết nối Google Drive" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Kết nối thêm tài khoản" })).not.toBeInTheDocument();
-      expect(screen.queryByText("Chưa kết nối")).not.toBeInTheDocument();
+      const rowEl = await screen.findByTestId("drive-integration-row");
+      expect(rowEl.tagName).toBe("LI");
+      expect(within(rowEl).getByText("Google Drive")).toBeInTheDocument();
+      expect(within(rowEl).queryByRole("button", { name: "Kết nối Google Drive" })).not.toBeInTheDocument();
+      expect(within(rowEl).queryByRole("button", { name: "Quản lý" })).not.toBeInTheDocument();
+      expect(within(rowEl).queryByText("Chưa kết nối")).not.toBeInTheDocument();
+      // Badge skeleton + button-sized action skeleton (M3)
+      expect(rowEl.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2);
 
       await act(async () => {
         resolveList({ connections: [] });
       });
-      expect(await screen.findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
-      expect(screen.getByText("Chưa kết nối")).toBeInTheDocument();
+      expect(await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
+      expect(within(rowEl).getByText("Chưa kết nối")).toBeInTheDocument();
     });
 
-    it("shows the Google Drive row when both flag drive_connector and drive.available are true (1.1 not connected)", async () => {
+    it("shows the compact Google Drive row with one merged caption line when not connected (1.1, R1, M5, N1)", async () => {
       renderTab([], { driveFlag: true, driveAvailable: true });
       const available = screen.getByRole("list", { name: "Dùng được" });
-      expect(await within(available).findByText("Google Drive")).toBeInTheDocument();
-      expect(await within(available).findByText("Chưa kết nối")).toBeInTheDocument();
-      expect(within(available).getByText("Mới")).toBeInTheDocument();
+      const rowEl = await within(available).findByTestId("drive-integration-row");
+      expect(rowEl.tagName).toBe("LI");
+      expect(rowEl).toHaveAttribute("tabindex", "-1");
+      expect(within(rowEl).getByText("Google Drive")).toBeInTheDocument();
+      expect(await within(rowEl).findByText("Chưa kết nối")).toBeInTheDocument();
+      expect(within(rowEl).getByText("Mới")).toBeInTheDocument();
       expect(
-        within(available).getByText(
-          "Liên kết tài liệu Google Drive vào việc. UNI đọc tài liệu và đề xuất việc để bạn duyệt. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
+        within(rowEl).getByText(
+          "Liên kết tài liệu Google Drive vào việc, chỉ với tệp bạn tự chọn; UNI đọc và đề xuất việc để bạn duyệt, UniWork chỉ lưu liên kết và không xóa tệp của bạn.",
         ),
       ).toBeInTheDocument();
-      expect(
-        within(available).getByText(
-          "UniWork không thấy các tệp khác trên Google Drive. Mỗi lần liên kết, bạn tự chọn tệp. UniWork không xóa tệp của bạn.",
-        ),
-      ).toBeInTheDocument();
-      expect(await within(available).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
+      expect(rowEl.querySelectorAll("p")).toHaveLength(1);
+      expect(await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
     });
 
-    it("shows the popup blocked message when window.open returns null", async () => {
+    it("shows 'Quản lý' on the connected row (with warning badge when an account is lost) and opens the Drive view on click", async () => {
+      const activeConn = {
+        id: "dc_1",
+        provider: "google",
+        google_email: "uni-work1@gmail.com",
+        status: "active",
+        needs_reconnect: false,
+        linked_file_count: 2,
+        connected_at: "2026-10-26T09:42:00Z",
+        updated_at: "2026-10-26T09:42:00Z",
+      };
+      const lostConn = {
+        id: "dc_2",
+        provider: "google",
+        google_email: "uni-work2@gmail.com",
+        status: "needs_reconnect",
+        needs_reconnect: true,
+        linked_file_count: 1,
+        connected_at: "2026-10-25T08:00:00Z",
+        updated_at: "2026-10-26T10:00:00Z",
+        auth_failed_at: "2026-10-26T10:00:00Z",
+        auth_failed_reason: "invalid_grant",
+      };
+
+      const { nav } = renderTab([], {
+        driveFlag: true,
+        driveAvailable: true,
+        driveConnections: [activeConn, lostConn],
+      });
+
+      const rowEl = await screen.findByTestId("drive-integration-row");
+      expect(await within(rowEl).findByText("Đã kết nối 2 tài khoản · 1 mất kết nối")).toBeInTheDocument();
+      // Compact row never inlines account cards or the UNI block in the list
+      expect(within(rowEl).queryByText("uni-work1@gmail.com")).not.toBeInTheDocument();
+      expect(within(rowEl).queryByText("UNI được làm gì với tài liệu đã liên kết")).not.toBeInTheDocument();
+
+      const manageBtn = within(rowEl).getByRole("button", { name: "Quản lý" });
+      fireEvent.click(manageBtn);
+
+      expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
+      const viewEl = await screen.findByTestId("drive-integration-view");
+      expect(within(viewEl).getByText("uni-work1@gmail.com")).toBeInTheDocument();
+      expect(within(viewEl).getByText("uni-work2@gmail.com")).toBeInTheDocument();
+    });
+
+    it("shows the popup blocked message on the row when window.open returns null", async () => {
       openSpy.mockReturnValue(null);
       renderTab([], { driveFlag: true, driveAvailable: true });
       const connectBtn = await screen.findByRole("button", { name: "Kết nối Google Drive" });
@@ -263,6 +311,7 @@ describe("IntegrationsTab", () => {
           "Trình duyệt đã chặn cửa sổ đăng nhập. Cho phép cửa sổ bật lên (pop-up) với UniWork rồi thử lại.",
         ),
       ).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
     });
 
     it.each([
@@ -293,18 +342,25 @@ describe("IntegrationsTab", () => {
       ["access_denied", false, "Bạn đã hủy đăng nhập hoặc từ chối cấp quyền cho UniWork."],
       ["provider_error", false, "Google Drive tạm thời không phản hồi. Thử lại sau ít phút."],
       ["some_future_code", false, "Không hoàn tất được kết nối Google Drive. Thử lại."],
-    ] as const)("renders the sentence for callback code %s", async (code, ok, expectedText) => {
+    ] as const)("renders the sentence for callback code %s (opening the Drive view on success, staying on the row on error)", async (code, ok, expectedText) => {
       const { popup } = setupFakePopup();
-      renderTab([], { driveFlag: true, driveAvailable: true });
+      const { nav } = renderTab([], { driveFlag: true, driveAvailable: true });
 
       fireEvent.click(await screen.findByRole("button", { name: "Kết nối Google Drive" }));
       await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
 
       postDriveOAuthMessage(popup, ok, code);
       expect(await screen.findByText(expectedText)).toBeInTheDocument();
+      if (ok) {
+        expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
+        expect(screen.getByTestId("drive-integration-view")).toBeInTheDocument();
+      } else {
+        expect(screen.getByTestId("drive-integration-row")).toBeInTheDocument();
+        expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      }
     });
 
-    it("shows the closed notice when the popup window closes before completing and refetches connections", async () => {
+    it("shows the closed notice on the row when the popup window closes before completing and refetches connections", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       try {
         const { popup } = setupFakePopup();
@@ -357,7 +413,7 @@ describe("IntegrationsTab", () => {
       expect(popup.close).toHaveBeenCalled();
     });
 
-    it("shows load error with a Thử lại button that refetches the connections list", async () => {
+    it("shows load error on the row with a Thử lại button that refetches the connections list", async () => {
       let failLoad = true;
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/config") {
@@ -419,7 +475,7 @@ describe("IntegrationsTab", () => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
 
-    it("renders connected accounts (including lost account reconnect with reconnect_connection_id), UNI permissions block, add account, and disconnect confirmation", async () => {
+    it("renders the Drive view (1.3): breadcrumb back link, account cards (date-first vi format, email title attribute, lost reconnect with reconnect_connection_id), stat tiles, UNI permissions block, add account, and disconnect confirmation", async () => {
       const { popup } = setupFakePopup();
       const activeConn = {
         id: "dc_1",
@@ -434,7 +490,7 @@ describe("IntegrationsTab", () => {
       const lostConn = {
         id: "dc_2",
         provider: "google",
-        google_email: "uni-work2@gmail.com",
+        google_email: "minh.nguyen.rat.dai.de.thu.overflow@vietants.vn",
         status: "needs_reconnect",
         needs_reconnect: true,
         linked_file_count: 1,
@@ -444,25 +500,44 @@ describe("IntegrationsTab", () => {
         auth_failed_reason: "invalid_grant",
       };
 
+      const nav = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
       renderTab([], {
         driveFlag: true,
         driveAvailable: true,
         driveConnections: [activeConn, lostConn],
+        navAdapter: nav,
       });
 
-      expect(await screen.findByText("Đã kết nối 2 tài khoản · 1 mất kết nối")).toBeInTheDocument();
-      expect(screen.getByText("uni-work1@gmail.com")).toBeInTheDocument();
-      expect(screen.getByText("uni-work2@gmail.com")).toBeInTheDocument();
-      expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
-      expect(screen.getByText("Mất kết nối · kết nối lại")).toBeInTheDocument();
-      expect(screen.getByText("UNI được làm gì với tài liệu đã liên kết")).toBeInTheDocument();
-      expect(screen.getByText("Chỉ tệp bạn chọn")).toBeInTheDocument();
-      expect(screen.getByText("4 tài liệu đã liên kết")).toBeInTheDocument();
-      expect(screen.getByText("Chỉ liên kết, không lưu nội dung")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Kết nối thêm tài khoản" })).toBeInTheDocument();
+      const viewEl = await screen.findByTestId("drive-integration-view");
+      const email1 = await within(viewEl).findByText("uni-work1@gmail.com");
+      const email2 = within(viewEl).getByText("minh.nguyen.rat.dai.de.thu.overflow@vietants.vn");
+      // M2: email span carries title attribute for full address when truncated
+      expect(email1).toHaveAttribute("title", "uni-work1@gmail.com");
+      expect(email2).toHaveAttribute("title", "minh.nguyen.rat.dai.de.thu.overflow@vietants.vn");
+
+      // M1: date comes before time in vi ("Kết nối <date>, <time>")
+      const expectedDatePart = new Intl.DateTimeFormat("vi", { dateStyle: "medium" }).format(
+        new Date(activeConn.connected_at),
+      );
+      const expectedTimePart = new Intl.DateTimeFormat("vi", { timeStyle: "short" }).format(
+        new Date(activeConn.connected_at),
+      );
+      expect(
+        within(viewEl).getByText(
+          `Kết nối ${expectedDatePart}, ${expectedTimePart} · 3 tài liệu đã liên kết`,
+        ),
+      ).toBeInTheDocument();
+
+      expect(within(viewEl).getByText("Đang hoạt động")).toBeInTheDocument();
+      expect(within(viewEl).getByText("Mất kết nối · kết nối lại")).toBeInTheDocument();
+      expect(within(viewEl).getByText("UNI được làm gì với tài liệu đã liên kết")).toBeInTheDocument();
+      expect(within(viewEl).getByText("Chỉ tệp bạn chọn")).toBeInTheDocument();
+      expect(within(viewEl).getByText("4 tài liệu đã liên kết")).toBeInTheDocument();
+      expect(within(viewEl).getByText("Chỉ liên kết, không lưu nội dung")).toBeInTheDocument();
+      expect(within(viewEl).getByRole("button", { name: "Kết nối thêm tài khoản" })).toBeInTheDocument();
 
       // "Kết nối thêm tài khoản" sends body: {} (no reconnect_connection_id)
-      fireEvent.click(screen.getByRole("button", { name: "Kết nối thêm tài khoản" }));
+      fireEvent.click(within(viewEl).getByRole("button", { name: "Kết nối thêm tài khoản" }));
       await waitFor(() =>
         expect(requestMock).toHaveBeenCalledWith(
           "/api/v1/workspaces/ws1/drive-connections/google/start",
@@ -472,14 +547,16 @@ describe("IntegrationsTab", () => {
       await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
       postDriveOAuthMessage(popup, true, "connected");
       expect(
-        await screen.findByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
+        await within(viewEl).findByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
       ).toBeInTheDocument();
 
       // Reconnect on the lost account clears the previous notice and passes reconnect_connection_id
-      const reconnectBtn = screen.getByRole("button", { name: "Kết nối lại uni-work2@gmail.com" });
+      const reconnectBtn = within(viewEl).getByRole("button", {
+        name: "Kết nối lại minh.nguyen.rat.dai.de.thu.overflow@vietants.vn",
+      });
       fireEvent.click(reconnectBtn);
       expect(
-        screen.queryByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
+        within(viewEl).queryByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
       ).not.toBeInTheDocument();
       await waitFor(() =>
         expect(requestMock).toHaveBeenCalledWith(
@@ -490,8 +567,8 @@ describe("IntegrationsTab", () => {
       await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
       postDriveOAuthMessage(popup, false, "account_mismatch");
       expect(
-        await screen.findByText(
-          "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản uni-work2@gmail.com hoặc dùng \"Kết nối thêm tài khoản\".",
+        await within(viewEl).findByText(
+          "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản minh.nguyen.rat.dai.de.thu.overflow@vietants.vn hoặc dùng \"Kết nối thêm tài khoản\".",
         ),
       ).toBeInTheDocument();
 
@@ -513,7 +590,7 @@ describe("IntegrationsTab", () => {
         return baseImpl(path, init);
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "Ngắt kết nối uni-work1@gmail.com" }));
+      fireEvent.click(within(viewEl).getByRole("button", { name: "Ngắt kết nối uni-work1@gmail.com" }));
       const dialog = await screen.findByRole("alertdialog");
       expect(within(dialog).getByText("Ngắt kết nối uni-work1@gmail.com?")).toBeInTheDocument();
 
@@ -534,17 +611,80 @@ describe("IntegrationsTab", () => {
       await waitFor(() =>
         expect(toastSuccessSpy).toHaveBeenCalledWith("Đã ngắt kết nối uni-work1@gmail.com"),
       );
-      await waitFor(() => expect(screen.queryByText("uni-work1@gmail.com")).not.toBeInTheDocument());
+      await waitFor(() => expect(within(viewEl).queryByText("uni-work1@gmail.com")).not.toBeInTheDocument());
       expect(
-        screen.queryByText(
-          "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản uni-work2@gmail.com hoặc dùng \"Kết nối thêm tài khoản\".",
+        within(viewEl).queryByText(
+          "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản minh.nguyen.rat.dai.de.thu.overflow@vietants.vn hoặc dùng \"Kết nối thêm tài khoản\".",
         ),
       ).not.toBeInTheDocument();
+
+      // Back breadcrumb link returns to the Integrations list and strips `integration=drive`
+      const backBtn = within(
+        within(viewEl).getByRole("navigation", { name: "Tích hợp" }),
+      ).getByRole("button", { name: "Tích hợp" });
+      fireEvent.click(backBtn);
+      expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      expect(await screen.findByTestId("drive-integration-row")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
     });
 
-    it("?connect=drive selects the Integrations tab, focuses the Drive row, removes the param with replace, and never opens a popup or calls start", async () => {
+    it("shows load error with retry inside the Drive view and recovers to the accounts list", async () => {
+      let failLoad = true;
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") {
+          return Promise.resolve({
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          if (failLoad) return Promise.reject(new Error("network error"));
+          return Promise.resolve({
+            connections: [
+              {
+                id: "dc_1",
+                provider: "google",
+                google_email: "uni-work1@gmail.com",
+                status: "active",
+                needs_reconnect: false,
+                linked_file_count: 2,
+                connected_at: "2026-10-26T09:42:00Z",
+                updated_at: "2026-10-26T09:42:00Z",
+              },
+            ],
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      const service = new FeatureFlagService(
+        new StaticProvider({ drive_connector: { default: true } }),
+      );
+      render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          fakeNav("/acme/team/settings?tab=integrations&integration=drive"),
+        ),
+      );
+
+      const viewEl = await screen.findByTestId("drive-integration-view");
+      expect(await within(viewEl).findByText("Không tải được")).toBeInTheDocument();
+      failLoad = false;
+      fireEvent.click(within(viewEl).getByRole("button", { name: "Thử lại" }));
+      expect(await within(viewEl).findByText("uni-work1@gmail.com")).toBeInTheDocument();
+    });
+
+    it("?connect=drive selects the Integrations tab, focuses the Drive row (even if integration=drive was set), removes connect, and never opens a popup or calls start", async () => {
       openSpy.mockReturnValue(null);
-      const nav = fakeNav("/acme/team/settings?connect=drive");
+      const nav = fakeNav("/acme/team/settings?connect=drive&integration=drive");
 
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/config") {
@@ -583,8 +723,8 @@ describe("IntegrationsTab", () => {
 
       const driveRow = await screen.findByTestId("drive-integration-row");
       await waitFor(() => expect(document.activeElement).toBe(driveRow));
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
       expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
-      expect(nav.replace).toHaveBeenCalledTimes(1);
       expect(openSpy).not.toHaveBeenCalled();
       expect(requestMock).not.toHaveBeenCalledWith(
         "/api/v1/workspaces/ws1/drive-connections/google/start",

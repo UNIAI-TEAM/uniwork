@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SettingsFieldError, SettingsSaveState } from "./settings-layout";
+import { SettingsFieldError, SettingsList, SettingsListItem, SettingsSaveState } from "./settings-layout";
 
 describe("SettingsSaveState", () => {
   it("exposes role=status when saving", () => {
@@ -37,5 +37,28 @@ describe("SettingsFieldError", () => {
       </SettingsFieldError>,
     );
     expect(container.querySelector("#e")).not.toHaveAttribute("aria-live");
+  });
+});
+
+describe("SettingsListItem", () => {
+  it("wraps badges below the title and supports top alignment and row focus refs", () => {
+    render(
+      <SettingsList aria-label="Items">
+        <SettingsListItem
+          align="start"
+          tabIndex={-1}
+          data-testid="item-row"
+          leading={<span>Icon</span>}
+          title="Google Drive"
+          badge={<span>Badge</span>}
+          actions={<button type="button">Action</button>}
+        />
+      </SettingsList>,
+    );
+    const row = screen.getByTestId("item-row");
+    expect(row.tagName).toBe("LI");
+    expect(row).toHaveClass("items-start");
+    expect(row).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByText("Google Drive").parentElement).toHaveClass("flex-wrap");
   });
 });

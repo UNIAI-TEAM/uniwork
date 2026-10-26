@@ -986,12 +986,12 @@
       },
       "drive": {
         "title": "Google Drive",
-        "meta": "Liên kết tài liệu Google Drive vào việc. UNI đọc tài liệu và đề xuất việc để bạn duyệt. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
-        "consent_note": "UniWork không thấy các tệp khác trên Google Drive. Mỗi lần liên kết, bạn tự chọn tệp. UniWork không xóa tệp của bạn.",
+        "meta": "Liên kết tài liệu Google Drive vào việc, chỉ với tệp bạn tự chọn; UNI đọc và đề xuất việc để bạn duyệt, UniWork chỉ lưu liên kết và không xóa tệp của bạn.",
         "not_connected": "Chưa kết nối",
         "new_badge": "Mới",
         "connect": "Kết nối Google Drive",
         "connecting": "Đang kết nối…",
+        "manage": "Quản lý",
         "add_account": "Kết nối thêm tài khoản",
         "connected_one": "Đã kết nối {{count}} tài khoản",
         "connected_other": "Đã kết nối {{count}} tài khoản",
@@ -1010,6 +1010,10 @@
         "linked_count_other": "{{count}} tài liệu đã liên kết",
         "storage_label": "UniWork lưu",
         "storage_value": "Chỉ liên kết, không lưu nội dung",
+        "view": {
+          "accounts_title": "Tài khoản đã kết nối",
+          "empty": "Chưa có tài khoản Google Drive nào được kết nối."
+        },
         "uni_permissions": {
           "title": "UNI được làm gì với tài liệu đã liên kết",
           "read": "Đọc khi bạn hỏi, bằng quyền Google Drive của chính bạn",

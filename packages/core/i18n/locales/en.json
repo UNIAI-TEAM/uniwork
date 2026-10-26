@@ -987,12 +987,12 @@
       },
       "drive": {
         "title": "Google Drive",
-        "meta": "Link Google Drive documents to tasks. UNI reads documents and proposes tasks for you to review. UniWork stores only links; content stays on Google Drive.",
-        "consent_note": "UniWork cannot see other files on your Google Drive. Each time you link, you pick the file yourself. UniWork never deletes your files.",
+        "meta": "Link Google Drive documents to tasks, only for files you pick yourself; UNI reads and proposes tasks for you to review, while UniWork stores only links and never deletes your files.",
         "not_connected": "Not connected",
         "new_badge": "New",
         "connect": "Connect Google Drive",
         "connecting": "Connecting…",
+        "manage": "Manage",
         "add_account": "Connect another account",
         "connected_one": "{{count}} account connected",
         "connected_other": "{{count}} accounts connected",
@@ -1011,6 +1011,10 @@
         "linked_count_other": "{{count}} linked documents",
         "storage_label": "UniWork stores",
         "storage_value": "Links only, no content stored",
+        "view": {
+          "accounts_title": "Connected accounts",
+          "empty": "No Google Drive accounts connected yet."
+        },
         "uni_permissions": {
           "title": "What UNI can do with linked documents",
           "read": "Read when you ask, using your own Google Drive access",

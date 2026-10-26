@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
@@ -11,8 +12,9 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
-import { AppLink } from "../../navigation";
-import { DriveIntegrationRow } from "./drive-integration-row";
+import { AppLink, useNavigation } from "../../navigation";
+import { DriveIntegrationRow, type CallbackNotice } from "./drive-integration-row";
+import { DriveIntegrationView } from "./drive-integration-view";
 import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -76,6 +78,8 @@ function EmailHubRow() {
   );
 }
 
+const INTEGRATION_QUERY_KEY = "integration";
+
 export function IntegrationsTab({
   focusDriveRow,
   onDriveRowFocused,
@@ -84,12 +88,46 @@ export function IntegrationsTab({
   onDriveRowFocused?: () => void;
 } = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
+  const navigation = useNavigation();
+  const [initialDriveNotice, setInitialDriveNotice] = useState<CallbackNotice | null>(null);
+
+  const activeIntegration = navigation.searchParams.get(INTEGRATION_QUERY_KEY);
+  const connectFromUrl = navigation.searchParams.get("connect");
+  const showDriveView =
+    activeIntegration === "drive" && !focusDriveRow && connectFromUrl !== "drive";
+
+  const openDriveView = (notice?: CallbackNotice) => {
+    setInitialDriveNotice(notice ?? null);
+    const params = new URLSearchParams(navigation.searchParams);
+    params.set("tab", "integrations");
+    params.set(INTEGRATION_QUERY_KEY, "drive");
+    navigation.replace(`${navigation.pathname}?${params.toString()}`);
+  };
+
+  const closeDriveView = () => {
+    setInitialDriveNotice(null);
+    const params = new URLSearchParams(navigation.searchParams);
+    params.delete(INTEGRATION_QUERY_KEY);
+    if (!params.get("tab")) {
+      params.set("tab", "integrations");
+    }
+    const qs = params.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  };
+
+  if (showDriveView) {
+    return <DriveIntegrationView initialNotice={initialDriveNotice} onBack={closeDriveView} />;
+  }
 
   return (
     <SettingsTab title={t("page.tabs.integrations")} description={t("integrations.description")}>
       <SettingsSection title={t("integrations.available")}>
         <SettingsList aria-label={t("integrations.available")}>
-          <DriveIntegrationRow focusDriveRow={focusDriveRow} onDriveRowFocused={onDriveRowFocused} />
+          <DriveIntegrationRow
+            focusDriveRow={focusDriveRow}
+            onDriveRowFocused={onDriveRowFocused}
+            onOpenDriveView={openDriveView}
+          />
           <EmailHubRow />
         </SettingsList>
       </SettingsSection>
