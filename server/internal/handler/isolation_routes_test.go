@@ -969,6 +969,12 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                              {controlAs: "third"},
 	"POST /api/v1/tasks/{taskID}/labels":                                                 {body: isoWith(map[string]string{"label_id": "label"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/agents":                                       {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"connection_id": tn.ids["driveConnection"], "external_file_ids": []string{"iso-drive-" + strings.ToLower(tn.tag)}}}
+	}},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access": {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":  {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil), control: []int{http.StatusConflict}, reason: "the owner is bound_by on the seeded file, so their own PUT answers 409 use_rebind after passing the workspace and visibility gates; an outsider is refused 403/404"},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind": {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok",
 	})},

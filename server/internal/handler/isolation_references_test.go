@@ -546,10 +546,29 @@ var isoReferences = []isoReference{
 		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
 		covers: []string{"SummaryTaskItemSDI.project_id"}},
 
-	// Google Drive connector (UNI-2172 / B2).
+	// Google Drive connector (UNI-2172 / B2 & B4).
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-connections/google/start", what: "reconnect connection", body: map[string]any{
 		"reconnect_connection_id": isoRef("driveConnection")},
 		covers: []string{"StartDriveGoogleOAuthSDI.reconnect_connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "drive file connection", body: map[string]any{
+		"title":       isoUnique("ref-drive"),
+		"drive_files": []any{map[string]any{"connection_id": isoRef("driveConnection"), "external_file_id": "iso-drive-ref-task"}}},
+		covers: []string{"CreateTaskDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection"), "external_file_ids": []any{"iso-drive-ref-conn"}},
+		covers: []string{"LinkDriveFilesSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "task", body: map[string]any{
+		"connection_id": isoOwn("driveConnection"), "external_file_ids": []any{"iso-drive-ref-tasklink"}, "task_id": isoRef("task")},
+		covers: []string{"LinkDriveFilesSDI.task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"GrantDriveFileAccessSDI.connection_id"}},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		noControl: "B's owner is bound_by on the seeded file, so their own PUT answers 409 use_rebind; POST /access and POST /rebind run the owner control"},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"RebindDriveFileSDI.connection_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request
@@ -709,11 +728,6 @@ var isoRefFieldExempt = map[string]string{
 	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
 	"CreateTaskDriveFileSDI.external_file_id":            "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
 	"LinkDriveFilesSDI.external_file_ids":                "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
-	"CreateTaskDriveFileSDI.connection_id":               "contract-first DTO (UNI-2177); wired into CreateTaskSDI and isoReferences in B4 (UNI-2180)",
-	"LinkDriveFilesSDI.connection_id":                    "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"LinkDriveFilesSDI.task_id":                          "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"GrantDriveFileAccessSDI.connection_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"RebindDriveFileSDI.connection_id":                   "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
 	"CreateDriveTaskProposalSDI.project_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
 	"CreateDriveTaskProposalSDI.parent_task_id":          "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
 	"CreateDriveTaskProposalSDI.context_task_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",

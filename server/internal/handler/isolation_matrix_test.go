@@ -510,7 +510,8 @@ var isoTenantParams = map[string]bool{
 	"{lockID}": true, "{requestID}": true,
 	// An inbox row carries the organization and belongs to one person
 	// (UNI-2056): the documents route reads through it.
-	"{notificationID}": true,
+	"{notificationID}":    true,
+	"{driveConnectionID}": true, "{driveFileID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -919,6 +920,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "notification")
 	case "{driveConnectionID}":
 		return tn.get(t, "driveConnection")
+	case "{driveFileID}":
+		return tn.get(t, "driveFile")
 	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
