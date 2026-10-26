@@ -51,7 +51,7 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/realtime/use-realtime-sync.ts": "0cb40dcba46fcdc3e524e5eff6ca397de77586335324c9862e410ff7c3a5a68c"
+      "packages/core/realtime/use-realtime-sync.ts": "0060cb52c1978fbf04d63dfad289862f91640149284db6dce5267a3a47877d30"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"
