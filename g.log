@@ -1,0 +1,3 @@
+$ pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium > /tmp/dwd-pw.log 2>&1; rc=$?; echo; echo "PW_INSTALL_EXIT=$rc"
+
+PW_INSTALL_EXIT=0
