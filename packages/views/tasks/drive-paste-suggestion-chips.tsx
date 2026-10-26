@@ -340,7 +340,7 @@ function DrivePasteSuggestionChipsInner({
               role="group"
               aria-label={t("drive.paste_chip.group_aria")}
               data-testid={`drive-paste-suggestion-chip-${fileId}`}
-              className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-1.5 text-caption text-foreground"
+              className="inline-flex min-h-9 min-w-0 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-1.5 text-caption text-foreground"
             >
               <Button
                 type="button"
@@ -355,13 +355,13 @@ function DrivePasteSuggestionChipsInner({
                     linkOnPick: !isDraftMode,
                   });
                 }}
-                className="h-auto min-h-7 gap-2 px-1.5 py-0.5 text-left text-caption font-medium whitespace-normal text-foreground hover:bg-brand/10 hover:text-primary dark:hover:bg-brand/20"
+                className="h-auto min-h-7 min-w-0 shrink gap-2 px-1.5 py-0.5 text-left text-caption font-medium whitespace-normal text-foreground hover:bg-brand/10 hover:text-primary dark:hover:bg-brand/20"
               >
                 <GoogleDriveMark
                   className="size-4 shrink-0"
                   aria-hidden="true"
                 />
-                <span>
+                <span className="min-w-0 break-words">
                   {kindLabel ? `${promptText} · ${kindLabel}` : promptText}
                 </span>
               </Button>
@@ -370,7 +370,7 @@ function DrivePasteSuggestionChipsInner({
                 variant="ghost"
                 size="icon-xs"
                 aria-label={t("drive.paste_chip.dismiss_aria")}
-                className="text-muted-foreground hover:text-foreground"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={() => onDismiss(fileId)}
               >
                 <X className="size-3.5" aria-hidden="true" />

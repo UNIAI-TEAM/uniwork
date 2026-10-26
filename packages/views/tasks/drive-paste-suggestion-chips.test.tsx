@@ -934,6 +934,78 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     anchor.remove();
   });
 
+  it("pins the responsive wrapping and flex-shrink classes on the chip list, chip group, action button, and dismiss button so multi-chip suffixes do not clip or push the dismiss X off-screen at 390px (F-6)", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/drive-connections") {
+        return { connections: [ACTIVE_CONN] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return {};
+    });
+
+    render(
+      renderWithWorkspace(
+        <TaskDetailEditors
+          task={sampleTask}
+          workspaceId="ws1"
+          onSaveTitle={vi.fn()}
+          onSaveDescription={vi.fn()}
+        />,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Mô tả công việc",
+    });
+    pasteTextIntoEditor(
+      editor,
+      "https://docs.google.com/document/d/1GdocWrapLayout_012345678/edit\nhttps://drive.google.com/file/d/1GfileWrapLayout_01234567/view",
+    );
+
+    const chipsList = await screen.findByTestId("drive-paste-suggestion-chips");
+    const chipGroup = await screen.findByTestId(
+      "drive-paste-suggestion-chip-1GfileWrapLayout_01234567",
+    );
+    const buttons = chipGroup.querySelectorAll("button");
+    const actionButton = buttons[0]!;
+    const dismissButton = buttons[1]!;
+    const labelSpan = actionButton.querySelector("span")!;
+
+    // jsdom cannot measure flex/viewport layout at 390px, so pin the Tailwind classes that bound width, wrap the label, and keep the dismiss X inside the chip.
+    expect(chipsList).toHaveClass("flex", "flex-wrap");
+    expect(chipGroup).toHaveClass("inline-flex", "max-w-full", "min-w-0");
+    expect(actionButton).toHaveClass(
+      "min-w-0",
+      "shrink",
+      "whitespace-normal",
+      "text-left",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+    );
+    expect(actionButton).not.toHaveClass("shrink-0", "whitespace-nowrap");
+    expect(labelSpan).toHaveClass("min-w-0", "break-words");
+    expect(dismissButton).toHaveClass(
+      "shrink-0",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+    );
+  });
+
   it("shows no suggestion chip in task detail when the user has no workspace role and cannot edit the task (F-2)", async () => {
     requestMock.mockImplementation(async (path: string) => {
       if (path === "/api/v1/config") {
