@@ -243,15 +243,19 @@ export class TextBudgetBuilder {
   }
 
   append(text: string): boolean {
-    if (text.length === 0) return !this.truncated;
+    return this.appendSlice(text, 0, text.length);
+  }
+
+  appendSlice(text: string, start: number, end: number): boolean {
+    if (start >= end) return !this.truncated;
     if (this.truncated) return false;
-    let i = 0;
-    while (i < text.length) {
+    let i = start;
+    while (i < end) {
       const cp = text.codePointAt(i)!;
       const cuLen = cp > 0xffff ? 2 : 1;
       const byteLen = cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
       if (this.codePoints + 1 > this.maxCodePoints || this.utf8Bytes + byteLen > this.maxUtf8Bytes) {
-        if (i > 0) this.chunks.push(text.slice(0, i));
+        if (i > start) this.chunks.push(text.slice(start, i));
         this.truncated = true;
         return false;
       }
@@ -259,8 +263,35 @@ export class TextBudgetBuilder {
       this.utf8Bytes += byteLen;
       i += cuLen;
     }
-    this.chunks.push(text);
+    this.chunks.push(start === 0 && end === text.length ? text : text.slice(start, end));
     return true;
+  }
+
+  appendCsvCell(val: string): boolean {
+    if (val.length === 0) return !this.truncated;
+    if (this.truncated) return false;
+    if (!val.includes(",") && !val.includes('"') && !val.includes("\n") && !val.includes("\r")) {
+      return this.appendSlice(val, 0, val.length);
+    }
+    if (!this.appendRepeatChar('"', 1)) return false;
+    let pos = 0;
+    while (pos < val.length) {
+      const q = val.indexOf('"', pos);
+      if (q === -1) {
+        if (!this.appendSlice(val, pos, val.length)) return false;
+        break;
+      }
+      if (q > pos) {
+        if (!this.appendSlice(val, pos, q)) return false;
+      }
+      let qEnd = q + 1;
+      while (qEnd < val.length && val.charCodeAt(qEnd) === 0x22) {
+        qEnd++;
+      }
+      if (!this.appendRepeatChar('"', (qEnd - q) * 2)) return false;
+      pos = qEnd;
+    }
+    return this.appendRepeatChar('"', 1);
   }
 
   finish(): { text: string; truncated: boolean } {

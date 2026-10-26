@@ -66,12 +66,21 @@ function parseCellRef(ref: string): { col: number; row: number } {
   return { col, row };
 }
 
-function csvEscape(val: string): string {
-  if (val === "") return "";
-  if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
-    return '"' + val.replace(/"/g, '""') + '"';
+interface RawRowCell {
+  readonly type: string;
+  readonly body: string;
+}
+
+function resolveRawCellText(cell: RawRowCell, shared: readonly string[]): string {
+  if (cell.type === "inlineStr") {
+    return extractRstText(cell.body);
   }
-  return val;
+  const vm = /<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/.exec(cell.body);
+  const rawVal = vm?.[1];
+  if (rawVal === undefined) return "";
+  if (cell.type === "s") return shared[Number(rawVal)] ?? "";
+  if (cell.type === "b") return rawVal.trim() === "1" ? "TRUE" : "FALSE";
+  return decodeXlsxCellText(rawVal);
 }
 
 export function extractXlsxFirstSheetCsv(zip: SelectiveZip): { text: string; truncated: boolean } {
@@ -134,7 +143,7 @@ export function extractXlsxFirstSheetCsv(zip: SelectiveZip): { text: string; tru
       }
     }
 
-    const rowCells = new Map<number, string>();
+    const rowCells = new Map<number, RawRowCell>();
     let nextSequentialCol = 0;
     let inferredRowNum: number | undefined;
 
@@ -159,20 +168,7 @@ export function extractXlsxFirstSheetCsv(zip: SelectiveZip): { text: string; tru
         nextSequentialCol = col + 1;
         if (!body) continue;
 
-        const type = readAttr(attrs, "t") ?? "";
-        let text = "";
-        if (type === "inlineStr") {
-          text = extractRstText(body);
-        } else {
-          const vm = /<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/.exec(body);
-          const rawVal = vm?.[1];
-          if (rawVal !== undefined) {
-            if (type === "s") text = shared[Number(rawVal)] ?? "";
-            else if (type === "b") text = rawVal.trim() === "1" ? "TRUE" : "FALSE";
-            else text = decodeXlsxCellText(rawVal);
-          }
-        }
-        rowCells.set(col, csvEscape(text));
+        rowCells.set(col, { type: readAttr(attrs, "t") ?? "", body });
       }
     }
 
@@ -198,8 +194,9 @@ export function extractXlsxFirstSheetCsv(zip: SelectiveZip): { text: string; tru
       for (const col of sortedCols) {
         const commaGap = col - currentCol;
         if (!builder.appendRepeatChar(",", commaGap)) break;
-        const escaped = rowCells.get(col) ?? "";
-        if (!builder.append(escaped)) break;
+        const cell = rowCells.get(col);
+        const rawText = cell !== undefined ? resolveRawCellText(cell, shared) : "";
+        if (!builder.appendCsvCell(rawText)) break;
         currentCol = col;
       }
       if (builder.truncated) break;

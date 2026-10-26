@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { CfbError, readCompoundStreams } from "./cfb.ts";
@@ -472,6 +474,111 @@ describe("extractDocumentText: XLSX", () => {
     const oneRow = ",".repeat(16_383) + "7\n"; // 16,385 chars
     expect(sparseRes.text.startsWith(oneRow.repeat(12))).toBe(true);
     expect(afterHeap - beforeHeap).toBeLessThan(16 * 1024 * 1024);
+  });
+
+  it("emits quote-heavy shared-string cells directly through the text budget without retaining row-wide escaped copies (R2-1, R2-2)", () => {
+    const colLetters = (col0: number): string => {
+      let s = "";
+      let x = col0 + 1;
+      while (x > 0) {
+        const rem = (x - 1) % 26;
+        s = String.fromCharCode(65 + rem) + s;
+        x = Math.floor((x - 1) / 26);
+      }
+      return s;
+    };
+    const quotes = '"'.repeat(32_767);
+    const row1Cells = Array.from({ length: 64 }, (_, i) => `<c r="${colLetters(i)}1" t="s"><v>0</v></c>`).join("");
+    const quoteHeavyXlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/sharedStrings.xml": `<sst><si><t>${quotes}</t></si></sst>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row r="1">${row1Cells}</row></sheetData></worksheet>`,
+    });
+
+    const beforeHeap = process.memoryUsage().heapUsed;
+    const res = extractDocumentText("xlsx", quoteHeavyXlsx);
+    const afterHeap = process.memoryUsage().heapUsed;
+
+    const escapedCell = '"'.repeat(65_536);
+    const expectedPrefix = `${escapedCell},${escapedCell},${escapedCell},` + '"'.repeat(3_389);
+    expect(res.truncated).toBe(true);
+    expect(res.text.length).toBe(MAX_EXTRACT_CODE_POINTS);
+    expect(res.text).toBe(expectedPrefix);
+
+    const farRow = 200_005;
+    const farRowCells = Array.from(
+      { length: 64 },
+      (_, i) => `<c r="${colLetters(i)}${farRow}" t="s"><v>0</v></c>`,
+    ).join("");
+    const gapExhaustedXlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/sharedStrings.xml": `<sst><si><t>${quotes}</t></si></sst>`,
+      "xl/worksheets/sheet1.xml":
+        `<worksheet><sheetData>` +
+        `<row r="1"><c r="A1"><v>1</v></c></row>` +
+        `<row r="${farRow}">${farRowCells}</row>` +
+        `</sheetData></worksheet>`,
+    });
+    const gapRes = extractDocumentText("xlsx", gapExhaustedXlsx);
+    expect(gapRes.truncated).toBe(true);
+    expect(gapRes.text.length).toBe(MAX_EXTRACT_CODE_POINTS);
+    expect(gapRes.text).toBe("1" + "\n".repeat(MAX_EXTRACT_CODE_POINTS - 1));
+
+    // Deterministic GC-independent ceiling: in a 32 MiB old-space child, retaining 64 escaped 65,536-char cells (~67 MiB) crashes with OOM.
+    const extractModuleUrl = new URL("./extract.ts", import.meta.url).href;
+    const zipModuleUrl = new URL("./zip.ts", import.meta.url).href;
+    const childScript = `
+      import { extractDocumentText, MAX_EXTRACT_CODE_POINTS } from ${JSON.stringify(extractModuleUrl)};
+      import { writeZip } from ${JSON.stringify(zipModuleUrl)};
+      const enc = new TextEncoder();
+      const quotes = '"'.repeat(32767);
+      const colLetters = (col0) => {
+        let s = "";
+        let x = col0 + 1;
+        while (x > 0) {
+          const rem = (x - 1) % 26;
+          s = String.fromCharCode(65 + rem) + s;
+          x = Math.floor((x - 1) / 26);
+        }
+        return s;
+      };
+      const cells1 = Array.from({ length: 64 }, (_, i) => '<c r="' + colLetters(i) + '1" t="s"><v>0</v></c>').join("");
+      const xlsx1 = writeZip([
+        { path: "xl/workbook.xml", data: enc.encode('<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>') },
+        { path: "xl/_rels/workbook.xml.rels", data: enc.encode('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>') },
+        { path: "xl/sharedStrings.xml", data: enc.encode('<sst><si><t>' + quotes + '</t></si></sst>') },
+        { path: "xl/worksheets/sheet1.xml", data: enc.encode('<worksheet><sheetData><row r="1">' + cells1 + '</row></sheetData></worksheet>') },
+      ]);
+      const r1 = extractDocumentText("xlsx", xlsx1);
+      const cellCsv = '"'.repeat(65536);
+      const expected1 = cellCsv + "," + cellCsv + "," + cellCsv + "," + '"'.repeat(3389);
+      if (!r1.truncated || r1.text.length !== MAX_EXTRACT_CODE_POINTS || r1.text !== expected1) {
+        process.exit(2);
+      }
+      const cells2 = Array.from({ length: 64 }, (_, i) => '<c r="' + colLetters(i) + '200005" t="s"><v>0</v></c>').join("");
+      const xlsx2 = writeZip([
+        { path: "xl/workbook.xml", data: enc.encode('<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>') },
+        { path: "xl/_rels/workbook.xml.rels", data: enc.encode('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>') },
+        { path: "xl/sharedStrings.xml", data: enc.encode('<sst><si><t>' + quotes + '</t></si></sst>') },
+        { path: "xl/worksheets/sheet1.xml", data: enc.encode('<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200005">' + cells2 + '</row></sheetData></worksheet>') },
+      ]);
+      const r2 = extractDocumentText("xlsx", xlsx2);
+      if (!r2.truncated || r2.text.length !== MAX_EXTRACT_CODE_POINTS || r2.text !== "1" + "\\n".repeat(MAX_EXTRACT_CODE_POINTS - 1)) {
+        process.exit(3);
+      }
+    `;
+    const child = spawnSync(
+      process.execPath,
+      ["--max-old-space-size=32", "--experimental-strip-types", "--input-type=module", "-e", childScript],
+      {
+        cwd: fileURLToPath(new URL(".", import.meta.url)),
+        encoding: "utf-8",
+      },
+    );
+    expect(child.status, child.stderr).toBe(0);
+    expect(afterHeap - beforeHeap).toBeLessThan(8 * 1024 * 1024);
   });
 });
 
