@@ -49,6 +49,19 @@ describe("MeetingSummaryCard", () => {
     ]);
   });
 
+  it("keeps a line whole where the browser has no sentence segmenter", () => {
+    const segmenter = Object.getOwnPropertyDescriptor(Intl, "Segmenter")!;
+    Reflect.deleteProperty(Intl, "Segmenter");
+    try {
+      const paragraph = "POS 3.0 lùi sang 12/11. Marketing giữ 120 triệu.";
+      render(<MeetingSummaryCard gen={gen({ summary: { ...SUMMARY, summary: paragraph } })} sourcesLabel={null} />);
+      const items = within(screen.getByRole("region", { name: "Tóm tắt đến giờ" })).getAllByRole("listitem");
+      expect(items.map((li) => li.textContent)).toEqual([paragraph]);
+    } finally {
+      Object.defineProperty(Intl, "Segmenter", segmenter);
+    }
+  });
+
   it("lists each summary line and offers the refresh to a clerk only", () => {
     const { rerender } = render(<MeetingSummaryCard gen={gen({ showGenerate: true })} sourcesLabel="Lời thoại · chat" />);
     const card = screen.getByRole("region", { name: "Tóm tắt đến giờ" });

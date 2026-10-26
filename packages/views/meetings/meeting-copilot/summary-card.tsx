@@ -19,11 +19,12 @@ const ICON_BUTTON = "text-muted-foreground";
 
 function summaryLines(text: string, locale: string): string[] {
   // The tldr is a few sentences in one paragraph; the Main board gives each sentence its own bullet.
-  const sentences = new Intl.Segmenter(locale, { granularity: "sentence" });
+  // A browser without Intl.Segmenter keeps each line whole.
+  const sentences = typeof Intl.Segmenter === "function" ? new Intl.Segmenter(locale, { granularity: "sentence" }) : null;
   return text
     .split(/\n+/)
     .map((line) => line.replace(/^[-•*]\s*/, "").trim())
-    .flatMap((line) => Array.from(sentences.segment(line), (s) => s.segment.trim()))
+    .flatMap((line) => (sentences ? Array.from(sentences.segment(line), (s) => s.segment.trim()) : [line]))
     .filter(Boolean);
 }
 
