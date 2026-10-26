@@ -1,0 +1,23 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development AI_PROVIDER=fake DEV_VERIFICATION_CODE=123456 DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1; unset OPENAI_API_KEY; SEO_BASE_URL=http://localhost:14100 pnpm seo:check 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "SEO_EXIT=$rc"; [ $rc -eq 0 ]
+        code: 'ECONNREFUSED',
+        syscall: 'connect',
+        address: '::1',
+        port: 14100
+      },
+      Error: connect ECONNREFUSED 127.0.0.1:14100
+          at createConnectionError (node:net:1679:14)
+          at afterConnectMultiple (node:net:1709:16) {
+        errno: -111,
+        code: 'ECONNREFUSED',
+        syscall: 'connect',
+        address: '127.0.0.1',
+        port: 14100
+      }
+    ]
+  }
+}
+
+Node.js v22.23.4
+ ELIFECYCLE  Command failed with exit code 1.
+
+SEO_EXIT=1
