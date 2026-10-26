@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium > /tmp/pr9r2-pw-install.log 2>&1; rc=$?; tail -3 /tmp/pr9r2-pw-install.log; echo; echo "PW_INSTALL_EXIT=$rc"; [ $rc -eq 0 ]
+fonts-tlwg-loma-otf is already the newest version (1:0.7.3-1).
+fonts-freefont-ttf is already the newest version (20211204+svn4273-2).
+0 upgraded, 0 newly installed, 0 to remove and 2 not upgraded.
+
+PW_INSTALL_EXIT=0
