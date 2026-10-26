@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, Ellipsis, PanelBottomClose, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -8,7 +9,7 @@ import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { ApiError } from "@uniwork/core/api";
 import { useCreateDriveTaskProposal, useDriveConnections, useLinkDriveFiles } from "@uniwork/core/drive";
-import { useDriveFile, useDriveFiles } from "@uniwork/core/drive-library";
+import { driveLibraryKeys, getDriveFile, useDriveFile, useDriveFiles } from "@uniwork/core/drive-library";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { paths } from "@uniwork/core/paths";
@@ -114,6 +115,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const workspaceContext = useOptionalWorkspace();
   const workspaceName = workspaceContext?.workspace.name ?? t("tasks.new");
   const sendShortcut = useShortcut("send");
+  const queryClient = useQueryClient();
   const proposalReview = useDriveProposalReview();
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
@@ -233,6 +235,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
   const submitDriveProposal = async () => {
     if (!primaryDriveChip || isDriveSendBlocked || isProposing || isUploading || uploadGate.isBlocked()) return;
+    if (!proposalReview.isMounted) { toast.error(t("drive.proposals.errors.review_unavailable")); return; }
     const warningWasShown = hasPriorCreations;
     setProposalError(null);
     const controller = new AbortController();
@@ -250,20 +253,25 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         if (controller.signal.aborted) return;
         const firstResult = linkResults.results[0];
         if (!firstResult || firstResult.outcome === "error" || !firstResult.file?.id) {
-          abortRef.current = null;
-          setAbortController(null);
+          abortRef.current = null; setAbortController(null);
           setProposalError(resolveDriveProposalError(new ApiError(firstResult?.error_message ?? "link failed", firstResult?.error_code ?? "default", 422), t));
           return;
         }
-        targetDriveFileId = firstResult.file.id;
-        const linkedTasksCreated = firstResult.file.tasks_created;
+        const linkedFileId = firstResult.file.id;
+        targetDriveFileId = linkedFileId;
+        const detailFile = await queryClient.fetchQuery({
+          queryKey: driveLibraryKeys.detail(workspaceId, linkedFileId),
+          queryFn: ({ signal }) => getDriveFile(workspaceId, linkedFileId, AbortSignal.any([controller.signal, signal])),
+          staleTime: 0,
+        }).catch(() => null);
+        if (controller.signal.aborted) return;
+        const linkedTasksCreated = detailFile?.tasks_created;
         const updatedDriveFiles = (draftRef.current.driveFiles ?? []).map((df, idx) =>
-          idx === 0 ? { ...df, driveFileId: targetDriveFileId, ...(linkedTasksCreated ? { tasksCreated: linkedTasksCreated } : {}) } : df,
+          idx === 0 ? { ...df, driveFileId: linkedFileId, ...(linkedTasksCreated ? { tasksCreated: linkedTasksCreated } : {}) } : df,
         );
         updateDraft({ driveFiles: updatedDriveFiles });
         if (!warningWasShown && (linkedTasksCreated?.count ?? 0) > 0) {
-          abortRef.current = null;
-          setAbortController(null);
+          abortRef.current = null; setAbortController(null);
           return;
         }
       }

@@ -253,6 +253,44 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
             ],
           };
         }
+        if (path === "/api/v1/workspaces/ws1/drive-files/df_linked_1") {
+          return {
+            file: {
+              id: "df_linked_1",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              external_file_id: "gdoc_1",
+              name: "Kế hoạch ra mắt Q4",
+              mime_type: "application/vnd.google-apps.document",
+              icon_kind: "google_doc",
+              web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+              open_url:
+                "https://docs.google.com/document/d/gdoc_1/edit?authuser=uni-work1%40gmail.com",
+              owner_display: "Lan",
+              sharing_state: "shared",
+              connection_id: "dc_1",
+              bound_account_email: "uni-work1@gmail.com",
+              bound_connection_lost: false,
+              bound_by_id: "u1",
+              bound_by_name: "Lan",
+              created_by: "u1",
+              created_by_kind: "human",
+              created_by_name: "Lan",
+              created_at: "2026-10-26T08:00:00Z",
+              updated_at: "2026-10-26T08:00:00Z",
+              viewer_access: "granted",
+              viewer_connection_id: "dc_1",
+              viewer_account_email: "uni-work1@gmail.com",
+              can_unlink: false,
+              can_rebind: false,
+              can_propose: true,
+              can_ask: true,
+              used_in_count: 0,
+              used_in_tasks: [],
+              tasks_created: { count: 0 },
+            },
+          };
+        }
         if (
           path === "/api/v1/workspaces/ws1/drive-files/df_linked_1/task-proposals" &&
           init?.method === "POST"
@@ -593,7 +631,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     );
   });
 
-  it("keeps the draft, does not close, and shows an error toast when no DriveProposalReviewProvider is mounted (F2)", async () => {
+  it("keeps the draft, does not close, does not call B5, and shows an error toast when no DriveProposalReviewProvider is mounted (F2, N3)", async () => {
     useCreateTaskDraftStore.getState().setDraft("ws1", {
       title: "",
       idempotencyKey: "draft_no_provider",
@@ -609,6 +647,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       ],
     });
 
+    let proposeCalled = false;
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string }) => {
         if (path.endsWith("/ai/capabilities")) return { enabled: true };
@@ -616,6 +655,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
           path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
           init?.method === "POST"
         ) {
+          proposeCalled = true;
           return { proposal: makeProposal({ id: "dtp_no_provider" }) };
         }
         return {};
@@ -642,13 +682,14 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
         "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
       );
     });
+    expect(proposeCalled).toBe(false);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.idempotencyKey).toBe(
       "draft_no_provider",
     );
   });
 
-  it("stops after the link step when a freshly picked file has tasks_created.count > 0, renders the re-creation warning + 'Vẫn gửi cho UNI', and waits for a second click (F3, F4)", async () => {
+  it("fetches file detail after link when receipt has no tasks_created: stops with warning on count > 0 and waits for a second click, or sends at once on count === 0 (F3, F4, N1)", async () => {
     useCreateTaskDraftStore.getState().setDraft("ws1", {
       title: "",
       idempotencyKey: "draft_fresh_prior",
@@ -663,8 +704,10 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     });
 
     let linkCallCount = 0;
+    let detailCallCount = 0;
     let proposeCallCount = 0;
     let linkSignal: AbortSignal | undefined;
+    let detailSignal: AbortSignal | undefined;
 
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string; signal?: AbortSignal }) => {
@@ -706,13 +749,49 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
                   web_view_link: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
                   open_url: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
                   viewer_access: "granted",
-                  tasks_created: {
-                    count: 3,
-                    last_created_by_name: "Lan",
-                  },
                 },
               },
             ],
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-files/df_fresh_prior") {
+          detailCallCount += 1;
+          detailSignal = init?.signal;
+          return {
+            file: {
+              id: "df_fresh_prior",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              external_file_id: "gdoc_fresh_prior",
+              name: "Kế hoạch ra mắt Q4",
+              mime_type: "application/vnd.google-apps.document",
+              icon_kind: "google_doc",
+              web_view_link: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
+              open_url: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
+              owner_display: "Lan",
+              sharing_state: "shared",
+              connection_id: "dc_1",
+              bound_account_email: "uni-work1@gmail.com",
+              bound_connection_lost: false,
+              bound_by_id: "u1",
+              bound_by_name: "Lan",
+              created_by: "u1",
+              created_by_kind: "human",
+              created_by_name: "Lan",
+              created_at: "2026-10-26T08:00:00Z",
+              updated_at: "2026-10-26T08:00:00Z",
+              viewer_access: "granted",
+              can_unlink: false,
+              can_rebind: false,
+              can_propose: true,
+              can_ask: true,
+              used_in_count: 0,
+              used_in_tasks: [],
+              tasks_created: {
+                count: 3,
+                last_created_by_name: "Lan",
+              },
+            },
           };
         }
         if (
@@ -750,12 +829,14 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(linkSignal).toBeInstanceOf(AbortSignal);
     expect(proposeCallCount).toBe(0);
 
-    // 2. Retry links file with tasks_created.count = 3 -> stops before B5, shows warning and "Vẫn gửi cho UNI" (F3)
+    // 2. Retry links file (receipt without tasks_created) and detail GET returns count: 3 -> stops before B5, shows warning and "Vẫn gửi cho UNI" (F3, N1)
     fireEvent.click(screen.getByRole("button", { name: /Gửi cho agent/ }));
     const warning = await screen.findByTestId("drive-recreate-warning");
     expect(warning).toHaveTextContent(
       "Tài liệu này đã được dùng để tạo 3 việc (bởi Lan). Tạo thêm có thể trùng.",
     );
+    expect(detailCallCount).toBeGreaterThanOrEqual(1);
+    expect(detailSignal).toBeInstanceOf(AbortSignal);
     const sendAnywayBtn = screen.getByRole("button", { name: /Vẫn gửi cho UNI/ });
     expect(sendAnywayBtn).toHaveAttribute("aria-describedby", warning.id);
     expect(proposeCallCount).toBe(0);
@@ -768,6 +849,126 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
         expect.objectContaining({ id: "dtp_second_click" }),
       );
     });
+    expect(proposeCallCount).toBe(1);
+  });
+
+  it("sends to B5 at once after link when detail GET returns tasks_created.count === 0 (N1)", async () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_fresh_zero",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_fresh_zero",
+          name: "Biên bản họp tuần",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    let detailFetched = false;
+    let proposeCallCount = 0;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (path.startsWith("/api/v1/workspaces/ws1/drive-files?")) {
+          return { files: [], total_count: 0, next_cursor: null };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files" &&
+          init?.method === "POST"
+        ) {
+          return {
+            results: [
+              {
+                external_file_id: "gdoc_fresh_zero",
+                outcome: "linked",
+                file: {
+                  id: "df_fresh_zero",
+                  workspace_id: "ws1",
+                  external_file_id: "gdoc_fresh_zero",
+                  name: "Biên bản họp tuần",
+                  mime_type: "application/vnd.google-apps.document",
+                  icon_kind: "google_doc",
+                  sharing_state: "shared",
+                  web_view_link: "https://docs.google.com/document/d/gdoc_fresh_zero/edit",
+                  open_url: "https://docs.google.com/document/d/gdoc_fresh_zero/edit",
+                  viewer_access: "granted",
+                },
+              },
+            ],
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-files/df_fresh_zero") {
+          detailFetched = true;
+          return {
+            file: {
+              id: "df_fresh_zero",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              external_file_id: "gdoc_fresh_zero",
+              name: "Biên bản họp tuần",
+              mime_type: "application/vnd.google-apps.document",
+              icon_kind: "google_doc",
+              web_view_link: "https://docs.google.com/document/d/gdoc_fresh_zero/edit",
+              open_url: "https://docs.google.com/document/d/gdoc_fresh_zero/edit",
+              owner_display: "Lan",
+              sharing_state: "shared",
+              connection_id: "dc_1",
+              bound_account_email: "uni-work1@gmail.com",
+              bound_connection_lost: false,
+              bound_by_id: "u1",
+              bound_by_name: "Lan",
+              created_by: "u1",
+              created_by_kind: "human",
+              created_by_name: "Lan",
+              created_at: "2026-10-26T08:00:00Z",
+              updated_at: "2026-10-26T08:00:00Z",
+              viewer_access: "granted",
+              can_unlink: false,
+              can_rebind: false,
+              can_propose: true,
+              can_ask: true,
+              used_in_count: 0,
+              used_in_tasks: [],
+              tasks_created: { count: 0 },
+            },
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_fresh_zero/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          proposeCallCount += 1;
+          return { proposal: makeProposal({ id: "dtp_immediate" }) };
+        }
+        return {};
+      },
+    );
+
+    const onReviewOpen = vi.fn();
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+    await waitFor(() => {
+      expect(onReviewOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "dtp_immediate" }),
+      );
+    });
+    expect(detailFetched).toBe(true);
     expect(proposeCallCount).toBe(1);
   });
 
@@ -1008,7 +1209,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
     );
   });
 
-  it("aborts in-flight popover proposal on unmount and keeps popover open with toast when no DriveProposalReviewProvider is mounted (F1, F2)", async () => {
+  it("aborts in-flight popover proposal on unmount and skips B5 with toast when no DriveProposalReviewProvider is mounted (F1, F2, N3)", async () => {
     const slowGate = Promise.withResolvers<{ proposal: DriveTaskProposal }>();
     let capturedSignal: AbortSignal | undefined;
     let callCount = 0;
@@ -1048,8 +1249,9 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       slowGate.resolve({ proposal: makeProposal({ id: "dtp_pop_late" }) });
     });
     expect(onReviewOpen).not.toHaveBeenCalled();
+    expect(callCount).toBe(1);
 
-    // 2. Without provider -> shows error toast and keeps prompt / popover open
+    // 2. Without provider -> shows error toast without calling B5 and keeps prompt / popover open
     render(
       renderInWorkspace(
         <DriveProposeTasksPopover workspaceId="ws1" driveFileId="df_1" />,
@@ -1065,6 +1267,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
         "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
       );
     });
+    expect(callCount).toBe(1);
     expect(screen.getByLabelText("Gợi ý cho UNI (tùy chọn)")).toHaveValue("Giữ lại gợi ý");
   });
 

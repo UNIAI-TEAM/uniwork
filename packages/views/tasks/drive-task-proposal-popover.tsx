@@ -23,6 +23,7 @@ export interface DriveProposalReviewContextValue {
    * mounted (after showing a localized error toast so the caller keeps the draft).
    */
   open: (proposal: DriveTaskProposal) => boolean;
+  isMounted?: boolean;
 }
 
 const DriveProposalReviewContext = createContext<((proposal: DriveTaskProposal) => void) | null>(null);
@@ -32,6 +33,10 @@ export interface DriveProposalReviewProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Mount once above the create-task dialog and the Drive detail view (workspace shell);
+ * W7 (UNI-2191) supplies the `onOpen` review dialog handler.
+ */
 export function DriveProposalReviewProvider({
   onOpen,
   children,
@@ -57,7 +62,7 @@ export function useDriveProposalReview(): DriveProposalReviewContextValue {
     },
     [onOpen, t],
   );
-  return useMemo(() => ({ open }), [open]);
+  return useMemo(() => ({ open, isMounted: Boolean(onOpen) }), [onOpen, open]);
 }
 
 export function formatProposalShortDate(iso: string | undefined, locale: string): string {
@@ -313,6 +318,10 @@ export function DriveProposeTasksPopover({
 
   const handleSubmit = async () => {
     if (isReading) return;
+    if (!proposalReview.isMounted) {
+      toast.error(t("drive.proposals.errors.review_unavailable"));
+      return;
+    }
     setErrorState(null);
     const controller = new AbortController();
     abortRef.current = controller;
