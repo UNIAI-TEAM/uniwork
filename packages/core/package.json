@@ -115,6 +115,8 @@
     "./documents/hooks-library": "./documents/hooks-library.ts",
     "./documents/sources-schema": "./documents/sources-schema.ts",
     "./documents/comment-drafts": "./documents/comment-drafts.ts",
+    "./drive-library": "./drive-library/hooks.ts",
+    "./drive-library/*": "./drive-library/*.ts",
     "./graph": "./graph/hooks.ts",
     "./chat": "./chat/hooks.ts",
     "./chat/contacts-store": "./chat/contacts-store.ts",

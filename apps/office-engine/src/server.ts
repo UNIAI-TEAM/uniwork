@@ -264,9 +264,11 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
         baseVersionId:
           validated.operation === "convert" || validated.operation === "export"
             ? validated.sourceVersionId
-            : typeof payload.base_version_id === "string"
-              ? payload.base_version_id
-              : undefined,
+            : validated.operation === "extract_text"
+              ? ""
+              : typeof payload.base_version_id === "string"
+                ? payload.base_version_id
+                : undefined,
         inputs: validated.inputs,
       },
       config.outputOrigins,

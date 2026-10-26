@@ -40,6 +40,7 @@
     "./documents": "./documents/index.ts",
     "./documents/library-rows": "./documents/library-rows.ts",
     "./documents/*": "./documents/*.tsx",
+    "./documents/drive/*": "./documents/drive/*.tsx",
     "./office": "./office/index.ts",
     "./office/*": "./office/*.tsx",
     "./search": "./search/index.ts",

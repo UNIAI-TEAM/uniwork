@@ -794,6 +794,7 @@ func main() {
 	aiMemorySvc.SetImport(gateway, rdb)
 	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
+	askUNI.SetDriveContentReader(service.NewDriveUnavailableReader())
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)

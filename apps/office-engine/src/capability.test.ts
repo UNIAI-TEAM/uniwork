@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { capabilityResult, docsPdfRendererMissing } from "./capability.ts";
 
-type Row = { operation: string; supported: boolean; runtime: string; reason?: string };
-const rows = (format: "page" | "docx" | "md", missing: string | null) =>
+type Row = { operation: string; supported: boolean; runtime: string; evidence_level: string; reason?: string };
+const rows = (format: "page" | "docx" | "xlsx" | "pptx" | "pdf" | "md", missing: string | null) =>
   capabilityResult(format, 1024, missing).capabilities as Row[];
 
 // follow-6: pdf is advertised only where the Docs renderer can run, so the
@@ -33,5 +33,24 @@ describe("export_pdf capability row", () => {
     await writeFile(join(dir, "chromium"), "#!/bin/sh\n");
     expect(docsPdfRendererMissing(dir, false)).toBe("sandbox_required");
     expect(docsPdfRendererMissing(dir, true)).toBeNull();
+  });
+
+  it("claims extract_text as bound with pending evidence for docx, xlsx and pptx and unsupported for other formats", () => {
+    for (const format of ["docx", "xlsx", "pptx"] as const) {
+      expect(rows(format, null).find((r) => r.operation === "extract_text")).toMatchObject({
+        operation: "extract_text",
+        supported: true,
+        runtime: "internal_service",
+        evidence_level: "pending",
+      });
+    }
+    for (const format of ["pdf", "md", "page"] as const) {
+      expect(rows(format, null).find((r) => r.operation === "extract_text")).toMatchObject({
+        operation: "extract_text",
+        supported: false,
+        runtime: "none",
+        evidence_level: "pending",
+      });
+    }
   });
 });

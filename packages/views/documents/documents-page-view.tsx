@@ -51,7 +51,8 @@ import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
-import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
+import { buildDocumentsViewUrl, sameDocumentsView, viewFromSearchParams } from "./documents-view-url";
+import { buildDocumentsDriveBranch, type DriveConnectionSummary } from "./drive/documents-drive-branch";
 
 // Thùng rác has no filter bar: its library reads no type.
 const NO_TYPES: DocumentTypeFilter[] = [];
@@ -66,6 +67,10 @@ export interface DocumentsPageViewProps {
   officeHome?: OfficeHomeLaunchProps;
   /** The pinned build of a genoffice module ("" = not installed); without it Office sources download instead of opening view-only (UNI-1869). */
   officeFrameVersion?: (module: OfficeModule) => string;
+  /** Optional override for the caller's connected Google Drive accounts (defaults to useDriveLibraryConnections). */
+  driveConnections?: readonly DriveConnectionSummary[];
+  /** Seam for W3 Picker from the Google Drive library screen (`?view=drive`). */
+  onAddFromDrive?: (connectionId: string | null) => void;
 }
 
 /**
@@ -75,7 +80,7 @@ export interface DocumentsPageViewProps {
  * collection header and the library table. Every row is a server answer;
  * create, upload and save await the server.
  */
-export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion }: DocumentsPageViewProps) {
+export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion, driveConnections, onAddFromDrive }: DocumentsPageViewProps) {
   const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
@@ -224,10 +229,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     setNavOpen(false);
     const targetFolder = next.kind === "home" ? nextFolder : null;
     const currentView = viewFromSearchParams(searchParams);
-    const sameDestination =
-      targetFolder === urlFolderId &&
-      currentView.kind === next.kind &&
-      (currentView.kind !== "sources" || next.kind !== "sources" || currentView.source === next.source);
+    const sameDestination = targetFolder === urlFolderId && sameDocumentsView(currentView, next);
     if (!sameDestination) {
       push(buildDocumentsViewUrl(wsPaths, next, targetFolder));
     }
@@ -311,6 +313,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // UNI-1994: folders on screen but no loose root document is not an empty workspace.
   const outsideFolders = !folderId && !filtered && subfolders.length > 0;
   const rootEmpty = outsideFolders ? "outside_folders_" : "";
+  const { renderDriveView, sectionZoneProps, sidebarDriveProps } = buildDocumentsDriveBranch({ wsId, view, driveConnections, onAddFromDrive, zoneProps: uploads.zoneProps });
   const emptyCopy = homeView
     ? {
         title: folderId ? t("documents.home.empty.folder_title") : t(`documents.home.empty.${rootEmpty}title`),
@@ -336,6 +339,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     canCreate: !folderId || canCreate,
     newFolderPending: creator.folderPending,
     accessReportHref: wsPaths.documentsAccessReport(),
+    ...sidebarDriveProps,
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
@@ -361,7 +365,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // Home, folder and Trash carry their own h1 (the boards), and so do the list
   // screens with the shared head, Lưu trữ included (UNI-2045 W14); only the
   // gate states keep the collection header.
-  const screenHead = !homeView && view.kind !== "archived";
+  const screenHead = !homeView && view.kind !== "archived" && view.kind !== "drive";
   const collectionHeader = gate !== "on";
   // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
   // sit in the screen's own order (under another sort they are the newest of what loaded, not of everything).
@@ -421,7 +425,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           <section
             className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
             aria-label={t("documents.page.title")}
-            {...uploads.zoneProps}
+            {...sectionZoneProps}
           >
             {homeView ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
@@ -479,7 +483,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   </AppLink>
                 }
               />
-            ) : view.kind === "archived" ? (
+            ) : renderDriveView(navButton) ?? (view.kind === "archived" ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
@@ -548,7 +552,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 />
                 {libraryList}
               </div>
-            )}
+            ))}
             {uploads.dropActive ? <DocumentsDropOverlay /> : null}
           </section>
         </div>

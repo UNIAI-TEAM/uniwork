@@ -243,7 +243,7 @@ func sourceObjectID(kind, href string) string {
 	case "chat":
 		_, id, _ := strings.Cut(href, "?room=")
 		return id
-	case "task", "meeting", "document":
+	case "task", "meeting", "document", "drive_file":
 		return href[strings.LastIndexByte(href, '/')+1:]
 	}
 	return ""

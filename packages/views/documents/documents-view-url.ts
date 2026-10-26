@@ -22,6 +22,10 @@ export function viewFromSearchParams(searchParams: URLSearchParams): LibraryView
           : null;
       return { kind: "sources", source };
     }
+    case "drive": {
+      const rawAccount = searchParams.get("account");
+      return { kind: "drive", account: rawAccount || null };
+    }
     default:
       return { kind: "home" };
   }
@@ -29,7 +33,11 @@ export function viewFromSearchParams(searchParams: URLSearchParams): LibraryView
 
 /** The documents URL a sidebar view resolves to; folders exist on Home only. */
 export function buildDocumentsViewUrl(
-  wsPaths: { documents: () => string; documentsFolder: (folderId: string) => string },
+  wsPaths: {
+    documents: () => string;
+    documentsFolder: (folderId: string) => string;
+    documentsDrive?: (accountId?: string | null) => string;
+  },
   next: LibraryView,
   nextFolder: string | null,
 ): string {
@@ -38,5 +46,18 @@ export function buildDocumentsViewUrl(
   const base = wsPaths.documents();
   if (next.kind === "home") return base;
   if (next.kind === "sources") return next.source ? `${base}?view=sources&source=${encodeURIComponent(next.source)}` : `${base}?view=sources`;
+  if (next.kind === "drive") {
+    if (wsPaths.documentsDrive) return wsPaths.documentsDrive(next.account);
+    return next.account ? `${base}?view=drive&account=${encodeURIComponent(next.account)}` : `${base}?view=drive`;
+  }
   return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
+}
+
+/** True when two `LibraryView` values name the same sidebar destination. */
+export function sameDocumentsView(a: LibraryView, b: LibraryView): boolean {
+  return (
+    a.kind === b.kind &&
+    (a.kind !== "sources" || b.kind !== "sources" || a.source === b.source) &&
+    (a.kind !== "drive" || b.kind !== "drive" || a.account === b.account)
+  );
 }

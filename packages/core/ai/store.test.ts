@@ -1,19 +1,31 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { useAiPanelStore } from "./store";
+import { buildTransientTranscript, MAX_TRANSIENT_CHARS, MAX_TRANSIENT_TURNS, useAiPanelStore } from "./store";
+import type { AiMessage } from "../types/ai";
+
+function turn(role: "user" | "assistant", content: string, id = `${role}-${content}`): AiMessage {
+  return {
+    id,
+    role,
+    content,
+    citations: [],
+    notice: "",
+    steps: [],
+    followups: [],
+    focus: null,
+    mentions: [],
+    model: "",
+    attachments: [],
+    file_notes: [],
+    proposals: [],
+    memory_ids: [],
+    memory_proposals: [],
+    created_at: "",
+  };
+}
 
 describe("ai panel store", () => {
   afterEach(() => {
-    useAiPanelStore.setState({
-      view: "thread",
-      composerPrefill: null,
-      open: false,
-      conversationId: null,
-      pendingFocus: null,
-      focus: null,
-      workspaceId: null,
-      focusByConversation: {},
-      conversationByMeeting: {},
-    });
+    useAiPanelStore.getState().reset();
   });
 
   it("setFocus stores the hand-picked focus; a new conversation and a workspace change clear it", () => {
@@ -151,5 +163,165 @@ describe("ai panel page context", () => {
     expect(useAiPanelStore.getState().composerPrefill).toBe("Cập nhật bộ nhớ của tôi: ");
     s.setComposerPrefill(null);
     expect(useAiPanelStore.getState().composerPrefill).toBeNull();
+  });
+});
+
+describe("ai panel transient mode (drive_file)", () => {
+  afterEach(() => {
+    useAiPanelStore.getState().reset();
+  });
+
+  it("buildTransientTranscript keeps up to 20 turns and slides the window on turn 21", () => {
+    const twenty = Array.from({ length: MAX_TRANSIENT_TURNS }, (_, i) =>
+      turn(i % 2 === 0 ? "user" : "assistant", `turn-${i + 1}`),
+    );
+    const exact = buildTransientTranscript(twenty);
+    expect(exact.trimmed).toBe(false);
+    expect(exact.transcript).toHaveLength(20);
+    expect(exact.transcript[0]).toEqual({ role: "user", text: "turn-1" });
+
+    const twentyOne = [...twenty, turn("user", "turn-21")];
+    const slid = buildTransientTranscript(twentyOne);
+    expect(slid.trimmed).toBe(true);
+    expect(slid.transcript).toHaveLength(20);
+    expect(slid.transcript[0]).toEqual({ role: "assistant", text: "turn-2" });
+    expect(slid.transcript[19]).toEqual({ role: "user", text: "turn-21" });
+  });
+
+  it("buildTransientTranscript drops oldest turns until total characters are <= 32,000", () => {
+    const first = "a".repeat(20_000);
+    const second = "b".repeat(10_000);
+    const third = "c".repeat(5_000);
+    const messages = [
+      turn("user", first),
+      turn("assistant", second),
+      turn("user", third),
+    ];
+    const res = buildTransientTranscript(messages);
+    expect(res.trimmed).toBe(true);
+    expect(res.transcript).toEqual([
+      { role: "assistant", text: second },
+      { role: "user", text: third },
+    ]);
+    expect(res.transcript.reduce((n, t) => n + t.text.length, 0)).toBeLessThanOrEqual(MAX_TRANSIENT_CHARS);
+  });
+  it("buildTransientTranscript skips turns with empty or whitespace-only content and carries role and text only", () => {
+    const res = buildTransientTranscript([
+      turn("user", "q1"),
+      turn("assistant", ""),
+      turn("user", "   \n\t  "),
+      turn("user", "q2"),
+      turn("assistant", "a2"),
+    ]);
+    expect(res.trimmed).toBe(false);
+    expect(res.transcript).toEqual([
+      { role: "user", text: "q1" },
+      { role: "user", text: "q2" },
+      { role: "assistant", text: "a2" },
+    ]);
+    for (const item of res.transcript) {
+      expect(Object.keys(item).sort()).toEqual(["role", "text"]);
+      expect(item.text.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not bump transientEpoch on setPage(null) or dismissPage when a saved conversation is open on a drive_file page, and select(null) keeps the page chip undismissed", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.select("c1");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "c1",
+      pageDismissed: null,
+      transientMessages: [],
+    });
+    const epochBefore = useAiPanelStore.getState().transientEpoch;
+    s.dismissPage();
+    expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
+    s.setPage(null);
+    expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
+
+    // Picking a saved conversation and then pressing "Hội thoại mới" (select(null)) preserves the page chip
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.select("c1");
+    s.select(null);
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: null,
+      page: { kind: "drive_file", id: "df1", label: "Kế hoạch Q4" },
+      pageDismissed: null,
+    });
+  });
+
+  it("bumps transientEpoch when dismissing an active drive_file page chip in a fresh thread, and does not bump when already dismissed or on select(conv_new) / setConversationFromRun afterward", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    const epoch0 = useAiPanelStore.getState().transientEpoch;
+    s.dismissPage();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      pageDismissed: "drive_file:df1",
+      transientEpoch: epoch0 + 1,
+    });
+    // Dismissing again when already dismissed does not bump
+    s.dismissPage();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      pageDismissed: "drive_file:df1",
+      transientEpoch: epoch0 + 1,
+    });
+    s.select("conv_new");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "conv_new",
+      transientEpoch: epoch0 + 1,
+    });
+    s.select(null);
+    s.setConversationFromRun("conv_run");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "conv_run",
+      transientEpoch: epoch0 + 1,
+    });
+  });
+
+  it("clears transient transcript on panel close, focus change, picking a saved conversation, or new conversation", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setFocus({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4", accountEmail: "a@gmail.com" });
+    s.appendTransientTurn(turn("user", "q1"), turn("assistant", "a1"));
+    expect(useAiPanelStore.getState().transientMessages).toHaveLength(2);
+
+    // Changing focus to another file or task clears the transcript
+    s.setFocus({ kind: "drive_file", id: "df2", label: "File 2" });
+    expect(useAiPanelStore.getState().transientMessages).toEqual([]);
+
+    // Picking a saved conversation clears the transcript AND drops the drive_file focus
+    s.appendTransientTurn(turn("user", "q1"), turn("assistant", "a1"));
+    s.select("c1");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "c1",
+      focus: null,
+      transientMessages: [],
+      transientWindowTrimmed: false,
+    });
+
+    // Closing the panel clears the transcript and drops drive_file focus
+    s.openWithFocus({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.setFocus({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.appendTransientTurn(turn("user", "q1"), turn("assistant", "a1"));
+    s.setOpen(false);
+    expect(useAiPanelStore.getState()).toMatchObject({
+      open: false,
+      focus: null,
+      transientMessages: [],
+    });
+
+    // "Hội thoại mới" (select(null)) clears the transcript and focus
+    s.setOpen(true);
+    s.setFocus({ kind: "drive_file", id: "df1" });
+    s.appendTransientTurn(turn("user", "q1"), turn("assistant", "a1"));
+    s.select(null);
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: null,
+      focus: null,
+      transientMessages: [],
+    });
   });
 });
