@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5g7-develop-pr8; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+d6ba2d18fde83c3086621434676bbf489ebfc95d
+d6ba2d18fde83c3086621434676bbf489ebfc95d
+d6ba2d18f test(scripts): exempt develop's b86272e70 from the history check
+4bfb767af chore: merge develop b86272e70 into the PR 8 branch (UNI-923)
+04cac01cb test(e2e): pick .docx through the Loại multi-select in the library spec
+
+SYNCED_EXIT=0
