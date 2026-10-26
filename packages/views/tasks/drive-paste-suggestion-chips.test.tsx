@@ -10,6 +10,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useCreateTaskDraftStore } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import type { Task, User, Workspace } from "@uniwork/core/types";
 import { ContentEditor } from "../editor";
+import { LinkHoverCard } from "../editor/link-hover-card";
 import { createFakeDrivePickerAdapter } from "../integrations/drive-picker";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -862,7 +863,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows no suggestion chip in task detail when the viewer cannot edit the task (F-2)", async () => {
+  it("pins LinkHoverCard zIndex below the chip container z-50 so a portaled hover card cannot paint over the chip (RF-1)", async () => {
     requestMock.mockImplementation(async (path: string) => {
       if (path === "/api/v1/config") {
         return {
@@ -873,8 +874,77 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       }
       if (path === "/api/v1/workspaces/ws1/me") {
         return {
-          membership: { user_id: "u1", role: "viewer", source: "membership" },
+          membership: { user_id: "u1", role: "member", source: "membership" },
         };
+      }
+      if (path === "/api/v1/workspaces/ws1/drive-connections") {
+        return { connections: [ACTIVE_CONN] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return {};
+    });
+
+    const anchor = document.createElement("a");
+    document.body.appendChild(anchor);
+
+    render(
+      renderWithWorkspace(
+        <>
+          <TaskDetailEditors
+            task={sampleTask}
+            workspaceId="ws1"
+            onSaveTitle={vi.fn()}
+            onSaveDescription={vi.fn()}
+          />
+          <LinkHoverCard
+            visible
+            href="https://docs.google.com/document/d/1GdocStackOrder_01234567/edit"
+            anchorEl={anchor}
+            cardRef={{ current: null }}
+            onCardEnter={vi.fn()}
+            onCardLeave={vi.fn()}
+          />
+        </>,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Mô tả công việc",
+    });
+    pasteTextIntoEditor(
+      editor,
+      "https://docs.google.com/document/d/1GdocStackOrder_01234567/edit",
+    );
+
+    const chipsContainer = await screen.findByTestId(
+      "drive-paste-suggestion-chips",
+    );
+    const hoverCard = document.querySelector<HTMLElement>(".link-hover-card");
+    expect(hoverCard).not.toBeNull();
+
+    // jsdom cannot compute paint order or CSS class rules, so assert the card's inline zIndex (< 50) against the chip's z-50 class.
+    const chipZMatch = /(?:^|\s)z-(\d+)(?:\s|$)/.exec(chipsContainer.className);
+    expect(chipsContainer).toHaveClass("relative", "z-50");
+    expect(Number(hoverCard!.style.zIndex)).toBe(49);
+    expect(Number(hoverCard!.style.zIndex)).toBeLessThan(Number(chipZMatch?.[1]));
+
+    anchor.remove();
+  });
+
+  it("shows no suggestion chip in task detail when the user has no workspace role and cannot edit the task (F-2)", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        throw Object.assign(new Error("forbidden"), { status: 403 });
       }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
         return { connections: [ACTIVE_CONN] };
@@ -906,16 +976,16 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     });
 
     const pastedUrl =
-      "https://docs.google.com/document/d/1GdocReadOnlyViewer_012345/edit";
+      "https://docs.google.com/document/d/1GdocNoWorkspaceRole_0123/edit";
     pasteTextIntoEditor(editor, pastedUrl);
 
     // Link is still inserted into the editor (pre-existing editor behaviour),
-    // but no suggestion chip is shown for a user who cannot edit the task.
+    // but no suggestion chip is shown for a user who has no workspace role.
     expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
     expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
     expect(
       screen.queryByTestId(
-        "drive-paste-suggestion-chip-1GdocReadOnlyViewer_012345",
+        "drive-paste-suggestion-chip-1GdocNoWorkspaceRole_0123",
       ),
     ).toBeNull();
   });

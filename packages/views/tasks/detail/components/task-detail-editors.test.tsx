@@ -152,9 +152,9 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     });
   });
 
-  it("shows no Drive paste chip when the user cannot edit the task, and shows a chip when the user can edit (F-2)", async () => {
+  it("shows no Drive paste chip when the user has no workspace role, and shows a chip when the user is a member (F-2)", async () => {
     setSessionUser(sessionUser);
-    let currentRole = "viewer";
+    let currentRole: "member" | null = null;
     requestMock.mockImplementation(async (path: string) => {
       if (path === "/api/v1/config") {
         return {
@@ -164,6 +164,9 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
         };
       }
       if (path === "/api/v1/workspaces/w1/me") {
+        if (!currentRole) {
+          throw Object.assign(new Error("forbidden"), { status: 403 });
+        }
         return {
           membership: {
             user_id: "u1",
@@ -197,7 +200,7 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
       });
     };
 
-    // 1. Viewer (cannot edit) pastes a Drive URL -> no chip
+    // 1. User with no workspace role (403 on /me -> cannot edit) pastes a Drive URL -> no chip
     const viewerView = render(
       wrapWithNav(
         <FeatureFlagsProvider service={service}>
