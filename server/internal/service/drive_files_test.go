@@ -815,8 +815,45 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 		},
 	})
 
+	// 0 (F07). A workspace guest with an organization Drive connection is refused
+	// when creating a task with drive_files (ErrForbidden, nothing written), while
+	// plain task creation without drive_files remains unchanged.
+	as := NewAuthService(env.pool, env.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	guestUser := registerVerified(t, env.q, as, "drive-tc-guest-"+util.NewID()+"@example.com", "TC Guest")
+	addOrgMember(t, env.q, env.org.ID, guestUser.ID)
+	addWorkspaceMember(t, env.q, env.wsA.ID, guestUser.ID)
+	if _, err := env.ws.UpdateMemberRole(ctx, env.owner.ID, env.wsA.ID, guestUser.ID, "guest"); err != nil {
+		t.Fatalf("set guest role: %v", err)
+	}
+	connGuest := env.connectAccount(t, guestUser.ID, env.wsA.ID, "sub-tc-guest", "tc-guest@example.com")
+	var tasksBeforeGuest, filesBeforeGuest int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, env.wsA.ID).Scan(&tasksBeforeGuest)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_files WHERE workspace_id = $1`, env.wsA.ID).Scan(&filesBeforeGuest)
+	_, err := env.taskSvc.Create(ctx, Human(guestUser.ID), env.wsA.ID, CreateTaskInput{
+		Title: "Guest Task With Drive",
+		DriveFiles: []CreateTaskDriveFileInput{
+			{ConnectionID: connGuest.ID, ExternalFileID: "ext-tc-ok"},
+		},
+	})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest Create with DriveFiles = %v, want ErrForbidden", err)
+	}
+	var tasksAfterGuest, filesAfterGuest int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, env.wsA.ID).Scan(&tasksAfterGuest)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_files WHERE workspace_id = $1`, env.wsA.ID).Scan(&filesAfterGuest)
+	if tasksAfterGuest != tasksBeforeGuest || filesAfterGuest != filesBeforeGuest {
+		t.Fatalf("guest Create with DriveFiles wrote rows: tasks %d->%d, files %d->%d", tasksBeforeGuest, tasksAfterGuest, filesBeforeGuest, filesAfterGuest)
+	}
+	plainGuestTask, err := env.taskSvc.Create(ctx, Human(guestUser.ID), env.wsA.ID, CreateTaskInput{Title: "Guest Plain Task"})
+	if err != nil {
+		t.Fatalf("guest plain Create without DriveFiles: %v", err)
+	}
+	if err := env.taskSvc.Delete(ctx, env.owner.ID, plainGuestTask.ID); err != nil {
+		t.Fatalf("cleanup plainGuestTask: %v", err)
+	}
+
 	// 1. Atomic rollback when the second Drive file is not accessible on Google Drive.
-	_, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
+	_, err = env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
 		Title: "Task Rollback Test",
 		DriveFiles: []CreateTaskDriveFileInput{
 			{ConnectionID: connA.ID, ExternalFileID: "ext-tc-ok"},

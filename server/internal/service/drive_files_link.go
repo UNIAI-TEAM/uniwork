@@ -128,10 +128,19 @@ func (s *DriveFileService) linkFilesForTaskCreateInTx(
 	if len(driveFiles) > driveMaxLinkBatch {
 		return Invalid("drive_files tối đa 20")
 	}
-	if s == nil || !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+	if s == nil {
 		return errDriveFeatureDisabled()
 	}
-
+	_, member, err := s.workspaceAndMember(ctx, actor, ws.ID)
+	if err != nil {
+		return err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return errDriveFeatureDisabled()
+	}
+	if !s.isNotGuest(member) {
+		return ErrForbidden
+	}
 	for idx, df := range driveFiles {
 		extID := strings.TrimSpace(df.ExternalFileID)
 		connID := strings.TrimSpace(df.ConnectionID)
