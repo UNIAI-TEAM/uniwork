@@ -47,13 +47,15 @@ Thành công trả 202 và `AdminOrganizationDeletionSDO`: `deletion_scheduled_a
 | `deletion_scheduled_at` | RFC 3339 khi đang có lệnh; `null` khi không có. |
 | `erased` | `true` khi `suspended_reason = organization_deleted`. Mọi trường hợp khác là `false`, kể cả tổ chức đã đóng (`organization_closed`) và tổ chức đang tạm ngưng. |
 
+`erased` tính từ `suspended_reason`, cột `AdminGetOrganization` đã chọn. `deletion_scheduled_at` thì chưa: câu `AdminGetOrganization` trong `server/pkg/db/queries/admin.sql` phải thêm `o.deletion_scheduled_at`, rồi `make sqlc`. Danh sách tổ chức không thêm cột này.
+
 Schema client (`AdminOrganizationDetailSchema`) nhận hai trường này theo kiểu lỏng: thiếu thì `deletion_scheduled_at` là `null` và `erased` là `false`, để một response cũ không làm trắng trang.
 
 `PrivacyExportService` chưa được gắn thì handler trả 503 `privacy_unavailable`, cùng câu với route riêng tư của chủ sở hữu.
 
 ## 4. Giao dịch
 
-`RequestDeletion` và lệnh admin dùng chung một hàm xếp hàng trong `PrivacyExportService`. Hàm đó không gọi query trong `admin.sql`. `AdminService` nhận `*PrivacyExportService` qua setter. Setter trống thì lệnh admin trả 503 như mục 3.
+`RequestDeletion` và lệnh admin dùng chung một hàm xếp hàng trong `PrivacyExportService`. Hàm đó không gọi query trong `admin.sql`. `AdminService` không giữ `*PrivacyExportService`; nó nhận interface hẹp `OrganizationDeletionQueue` (chỉ `queueDeletion` và `cancelDeletion`, ADR 0044) qua `SetOrganizationDeletionQueue`. Setter trống thì lệnh admin trả 503 như mục 3.
 
 `AdminService.ScheduleOrganizationDeletion(ctx, adminID, orgID, confirmSlug, reason)` kiểm tra lý do trước, rồi gọi hàm xếp hàng với người thực hiện là `adminID` (`requested_by_kind = human`). Trong cùng giao dịch, trước commit, một hook của `AdminService` ghi `admin_actions`:
 
@@ -66,12 +68,12 @@ Schema client (`AdminOrganizationDetailSchema`) nhận hai trường này theo k
 
 Nhật ký nghiệp vụ vẫn là một dòng `privacy.deletion_requested`, actor là admin, `metadata` thêm `platform_admin: true` và `reason`. Đường của chủ sở hữu không thêm hai khóa đó. Outbox vẫn là `privacy.deletion_requested`, payload chỉ `request_id` và `organization_id`, `available_at` sau 5 ngày. Không có topic mới, không sửa catalogue.
 
-`AdminService.CancelOrganizationDeletion` kiểm tra lý do, gọi phần hủy đang có, và hook ghi `admin_actions` với `action` `organization.deletion_cancelled`. Nhật ký là `privacy.deletion_cancelled`, cùng metadata `platform_admin` và `reason`. Hook lỗi thì cả giao dịch rollback: không có lịch, không có hồ sơ, không có outbox.
+`AdminService.CancelOrganizationDeletion` kiểm tra lý do, gọi phần hủy đang có, và hook ghi `admin_actions` với `action` `organization.deletion_cancelled`. `before.deletion_scheduled_at` là thời điểm cũ, `after.deletion_scheduled_at` là `null`. Nhật ký là `privacy.deletion_cancelled`, cùng metadata `platform_admin` và `reason`. Cả hai dòng `admin_actions` đi qua `recordAdmin`, nên có `trace_id` từ `ensureTrace` như mọi lệnh admin khác. Hook lỗi thì cả giao dịch rollback: không có lịch, không có hồ sơ, không có outbox. Test hook gọi hàm xếp hàng với một hook trả lỗi. `AdminService` truyền `recordAdmin` vào đúng tham số hook đó.
 
 `ScheduleOrganizationDeletion` kiểm tra lý do trước mọi thứ khác. Lý do ngắn thì dừng, không đọc tổ chức và không ghi. Phần còn lại, theo thứ tự:
 
 1. Tổ chức không tồn tại: 404.
-2. `suspended_reason = organization_deleted`: 409 `organization_already_deleted`, kể cả khi `confirm_slug` là `d-<id>`. Kiểm tra này đứng trước so khớp slug.
+2. `suspended_reason = organization_deleted`: 409 `organization_already_deleted`, kể cả khi `confirm_slug` là `d-<id>`. Kiểm tra này đứng trước so khớp slug, và nằm trong hàm xếp hàng dùng chung. `RequestDeletion` vẫn gọi `requireOwner` trước hàm đó, nên chủ sở hữu đã bị vô hiệu vẫn nhận 403, không nhận 409.
 3. Slug không khớp: 400 `privacy_delete_confirm`.
 4. Còn hồ sơ xuất hoặc xóa chưa kết thúc (`CountOpenDataSubjectRequests`): 409 `privacy_export_in_flight`. Một lệnh xóa đang mở cũng dùng mã này, như đường của chủ sở hữu. Không thêm mã mới.
 
@@ -79,7 +81,7 @@ Hủy kiểm tra lý do trước, rồi hồ sơ đang mở. `started_at` đã �
 
 Tổ chức đang `suspended`, hoặc `archived` với `suspended_reason = organization_closed`, vẫn xếp được lệnh. Job thất bại và mở khóa tổ chức (`giveUp` xóa lịch, hồ sơ `failed`) thì `erased` vẫn `false` và nút trở lại «Xóa tổ chức».
 
-Chủ sở hữu và admin dùng chung một hồ sơ. Chủ sở hữu hủy từ màn riêng tư bằng route hiện có, không cần lý do admin, và lần hủy đó không ghi `admin_actions`. Admin hủy được cả lệnh do chủ sở hữu tạo. `requested_by` của lệnh admin là user id của admin; consumer hiện tại ghi id đó vào `deactivated_by` khi xóa cứng. Không đổi consumer.
+Chủ sở hữu và admin dùng chung một hồ sơ. Chủ sở hữu hủy từ màn riêng tư bằng route hiện có, không cần lý do admin, và lần hủy đó không ghi `admin_actions`. Admin hủy được cả lệnh do chủ sở hữu tạo. Hoàn tác chỉ xóa `deletion_scheduled_at` và đánh dấu hồ sơ đã hủy. Nó không mở lại thành viên mà lệnh đóng tổ chức đã vô hiệu. `requested_by` của lệnh admin là user id của admin; consumer hiện tại ghi id đó vào `deactivated_by` khi xóa cứng. Không đổi consumer.
 
 ## 5. Màn admin
 
@@ -136,7 +138,7 @@ Dịch vụ, trong `server/internal/service/tenant_delete_test.go`, dùng fixtur
 - Hoàn tác trước `started_at`: lịch về `null`, `admin_actions` `organization.deletion_cancelled`, nhật ký `privacy.deletion_cancelled`.
 - Hoàn tác sau `started_at`: 409 `privacy_delete_started`, lịch còn.
 - Chủ sở hữu hủy lệnh do admin tạo bằng `CancelDeletion`: thành công, không có dòng `admin_actions` cho lần hủy đó.
-- Hook `admin_actions` trả lỗi: transaction rollback, `deletion_scheduled_at` vẫn `null`.
+- Hook truyền vào hàm xếp hàng trả lỗi: transaction rollback, `deletion_scheduled_at` vẫn `null`. `AdminService` dùng chính tham số hook đó để gọi `recordAdmin`.
 
 HTTP: hai route mới có mặt trong `isoRoutes` với `isoPlatform`. Handler: `support` nhận 403, không có vai trò nền tảng nhận 404. `GET` chi tiết có `deletion_scheduled_at` và `erased`.
 

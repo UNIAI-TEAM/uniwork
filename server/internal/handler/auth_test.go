@@ -132,7 +132,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetReportedContentRemover(chatSvc)
 	privacy := service.NewPrivacyExportService(pool, q, orgs)
-	adminSvc.SetPrivacyExports(privacy)
+	adminSvc.SetOrganizationDeletionQueue(privacy)
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	ents := service.NewEntitlementService(pool, q)
 	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))

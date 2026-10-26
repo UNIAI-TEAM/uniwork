@@ -394,9 +394,13 @@ behind its own gate and never reaches content.
   — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`. One exception
   (ADR 0042): the operator's takedown of a reported chat message goes through
   `ReportedContentRemover.RemoveReportedMessageQ`, which `server/cmd/server/main.go` wires
-  to `ChatService`; it is the console's only content write, and it returns no content.
-  `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds the interface to that one
-  method, `AdminService` to no other content service, and that wiring to the one call site.
+ to `ChatService`; it returns no content. The second (ADR 0044): scheduling or cancelling an
+ organization's 5-day privacy deletion goes through `OrganizationDeletionQueue`
+ (`queueDeletion`, `cancelDeletion`), wired there to `privacySvc`; `AdminService` never holds
+ `*PrivacyExportService`, so it cannot export or download tenant files, and `recordAdmin` runs
+ inside the queue's transaction. These are the console's only content writes.
+ `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds each interface to its
+ methods, `AdminService` to no other content service, and each wiring to its one call site.
 - Every admin write takes a `reason` (≥ 10 characters) and lands in
   `admin_actions` and `audit_events` in one transaction, sharing the trace id.
   A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.

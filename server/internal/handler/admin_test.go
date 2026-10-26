@@ -121,10 +121,18 @@ func TestAdminOrganizationDeletionRoute(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("no role: %d", res.StatusCode)
 	}
+	res, _ = doJSON(t, srv, "POST", path+"/cancel", w.token, map[string]string{"reason": "khách rút lại yêu cầu xóa"})
+	if res.StatusCode != 404 {
+		t.Fatalf("no role cancel: %d", res.StatusCode)
+	}
 	grant("support")
 	res, out := doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "unicom"})
 	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "platform_role_insufficient" {
 		t.Fatalf("support: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", path+"/cancel", w.token, map[string]string{"reason": "khách rút lại yêu cầu xóa"})
+	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "platform_role_insufficient" {
+		t.Fatalf("support cancel: %d %v", res.StatusCode, out)
 	}
 	grant("admin")
 	res, out = doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "unicom"})

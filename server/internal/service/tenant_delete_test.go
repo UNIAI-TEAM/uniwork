@@ -318,12 +318,52 @@ func newAdminDeletion(t *testing.T) (*auditServiceFixture, *PrivacyExportService
 	f := newAuditServiceFixture(t)
 	privacy := NewPrivacyExportService(f.svc.pool, f.q, f.svc.orgs)
 	admin := NewAdminService(f.svc.pool, f.q, nil, nil)
-	admin.SetPrivacyExports(privacy)
+	admin.SetOrganizationDeletionQueue(privacy)
 	org, err := f.q.GetOrganizationByID(f.ctx, f.orgA)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return f, privacy, admin, org
+}
+
+func orgDeletionScheduledAt(t *testing.T, f *auditServiceFixture) *time.Time {
+	t.Helper()
+	var scheduled *time.Time
+	if err := f.svc.pool.QueryRow(f.ctx, `SELECT deletion_scheduled_at FROM organizations WHERE id = $1`, f.orgA).Scan(&scheduled); err != nil {
+		t.Fatal(err)
+	}
+	return scheduled
+}
+
+type adminDeletionRow struct {
+	before, after         string
+	beforeType, afterType string
+}
+
+// adminDeletionAction reads the one admin_actions row for action on orgA and
+// fails unless it carries a trace id.
+func adminDeletionAction(t *testing.T, f *auditServiceFixture, action string) adminDeletionRow {
+	t.Helper()
+	var row adminDeletionRow
+	var traceID, before, after, beforeType, afterType *string
+	if err := f.svc.pool.QueryRow(f.ctx, `SELECT trace_id,
+			before->>'deletion_scheduled_at', after->>'deletion_scheduled_at',
+			jsonb_typeof(before->'deletion_scheduled_at'), jsonb_typeof(after->'deletion_scheduled_at')
+		FROM admin_actions WHERE target_id = $1 AND action = $2`, f.orgA, action).Scan(&traceID, &before, &after, &beforeType, &afterType); err != nil {
+		t.Fatal(err)
+	}
+	if traceID == nil || *traceID == "" {
+		t.Fatalf("%s admin_actions row has no trace_id", action)
+	}
+	for _, p := range []struct {
+		dst *string
+		src *string
+	}{{&row.before, before}, {&row.after, after}, {&row.beforeType, beforeType}, {&row.afterType, afterType}} {
+		if p.src != nil {
+			*p.dst = *p.src
+		}
+	}
+	return row
 }
 
 func TestAdminOrganizationDeletionNeedsPrivacy(t *testing.T) {
@@ -375,6 +415,17 @@ func TestAdminOrganizationDeletion(t *testing.T) {
 		}
 		if actions != 1 || gotReason != reason {
 			t.Fatalf("admin_actions = %d %q", actions, gotReason)
+		}
+		scheduled := orgDeletionScheduledAt(t, f)
+		if scheduled == nil {
+			t.Fatal("organization has no deletion_scheduled_at")
+		}
+		act := adminDeletionAction(t, f, "organization.deletion_scheduled")
+		if act.beforeType != "null" || act.afterType != "string" {
+			t.Fatalf("schedule before/after: %+v", act)
+		}
+		if after, err := time.Parse(time.RFC3339, act.after); err != nil || !after.Equal(scheduled.Truncate(time.Second)) {
+			t.Fatalf("schedule after %q, organization erases at %s: %v", act.after, scheduled, err)
 		}
 		var meta string
 		if err := f.svc.pool.QueryRow(f.ctx, `SELECT metadata::text FROM audit_events WHERE organization_id = $1 AND action = 'privacy.deletion_requested' AND actor_id = $2`, f.orgA, f.adminA.ID).Scan(&meta); err != nil {
@@ -441,17 +492,20 @@ func TestAdminOrganizationDeletion(t *testing.T) {
 	})
 
 	t.Run("allows suspended and closed organizations", func(t *testing.T) {
-		for _, status := range []struct{ sql string }{
-			{`UPDATE organizations SET status = 'suspended', suspended_reason = 'pilot' WHERE id = $1`},
-			{`UPDATE organizations SET status = 'archived', suspended_reason = 'organization_closed' WHERE id = $1`},
+		for _, status := range []struct{ name, sql string }{
+			{"suspended", `UPDATE organizations SET status = 'suspended', suspended_reason = 'pilot' WHERE id = $1`},
+			{"closed", `UPDATE organizations SET status = 'archived', suspended_reason = 'organization_closed' WHERE id = $1`},
 		} {
-			f, _, admin, org := newAdminDeletion(t)
-			if _, err := f.svc.pool.Exec(f.ctx, status.sql, f.orgA); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
-				t.Fatalf("%s: %v", status.sql, err)
-			}
+			// Each fixture holds the test database lock until its test ends.
+			t.Run(status.name, func(t *testing.T) {
+				f, _, admin, org := newAdminDeletion(t)
+				if _, err := f.svc.pool.Exec(f.ctx, status.sql, f.orgA); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := admin.ScheduleOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, org.Slug, reason); err != nil {
+					t.Fatalf("%s: %v", status.sql, err)
+				}
+			})
 		}
 	})
 
@@ -490,16 +544,34 @@ func TestAdminOrganizationDeletion(t *testing.T) {
 		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, "ngắn"); !errors.Is(err, ErrReasonTooShort) {
 			t.Fatalf("short cancel: %v", err)
 		}
+		previous := orgDeletionScheduledAt(t, f)
+		if previous == nil {
+			t.Fatal("organization has no deletion_scheduled_at before the cancel")
+		}
 		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, reason); err != nil {
 			t.Fatal(err)
 		}
-		var scheduled *time.Time
 		var actions int
-		if err := f.svc.pool.QueryRow(f.ctx, `SELECT deletion_scheduled_at FROM organizations WHERE id = $1`, f.orgA).Scan(&scheduled); err != nil || scheduled != nil {
-			t.Fatalf("schedule: %v %v", scheduled, err)
+		if scheduled := orgDeletionScheduledAt(t, f); scheduled != nil {
+			t.Fatalf("schedule: %v", scheduled)
 		}
 		if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*) FROM admin_actions WHERE target_id = $1 AND action = 'organization.deletion_cancelled'`, f.orgA).Scan(&actions); err != nil || actions != 1 {
 			t.Fatalf("cancel actions: %d %v", actions, err)
+		}
+		act := adminDeletionAction(t, f, "organization.deletion_cancelled")
+		if act.beforeType != "string" || act.afterType != "null" {
+			t.Fatalf("cancel before/after: %+v", act)
+		}
+		if before, err := time.Parse(time.RFC3339, act.before); err != nil || !before.Equal(previous.Truncate(time.Second)) {
+			t.Fatalf("cancel before %q, organization erased at %s: %v", act.before, previous, err)
+		}
+		var meta string
+		if err := f.svc.pool.QueryRow(f.ctx, `SELECT metadata::text FROM audit_events WHERE organization_id = $1 AND action = 'privacy.deletion_cancelled' AND actor_id = $2`, f.orgA, f.adminA.ID).Scan(&meta); err != nil {
+			t.Fatal(err)
+		}
+		compact := strings.ReplaceAll(meta, " ", "")
+		if !strings.Contains(compact, `"platform_admin":true`) || !strings.Contains(compact, strings.ReplaceAll(reason, " ", "")) {
+			t.Fatalf("cancel audit metadata: %s", meta)
 		}
 		if err := admin.CancelOrganizationDeletion(f.ctx, f.adminA.ID, f.orgA, reason); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("second cancel: %v", err)
