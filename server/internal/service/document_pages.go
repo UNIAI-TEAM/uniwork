@@ -639,16 +639,19 @@ func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) 
 	return &info, nil
 }
 
-// versionFilename returns name unless it is an extensionless provider-output
-// placeholder on an engine-produced version whose own mime is text/plain. In
-// that case it walks earlier versions newest-first (starting below
-// v.RestoredFrom when v is a restore, or below v.Version otherwise), skipping
-// only extensionless provider placeholders of earlier engine versions. The
-// first other version decides: if its file resolves and ends in .txt
-// (case-insensitive) that filename is returned; any other outcome (resolution
-// error, a non-.txt extension such as .log/.csv/.markdown, or no file) returns
-// name unchanged.
+// versionFilename resolves the filename of v. For a converted version
+// (reason=converted_version, UNI-2213) it keeps the source version's base
+// name and rewrites the extension to the target OOXML extension (.docx,
+// .xlsx, .pptx). For an extensionless provider-output placeholder on an
+// engine-produced version whose own mime is text/plain, it walks earlier
+// versions newest-first (starting below v.RestoredFrom when v is a restore,
+// or below v.Version otherwise), skipping only extensionless provider
+// placeholders of earlier engine versions, and returns the first .txt
+// filename it finds; any other outcome returns name unchanged.
 func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, name string) string {
+	if v.Reason == DocumentVersionReasonConverted {
+		return s.convertedVersionFilename(ctx, doc, v, name)
+	}
 	if path.Ext(name) != "" || !v.EngineName.Valid || v.EngineName.String == "" || s.files == nil {
 		return name
 	}

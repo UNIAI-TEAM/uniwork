@@ -86,26 +86,28 @@ type DocumentUploadSDO struct {
 // on the single-version GET of a page version; a file version instead carries
 // file metadata and download_url (the Go proxy route, C-01 §14.2).
 type DocumentVersionDTO struct {
-	ID              string           `json:"id" description:"ULID phiên bản" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
-	DocumentID      string           `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Version         int32            `json:"version" description:"Ordinal 1,2,3… trong document" example:"3"`
-	Kind            string           `json:"kind" description:"page hoặc file (snapshot lúc tạo)" example:"page"`
-	Reason          string           `json:"reason" description:"manual, auto, restore, upload hoặc agent" example:"manual"`
-	Label           *string          `json:"label,omitempty" example:"Bản gửi khách hàng"`
-	Content         *json.RawMessage `json:"content,omitempty" description:"Nội dung page của phiên bản; chỉ trên GET một phiên bản"`
-	FileID          *string          `json:"file_id,omitempty" description:"file_id FileService của blob phiên bản" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
-	MimeType        *string          `json:"mime_type,omitempty" example:"application/pdf"`
-	SizeBytes       int64            `json:"size_bytes" example:"245760"`
-	ChecksumSha256  *string          `json:"checksum_sha256,omitempty" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
-	RestoredFrom    *int32           `json:"restored_from,omitempty" description:"Ordinal nguồn khi reason=restore" example:"1"`
-	EngineName      *string          `json:"engine_name,omitempty" description:"Engine đã sinh byte (Office); null với page và upload thẳng" example:"genoffice"`
-	EngineVersion   *string          `json:"engine_version,omitempty" example:"genoffice@1.4.2+uniwork-office.3"`
-	ContractVersion *string          `json:"contract_version,omitempty" example:"uniwork-office-engine-contract/1"`
-	ProtocolVersion *string          `json:"protocol_version,omitempty" description:"Phiên bản protocol engine G2 dạng chuỗi thập phân" example:"1"`
-	DownloadURL     *string          `json:"download_url,omitempty" description:"Route proxy tải blob phiên bản file" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?version=3"`
-	CreatedBy       string           `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind   string           `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt       string           `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	ID                    string           `json:"id" description:"ULID phiên bản" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	DocumentID            string           `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Version               int32            `json:"version" description:"Ordinal 1,2,3… trong document" example:"3"`
+	Kind                  string           `json:"kind" description:"page hoặc file (snapshot lúc tạo)" example:"page"`
+	Reason                string           `json:"reason" description:"manual, auto, restore, upload, agent hoặc converted_version" example:"manual"`
+	Label                 *string          `json:"label,omitempty" example:"Bản gửi khách hàng"`
+	Content               *json.RawMessage `json:"content,omitempty" description:"Nội dung page của phiên bản; chỉ trên GET một phiên bản"`
+	FileID                *string          `json:"file_id,omitempty" description:"file_id FileService của blob phiên bản" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	MimeType              *string          `json:"mime_type,omitempty" example:"application/pdf"`
+	SizeBytes             int64            `json:"size_bytes" example:"245760"`
+	ChecksumSha256        *string          `json:"checksum_sha256,omitempty" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
+	RestoredFrom          *int32           `json:"restored_from,omitempty" description:"Ordinal nguồn khi reason=restore" example:"1"`
+	ConvertedFromVersion  *int32           `json:"converted_from_version,omitempty" description:"Ordinal phiên bản định dạng cũ đã chuyển đổi khi reason=converted_version (UNI-2213)" example:"1"`
+	ConvertedFromChecksum *string          `json:"converted_from_checksum,omitempty" description:"SHA-256 hex của phiên bản nguồn đã chuyển đổi khi reason=converted_version (UNI-2213)" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
+	EngineName            *string          `json:"engine_name,omitempty" description:"Engine đã sinh byte (Office); null với page và upload thẳng" example:"genoffice"`
+	EngineVersion         *string          `json:"engine_version,omitempty" example:"genoffice@1.4.2+uniwork-office.3"`
+	ContractVersion       *string          `json:"contract_version,omitempty" example:"uniwork-office-engine-contract/1"`
+	ProtocolVersion       *string          `json:"protocol_version,omitempty" description:"Phiên bản protocol engine G2 dạng chuỗi thập phân" example:"1"`
+	DownloadURL           *string          `json:"download_url,omitempty" description:"Route proxy tải blob phiên bản file" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?version=3"`
+	CreatedBy             string           `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind         string           `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt             string           `json:"created_at" example:"2026-09-27T09:00:00Z"`
 }
 
 // DocumentVersionSDO wraps one version (single-version GET, manual create).

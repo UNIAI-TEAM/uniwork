@@ -303,7 +303,7 @@ func (q *Queries) GetDocumentShareLink(ctx context.Context, arg GetDocumentShare
 }
 
 const getDocumentVersionByID = `-- name: GetDocumentVersionByID :one
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 FROM document_versions
 WHERE id = $1
   AND organization_id = $2
@@ -350,6 +350,8 @@ func (q *Queries) GetDocumentVersionByID(ctx context.Context, arg GetDocumentVer
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.CreatedAt,
+		&i.ConvertedFromVersion,
+		&i.ConvertedFromChecksum,
 	)
 	return i, err
 }
@@ -964,7 +966,7 @@ func (q *Queries) ListDocumentShareSummaries(ctx context.Context, arg ListDocume
 }
 
 const listDocumentVersionsByIDs = `-- name: ListDocumentVersionsByIDs :many
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 FROM document_versions
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -1010,6 +1012,8 @@ func (q *Queries) ListDocumentVersionsByIDs(ctx context.Context, arg ListDocumen
 			&i.CreatedBy,
 			&i.CreatedByKind,
 			&i.CreatedAt,
+			&i.ConvertedFromVersion,
+			&i.ConvertedFromChecksum,
 		); err != nil {
 			return nil, err
 		}

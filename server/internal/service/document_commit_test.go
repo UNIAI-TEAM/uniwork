@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -592,4 +594,338 @@ func TestArchivedDocumentCommitUploadRestore(t *testing.T) {
 	wantNotFound(t, err)
 	_, err = env.commit(manager, viewDoc.Document.ID, viewStaged.UploadID, viewDoc.Document.Revision, util.NewID())
 	wantCode(t, err, "document_archived")
+}
+
+// legacyCFBBody is a minimal OLE CFB header + sector for a legacy .doc/.xls/.ppt
+// fixture with a unique marker so checksums differ across tests.
+func legacyCFBBody(marker string) []byte {
+	b := make([]byte, 1024)
+	copy(b, []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})
+	binary.LittleEndian.PutUint16(b[24:], 0x003e)
+	binary.LittleEndian.PutUint16(b[26:], 0x0003)
+	binary.LittleEndian.PutUint16(b[28:], 0xfffe)
+	binary.LittleEndian.PutUint16(b[30:], 9)
+	binary.LittleEndian.PutUint16(b[32:], 6)
+	copy(b[512:], marker)
+	return b
+}
+
+func xlsxBody(t *testing.T, marker string) []byte {
+	t.Helper()
+	return docxLike(t, "xl/workbook.xml", "xl/worksheets/"+marker+".xml")
+}
+
+func pptxBody(t *testing.T, marker string) []byte {
+	t.Helper()
+	return docxLike(t, "ppt/presentation.xml", "ppt/slides/"+marker+".xml")
+}
+
+// TestDocumentCommitLegacyConversion covers UNI-2213 (C5): committing a
+// converted OOXML upload onto a legacy (.doc/.xls/.ppt) document as the next
+// version of the same document, plus refusals and unit checks.
+func TestDocumentCommitLegacyConversionUnit(t *testing.T) {
+	if got, err := normalizeConversion(nil); err != nil || got != nil {
+		t.Fatalf("normalizeConversion(nil) = %+v, %v", got, err)
+	}
+	for _, tc := range []struct {
+		from, to string
+		wantMime string
+	}{
+		{" DOC ", " DOCX ", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"xls", "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{"ppt", "pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+	} {
+		got, err := normalizeConversion(&DocumentVersionConversion{FromFormat: tc.from, ToFormat: tc.to})
+		if err != nil {
+			t.Fatalf("normalizeConversion(%q->%q): %v", tc.from, tc.to, err)
+		}
+		if mime, ok := ooxmlTargetMime(got.ToFormat); !ok || mime != tc.wantMime {
+			t.Fatalf("ooxmlTargetMime(%q) = %q, %v", got.ToFormat, mime, ok)
+		}
+	}
+	for _, bad := range []DocumentVersionConversion{
+		{FromFormat: "", ToFormat: "docx"},
+		{FromFormat: "pdf", ToFormat: "docx"},
+		{FromFormat: "docx", ToFormat: "docx"},
+		{FromFormat: "doc", ToFormat: ""},
+		{FromFormat: "doc", ToFormat: "pdf"},
+		{FromFormat: "doc", ToFormat: "doc"},
+	} {
+		var ve ValidationError
+		if _, err := normalizeConversion(&bad); err == nil {
+			t.Fatalf("normalizeConversion(%+v) expected ValidationError", bad)
+		} else if !errors.As(err, &ve) || ve.Msg == "" {
+			t.Fatalf("normalizeConversion(%+v) = %T (%v), want ValidationError", bad, err, err)
+		}
+	}
+
+	fpPlain := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{})
+	fpConvDoc := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{}, &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"})
+	fpConvXls := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{}, &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"})
+	if fpPlain == fpConvDoc || fpConvDoc == fpConvXls {
+		t.Fatalf("commitFingerprint must distinguish conversion pairs: plain=%s doc=%s xls=%s", fpPlain, fpConvDoc, fpConvXls)
+	}
+}
+
+func TestDocumentCommitLegacyConversion(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	peer := human(env.tn.creator)
+
+	for _, tc := range []struct {
+		fromFormat string
+		fromName   string
+		fromMime   string
+		toFormat   string
+		toName     string
+		toMime     string
+		wantFile   string
+		buildOOXML func(t *testing.T, marker string) []byte
+	}{
+		{
+			fromFormat: "doc",
+			fromName:   "budget.doc",
+			fromMime:   "application/msword",
+			toFormat:   "docx",
+			toName:     "converted.docx",
+			toMime:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			wantFile:   "budget.docx",
+			buildOOXML: docxBody,
+		},
+		{
+			fromFormat: "xls",
+			fromName:   "sheet.xls",
+			fromMime:   "application/vnd.ms-excel",
+			toFormat:   "xlsx",
+			toName:     "converted.xlsx",
+			toMime:     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			wantFile:   "sheet.xlsx",
+			buildOOXML: xlsxBody,
+		},
+		{
+			fromFormat: "ppt",
+			fromName:   "deck.ppt",
+			fromMime:   "application/vnd.ms-powerpoint",
+			toFormat:   "pptx",
+			toName:     "converted.pptx",
+			toMime:     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+			wantFile:   "deck.pptx",
+			buildOOXML: pptxBody,
+		},
+	} {
+		t.Run(tc.fromFormat+"_to_"+tc.toFormat, func(t *testing.T) {
+			v1Bytes := legacyCFBBody("v1-" + tc.fromFormat)
+			created := env.createFile(t, member, tc.fromName, v1Bytes)
+			if created.Version.MimeType.String != tc.fromMime {
+				t.Fatalf("v1 mime = %q, want %q", created.Version.MimeType.String, tc.fromMime)
+			}
+
+			v2Bytes := tc.buildOOXML(t, "v2-"+tc.toFormat)
+			up := env.upload(t, member, created.Document.ID, tc.toName, v2Bytes)
+
+			// Without conversion, changing format is still 415 unsupported_media_type (format_changed).
+			_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "unsupported_media_type"); ce.Status != 415 || ce.Fields["reason"] != "format_changed" {
+				t.Fatalf("undeclared format change = %+v, want 415 format_changed", ce)
+			}
+
+			// With matching conversion, v2 is appended on the same document id.
+			key := util.NewID()
+			res, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+				UploadID:       up.UploadID,
+				BaseRevision:   created.Document.Revision,
+				IdempotencyKey: key,
+				Conversion: &DocumentVersionConversion{
+					FromFormat: tc.fromFormat,
+					ToFormat:   tc.toFormat,
+				},
+			})
+			mustf(t, err, "commit converted version")
+			if res.Document.ID != created.Document.ID || res.Document.CurrentVersion != 2 || res.Document.Revision != created.Document.Revision+1 {
+				t.Fatalf("document = %+v", res.Document)
+			}
+			if res.Version.Version != 2 || res.Version.Reason != DocumentVersionReasonConverted {
+				t.Fatalf("version = %+v, want v2 reason=%s", res.Version, DocumentVersionReasonConverted)
+			}
+			if !res.Version.ConvertedFromVersion.Valid || res.Version.ConvertedFromVersion.Int32 != 1 {
+				t.Fatalf("converted_from_version = %+v, want 1", res.Version.ConvertedFromVersion)
+			}
+			if !res.Version.ConvertedFromChecksum.Valid || res.Version.ConvertedFromChecksum.String != sha(v1Bytes) {
+				t.Fatalf("converted_from_checksum = %+v, want %s", res.Version.ConvertedFromChecksum, sha(v1Bytes))
+			}
+			if res.Version.MimeType.String != tc.toMime || res.File.MimeType != tc.toMime {
+				t.Fatalf("mime = %q / %q, want %q", res.Version.MimeType.String, res.File.MimeType, tc.toMime)
+			}
+			if res.File.Filename != tc.wantFile {
+				t.Fatalf("file.filename = %q, want %q", res.File.Filename, tc.wantFile)
+			}
+
+			// Idempotent replay with same key and conversion returns the same version.
+			replay, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+				UploadID:       up.UploadID,
+				BaseRevision:   created.Document.Revision,
+				IdempotencyKey: key,
+				Conversion: &DocumentVersionConversion{
+					FromFormat: tc.fromFormat,
+					ToFormat:   tc.toFormat,
+				},
+			})
+			mustf(t, err, "replay converted commit")
+			if replay.Version.ID != res.Version.ID {
+				t.Fatalf("replay version = %s, want %s", replay.Version.ID, res.Version.ID)
+			}
+
+			// GET document resolves the rewritten filename from v1's base name.
+			gotDoc, err := env.svc.GetDocument(ctx, member, created.Document.ID)
+			mustf(t, err, "get document after conversion")
+			if gotDoc.File == nil || gotDoc.File.Filename != tc.wantFile || gotDoc.File.MimeType != tc.toMime {
+				t.Fatalf("GetDocument file = %+v, want filename=%q mime=%q", gotDoc.File, tc.wantFile, tc.toMime)
+			}
+
+			// Download live (version=0) serves v2 OOXML with the rewritten filename;
+			// download version=1 serves the original legacy v1 with the original filename.
+			dlLive, err := env.svc.OpenDocumentFile(ctx, member, created.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
+			mustf(t, err, "open live")
+			liveBytes := readBytes(t, dlLive.Reader.Body)
+			_ = dlLive.Reader.Close()
+			if !bytes.Equal(liveBytes, v2Bytes) || dlLive.Reader.File.Filename != tc.wantFile || dlLive.Version.MimeType.String != tc.toMime {
+				t.Fatalf("live download = filename %q mime %q", dlLive.Reader.File.Filename, dlLive.Version.MimeType.String)
+			}
+
+			dlV1, err := env.svc.OpenDocumentFile(ctx, member, created.Document.ID, 1, DocumentByteRange{}, DocumentAccessDownload)
+			mustf(t, err, "open v1")
+			v1Read := readBytes(t, dlV1.Reader.Body)
+			_ = dlV1.Reader.Close()
+			if !bytes.Equal(v1Read, v1Bytes) || dlV1.Reader.File.Filename != tc.fromName || dlV1.Version.MimeType.String != tc.fromMime {
+				t.Fatalf("v1 download = filename %q mime %q", dlV1.Reader.File.Filename, dlV1.Version.MimeType.String)
+			}
+
+			// Subsequent OOXML save on v2 commits normally as v3 without conversion.
+			v3Bytes := tc.buildOOXML(t, "v3-"+tc.toFormat)
+			up3 := env.upload(t, member, created.Document.ID, tc.wantFile, v3Bytes)
+			v3, err := env.commit(member, created.Document.ID, up3.UploadID, res.Document.Revision, util.NewID())
+			mustf(t, err, "commit v3")
+			if v3.Version.Version != 3 || v3.Version.Reason != "upload" {
+				t.Fatalf("v3 = %+v", v3.Version)
+			}
+
+			// Audit row for the converted commit carries reason=converted_version and provenance.
+			var rawChanges, rawMeta []byte
+			if err := env.f.pool.QueryRow(ctx,
+				`SELECT changes, metadata FROM audit_events WHERE action = $1 AND resource_id = $2 AND changes::jsonb->'reason'->>'to' = $3`,
+				audit.ActionDocumentVersionCreated, created.Document.ID, DocumentVersionReasonConverted,
+			).Scan(&rawChanges, &rawMeta); err != nil {
+				t.Fatal("query audit row:", err)
+			}
+			var changes map[string]map[string]any
+			if err := json.Unmarshal(rawChanges, &changes); err != nil {
+				t.Fatal(err)
+			}
+			if changes["reason"]["to"] != DocumentVersionReasonConverted ||
+				changes["converted_from"]["to"] != tc.fromFormat ||
+				changes["converted_to"]["to"] != tc.toFormat {
+				t.Fatalf("audit changes = %s", rawChanges)
+			}
+			var meta map[string]any
+			if err := json.Unmarshal(rawMeta, &meta); err != nil {
+				t.Fatal(err)
+			}
+			if meta["converted_from"] != tc.fromFormat || meta["converted_to"] != tc.toFormat {
+				t.Fatalf("audit metadata = %s", rawMeta)
+			}
+		})
+	}
+
+	t.Run("refusals: not_legacy, target_mismatch, not_ooxml, no save back to legacy, viewer", func(t *testing.T) {
+		// 1. Live version is already OOXML (.docx) -> 422 not_legacy.
+		docxDoc := env.createFile(t, member, "already.docx", docxBody(t, "already-v1"))
+		upDocx := env.upload(t, member, docxDoc.Document.ID, "already-v2.docx", docxBody(t, "already-v2"))
+		_, err := env.svc.CommitFileVersion(ctx, member, docxDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upDocx.UploadID,
+			BaseRevision:   docxDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_legacy" {
+			t.Fatalf("already docx with conversion = %+v, want 422 not_legacy", ce)
+		}
+
+		// 2. Live version is PDF -> 422 not_legacy.
+		pdfDoc := env.createFile(t, member, "file.pdf", pdfBody("pdf-v1"))
+		upPdfDocx := env.upload(t, member, pdfDoc.Document.ID, "file.docx", docxBody(t, "from-pdf"))
+		_, err = env.svc.CommitFileVersion(ctx, member, pdfDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upPdfDocx.UploadID,
+			BaseRevision:   pdfDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_legacy" {
+			t.Fatalf("pdf with conversion = %+v, want 422 not_legacy", ce)
+		}
+
+		// 3. Cross-family pair on a .doc (doc->xlsx, or xls->xlsx on a .doc) -> 422 target_mismatch.
+		legacyDoc := env.createFile(t, member, "cross.doc", legacyCFBBody("cross-doc"))
+		upXlsx := env.upload(t, member, legacyDoc.Document.ID, "cross.xlsx", xlsxBody(t, "cross-xlsx"))
+		for _, conv := range []DocumentVersionConversion{
+			{FromFormat: "doc", ToFormat: "xlsx"},
+			{FromFormat: "xls", ToFormat: "xlsx"},
+		} {
+			_, err = env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+				UploadID:       upXlsx.UploadID,
+				BaseRevision:   legacyDoc.Document.Revision,
+				IdempotencyKey: util.NewID(),
+				Conversion:     &conv,
+			})
+			if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "target_mismatch" {
+				t.Fatalf("cross pair %+v on .doc = %+v, want 422 target_mismatch", conv, ce)
+			}
+		}
+
+		// 4. Staged upload is not target OOXML (e.g. a PDF or an XLSX when claiming doc->docx) -> 422 not_ooxml.
+		upPdf := env.upload(t, member, legacyDoc.Document.ID, "not-ooxml.pdf", pdfBody("not-ooxml"))
+		for _, badUploadID := range []string{upPdf.UploadID, upXlsx.UploadID} {
+			_, err = env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+				UploadID:       badUploadID,
+				BaseRevision:   legacyDoc.Document.Revision,
+				IdempotencyKey: util.NewID(),
+				Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+			})
+			if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_ooxml" {
+				t.Fatalf("non-docx upload with doc->docx = %+v, want 422 not_ooxml", ce)
+			}
+		}
+
+		// 5. No save back to legacy: once converted to .docx, uploading a .doc is refused (415 without conversion, 400/422 with conversion).
+		upGoodDocx := env.upload(t, member, legacyDoc.Document.ID, "cross.docx", docxBody(t, "good-docx"))
+		convRes, err := env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upGoodDocx.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		mustf(t, err, "convert cross.doc to cross.docx")
+		upBackToDoc := env.upload(t, member, legacyDoc.Document.ID, "back.doc", legacyCFBBody("back-to-doc"))
+		_, err = env.commit(member, legacyDoc.Document.ID, upBackToDoc.UploadID, convRes.Document.Revision, util.NewID())
+		if ce := wantCode(t, err, "unsupported_media_type"); ce.Status != 415 || ce.Fields["reason"] != "format_changed" {
+			t.Fatalf("save back to .doc without conversion = %+v, want 415 format_changed", ce)
+		}
+
+		// 6. Viewer cannot convert (403 forbidden).
+		restrictedDoc := env.createFile(t, member, "viewer.doc", legacyCFBBody("viewer-doc"))
+		if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, restrictedDoc.Document.ID); err != nil {
+			t.Fatal(err)
+		}
+		env.f.share(t, restrictedDoc.Document, DocumentPrincipalUser, env.tn.creator.ID, DocumentLevelView, env.tn.member.ID)
+		upViewer := env.upload(t, member, restrictedDoc.Document.ID, "viewer.docx", docxBody(t, "viewer-docx"))
+		_, err = env.svc.CommitFileVersion(ctx, peer, restrictedDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upViewer.UploadID,
+			BaseRevision:   restrictedDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("viewer conversion commit = %v, want ErrForbidden", err)
+		}
+	})
 }
