@@ -89,6 +89,10 @@ type ListDocumentsInput struct {
 	// favorites narrows the flat list to the caller's own stars in the
 	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
 	favorites bool
+	// withPaths resolves Path on every row, not only on a search: the shared
+	// trash names each document's folders (TrashService sets it; no handler
+	// input reaches it).
+	withPaths bool
 	// WithEditors resolves updated_by_user on every row (UNI-2045 SV-6); the
 	// HTTP list routes set it, internal callers (MCP, Ask UNI) skip the lookup.
 	WithEditors bool
@@ -791,7 +795,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			return DocumentListPage{}, err
 		}
 	}
-	if query.Valid {
+	if query.Valid || in.withPaths {
 		if err := s.attachListPaths(ctx, scope, workspaceID, agent, out.Items); err != nil {
 			return DocumentListPage{}, err
 		}

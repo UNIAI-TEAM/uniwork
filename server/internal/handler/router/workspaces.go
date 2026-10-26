@@ -11,6 +11,7 @@ import (
 //	GET    /api/v1/workspaces
 //	PATCH  /api/v1/workspaces/{workspaceID}
 //	GET    /api/v1/workspaces/{workspaceID}/me
+//	GET    /api/v1/workspaces/{workspaceID}/trash
 //	GET    /api/v1/workspaces/{workspaceID}/members
 //	PATCH  /api/v1/workspaces/{workspaceID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/members/{userID}
@@ -54,6 +55,16 @@ func registerWorkspaces(r api, h Routes) {
 		tags:        []string{"workspaces"},
 		sdo:         sdo.WorkspaceSDO{},
 		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/trash", h.ListTrash, apiOp{
+		summary: "List shared trash",
+		description: "Thùng rác chung của workspace: lô công việc (chỉ công việc gốc), dự án và tài liệu đã xoá, mới xoá trước, 50 mỗi trang. " +
+			"Mỗi loại giữ luật quyền của nó; dòng tài liệu là đúng những gì thùng rác tài liệu trả cho người gọi, và vắng khi cờ documents tắt. " +
+			"Query: kind, q, trashed_by, cursor; kind lạ -> 400 invalid_filter, cursor hỏng -> 400. Người ngoài workspace -> 404.",
+		tags: []string{"workspaces"},
+		sdi:  sdi.ListSharedTrashSDI{},
+		sdo:  sdo.TrashPageSDO{},
+		auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/me", h.GetWorkspaceMe, apiOp{
 		summary:     "Get current membership",

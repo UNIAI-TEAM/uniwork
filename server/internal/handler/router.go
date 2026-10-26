@@ -77,6 +77,10 @@ type Deps struct {
 	// graph routes until the server wires it.
 	Graph *service.GraphService
 
+	// Trash is the shared workspace trash (UNI-2171). When omitted, New
+	// derives it from Tasks, Documents, Workspaces and FeatureFlags.
+	Trash *service.TrashService
+
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
 	FileAccess *service.FileAccessService
@@ -219,6 +223,11 @@ func New(d Deps) http.Handler {
 		d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
 			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,
 		})
+	}
+	if d.Trash == nil && d.Tasks != nil {
+		// A nil *featureflag.Service reads every flag at its default, as the
+		// document routes do, so it is passed through as is.
+		d.Trash = service.NewTrashService(d.Tasks, d.Documents, d.Workspaces, d.FeatureFlags)
 	}
 	if d.OfficeFrame == nil && d.Documents != nil {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
@@ -392,6 +401,7 @@ func New(d Deps) http.Handler {
 		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
 		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
+		ListTrash:           h.listTrash,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,

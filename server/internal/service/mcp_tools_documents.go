@@ -81,15 +81,22 @@ func (s *McpToolService) SetFlags(f McpFlags) { s.flags = f }
 // first, so a tool added later that reaches documents through document()
 // inherits it.
 func (s *McpToolService) documentsOn(ctx context.Context, p McpPrincipal) bool {
-	if s.docs == nil || s.flags == nil {
+	return s.docs != nil && documentsFlagOn(ctx, s.flags, p.UserID, p.OrganizationID)
+}
+
+// documentsFlagOn is the `documents` flag for one person in one organization,
+// with the declared default, as the REST routes evaluate it (overrides
+// included). No evaluator reads as off.
+func documentsFlagOn(ctx context.Context, flags McpFlags, userID, organizationID string) bool {
+	if flags == nil {
 		return false
 	}
 	def := false
 	if f, ok := featureflags.Lookup(mcpDocumentsFlag); ok {
 		def = f.Default
 	}
-	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: p.UserID, OrganizationID: p.OrganizationID})
-	return s.flags.IsEnabled(ctx, mcpDocumentsFlag, def)
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: organizationID})
+	return flags.IsEnabled(ctx, mcpDocumentsFlag, def)
 }
 
 func (s *McpToolService) docOf(base string, d db.Document) McpDocument {

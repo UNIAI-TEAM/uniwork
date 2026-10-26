@@ -150,6 +150,7 @@ type Routes struct {
 	UploadWorkspaceIcon http.HandlerFunc
 	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
+	ListTrash           http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
