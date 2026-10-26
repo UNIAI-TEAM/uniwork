@@ -276,7 +276,7 @@ Không có (Q1, Q2 chốt không có cài đặt).
 
 ### 6.8 `drive_grant_revocations` — hàng đợi thu hồi theo `google_sub` (§5.3b)
 
-`google_sub TEXT PRIMARY KEY`, `generation BIGINT`, `requested_at`, `refresh_token_enc NULL` (secretbox `DRIVE_CREDENTIAL_KEY`; upsert giữ token mới nhất — revoke một refresh token gỡ cả quyền của client), `attempt_id NULL`, `attempt_started_at NULL`, `resolved_at NULL`, `last_attempt_started_at NULL`, `last_resolved_at NULL` (bằng chứng, không bị upsert xóa), `attempts`, `last_error`. Chuyển trạng thái ở §5.3b. Token chỉ dùng để revoke, bị xóa khi yêu cầu bị hủy hoặc **xong**. Bảng hạ tầng toàn cục (quyền Google không thuộc tổ chức nào), vào `tenantExemptTables` với lý do "hàng đợi thu hồi theo danh tính Google, dùng chung mọi tổ chức; không chứa nội dung"; query mang `-- tenant: system`.
+`google_sub TEXT PRIMARY KEY`, `generation BIGINT`, `requested_at`, `refresh_token_enc NULL` (secretbox `DRIVE_CREDENTIAL_KEY`; upsert giữ token mới nhất — revoke một refresh token gỡ cả quyền của client), `attempt_id NULL`, `attempt_started_at NULL`, `resolved_at NULL`, `last_attempt_started_at NULL`, `last_resolved_at NULL` (bằng chứng, không bị upsert xóa), `attempts`, `last_error`. Chuyển trạng thái ở §5.3b. Token chỉ dùng để revoke, bị xóa khi yêu cầu bị hủy hoặc **xong**. Bảng hạ tầng toàn cục (quyền Google không thuộc tổ chức nào), vào `tenantExemptTables` với lý do "hàng đợi thu hồi theo danh tính Google, dùng chung mọi tổ chức; không chứa nội dung", nên các query của bảng không mang dòng `-- tenant:` (`TestTenantReasonsSitOnTenantQueries` cấm gắn `-- tenant:` trên bảng không có `organization_id`).
 
 ## 7. Liên kết tài liệu (hàng 2 và 4)
 
