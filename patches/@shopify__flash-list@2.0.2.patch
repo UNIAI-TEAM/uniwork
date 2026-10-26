@@ -1,0 +1,37 @@
+diff --git a/dist/recyclerview/components/StickyHeaders.js b/dist/recyclerview/components/StickyHeaders.js
+index ebd8e0d26f6aada513a1d5b852fc9e4f626d5ca7..52acc0bc8a464c8b7168a83951804b93fc8b3dbb 100644
+--- a/dist/recyclerview/components/StickyHeaders.js
++++ b/dist/recyclerview/components/StickyHeaders.js
+@@ -29,6 +29,12 @@ var StickyHeaders = function (_a) {
+         if (legthInvalid) {
+             return;
+         }
++        // UniChat patch (UNI-2142): the data can grow before the layout manager has laid the new rows out, and
++        // getLayout throws for a row it has no layout for. Wait until the last header is laid out (layouts run
++        // from row 0), which also covers every header the search below reads.
++        if (recyclerViewManager.tryGetLayout(sortedIndices[sortedIndices.length - 1]) === undefined) {
++            return;
++        }
+         var adjustedScrollOffset = recyclerViewManager.getLastScrollOffset();
+         // Binary search for current sticky index
+         var currentIndexInArray = findCurrentStickyIndex(sortedIndices, adjustedScrollOffset, function (index) { return recyclerViewManager.getLayout(index).y; });
+diff --git a/src/recyclerview/components/StickyHeaders.tsx b/src/recyclerview/components/StickyHeaders.tsx
+index 1a90dfabaefc7063a759d3a0ca76532f7eb0dcc2..e82581358b500237039d2e477996e79eb7984254 100644
+--- a/src/recyclerview/components/StickyHeaders.tsx
++++ b/src/recyclerview/components/StickyHeaders.tsx
+@@ -86,6 +86,15 @@ export const StickyHeaders = <TItem,>({
+     if (legthInvalid) {
+       return;
+     }
++    // UniChat patch (UNI-2142): the data can grow before the layout manager has laid the new rows out, and
++    // getLayout throws for a row it has no layout for. Wait until the last header is laid out (layouts run
++    // from row 0), which also covers every header the search below reads.
++    if (
++      recyclerViewManager.tryGetLayout(sortedIndices[sortedIndices.length - 1]) ===
++      undefined
++    ) {
++      return;
++    }
+     const adjustedScrollOffset = recyclerViewManager.getLastScrollOffset();
+ 
+     // Binary search for current sticky index
