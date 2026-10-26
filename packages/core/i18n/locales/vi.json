@@ -5100,6 +5100,14 @@
       "scribeOnFailed": "Chưa bật được Thư ký UNI. Cuộc họp này chưa được ghi lời thoại."
     },
     "panel": {
+      "transcript": {
+        "search": "Tìm trong lời thoại",
+        "latest": "Về mới nhất",
+        "speaking": "đang nói",
+        "becameDecision": "Đã thành quyết định",
+        "newItem": "Việc mới",
+        "newItemOwner": "Việc mới · {{owner}}"
+      },
       "collapse": "Thu gọn bảng",
       "summary": {
         "title": "Tóm tắt đến giờ",
