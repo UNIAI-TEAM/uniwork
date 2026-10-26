@@ -265,8 +265,13 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 /* UNI at work: a blue→violet beam runs the ring (::before, above the surface)
    and a blurred bloom (::after) glows behind the frame. */
 .border-beam-ai {
+  --beam-bloom-alpha: 45%;
   position: relative;
   isolation: isolate;
+}
+/* On a dark surface the glow needs more ink to read (canvas: .55 against .45). */
+.dark .border-beam-ai {
+  --beam-bloom-alpha: 55%;
 }
 .border-beam-ai > * {
   position: relative;
@@ -303,14 +308,15 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   position: absolute;
   inset: -5px;
   z-index: -1;
-  border-radius: inherit;
+  /* The bloom sits 5px outside the frame, so its corners round 6px wider (canvas: 24px on an 18px frame). */
+  border-radius: calc(var(--ai-edge-radius, 18px) + 6px);
   background: conic-gradient(
     from var(--border-beam-angle),
     transparent 0%,
     transparent 56%,
-    color-mix(in oklab, var(--brand) 45%, transparent) 68%,
-    color-mix(in oklab, color-mix(in oklab, var(--brand) 50%, var(--tint-violet-foreground)) 45%, transparent) 76%,
-    color-mix(in oklab, var(--tint-violet-foreground) 40%, transparent) 82%,
+    color-mix(in oklab, var(--brand) var(--beam-bloom-alpha), transparent) 68%,
+    color-mix(in oklab, color-mix(in oklab, var(--brand) 50%, var(--tint-violet-foreground)) var(--beam-bloom-alpha), transparent) 76%,
+    color-mix(in oklab, var(--tint-violet-foreground) calc(var(--beam-bloom-alpha) - 5%), transparent) 82%,
     transparent 92%
   );
   filter: blur(12px);
