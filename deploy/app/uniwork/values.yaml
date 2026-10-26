@@ -219,9 +219,9 @@ meetingAgent:
   terminationGracePeriodSeconds: 14400
   otlpEndpoint: ""
   secrets:
-    livekitApiKey: { name: uniwork-meeting-agent, key: LIVEKIT_API_KEY }
-    livekitApiSecret: { name: uniwork-meeting-agent, key: LIVEKIT_API_SECRET }
-    sttApiKey: { name: uniwork-meeting-agent, key: ASSEMBLYAI_API_KEY }
+    livekitApiKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
+    livekitApiSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
+    sttApiKey: { name: uniwork-assemplyai-api-key, key: ASSEMBLYAI_API_KEY }
   # Egress besides uniwork-be and DNS (NetworkPolicy matches IPs, not names).
   # livekit: every address the agent's LiveKit URL resolves to (and the TURN
   # server, if media relays through one), on the signalling ports and the RTC
