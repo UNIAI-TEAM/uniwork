@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
-	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 func TestBuildDriveOpenURL(t *testing.T) {
@@ -151,6 +153,9 @@ func TestWrapTaskCreateDriveFileErrorAndPermissions(t *testing.T) {
 
 type driveFilesTestEnv struct {
 	*driveTestFixture
+	owner      db.User
+	peer       db.User
+	wsA        db.Workspace
 	googleSrv  *FakeGoogleDriveServer
 	fileSvc    *DriveFileService
 	taskSvc    *TaskService
@@ -160,14 +165,22 @@ type driveFilesTestEnv struct {
 func newDriveFilesTestEnv(t *testing.T) *driveFilesTestEnv {
 	t.Helper()
 	fx := newDriveTestFixture(t)
+	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	peer := registerVerified(t, fx.q, as, "drive-peer-"+util.NewID()+"@example.com", "Peer")
+	addOrgMember(t, fx.q, fx.org.ID, peer.ID)
+	addWorkspaceMember(t, fx.q, fx.work.ID, peer.ID)
+
 	googleSrv := NewFakeGoogleDriveServer(t.Cleanup)
-	fileSvc := NewDriveFileService(fx.pool, fx.q, fx.wsSvc, fx.svc, googleSrv.Client)
-	fileSvc.SetFlags(fx.flags)
-	taskSvc := NewTaskService(fx.pool, fx.q, fx.wsSvc, nil)
+	fileSvc := NewDriveFileService(fx.pool, fx.q, fx.ws, fx.svc, googleSrv.Client)
+	fileSvc.SetFlags(fx.svc.flags)
+	taskSvc := NewTaskService(fx.pool, fx.q, fx.ws, nil)
 	taskSvc.SetDriveFiles(fileSvc)
-	contentSvc := NewDriveContentService(fx.pool, fx.q, fx.wsSvc, fileSvc, fx.svc, googleSrv.Client, nil)
+	contentSvc := NewDriveContentService(fx.pool, fx.q, fx.ws, fileSvc, fx.svc, googleSrv.Client, nil)
 	return &driveFilesTestEnv{
 		driveTestFixture: fx,
+		owner:            fx.user,
+		peer:             peer,
+		wsA:              fx.work,
 		googleSrv:        googleSrv,
 		fileSvc:          fileSvc,
 		taskSvc:          taskSvc,
@@ -175,34 +188,33 @@ func newDriveFilesTestEnv(t *testing.T) *driveFilesTestEnv {
 	}
 }
 
-func (e *driveFilesTestEnv) connectAccount(t *testing.T, userID, wsID, sub, email string) db.DriveConnection {
+func (e *driveFilesTestEnv) connectAccount(t *testing.T, userID, _ string, sub, email string) db.DriveConnection {
 	t.Helper()
-	ctx := context.Background()
-	_, cookie, err := e.svc.StartOAuth(ctx, Human(userID), wsID, "")
+	refEnc, err := e.svc.sealSecret("tok-r-" + sub)
 	if err != nil {
-		t.Fatalf("StartOAuth: %v", err)
+		t.Fatal(err)
 	}
-	state := sealTestState(t, e.svc, userID, e.org.ID, wsID, cookie, "", "")
-	res, err := e.svc.CompleteOAuth(ctx, state, "code-"+sub+":email="+email, cookie)
-	if err != nil || res.Result != DriveOAuthConnected {
-		t.Fatalf("CompleteOAuth(%s, %s) = %+v, err=%v", sub, email, res, err)
+	accEnc, err := e.svc.sealSecret("tok-a-" + sub)
+	if err != nil {
+		t.Fatal(err)
 	}
-	conns, err := e.q.ListDriveConnectionsByUser(ctx, db.ListDriveConnectionsByUserParams{
-		OrganizationID: e.org.ID,
-		UserID:         userID,
+	row, err := e.q.CreateDriveConnection(context.Background(), db.CreateDriveConnectionParams{
+		ID:              util.NewID(),
+		OrganizationID:  e.org.ID,
+		UserID:          userID,
+		Provider:        "google",
+		GoogleSub:       sub,
+		GoogleEmail:     email,
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
 	})
 	if err != nil {
-		t.Fatalf("ListDriveConnectionsByUser: %v", err)
+		t.Fatalf("CreateDriveConnection: %v", err)
 	}
-	for _, c := range conns {
-		if c.GoogleSub == sub {
-			return c
-		}
-	}
-	t.Fatalf("connection for sub %s not found", sub)
-	return db.DriveConnection{}
+	return row
 }
-
 func TestDriveFileLinkTwoMembersNoCrossEmailLeakAndConcurrentRace(t *testing.T) {
 	env := newDriveFilesTestEnv(t)
 	ctx := context.Background()
@@ -216,7 +228,7 @@ func TestDriveFileLinkTwoMembersNoCrossEmailLeakAndConcurrentRace(t *testing.T) 
 			Name:        "Ngân sách 2026",
 			MimeType:    DriveMimeGoogleSheet,
 			WebViewLink: "https://docs.google.com/spreadsheets/d/ext-shared-race/edit",
-			Shared:      true,
+			Shared:      new(true),
 		},
 	})
 
@@ -281,13 +293,8 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 	connB2 := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-b2", "b2@example.com")
 
 	// Make peer a workspace admin so peer can also test admin Rebind.
-	if _, err := env.q.UpdateWorkspaceMemberRole(ctx, db.UpdateWorkspaceMemberRoleParams{
-		WorkspaceID:    env.wsA.ID,
-		UserID:         env.peer.ID,
-		Role:           "admin",
-		OrganizationID: env.org.ID,
-	}); err != nil {
-		t.Fatalf("UpdateWorkspaceMemberRole: %v", err)
+	if _, err := env.ws.UpdateMemberRole(ctx, env.owner.ID, env.wsA.ID, env.peer.ID, "admin"); err != nil {
+		t.Fatalf("UpdateMemberRole: %v", err)
 	}
 
 	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
@@ -563,10 +570,7 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	}
 
 	// Verify flag off returns 404 feature_disabled.
-	offFlags := featureflag.NewService(featureflag.WithStaticFlags(map[string]bool{
-		"drive_connector": false,
-	}))
-	env.fileSvc.SetFlags(offFlags)
+	env.fileSvc.SetFlags(driveConnectorFlags(t, false))
 	_, err = env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
 	if !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
 		t.Fatalf("ListMine with flag off = %v, want 404 feature_disabled", err)
