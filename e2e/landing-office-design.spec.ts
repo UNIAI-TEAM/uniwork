@@ -22,11 +22,13 @@ for (const scenario of scenarios) {
     await page.setViewportSize({ width: scenario.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme });
     const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
+    // No release manifest here: the Download section falls back to the config's installers.
+    await page.route("**/downloads/office/releases.json", route => route.fulfill({ status: 404, body: "" }));
     await gotoLanding(page, "/apps/office");
     await landingReady(page);
     const config = await (await configResponse).json();
-    const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
-      .find((rows: { platform: string }[] | undefined) => rows?.length) ?? [];
+    const published: { platform: string; url: string }[] = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
+      .find((rows: { platform: string; url: string }[] | undefined) => rows?.length) ?? [];
     const hero = page.locator(".office-hero");
     const preview = hero.locator(".office-hero-preview");
     await expect(page.getByRole("tablist")).toHaveCount(1);
@@ -96,8 +98,11 @@ for (const scenario of scenarios) {
     await hero.locator(".office-trial-action").click();
     await expect(page).toHaveURL(/#office-download$/);
     await expect(page.locator("#office-download-title")).toBeInViewport();
-    await expect(page.locator("#office-download a[download]")).toHaveCount(published.length);
-    if (published.length === 0) await expect(page.locator("#office-download .app-dl-message[role=status]")).toBeVisible();
+    // The quiet fallback note, then only published files: the visitor's own system first, the others behind one row.
+    await expect(page.locator("#office-download [role=alert]")).toBeVisible();
+    const links = await page.locator("#office-download a[download]").evaluateAll(anchors => anchors.map(anchor => anchor.getAttribute("href")));
+    for (const link of links) expect(published.map(row => row.url)).toContain(link);
+    if (published.length === 0) expect(links).toEqual([]);
     const closing = page.locator(".final-compact-demo");
     await expect(closing).toHaveText(scenario.locale === "vi" ? vi.landing.office.hero.explore : en.landing.office.hero.explore);
     await closing.click();

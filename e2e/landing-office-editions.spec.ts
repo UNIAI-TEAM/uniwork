@@ -35,6 +35,8 @@ for (const scenario of [
 
 test("Office trial opens a published Windows installer download", async ({ page }) => {
   const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
+  // No release manifest here: the Download section offers the config's installers.
+  await page.route("**/downloads/office/releases.json", route => route.fulfill({ status: 404, body: "" }));
   await gotoLanding(page, "/apps/office");
   await landingReady(page);
   const config = await (await configResponse).json();
@@ -43,8 +45,13 @@ test("Office trial opens a published Windows installer download", async ({ page 
   const installer = published.find((row: { platform: string; url: string }) => row.platform === "win32-x64");
   test.skip(!installer, "This deployment has no published Windows installer.");
   await page.locator(".office-trial-action").click();
-  // The visitor's own system leads as a card, Windows may be a chip: the link is the same file either way.
+  // Windows leads for a Windows visitor; anyone else picks it among "Nền tảng khác". The link is the same file either way.
   const windows = page.locator(`#office-download a[download][href="${installer.url}"]`);
+  await expect(page.locator("#office-download .office-dl-spot, #office-download .office-dl-group").first()).toBeVisible();
+  if (await windows.count() === 0) {
+    await page.locator("#office-download .office-dl-others-trigger").click();
+    await page.locator('#office-download .office-dl-tiles [role=radio][aria-label="Windows"]').click();
+  }
   await expect(windows).toHaveAttribute("href", installer.url);
   const [download] = await Promise.all([page.waitForEvent("download"), windows.click()]);
   expect(download.suggestedFilename()).toBe(decodeURIComponent(new URL(installer.url).pathname.split("/").at(-1)!));
