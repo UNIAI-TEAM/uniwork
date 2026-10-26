@@ -1,7 +1,7 @@
-# 0038 — Google Drive: chỉ tham chiếu, đọc bằng kết nối của chính người yêu cầu
+# 0047 — Google Drive: chỉ tham chiếu, đọc bằng kết nối của chính người yêu cầu
 
-**Trạng thái:** proposed (bản nháp UNI-2172). Người dùng ký duyệt spec ngày 2026-10-26; ADR chuyển ra `docs/adr/` với trạng thái `accepted` ở nhiệm vụ B9 (cùng PR với B3), khi các test giữ luật có mặt. Số 0038 là tạm, đổi nếu ADR khác land trước.
-**Issue:** UNI-2172 (con của UNI-923) · **Liên quan:** [0010](../0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0016](../0016-work-product-la-bounded-context-tai-lieu-la-kho-duy-nhat.md), [0008](../0008-cach-ly-tenant-o-tang-service.md), [0034](../0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (khóa không rời server).
+**Trạng thái:** accepted (2026-10-26, UNI-2172 / UNI-2179). Người dùng ký duyệt spec ngày 2026-10-26; bản nháp đề xuất với số tạm 0038 chuyển ra `docs/adr/` ở nhiệm vụ B9 (cùng PR với B3) và nhận số 0047 vì 0038–0046 đã được dùng trên nhánh gốc.
+**Issue:** UNI-2172 (con của UNI-923) · **Liên quan:** [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0016](0016-work-product-la-bounded-context-tai-lieu-la-kho-duy-nhat.md), [0008](0008-cach-ly-tenant-o-tang-service.md), [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (khóa không rời server).
 
 ## Bối cảnh
 
@@ -33,5 +33,5 @@ Ba chỗ dễ bị "sửa" sai về sau:
 - `TestDriveContentOnlyFromDriveContent` (`server/internal/arch_test.go`): chỉ `server/internal/service/drive_content.go` gọi `files.export` / `alt=media`.
 - `TestDriveProposalOnlyItsRequester` (service): lô đề xuất chỉ người yêu cầu đọc/hủy/tạo được, kể cả trong cùng workspace.
 - `TestAskUniDriveFocusIsNotPersisted` (service): lượt Hỏi UNI có focus `drive_file` không ghi tin nhắn hay trích dẫn.
-- Migration lint: không bảng `drive_*` nào mang cột trỏ tới object storage (`object_key`, `bucket`, `storage_path`).
+- Migration lint (`TestDriveTablesCarryNoObjectStorageColumns`): không bảng `drive_*` nào mang cột trỏ tới object storage (`object_key`, `bucket`, `storage_path`).
 - `TestDriveOfficeExtractWritesNoObject` (service, engine giả): trích DOCX/XLSX/PPTX không xin đích output và không ghi object nào.

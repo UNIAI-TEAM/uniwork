@@ -231,6 +231,9 @@ export function TaskDetailAttachmentsSection({
                       ) : null}
                     </div>
                   </DropdownMenuItem>
+                  <div className="mt-1 border-t border-border px-2.5 pt-2 pb-1 text-caption leading-snug text-muted-foreground">
+                    {t("drive.attach_menu.paste_url_hint")}
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (

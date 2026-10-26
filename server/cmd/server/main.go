@@ -814,6 +814,7 @@ func main() {
 	aiMemorySvc.SetImport(gateway, rdb)
 	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
+	// B4 (UNI-2180) swaps this nil-safe reader for NewDriveContentService once drive_files / drive_file_access land.
 	askUNI.SetDriveContentReader(service.NewDriveUnavailableReader())
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.

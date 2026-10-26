@@ -351,13 +351,22 @@ func TestAskUniTransientValidationBeforeDB(t *testing.T) {
 
 func TestDriveReadErrorNotesUnit(t *testing.T) {
 	for _, err := range []error{
-		ErrDriveAccessRequired, ErrDriveGrantRequired, ErrDriveFileNotAccessible,
-		ErrDriveUnavailable, ErrDriveFormatUnsupported, ErrDriveExtractUnavailable,
+		ErrDriveAccessRequired, ErrDriveGrantRequired, ErrDriveBlockedByWorkspaceAdmin,
+		ErrDriveFileNotAccessible, ErrDriveUnavailable, ErrDriveFormatUnsupported, ErrDriveExtractUnavailable,
 	} {
 		for _, locale := range []string{"vi", "en"} {
 			note, ok := driveReadErrorNote(err, locale)
 			if !ok || note == "" || !strings.Contains(note, err.Error()) {
 				t.Errorf("err %v locale %s: ok=%v note=%q", err, locale, ok, note)
+			}
+		}
+	}
+	for _, code := range []string{"password_required", "corrupted"} {
+		err := CodedError{Status: 422, Code: code, Err: ErrDriveFileUnreadable}
+		for _, locale := range []string{"vi", "en"} {
+			note, ok := driveReadErrorNote(err, locale)
+			if !ok || !strings.Contains(note, code) || strings.Contains(note, "drive_format_unsupported") {
+				t.Errorf("unreadable %s locale %s: ok=%v note=%q", code, locale, ok, note)
 			}
 		}
 	}
