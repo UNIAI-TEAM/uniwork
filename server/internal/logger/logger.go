@@ -27,6 +27,24 @@ func isTerminal(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
+// colorEnabled decides ANSI for the text format. NO_COLOR wins over
+// LOG_COLOR=always. auto is the only mode that consults the terminal bit.
+// An empty LOG_COLOR, "always", and any other value turn colour on, including
+// when stderr is a pipe.
+func colorEnabled(stderrIsTerminal bool) bool {
+	if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_COLOR"))) {
+	case "never":
+		return false
+	case "auto":
+		return stderrIsTerminal
+	default:
+		return true
+	}
+}
+
 // newHandler picks the sink by LOG_FORMAT: json for production (one object
 // per line, trace_id and tenant fields from telemetry), tint text otherwise.
 // Either way the telemetry wrapper stamps trace_id on context-aware lines.
