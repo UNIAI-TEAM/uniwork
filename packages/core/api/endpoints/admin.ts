@@ -229,6 +229,8 @@ export interface AdminBillingQuery {
   q?: string;
   provider?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
   limit?: number;
   offset?: number;
 }
@@ -252,6 +254,8 @@ function billingQueryString(query: AdminBillingQuery = {}): string {
   if (query.q) params.set("q", query.q);
   if (query.provider) params.set("provider", query.provider);
   if (query.status) params.set("status", query.status);
+  if (query.dateFrom) params.set("date_from", query.dateFrom);
+  if (query.dateTo) params.set("date_to", query.dateTo);
   if (query.limit) params.set("limit", String(query.limit));
   if (query.offset) params.set("offset", String(query.offset));
   const qs = params.toString();

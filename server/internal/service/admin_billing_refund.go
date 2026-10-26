@@ -76,7 +76,10 @@ func (s *AdminService) refundInvoiceManual(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	beforeMap := map[string]any{"status": inv.Status, "number": inv.Number, "amount_paid": inv.AmountPaid}
+	beforeMap := map[string]any{
+		"status": inv.Status, "number": inv.Number,
+		"amount_paid": inv.AmountPaid, "amount_refunded": inv.AmountRefunded,
+	}
 	after, err := q.AdminMarkInvoiceRefunded(ctx, db.AdminMarkInvoiceRefundedParams{
 		ID: invoiceID, RefundProviderRef: nullTextOptional(providerRef), RefundReason: textRequired(reason),
 	})
@@ -87,7 +90,12 @@ func (s *AdminService) refundInvoiceManual(
 	if err != nil {
 		return db.Invoice{}, err
 	}
-	afterMap := map[string]any{"status": after.Status, "number": after.Number, "amount_paid": after.AmountPaid}
+	refundAmount := inv.AmountPaid - inv.AmountRefunded
+	afterMap := map[string]any{
+		"status": after.Status, "number": after.Number,
+		"amount_paid": after.AmountPaid, "amount_refunded": after.AmountRefunded,
+		"refund_amount": refundAmount,
+	}
 	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionBillingInvoiceRefunded, "invoice", invoiceID, beforeMap, afterMap, reason); err != nil {
 		return db.Invoice{}, err
 	}
@@ -96,8 +104,11 @@ func (s *AdminService) refundInvoiceManual(
 		Actor:          audit.User(adminID),
 		Action:         audit.ActionBillingInvoiceRefunded,
 		ResourceType:   "invoice", ResourceID: invoiceID,
-		Changes:  audit.Diff(beforeMap, afterMap),
-		Metadata: map[string]any{"reason": reason, "platform_admin": true, "provider": inv.Provider},
+		Changes: audit.Diff(beforeMap, afterMap),
+		Metadata: map[string]any{
+			"reason": reason, "platform_admin": true, "provider": inv.Provider,
+			"refund_amount": refundAmount,
+		},
 	}); err != nil {
 		return db.Invoice{}, err
 	}
@@ -136,8 +147,9 @@ func (s *AdminService) ConfirmInvoiceRefund(ctx context.Context, adminID, invoic
 	q := s.q.WithTx(tx)
 
 	beforeMap := map[string]any{"status": inv.Status, "number": inv.Number, "amount_paid": inv.AmountPaid}
-	after, err := q.AdminConfirmInvoiceRefund(ctx, db.AdminConfirmInvoiceRefundParams{
-		ID: invoiceID, RefundConfirmReason: textRequired(reason),
+	after, err := q.ConfirmInvoiceRefundFromProvider(ctx, db.ConfirmInvoiceRefundFromProviderParams{
+		ID: invoiceID, OrganizationID: inv.OrganizationID,
+		RefundConfirmReason: textRequired(reason),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,

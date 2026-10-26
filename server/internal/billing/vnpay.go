@@ -25,7 +25,6 @@ type VNPayConfig struct {
 	TMNCode    string
 	HashSecret string
 	PaymentURL string
-	IPNURL     string
 	// QueryURL is the merchant querydr/refund endpoint. Empty uses the sandbox default.
 	QueryURL string
 }
@@ -170,9 +169,9 @@ func vnpVerify(params map[string]string, secret, tmnCode string) error {
 	return nil
 }
 
-// vnpEncode matches PHP urlencode (spaces as '+') used in VNPay hash samples.
+// vnpEncode matches PHP urlencode used in VNPay hash samples (QueryEscape writes spaces as '+').
 func vnpEncode(s string) string {
-	return strings.ReplaceAll(url.QueryEscape(s), "%20", "+")
+	return url.QueryEscape(s)
 }
 
 func vnpSign(params map[string]string, secret string) string {

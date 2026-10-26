@@ -44,11 +44,14 @@ func vnpayOrderInfoFromIntent(ctx context.Context, q *db.Queries, intent db.Bill
 }
 
 // vnpayQueryDR calls QueryDr and retries alternate transaction dates when VNPay rejects the first.
-func (s *BillingService) vnpayQueryDR(ctx context.Context, vnp *billing.VNPay, intent db.BillingPaymentIntent, clientIP string) (billing.Event, error) {
+func (s *BillingService) vnpayQueryDR(ctx context.Context, vnp *billing.VNPay, intent db.BillingPaymentIntent, clientIP string) (billing.Event, time.Time, error) {
 	in := s.vnpayQueryDRInput(ctx, s.q, intent, clientIP)
 	ev, err := vnp.QueryTransaction(ctx, in)
-	if err == nil || !billing.IsQueryDRRetryable(err) {
-		return ev, err
+	if err == nil {
+		return ev, in.TransactionDate, nil
+	}
+	if !billing.IsQueryDRRetryable(err) {
+		return ev, in.TransactionDate, err
 	}
 	seen := map[int64]struct{}{in.TransactionDate.Unix(): {}}
 	for _, alt := range vnpayQueryDRAlternateDates(intent, in.TransactionDate) {
@@ -59,10 +62,10 @@ func (s *BillingService) vnpayQueryDR(ctx context.Context, vnp *billing.VNPay, i
 		try := in
 		try.TransactionDate = alt
 		if ev2, err2 := vnp.QueryTransaction(ctx, try); err2 == nil {
-			return ev2, nil
+			return ev2, try.TransactionDate, nil
 		}
 	}
-	return ev, err
+	return ev, in.TransactionDate, err
 }
 
 func vnpayQueryDRAlternateDates(intent db.BillingPaymentIntent, primary time.Time) []time.Time {

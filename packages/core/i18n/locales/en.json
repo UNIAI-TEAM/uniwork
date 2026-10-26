@@ -1093,7 +1093,8 @@
         "downgrade_not_allowed": "You cannot downgrade a paid plan here. Cancel at period end or contact support.",
         "quota_exceeded": "Usage already exceeds the target plan limits. Reduce usage, then try again.",
         "billing_provider_unavailable": "Payment gateway is not configured. Contact an administrator.",
-        "version_conflict": "Someone else just changed the plan. Refresh the page and try again."
+        "version_conflict": "Someone else just changed the plan. Refresh the page and try again.",
+        "cancel_not_available": "This plan has no billing period, so it cannot be canceled here. Contact an administrator to change the plan."
       },
       "action_failed": "The plan could not be changed. Try again in a few minutes.",
       "plans_error": "The plans could not be loaded.",
@@ -1126,7 +1127,10 @@
       "status": {
         "paid": "Paid",
         "open": "Unpaid",
-        "draft": "Draft"
+        "draft": "Draft",
+        "refunded": "Refunded",
+        "refund_pending": "Refund in progress",
+        "partial_refund_pending": "Partial refund pending"
       },
       "provider": {
         "vnpay": "VNPay",
@@ -7907,6 +7911,7 @@
       "refund_vnpay_failed": "VNPay rejected or did not respond.",
       "refund_invoice_number": "Invoice number",
       "refund_amount_label": "Amount paid:",
+      "refund_remaining_label": "Refundable remaining:",
       "refund_amount_full_hint": "Full",
       "refund_amount_partial_hint": "Partial",
       "refund_mode_full": "Full refund",
@@ -9211,7 +9216,7 @@
       ],
       "enterpriseCta": "Explore organization management",
       "pricingTitle": "Start with Starter.",
-      "pricingDescription": "One option for teams exploring UniWork before a wider release.",
+      "pricingDescription": "Free Starter plus paid Team and Business tiers — limits and prices match the in-app catalog.",
       "solutionLabel": "Solutions",
       "resourcesLabel": "Get started and learn"
     },
@@ -10431,21 +10436,33 @@
       "ent4": "SCIM and data retention policy"
     },
     "pricing": {
-      "title": "Start together with Starter.",
-      "sub": "The current plan for teams exploring UniWork before its wider release.",
-      "planName": "Starter",
-      "planPrice": "Free",
-      "planDesc": "The default plan at this stage",
-      "quotasLabel": "Usage categories tracked by the platform",
-      "q1": "Organization members",
-      "q2": "Workspaces",
-      "q3": "Meeting participant minutes",
-      "q4": "Meeting recording",
-      "q5": "AI meeting summary",
-      "q6": "AI tokens",
-      "q7": "Storage",
-      "q8": "SSO sign-in",
-      "status": "Commercial plans and limits are being finalized. This is not a commitment to permanently unlimited free usage.",
+      "title": "Three plans for every team size.",
+      "sub": "Start free with clear limits; upgrade when you need more members, meetings, and AI.",
+      "p1": {
+        "name": "Starter",
+        "price": "Free",
+        "desc": "Up to 5 members and 2 workspaces — for trials and small teams."
+      },
+      "p2": {
+        "name": "Team",
+        "price": "499,000 VND / month",
+        "desc": "Up to 30 members, meeting recording, public document links, and 2M AI tokens per month."
+      },
+      "p3": {
+        "name": "Business",
+        "price": "1,499,000 VND / month",
+        "desc": "Up to 150 members, SSO, and higher storage and meeting minutes for growing organizations."
+      },
+      "quotasLabel": "Starter limits (default when you sign up)",
+      "q1": "5 organization members",
+      "q2": "2 workspaces",
+      "q3": "200 tasks",
+      "q4": "3,000 meeting participant minutes",
+      "q5": "Meeting recording and AI summary (by plan)",
+      "q6": "100,000 AI tokens",
+      "q7": "5 GB storage",
+      "q8": "Public document links (SSO on paid Business only)",
+      "status": "Prices and limits match the in-app catalog; after sign-up you can upgrade and pay through VNPay.",
       "cta": "Create a workspace"
     },
     "final": {
@@ -10946,7 +10963,7 @@
       "pricing": {
         "viewPlan": "See Starter",
         "checkTitle": "Understand today. Confirm what comes next.",
-        "checkDescription": "Compare the current plan, AI configuration and deployment needs. Commercial pricing and fixed limits have not been published.",
+        "checkDescription": "Compare Starter, Team and Business with your deployment needs, AI setup and team size.",
         "enterpriseLink": "Explore enterprise foundations",
         "closing": "Explore UniWork with Starter.",
         "rows": [

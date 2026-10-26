@@ -12,30 +12,9 @@ import (
 
 const billingIntentMetaBackfillBatch = int32(10)
 
-func vnpayProviderMetaFromEvent(ev billing.Event) (bankCode, txnNo string) {
-	if ev.RawParams == nil {
-		return "", ""
-	}
-	return strings.TrimSpace(ev.RawParams["vnp_BankCode"]), strings.TrimSpace(ev.RawParams["vnp_TransactionNo"])
-}
-
-func markIntentCompletedParams(intentID, orgID, bankCode, txnNo string, ev billing.Event) db.MarkBillingPaymentIntentCompletedParams {
-	p := db.MarkBillingPaymentIntentCompletedParams{
-		ID: intentID, OrganizationID: orgID,
-	}
-	if bankCode != "" {
-		p.ProviderBankCode = pgtype.Text{String: bankCode, Valid: true}
-	}
-	if txnNo != "" {
-		p.ProviderTransactionNo = pgtype.Text{String: txnNo, Valid: true}
-	}
-	_, _, orderInfo, payDate := vnpayMetaFromProviderEvent(ev)
-	if orderInfo.Valid {
-		p.ProviderOrderInfo = orderInfo
-	}
-	if payDate.Valid {
-		p.ProviderPayDate = payDate
-	}
+func markIntentCompletedParams(intentID, orgID string, ev billing.Event) db.MarkBillingPaymentIntentCompletedParams {
+	p := db.MarkBillingPaymentIntentCompletedParams{ID: intentID, OrganizationID: orgID}
+	p.ProviderBankCode, p.ProviderTransactionNo, p.ProviderOrderInfo, p.ProviderPayDate = vnpayMetaFromProviderEvent(ev)
 	return p
 }
 
@@ -80,7 +59,7 @@ func (s *BillingService) ProcessIntentProviderMetaBackfill(ctx context.Context) 
 	if !ok {
 		return nil
 	}
-	rows, err := s.q.ListCompletedBillingIntentsMissingProviderMeta(ctx, billingIntentMetaBackfillBatch)
+	rows, err := s.q.ClaimCompletedBillingIntentsMissingProviderMeta(ctx, billingIntentMetaBackfillBatch)
 	if err != nil {
 		return err
 	}
@@ -93,7 +72,7 @@ func (s *BillingService) ProcessIntentProviderMetaBackfill(ctx context.Context) 
 			ProviderTxnRef: row.ProviderTxnRef, ProviderOrderInfo: row.ProviderOrderInfo,
 			ProviderPayDate: row.ProviderPayDate, CreatedAt: row.CreatedAt, CompletedAt: row.CompletedAt,
 		}
-		ev, err := s.vnpayQueryDR(ctx, vnp, intent, "")
+		ev, _, err := s.vnpayQueryDR(ctx, vnp, intent, "")
 		if err != nil {
 			s.billingLogWarn("billing intent meta backfill querydr", err, "intent_id", row.ID)
 			continue

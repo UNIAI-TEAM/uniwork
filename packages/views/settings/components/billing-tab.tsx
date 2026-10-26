@@ -86,8 +86,14 @@ function graceEnd(periodEnd: string | undefined): string | undefined {
  * (or priced on request) that is not the default everyone falls back to.
  * Stopping the free default plan would move the organization to itself.
  */
-function cancellable(plan: Plan | undefined): boolean {
-  return plan !== undefined && !plan.is_default && plan.price_amount !== 0;
+function cancellable(plan: Plan | undefined, periodEnd: string | undefined): boolean {
+  return (
+    plan !== undefined &&
+    !plan.is_default &&
+    plan.price_amount !== 0 &&
+    periodEnd !== undefined &&
+    periodEnd !== ""
+  );
 }
 
 export function BillingTab() {
@@ -194,7 +200,6 @@ export function BillingTab() {
         const url = await checkout.mutateAsync({
           plan_code: plan.code,
           success_path: `${base}&checkout=success`,
-          cancel_path: `${base}&checkout=cancel`,
         });
         if (url) {
           saveCheckoutBaseline(orgId, sub);
@@ -386,7 +391,7 @@ export function BillingTab() {
         {plansBody}
       </SettingsSection>
 
-      {canManage.allowed && !sub.cancel_at && cancellable(currentPlan) ? (
+      {canManage.allowed && !sub.cancel_at && cancellable(currentPlan, sub.current_period_end) ? (
         <SettingsDangerZone title={t("cancel_section")} description={t("cancel_description")}>
           <SettingsRow label={t("cancel_label")} description={t("cancel_hint")} size="none">
             <div className="flex justify-start sm:justify-end">

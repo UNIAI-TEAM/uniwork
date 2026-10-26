@@ -35,10 +35,10 @@ function quantity(n: number, unit: string | undefined, locale: string, t: Transl
   };
 }
 
-/** Same thresholds the server notifies at (80 %, 100 %). */
-function meterTone(percent: number): { bar: string; badge: "destructive" | "warning" | null } {
-  if (percent >= 100) return { bar: "bg-destructive", badge: "destructive" };
-  if (percent >= 80) return { bar: "bg-warning", badge: "warning" };
+/** Same thresholds the server notifies at (80 %, 100 % — used >= limit, not rounded display). */
+function meterTone(used: number, limit: number): { bar: string; badge: "destructive" | "warning" | null } {
+  if (limit > 0 && used >= limit) return { bar: "bg-destructive", badge: "destructive" };
+  if (limit > 0 && used / limit >= 0.8) return { bar: "bg-warning", badge: "warning" };
   return { bar: "bg-primary", badge: null };
 }
 
@@ -77,13 +77,15 @@ export function QuotaMeterRow({
     );
   }
 
-  const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
+  const atLimit = limit > 0 && used >= limit;
+  const barPercent = limit > 0 ? Math.min(100, (used / limit) * 100) : 100;
+  const ariaPercent = Math.min(100, Math.round(barPercent));
   const remaining = Math.max(0, limit - used);
-  const tone = meterTone(percent);
+  const tone = meterTone(used, limit);
   const usedQ = quantity(used, unit, locale, t);
   const limitQ = quantity(limit, unit, locale, t);
   const usedText = t("usage_of", { used: usedQ.amount, limit: limitQ.amount, unit: limitQ.unit }).trim();
-  const remainingText = percent >= 100 ? t("usage_full") : t("usage_remaining", { n: quantity(remaining, unit, locale, t).amount });
+  const remainingText = atLimit ? t("usage_full") : t("usage_remaining", { n: quantity(remaining, unit, locale, t).amount });
 
   return (
     <SettingsRow label={label} description={description} size="none">
@@ -104,11 +106,11 @@ export function QuotaMeterRow({
           aria-label={label}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={percent}
+          aria-valuenow={ariaPercent}
           aria-valuetext={usedText}
           className="h-2 w-full overflow-hidden rounded-full bg-muted"
         >
-          <div className={cn("h-full rounded-full transition-[width]", tone.bar)} style={{ width: `${percent}%` }} />
+          <div className={cn("h-full rounded-full transition-[width]", tone.bar)} style={{ width: `${barPercent}%` }} />
         </div>
       </div>
     </SettingsRow>
