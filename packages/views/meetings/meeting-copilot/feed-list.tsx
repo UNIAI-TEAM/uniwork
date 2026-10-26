@@ -13,8 +13,9 @@ import { FeedKindMark } from "./feed-filter-chips";
 
 type MemberOf = ReturnType<typeof useMemberIndex>["memberOf"];
 
-// 44px tall on touch through ::after; the small chip or time alone is too small a tap.
-const TOUCH = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
+// A 44px-tall target on touch through ::after, whatever the control's own height.
+const TOUCH =
+  "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2";
 
 /**
  * What the meeting produced, as the UNI tab's feed: one row per entry in the
@@ -108,7 +109,7 @@ function FeedRow({
         {recording ? (
           <button
             type="button"
-            className="text-body font-medium text-foreground hover:underline"
+            className={`${TOUCH} text-body font-medium text-foreground hover:underline`}
             onClick={() => onPlay(recording.id)}
           >
             {t("meetings.panel.feed.playRecording")}
@@ -161,11 +162,14 @@ function TaskMeta({
   onEditItem: (itemId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
-  // A converted item is the task's now: its assignee and due date, not the suggestion's.
-  const member = memberOf(item.task ? item.task.assignee_id : item.suggested_assignee_id);
-  const name = member?.display_name || item.owner_text?.trim() || null;
-  const dueDate = item.task ? item.task.due_date : item.suggested_due_date;
-  const due = item.due_text?.trim() || (dueDate ? formatDueDate(dueDate, meetingLocale(i18n.language)) : null);
+  const locale = meetingLocale(i18n.language);
+  const task = item.task;
+  // A converted item is the task's now: only its assignee and due date, never what was said or suggested.
+  const member = memberOf(task ? task.assignee_id : item.suggested_assignee_id);
+  const name = member?.display_name || (task ? null : item.owner_text?.trim()) || null;
+  const dueDate = task ? task.due_date : item.suggested_due_date;
+  const formatted = dueDate ? formatDueDate(dueDate, locale) : null;
+  const due = task ? formatted : item.due_text?.trim() || formatted;
   const addDue = !due && canClerk && item.status === "PENDING";
   if (!name && !due && !addDue) return null;
   return (

@@ -45,7 +45,7 @@ const chipClass = (active: boolean) =>
 
 /**
  * The UNI feed's kind filter: All, then one chip per kind that has entries,
- * each its mark and count. A kind with nothing in it has no chip.
+ * each its mark and count. A kind with nothing in it has no chip unless it is the chosen one.
  */
 export function FeedFilterChips({
   counts,
@@ -69,7 +69,8 @@ export function FeedFilterChips({
         {t("meetings.panel.filters.all")}
         <span className="opacity-70">{counts.all}</span>
       </button>
-      {KINDS.filter((kind) => counts[kind] > 0).map((kind) => (
+      {/* The chosen kind keeps its chip at 0, so the pressed state never vanishes. */}
+      {KINDS.filter((kind) => counts[kind] > 0 || value === kind).map((kind) => (
         <button
           key={kind}
           type="button"

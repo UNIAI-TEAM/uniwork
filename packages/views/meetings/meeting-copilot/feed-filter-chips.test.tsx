@@ -38,6 +38,12 @@ describe("FeedFilterChips", () => {
     expect(onChange).toHaveBeenCalledWith("decision");
   });
 
+  it("keeps the chosen kind's chip, pressed, when its count drops to 0", () => {
+    render(wrap(<FeedFilterChips counts={counts} value="note" onChange={() => {}} />));
+    expect(screen.getByRole("button", { name: "Ghi chú, 0" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /^Bản ghi/ })).toBeNull();
+  });
+
   it("keeps All when the feed is empty", () => {
     render(wrap(<FeedFilterChips counts={countFeed([])} value="all" onChange={() => {}} />));
     expect(screen.getAllByRole("button")).toHaveLength(1);

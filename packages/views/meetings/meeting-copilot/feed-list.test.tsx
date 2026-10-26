@@ -131,6 +131,25 @@ describe("MeetingFeedList", () => {
     expect(props.onEditItem).toHaveBeenCalledWith("a2");
   });
 
+  it("shows a converted item's task as it is now, not what was said or suggested", async () => {
+    const said = { owner_text: "anh Tuấn", due_text: "thứ Sáu", suggested_assignee_id: "u-tuan", suggested_due_date: "2026-10-30" };
+    const { rows } = setup({
+      canClerk: true,
+      entries: [
+        // 2026-11-02 is a Monday.
+        task(item("c1", { ...said, status: "CONVERTED", task: { id: "t1", title: "Việc c1", assignee_id: "u-mai", due_date: "2026-11-02" } } as Partial<MeetingActionItem>), at(10, 50)),
+        task(item("c2", { ...said, status: "CONVERTED", task: { id: "t2", title: "Việc c2", assignee_id: null, due_date: null } } as Partial<MeetingActionItem>), at(10, 49)),
+      ],
+    });
+    expect(await within(rows[0]!).findByText("Mai Anh")).toBeInTheDocument();
+    expect(rows[0]).toHaveTextContent("Thứ Hai");
+    expect(rows[0]).not.toHaveTextContent("thứ Sáu");
+    expect(rows[0]).not.toHaveTextContent("anh Tuấn");
+    // Unassigned and undated: no owner, no due chip, and no "+ Due" since the item is no longer pending.
+    expect(rows[1]).toHaveTextContent(/^Việc c210:49$/);
+    expect(within(rows[1]!).queryByRole("button", { name: "+ Hạn" })).toBeNull();
+  });
+
   it("plays a finished recording in the recording dialog", async () => {
     const { rows } = setup();
     fireEvent.click(within(rows[5]!).getByRole("button", { name: "Phát bản ghi" }));
