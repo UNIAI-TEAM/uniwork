@@ -4,7 +4,6 @@ import { useId, useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Hand, Search, UserPlus, UserRoundCheck } from "lucide-react";
-import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
@@ -22,7 +21,7 @@ import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingSharedMicMenuItem } from "./meeting-shared-mic-menu-item";
-import { useRoomAvatarOf } from "./meeting-room-avatars";
+import { useRoomAvatarOf, useRoomTintOf } from "./meeting-room-avatars";
 import {
   guestIdentities,
   humanParticipants,
@@ -95,6 +94,7 @@ export function MeetingRoomPeopleTab({
   const roomHeadingId = useId();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
+  const tintOf = useRoomTintOf();
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -230,7 +230,7 @@ export function MeetingRoomPeopleTab({
                     <MeetingPersonAvatar
                       name={displayName(participant)}
                       avatarUrl={avatarOf(participant.identity)}
-                      tint={identityTint(participant.identity)}
+                      tint={tintOf(participant.identity)}
                       size={30}
                     />
                     <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">

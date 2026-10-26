@@ -32,6 +32,7 @@ vi.mock("./use-meeting-signals", () => ({
 vi.mock("./meeting-room-avatars", () => ({
   MeetingRoomAvatarsProvider: ({ children }: { children: ReactNode }) => children,
   useRoomAvatarOf: () => () => undefined,
+  useRoomTintOf: () => () => "gray",
 }));
 vi.mock("./meeting-room-sidebar", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./meeting-room-sidebar")>()),

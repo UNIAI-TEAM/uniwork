@@ -5,7 +5,6 @@ import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
 import { Eye, EyeOff, Lock, Mic, MicOff, EllipsisVertical, Pin, PinOff } from "lucide-react";
-import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -17,6 +16,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomTintOf } from "./meeting-room-avatars";
 import { MeetingRoleChip } from "./meeting-role-chip";
 import type { MeetingParticipantRole } from "./meeting-signals";
 import { MeetingModerationMenuItems, useMicLocked } from "./meeting-moderation";
@@ -65,6 +65,7 @@ export function MeetingParticipantRow({
 }) {
   const { t } = useTranslation();
   const speaking = useIsSpeaking(participant);
+  const tintOf = useRoomTintOf();
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
   const micLocked = useMicLocked(participant);
   const pinParticipant = useMeetingViewSessionStore((s) => s.pinParticipant);
@@ -86,7 +87,7 @@ export function MeetingParticipantRow({
       <MeetingPersonAvatar
         name={name}
         avatarUrl={avatarUrl}
-        tint={identityTint(participant.identity)}
+        tint={tintOf(participant.identity)}
         size={30}
         // The gap between face and ring is the row's own colour, at rest, pinned and hovered, so it never halos.
         className={cn(

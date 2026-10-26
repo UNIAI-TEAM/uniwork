@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useMeetingChat, useOlderMeetingChat } from "@uniwork/core/meetings";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -12,12 +12,11 @@ import { toastApiError } from "../toast-api-error";
 import { linkify } from "../chat/chat-message-body";
 import { CHAT_BUBBLE_OWN } from "../chat/chat-message-row";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
-import { senderNameClass } from "../chat/sender-colors";
 import { INPUT_TYPE, ROUND } from "./composer-classes";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
-import { useRoomAvatarOf } from "./meeting-room-avatars";
+import { useRoomAvatarOf, useRoomTintOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
@@ -91,6 +90,7 @@ function MeetingRoomChatView({
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
   const avatarOf = useRoomAvatarOf();
+  const tintOf = useRoomTintOf();
   const listRef = useRef<HTMLOListElement>(null);
   const sendLock = useRef(false);
   // Follow new messages only while the reader is at the bottom; someone who
@@ -198,7 +198,7 @@ function MeetingRoomChatView({
                   <MeetingPersonAvatar
                     name={group.fromName}
                     avatarUrl={avatarOf(group.fromIdentity)}
-                    tint={identityTint(group.fromIdentity)}
+                    tint={tintOf(group.fromIdentity)}
                     size={28}
                   />
                 )}
@@ -216,7 +216,7 @@ function MeetingRoomChatView({
                       <span
                         className={cn(
                           "min-w-0 truncate text-caption font-semibold",
-                          senderNameClass(group.fromIdentity, group.isLocal),
+                          group.isLocal ? "text-brand" : tintForegroundClass[tintOf(group.fromIdentity)],
                         )}
                       >
                         {group.fromName}

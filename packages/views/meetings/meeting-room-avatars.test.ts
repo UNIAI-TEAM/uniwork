@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingParticipant } from "@uniwork/core/types";
-import { roomAvatarIndex } from "./meeting-room-avatars";
+import { roomAvatarIndex, roomUserIndex } from "./meeting-room-avatars";
 
 function participant(id: string, userId?: string): MeetingParticipant {
   return {
@@ -30,5 +30,14 @@ describe("roomAvatarIndex", () => {
     expect(avatarOf("uw_participant_g1")).toBeUndefined();
     expect(avatarOf("p1")).toBeUndefined();
     expect(avatarOf(undefined)).toBeUndefined();
+  });
+});
+
+describe("roomUserIndex", () => {
+  it("maps a member's LiveKit identity to their user, the key every room face tints by; a guest has none", () => {
+    const userOf = roomUserIndex([participant("p1", "u1"), participant("g1")]);
+    expect(userOf("uw_participant_p1")).toBe("u1");
+    expect(userOf("uw_participant_g1")).toBeUndefined();
+    expect(userOf(null)).toBeUndefined();
   });
 });

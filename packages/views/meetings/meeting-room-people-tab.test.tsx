@@ -26,6 +26,7 @@ vi.mock("./use-meeting-signals", () => ({
 }));
 vi.mock("./meeting-room-avatars", () => ({
   useRoomAvatarOf: () => () => undefined,
+  useRoomTintOf: () => () => "gray",
   useUserAvatarOf: () => () => undefined,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

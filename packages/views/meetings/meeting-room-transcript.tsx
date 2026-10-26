@@ -2,19 +2,18 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Check, Search, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useOlderTranscript } from "@uniwork/core/meetings";
 import type { SegmentLink } from "@uniwork/core/meetings/feed";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { formatMessageTime } from "../chat/chat-message-time";
-import { senderNameClass } from "../chat/sender-colors";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
-import { useRoomAvatarOf } from "./meeting-room-avatars";
+import { useRoomAvatarOf, useRoomTintOf } from "./meeting-room-avatars";
 import { PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
 import { TOUCH_TARGET } from "./touch-target";
 import { transcriptSpeaker } from "./transcript/transcript-speaker";
@@ -281,6 +280,7 @@ function LiveSpeakerGroup({ spokenAt, ...props }: GroupProps & { spokenAt: strin
 const SpeakerGroup = memo(function SpeakerGroup({ group, links, flash, onOpenLink, speaking = false }: GroupProps & { speaking?: boolean }) {
   const { t, i18n } = useTranslation();
   const avatarOf = useRoomAvatarOf();
+  const tintOf = useRoomTintOf();
   const { identity, name, lines } = group;
   const ms = Date.parse(lines[0]!.segment.spoken_at);
   const time = Number.isFinite(ms) ? formatMessageTime(ms, meetingLocale(i18n.language)) : null;
@@ -296,13 +296,13 @@ const SpeakerGroup = memo(function SpeakerGroup({ group, links, flash, onOpenLin
         <MeetingPersonAvatar
           name={name}
           avatarUrl={identity ? avatarOf(identity) : undefined}
-          tint={identity ? identityTint(identity) : undefined}
+          tint={identity ? tintOf(identity) : undefined}
           size={28}
         />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className={cn("truncate text-label font-semibold", identity ? senderNameClass(identity, false) : "text-foreground")}>
+          <span className={cn("truncate text-label font-semibold", identity ? tintForegroundClass[tintOf(identity)] : "text-foreground")}>
             {name}
           </span>
           {speaking ? (
