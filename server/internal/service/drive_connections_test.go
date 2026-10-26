@@ -2063,14 +2063,24 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	ctx := context.Background()
 	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
+	var workerLeaked bool
 	resetPart1Hooks := func() {
+		if workerLeaked {
+			return
+		}
 		fx.svc.testBeforeDisconnectRow = nil
 		testAfterHelperFirstDriveSub = nil
 	}
 	resetPart2Hooks := func() {
+		if workerLeaked {
+			return
+		}
 		testAfterCloseOrgRowLock = nil
 	}
 	resetPart3Hooks := func() {
+		if workerLeaked {
+			return
+		}
 		testAfterLifecycleGrantLocks = nil
 	}
 	joinWorker := func(done <-chan struct{}, label string) {
@@ -2078,6 +2088,7 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		select {
 		case <-done:
 		case <-time.After(15 * time.Second):
+			workerLeaked = true
 			t.Fatalf("timed out joining worker %s after context cancel and barrier release; leaving hooks untouched to avoid data race", label)
 		}
 	}
@@ -2207,17 +2218,18 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	var startedDisc, startedLeave bool
 	var joinedPart1 bool
 	t.Cleanup(func() {
+		if joinedPart1 {
+			return
+		}
 		cancelPart1()
 		safeReleaseDisc()
-		if !joinedPart1 {
-			if startedDisc {
-				joinWorker(discDone, "Part 1 Disconnect")
-			}
-			if startedLeave {
-				joinWorker(leaveDone, "Part 1 Leave")
-			}
-			joinedPart1 = true
+		if startedDisc {
+			joinWorker(discDone, "Part 1 Disconnect")
 		}
+		if startedLeave {
+			joinWorker(leaveDone, "Part 1 Leave")
+		}
+		joinedPart1 = true
 		resetPart1Hooks()
 	})
 	startedDisc = true
@@ -2358,17 +2370,18 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	var startedCycleA, startedCycleB bool
 	var joinedPart2 bool
 	t.Cleanup(func() {
+		if joinedPart2 {
+			return
+		}
 		cancelPart2()
 		safeReleaseA()
-		if !joinedPart2 {
-			if startedCycleA {
-				joinWorker(cycleADone, "Part 2 userCycleA DeleteAccount")
-			}
-			if startedCycleB {
-				joinWorker(cycleBDone, "Part 2 userCycleB DeleteAccount")
-			}
-			joinedPart2 = true
+		if startedCycleA {
+			joinWorker(cycleADone, "Part 2 userCycleA DeleteAccount")
 		}
+		if startedCycleB {
+			joinWorker(cycleBDone, "Part 2 userCycleB DeleteAccount")
+		}
+		joinedPart2 = true
 		resetPart2Hooks()
 	})
 	startedCycleA = true
@@ -2517,17 +2530,18 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	var startedAcceptB, startedDelX bool
 	var joinedPart3 bool
 	t.Cleanup(func() {
+		if joinedPart3 {
+			return
+		}
 		cancelPart3()
 		safeReleaseB()
-		if !joinedPart3 {
-			if startedAcceptB {
-				joinWorker(acceptDone, "Part 3 joinerB AcceptInvite")
-			}
-			if startedDelX {
-				joinWorker(delXDone, "Part 3 ownerX DeleteAccount")
-			}
-			joinedPart3 = true
+		if startedAcceptB {
+			joinWorker(acceptDone, "Part 3 joinerB AcceptInvite")
 		}
+		if startedDelX {
+			joinWorker(delXDone, "Part 3 ownerX DeleteAccount")
+		}
+		joinedPart3 = true
 		resetPart3Hooks()
 	})
 	startedAcceptB = true
