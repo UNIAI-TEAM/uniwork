@@ -1,0 +1,33 @@
+$ tail -n 60 /tmp/pr9r1-server.log /tmp/pr9r1-web.log; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; true
+==> /tmp/pr9r1-server.log <==
+10:23:51.932 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+10:23:51.932 INF local storage adapter ready dir=/tmp/uniwork-uploads
+10:23:51.936 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/26 10:23:51 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+10:23:51.938 INF mail: log mode, messages are printed component=server
+10:23:51.938 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+10:23:51.938 INF ai gateway enabled component=server provider=fake
+10:23:52.836 INF listening component=server port=19180 swagger=http://localhost:19180/swagger/index.html
+10:23:52.836 INF mail: outbox worker started component=server tick=5s
+10:25:38.792 WRN http request method=POST path=/api/v1/auth/refresh status=401 duration=1.056ms request_id=cursor/1PljNTYOl8-000004 correlation_id=ab947841ff937a48b514c605ac8bd3d2 trace_id=ab947841ff937a48b514c605ac8bd3d2 span_id=961213ddb786c409
+10:25:38.811 INF http request method=GET path=/api/v1/config status=200 duration=5.319ms request_id=cursor/1PljNTYOl8-000006 correlation_id=b2eba296fa516e5f03706cb879cd64c8 trace_id=b2eba296fa516e5f03706cb879cd64c8 span_id=3cf37751e555667e
+10:25:38.860 INF http request method=GET path=/api/v1/config status=200 duration=501µs request_id=cursor/1PljNTYOl8-000007 correlation_id=ac23bf011a9c5858a2eb3aa6b8355981 trace_id=ac23bf011a9c5858a2eb3aa6b8355981 span_id=6ee5059771906185
+10:25:40.807 INF http request method=GET path=/api/v1/config status=200 duration=613µs request_id=cursor/1PljNTYOl8-000009 correlation_id=ea5743a7713a4055c2dc5d96761dc426 trace_id=ea5743a7713a4055c2dc5d96761dc426 span_id=6394fa8c1f166df5
+
+==> /tmp/pr9r1-web.log <==
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::14100
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 14100
+}
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1

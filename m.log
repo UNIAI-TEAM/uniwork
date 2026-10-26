@@ -1,0 +1,13 @@
+$ rc=$(cat /tmp/pr9r1-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr9r1-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr9r1-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr9r1-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+
+> @uniwork/e2e@0.0.0 test /workspace/e2e
+> playwright test --reporter=list --shard=4/8
+
+
+Running 56 tests using 1 worker, shard 4 of 8
+
+(node:47472) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+no passing test
+
+E2E_EXIT=1
