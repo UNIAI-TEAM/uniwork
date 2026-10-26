@@ -88,7 +88,11 @@ export function MeetingParticipantRow({
         avatarUrl={avatarUrl}
         tint={identityTint(participant.identity)}
         size={30}
-        className={cn(speaking && "ring-2 ring-success/60 ring-offset-2 ring-offset-background")}
+        // The gap between face and ring is the row's own colour, at rest, pinned and hovered, so it never halos.
+        className={cn(
+          speaking && "ring-2 ring-success/60 ring-offset-2 ring-offset-surface group-hover:ring-offset-surface-hover",
+          speaking && pinned && "ring-offset-surface-selected",
+        )}
       />
 
       <p className="flex min-w-0 flex-1 items-center gap-1.5 text-body font-medium text-foreground">

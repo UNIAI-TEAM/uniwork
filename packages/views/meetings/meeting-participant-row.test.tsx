@@ -120,11 +120,24 @@ describe("MeetingParticipantRow", () => {
     expect(screen.getByText("Thư ký")).toBeInTheDocument();
   });
 
+  it("paints a pinned speaker's ring gap in the pinned row's colour", () => {
+    livekit.speaking = true;
+    try {
+      const { container } = render(<MeetingParticipantRow participant={fakeParticipant()} pinned />);
+      const face = container.querySelector('[data-slot="avatar"]');
+      expect(face).toHaveClass("ring-offset-surface-selected", "group-hover:ring-offset-surface-hover");
+      expect(face).not.toHaveClass("ring-offset-surface");
+    } finally {
+      livekit.speaking = false;
+    }
+  });
+
   it("rings a speaker's face and shows a muted mic in red", () => {
     livekit.speaking = true;
     try {
       const { container } = render(<MeetingParticipantRow participant={fakeParticipant()} />);
-      expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-2", "ring-success/60");
+      expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-2", "ring-success/60", "ring-offset-surface", "group-hover:ring-offset-surface-hover");
+      expect(container.querySelector('[data-slot="avatar"]')).not.toHaveClass("ring-offset-background");
       expect(screen.getByRole("img", { name: "Đang nói" })).toBeInTheDocument();
     } finally {
       livekit.speaking = false;
