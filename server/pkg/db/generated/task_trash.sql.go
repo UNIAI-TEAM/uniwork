@@ -243,8 +243,10 @@ WHERE organization_id = $1
   AND trashed_at IS NOT NULL
   AND ($3::timestamptz IS NULL
        OR (trashed_at, id) < ($3, $4::text))
+  AND ($5::text IS NULL OR title ILIKE '%' || $5 || '%')
+  AND ($6::text IS NULL OR trashed_by = $6)
 ORDER BY trashed_at DESC, id DESC
-LIMIT $5
+LIMIT $7
 `
 
 type ListProjectTrashPageParams struct {
@@ -252,6 +254,8 @@ type ListProjectTrashPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	BeforeTrashedAt pgtype.Timestamptz `json:"before_trashed_at"`
 	BeforeID        pgtype.Text        `json:"before_id"`
+	Query           pgtype.Text        `json:"query"`
+	TrashedBy       pgtype.Text        `json:"trashed_by"`
 	MaxRows         int32              `json:"max_rows"`
 }
 
@@ -261,6 +265,8 @@ func (q *Queries) ListProjectTrashPage(ctx context.Context, arg ListProjectTrash
 		arg.WorkspaceID,
 		arg.BeforeTrashedAt,
 		arg.BeforeID,
+		arg.Query,
+		arg.TrashedBy,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -378,8 +384,10 @@ WITH RECURSIVE page AS (
     )
     AND ($3::timestamptz IS NULL
          OR (t.trashed_at, t.id) < ($3, $4::text))
+    AND ($5::text IS NULL OR t.title ILIKE '%' || $5 || '%')
+    AND ($6::text IS NULL OR t.trashed_by = $6)
   ORDER BY t.trashed_at DESC, t.id DESC
-  LIMIT $5
+  LIMIT $7
 ),
 sub AS (
   SELECT pg.id AS root_id, pg.id AS id, pg.trash_batch_id AS trash_batch_id
@@ -394,9 +402,15 @@ sub AS (
 sizes AS (
   SELECT root_id, count(*)::bigint AS batch_size FROM sub GROUP BY root_id
 )
-SELECT pg.id, pg.workspace_id, pg.title, pg.description, pg.status, pg.priority, pg.assignee_id, pg.due_date, pg.position, pg.created_by, pg.created_at, pg.updated_at, pg.kind, pg.created_by_kind, pg.assignee_kind, pg.organization_id, pg.number, pg.project_id, pg.parent_task_id, pg.assignee_type, pg.creator_type, pg.creator_id, pg.acceptance_criteria, pg.context_refs, pg.metadata, pg.properties, pg.start_date, pg.stage, pg.origin_type, pg.origin_id, pg.first_executed_at, pg.revision, pg.last_activity_at, pg.start_at, pg.due_at, pg.trashed_at, pg.trashed_by, pg.purge_after, pg.trash_batch_id, pg.trashed_project_id, z.batch_size
+SELECT pg.id, pg.workspace_id, pg.title, pg.description, pg.status, pg.priority, pg.assignee_id, pg.due_date, pg.position, pg.created_by, pg.created_at, pg.updated_at, pg.kind, pg.created_by_kind, pg.assignee_kind, pg.organization_id, pg.number, pg.project_id, pg.parent_task_id, pg.assignee_type, pg.creator_type, pg.creator_id, pg.acceptance_criteria, pg.context_refs, pg.metadata, pg.properties, pg.start_date, pg.stage, pg.origin_type, pg.origin_id, pg.first_executed_at, pg.revision, pg.last_activity_at, pg.start_at, pg.due_at, pg.trashed_at, pg.trashed_by, pg.purge_after, pg.trash_batch_id, pg.trashed_project_id, z.batch_size,
+       COALESCE(pr.id, '')::text AS trash_project_id,
+       COALESCE(pr.title, '')::text AS trash_project_title
 FROM page pg
 INNER JOIN sizes z ON z.root_id = pg.id
+LEFT JOIN projects pr
+  ON pr.id = COALESCE(pg.project_id, pg.trashed_project_id)
+ AND pr.organization_id = pg.organization_id
+ AND pr.workspace_id = pg.workspace_id
 ORDER BY pg.trashed_at DESC, pg.id DESC
 `
 
@@ -405,6 +419,8 @@ type ListTaskTrashPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	BeforeTrashedAt pgtype.Timestamptz `json:"before_trashed_at"`
 	BeforeID        pgtype.Text        `json:"before_id"`
+	Query           pgtype.Text        `json:"query"`
+	TrashedBy       pgtype.Text        `json:"trashed_by"`
 	MaxRows         int32              `json:"max_rows"`
 }
 
@@ -450,17 +466,23 @@ type ListTaskTrashPageRow struct {
 	TrashBatchID       pgtype.Text        `json:"trash_batch_id"`
 	TrashedProjectID   pgtype.Text        `json:"trashed_project_id"`
 	BatchSize          int64              `json:"batch_size"`
+	TrashProjectID     string             `json:"trash_project_id"`
+	TrashProjectTitle  string             `json:"trash_project_title"`
 }
 
 // The trash page: one row per batch root (no parent, or a parent outside the
 // batch), newest first. batch_size counts the root's own subtree inside the
 // batch, so a purge of that row removes exactly that many.
+// trash_project_* is the project the task points at on read: its live project,
+// or the one it was unlinked from while that project sits in the trash.
 func (q *Queries) ListTaskTrashPage(ctx context.Context, arg ListTaskTrashPageParams) ([]ListTaskTrashPageRow, error) {
 	rows, err := q.db.Query(ctx, listTaskTrashPage,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.BeforeTrashedAt,
 		arg.BeforeID,
+		arg.Query,
+		arg.TrashedBy,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -512,6 +534,8 @@ func (q *Queries) ListTaskTrashPage(ctx context.Context, arg ListTaskTrashPagePa
 			&i.TrashBatchID,
 			&i.TrashedProjectID,
 			&i.BatchSize,
+			&i.TrashProjectID,
+			&i.TrashProjectTitle,
 		); err != nil {
 			return nil, err
 		}

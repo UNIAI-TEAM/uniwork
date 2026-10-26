@@ -130,11 +130,14 @@ func (s *TaskService) PurgeProject(ctx context.Context, actor Actor, workspaceID
 }
 
 // ListProjectTrash is one page of a workspace's project trash, newest first,
-// 50 per page. TaskCount is the live tasks a restore would bring back.
-func (s *TaskService) ListProjectTrash(ctx context.Context, actorID, workspaceID, cursor string) (TrashPage[ProjectTrashRow], error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, actorID); err != nil {
+// 50 per page, narrowed by f. TaskCount is the live tasks a restore would
+// bring back.
+func (s *TaskService) ListProjectTrash(ctx context.Context, actorID, workspaceID string, f TrashFilter, cursor string) (TrashPage[ProjectTrashRow], error) {
+	m, err := s.ws.RequireMember(ctx, workspaceID, actorID)
+	if err != nil {
 		return TrashPage[ProjectTrashRow]{}, err
 	}
+	adminLike, reader := adminLikeRole(m.Role), Human(actorID)
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
 		return TrashPage[ProjectTrashRow]{}, err
@@ -142,6 +145,7 @@ func (s *TaskService) ListProjectTrash(ctx context.Context, actorID, workspaceID
 	params := db.ListProjectTrashPageParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, MaxRows: trashPageSize + 1,
 	}
+	params.Query, params.TrashedBy = f.args()
 	if cursor != "" {
 		at, id, err := decodeFeedCursor(cursor)
 		if err != nil {
@@ -180,7 +184,7 @@ func (s *TaskService) ListProjectTrash(ctx context.Context, actorID, workspaceID
 		page.Items = append(page.Items, ProjectTrashRow{
 			ID: r.ID, Title: r.Title, TrashedBy: r.TrashedBy.String,
 			TrashedAt: r.TrashedAt.Time, PurgeAfter: r.PurgeAfter.Time,
-			TaskCount: taskCount[r.ID],
+			TaskCount: taskCount[r.ID], CanManage: canManageProject(adminLike, r, reader),
 		})
 	}
 	return page, nil

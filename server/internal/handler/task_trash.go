@@ -47,7 +47,7 @@ func (h *handlers) purgeTask(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) listTaskTrash(w http.ResponseWriter, r *http.Request) {
 	page, err := h.Tasks.ListTrash(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), r.URL.Query().Get("cursor"))
+		chi.URLParam(r, "workspaceID"), service.TrashFilter{}, r.URL.Query().Get("cursor"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -83,7 +83,7 @@ func (h *handlers) purgeProject(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) listProjectTrash(w http.ResponseWriter, r *http.Request) {
 	page, err := h.Tasks.ListProjectTrash(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), r.URL.Query().Get("cursor"))
+		chi.URLParam(r, "workspaceID"), service.TrashFilter{}, r.URL.Query().Get("cursor"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

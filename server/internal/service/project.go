@@ -614,10 +614,17 @@ func (s *TaskService) authorizeProjectEditIn(ctx context.Context, actor Actor, w
 	if err != nil {
 		return db.Workspace{}, db.Project{}, err
 	}
-	if !adminLike && !projectOwnedBy(p, actor) {
+	if !canManageProject(adminLike, p, actor) {
 		return db.Workspace{}, db.Project{}, errNotProjectEditor()
 	}
 	return ws, p, nil
+}
+
+// canManageProject is the one rule for who may edit, trash, restore or purge
+// a project: a workspace admin (organization owners and admins count) or its
+// creator or lead. The trash list shows it as CanManage.
+func canManageProject(adminLike bool, p db.Project, actor Actor) bool {
+	return adminLike || projectOwnedBy(p, actor)
 }
 
 // projectOwnedBy reports whether actor created p or is its lead. Both are

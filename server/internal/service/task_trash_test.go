@@ -467,14 +467,14 @@ func TestTrashListShowsBatchRootsWithSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, err := s.ListTrash(ctx, ua.ID, w.ID, "")
+	first, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(first.Items) != trashPageSize || first.NextCursor == "" {
 		t.Fatalf("first page = %d items, cursor %q", len(first.Items), first.NextCursor)
 	}
-	second, err := s.ListTrash(ctx, ua.ID, w.ID, first.NextCursor)
+	second, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, first.NextCursor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,10 +507,10 @@ func TestTrashListShowsBatchRootsWithSize(t *testing.T) {
 		t.Fatalf("listed %v, want only the batch roots %v", have, want)
 	}
 
-	if _, err := s.ListTrash(ctx, ub.ID, w.ID, ""); !errors.Is(err, ErrForbidden) {
+	if _, err := s.ListTrash(ctx, ub.ID, w.ID, TrashFilter{}, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("non-member list = %v, want ErrForbidden", err)
 	}
-	if _, err := s.ListTrash(ctx, ua.ID, w.ID, "not-a-cursor"); err == nil {
+	if _, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "not-a-cursor"); err == nil {
 		t.Fatal("a forged cursor was accepted")
 	}
 }
@@ -528,5 +528,105 @@ func TestTrashedTaskRefusesWrites(t *testing.T) {
 	}
 	if _, err := s.Trash(ctx, Human(ua.ID), task.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second Trash = %v, want ErrNotFound", err)
+	}
+}
+
+func TestTaskTrashListFiltersByNameAndDeleter(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+	report := trashTestTask(t, s, ua, w, "", "Báo cáo Q3")
+	plan := trashTestTask(t, s, ua, w, "", "Kế hoạch")
+	if _, err := s.Trash(ctx, Human(ua.ID), report.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Trash(ctx, Human(ub.ID), plan.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	byName, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{Query: "báo cáo"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byName.Items) != 1 || byName.Items[0].ID != report.ID {
+		t.Fatalf("query list = %+v, want only %s", byName.Items, report.ID)
+	}
+	byDeleter, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{TrashedBy: ub.ID}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byDeleter.Items) != 1 || byDeleter.Items[0].ID != plan.ID {
+		t.Fatalf("deleter list = %+v, want only %s", byDeleter.Items, plan.ID)
+	}
+
+	// The cursor of a filtered page keeps the filter: 51 more of B's rows, and
+	// the second page of B's list holds B's rows only.
+	roots := seedTasks(t, s, ub, w, "filtroot", "", trashPageSize+1)
+	if _, err := s.TrashMany(ctx, Human(ub.ID), w.ID, roots); err != nil {
+		t.Fatal(err)
+	}
+	f := TrashFilter{TrashedBy: ub.ID}
+	first, err := s.ListTrash(ctx, ua.ID, w.ID, f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Items) != trashPageSize || first.NextCursor == "" {
+		t.Fatalf("first page = %d items, cursor %q", len(first.Items), first.NextCursor)
+	}
+	second, err := s.ListTrash(ctx, ua.ID, w.ID, f, first.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Items) != 2 {
+		t.Fatalf("second page = %d items, want 2 (52 of B's rows in all)", len(second.Items))
+	}
+	for _, it := range append(first.Items, second.Items...) {
+		if it.TrashedBy != ub.ID {
+			t.Fatalf("row %s trashed by %s leaked into B's list", it.ID, it.TrashedBy)
+		}
+	}
+}
+
+func TestTaskTrashRowNamesItsProject(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, Human(ua.ID), w.ID, CreateProjectInput{Title: "Website mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inProject := projectTrashTask(t, s, ua, w, p.ID, "Có dự án")
+	loose := trashTestTask(t, s, ua, w, "", "Không dự án")
+	if _, err := s.TrashMany(ctx, Human(ua.ID), w.ID, []string{inProject.ID, loose.ID}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]TaskTrashRow{}
+	for _, it := range page.Items {
+		rows[it.ID] = it
+	}
+	if got := rows[inProject.ID]; got.ProjectID != p.ID || got.ProjectTitle != "Website mới" {
+		t.Fatalf("project row = %+v", got)
+	}
+	if got := rows[loose.ID]; got.ProjectID != "" || got.ProjectTitle != "" {
+		t.Fatalf("loose row = %+v, want no project", got)
+	}
+
+	// A project sent to the trash is still named: the task points at it
+	// through trashed_project_id.
+	if err := s.TrashProject(ctx, Human(ua.ID), w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range page.Items {
+		if it.ID == inProject.ID && (it.ProjectID != p.ID || it.ProjectTitle != "Website mới") {
+			t.Fatalf("row after project trash = %+v", it)
+		}
 	}
 }

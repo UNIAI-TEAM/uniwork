@@ -679,3 +679,42 @@ func TestDocumentListFiltersOnEveryList(t *testing.T) {
 			return listFilterWalk(t, trashList, ListDocumentsInput{Archived: true, Access: filter, Limit: 100})
 		}, "restricted")
 }
+
+func TestArchivedDocumentsFilterByArchiver(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "ab1")
+	owner := Human(tn.owner.ID)
+	archive := func(title, by string) db.Document {
+		t.Helper()
+		d := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, title: title,
+		})
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE documents SET archived_at = now(), archived_by = $2, purge_after = now() + interval '30 days' WHERE id = $1`,
+			d.ID, by); err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	byA := archive("Của A", tn.aclOwner.ID)
+	byB := archive("Của B", tn.member.ID)
+
+	both, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listFilterSameSet(t, "no archiver filter", listIDs(both), []string{byA.ID, byB.ID})
+	only, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, ArchivedBy: tn.member.ID, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listFilterSameSet(t, "archived_by member", listIDs(only), []string{byB.ID})
+	// ArchivedBy means nothing outside the trash view.
+	live, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{ArchivedBy: tn.member.ID, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsID(listIDs(live), byB.ID) {
+		t.Fatalf("an archived row leaked into the live list: %v", listIDs(live))
+	}
+}

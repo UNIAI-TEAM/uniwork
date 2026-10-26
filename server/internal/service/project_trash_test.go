@@ -432,7 +432,7 @@ func TestTrashProjectNeedsEditRights(t *testing.T) {
 			t.Fatalf("outsider %s = %v, want %v", what, err, liveErr)
 		}
 	}
-	if _, err := s.ListProjectTrash(ctx, outsider.ID, w.ID, ""); !errors.Is(err, ErrForbidden) {
+	if _, err := s.ListProjectTrash(ctx, outsider.ID, w.ID, TrashFilter{}, ""); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider trash list = %v, want ErrForbidden", err)
 	}
 	if !rawProject(t, s, w, p.ID).TrashedAt.Valid {
@@ -465,7 +465,7 @@ func TestTrashedProjectListPagesWithTaskCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, err := s.ListProjectTrash(ctx, ua.ID, w.ID, "")
+	first, err := s.ListProjectTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +476,7 @@ func TestTrashedProjectListPagesWithTaskCounts(t *testing.T) {
 	if top.ID != p.ID || top.Title != "Mới nhất" || top.TrashedBy != ua.ID || top.TaskCount != 1 || top.PurgeAfter.IsZero() {
 		t.Fatalf("newest row = %+v, want the project with its one live task", top)
 	}
-	second, err := s.ListProjectTrash(ctx, ua.ID, w.ID, first.NextCursor)
+	second, err := s.ListProjectTrash(ctx, ua.ID, w.ID, TrashFilter{}, first.NextCursor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,42 @@ func TestTrashedProjectListPagesWithTaskCounts(t *testing.T) {
 		}
 		seen[r.ID] = true
 	}
-	if _, err := s.ListProjectTrash(ctx, ua.ID, w.ID, "nope"); err == nil {
+	if _, err := s.ListProjectTrash(ctx, ua.ID, w.ID, TrashFilter{}, "nope"); err == nil {
 		t.Fatal("a forged cursor was accepted")
+	}
+}
+
+func TestProjectTrashCanManageFollowsRestoreRule(t *testing.T) {
+	s, ua, ub, uc, w := projectEditFixture(t)
+	ctx := context.Background()
+	// A is the organization owner and so an implicit workspace admin; B created
+	// the project; C is a plain member.
+	p, err := s.CreateProject(ctx, Human(ub.ID), w.ID, CreateProjectInput{Title: "Của B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.TrashProject(ctx, Human(ub.ID), w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	for who, want := range map[string]bool{ub.ID: true, ua.ID: true, uc.ID: false} {
+		page, err := s.ListProjectTrash(ctx, who, w.ID, TrashFilter{}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != 1 || page.Items[0].CanManage != want {
+			t.Fatalf("reader %s: items %+v, want CanManage=%v", who, page.Items, want)
+		}
+	}
+	byName, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{Query: "KHÔNG CÓ"}, "")
+	if err != nil || len(byName.Items) != 0 {
+		t.Fatalf("query with no match = %+v, %v", byName.Items, err)
+	}
+	byDeleter, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: ub.ID, Query: "của b"}, "")
+	if err != nil || len(byDeleter.Items) != 1 {
+		t.Fatalf("filter by deleter and name = %+v, %v", byDeleter.Items, err)
+	}
+	byOther, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: uc.ID}, "")
+	if err != nil || len(byOther.Items) != 0 {
+		t.Fatalf("filter by another deleter = %+v, %v", byOther.Items, err)
 	}
 }

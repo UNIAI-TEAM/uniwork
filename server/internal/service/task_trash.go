@@ -238,8 +238,8 @@ func (s *TaskService) Purge(ctx context.Context, actor Actor, taskID string) err
 }
 
 // ListTrash is one page of a workspace's task trash: a row per batch root,
-// newest first, 50 per page.
-func (s *TaskService) ListTrash(ctx context.Context, actorID, workspaceID string, cursor string) (TrashPage[TaskTrashRow], error) {
+// newest first, 50 per page, narrowed by f.
+func (s *TaskService) ListTrash(ctx context.Context, actorID, workspaceID string, f TrashFilter, cursor string) (TrashPage[TaskTrashRow], error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, actorID); err != nil {
 		return TrashPage[TaskTrashRow]{}, err
 	}
@@ -250,6 +250,7 @@ func (s *TaskService) ListTrash(ctx context.Context, actorID, workspaceID string
 	params := db.ListTaskTrashPageParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, MaxRows: trashPageSize + 1,
 	}
+	params.Query, params.TrashedBy = f.args()
 	if cursor != "" {
 		at, id, err := decodeFeedCursor(cursor)
 		if err != nil {
@@ -274,7 +275,7 @@ func (s *TaskService) ListTrash(ctx context.Context, actorID, workspaceID string
 		page.Items = append(page.Items, TaskTrashRow{
 			ID: r.ID, Identifier: fmt.Sprintf("%s-%d", ws.TaskPrefix, r.Number), Title: r.Title,
 			TrashedBy: r.TrashedBy.String, TrashedAt: r.TrashedAt.Time, PurgeAfter: r.PurgeAfter.Time,
-			BatchSize: int(r.BatchSize),
+			BatchSize: int(r.BatchSize), ProjectID: r.TrashProjectID, ProjectTitle: r.TrashProjectTitle,
 		})
 	}
 	return page, nil

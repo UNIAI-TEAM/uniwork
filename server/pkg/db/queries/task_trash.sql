@@ -99,6 +99,8 @@ WITH RECURSIVE page AS (
     )
     AND (sqlc.narg(before_trashed_at)::timestamptz IS NULL
          OR (t.trashed_at, t.id) < (sqlc.narg(before_trashed_at), sqlc.narg(before_id)::text))
+    AND (sqlc.narg(query)::text IS NULL OR t.title ILIKE '%' || sqlc.narg(query) || '%')
+    AND (sqlc.narg(trashed_by)::text IS NULL OR t.trashed_by = sqlc.narg(trashed_by))
   ORDER BY t.trashed_at DESC, t.id DESC
   LIMIT sqlc.arg(max_rows)
 ),
@@ -115,9 +117,17 @@ sub AS (
 sizes AS (
   SELECT root_id, count(*)::bigint AS batch_size FROM sub GROUP BY root_id
 )
-SELECT pg.*, z.batch_size
+-- trash_project_* is the project the task points at on read: its live project,
+-- or the one it was unlinked from while that project sits in the trash.
+SELECT pg.*, z.batch_size,
+       COALESCE(pr.id, '')::text AS trash_project_id,
+       COALESCE(pr.title, '')::text AS trash_project_title
 FROM page pg
 INNER JOIN sizes z ON z.root_id = pg.id
+LEFT JOIN projects pr
+  ON pr.id = COALESCE(pg.project_id, pg.trashed_project_id)
+ AND pr.organization_id = pg.organization_id
+ AND pr.workspace_id = pg.workspace_id
 ORDER BY pg.trashed_at DESC, pg.id DESC;
 
 -- Retention sweep input: rows whose 30 days ran out. after_* keysets past the
@@ -237,6 +247,8 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND trashed_at IS NOT NULL
   AND (sqlc.narg(before_trashed_at)::timestamptz IS NULL
        OR (trashed_at, id) < (sqlc.narg(before_trashed_at), sqlc.narg(before_id)::text))
+  AND (sqlc.narg(query)::text IS NULL OR title ILIKE '%' || sqlc.narg(query) || '%')
+  AND (sqlc.narg(trashed_by)::text IS NULL OR trashed_by = sqlc.narg(trashed_by))
 ORDER BY trashed_at DESC, id DESC
 LIMIT sqlc.arg(max_rows);
 

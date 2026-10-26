@@ -69,34 +69,35 @@ WHERE d.organization_id = $2
   AND ($13::text IS NULL OR d.kind = $13)
   AND ($14::text IS NULL OR d.kind <> $14)
   AND ($15::text IS NULL OR d.updated_by = $15)
-  AND ($16::timestamptz IS NULL OR d.archived_at >= $16)
-  AND ($17::timestamptz IS NULL OR d.archived_at < $17)
-  AND ($18::text IS NULL
+  AND ($16::text IS NULL OR d.archived_by = $16)
+  AND ($17::timestamptz IS NULL OR d.archived_at >= $17)
+  AND ($18::timestamptz IS NULL OR d.archived_at < $18)
+  AND ($19::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $19::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($20::text[])))
-                    AND length(d.title) > length($18::text) + 1
-                    AND right(lower(d.title), length($18::text) + 1) = '.' || $18::text))))
+           AND (cv.mime_type = $20::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($21::text[])))
+                    AND length(d.title) > length($19::text) + 1
+                    AND right(lower(d.title), length($19::text) + 1) = '.' || $19::text))))
   -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
   -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
   -- format filter above for a list of formats - the verified MIME wins, the
   -- title's extension answers only while the MIME names none of the formats the
   -- library lists, and folders stay (a page-only answer has none).
-  AND ((NOT $21::boolean AND COALESCE(cardinality($22::text[]), 0) = 0)
-       OR ($21::boolean AND d.kind = 'page')
-       OR (COALESCE(cardinality($22::text[]), 0) > 0
+  AND ((NOT $22::boolean AND COALESCE(cardinality($23::text[]), 0) = 0)
+       OR ($22::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality($23::text[]), 0) > 0
            AND (d.kind = 'folder'
                 OR (d.kind = 'file'
-                    AND (cv.mime_type = ANY($23::text[])
-                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($20::text[])))
-                             AND EXISTS (SELECT 1 FROM unnest($22::text[]) AS tf(f)
+                    AND (cv.mime_type = ANY($24::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($21::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest($23::text[]) AS tf(f)
                                          WHERE length(d.title) > length(tf.f) + 1
                                            AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   -- UNI-1868: every row this view can return is already manage (the ladder
   -- above is manage-only), so the service refuses access=manage/edit here and
   -- 'restricted' - the row's visibility - is the one access filter it takes.
-  AND ($24::text IS NULL OR d.visibility = 'restricted')
+  AND ($25::text IS NULL OR d.visibility = 'restricted')
   -- A term can match on title for every row this view returns; it may match
   -- on content (search_text) only for a row the caller can act on AND read:
   -- managed by the caller's own access (flagged ACL owner - an effective
@@ -106,8 +107,8 @@ WHERE d.organization_id = $2
   -- branch. A restricted trashed row reached only through AdminScope matches
   -- on title alone - admins administer it but never read its content, and an
   -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
-  AND ($25::text IS NULL
-       OR (NOT $26::boolean
+  AND ($26::text IS NULL
+       OR (NOT $27::boolean
            AND (($4
                  AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5)
                  AND d.visibility <> 'restricted')
@@ -123,8 +124,8 @@ WHERE d.organization_id = $2
                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                             OR (rs.principal_type = 'workspace'
                                 AND rs.principal_id = ANY($12::text[]))))))
-           AND d.search_text ILIKE '%' || $25::text || '%' ESCAPE '\')
-       OR (($26::boolean
+           AND d.search_text ILIKE '%' || $26::text || '%' ESCAPE '\')
+       OR (($27::boolean
             OR NOT (($4
                      AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5)
                      AND d.visibility <> 'restricted')
@@ -140,45 +141,45 @@ WHERE d.organization_id = $2
                                 OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                                 OR (rs.principal_type = 'workspace'
                                     AND rs.principal_id = ANY($12::text[])))))))
-           AND uw_fold_search(d.title) ILIKE '%' || $25::text || '%' ESCAPE '\'))
-  AND ($27::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($27, $28::text))
+           AND uw_fold_search(d.title) ILIKE '%' || $26::text || '%' ESCAPE '\'))
+  AND ($28::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($28, $29::text))
   -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
   -- requested direction; an editor-less row (editor_null) is always last.
-  AND ($29::text IS NULL OR CASE $1::text
-       WHEN 'updated' THEN CASE WHEN $30::boolean
-            THEN (sk.ts_key, d.id COLLATE "C") < ($31::timestamptz, $29::text COLLATE "C")
-            ELSE (sk.ts_key, d.id COLLATE "C") > ($31::timestamptz, $29::text COLLATE "C") END
-       WHEN 'deleted' THEN CASE WHEN $30::boolean
-            THEN (sk.ts_key, d.id COLLATE "C") < ($31::timestamptz, $29::text COLLATE "C")
-            ELSE (sk.ts_key, d.id COLLATE "C") > ($31::timestamptz, $29::text COLLATE "C") END
-       WHEN 'size' THEN CASE WHEN $30::boolean
-            THEN (sk.size_key, d.id COLLATE "C") < ($32::bigint, $29::text COLLATE "C")
-            ELSE (sk.size_key, d.id COLLATE "C") > ($32::bigint, $29::text COLLATE "C") END
-       WHEN 'name' THEN CASE WHEN $30::boolean
-            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C")
-            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C") END
-       WHEN 'editor' THEN (sk.editor_null::int > $34::boolean::int
-            OR (sk.editor_null = $34::boolean
-                AND CASE WHEN $30::boolean
-            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C")
-            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C") END))
+  AND ($30::text IS NULL OR CASE $1::text
+       WHEN 'updated' THEN CASE WHEN $31::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < ($32::timestamptz, $30::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > ($32::timestamptz, $30::text COLLATE "C") END
+       WHEN 'deleted' THEN CASE WHEN $31::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < ($32::timestamptz, $30::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > ($32::timestamptz, $30::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN $31::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($33::bigint, $30::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($33::bigint, $30::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $31::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($34::text COLLATE "vi-x-icu", $30::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($34::text COLLATE "vi-x-icu", $30::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $35::boolean::int
+            OR (sk.editor_null = $35::boolean
+                AND CASE WHEN $31::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($34::text COLLATE "vi-x-icu", $30::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($34::text COLLATE "vi-x-icu", $30::text COLLATE "C") END))
        ELSE true END)
 ORDER BY
   (CASE WHEN $1::text IS NULL THEN d.archived_at END) DESC,
   (CASE WHEN $1::text IS NULL THEN d.id END) DESC,
   (CASE WHEN $1::text = 'editor' THEN sk.editor_null END) ASC,
-  (CASE WHEN $1::text = 'name' AND NOT $30::boolean THEN sk.name_key
-        WHEN $1::text = 'editor' AND NOT $30::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
-  (CASE WHEN $1::text = 'name' AND $30::boolean THEN sk.name_key
-        WHEN $1::text = 'editor' AND $30::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
-  (CASE WHEN $1::text = 'size' AND NOT $30::boolean THEN sk.size_key END) ASC,
-  (CASE WHEN $1::text = 'size' AND $30::boolean THEN sk.size_key END) DESC,
-  (CASE WHEN $1::text IN ('updated', 'deleted') AND NOT $30::boolean THEN sk.ts_key END) ASC,
-  (CASE WHEN $1::text IN ('updated', 'deleted') AND $30::boolean THEN sk.ts_key END) DESC,
-  (CASE WHEN $1::text IS NOT NULL AND NOT $30::boolean THEN d.id COLLATE "C" END) ASC,
-  (CASE WHEN $1::text IS NOT NULL AND $30::boolean THEN d.id COLLATE "C" END) DESC
-LIMIT $35
+  (CASE WHEN $1::text = 'name' AND NOT $31::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND NOT $31::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $1::text = 'name' AND $31::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND $31::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $1::text = 'size' AND NOT $31::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $1::text = 'size' AND $31::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $1::text IN ('updated', 'deleted') AND NOT $31::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN $1::text IN ('updated', 'deleted') AND $31::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN $1::text IS NOT NULL AND NOT $31::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $1::text IS NOT NULL AND $31::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $36
 `
 
 type ListArchivedDocumentsPageParams struct {
@@ -197,6 +198,7 @@ type ListArchivedDocumentsPageParams struct {
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
+	ArchivedBy      pgtype.Text        `json:"archived_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
 	Format          pgtype.Text        `json:"format"`
@@ -256,6 +258,7 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.Kind,
 		arg.ExcludeKind,
 		arg.UpdatedBy,
+		arg.ArchivedBy,
 		arg.UpdatedFrom,
 		arg.UpdatedTo,
 		arg.Format,
