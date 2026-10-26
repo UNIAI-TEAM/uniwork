@@ -91,7 +91,7 @@ describe("MeetingComposer — asking UNI", () => {
     expect(askBody()).toMatchObject({ question: "Đã chốt gì?", mentions: [], locale: "vi", focus: { kind: "meeting", id: "m1" } });
     expect(askBody().signal).toBeUndefined();
     expect(calls("/ai/ask")[0]![1].signal).toBeInstanceOf(AbortSignal);
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
     expect(screen.getByText("Đã chốt gì?")).toBeInTheDocument();
     expect(radio("Hỏi")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText("Họp này")).toBeInTheDocument();
@@ -186,11 +186,11 @@ describe("MeetingComposer — asking UNI", () => {
   it("keeps the last answer when it unmounts and mounts again, and a follow-up stays in the conversation", async () => {
     const { unmount } = render(wrapWithNav(<Room />));
     await ask("Đã chốt gì?");
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
     unmount();
 
     render(wrapWithNav(<Room />));
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
     expect(screen.getByText("Đã chốt gì?")).toBeInTheDocument();
     expect(await screen.findByRole("textbox", { name: "Hỏi riêng UNI về cuộc họp" })).toHaveAttribute("aria-placeholder", "Hỏi tiếp…");
 
@@ -208,7 +208,7 @@ describe("MeetingComposer — asking UNI", () => {
 
     await waitFor(() => expect(useAiPanelStore.getState().conversationByMeeting).toEqual({ m1: "c1" }));
     render(wrapWithNav(<Room />));
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
     // An answer read back from history is not news.
     expect(screen.getByTestId("meeting-ask-live")).toHaveTextContent("");
   });
@@ -229,7 +229,7 @@ describe("MeetingComposer — asking UNI", () => {
 
     // The question came back to the box; Enter asks it again, now in a new conversation.
     fireEvent.keyDown(await editor(), { key: "Enter" });
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
     expect(askBody().conversation_id).toBeUndefined();
   });
 
@@ -246,7 +246,7 @@ describe("MeetingComposer — asking UNI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đã chốt gì?" }));
     await waitFor(() => expect(calls("/ai/ask")).toHaveLength(1));
     expect(askBody()).toMatchObject({ question: "Cuộc họp đã chốt những gì?", focus: { kind: "meeting", id: "m1" } });
-    expect(await screen.findByText("Demo vào thứ Sáu [S1].")).toBeInTheDocument();
+    expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
   });
 
   it("hides the suggestions once something is typed and in note mode", async () => {
