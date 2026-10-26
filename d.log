@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr8r4-go-service-admin.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr8r4-go-service-admin.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr8r4-go-service-admin.log; grep -E "^=== RUN" /tmp/pr8r4-go-service-admin.log | tail -1
+DONE_FILE=yes
+369
+=== RUN   TestWorkspaceUpdateSameValueWritesNoAudit

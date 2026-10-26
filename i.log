@@ -1,0 +1,6 @@
+$ ls -la /tmp/pr8r4-cover-go-service-admin.out; b=$(git hash-object -w /tmp/pr8r4-cover-go-service-admin.out); echo "COVER_BLOB=go-service-admin=$b"; git push origin "$b:refs/test-artifacts/pr8-develop-r4/go-service-admin-d6ba2d18f" > /tmp/pr8r4-push-go-service-admin.log 2>&1; rc=$?; tail -2 /tmp/pr8r4-push-go-service-admin.log; echo "COVER_PUSH_EXIT=$rc"; [ $rc -eq 0 ]
+-rw-r--r-- 1 ubuntu ubuntu 3500381 Oct 26 03:30 /tmp/pr8r4-cover-go-service-admin.out
+COVER_BLOB=go-service-admin=013c08b4038ec79c4208c3d137bf7507feb08958
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new reference]       013c08b4038ec79c4208c3d137bf7507feb08958 -> refs/test-artifacts/pr8-develop-r4/go-service-admin-d6ba2d18f
+COVER_PUSH_EXIT=0

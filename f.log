@@ -1,0 +1,4 @@
+$ grep -cE "^\s*--- PASS" /tmp/pr8r4-go-service-admin.log | sed "s/^/GO_PASS_COUNT=/"; grep -cE "^\s*--- FAIL" /tmp/pr8r4-go-service-admin.log | sed "s/^/GO_FAIL_COUNT=/"; grep -c "WARNING: DATA RACE" /tmp/pr8r4-go-service-admin.log | sed "s/^/DATA_RACE_COUNT=/"
+GO_PASS_COUNT=369
+GO_FAIL_COUNT=0
+DATA_RACE_COUNT=0
