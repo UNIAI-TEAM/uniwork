@@ -317,30 +317,30 @@ func TestDocumentPublicLink(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 0, DocumentByteRange{})
+		got, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(readAll(t, got.Reader), testPDF) || got.Version.Version != 1 {
 			t.Fatal("private download bytes differ")
 		}
-		ranged, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 1, DocumentByteRange{Offset: 1, Length: 3})
+		ranged, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 1, DocumentByteRange{Offset: 1, Length: 3}, DocumentAccessDownload)
 		if err != nil || string(readAll(t, ranged.Reader)) != "PDF" {
 			t.Fatalf("range read: %v", err)
 		}
-		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.member.ID), fd.ID, 0, DocumentByteRange{}); !errors.Is(err, ErrNotFound) {
+		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.member.ID), fd.ID, 0, DocumentByteRange{}, DocumentAccessDownload); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("non-reader download: %v", err)
 		}
-		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 9, DocumentByteRange{}); !errors.Is(err, ErrNotFound) {
+		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 9, DocumentByteRange{}, DocumentAccessDownload); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("missing version: %v", err)
 		}
-		if _, err := f.svc.OpenDocumentFile(f.ctx, mgr, page.ID, 0, DocumentByteRange{}); !errors.Is(err, ErrNotFound) {
+		if _, err := f.svc.OpenDocumentFile(f.ctx, mgr, page.ID, 0, DocumentByteRange{}, DocumentAccessDownload); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("download of a page: %v", err)
 		}
 		if err := f.svc.RevokeDocumentShare(f.ctx, mgr, fd.ID, sh.ID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 0, DocumentByteRange{}); !errors.Is(err, ErrNotFound) {
+		if _, err := f.svc.OpenDocumentFile(f.ctx, Human(tn.bMember.ID), fd.ID, 0, DocumentByteRange{}, DocumentAccessDownload); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("download after revoke: %v", err)
 		}
 		var downloads int
