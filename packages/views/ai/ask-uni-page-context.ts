@@ -33,11 +33,14 @@ export function useAskUniPageContext(focus: PageFocus | null): void {
   }, [kind, id]);
 }
 
-/** The open page as the composer's chip: null when none is open or the reader removed its chip. */
+/** The open page as the composer's chip: null when none is open, the reader removed its chip, or a saved conversation is open on a Drive file page. */
 export function useShownPage() {
   const page = useAiPanelStore((s) => s.page);
   const dismissed = useAiPanelStore((s) => s.pageDismissed);
-  return page && `${page.kind}:${page.id}` !== dismissed ? page : null;
+  const conversationId = useAiPanelStore((s) => s.conversationId);
+  if (!page || `${page.kind}:${page.id}` === dismissed) return null;
+  if (page.kind === "drive_file" && conversationId !== null) return null;
+  return page;
 }
 
 /** What a question is about: the hand-picked object, else the open page. */

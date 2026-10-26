@@ -26,7 +26,10 @@ export function buildTransientTranscript(messages: readonly Pick<AiMessage, "rol
   trimmed: boolean;
 } {
   const turns: AskUniTranscriptTurn[] = messages
-    .filter((m): m is Pick<AiMessage, "role" | "content"> & { role: "user" | "assistant" } => m.role === "user" || m.role === "assistant")
+    .filter(
+      (m): m is Pick<AiMessage, "role" | "content"> & { role: "user" | "assistant" } =>
+        (m.role === "user" || m.role === "assistant") && m.content !== "",
+    )
     .map((m) => ({ role: m.role, text: m.content }));
   let start = 0;
   let totalChars = turns.reduce((sum, t) => sum + t.text.length, 0);
@@ -114,9 +117,10 @@ function clearedTransient(s: AiPanelStore) {
   const wasTransient =
     s.transientMessages.length > 0 ||
     s.transientWindowTrimmed ||
-    s.focus?.kind === "drive_file" ||
-    s.pendingFocus?.kind === "drive_file" ||
-    (!s.focus && s.page?.kind === "drive_file");
+    (s.conversationId === null &&
+      (s.focus?.kind === "drive_file" ||
+        s.pendingFocus?.kind === "drive_file" ||
+        (!s.focus && s.page?.kind === "drive_file")));
   if (!wasTransient) return {};
   return {
     transientMessages: [],
@@ -222,6 +226,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
             conversationId,
             pendingFocus: null,
             ...(s.focus?.kind === "drive_file" ? { focus: null } : {}),
+            ...(s.page?.kind === "drive_file" ? { pageDismissed: `${s.page.kind}:${s.page.id}` } : {}),
             ...clearedTransient(s),
           },
     ),

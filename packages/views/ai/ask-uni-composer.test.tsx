@@ -698,5 +698,37 @@ describe("AskUniComposer", () => {
         "https://drive.google.com/file/d/ext-1/view?authuser=uni-work1%40gmail.com",
       );
     });
+
+    it("ignores a drive_file page chip when a saved conversation is open so conversation_id is kept and no Drive reader line or footer shows", async () => {
+      const { onSend } = mount();
+      act(() => {
+        useAiPanelStore.getState().setPage({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+        });
+        useAiPanelStore.setState({ conversationId: "c1", pageDismissed: null });
+      });
+      expect(
+        screen.queryByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+      ).toBeNull();
+      expect(
+        screen.queryByText(/Nội dung tài liệu xem trên Google Drive/),
+      ).toBeNull();
+      expect(
+        screen.queryByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeNull();
+
+      type("Tiếp tục hội thoại đã lưu");
+      key("Enter");
+      expect(onSend).toHaveBeenCalledTimes(1);
+      const payload = onSend.mock.calls[0]![0];
+      expect(payload.conversation_id).toBe("c1");
+      expect(payload.focus).toBeUndefined();
+      expect(payload).not.toHaveProperty("transient");
+    });
   });
 });

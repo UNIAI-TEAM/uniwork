@@ -4,19 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiMessages, useAiPanelStore } from "@uniwork/core/ai";
-import type { AskOutcome, AskStreamState } from "@uniwork/core/ai/stream";
-import type { AiAttachment, AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
+import type { AskStreamState, useAskUniStream } from "@uniwork/core/ai/stream";
+import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
 import { AskUniFollowups } from "./ask-uni-followups";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 import { useEffectiveFocus } from "./ask-uni-page-context";
 import { useSmoothText } from "./use-smooth-text";
 
 /** What AskUniPanel owns and hands down: the live turn's state and its controls. */
-export interface AskUniStream {
-  state: AskStreamState;
-  ask: (input: AskUniInput, display?: { attachments: AiAttachment[] }) => Promise<AskOutcome>;
-  stop: () => void;
-}
+export type AskUniStream = ReturnType<typeof useAskUniStream>;
+
 const NEAR_BOTTOM_PX = 80;
 const SAFE_CODE = /^[a-z_]+$/;
 // A model call that goes on to a tool streams a lead-in ("Để tôi tra cứu…") that the step then clears, so a call's
@@ -53,6 +50,7 @@ function StreamError({ code, openUrl }: { code: string | null; openUrl?: string 
     </li>
   );
 }
+
 /** One stored turn: while it is being regenerated the live cell takes its place; a failed regenerate shows it again with the error. */
 function StoredTurn({
   message,
@@ -239,6 +237,8 @@ export function AskUniThread({
     }
     return out;
   }, [stored, sameConversation, state.sources, state.citations, state.message]);
+
+  // Follow the answer as it grows, but only while the reader is at the bottom.
   const onScroll = () => {
     const el = scroller.current;
     if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;

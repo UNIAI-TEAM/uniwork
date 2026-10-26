@@ -7,6 +7,7 @@ import { errorCode } from "../api/http";
 import type { AiAttachment, AiCitation, AiMemoryProposal, AiMessage, AiProposal, AiStep, AskUniInput } from "../types/ai";
 import { aiKeys } from "./hooks";
 import { buildTransientTranscript, useAiPanelStore } from "./store";
+
 type AskStreamStatus = "idle" | "streaming" | "done" | "stopped" | "error";
 
 export interface AskStreamState {
@@ -81,7 +82,7 @@ export function useAskUniStream(wsId: string) {
   const turnTransient = useRef(false);
   const turnAttachments = useRef<AiAttachment[]>([]);
   const transientIdSeq = useRef(0);
-  const refetchTimer = useRef<number | null>(null);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // A stopped or failed run may be billed, and a new conversation must show in the history list (unless transient).
   const refreshAfterEnd = useCallback(
@@ -94,7 +95,7 @@ export function useAskUniStream(wsId: string) {
   );
   const abort = useCallback(() => {
     seq.current += 1; // events of the aborted turn are no longer current
-    if (refetchTimer.current !== null) window.clearTimeout(refetchTimer.current);
+    if (refetchTimer.current) clearTimeout(refetchTimer.current);
     refetchTimer.current = null;
     ctrl.current?.abort();
     ctrl.current = null;
@@ -431,10 +432,11 @@ export function useAskUniStream(wsId: string) {
     if (!conversationId) return;
     void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
     // shortcut: fixed 1500 ms retry, the server stores the stopped turn only after it notices the cancel; upgrade to polling or a server event if that lags.
-    refetchTimer.current = window.setTimeout(() => {
+    refetchTimer.current = setTimeout(() => {
       refetchTimer.current = null;
       void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
     }, 1500);
   }, [abort, qc, refreshAfterEnd]);
+
   return { state, ask, stop };
 }

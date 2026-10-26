@@ -601,6 +601,22 @@ describe("useAskUniStream transient mode (drive_file)", () => {
       vi.useRealTimers();
     }
   });
+  it("stopping before the first delta keeps the stopped turn for display but omits empty text from the next question's transcript", () => {
+    const { result } = setup();
+    act(() => void result.current.ask({ question: "Câu 1", focus: { kind: "drive_file", id: "df1" } }));
+    emit({ type: "run", runId: "r1", conversationId: "" });
+    act(() => result.current.stop());
+
+    expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content, m.notice])).toEqual([
+      ["user", "Câu 1", ""],
+      ["assistant", "", "stopped"],
+    ]);
+
+    act(() => void result.current.ask({ question: "Câu 2", focus: { kind: "drive_file", id: "df1" } }));
+    const sentBody = vi.mocked(askUniStream).mock.calls.at(-1)?.[1];
+    expect(sentBody?.transcript).toEqual([{ role: "user", text: "Câu 1" }]);
+    expect(sentBody?.transcript?.every((t) => t.text.length > 0 && Object.keys(t).sort().join(",") === "role,text")).toBe(true);
+  });
 
   it("slides the transcript window past 20 turns and marks transientWindowTrimmed", () => {
     const { result } = setup();

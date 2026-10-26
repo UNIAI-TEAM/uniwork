@@ -205,6 +205,41 @@ describe("ai panel transient mode (drive_file)", () => {
     ]);
     expect(res.transcript.reduce((n, t) => n + t.text.length, 0)).toBeLessThanOrEqual(MAX_TRANSIENT_CHARS);
   });
+  it("buildTransientTranscript skips turns with empty content and carries role and text only", () => {
+    const res = buildTransientTranscript([
+      turn("user", "q1"),
+      turn("assistant", ""),
+      turn("user", "q2"),
+      turn("assistant", "a2"),
+    ]);
+    expect(res.trimmed).toBe(false);
+    expect(res.transcript).toEqual([
+      { role: "user", text: "q1" },
+      { role: "user", text: "q2" },
+      { role: "assistant", text: "a2" },
+    ]);
+    for (const item of res.transcript) {
+      expect(Object.keys(item).sort()).toEqual(["role", "text"]);
+      expect(item.text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not bump transientEpoch on setPage(null) or dismissPage when a saved conversation is open on a drive_file page", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.select("c1");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "c1",
+      pageDismissed: "drive_file:df1",
+      transientMessages: [],
+    });
+    const epochBefore = useAiPanelStore.getState().transientEpoch;
+    s.dismissPage();
+    expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
+    s.setPage(null);
+    expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
+  });
 
   it("clears transient transcript on panel close, focus change, picking a saved conversation, or new conversation", () => {
     const s = useAiPanelStore.getState();

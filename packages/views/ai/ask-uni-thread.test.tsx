@@ -636,4 +636,25 @@ describe("AskUniThread transient mode (drive_file, spec §9)", () => {
       "Kết nối hoặc tệp Google Drive đã thay đổi khi UNI đang đọc. Hãy hỏi lại.",
     );
   });
+
+  it("keeps a saved conversation non-transient when page is drive_file and conversationId is set", async () => {
+    serve(history);
+    useAiPanelStore.setState({
+      conversationId: "c1",
+      focus: null,
+      page: {
+        kind: "drive_file",
+        id: "df1",
+        label: "Kế hoạch ra mắt Q4",
+        accountEmail: "uni-work1@gmail.com",
+      },
+      pageDismissed: null,
+      transientMessages: [],
+    });
+    const s = stream({ conversationId: "c1" });
+    mount(s, "c1", { model: "sonnet", effort: "medium", locale: "vi" });
+    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trả lời lại" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hỏi lại" })).toBeNull();
+  });
 });

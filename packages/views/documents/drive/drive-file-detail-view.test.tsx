@@ -607,15 +607,21 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(onAsk).not.toHaveBeenCalled();
   });
 
-  it("wires default useAskUniOpener when onAsk is omitted so Hỏi UNI and ?ask=1 open Ask UNI with drive_file focus", async () => {
+  it("wires default useAskUniOpener without bound_account_email fallback and waits for capabilities before stripping ?ask=1", async () => {
+    const { promise: capsPromise, resolve: resolveCaps } = Promise.withResolvers<unknown>();
     requestMock.mockImplementation((path: string) => {
       if (path === DETAIL_URL) {
         return Promise.resolve({
-          file: detailFile({ can_ask: true, viewer_access: "granted" }),
+          file: detailFile({
+            can_ask: true,
+            viewer_access: "granted",
+            viewer_account_email: undefined,
+            bound_account_email: "other-member@gmail.com",
+          }),
         });
       }
       if (path.endsWith("/ai/capabilities")) {
-        return Promise.resolve({ enabled: true, ask_uni: true });
+        return capsPromise;
       }
       return Promise.resolve({ events: [] });
     });
@@ -638,13 +644,19 @@ describe("DriveFileDetailView (4.2)", () => {
       ),
     );
 
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    // While capabilities are still pending, ?ask=1 is not stripped yet
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(useAiPanelStore.getState().open).toBe(false);
+
+    resolveCaps({ enabled: true, ask_uni: true });
     await screen.findByRole("button", { name: t("driveLibrary.detail.ask_uni") });
     await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
     expect(useAiPanelStore.getState().pendingFocus).toEqual({
       kind: "drive_file",
       id: FILE_ID,
       label: "Kế hoạch ra mắt Q4",
-      accountEmail: "uni-work1@gmail.com",
+      accountEmail: undefined,
       openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
     });
     expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);

@@ -129,15 +129,14 @@ export function AskUniActions({
   const [copied, setCopied] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
   const [rating, setRating] = useState<"up" | "down" | null>(null);
-  const timer = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const set = useSetAiFeedback();
   const clear = useClearAiFeedback();
   const saveDoc = useSaveAiAnswerAsDocument(conversationId);
   const actions = useAiCapabilities(wsId, !transient && wsId !== "").data?.actions;
   const writes = !transient && actions?.enabled === true;
   const convTitle = useAiConversations(wsId, writes).data?.find((c) => c.id === conversationId)?.title ?? "";
-  useEffect(() => () => void (timer.current !== null && window.clearTimeout(timer.current)), []);
-
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const copy = async () => {
     try {
       // No clipboard (insecure context) throws here, a denied one rejects; either leaves the button unchanged.
@@ -147,8 +146,8 @@ export function AskUniActions({
       return;
     }
     setCopied(true);
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setCopied(false), 1500);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
   };
   const up = () => {
     const before = rating;
