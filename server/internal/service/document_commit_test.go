@@ -1243,6 +1243,109 @@ func TestDocumentCommitLegacyConversion(t *testing.T) {
 		}
 	})
 
+	t.Run("R2-1 and R2-2: legacy budget.xls converted with converted.xls and restored 17 times preserves budget.xlsx and xlsx capability/job", func(t *testing.T) {
+		ctx := context.Background()
+		f := newOfficeFixture(t, "# seed\n")
+		eng := newScriptedEngine()
+		eng.fake = f.files.Fake
+		officeSvc := f.service(eng)
+
+		created, err := f.docs.CreateFileDocument(ctx, f.actor, f.ws, CreateFileDocumentInput{
+			Title:      "Báo cáo ngân sách.xls",
+			Filename:   "budget.xls",
+			Body:       bytes.NewReader(legacyCFBBody("r2-2-xls-v1")),
+			Visibility: documentVisibilityWorkspace,
+		})
+		mustf(t, err, "create legacy budget.xls")
+		setWorkspaceLevel(t, f.pf, created.Document, string(DocumentLevelEdit))
+
+		v2Bytes := xlsxBody(t, "r2-2-xlsx-v2")
+		up, err := f.docs.UploadDocumentFile(ctx, f.actor, created.Document.ID, DocumentUploadInput{
+			Filename: "converted.xls",
+			Body:     bytes.NewReader(v2Bytes),
+		})
+		mustf(t, err, "upload xlsx bytes as converted.xls")
+
+		convRes, err := f.docs.CommitFileVersion(ctx, f.actor, created.Document.ID, CommitFileVersionInput{
+			UploadID:       up.UploadID,
+			BaseRevision:   created.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"},
+		})
+		mustf(t, err, "commit conversion with converted.xls upload name")
+		if convRes.File.Filename != "budget.xlsx" {
+			t.Fatalf("converted filename = %q, want budget.xlsx", convRes.File.Filename)
+		}
+
+		latestVer := convRes.Version.Version
+		latestRev := convRes.Document.Revision
+		var depth17Res DocumentFileResult
+		var depth17Key string
+		for depth := 1; depth <= 17; depth++ {
+			key := util.NewID()
+			restored, err := f.docs.RestoreFileVersion(ctx, f.actor, created.Document.ID, RestoreFileVersionInput{
+				Version:        latestVer,
+				BaseRevision:   latestRev,
+				IdempotencyKey: key,
+			})
+			mustf(t, err, "restore latest version")
+			latestVer = restored.Version.Version
+			latestRev = restored.Document.Revision
+			if depth == 17 {
+				depth17Res = restored
+				depth17Key = key
+			}
+		}
+
+		if depth17Res.Version.Version != 19 || depth17Res.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 restore response = v%d file=%q, want v19 budget.xlsx", depth17Res.Version.Version, depth17Res.File.Filename)
+		}
+		replay17, err := f.docs.RestoreFileVersion(ctx, f.actor, created.Document.ID, RestoreFileVersionInput{
+			Version:        18,
+			BaseRevision:   depth17Res.Document.Revision - 1,
+			IdempotencyKey: depth17Key,
+		})
+		mustf(t, err, "replay depth 17 restore")
+		if replay17.Version.ID != depth17Res.Version.ID || replay17.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 replay = %q, want budget.xlsx", replay17.File.Filename)
+		}
+
+		got17, err := f.docs.GetDocument(ctx, f.actor, created.Document.ID)
+		mustf(t, err, "get document at depth 17")
+		if got17.File == nil || got17.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 GetDocument file = %+v, want budget.xlsx", got17.File)
+		}
+
+		dl17, err := f.docs.OpenDocumentFile(ctx, f.actor, created.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
+		mustf(t, err, "open live download at depth 17")
+		dl17Bytes := readBytes(t, dl17.Reader.Body)
+		_ = dl17.Reader.Close()
+		if !bytes.Equal(dl17Bytes, v2Bytes) || dl17.Reader.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 download = filename %q, want budget.xlsx", dl17.Reader.File.Filename)
+		}
+
+		caps17, err := officeSvc.Capability(ctx, f.actor, created.Document.ID)
+		mustf(t, err, "capability at depth 17")
+		if caps17.Format != office.FormatXLSX {
+			t.Fatalf("depth 17 Capability.Format = %q, want %q", caps17.Format, office.FormatXLSX)
+		}
+
+		job17, err := officeSvc.StartOfficeJob(ctx, f.actor, OfficeJobInput{
+			OrganizationID: f.org,
+			WorkspaceID:    f.ws,
+			DocumentID:     created.Document.ID,
+			BaseVersionID:  depth17Res.Version.ID,
+			BaseRevision:   depth17Res.Document.Revision,
+			Operation:      office.OperationSerialize,
+			Format:         office.FormatXLSX,
+			IdempotencyKey: util.NewID(),
+		})
+		mustf(t, err, "StartOfficeJob with FormatXLSX at depth 17")
+		if job17.Format != string(office.FormatXLSX) {
+			t.Fatalf("depth 17 job.Format = %q, want %q", job17.Format, office.FormatXLSX)
+		}
+	})
+
 	t.Run("R1-2 and R1-11: operational storage error on validation is not 422, and lock/stale-base gates precede pair semantics", func(t *testing.T) {
 		env := newFakeDocStorageEnv(t)
 		ctx := context.Background()
