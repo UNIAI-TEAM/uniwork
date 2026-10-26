@@ -10570,6 +10570,17 @@
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
     },
+    "media": {
+      "loading": "Đang mở tệp…",
+      "retry": "Thử lại",
+      "error_title": "Không mở được tệp để xem.",
+      "error_description": "Chưa tải được nội dung tệp. Thử lại, hoặc tải tệp về từ mục Hành động khác.",
+      "unsupported_title": "Trình duyệt chưa mở được ảnh này.",
+      "unsupported_description": "Trình duyệt không hiển thị được định dạng này, hoặc tệp bị lỗi (ví dụ HEIC hoặc TIFF). Tải về để mở bằng ứng dụng trên máy tính.",
+      "fullscreen_enter": "Toàn màn hình",
+      "fullscreen_exit": "Thoát toàn màn hình",
+      "dimensions": "{{width}} × {{height}} px"
+    },
     "editor": {
       "aria_label": "Nội dung tài liệu",
       "placeholder": "Bắt đầu viết…",
@@ -11715,6 +11726,7 @@
     "canvas": {
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
+      "zoom_level": "Mức thu phóng",
       "zoom_fit": "Vừa khung",
       "zoom_actual": "Kích thước thật"
     },

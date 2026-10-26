@@ -463,6 +463,201 @@ func TestDocumentFileLifecycle(t *testing.T) {
 	}
 }
 
+func TestDocumentDownloadIntent(t *testing.T) {
+	// Invalid intent is rejected at the handler query parser before touching the service or DB.
+	h := &handlers{Documents: &service.DocumentService{}}
+	for _, method := range []string{"GET", "HEAD"} {
+		req := httptest.NewRequest(method, "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?intent=inline", nil)
+		rec := httptest.NewRecorder()
+		h.downloadDocument(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s invalid intent unit: %d %s", method, rec.Code, rec.Body.String())
+		}
+		var out map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode 400: %v (%s)", err, rec.Body.String())
+		}
+		code, _ := errCodeClass(out)
+		errObj, _ := out["error"].(map[string]any)
+		msg, _ := errObj["message"].(string)
+		if code != "invalid_request" || msg != "intent must be download or view" {
+			t.Fatalf("400 envelope: code=%q msg=%q (%v)", code, msg, out)
+		}
+	}
+
+	w := newDocsWorld(t)
+
+	newFile := func(t *testing.T, name string) (string, string) {
+		t.Helper()
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+			map[string]string{"title": name}, name, docsPNG, nil)
+		if res.StatusCode != 201 {
+			t.Fatalf("create %s: %d %s", name, res.StatusCode, raw)
+		}
+		var j map[string]any
+		if err := json.Unmarshal(raw, &j); err != nil {
+			t.Fatal(err)
+		}
+		return j["document"].(map[string]any)["id"].(string), res.Header.Get("X-Correlation-ID")
+	}
+	// Exclude the view row that createDocumentFile's trailing GetDocument
+	// writes under the upload's correlation_id, so countLogs measures only rows
+	// written by the download requests under test.
+	countLogs := func(t *testing.T, docID, uploadCorr, action string) int {
+		t.Helper()
+		var n int
+		if err := w.pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2 AND correlation_id <> $3`,
+			docID, action, uploadCorr).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	freshFile := func(t *testing.T, name string) (string, string) {
+		t.Helper()
+		id, corr := newFile(t, name)
+		if corr == "" {
+			t.Fatal("upload response missing X-Correlation-ID")
+		}
+		// Backdate the upload's GetDocument view row past the 5-minute coalesce
+		// window so the first download?intent=view under test is not coalesced
+		// into the upload's row.
+		if _, err := w.pool.Exec(context.Background(),
+			`UPDATE document_access_logs SET occurred_at = now() - interval '6 minutes' WHERE document_id = $1 AND correlation_id = $2`,
+			id, corr); err != nil {
+			t.Fatal(err)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView) + countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("baseline rows after upload = %d, want 0", got)
+		}
+		return id, corr
+	}
+
+	t.Run("intent=view writes one view row and keeps attachment headers", func(t *testing.T) {
+		id, corr := freshFile(t, "view.png")
+		// First read is a suffix range so the internal size probe and final open are both tested unmasked.
+		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token, "Range", "bytes=-4")
+		if res.StatusCode != 206 || !bytes.Equal(raw, docsPNG[len(docsPNG)-4:]) {
+			t.Fatalf("suffix range intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("view rows after suffix range = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("download rows after suffix range = %d, want 0", got)
+		}
+		// Repeat view within 5 minutes coalesces and keeps attachment headers.
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if cd := res.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+			t.Fatalf("disposition = %q, want attachment", cd)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("coalesced view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("download rows = %d, want 0", got)
+		}
+	})
+
+	t.Run("no intent and intent=download write download and coalesce", func(t *testing.T) {
+		id, corr := freshFile(t, "download.png")
+		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET default intent: %d len=%d", res.StatusCode, len(raw))
+		}
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=download", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET intent=download: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("download rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 0 {
+			t.Fatalf("view rows = %d, want 0", got)
+		}
+	})
+
+	t.Run("coalesce is per action: view then download within 5 min writes two rows", func(t *testing.T) {
+		id, corr := freshFile(t, "both.png")
+		if res, _ := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token); res.StatusCode != 200 {
+			t.Fatalf("view: %d", res.StatusCode)
+		}
+		if res, _ := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=download", w.token); res.StatusCode != 200 {
+			t.Fatalf("download: %d", res.StatusCode)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("download rows = %d, want 1", got)
+		}
+	})
+
+	t.Run("HEAD and meta=1 respect intent", func(t *testing.T) {
+		headID, headCorr := freshFile(t, "head.png")
+		res, raw := doBytes(t, w.srv, "HEAD", "/api/v1/documents/"+headID+"/download?intent=view", w.token)
+		if res.StatusCode != 200 || len(raw) != 0 || res.Header.Get("Content-Length") == "" {
+			t.Fatalf("HEAD intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, headID, headCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("HEAD view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, headID, headCorr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("HEAD download rows = %d, want 0", got)
+		}
+
+		metaID, metaCorr := freshFile(t, "meta.png")
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+metaID+"/download?meta=1&intent=view", w.token, nil)
+		if res.StatusCode != 200 || out["disposition"] != "attachment" {
+			t.Fatalf("meta=1 intent=view: %d %v", res.StatusCode, out)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("meta=1 view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("meta=1 download rows after intent=view = %d, want 0", got)
+		}
+		res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+metaID+"/download?meta=1", w.token, nil)
+		if res.StatusCode != 200 || out["disposition"] != "attachment" {
+			t.Fatalf("meta=1 default: %d %v", res.StatusCode, out)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("meta=1 default download rows = %d, want 1", got)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("meta=1 view rows after default = %d, want 1", got)
+		}
+	})
+
+	t.Run("invalid intent answers 400 invalid_request and writes no row", func(t *testing.T) {
+		id, corr := freshFile(t, "bad.png")
+		for _, method := range []string{"GET", "HEAD"} {
+			res, raw := doBytes(t, w.srv, method, "/api/v1/documents/"+id+"/download?intent=inline", w.token)
+			if res.StatusCode != 400 {
+				t.Fatalf("%s invalid intent: %d %s", method, res.StatusCode, raw)
+			}
+			if method == "GET" {
+				var out map[string]any
+				if err := json.Unmarshal(raw, &out); err != nil {
+					t.Fatalf("decode 400: %v (%s)", err, raw)
+				}
+				code, _ := errCodeClass(out)
+				errObj, _ := out["error"].(map[string]any)
+				msg, _ := errObj["message"].(string)
+				if code != "invalid_request" || msg != "intent must be download or view" {
+					t.Fatalf("400 envelope: code=%q msg=%q (%v)", code, msg, out)
+				}
+			}
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView) + countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("invalid intent wrote %d rows, want 0", got)
+		}
+	})
+}
+
 func TestDocumentAssetUploadAndStream(t *testing.T) {
 	w := newDocsWorld(t)
 	_, id := createPage(t, w, "with image", nil)

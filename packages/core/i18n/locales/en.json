@@ -10582,6 +10582,17 @@
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
     },
+    "media": {
+      "loading": "Opening file…",
+      "retry": "Try again",
+      "error_title": "Couldn't open the file to view.",
+      "error_description": "The file content didn't load. Try again, or download it from the More actions menu.",
+      "unsupported_title": "This browser can't open this image.",
+      "unsupported_description": "The browser can't show this format, or the file is damaged (for example HEIC or TIFF). Download it to open in an app on your computer.",
+      "fullscreen_enter": "Full screen",
+      "fullscreen_exit": "Exit full screen",
+      "dimensions": "{{width}} × {{height}} px"
+    },
     "editor": {
       "aria_label": "Document content",
       "placeholder": "Start writing…",
@@ -11733,6 +11744,7 @@
     "canvas": {
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out",
+      "zoom_level": "Zoom level",
       "zoom_fit": "Fit to view",
       "zoom_actual": "Actual size"
     },

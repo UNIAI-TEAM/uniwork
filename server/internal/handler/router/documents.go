@@ -288,6 +288,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Get("/documents/{documentID}/download", h.DownloadDocument, apiOp{
 		summary: "Download a file document",
 		description: "?meta=1 trả descriptor JSON {document_id, file, disposition}; ngược lại stream bytes của version hiện tại (hoặc ?version=N). " +
+			"?intent=view ghi nhật ký truy cập action=view (mặc định khi bỏ trống hoặc ?intent=download là download; giá trị khác -> 400 invalid_request). " +
 			"Luôn Content-Disposition: attachment. Hỗ trợ HEAD, Range (206), 416 kèm Content-Range: bytes */size, X-Checksum-Sha256. Page document -> 400/422 theo spec.",
 		tags: []string{"documents"},
 		sdi:  sdi.DownloadDocumentSDI{},
@@ -297,8 +298,10 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.r.Head("/documents/{documentID}/download", h.DownloadDocument)
 	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/download"), apiOp{
 		summary:     "Headers of a document download",
-		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range, X-Checksum-Sha256. Kiểm quyền giống GET.",
+		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range, X-Checksum-Sha256. Nhận cùng query ?version, ?meta, ?intent và kiểm quyền giống GET.",
 		tags:        []string{"documents"},
+		sdi:         sdi.DownloadDocumentSDI{},
+		auth:        true,
 	})
 	d.Get("/documents/{documentID}/assets/{assetID}", h.GetDocumentAsset, apiOp{
 		summary: "Stream a document asset",
