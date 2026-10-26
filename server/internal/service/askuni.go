@@ -420,7 +420,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if len(attached) > 0 && !agent {
 		return AskResult{}, ai.ErrAttachmentsUnavailable
 	}
-	ctxItems, refs, err := s.askContextWithLocale(ctx, tc, in.Focus, mentions, in.Locale)
+	ctxItems, refs, err := s.askContextWithLocale(ctx, tc, in.Focus, mentions, in.Locale, agent)
 	if err != nil {
 		return AskResult{}, err
 	}

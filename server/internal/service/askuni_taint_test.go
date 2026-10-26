@@ -417,7 +417,7 @@ func TestDriveFocusTaintsTurnUnit(t *testing.T) {
 	}
 	s.SetDriveContentReader(reader)
 	tc := ai.ToolContext{ActorID: "u1", OrganizationID: "org1", WorkspaceID: "ws1"}
-	items, refs, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000009"}, nil, "vi")
+	items, refs, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000009"}, nil, "vi", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +431,7 @@ func TestDriveFocusTaintsTurnUnit(t *testing.T) {
 	}
 	// Even an access-required note item from driveFileContext has Key: "drive_file" and taints the turn without a DB query.
 	reader.err = ErrDriveAccessRequired
-	errItems, _, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000009"}, nil, "vi")
+	errItems, _, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000009"}, nil, "vi", true)
 	if err != nil {
 		t.Fatal(err)
 	}

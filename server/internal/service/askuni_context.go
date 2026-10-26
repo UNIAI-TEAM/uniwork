@@ -53,10 +53,10 @@ type askRefs struct {
 // that order. A focus of a kind it does not know is skipped, as before. The
 // refs carry the title of each object's first item, as read now.
 func (s *AskUNIService) askContext(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, mentions []ai.Focus) ([]agentItem, askRefs, error) {
-	return s.askContextWithLocale(ctx, tc, focus, mentions, "")
+	return s.askContextWithLocale(ctx, tc, focus, mentions, "", true)
 }
 
-func (s *AskUNIService) askContextWithLocale(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, mentions []ai.Focus, locale string) ([]agentItem, askRefs, error) {
+func (s *AskUNIService) askContextWithLocale(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, mentions []ai.Focus, locale string, fitAgent bool) ([]agentItem, askRefs, error) {
 	var items []agentItem
 	var refs askRefs
 	for i, f := range append([]ai.Focus{{}}, mentions...) {
@@ -66,7 +66,7 @@ func (s *AskUNIService) askContextWithLocale(ctx context.Context, tc ai.ToolCont
 			}
 			f = *focus
 			if f.Kind == "drive_file" {
-				it, src, dc, err := s.driveFileContext(ctx, tc, f.ID, locale)
+				it, src, dc, err := s.driveFileContext(ctx, tc, f.ID, locale, fitAgent)
 				if err != nil {
 					if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
 						return nil, askRefs{}, ai.ErrContextForbidden
@@ -216,7 +216,7 @@ func NewDriveUnavailableReader() DriveContentReader { return driveUnavailableRea
 // DriveContentReader.ReadForAI. ErrDriveFileNotFound maps to 404 (not revealing
 // existence); access, format and availability errors become a localized context
 // note so the model answers explaining why the file could not be read (spec §9).
-func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext, driveFileID, locale string) (agentItem, ai.Source, *DriveContent, error) {
+func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext, driveFileID, locale string, fitAgent bool) (agentItem, ai.Source, *DriveContent, error) {
 	id := strings.TrimSpace(driveFileID)
 	if id == "" {
 		return agentItem{}, ai.Source{}, nil, ErrNotFound
@@ -266,7 +266,10 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 		}
 		body = pdfNote
 	}
-	agentFields, agentBody := fitDriveAgentSource(title, fields, body, locale, dc.Truncated)
+	agentFields, agentBody := fields, body
+	if fitAgent {
+		agentFields, agentBody = fitDriveAgentSource(title, fields, body, locale, dc.Truncated)
+	}
 	src := ai.Source{Kind: "drive_file", Title: title, Href: href, Excerpt: body, MaxRunes: ai.MaxRecordExcerpt}
 	it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: href, Text: withText(agentFields, agentBody), Body: agentBody, Foreign: true}
 	return it, src, &dc, nil

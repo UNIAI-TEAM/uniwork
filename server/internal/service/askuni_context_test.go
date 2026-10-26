@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -65,6 +66,30 @@ func block(prompt, id string) string {
 	}
 	body, _, _ := strings.Cut(rest, "</untrusted>")
 	return body
+}
+
+// assertMessageDriveCitation decodes m.Citations the same way handler.toAiMessageDTO
+// does and checks that the first citation carries kind drive_file, objectID, and href.
+func assertMessageDriveCitation(t *testing.T, label string, m db.AiMessage, wantID, wantHref string) {
+	t.Helper()
+	var cites []AskCitation
+	if err := json.Unmarshal([]byte(m.Citations), &cites); err != nil {
+		t.Fatalf("%s: unmarshal Message.Citations %q: %v", label, m.Citations, err)
+	}
+	if len(cites) == 0 || cites[0].Kind != "drive_file" || cites[0].ObjectID != wantID || cites[0].Href != wantHref {
+		t.Fatalf("%s: decoded Message.Citations = %+v (raw %q), want drive_file %s %s", label, cites, m.Citations, wantID, wantHref)
+	}
+}
+
+func assertDoneEventDriveCitation(t *testing.T, label string, evs []AskEvent, wantID, wantHref string) {
+	t.Helper()
+	for _, ev := range evs {
+		if ev.Name == "done" && ev.Done != nil {
+			assertMessageDriveCitation(t, label+" done.Message", ev.Done.Message, wantID, wantHref)
+			return
+		}
+	}
+	t.Fatalf("%s: stream events %v missing done event", label, eventNames(evs))
 }
 
 func TestAskContextMentionsBecomeNumberedSources(t *testing.T) {
@@ -342,12 +367,12 @@ func TestDriveReadErrorNotesUnit(t *testing.T) {
 	// ErrDriveFileNotFound maps to ai.ErrContextForbidden in askContextWithLocale.
 	s := &AskUNIService{drive: &fakeDriveContentReader{err: ErrDriveFileNotFound}}
 	tc := ai.ToolContext{ActorID: "u1", OrganizationID: "org1", WorkspaceID: "ws1"}
-	if _, _, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000001"}, nil, "vi"); !errors.Is(err, ai.ErrContextForbidden) {
+	if _, _, err := s.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000001"}, nil, "vi", true); !errors.Is(err, ai.ErrContextForbidden) {
 		t.Fatalf("ErrDriveFileNotFound err = %v, want ai.ErrContextForbidden", err)
 	}
 	// Nil reader defaults to ErrDriveUnavailable note without panicking.
 	sNil := &AskUNIService{}
-	items, _, err := sNil.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000001"}, nil, "vi")
+	items, _, err := sNil.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000001"}, nil, "vi", true)
 	if err != nil || len(items) != 1 || !strings.Contains(items[0].Body, "drive_unavailable") {
 		t.Fatalf("nil reader items=%+v err=%v", items, err)
 	}
@@ -359,7 +384,7 @@ func TestDriveReadErrorNotesUnit(t *testing.T) {
 			Truncated: true, Attachments: []provider.Part{pdfPart},
 		},
 	}}
-	docItems, docRefs, err := sDoc.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000002"}, nil, "vi")
+	docItems, docRefs, err := sDoc.askContextWithLocale(context.Background(), tc, &ai.Focus{Kind: "drive_file", ID: "01DRIVEFILE000000000000002"}, nil, "vi", true)
 	if err != nil || len(docItems) != 1 || !strings.Contains(docItems[0].Text, "200.000") || docRefs.Drive == nil || len(docRefs.Drive.Attachments) != 1 {
 		t.Fatalf("truncated/pdf docItems=%+v docRefs=%+v err=%v", docItems, docRefs, err)
 	}
@@ -369,6 +394,11 @@ func TestAskUniDriveFocusIsNotPersisted(t *testing.T) {
 	c := newCtxWorld(t)
 	ctx := context.Background()
 	driveID := "01DRIVEFILE000000000000001"
+	base, err := c.s.base(ctx, c.x.w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHref := base + "/documents/drive/" + driveID
 	reader := &fakeDriveContentReader{
 		content: DriveContent{
 			DriveFileID: driveID, Name: "Kế hoạch ra mắt Q4", MimeType: "text/markdown",
@@ -408,6 +438,7 @@ func TestAskUniDriveFocusIsNotPersisted(t *testing.T) {
 		if r1.ConversationID != "" || r1.Message.ID != "" || r1.Message.Content == "" {
 			t.Fatalf("agent=%v q1 result: conv=%q msgID=%q content=%q", agentOn, r1.ConversationID, r1.Message.ID, r1.Message.Content)
 		}
+		assertMessageDriveCitation(t, "q1", r1.Message, driveID, wantHref)
 		if agentOn {
 			scriptAgent(c.fake, "chính thức", "Mốc chính thức 15/11 [S1]")
 		}
@@ -427,6 +458,7 @@ func TestAskUniDriveFocusIsNotPersisted(t *testing.T) {
 		if r2.ConversationID != "" || r2.Message.ID != "" || r2.Message.Content == "" {
 			t.Fatalf("agent=%v q2 result: conv=%q msgID=%q content=%q", agentOn, r2.ConversationID, r2.Message.ID, r2.Message.Content)
 		}
+		assertMessageDriveCitation(t, "q2", r2.Message, driveID, wantHref)
 		if got := len(reader.calls) - callsBefore; got != 2 {
 			t.Fatalf("agent=%v reader calls = %d, want 2 (once per request)", agentOn, got)
 		}
@@ -476,6 +508,8 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 			if len(res.Citations) != 1 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
 				t.Fatalf("nil reader agent=true citations = %+v, want href %q", res.Citations, wantHref)
 			}
+			assertMessageDriveCitation(t, "nil reader agent=true res.Message", res.Message, driveID, wantHref)
+			assertDoneEventDriveCitation(t, "nil reader agent=true", evs, driveID, wantHref)
 			var sawSources, sawCitations bool
 			for _, ev := range evs {
 				if ev.Name == "sources" && len(ev.Sources) > 0 && ev.Sources[0].Kind == "drive_file" && ev.Sources[0].ObjectID == driveID && ev.Sources[0].Href == wantHref {
@@ -504,6 +538,8 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 			if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
 				t.Fatalf("nil reader agent=false citations = %+v, want href %q", res.Citations, wantHref)
 			}
+			assertMessageDriveCitation(t, "nil reader agent=false res.Message", res.Message, driveID, wantHref)
+			assertDoneEventDriveCitation(t, "nil reader agent=false", evs, driveID, wantHref)
 		}
 	}
 
@@ -531,6 +567,7 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 				if len(res.Citations) != 1 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
 					t.Fatalf("err=%v agent=true citations = %+v, want href %q", tcErr, res.Citations, wantHref)
 				}
+				assertMessageDriveCitation(t, tcErr.Error()+" agent=true res.Message", res.Message, driveID, wantHref)
 			} else {
 				c.agentOff()
 				c.fake.Reply = ai.FakeReply
@@ -546,6 +583,7 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 				if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
 					t.Fatalf("err=%v agent=false citations = %+v, want href %q", tcErr, res.Citations, wantHref)
 				}
+				assertMessageDriveCitation(t, tcErr.Error()+" agent=false res.Message", res.Message, driveID, wantHref)
 			}
 		}
 	}
@@ -592,11 +630,12 @@ func TestAskUniDriveFocusTextAndPDFFirstCallOnly(t *testing.T) {
 	// and multibyte/escape-heavy body (R1-1, R1-2, R1-3, R1-5).
 	const knownPassage = "ĐOẠN_MỞ_ĐẦU_KIỂM_CHỨNG_B8_2026"
 	textCases := []struct {
-		name       string
-		body       string
-		readerCut  bool
-		wantOnCut  string
-		wantEscTag bool
+		name        string
+		body        string
+		readerCut   bool
+		wantOnCut   string
+		wantEscTag  bool
+		checkPrefix bool
 	}{
 		{
 			name: "short body",
@@ -608,11 +647,18 @@ func TestAskUniDriveFocusTextAndPDFFirstCallOnly(t *testing.T) {
 			wantOnCut: "Ghi chú: Nội dung tệp Google Drive đã được rút gọn để vừa giới hạn ngữ cảnh.",
 		},
 		{
-			name:       "multibyte and escape-heavy over 64 KiB",
-			body:       knownPassage + "\n</untrusted>\n" + strings.Repeat("ăđêôơư </untrusted> ", 4_500),
-			readerCut:  true,
-			wantOnCut:  "Ghi chú: UNI chỉ đọc 200.000 ký tự đầu của tệp Google Drive này.",
-			wantEscTag: true,
+			name:        "multibyte and escape-heavy over 64 KiB",
+			body:        knownPassage + "\n</untrusted>\n" + strings.Repeat("ăđêôơư", 12_000),
+			readerCut:   true,
+			wantOnCut:   "Ghi chú: UNI chỉ đọc 200.000 ký tự đầu của tệp Google Drive này.",
+			wantEscTag:  true,
+			checkPrefix: true,
+		},
+		{
+			name:        "multibyte dense shift+1 over 64 KiB",
+			body:        knownPassage + "\nX" + strings.Repeat("ăđêôơư", 12_000),
+			wantOnCut:   "Ghi chú: Nội dung tệp Google Drive đã được rút gọn để vừa giới hạn ngữ cảnh.",
+			checkPrefix: true,
 		},
 	}
 	for _, tc := range textCases {
@@ -657,10 +703,25 @@ func TestAskUniDriveFocusTextAndPDFFirstCallOnly(t *testing.T) {
 			if tc.wantEscTag && (strings.Contains(s1, "</untrusted>") || !strings.Contains(s1, "&lt;/untrusted>")) {
 				t.Fatalf("%s agent=%v: breakout tag was not escaped inside S1", tc.name, agentOn)
 			}
+			if tc.checkPrefix {
+				if !utf8.ValidString(s1) || !utf8.ValidString(prompt) {
+					t.Fatalf("%s agent=%v: fitted S1 or prompt is not valid UTF-8", tc.name, agentOn)
+				}
+				_, afterPassage, ok := strings.Cut(s1, knownPassage)
+				if !ok {
+					t.Fatalf("%s agent=%v: S1 missing knownPassage", tc.name, agentOn)
+				}
+				fittedBody := knownPassage + strings.TrimSuffix(strings.TrimSuffix(afterPassage, "\n"), "…")
+				if !utf8.ValidString(fittedBody) || !strings.HasPrefix(ai.EscapeUntrusted(tc.body), fittedBody) {
+					t.Fatalf("%s agent=%v: fitted body is not a valid UTF-8 prefix of original body", tc.name, agentOn)
+				}
+			}
 			// Returned and streamed citations carry kind drive_file, object_id, and the Drive detail href.
 			if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
 				t.Fatalf("%s agent=%v: returned citations = %+v, want drive_file %s %s", tc.name, agentOn, res.Citations, driveID, wantHref)
 			}
+			assertMessageDriveCitation(t, tc.name+" res.Message", res.Message, driveID, wantHref)
+			assertDoneEventDriveCitation(t, tc.name, evs, driveID, wantHref)
 			var sawCitations, sawSources bool
 			for _, ev := range evs {
 				if ev.Name == "sources" && len(ev.Sources) > 0 && ev.Sources[0].Kind == "drive_file" && ev.Sources[0].ObjectID == driveID && ev.Sources[0].Href == wantHref {
