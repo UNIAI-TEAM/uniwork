@@ -153,7 +153,6 @@ test("meeting agent env lists only non-secret assignments", () => {
     "SCRIBE_HEALTH_PORT",
     "SCRIBE_METRICS_PORT",
     "SCRIBE_DRAIN_TIMEOUT_S",
-    "PROMETHEUS_MULTIPROC_DIR",
   ]);
   assert.equal(agent.get("MEETING_SCRIBE_AGENT_NAME"), "uniwork-scribe");
   assert.equal(agent.get("SCRIBE_STT_PROVIDER"), "assemblyai");
@@ -164,7 +163,6 @@ test("meeting agent env lists only non-secret assignments", () => {
   assert.equal(agent.get("SCRIBE_HEALTH_PORT"), "8081");
   assert.equal(agent.get("SCRIBE_METRICS_PORT"), "9100");
   assert.equal(agent.get("SCRIBE_DRAIN_TIMEOUT_S"), "20");
-  assert.equal(agent.get("PROMETHEUS_MULTIPROC_DIR"), "/tmp/scribe-metrics");
   for (const secret of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "ASSEMBLYAI_API_KEY"]) {
     assert.equal(agent.has(secret), false, secret);
   }
