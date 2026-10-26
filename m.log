@@ -1,0 +1,22 @@
+$ rc=$(cat /tmp/pr8r1-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr8r1-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr8r1-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr8r1-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+
+> @uniwork/e2e@0.0.0 test /workspace/e2e
+> playwright test --reporter=list --shard=5/8
+
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.waitForRequest: Target page, context or browser has been closed
+    at assertWebUsesE2eApi (/workspace/e2e/api-url.ts:22:26)
+    at globalSetup (/workspace/e2e/documents-flag.setup.ts:24:3) {
+  log: []
+}
+
+Node.js v22.23.4
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=5/8`
+Exit status 1
+no passing test
+
+E2E_EXIT=1

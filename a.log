@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5g7-develop-pr8; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+ee9d57f29f264fa0fc001a448f4cd060fc19edab
+ee9d57f29f264fa0fc001a448f4cd060fc19edab
+ee9d57f29 chore: merge develop faf019f8a into the PR 8 branch (UNI-923)
+faf019f8a UNI-2161: Phụ đề Thư ký UNI trong phòng họp: chữ hiện dần, đường sáng theo giọng nói, chọn ngôn ngữ dạng trượt (#462)
+f259cb89f UNI-2163: Icon: nét cố định 1.5px ở mọi cỡ và guard quy ước (#461)
+
+SYNCED_EXIT=0
