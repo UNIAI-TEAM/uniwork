@@ -1,0 +1,4 @@
+$ cd server; go test -p 1 ./internal/ -count=1 > /tmp/dg-arch.log 2>&1; rc=$?; tail -5 /tmp/dg-arch.log; echo; echo "GO_ARCH_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal	1.972s
+
+GO_ARCH_EXIT=0
