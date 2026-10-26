@@ -517,8 +517,16 @@ func TestBuildHandlerTextColorsAPipe(t *testing.T) {
 	if !strings.Contains(got, "\x1b[92mINF\x1b[0m") || !strings.Contains(got, "\x1b[2mtrace_id=tid\x1b[0m") {
 		t.Fatalf("pipe was not coloured: %q", got)
 	}
-	if !strings.Contains(got, "method=GET") || strings.Index(got, "method=GET") > strings.Index(got, "trace_id=tid") {
-		t.Fatalf("order: %s", stripANSI(got))
+	plain := stripANSI(got)
+	if strings.Index(plain, "method=GET") < 0 || strings.Index(plain, "trace_id=tid") < 0 ||
+		strings.Index(plain, "method=GET") > strings.Index(plain, "trace_id=tid") {
+		t.Fatalf("order: %s", plain)
+	}
+	if !strings.Contains(got, "\x1b[2mmethod=\x1b[0mGET") {
+		t.Fatalf("method key should reset before value: %q", got)
+	}
+	if strings.Contains(got, "\x1b[2mmethod=GET\x1b[0m") {
+		t.Fatalf("method value should not be faint: %q", got)
 	}
 }
 

@@ -270,24 +270,6 @@ func (h *textHandler) writeAttr(buf *bytes.Buffer, a slog.Attr, msg string, dim 
 		buf.WriteString(ansiReset)
 		return
 	}
-	if h.color && msg == "http request" && listed(httpHeadKeys, attrBaseKey(a.Key)) {
-		if c := h.valueColor(msg, a); c != "" {
-			buf.WriteString(ansiFaint)
-			buf.WriteString(a.Key)
-			buf.WriteByte('=')
-			buf.WriteString(ansiReset)
-			buf.WriteString(c)
-			buf.WriteString(val)
-			buf.WriteString(ansiReset)
-			return
-		}
-		buf.WriteString(ansiFaint)
-		buf.WriteString(a.Key)
-		buf.WriteByte('=')
-		buf.WriteString(val)
-		buf.WriteString(ansiReset)
-		return
-	}
 	buf.WriteString(ansiFaint)
 	buf.WriteString(a.Key)
 	buf.WriteByte('=')
