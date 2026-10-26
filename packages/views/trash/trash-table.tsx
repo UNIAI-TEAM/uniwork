@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Ellipsis, Folder, Lock, RotateCcw, Trash, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TrashItem } from "@uniwork/core/trash";
@@ -23,6 +23,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
+import { DocumentPurgeDialog } from "../documents/document-purge-dialog";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { absoluteTime, relativeTime } from "../notifications/relative-time";
 import { SettingsCard } from "../settings/components/settings-layout";
@@ -45,6 +46,7 @@ const KIND_ICONS: Record<string, LucideIcon> = {
 const DOCUMENT_SUB_KINDS = new Set(["page", "file", "folder"]);
 
 export function TrashTable({
+  wsId,
   items,
   nameOf,
   onRestore,
@@ -54,10 +56,12 @@ export function TrashTable({
   loadingMore = false,
   onLoadMore,
 }: {
+  wsId: string;
   items: TrashItem[];
   /** The deleter's display name from their user id. */
   nameOf: (userId?: string) => string;
   onRestore: (row: TrashItem) => void;
+  /** A task or a project, once confirmed here; a document confirms and purges in DocumentPurgeDialog. */
   onPurge: (row: TrashItem) => void;
   /** A restore or purge is in flight: the commands stay in the tab order but do nothing. */
   busy?: boolean;
@@ -67,6 +71,10 @@ export function TrashTable({
 }) {
   const { t, i18n } = useTranslation();
   const [purging, setPurging] = useState<TrashItem | null>(null);
+  const reasonIdBase = useId();
+  // A row may come back without a title; the cell, the menu's name and the dialog all say so.
+  const titleOf = (row: TrashItem) =>
+    row.title || (row.kind === "document" ? t("documents.detail.untitled") : t("trash.untitled"));
 
   const subLine = (row: TrashItem): string => {
     switch (row.kind) {
@@ -110,6 +118,8 @@ export function TrashTable({
                 const Icon = row.kind === "document" && row.sub_kind === "folder" ? Folder : (KIND_ICONS[row.kind] ?? Trash);
                 const days = daysLeft(row.purge_after);
                 const reason = lockReason(row);
+                const reasonId = reason ? `${reasonIdBase}-${row.kind}-${row.id}` : undefined;
+                const title = titleOf(row);
                 const location = row.location_path.length > 0 ? row.location_path.join(" › ") : row.location_title;
                 // A kind a later server adds has no hook here: listed, never acted on.
                 const locked = !row.can_manage || !KIND_ICONS[row.kind];
@@ -120,7 +130,7 @@ export function TrashTable({
                         <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-baseline gap-2">
-                            <span className="truncate text-body font-medium">{row.title}</span>
+                            <span className="truncate text-body font-medium">{title}</span>
                             {row.identifier ? (
                               <span className="shrink-0 font-mono text-caption text-muted-foreground">{row.identifier}</span>
                             ) : null}
@@ -155,25 +165,34 @@ export function TrashTable({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              aria-label={t("trash.row_actions", { title: row.title })}
+                              aria-label={t("trash.row_actions", { title })}
                             />
                           }
                         >
                           <Ellipsis aria-hidden />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64">
-                          <DropdownMenuItem disabled={locked || busy} onClick={() => onRestore(row)}>
+                          <DropdownMenuItem
+                            disabled={locked || busy}
+                            aria-describedby={reasonId}
+                            onClick={() => onRestore(row)}
+                          >
                             <RotateCcw aria-hidden />
                             {t("trash.restore")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" disabled={locked || busy} onClick={() => setPurging(row)}>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            disabled={locked || busy}
+                            aria-describedby={reasonId}
+                            onClick={() => setPurging(row)}
+                          >
                             <Trash aria-hidden />
                             {t("trash.purge")}
                           </DropdownMenuItem>
                           {reason ? (
                             <p className="flex gap-1.5 px-2 py-1.5 text-caption text-pretty text-muted-foreground">
                               <Lock aria-hidden className="mt-0.5 size-3 shrink-0" />
-                              {reason}
+                              <span id={reasonId}>{reason}</span>
                             </p>
                           ) : null}
                         </DropdownMenuContent>
@@ -200,11 +219,22 @@ export function TrashTable({
         </div>
       ) : null}
 
-      <AlertDialog open={purging !== null} onOpenChange={(open) => !open && setPurging(null)}>
+      {purging?.kind === "document" ? (
+        <DocumentPurgeDialog
+          open
+          wsId={wsId}
+          doc={{ id: purging.id, title: purging.title, kind: purging.sub_kind }}
+          onOpenChange={(open) => !open && setPurging(null)}
+        />
+      ) : null}
+      <AlertDialog
+        open={purging !== null && purging.kind !== "document"}
+        onOpenChange={(open) => !open && setPurging(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("trash.purge_title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("trash.purge_desc", { title: purging?.title ?? "" })}</AlertDialogDescription>
+            <AlertDialogDescription>{t("trash.purge_desc", { title: purging ? titleOf(purging) : "" })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("trash.cancel")}</AlertDialogCancel>

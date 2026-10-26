@@ -150,7 +150,7 @@ func TestTrashListMergesKindsNewestFirst(t *testing.T) {
 		t.Fatalf("kinds = %v, cursor %q; want document, project, task on one page", trashKindsOf(page.Items), page.NextCursor)
 	}
 	doc, project, task := page.Items[0], page.Items[1], page.Items[2]
-	if doc.ID != docID || doc.SubKind != "page" || !slices.Equal(doc.LocationPath, []string{"Pháp chế"}) ||
+	if doc.ID != docID || doc.SubKind != "page" || doc.ParentID != folder.ID || !slices.Equal(doc.LocationPath, []string{"Pháp chế"}) ||
 		doc.TrashedBy != x.tn.owner.ID || doc.PurgeAfter.IsZero() || !doc.CanManage {
 		t.Fatalf("document row = %+v", doc)
 	}

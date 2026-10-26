@@ -8,6 +8,7 @@ type TrashItemDTO struct {
 	Title         string   `json:"title" example:"Soạn hợp đồng"`
 	Identifier    string   `json:"identifier" description:"Mã công việc PREFIX-N; rỗng với dự án và tài liệu" example:"UNI-12"`
 	SubKind       string   `json:"sub_kind" description:"Tài liệu: page, file hoặc folder; rỗng với loại khác" example:"page"`
+	ParentID      string   `json:"parent_id" description:"Tài liệu: ULID thư mục cha; rỗng ở gốc workspace và với loại khác" example:"01J8X4FOLDN1P2Q3R4S5T6U7"`
 	Count         int      `json:"count" description:"Công việc: số việc con cùng lô; dự án: số công việc khôi phục sẽ gắn lại; tài liệu: 0" example:"2"`
 	LocationTitle string   `json:"location_title" description:"Công việc: dự án của nó (rỗng khi không có); dự án và tài liệu: tên workspace" example:"Website mới"`
 	LocationPath  []string `json:"location_path" description:"Tài liệu: tên các thư mục cha, từ gốc; rỗng với loại khác" example:"[\"Pháp chế\"]"`

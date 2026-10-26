@@ -14261,6 +14261,7 @@
     },
     "empty_title": "The trash is empty",
     "no_match_title": "No items match",
-    "clear_filters": "Clear filters"
+    "clear_filters": "Clear filters",
+    "untitled": "Untitled"
   }
 }

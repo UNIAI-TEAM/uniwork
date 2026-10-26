@@ -12,6 +12,7 @@ const item = {
   title: "Hợp đồng",
   identifier: "",
   sub_kind: "docx",
+  parent_id: "f1",
   count: 3,
   location_title: "Pháp lý",
   location_path: ["Tài liệu", "Pháp lý"],
@@ -50,7 +51,7 @@ describe("listTrash", () => {
       trashed_by: "u1",
       cursor: "c1",
     });
-    expect(page.items[0]).toMatchObject({ id: "d1", location_path: ["Tài liệu", "Pháp lý"], can_manage: true });
+    expect(page.items[0]).toMatchObject({ id: "d1", parent_id: "f1", location_path: ["Tài liệu", "Pháp lý"], can_manage: true });
     expect(page.next_cursor).toBe("c2");
   });
 

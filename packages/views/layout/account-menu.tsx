@@ -26,8 +26,8 @@ function initialOf(name: string) {
 }
 
 /**
- * The account menu (settings, the trash, log out). On a desktop shell it is the avatar at
- * the top bar's end, as in ClickUp; in the phone sheet it stays the sidebar's
+ * The account menu (settings, the trash, log out). On a desktop shell it is
+ * the avatar at the top bar's end; in the phone sheet it stays the sidebar's
  * footer row with the name and email.
  */
 export function AccountMenu({ placement, onNavigate }: { placement: "sidebar" | "header"; onNavigate?: () => void }) {

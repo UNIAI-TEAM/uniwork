@@ -11,6 +11,8 @@ const TrashItemSchema = z.object({
   title: z.string().default(""),
   identifier: z.string().default(""),
   sub_kind: z.string().default(""),
+  /** Document only: its folder, empty at the workspace root. */
+  parent_id: z.string().default(""),
   count: z.number().default(0),
   location_title: z.string().default(""),
   location_path: z.array(z.string()).default([]),

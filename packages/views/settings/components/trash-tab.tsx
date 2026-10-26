@@ -8,6 +8,7 @@ import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
 import { useTrashList } from "@uniwork/core/trash";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { toastApiError } from "../../toast-api-error";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
 import { EMPTY_TRASH_FILTERS, TrashFilters, type TrashFilterValues } from "../../trash/trash-filters";
@@ -31,7 +32,6 @@ export function TrashTab() {
   const documentsEnabled = useFlag("documents", false);
   const members = useMembers(workspace.id);
   const nameOf = useTrashedByName(workspace.id);
-  const actions = useTrashRowActions(workspace.id);
   const [filters, setFilters] = useState<TrashFilterValues>(EMPTY_TRASH_FILTERS);
   const typed = useDebouncedValue(filters.q.trim(), SEARCH_DEBOUNCE_MS);
   // Clearing the box applies at once; only typing waits.
@@ -43,6 +43,7 @@ export function TrashTab() {
   });
 
   const rows = list.data?.pages.flatMap((page) => page.items) ?? [];
+  const actions = useTrashRowActions(workspace.id, rows);
   const filtering = Boolean(filters.kind || q || filters.trashedBy);
 
   let body;
@@ -73,6 +74,7 @@ export function TrashTab() {
   } else {
     body = (
       <TrashTable
+        wsId={workspace.id}
         items={rows}
         nameOf={nameOf}
         busy={actions.busy}
@@ -80,7 +82,11 @@ export function TrashTab() {
         onPurge={actions.purge}
         hasMore={Boolean(list.hasNextPage)}
         loadingMore={list.isFetchingNextPage}
-        onLoadMore={() => void list.fetchNextPage()}
+        onLoadMore={() =>
+          void list.fetchNextPage().then((page) => {
+            if (page.isFetchNextPageError) toastApiError(page.error, t("trash.error_title"));
+          })
+        }
       />
     );
   }

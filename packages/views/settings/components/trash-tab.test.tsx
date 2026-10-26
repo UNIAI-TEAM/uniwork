@@ -79,10 +79,34 @@ const documentRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-type Init = { method?: string } | undefined;
+type Init = { method?: string; headers?: Record<string, string> } | undefined;
 /** The trash list the server answers for a GET of the trash route. */
 let listFor: (url: string) => { items: unknown[]; next_cursor: string };
 let post: (path: string) => Promise<unknown>;
+
+/** A verifiable restore answer for one document, restored to the workspace root. */
+const archive = (id: string, title: string, kind = "folder") => ({
+  document: {
+    id,
+    organization_id: "o1",
+    workspace_id: "ws1",
+    kind,
+    title,
+    visibility: "workspace",
+    revision: "2",
+    current_version: 0,
+    position: 0,
+    parent_id: null,
+    created_by: "u1",
+    created_by_kind: "human",
+    updated_by: "u1",
+    updated_by_kind: "human",
+    created_at: "2026-09-27T09:00:00Z",
+    updated_at: "2026-10-26T09:00:00Z",
+  },
+  batch_id: "b1",
+  affected: [id],
+});
 
 beforeEach(() => {
   toast.success.mockReset();
@@ -173,12 +197,18 @@ describe("TrashTab", () => {
     expect(within(doc).getByText("Team")).toBeInTheDocument();
   });
 
-  it("asks the server again from page one when the kind changes", async () => {
+  it("asks the server again from page one when the kind changes, even after Tải thêm", async () => {
+    listFor = (url) =>
+      url.includes("cursor=c2")
+        ? { items: [taskRow({ id: "t9", title: "Việc cũ hơn" })], next_cursor: "" }
+        : { items: [taskRow()], next_cursor: url.includes("kind=") ? "" : "c2" };
     renderTab();
-    await screen.findByText("Thử thùng rác cha");
+    fireEvent.click(await screen.findByRole("button", { name: "Tải thêm" }));
+    expect(await screen.findByText("Việc cũ hơn")).toBeInTheDocument();
+    expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?cursor=c2");
     await pick("Loại", "Dự án");
     await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?kind=project"));
-    expect(trashGets().some((url) => url.includes("cursor"))).toBe(false);
+    expect(trashGets().filter((url) => url.includes("kind=")).every((url) => !url.includes("cursor"))).toBe(true);
   });
 
   it("filters by who deleted, with Tôi as the current person", async () => {
@@ -213,11 +243,14 @@ describe("TrashTab", () => {
     listFor = () => ({ items: [projectRow({ can_manage: false })], next_cursor: "" });
     renderTab();
     const menu = await openRowMenu("Dự án thử");
-    expect(within(menu).getByRole("menuitem", { name: "Khôi phục" })).toHaveAttribute("aria-disabled", "true");
-    expect(within(menu).getByRole("menuitem", { name: "Xóa vĩnh viễn" })).toHaveAttribute("aria-disabled", "true");
-    expect(menu).toHaveTextContent(
-      "Chỉ người tạo, người phụ trách hoặc quản trị viên mới khôi phục hay xóa vĩnh viễn được dự án này.",
-    );
+    const why = "Chỉ người tạo, người phụ trách hoặc quản trị viên mới khôi phục hay xóa vĩnh viễn được dự án này.";
+    for (const name of ["Khôi phục", "Xóa vĩnh viễn"]) {
+      const item = within(menu).getByRole("menuitem", { name });
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      // The reason is read with the item, not only seen beside it.
+      expect(item).toHaveAccessibleDescription(why);
+    }
+    expect(menu).toHaveTextContent(why);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Khôi phục" }));
     expect(posts()).toEqual([]);
   });
@@ -226,7 +259,16 @@ describe("TrashTab", () => {
     listFor = () => ({ items: [documentRow({ can_manage: false })], next_cursor: "" });
     renderTab();
     const menu = await openRowMenu("Hợp đồng mẫu");
-    expect(menu).toHaveTextContent("Cần quyền quản lý tài liệu này.");
+    expect(within(menu).getByRole("menuitem", { name: "Khôi phục" })).toHaveAccessibleDescription(
+      "Cần quyền quản lý tài liệu này.",
+    );
+  });
+
+  it("names a row without a title as untitled, in the cell and the menu", async () => {
+    listFor = () => ({ items: [taskRow({ title: "" }), documentRow({ title: "" })], next_cursor: "" });
+    renderTab();
+    expect(await screen.findAllByRole("button", { name: "Thao tác cho Chưa có tiêu đề" })).toHaveLength(2);
+    expect(screen.getAllByText("Chưa có tiêu đề")).toHaveLength(2);
   });
 
   it("restores a task through its own route, and the row leaves the list", async () => {
@@ -245,6 +287,55 @@ describe("TrashTab", () => {
     expect(screen.getByText("Dự án thử")).toBeInTheDocument();
   });
 
+  it("explains a task batch too large to restore at once", async () => {
+    post = () => Promise.reject(new ApiError("x", "trash_too_large", 422));
+    renderTab();
+    const menu = await openRowMenu("Thử thùng rác cha");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Khôi phục" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Có quá nhiều task")));
+  });
+
+  it("rereads the list when the task is already gone", async () => {
+    post = () => Promise.reject(new ApiError("x", "not_found", 404));
+    renderTab();
+    const menu = await openRowMenu("Thử thùng rác cha");
+    const before = trashGets().length;
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Khôi phục" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Nội dung này không còn tồn tại hoặc đã bị xóa."));
+    await waitFor(() => expect(trashGets().length).toBeGreaterThan(before));
+  });
+
+  it("words a document no longer in the trash as the Documents trash does, and rereads the list", async () => {
+    post = () => Promise.reject(new ApiError("x", "document_not_in_trash", 409));
+    renderTab();
+    const menu = await openRowMenu("Hợp đồng mẫu");
+    const before = trashGets().length;
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Khôi phục" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Mục này không còn trong thùng rác."));
+    await waitFor(() => expect(trashGets().length).toBeGreaterThan(before));
+  });
+
+  it("restores a folder with an idempotency key and says when listed children stayed behind", async () => {
+    listFor = () => ({
+      items: [
+        documentRow({ id: "f1", title: "Hồ sơ", sub_kind: "folder", location_path: [] }),
+        documentRow({ id: "d2", title: "Mẫu riêng", parent_id: "f1", can_manage: false }),
+      ],
+      next_cursor: "",
+    });
+    post = () => Promise.resolve(archive("f1", "Hồ sơ"));
+    renderTab();
+    const menu = await openRowMenu("Hồ sơ");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Khôi phục" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Đã khôi phục Hồ sơ về gốc workspace", {
+        description: "Một số mục con vẫn ở lại thùng rác.",
+      }),
+    );
+    const [, init] = requestMock.mock.calls.find(([path]) => String(path) === "/api/v1/documents/f1/restore")!;
+    expect((init as Init)?.headers?.["Idempotency-Key"]).toBeTruthy();
+  });
+
   it("explains a project whose title is taken again", async () => {
     post = () => Promise.reject(new ApiError("x", "duplicate_project_title", 409));
     renderTab();
@@ -254,17 +345,42 @@ describe("TrashTab", () => {
     expect(posts()).toEqual(["/api/v1/workspaces/ws1/projects/p1/restore"]);
   });
 
-  it("deletes a document forever only after the dialog", async () => {
+  it("deletes a task forever only after the dialog", async () => {
     post = () => Promise.resolve({});
     renderTab();
-    const menu = await openRowMenu("Hợp đồng mẫu");
+    const menu = await openRowMenu("Thử thùng rác cha");
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Xóa vĩnh viễn" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(/Không hoàn tác được/)).toBeInTheDocument();
     expect(posts()).toEqual([]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Xóa vĩnh viễn" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa vĩnh viễn"));
+    expect(posts()).toEqual(["/api/v1/tasks/t1/purge"]);
+  });
+
+  it("deletes a document forever through the Documents trash dialog", async () => {
+    post = () => Promise.resolve({});
+    renderTab();
+    const menu = await openRowMenu("Hợp đồng mẫu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Xóa vĩnh viễn" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Xóa vĩnh viễn Hợp đồng mẫu?" });
+    expect(within(dialog).getByText("Mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa vĩnh viễn" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa vĩnh viễn Hợp đồng mẫu"));
     expect(posts()).toEqual(["/api/v1/documents/d1/purge"]);
+  });
+
+  it("warns that a folder's unmanaged children stay in the trash before purging it", async () => {
+    listFor = () => ({ items: [documentRow({ sub_kind: "folder" })], next_cursor: "" });
+    renderTab();
+    const menu = await openRowMenu("Hợp đồng mẫu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Xóa vĩnh viễn" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(
+        "Thư mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác. Mục con bạn không quản lý vẫn ở lại thùng rác.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("loads the next page on demand", async () => {
@@ -276,6 +392,19 @@ describe("TrashTab", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Tải thêm" }));
     expect(await screen.findByText("Việc cũ hơn")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tải thêm" })).not.toBeInTheDocument();
+  });
+
+  it("says so when the next page fails to load", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/members")) return Promise.resolve({ members });
+      if (p.includes("cursor=c2")) return Promise.reject(new ApiError("x", "internal", 500));
+      return Promise.resolve({ items: [taskRow()], next_cursor: "c2" });
+    });
+    renderTab();
+    fireEvent.click(await screen.findByRole("button", { name: "Tải thêm" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByText("Thử thùng rác cha")).toBeInTheDocument();
   });
 
   it("offers Tài liệu in the kind filter only while documents are on", async () => {

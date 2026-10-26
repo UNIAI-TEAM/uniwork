@@ -35,6 +35,9 @@ type TrashItem struct {
 	ID, Title  string
 	Identifier string // task only: PREFIX-N
 	SubKind    string // document only: page, file or folder
+	// ParentID is a document's folder, empty at the workspace root: the client
+	// tells which listed rows a folder restore may leave behind.
+	ParentID string
 	// Count is a task's subtasks in its batch, or a project's TaskCount.
 	Count int
 	// LocationTitle is a task's project (empty without one), or the workspace
@@ -240,7 +243,8 @@ func (s *TrashService) read(ctx context.Context, actor Actor, view WorkspaceView
 			}
 			d := r.Document
 			src.items = append(src.items, TrashItem{
-				Kind: k, ID: d.ID, Title: d.Title, SubKind: d.Kind, LocationTitle: view.Name, LocationPath: path,
+				Kind: k, ID: d.ID, Title: d.Title, SubKind: d.Kind, ParentID: d.ParentID.String,
+				LocationTitle: view.Name, LocationPath: path,
 				TrashedBy: d.ArchivedBy.String, TrashedAt: d.ArchivedAt.Time, PurgeAfter: d.PurgeAfter.Time,
 				CanManage: r.Access.canAdminister(),
 			})

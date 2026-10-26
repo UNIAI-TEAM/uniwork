@@ -25,7 +25,7 @@ func TestTrashRouteAnswersTheSharedPage(t *testing.T) {
 	if res.StatusCode != 200 || len(items) != 2 || out["next_cursor"] != "" {
 		t.Fatalf("shared trash: %d %v", res.StatusCode, out)
 	}
-	fields := []string{"kind", "id", "title", "identifier", "sub_kind", "count", "location_title", "location_path",
+	fields := []string{"kind", "id", "title", "identifier", "sub_kind", "parent_id", "count", "location_title", "location_path",
 		"trashed_by", "trashed_at", "purge_after", "can_manage"}
 	kinds := []string{}
 	for _, raw := range items {

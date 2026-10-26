@@ -24,18 +24,24 @@ export interface TrashActions {
   dialog: ReactNode;
 }
 
-/** The ids of `root`'s descendants that are themselves rows of this trash
- *  list — the children a folder restore may or may not take along. */
-function trashedDescendants(root: DocumentSummaryRow, rows: LibraryRow[]): Set<string> {
-  const byParent = new Map<string, DocumentSummaryRow[]>();
-  for (const row of rows) {
-    if (row.type !== "document" || !row.doc.parent_id) continue;
-    const siblings = byParent.get(row.doc.parent_id) ?? [];
-    siblings.push(row.doc);
-    byParent.set(row.doc.parent_id, siblings);
+type TFunction = ReturnType<typeof useTranslation>["t"];
+
+/** The ids of `rootId`'s descendants that are themselves rows of a trash
+ *  list — the children a folder restore may or may not take along. The shared
+ *  trash (Settings › Thùng rác) reads the same rows by their `parent_id`. */
+export function trashedDescendants(
+  rootId: string,
+  docs: readonly { id: string; parent_id?: string | null }[],
+): Set<string> {
+  const byParent = new Map<string, { id: string }[]>();
+  for (const doc of docs) {
+    if (!doc.parent_id) continue;
+    const siblings = byParent.get(doc.parent_id) ?? [];
+    siblings.push(doc);
+    byParent.set(doc.parent_id, siblings);
   }
   const out = new Set<string>();
-  const queue = [...(byParent.get(root.id) ?? [])];
+  const queue = [...(byParent.get(rootId) ?? [])];
   while (queue.length) {
     const next = queue.shift()!;
     if (out.has(next.id)) continue;
@@ -55,6 +61,32 @@ function restoreDestination(result: DocumentArchive): { root: boolean; folder: s
   if (doc.parent_id === null) return { root: true, folder: null };
   const folder = [...(doc.breadcrumbs ?? [])].reverse().find((crumb) => crumb.id === doc.parent_id)?.title ?? null;
   return { root: false, folder };
+}
+
+/**
+ * The toast after a restore: where the item landed (R-3), that a shelved row
+ * went back to Lưu trữ (U-6), and — when trashed descendants listed before the
+ * restore are not in the answer's `affected` — that some children stayed in
+ * the trash.
+ */
+export function toastDocumentRestored(
+  t: TFunction,
+  result: DocumentArchive,
+  fallbackTitle: string,
+  left: ReadonlySet<string>,
+): void {
+  const title = result.document.title || fallbackTitle;
+  const dest = restoreDestination(result);
+  const base = dest.root
+    ? t("documents.trash.toast.restored_root", { title })
+    : dest.folder
+      ? t("documents.trash.toast.restored_folder", { title, folder: dest.folder })
+      : t("documents.trash.toast.restored", { title });
+  const partial = [...left].filter((id) => !result.affected.includes(id)).length > 0;
+  const stillShelved = Boolean(result.document.shelved_at);
+  const text = stillShelved ? t("documents.shelved_list.toast.restored_to_shelved", { title }) : base;
+  if (partial) toast.success(text, { description: t("documents.trash.toast.left_in_trash") });
+  else toast.success(text);
 }
 
 /**
@@ -85,24 +117,14 @@ export function useTrashActions({ wsId, rows }: { wsId: string; rows: LibraryRow
     trackRestoring(doc.id, true);
     // The descendants this folder could leave behind are the rows the list
     // shows BEFORE the mutation; read them now, the refetch comes with it.
-    const left = doc.kind === "folder" ? trashedDescendants(doc, rows) : new Set<string>();
+    const left =
+      doc.kind === "folder"
+        ? trashedDescendants(doc.id, rows.flatMap((row) => (row.type === "document" ? [row.doc] : [])))
+        : new Set<string>();
     void restore.mutateAsync({ documentId: doc.id, idempotencyKey: createSafeId() }).then(
-      (result) => {
-        const title = result.document.title || doc.title || t("documents.detail.untitled");
-        const dest = restoreDestination(result);
-        const base = dest.root
-          ? t("documents.trash.toast.restored_root", { title })
-          : dest.folder
-            ? t("documents.trash.toast.restored_folder", { title, folder: dest.folder })
-            : t("documents.trash.toast.restored", { title });
-        const partial = [...left].filter((id) => !result.affected.includes(id)).length > 0;
-        // U-6: restoring a shelved row keeps it shelved — the toast says the
-        // item went back to Lưu trữ (the row reappears with its badge).
-        const stillShelved = Boolean(result.document.shelved_at);
-        const text = stillShelved ? t("documents.shelved_list.toast.restored_to_shelved", { title }) : base;
-        if (partial) toast.success(text, { description: t("documents.trash.toast.left_in_trash") });
-        else toast.success(text);
-      },
+      // U-6: restoring a shelved row keeps it shelved — the toast says the
+      // item went back to Lưu trữ (the row reappears with its badge).
+      (result) => toastDocumentRestored(t, result, doc.title || t("documents.detail.untitled"), left),
       (failure: unknown) => {
         toast.error(trashErrorMessage(failure, t, "documents.trash.restore_failed"));
         // Someone else already restored or purged it: the row is stale, so reread the list.

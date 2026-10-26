@@ -31,7 +31,7 @@ func (h *handlers) listTrash(w http.ResponseWriter, r *http.Request) {
 			path = []string{}
 		}
 		items = append(items, sdo.TrashItemDTO{
-			Kind: string(it.Kind), ID: it.ID, Title: it.Title, Identifier: it.Identifier, SubKind: it.SubKind,
+			Kind: string(it.Kind), ID: it.ID, Title: it.Title, Identifier: it.Identifier, SubKind: it.SubKind, ParentID: it.ParentID,
 			Count: it.Count, LocationTitle: it.LocationTitle, LocationPath: path, TrashedBy: it.TrashedBy,
 			TrashedAt: it.TrashedAt.UTC().Format(time.RFC3339), PurgeAfter: it.PurgeAfter.UTC().Format(time.RFC3339),
 			CanManage: it.CanManage,

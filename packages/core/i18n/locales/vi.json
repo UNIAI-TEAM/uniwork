@@ -14187,6 +14187,7 @@
     },
     "empty_title": "Thùng rác trống",
     "no_match_title": "Không có mục nào khớp",
-    "clear_filters": "Bỏ lọc"
+    "clear_filters": "Bỏ lọc",
+    "untitled": "Chưa có tiêu đề"
   }
 }
