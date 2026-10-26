@@ -14,6 +14,7 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
+import type { LibraryDesktopOpen } from "./documents-library-row";
 
 const { t } = initI18n();
 
@@ -65,14 +66,14 @@ function createNav(initialSearch = ""): NavigationAdapter {
   };
 }
 
-function renderSearchView(nav: NavigationAdapter = createNav(), onOpen = vi.fn()) {
+function renderSearchView(nav: NavigationAdapter = createNav(), onOpen = vi.fn(), desktopOpen?: LibraryDesktopOpen) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
     wrap(
       <NavigationProvider value={nav}>
         <WorkspaceProvider workspace={workspace} user={user}>
           <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={onOpen} />
+            <DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>
       </NavigationProvider>,
@@ -854,27 +855,50 @@ describe("shelved search results (U-6)", () => {
     expect(freshRow && within(freshRow as HTMLElement).queryByText(t("documents.shelved_list.badge"))).toBeNull();
   });
 
-  it("opens LegacyFormatDialog instead of navigating when clicking a legacy search hit", async () => {
+  it("opens LegacyFormatDialog instead of navigating when clicking a legacy search hit, and requests operation=view when the level is unknown", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        const hitItem: Record<string, unknown> = summary({ id: "d-ppt", kind: "file", title: "Bài thuyết trình.ppt", format: "ppt", path: [] });
+        delete hitItem.my_level;
         return Promise.resolve({
-          documents: [
-            summary({ id: "d-ppt", kind: "file", title: "Bài thuyết trình.ppt", format: "ppt", path: [] }),
-          ],
+          documents: [hitItem],
           next_cursor: null,
         });
       }
       if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
       return Promise.resolve({});
     });
-    const { onOpen } = renderSearchView();
+    const createSession = vi.fn().mockResolvedValue({
+      launch_ticket: `ticket_${"a".repeat(32)}`,
+      launch_url: `uniwork-office://open?ticket=ticket_${"a".repeat(32)}`,
+      expires_at: "2026-10-26T00:00:00Z",
+      document_id: "d-ppt",
+      operation: "view",
+      version: 1,
+    });
+    const desktopOpen: LibraryDesktopOpen = () => ({
+      deploymentId: "dep-1",
+      savedVersion: 1,
+      createSession,
+      launch: vi.fn().mockResolvedValue("launched"),
+    });
+    const { onOpen } = renderSearchView(createNav(), vi.fn(), desktopOpen);
     fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "thuyet trinh" } });
 
     const hit = await screen.findByText("Bài thuyết trình.ppt");
     fireEvent.click(hit.closest("button")!);
 
     expect(onOpen).not.toHaveBeenCalled();
-    expect(await screen.findByRole("dialog", { name: t("office.legacy.title") })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: t("office.desktop.action") }));
+    await waitFor(() =>
+      expect(createSession).toHaveBeenCalledWith(
+        "d-ppt",
+        expect.objectContaining({ operation: "view", deployment_id: "dep-1" }),
+      ),
+    );
   });
 });

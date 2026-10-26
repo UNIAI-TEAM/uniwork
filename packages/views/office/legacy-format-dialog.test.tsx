@@ -148,8 +148,8 @@ describe("LegacyFormatDialog", () => {
     const onOpenChange = vi.fn();
     renderDialog({ onOpenChange });
 
-    const closeButtons = screen.getAllByRole("button", { name: t("office.legacy.close") });
-    fireEvent.click(closeButtons[0]!);
+    const closeButton = screen.getByRole("button", { name: t("office.legacy.close") });
+    fireEvent.click(closeButton);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

@@ -131,8 +131,8 @@ function normalizedExtension(input: LegacyOfficeFormatInput): string {
 export function legacyOfficeFormat(input: LegacyOfficeFormatInput | null | undefined): LegacyOfficeFormat | null {
   if (!input) return null;
   const explicitFormat = input.format?.trim().toLowerCase();
-  if (explicitFormat && Object.hasOwn(LEGACY_FORMAT_BY_EXTENSION, explicitFormat)) {
-    return LEGACY_FORMAT_BY_EXTENSION[explicitFormat]!;
+  if (explicitFormat) {
+    return Object.hasOwn(LEGACY_FORMAT_BY_EXTENSION, explicitFormat) ? LEGACY_FORMAT_BY_EXTENSION[explicitFormat]! : null;
   }
   const ext = normalizedExtension(input);
   if (ext) {

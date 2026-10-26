@@ -13,7 +13,7 @@ import { DocumentCopyDialog } from "./document-copy-dialog";
 import { documentDownloadName } from "./document-download-name";
 import type { LibraryDesktopOpen } from "./documents-library-row";
 import type { DocumentSummaryRow } from "./library-rows";
-import { rowAppOperation, rowLevel } from "./row-level";
+import { rowAppOperation } from "./row-level";
 
 export type OpenableDocumentItem = {
   id: string;
@@ -33,6 +33,7 @@ export interface LibraryRowFileCommands {
   openDocument: (documentId: string, item?: OpenableDocumentItem) => void;
   dialogs: ReactNode;
 }
+
 /**
  * The three row-menu commands that act on one document (UNI-2045 W8): copy
  * its in-app link, make a copy of a file, download a file. Each goes through
@@ -97,7 +98,7 @@ export function useLibraryRowFileCommands({
 
   const legacyOrgId = legacyTarget?.organization_id || orgId;
   const legacySavedVersion = legacyTarget?.current_version && legacyTarget.current_version > 0 ? legacyTarget.current_version : 1;
-  const legacyOperation = legacyTarget && "my_level" in legacyTarget ? rowAppOperation(rowLevel(legacyTarget as DocumentSummaryRow)) : "edit";
+  const legacyOperation = rowAppOperation(legacyTarget);
 
   const dialogs = (
     <>

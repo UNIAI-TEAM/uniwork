@@ -57,7 +57,7 @@ export function LegacyFormatDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-md"
-        closeLabel={t("close")}
+        showCloseButton={false}
         aria-describedby="office-legacy-format-description"
         data-testid="legacy-format-dialog"
       >

@@ -44,6 +44,7 @@ import { formatWhen } from "./document-format";
 import { reportWriteRefused } from "./edit-lock-refusal";
 import { LegacyFormatDialog, type LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { VersionAuthor } from "./version-author";
+
 // The editor chunk only arrives when a page version is actually previewed, so
 // opening the sheet never drags TipTap into the route's first load.
 const VersionPreviewDialog = lazy(() =>
@@ -59,6 +60,7 @@ export interface VersionHistorySheetProps {
   /** Host wiring for "Mở bằng UniWork Office" when a legacy version row is opened. */
   desktopOpen?: LegacyFormatDesktopOpenProps;
 }
+
 /** The version reason is a schema identifier; only its label is translated. */
 const REASON_KEY: Record<string, string> = {
   upload: "reason_upload",
@@ -86,6 +88,7 @@ function reasonLabel(
  */
 export function VersionHistorySheet({ open, onOpenChange, wsId, doc, desktopOpen }: VersionHistorySheetProps) {
   const { t, i18n } = useTranslation();
+  // A shelved document keeps its history readable but takes no new or restored version (ARCHIVE-01 §3).
   const shelved = isShelved(doc);
   const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const versions = useDocumentVersions(wsId, doc.id, { enabled: open });
@@ -402,7 +405,6 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc, desktopOpen
             desktopOpen={desktopOpen}
           />
         ) : null}
-
 
         <AlertDialog
           open={restoreTarget !== null}

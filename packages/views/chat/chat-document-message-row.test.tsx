@@ -154,10 +154,10 @@ const FULL = {
 };
 
 function desktopFactory(createSession = vi.fn(async () => null)) {
-  return vi.fn(() => ({
+  return vi.fn((document: { current_version: number }) => ({
     deploymentId: "dep-1",
     channel: "stable",
-    savedVersion: 3,
+    savedVersion: document.current_version,
     createSession,
     loadInstallers: vi.fn(),
     loadPlatformHint: vi.fn(),
@@ -577,6 +577,15 @@ describe("ChatDocumentMessageRow", () => {
       // No ticket: the failure is a toast, nothing lands in the bubble.
       await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("does not mint a desktop launch session for an OOXML card with no version_number (RFC-03)", async () => {
+      const createSession = vi.fn(async () => null);
+      const desktopOpen = desktopFactory(createSession);
+      renderCard(documentMessage({ ...FULL, version_number: undefined }), { ...LIVE, desktopOpen });
+      expect(desktopOpen).toHaveBeenCalledWith({ id: "doc1", organization_id: "o1", current_version: 0 });
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chỉnh sửa trong UniWork Office" }));
+      expect(createSession).not.toHaveBeenCalled();
     });
   });
 

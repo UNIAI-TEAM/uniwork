@@ -14052,7 +14052,6 @@
     "legacy": {
       "title": "Mở tệp bằng UniWork Office",
       "description": "Đây là tệp Office định dạng cũ nên được mở bằng ứng dụng UniWork Office trên máy tính.",
-      "open_in_app": "Mở bằng UniWork Office",
       "close": "Đóng"
     }
   },

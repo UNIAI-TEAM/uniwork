@@ -64,6 +64,8 @@ describe("isLegacyOfficeFormat / legacyOfficeFormat", () => {
     [{ mime_type: "APPLICATION/VND.MS-EXCEL; charset=binary" }, "xls"],
     [{ mime: "application/vnd.ms-powerpoint" }, "ppt"],
     [{ name: "archive.pdf.doc" }, "doc"],
+    [{ format: "", filename: "x.doc" }, "doc"],
+    [{ format: "doc" }, "doc"],
   ] as const)("detects %j as legacy format %s", (input, expected) => {
     expect(legacyOfficeFormat(input)).toBe(expected);
     expect(isLegacyOfficeFormat(input)).toBe(true);
@@ -85,6 +87,7 @@ describe("isLegacyOfficeFormat / legacyOfficeFormat", () => {
     { name: "trail." },
     { extension: "docx", mime: "application/msword" },
     { mime: "application/pdf" },
+    { format: "docx", filename: "x.doc" },
   ])("returns false / null for non-legacy input %j", (input) => {
     expect(legacyOfficeFormat(input)).toBeNull();
     expect(isLegacyOfficeFormat(input)).toBe(false);

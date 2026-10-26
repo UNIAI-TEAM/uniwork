@@ -43,7 +43,7 @@ export function detectDocumentFormat(document: Document): string {
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   if (mime === "application/vnd.oasis.opendocument.text" || filename.endsWith(".odt")) return "odt";
   return "unknown";
- }
+}
 
 /** A format no module opens. Typed, never a silent fallback. */
 function UnsupportedHost({ format, title }: { format: string; title: string }) {

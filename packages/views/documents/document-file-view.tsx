@@ -162,6 +162,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const officeFormatId = gate.format;
   const { office, editorOpen } = gate;
   const formatName = useOfficeFormatName();
+
   if (!file) {
     return (
       <Notice tone="warning" icon={FileText} layout="inline">
@@ -259,6 +260,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
           {t(readonly ? "documents.file.no_web_editor_description_readonly" : "documents.file.no_web_editor_description")}
         </Notice>
       )}
+
       <section aria-labelledby="document-versions-heading" className="rounded-lg border border-border">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />

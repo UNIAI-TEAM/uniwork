@@ -15,11 +15,13 @@ import { ChatDocumentUploadVersion } from "./chat-document-upload-version";
 import type { ChatMenuParts } from "./chat-message-menu-items";
 import { LegacyFormatDialog } from "../office/legacy-format-dialog";
 import type { ChatMessage } from "./chat-messages";
-type Surface = "share" | "upload" | "office" | "legacy";
+
 /** The host-bound "Chỉnh sửa trong UniWork Office" wiring — the document page's own builder. */
 export type ChatDocumentDesktopOpen = (
   document: Pick<Document, "id" | "organization_id" | "current_version">,
 ) => FrameDesktopOpenProps;
+
+type Surface = "share" | "upload" | "office" | "legacy";
 
 /**
  * A document card's role menu (UNI-2012 S7, contract D3): the entries the
@@ -60,7 +62,7 @@ export function useChatDocumentMenu({
   const openPage = ws ? go(ws.document(doc.document_id)) : null;
   const openHistory = ws ? go(ws.documentVersions(doc.document_id)) : null;
   const canEdit = doc.viewer_level === "edit" || doc.viewer_level === "manage";
-  const isLegacy = isLegacyOfficeFormat({ format: doc.format, filename: doc.title ?? message.body });
+  const isLegacy = isLegacyOfficeFormat({ format: doc.format, filename: doc.title });
   // The web editor opens only what the frame can load: an explicit false
   // (version 0, archived, module off) or a legacy format (.doc/.xls/.ppt)
   // leaves an editor the read-and-comment page; absent keeps the level's label.
@@ -72,7 +74,7 @@ export function useChatDocumentMenu({
   // legacy formats (.doc/.xls/.ppt) open in UniWork Office when a version exists.
   const desktop =
     canEdit && desktopOpen && workspace && doc.viewer_has_access === true && (doc.can_open_in_app === true || (isLegacy && (doc.version_number ?? 0) > 0))
-      ? desktopOpen({ id: doc.document_id, organization_id: workspace.organization_id, current_version: doc.version_number ?? 1 })
+      ? desktopOpen({ id: doc.document_id, organization_id: workspace.organization_id, current_version: doc.version_number ?? 0 })
       : undefined;
   const desktopForModal =
     requests.legacy > 0 && isLegacy && desktopOpen && workspace && doc.viewer_has_access === true
