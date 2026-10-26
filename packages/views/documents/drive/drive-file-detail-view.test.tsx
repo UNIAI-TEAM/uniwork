@@ -471,14 +471,12 @@ describe("DriveFileDetailView (4.2)", () => {
       return Promise.resolve({ events: [] });
     });
 
-    const onRebindSeam = vi.fn();
     render(
       withFlag(
         <DriveFileDetailView
           wsId={WS}
           driveFileId={FILE_ID}
           connections={connections}
-          onRebind={onRebindSeam}
           pickerAdapter={fakeAdapter}
         />,
       ),
@@ -493,7 +491,6 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(within(dialog).getByRole("radio", { name: "uni-work2@gmail.com" })).toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
 
-    await waitFor(() => expect(onRebindSeam).toHaveBeenCalledWith("conn2"));
     await waitFor(() => expect(fakeAdapter.calls).toHaveLength(1));
     expect(fakeAdapter.calls[0]?.token).toBe("picker-tok-conn2");
     expect(fakeAdapter.calls[0]?.fileIds).toEqual(["ext-1"]);
@@ -519,6 +516,143 @@ describe("DriveFileDetailView (4.2)", () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it("does not POST /rebind when the user picks a different file, cancels, hits a Picker error, or when picker-token fails, and disables the trigger while busy (WIRE-R1-02, WIRE-R1-04, WIRE-R1-05)", async () => {
+    const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const { promise: tokenGate, resolve: resolveToken } = Promise.withResolvers<unknown>();
+    let tokenCalls = 0;
+    let failToken = false;
+
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) {
+        return Promise.resolve({ connections: rawConnections });
+      }
+      if (path.endsWith("/picker-token") && opts?.method === "POST") {
+        tokenCalls += 1;
+        if (failToken) {
+          return Promise.reject(new ApiError("boom", "internal", 500));
+        }
+        if (tokenCalls === 1) {
+          return tokenGate;
+        }
+        return Promise.resolve({
+          access_token: "picker-tok-conn2",
+          expires_at: "2026-10-26T12:00:00Z",
+          developer_key: "dev-key",
+          app_id: "app-id",
+        });
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            can_rebind: true,
+            access_lost_at: "2026-10-26T09:00:00Z",
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    // 1. Wrong file picked (id !== external_file_id) + trigger disabled/aria-busy while picker is pending
+    const wrongFileAdapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "wrong-ext-id",
+          name: "Tệp khác",
+          mimeType: "application/vnd.google-apps.document",
+          sharingState: "private",
+        },
+      ],
+    });
+    const { rerender } = render(
+      withFlag(
+        <DriveFileDetailView
+          wsId={WS}
+          driveFileId={FILE_ID}
+          connections={connections}
+          pickerAdapter={wrongFileAdapter}
+        />,
+      ),
+    );
+
+    const rebindBtn = await screen.findByRole("button", { name: t("driveLibrary.detail.rebind.button") });
+    fireEvent.click(rebindBtn);
+    const dialog1 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog1).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
+
+    // While picker-token is in flight, the trigger is disabled and aria-busy="true" (WIRE-R1-04)
+    await waitFor(() => expect(rebindBtn).toHaveAttribute("aria-busy", "true"));
+    expect(rebindBtn).toBeDisabled();
+
+    resolveToken({
+      access_token: "picker-tok-conn2",
+      expires_at: "2026-10-26T12:00:00Z",
+      developer_key: "dev-key",
+      app_id: "app-id",
+    });
+
+    await waitFor(() =>
+      expect(toastErrorSpy).toHaveBeenCalledWith(t("driveLibrary.detail.rebind.failed")),
+    );
+    expect(rebindBtn).not.toBeDisabled();
+    expect(rebindBtn).not.toHaveAttribute("aria-busy");
+
+    // 2. Adapter cancelled -> zero /rebind calls, trigger returns to idle
+    toastErrorSpy.mockClear();
+    const cancelledAdapter = createFakeDrivePickerAdapter({ status: "cancelled" });
+    rerender(
+      withFlag(
+        <DriveFileDetailView
+          wsId={WS}
+          driveFileId={FILE_ID}
+          connections={connections}
+          pickerAdapter={cancelledAdapter}
+        />,
+      ),
+    );
+    fireEvent.click(rebindBtn);
+    const dialog2 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog2).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
+    await waitFor(() => expect(cancelledAdapter.calls).toHaveLength(1));
+    expect(rebindBtn).not.toBeDisabled();
+    expect(rebindBtn).not.toHaveAttribute("aria-busy");
+
+    // 3. Adapter error -> zero /rebind calls, trigger returns to idle
+    const errorAdapter = createFakeDrivePickerAdapter({ status: "error", reason: "script_load_failed" });
+    rerender(
+      withFlag(
+        <DriveFileDetailView
+          wsId={WS}
+          driveFileId={FILE_ID}
+          connections={connections}
+          pickerAdapter={errorAdapter}
+        />,
+      ),
+    );
+    fireEvent.click(rebindBtn);
+    const dialog3 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog3).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
+    await waitFor(() => expect(errorAdapter.calls).toHaveLength(1));
+    expect(rebindBtn).not.toBeDisabled();
+    expect(rebindBtn).not.toHaveAttribute("aria-busy");
+
+    // 4. picker-token failure -> zero /rebind calls, trigger returns to idle
+    failToken = true;
+    fireEvent.click(rebindBtn);
+    const dialog4 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog4).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
+    await waitFor(() => expect(tokenCalls).toBe(4));
+    await waitFor(() => expect(rebindBtn).not.toBeDisabled());
+    expect(rebindBtn).not.toHaveAttribute("aria-busy");
+
+    // Across all 4 error/cancel/mismatch paths, POST .../rebind was never called
+    expect(
+      requestMock.mock.calls.filter(([path]) => path === `${DETAIL_URL}/rebind`),
+    ).toHaveLength(0);
+    toastErrorSpy.mockRestore();
   });
 
   it("hides action buttons for a read-only/guest viewer when can_* flags are false, and strips ?propose=1 / ?ask=1 (§7.11)", async () => {
@@ -834,16 +968,19 @@ describe("DriveFileDetailView (4.2)", () => {
       withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />, true, fakeNav(), true),
     );
     expect(document.querySelector("[aria-busy='true']")).toBeTruthy();
-    expect(screen.queryByText(t("documents.page.off_title"))).toBeNull();
+    expect(screen.queryByText(t("driveLibrary.detail.not_found.title"))).toBeNull();
     expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
 
-    // Resolve config with drive.available: false -> renders DocumentsGateState off without fetching detail
+    // Resolve config with drive.available: false -> renders 404 CollectionPageState without fetching detail
     resolveConfig(defaultConfigResponse(false));
-    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(await screen.findByText(t("driveLibrary.detail.not_found.title"))).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: t("driveLibrary.detail.not_found.back") }),
+    ).toHaveAttribute("href", "/acme/doi/documents?view=drive");
     expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
     unmount();
 
-    // 2. drive_connector flag off -> renders DocumentsGateState off
+    // 2. drive_connector flag off -> renders 404 CollectionPageState
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true, true, false));
       return Promise.resolve({ file: detailFile() });
@@ -851,7 +988,7 @@ describe("DriveFileDetailView (4.2)", () => {
     render(
       withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />, true, fakeNav(), false),
     );
-    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(await screen.findByText(t("driveLibrary.detail.not_found.title"))).toBeInTheDocument();
     expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
   });
 });

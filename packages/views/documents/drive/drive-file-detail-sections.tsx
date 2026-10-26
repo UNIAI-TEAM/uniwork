@@ -35,6 +35,7 @@ import {
 } from "../../integrations/drive-picker";
 import { AppLink } from "../../navigation";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
+
 export interface DriveViewerAccessBlockProps {
   file: DriveFile;
   settingsIntegrationsHref: string;
@@ -237,8 +238,6 @@ export interface DriveRebindSectionProps {
   wsId: string;
   file: DriveFile;
   connections: readonly DriveConnectionSummary[];
-  /** Optional callback invoked when the user confirms a connection in the rebind dialog. */
-  onRebind?: (connectionId: string) => Promise<void> | void;
   /** Optional Google Picker adapter for deterministic testing. */
   pickerAdapter?: DrivePickerAdapter;
 }
@@ -253,7 +252,6 @@ export function DriveRebindSection({
   wsId,
   file,
   connections,
-  onRebind,
   pickerAdapter,
 }: DriveRebindSectionProps) {
   const { t } = useTranslation();
@@ -274,7 +272,11 @@ export function DriveRebindSection({
     wsId,
     forTask: false,
     adapter: pickerAdapter,
-    onPicked: ({ connectionId }) => {
+    onPicked: ({ connectionId, pickedFiles }) => {
+      if (!pickedFiles.some((f) => f.id === file.external_file_id)) {
+        toast.error(t("driveLibrary.detail.rebind.failed"));
+        return;
+      }
       void runRebindMutation(connectionId);
     },
   });
@@ -297,15 +299,8 @@ export function DriveRebindSection({
     activeConnections.some((c) => c.id === selectedId) ? selectedId : defaultConnectionId;
   const busy = picker.pending || rebindMutation.isPending;
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!resolvedConnectionId || busy) return;
-    try {
-      await onRebind?.(resolvedConnectionId);
-    } catch (error) {
-      const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
-      toast.error(msg ?? t("driveLibrary.detail.rebind.failed"));
-      return;
-    }
     setOpen(false);
     picker.open({
       connectionId: resolvedConnectionId,
@@ -321,6 +316,8 @@ export function DriveRebindSection({
         type="button"
         variant="outline"
         size="sm"
+        disabled={busy}
+        aria-busy={busy || undefined}
         onClick={() => {
           setSelectedId(defaultConnectionId);
           setOpen(true);

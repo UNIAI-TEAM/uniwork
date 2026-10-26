@@ -368,6 +368,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
 
     const addBtn = screen.getByRole("button", { name: "Thêm từ uni-work3@gmail.com" });
     expect(addBtn).toHaveAttribute("aria-disabled", "true");
+    expect(addBtn.parentElement).toHaveClass("basis-full", "sm:basis-auto", "justify-start");
     fireEvent.click(addBtn);
     expect(onAdd).not.toHaveBeenCalled();
   });
@@ -441,7 +442,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       ),
     );
 
-    const headerAddBtn = screen.getAllByRole("button", { name: t("driveLibrary.list.add_all") })[0]!;
+    const headerAddBtn = (await screen.findAllByRole("button", { name: t("driveLibrary.list.add_all") }))[0]!;
     await waitFor(() => expect(document.activeElement).toBe(headerAddBtn));
     expect(nav.replace).toHaveBeenCalledWith("/acme/doi/documents?view=drive");
     expect(onAdd).not.toHaveBeenCalled();
@@ -660,7 +661,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const loadingNav = fakeNav("/acme/doi/documents?view=drive&account=conn1");
     const loadingRender = render(
       withFlag(
-        <DocumentsPageView wsId={WS} onOpen={vi.fn()} driveConnections={connections} />,
+        <DocumentsPageView wsId={WS} onOpen={vi.fn()} />,
         true,
         loadingNav,
         true,
@@ -671,14 +672,21 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       "true",
     );
     expect(loadingNav.replace).not.toHaveBeenCalled();
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_CONNECTIONS_URL)),
+    ).toHaveLength(0);
 
-    // Resolve config with drive.available: false -> redirects ?view=drive to plain documents and hides sidebar Drive section
+    // Resolve config with drive.available: false -> redirects ?view=drive to plain documents, hides sidebar Drive section, and makes no /drive-connections request (WIRE-R1-03)
     resolveConfig(defaultConfigResponse(false));
     await waitFor(() => expect(loadingNav.replace).toHaveBeenCalledWith("/acme/doi/documents"));
     expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_CONNECTIONS_URL)),
+    ).toHaveLength(0);
     loadingRender.unmount();
+    requestMock.mockClear();
 
-    // 2. drive_connector flag off -> hides sidebar Drive section and strips ?view=drive
+    // 2. drive_connector flag off -> hides sidebar Drive section, strips ?view=drive, and makes no /drive-connections request
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true, true, false));
       if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
@@ -688,7 +696,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const flagOffNav = fakeNav("/acme/doi/documents?view=drive");
     render(
       withFlag(
-        <DocumentsPageView wsId={WS} onOpen={vi.fn()} driveConnections={connections} />,
+        <DocumentsPageView wsId={WS} onOpen={vi.fn()} />,
         true,
         flagOffNav,
         false,
@@ -696,6 +704,9 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
     await waitFor(() => expect(flagOffNav.replace).toHaveBeenCalledWith("/acme/doi/documents"));
     expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_CONNECTIONS_URL)),
+    ).toHaveLength(0);
   });
 
   it("wires 'Thêm từ Google Drive' / 'Thêm từ <email>' to W3 useDrivePicker and refreshes the list after linking", async () => {

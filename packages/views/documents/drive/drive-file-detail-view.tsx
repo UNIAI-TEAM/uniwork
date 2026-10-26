@@ -33,6 +33,7 @@ import {
   useDriveLibraryConnections,
   type DriveConnectionSummary,
 } from "./use-drive-library-connections";
+
 export interface DriveFileDetailViewProps {
   wsId: string;
   driveFileId: string;
@@ -42,8 +43,6 @@ export interface DriveFileDetailViewProps {
   onPropose?: (file: DriveFile) => void;
   /** Seam for W9 "Hỏi UNI": rendered only when `file.can_ask` AND `onAsk` is passed. */
   onAsk?: (file: DriveFile) => void;
-  /** Optional callback invoked before opening the W3 Picker for rebind. */
-  onRebind?: (connectionId: string) => Promise<void> | void;
   /** Optional Google Picker adapter for deterministic testing. */
   pickerAdapter?: DrivePickerAdapter;
   /** Optional seam for W3 Picker `setFileIds` to grant read access ("Cho UniWork đọc tệp"). */
@@ -86,7 +85,6 @@ function driveTypeLabel(
   }
 }
 
-
 /**
  * 4.2 `/documents/drive/{driveFileId}` — Google Drive file reference detail page (spec §7.7, §7.8, §7.10, §7.11, §8.8).
  */
@@ -96,7 +94,6 @@ export function DriveFileDetailView({
   connections: connectionsProp,
   onPropose,
   onAsk,
-  onRebind,
   pickerAdapter,
   onGrantAccess,
   onReconnect,
@@ -169,7 +166,21 @@ export function DriveFileDetailView({
   }
 
   if (!driveAvailable) {
-    return <DocumentsGateState gate="off" retry={retryGate} className="mx-auto w-full max-w-3xl" />;
+    return (
+      <CollectionPageState
+        className="mx-auto w-full max-w-3xl"
+        icon={FileX}
+        title={t("driveLibrary.detail.not_found.title")}
+        actions={
+          <AppLink
+            href={driveLibraryHref}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("driveLibrary.detail.not_found.back")}
+          </AppLink>
+        }
+      />
+    );
   }
 
   if (query.isPending) {
@@ -405,7 +416,6 @@ export function DriveFileDetailView({
                 wsId={wsId}
                 file={file}
                 connections={connections}
-                onRebind={onRebind}
                 pickerAdapter={pickerAdapter}
               />
             </div>

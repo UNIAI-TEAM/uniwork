@@ -24,6 +24,7 @@ function toDriveConnectionSummary(conn: DriveConnection): DriveConnectionSummary
     linked_file_count: Math.max(0, conn.linked_file_count ?? 0),
   };
 }
+
 export interface UseDriveLibraryConnectionsResult {
   connections: DriveConnectionSummary[];
   isLoading: boolean;

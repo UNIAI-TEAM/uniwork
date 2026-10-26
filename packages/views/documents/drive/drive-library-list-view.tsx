@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FolderOpen, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { driveLibraryKeys, useDriveFiles, type DriveFile } from "@uniwork/core/drive-library";
+import { useDriveFiles, type DriveFile } from "@uniwork/core/drive-library";
 import { paths } from "@uniwork/core/paths";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -83,20 +82,68 @@ function formatUsedIn(
   return t("driveLibrary.list.used_in.more", { identifier: first.identifier, count: remaining });
 }
 
+function DriveLibraryLoadingTable() {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="status"
+      className="overflow-hidden rounded-lg border border-border bg-background"
+      aria-busy="true"
+      aria-label={t("documents.library.loading")}
+    >
+      <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
+        <thead>
+          <tr className="border-b border-border text-left text-caption text-muted-foreground">
+            <th scope="col" className="w-full px-4 py-3 font-medium">
+              {t("driveLibrary.list.columns.name")}
+            </th>
+            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+              {t("driveLibrary.list.columns.account")}
+            </th>
+            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+              {t("driveLibrary.list.columns.access")}
+            </th>
+            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+              {t("driveLibrary.list.columns.used_in")}
+            </th>
+            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+              {t("driveLibrary.list.columns.tasks_created")}
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <tr key={index}>
+              <td className="w-full max-w-0 px-4 py-3">
+                <Skeleton className="h-5 w-48 max-w-full rounded-md" />
+              </td>
+              <td className="hidden px-4 py-3 md:table-cell">
+                <Skeleton className="h-4 w-36 rounded-md" />
+              </td>
+              <td className="hidden px-4 py-3 md:table-cell">
+                <Skeleton className="h-5 w-24 rounded-md" />
+              </td>
+              <td className="hidden px-4 py-3 md:table-cell">
+                <Skeleton className="h-4 w-28 rounded-md" />
+              </td>
+              <td className="hidden px-4 py-3 md:table-cell">
+                <Skeleton className="h-4 w-16 rounded-md" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /**
  * 4.1 Documents › Google Drive list screen (`?view=drive[&account=<id>]`, spec §7.6, §7.10, §7.11).
- * Shows only the caller's own linked Google Drive files.
+ * Thin gate wrapper: checks `useDriveLibraryConnections` first and mounts `DriveLibraryListBody`
+ * (which calls `useDrivePicker` + `useDriveFiles`) only when `driveAvailable && !configWaitForDrive`.
  */
-export function DriveLibraryListView({
-  wsId,
-  accountId,
-  connections: connectionsProp,
-  navButton,
-  onAddFromDrive,
-  pickerAdapter,
-}: DriveLibraryListViewProps) {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
+export function DriveLibraryListView(props: DriveLibraryListViewProps) {
+  const { wsId, connections: connectionsProp } = props;
   const {
     connections: defaultConnections,
     isLoading: defaultConnectionsLoading,
@@ -105,30 +152,14 @@ export function DriveLibraryListView({
   } = useDriveLibraryConnections(wsId, {
     enabled: connectionsProp === undefined,
   });
-  const connections = connectionsProp ?? defaultConnections;
-  const connectionsLoading = connectionsProp === undefined && defaultConnectionsLoading;
-  // W8-R3-01: wait for connections only when an `accountId` is selected so the
-  // plain "all accounts" list fires its GET immediately without a waterfall.
-  const waitForConnections = connectionsLoading && Boolean(accountId);
   const context = useOptionalWorkspace();
   const { searchParams, replace } = useNavigation();
-  const addBtnRef = useRef<HTMLButtonElement | null>(null);
   const strippedGateRef = useRef(false);
 
   const wsPaths = paths.workspace(
     context?.workspace.organization_slug || "org",
     context?.workspace.slug || wsId,
   );
-  const settingsIntegrationsHref = `${wsPaths.settings()}?tab=integrations`;
-
-  const picker = useDrivePicker({
-    wsId,
-    adapter: pickerAdapter,
-    onLinked: () => {
-      void queryClient.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) });
-    },
-  });
-  const reconnectHref = picker.reconnectHref;
 
   // W8-R1-05: when the Drive connector gate (`DRIVE_CONNECTOR_FLAG` + `drive.available`)
   // is off after config settles, strip `?view=drive` and `&account=` with `replace`
@@ -146,6 +177,61 @@ export function DriveLibraryListView({
     replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
   }, [configWaitForDrive, driveAvailable, replace, searchParams, wsPaths]);
 
+  if (configWaitForDrive) {
+    return (
+      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+        <DriveLibraryLoadingTable />
+      </div>
+    );
+  }
+
+  if (!driveAvailable) {
+    return null;
+  }
+
+  return (
+    <DriveLibraryListBody
+      {...props}
+      connections={connectionsProp ?? defaultConnections}
+      connectionsLoading={connectionsProp === undefined && defaultConnectionsLoading}
+    />
+  );
+}
+
+interface DriveLibraryListBodyProps extends DriveLibraryListViewProps {
+  connections: readonly DriveConnectionSummary[];
+  connectionsLoading: boolean;
+}
+
+function DriveLibraryListBody({
+  wsId,
+  accountId,
+  connections,
+  connectionsLoading,
+  navButton,
+  onAddFromDrive,
+  pickerAdapter,
+}: DriveLibraryListBodyProps) {
+  const { t } = useTranslation();
+  // W8-R3-01: wait for connections only when an `accountId` is selected so the
+  // plain "all accounts" list fires its GET immediately without a waterfall.
+  const waitForConnections = connectionsLoading && Boolean(accountId);
+  const context = useOptionalWorkspace();
+  const { searchParams, replace } = useNavigation();
+  const addBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  const wsPaths = paths.workspace(
+    context?.workspace.organization_slug || "org",
+    context?.workspace.slug || wsId,
+  );
+  const settingsIntegrationsHref = `${wsPaths.settings()}?tab=integrations`;
+
+  const picker = useDrivePicker({
+    wsId,
+    adapter: pickerAdapter,
+  });
+  const reconnectHref = picker.reconnectHref;
+
   const selectedConnection =
     !waitForConnections && accountId
       ? connections.find((c) => c.id === accountId) ?? null
@@ -155,7 +241,7 @@ export function DriveLibraryListView({
 
   const query = useDriveFiles(wsId, {
     connectionId: effectiveAccountId,
-    enabled: driveAvailable && !configWaitForDrive && !waitForConnections,
+    enabled: !waitForConnections,
   });
   const files = query.data?.pages.flatMap((p) => p.files) ?? [];
 
@@ -163,17 +249,13 @@ export function DriveLibraryListView({
   // It never opens the Picker automatically.
   const pickParam = searchParams.get("pick") === "1";
   useEffect(() => {
-    if (!pickParam || configWaitForDrive || !driveAvailable) return;
+    if (!pickParam) return;
     addBtnRef.current?.focus();
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("pick");
     const qs = nextParams.toString();
     replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
-  }, [configWaitForDrive, driveAvailable, pickParam, searchParams, replace, wsPaths]);
-
-  if (!configWaitForDrive && !driveAvailable) {
-    return null;
-  }
+  }, [pickParam, searchParams, replace, wsPaths]);
 
   const title = selectedConnection
     ? t("driveLibrary.list.title_account", { email: selectedConnection.google_email })
@@ -221,7 +303,7 @@ export function DriveLibraryListView({
           <h1 className="truncate text-title font-semibold">{title}</h1>
           <p className="text-caption text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex basis-full flex-wrap items-center justify-start gap-2 sm:basis-auto">
           {brokenAccount ? (
             <AppLink
               href={reconnectHref}
@@ -245,56 +327,8 @@ export function DriveLibraryListView({
         </div>
       </div>
 
-      {configWaitForDrive || waitForConnections || query.isPending ? (
-        <div
-          role="status"
-          className="overflow-hidden rounded-lg border border-border bg-background"
-          aria-busy="true"
-          aria-label={t("documents.library.loading")}
-        >
-          <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
-            <thead>
-              <tr className="border-b border-border text-left text-caption text-muted-foreground">
-                <th scope="col" className="w-full px-4 py-3 font-medium">
-                  {t("driveLibrary.list.columns.name")}
-                </th>
-                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                  {t("driveLibrary.list.columns.account")}
-                </th>
-                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                  {t("driveLibrary.list.columns.access")}
-                </th>
-                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                  {t("driveLibrary.list.columns.used_in")}
-                </th>
-                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                  {t("driveLibrary.list.columns.tasks_created")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index}>
-                  <td className="w-full max-w-0 px-4 py-3">
-                    <Skeleton className="h-5 w-48 max-w-full rounded-md" />
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <Skeleton className="h-4 w-36 rounded-md" />
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <Skeleton className="h-5 w-24 rounded-md" />
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <Skeleton className="h-4 w-28 rounded-md" />
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <Skeleton className="h-4 w-16 rounded-md" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {waitForConnections || query.isPending ? (
+        <DriveLibraryLoadingTable />
       ) : query.isError && files.length === 0 ? (
         <CollectionPageState
           icon={CircleAlert}
