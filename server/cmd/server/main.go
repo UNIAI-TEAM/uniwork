@@ -784,6 +784,9 @@ func main() {
 	driveConnectionSvc.SetLogger(log)
 	driveConnectionSvc.ConfigureOAuth(cfg)
 	driveConnectionSvc.SetFlags(flags)
+	if reg != nil {
+		driveConnectionSvc.SetMetrics(reg.Drive)
+	}
 	driveWorkersDone := make(chan struct{})
 	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
 	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the

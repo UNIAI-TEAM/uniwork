@@ -547,3 +547,13 @@ groups:
           summary: "Một báo cáo vi phạm UniChat đã chờ quá 20 giờ"
           description: "Báo cáo mở lâu nhất đã chờ {{ $value | humanizeDuration }}; điều khoản hứa xử lý trong 24 giờ. Mở /admin/chat-reports ngay."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniChatReportOverdue.md
+      # Google Drive connector (UNI-2172 §5.3b, §10): a refresh-token revocation in drive_grant_revocations
+      # exhausted its 24h retry budget and was abandoned.
+      - alert: DriveRevocationAbandoned
+        expr: sum(increase(drive_revocation_abandoned_total[15m])) > 0
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Thu hồi grant Google Drive bỏ cuộc sau 24 giờ thử lại"
+          description: "{{ $value | humanize }} dòng thu hồi refresh token Google Drive đã quá 24 giờ thử lại và bị bỏ cuộc trong 15 phút qua."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/DriveRevocationAbandoned.md

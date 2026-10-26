@@ -28,6 +28,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "folders-into-my-folder.md", // UNI-2055: one-off admin command run once after the workspace-folder (ADR 0037) deploy
   "livekit-sip.md", // UNI-2029/UNI-2030: setting up and operating the SIP service for dial-in by phone
   "browser-notifications.md", // UNI-1965: deploy and manual acceptance of browser permission + Web Push (no pager)
+  "drive-connector.md", // UNI-2172: operating the Google Drive connector (OAuth, flags, revocation queue)
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */
@@ -53,8 +54,8 @@ test("every alert has a runbook_url whose file exists and is named after the ale
   const all = rules();
   assert.equal(
     all.length,
-    42,
-    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2023 MeetingScribeCannotJoin; UNI-1995 MeetingDialInRefusedCalls + MeetingScribeSttErrors + MeetingScribeRunsSilent + MeetingAutoSummaryFailing + MeetingScribeCapacityHigh; UNI-2053 UniChatMobileServerErrors, UniChatCallRingsDegraded, UniChatCallRingSlow, UniChatReportFiled, UniChatReportOverdue, UniChatMobileUpdateLaunchFailures, UniChatMobileCrashes and UniChatMobileSendFailures",
+    43,
+    "spec §6.5 + UNI-936 alerts; billing adds BILLING_VNPAY_WEBHOOK + C-11 graph lag; UNI-1087 RedisUnreachable; G7-07 adds 12 Office / UniWork AI alerts; UNI-2023 MeetingScribeCannotJoin; UNI-1995 MeetingDialInRefusedCalls + MeetingScribeSttErrors + MeetingScribeRunsSilent + MeetingAutoSummaryFailing + MeetingScribeCapacityHigh; UNI-2053 UniChatMobileServerErrors, UniChatCallRingsDegraded, UniChatCallRingSlow, UniChatReportFiled, UniChatReportOverdue, UniChatMobileUpdateLaunchFailures, UniChatMobileCrashes and UniChatMobileSendFailures; UNI-2178 DriveRevocationAbandoned",
   );
   for (const r of all) {
     assert.ok(r.runbook_url, `${r.alert} has no runbook_url`);
