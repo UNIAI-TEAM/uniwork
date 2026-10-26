@@ -306,6 +306,10 @@ export function DriveProposalReviewDialog({
           items,
         },
       });
+      if (!created) {
+        onOpenChange(false);
+        return;
+      }
       const count = created.task_ids.length || items.length;
       const parentTask = parentTaskId
         ? (tasksQuery.data ?? []).find((task) => task.id === parentTaskId)
@@ -463,17 +467,9 @@ export function DriveProposalReviewDialog({
     </div>
   );
 
-  const handleContainerOpenChange = (next: boolean) => {
-    if (!next) {
-      requestClose();
-    } else {
-      onOpenChange(true);
-    }
-  };
-
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={handleContainerOpenChange}>
+      <Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}>
         <SheetContent
           side="bottom"
           showCloseButton={false}
@@ -487,7 +483,7 @@ export function DriveProposalReviewDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleContainerOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}>
       <DialogContent
         showCloseButton={false}
         closeLabel={t("drive.proposals.review.close_aria")}

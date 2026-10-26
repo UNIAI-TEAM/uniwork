@@ -298,7 +298,7 @@ export function useCheckDriveTaskProposalDuplicates(wsId: string) {
 export function useCreateTasksFromDriveProposal(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       proposalId,
       body,
       signal,
@@ -306,11 +306,7 @@ export function useCreateTasksFromDriveProposal(wsId: string) {
       proposalId: string;
       body: CreateTasksFromDriveProposalBody;
       signal?: AbortSignal;
-    }) => {
-      const created = await createTasksFromDriveProposal(wsId, proposalId, body, signal);
-      if (!created) throw new Error("drive_proposal_tasks_create_response_invalid");
-      return created;
-    },
+    }) => createTasksFromDriveProposal(wsId, proposalId, body, signal),
     onSuccess: (_created, { proposalId, body }) => {
       void qc.invalidateQueries({ queryKey: driveKeys.proposal(wsId, proposalId) });
       void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });

@@ -84,8 +84,8 @@ export function applyDuplicateResults(
   results: readonly DriveProposalDuplicateItem[],
 ): DriveProposalItemDraft[] {
   const byPos = new Map(results.map((r) => [r.index, r.possible_duplicate]));
-  return drafts.map((draft, pos) => {
-    const nextDup = byPos.has(pos) ? byPos.get(pos) : byPos.get(draft.index);
+  return drafts.map((draft) => {
+    const nextDup = byPos.get(draft.index);
     const hadSameDup =
       draft.possibleDuplicate?.task_id &&
       draft.possibleDuplicate.task_id === nextDup?.task_id;

@@ -440,7 +440,7 @@ describe("drive hooks", () => {
           ],
         },
       });
-      expect(created.task_ids).toEqual(["t_1", "t_2"]);
+      expect(created?.task_ids).toEqual(["t_1", "t_2"]);
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
@@ -472,6 +472,48 @@ describe("drive hooks", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: calendarKeys.all("ws1"),
+    });
+  });
+
+  it("useCreateTasksFromDriveProposal resolves null and still invalidates proposal and task keys when 2xx body fails schema (F2)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({ unexpected: "shape" });
+
+    const { result } = renderHook(() => useCreateTasksFromDriveProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const created = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_1",
+          parent_task_id: "t_parent",
+          status: "todo",
+          items: [{ index: 0, title: "Việc 1", description: "Mô tả 1" }],
+        },
+      });
+      expect(created).toBeNull();
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.workspace("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.children("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.childProgress("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.list("ws1"),
     });
   });
 });

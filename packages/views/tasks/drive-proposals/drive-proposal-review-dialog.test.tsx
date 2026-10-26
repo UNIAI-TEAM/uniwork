@@ -12,7 +12,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
-import { useDriveProposalReview } from "../drive-task-proposal-popover";
+import { DriveProposeTasksPopover, useDriveProposalReview } from "../drive-task-proposal-popover";
 import {
   DriveProposalReviewDialog,
   DriveProposalReviewHost,
@@ -790,5 +790,103 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     expect(batchItems).toHaveLength(1);
     expect(batchItems[0]?.index).toBe(1);
     expect(batchItems[0]?.blocked_by_indexes).toEqual([]);
+  });
+
+  it("closes dialog without retryable error when B6 create returns 2xx with null/unparseable body (F2)", async () => {
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (
+        path === "/api/v1/workspaces/ws1/drive-task-proposals/dtp_1/tasks" &&
+        init?.method === "POST"
+      ) {
+        return { unexpected: "shape" };
+      }
+      return defaultMockRoutes(path);
+    });
+
+    const onOpenChange = vi.fn();
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewDialog
+          workspaceId="ws1"
+          open
+          onOpenChange={onOpenChange}
+          proposal={makeProposal({
+            items: [
+              {
+                index: 0,
+                title: "Chốt phạm vi beta",
+                label_ids: [],
+                goal: "Mục tiêu",
+                checklist: [],
+                excerpt: { section: "Mục 1", quote: "Trích dẫn" },
+                blocked_by_indexes: [],
+              },
+            ],
+          })}
+        />,
+      ),
+    );
+
+    fireEvent.click(await screen.findByTestId("drive-proposal-submit"));
+
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+    expect(screen.queryByTestId("drive-proposal-create-error")).toBeNull();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("completes end-to-end flow: DriveProposeTasksPopover inside DriveProposalReviewHost (isMounted=true) -> B5 POST -> open(proposal) -> renders DriveProposalReviewDialog", async () => {
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (
+        path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+        init?.method === "POST"
+      ) {
+        return { proposal: makeProposal({ id: "dtp_e2e_1" }) };
+      }
+      return defaultMockRoutes(path);
+    });
+
+    let capturedIsMounted = false;
+    function MountProbe() {
+      const review = useDriveProposalReview();
+      capturedIsMounted = review.isMounted;
+      return null;
+    }
+
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewHost workspaceId="ws1">
+          <MountProbe />
+          <DriveProposeTasksPopover
+            workspaceId="ws1"
+            driveFileId="df_1"
+            readerAccountEmail="uni-work1@gmail.com"
+            openUrl="https://docs.google.com/document/d/gdoc_1/edit"
+          />
+        </DriveProposalReviewHost>,
+      ),
+    );
+
+    expect(capturedIsMounted).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu" }));
+    const promptInput = await screen.findByLabelText("Gợi ý cho UNI (tùy chọn)");
+    fireEvent.change(promptInput, { target: { value: "Tách việc theo nhóm" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi cho agent" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "UNI đề xuất 2 việc từ tài liệu" }),
+    ).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({ prompt: "Tách việc theo nhóm" }),
+      }),
+    );
+    expect(screen.getByRole("textbox", { name: "Tiêu đề việc 1" })).toHaveValue(
+      "Chốt phạm vi tính năng beta",
+    );
   });
 });
