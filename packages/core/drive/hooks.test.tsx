@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { calendarKeys } from "../calendar/keys";
+import { taskKeys } from "../tasks/keys";
 import {
   driveKeys,
+  useCheckDriveTaskProposalDuplicates,
   useCreateDriveTaskProposal,
+  useCreateTasksFromDriveProposal,
+  useDeleteDriveTaskProposal,
   useDisconnectDriveConnection,
   useDriveConnections,
   useDrivePickerToken,
@@ -342,5 +347,131 @@ describe("drive hooks", () => {
     });
     await waitFor(() => expect(queryHook.result.current.isSuccess).toBe(true));
     expect(queryHook.result.current.data?.id).toBe("dtp_1");
+  });
+
+  it("useDeleteDriveTaskProposal awaits the server and invalidates driveKeys.proposal(wsId, proposalId)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({ status: "ok" });
+
+    const { result } = renderHook(() => useDeleteDriveTaskProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ proposalId: "dtp_1" });
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-task-proposals/dtp_1",
+      { method: "DELETE", signal: undefined },
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+  });
+
+  it("useCheckDriveTaskProposalDuplicates posts to /duplicates and returns recomputed duplicate items", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    requestMock.mockResolvedValueOnce({
+      duplicates: [
+        {
+          index: 0,
+          possible_duplicate: {
+            task_id: "t_1037",
+            identifier: "UNI-1037",
+            title: "Soạn FAQ sản phẩm",
+          },
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useCheckDriveTaskProposalDuplicates("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const duplicates = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_2",
+          parent_task_id: "t_1042",
+          titles: ["Soạn FAQ cho CS"],
+        },
+      });
+      expect(duplicates).toEqual([
+        {
+          index: 0,
+          possible_duplicate: {
+            task_id: "t_1037",
+            identifier: "UNI-1037",
+            title: "Soạn FAQ sản phẩm",
+          },
+        },
+      ]);
+    });
+  });
+
+  it("useCreateTasksFromDriveProposal awaits the server and invalidates proposal, workspace Drive keys, parent task, and task collections", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({
+      task_ids: ["t_1", "t_2"],
+      items: [
+        { index: 0, task_id: "t_1" },
+        { index: 1, task_id: "t_2" },
+      ],
+    });
+
+    const { result } = renderHook(() => useCreateTasksFromDriveProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const created = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_1",
+          parent_task_id: "t_parent",
+          status: "todo",
+          items: [
+            { index: 0, title: "Việc 1", description: "Mô tả 1" },
+            { index: 1, title: "Việc 2", description: "Mô tả 2" },
+          ],
+        },
+      });
+      expect(created.task_ids).toEqual(["t_1", "t_2"]);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.workspace("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.children("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.childProgress("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.list("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.queryRoot("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.myTasks("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.tableRoot("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: calendarKeys.all("ws1"),
+    });
   });
 });

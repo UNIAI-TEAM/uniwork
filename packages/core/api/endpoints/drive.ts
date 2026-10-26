@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
+import {
+  DisconnectResponseSchema,
+  DriveLinkedTaskRefSchema,
+  DriveTaskCreationGroupSchema,
+  DriveTasksCreatedSummarySchema,
+  EMPTY_TASKS_CREATED,
+  type DriveLinkedTaskRef,
+  type DriveTaskCreationGroup,
+  type DriveTasksCreatedSummary,
+} from "./drive-proposals";
 
 const enc = encodeURIComponent;
 
@@ -32,10 +42,6 @@ export type DriveConnectionList = z.infer<typeof DriveConnectionListSchema>;
 
 const DriveConnectStartSchema = z.object({
   authorization_url: z.string().trim().min(1),
-});
-
-const DisconnectResponseSchema = z.object({
-  status: z.string().optional().default("ok"),
 });
 
 const EMPTY_CONNECTIONS: DriveConnectionList = { connections: [] };
@@ -105,14 +111,6 @@ export type DrivePickerToken = z.infer<typeof DrivePickerTokenSchema>;
  * omitted by `omitempty` on the server; enums are parsed as `z.string()` so
  * unknown future states degrade without failing the response.
  */
-const DriveTasksCreatedSummarySchema = z.object({
-  count: z.number().int().nonnegative().optional().catch(0).default(0),
-  last_created_at: z.string().optional().catch(undefined),
-  last_created_by_name: z.string().optional().catch(undefined),
-});
-
-export type DriveTasksCreatedSummary = z.infer<typeof DriveTasksCreatedSummarySchema>;
-
 const DriveFileLinkReceiptSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
@@ -212,27 +210,6 @@ export async function linkDriveFiles(
     endpoint: "POST /api/v1/workspaces/{ws}/drive-files",
   });
 }
-
-const DriveLinkedTaskRefSchema = z.object({
-  task_id: z.string(),
-  identifier: z.string(),
-  title: z.string(),
-  status: z.string().optional().default("todo"),
-});
-
-export type DriveLinkedTaskRef = z.infer<typeof DriveLinkedTaskRefSchema>;
-
-const DriveTaskCreationGroupSchema = z.object({
-  proposal_id: z.string(),
-  created_at: z.string(),
-  created_by_id: z.string(),
-  created_by_name: z.string(),
-  tasks: z.array(DriveLinkedTaskRefSchema).optional().catch([]).default([]),
-});
-
-export type DriveTaskCreationGroup = z.infer<typeof DriveTaskCreationGroupSchema>;
-
-const EMPTY_TASKS_CREATED: DriveTasksCreatedSummary = { count: 0 };
 
 const DriveFileSchema = z.object({
   id: z.string(),
@@ -367,148 +344,25 @@ export async function grantDriveFileAccess(
   );
 }
 
-const DriveProposalExcerptSchema = z.object({
-  section: z.string().optional().catch("").default(""),
-  quote: z.string().optional().catch("").default(""),
-});
-
-export type DriveProposalExcerpt = z.infer<typeof DriveProposalExcerptSchema>;
-
-const DriveDuplicateTaskSchema = z.object({
-  task_id: z.string(),
-  identifier: z.string(),
-  title: z.string(),
-});
-
-export type DriveDuplicateTask = z.infer<typeof DriveDuplicateTaskSchema>;
-
-const DriveTaskProposalItemSchema = z.object({
-  index: z.number().int().nonnegative(),
-  title: z.string(),
-  assignee_member_id: z.string().optional().catch(undefined),
-  assignee_basis: z.string().optional().catch(undefined),
-  assignee_drive_access: z.string().optional().catch(undefined),
-  priority: z.string().optional().catch(undefined),
-  priority_basis: z.string().optional().catch(undefined),
-  start_date: z.string().optional().catch(undefined),
-  start_basis: z.string().optional().catch(undefined),
-  due_date: z.string().optional().catch(undefined),
-  due_basis: z.string().optional().catch(undefined),
-  label_ids: z.array(z.string()).optional().catch([]).default([]),
-  label_basis: z.string().optional().catch(undefined),
-  goal: z.string().optional().catch("").default(""),
-  checklist: z.array(z.string()).optional().catch([]).default([]),
-  excerpt: DriveProposalExcerptSchema.optional()
-    .catch({ section: "", quote: "" })
-    .default({ section: "", quote: "" }),
-  blocked_by_indexes: z.array(z.number().int().nonnegative()).optional().catch([]).default([]),
-  possible_duplicate: DriveDuplicateTaskSchema.optional().catch(undefined),
-});
-
-export type DriveTaskProposalItem = z.infer<typeof DriveTaskProposalItemSchema>;
-
-const DriveTaskProposalSchema = z.object({
-  id: z.string(),
-  workspace_id: z.string(),
-  drive_file_id: z.string(),
-  drive_file_name: z.string(),
-  drive_file_mime_type: z.string().optional().catch("").default(""),
-  drive_file_icon_kind: z.string().optional().catch("generic").default("generic"),
-  sharing_state: z.string().optional().catch("unknown").default("unknown"),
-  connection_id: z.string(),
-  reader_account_email: z.string().optional().catch("").default(""),
-  requested_by: z.string(),
-  prompt: z.string().optional().catch(undefined),
-  project_id: z.string().optional().catch(undefined),
-  parent_task_id: z.string().optional().catch(undefined),
-  context_task_id: z.string().optional().catch(undefined),
-  truncated: z.boolean().optional().catch(false).default(false),
-  status: z.string().optional().catch("ready").default("ready"),
-  items: z
-    .array(z.unknown())
-    .optional()
-    .catch([])
-    .default([])
-    .transform((items) => {
-      const valid: DriveTaskProposalItem[] = [];
-      for (const item of items) {
-        const parsed = DriveTaskProposalItemSchema.safeParse(item);
-        if (parsed.success) {
-          valid.push(parsed.data);
-        }
-      }
-      return valid;
-    }),
-  tasks_created: DriveTasksCreatedSummarySchema.optional()
-    .catch(EMPTY_TASKS_CREATED)
-    .default(EMPTY_TASKS_CREATED),
-  prior_creations: z.array(DriveTaskCreationGroupSchema).optional().catch([]).default([]),
-  created_at: z.string(),
-  expires_at: z.string(),
-});
-
-export type DriveTaskProposal = z.infer<typeof DriveTaskProposalSchema>;
-
-const DriveTaskProposalResponseSchema = z.object({
-  proposal: DriveTaskProposalSchema,
-});
-
-export interface CreateDriveTaskProposalBody {
-  prompt?: string;
-  project_id?: string | null;
-  parent_task_id?: string | null;
-  context_task_id?: string | null;
-}
-
-export async function createDriveTaskProposal(
-  workspaceId: string,
-  driveFileId: string,
-  body?: CreateDriveTaskProposalBody,
-  signal?: AbortSignal,
-): Promise<DriveTaskProposal | null> {
-  const payload: Record<string, unknown> = {};
-  if (body?.prompt !== undefined && body.prompt.trim() !== "") {
-    payload.prompt = body.prompt;
-  }
-  if (body?.project_id !== undefined) {
-    payload.project_id = body.project_id;
-  }
-  if (body?.parent_task_id !== undefined) {
-    payload.parent_task_id = body.parent_task_id;
-  }
-  if (body?.context_task_id !== undefined) {
-    payload.context_task_id = body.context_task_id;
-  }
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/drive-files/${enc(driveFileId)}/task-proposals`,
-    { method: "POST", body: payload, signal },
-  );
-  return (
-    parseWithFallback<{ proposal: DriveTaskProposal } | null>(
-      raw,
-      DriveTaskProposalResponseSchema,
-      null,
-      { endpoint: "POST /api/v1/workspaces/{ws}/drive-files/{driveFileID}/task-proposals" },
-    )?.proposal ?? null
-  );
-}
-
-export async function getDriveTaskProposal(
-  workspaceId: string,
-  proposalId: string,
-  signal?: AbortSignal,
-): Promise<DriveTaskProposal | null> {
-  const raw = await request(
-    `/api/v1/workspaces/${enc(workspaceId)}/drive-task-proposals/${enc(proposalId)}`,
-    { signal },
-  );
-  return (
-    parseWithFallback<{ proposal: DriveTaskProposal } | null>(
-      raw,
-      DriveTaskProposalResponseSchema,
-      null,
-      { endpoint: "GET /api/v1/workspaces/{ws}/drive-task-proposals/{proposalID}" },
-    )?.proposal ?? null
-  );
-}
+export {
+  checkDriveTaskProposalDuplicates,
+  createDriveTaskProposal,
+  createTasksFromDriveProposal,
+  deleteDriveTaskProposal,
+  getDriveTaskProposal,
+  type CheckDriveTaskProposalDuplicatesBody,
+  type CreateDriveTaskProposalBody,
+  type CreateTasksFromDriveProposalBody,
+  type DriveDuplicateTask,
+  type DriveLinkedTaskRef,
+  type DriveProposalCreatedTaskItem,
+  type DriveProposalDuplicateItem,
+  type DriveProposalExcerpt,
+  type DriveProposalTaskItemInput,
+  type DriveProposalTasksCreated,
+  type DriveTaskCreationGroup,
+  type DriveTaskProposal,
+  type DriveTaskProposalItem,
+  type DriveTasksCreatedSummary,
+} from "./drive-proposals";
 

@@ -37,6 +37,7 @@ import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
 import { CreateTaskDraftTray } from "../tasks/create-task-draft-tray";
+import { DriveProposalReviewHost } from "../tasks/drive-proposals/drive-proposal-review-host";
 import { useNavigation } from "../navigation";
 import { AccountMenu } from "./account-menu";
 import { GlobalShortcuts } from "./global-shortcuts";
@@ -101,24 +102,26 @@ export function WorkspaceChrome({
   );
   return (
     <PreferenceToastProvider>
-      {bare ? (
-        <NewTaskDialog workspaceId={workspace.id} open={createOpen} onOpenChange={setCreateOpen} showTrigger={false} />
-      ) : (
-        <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
-      )}
-      <GlobalShortcuts onCreateTask={openCreate} />
-      <SearchCommand onCreateTask={openCreate} />
-      {docked ? null : <AskUniLegacyPanel />}
-      <div className="flex min-h-0 min-w-0 flex-1">
-        {nav}
-        {frame(
-          <AskUniDock enabled={docked} framed={!bare}>
-            {page}
-            {/* The draft tray is the content card's own foot, as ClickUp's is. */}
-            <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
-          </AskUniDock>,
+      <DriveProposalReviewHost workspaceId={workspace.id}>
+        {bare ? (
+          <NewTaskDialog workspaceId={workspace.id} open={createOpen} onOpenChange={setCreateOpen} showTrigger={false} />
+        ) : (
+          <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
         )}
-      </div>
+        <GlobalShortcuts onCreateTask={openCreate} />
+        <SearchCommand onCreateTask={openCreate} />
+        {docked ? null : <AskUniLegacyPanel />}
+        <div className="flex min-h-0 min-w-0 flex-1">
+          {nav}
+          {frame(
+            <AskUniDock enabled={docked} framed={!bare}>
+              {page}
+              {/* The draft tray is the content card's own foot, as ClickUp's is. */}
+              <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
+            </AskUniDock>,
+          )}
+        </div>
+      </DriveProposalReviewHost>
     </PreferenceToastProvider>
   );
 }
