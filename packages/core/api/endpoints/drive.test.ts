@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createDriveTaskProposal,
   disconnectDriveConnection,
   getDrivePickerToken,
+  getDriveTaskProposal,
   grantDriveFileAccess,
   isDriveConnectionLost,
   linkDriveFiles,
@@ -416,5 +418,156 @@ describe("drive endpoints", () => {
   it("grantDriveFileAccess degrades a malformed response to null", async () => {
     requestMock.mockResolvedValueOnce({ file: { id: 42 } });
     await expect(grantDriveFileAccess("ws1", "df1", "dc2")).resolves.toBeNull();
+  });
+
+  it("createDriveTaskProposal posts prompt/project/parent/context and parses DriveTaskProposalSDO", async () => {
+    requestMock.mockResolvedValueOnce({
+      proposal: {
+        id: "dtp_1",
+        workspace_id: "ws_1",
+        drive_file_id: "df_1",
+        drive_file_name: "Kế hoạch ra mắt Q4",
+        drive_file_mime_type: "application/vnd.google-apps.document",
+        drive_file_icon_kind: "google_doc",
+        sharing_state: "shared",
+        connection_id: "dc_1",
+        reader_account_email: "uni-work1@gmail.com",
+        requested_by: "u_1",
+        prompt: "Tạo việc cho mục Phân công",
+        project_id: "p_1",
+        parent_task_id: "t_1042",
+        context_task_id: "t_1042",
+        truncated: true,
+        status: "ready",
+        items: [
+          {
+            index: 0,
+            title: "Chốt phạm vi tính năng beta",
+            assignee_member_id: "m_1",
+            assignee_basis: "Tài liệu: 'Lan chốt phạm vi'",
+            assignee_drive_access: "granted",
+            priority: "high",
+            priority_basis: "Chặn các việc sau",
+            start_date: "2026-10-27",
+            due_date: "2026-11-05",
+            due_basis: "Mục 3: 'trước 05/11'",
+            label_ids: ["l_1"],
+            goal: "Chốt danh sách tính năng beta",
+            checklist: ["Liệt kê tính năng", "Họp chốt"],
+            excerpt: { section: "Mục 2", quote: "Nhóm sản phẩm chốt phạm vi beta" },
+            blocked_by_indexes: [],
+            possible_duplicate: {
+              task_id: "t_1037",
+              identifier: "UNI-1037",
+              title: "Chốt phạm vi beta",
+            },
+          },
+          {
+            index: "not-a-number",
+            title: "Malformed item dropped",
+          },
+        ],
+        tasks_created: {
+          count: 4,
+          last_created_at: "2026-10-25T10:00:00Z",
+          last_created_by_name: "Lan",
+        },
+        prior_creations: [
+          {
+            proposal_id: "dtp_prev",
+            created_at: "2026-10-25T10:00:00Z",
+            created_by_id: "u_2",
+            created_by_name: "Lan",
+            tasks: [
+              {
+                task_id: "t_1051",
+                identifier: "UNI-1051",
+                title: "Việc trước",
+                status: "todo",
+              },
+            ],
+          },
+        ],
+        created_at: "2026-10-26T10:00:00Z",
+        expires_at: "2026-11-02T10:00:00Z",
+      },
+    });
+
+    const controller = new AbortController();
+    const proposal = await createDriveTaskProposal(
+      "ws 1",
+      "df 1",
+      {
+        prompt: "Tạo việc cho mục Phân công",
+        project_id: "p_1",
+        parent_task_id: "t_1042",
+        context_task_id: "t_1042",
+      },
+      controller.signal,
+    );
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws%201/drive-files/df%201/task-proposals",
+      {
+        method: "POST",
+        body: {
+          prompt: "Tạo việc cho mục Phân công",
+          project_id: "p_1",
+          parent_task_id: "t_1042",
+          context_task_id: "t_1042",
+        },
+        signal: controller.signal,
+      },
+    );
+    expect(proposal?.id).toBe("dtp_1");
+    expect(proposal?.truncated).toBe(true);
+    expect(proposal?.items).toHaveLength(1);
+    expect(proposal?.items[0]?.title).toBe("Chốt phạm vi tính năng beta");
+    expect(proposal?.items[0]?.possible_duplicate?.identifier).toBe("UNI-1037");
+    expect(proposal?.tasks_created).toEqual({
+      count: 4,
+      last_created_at: "2026-10-25T10:00:00Z",
+      last_created_by_name: "Lan",
+    });
+    expect(proposal?.prior_creations).toHaveLength(1);
+  });
+
+  it("createDriveTaskProposal omits blank prompt and degrades malformed responses to null", async () => {
+    requestMock.mockResolvedValueOnce({ proposal: { id: 123 } });
+    const result = await createDriveTaskProposal("ws1", "df1", { prompt: "   " });
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files/df1/task-proposals",
+      { method: "POST", body: {}, signal: undefined },
+    );
+    expect(result).toBeNull();
+  });
+
+  it("getDriveTaskProposal fetches by encoded proposal ID and degrades malformed responses to null", async () => {
+    requestMock.mockResolvedValueOnce({
+      proposal: {
+        id: "dtp_2",
+        workspace_id: "ws_1",
+        drive_file_id: "df_1",
+        drive_file_name: "Kế hoạch ra mắt Q4",
+        connection_id: "dc_1",
+        requested_by: "u_1",
+        created_at: "2026-10-26T10:00:00Z",
+        expires_at: "2026-11-02T10:00:00Z",
+      },
+    });
+
+    const proposal = await getDriveTaskProposal("ws 1", "dtp 2");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws%201/drive-task-proposals/dtp%202",
+      { signal: undefined },
+    );
+    expect(proposal?.id).toBe("dtp_2");
+    expect(proposal?.status).toBe("ready");
+    expect(proposal?.items).toEqual([]);
+    expect(proposal?.tasks_created).toEqual({ count: 0 });
+    expect(proposal?.prior_creations).toEqual([]);
+
+    requestMock.mockResolvedValueOnce("not-an-object");
+    await expect(getDriveTaskProposal("ws1", "dtp2")).resolves.toBeNull();
   });
 });

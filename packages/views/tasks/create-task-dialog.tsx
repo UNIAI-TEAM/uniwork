@@ -23,9 +23,8 @@ import {
   agentDialogContentClass,
   manualDialogContentClass,
 } from "./create-task-dialog-classes";
-import { CreateTaskAgentPanel } from "./create-task-agent-panel";
+import { CreateTaskAgentPanel, type CreateTaskAgentPanelProps } from "./create-task-agent-panel";
 import { CreateTaskManualPanel, type CreateTaskManualPanelProps } from "./create-task-manual-panel";
-
 export type CreateTaskMode = "manual" | "agent";
 
 export type CreateTaskDialogProps = {
@@ -37,7 +36,8 @@ export type CreateTaskDialogProps = {
   initialMode?: CreateTaskMode;
   /** Where focus goes on close (Base UI `finalFocus`): the title's autoFocus hides the opener from it. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
-} & Pick<CreateTaskManualPanelProps, "submitter" | "heading" | "pickerAdapter">;
+} & Pick<CreateTaskManualPanelProps, "submitter" | "heading" | "pickerAdapter"> &
+  Pick<CreateTaskAgentPanelProps, "onProposalReady">;
 
 /**
  * Shell that owns the single Dialog + DialogContent for create-task.
@@ -55,6 +55,7 @@ export function CreateTaskDialog({
   heading,
   pickerAdapter,
   finalFocus,
+  onProposalReady,
 }: CreateTaskDialogProps) {
   const { t } = useTranslation();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -140,6 +141,7 @@ export function CreateTaskDialog({
               setIsExpanded={setIsExpanded}
               createAnother={createAnother}
               setCreateAnother={setCreateAnother}
+              onProposalReady={onProposalReady}
             />
           )}
         </DialogContent>

@@ -711,4 +711,82 @@ describe("DriveFileDetailView (4.2)", () => {
     await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
     expect(onPropose).toHaveBeenCalledTimes(1);
   });
+
+  it("opens the 'Tạo việc từ tài liệu' popover via ?propose=1 with reading-account line, re-creation warning, and submits to POST .../task-proposals (§8.1, §8.8)", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === `${DETAIL_URL}/task-proposals` && opts?.method === "POST") {
+        return Promise.resolve({
+          proposal: {
+            id: "dtp_42",
+            workspace_id: WS,
+            drive_file_id: FILE_ID,
+            drive_file_name: "Kế hoạch ra mắt Q4",
+            connection_id: "conn1",
+            reader_account_email: "uni-work1@gmail.com",
+            requested_by: "u1",
+            items: [{ index: 0, title: "Chốt phạm vi beta" }],
+            tasks_created: { count: 4, last_created_by_name: "Minh Nguyễn" },
+            prior_creations: [],
+            created_at: "2026-10-26T10:00:00Z",
+            expires_at: "2026-11-02T10:00:00Z",
+          },
+        });
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            can_propose: true,
+            viewer_access: "granted",
+            viewer_account_email: "uni-work1@gmail.com",
+            tasks_created: {
+              count: 4,
+              last_created_at: "2026-10-26T09:58:00Z",
+              last_created_by_name: "Minh Nguyễn",
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    const onProposalReady = vi.fn();
+    const nav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1`);
+
+    render(
+      withFlag(
+        <DriveFileDetailView
+          wsId={WS}
+          driveFileId={FILE_ID}
+          onProposalReady={onProposalReady}
+        />,
+        true,
+        nav,
+      ),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`));
+
+    // Popover opened automatically via ?propose=1
+    expect(
+      await screen.findByText(
+        "UNI đọc tệp bằng tài khoản uni-work1@gmail.com rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      ),
+    ).toBeInTheDocument();
+
+    const warning = screen.getByTestId("drive-recreate-warning");
+    expect(warning).toHaveAttribute("role", "status");
+    expect(within(warning).getByRole("button", { name: "Xem các việc đã tạo" })).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: "Vẫn gửi cho UNI" });
+    expect(submitBtn).toHaveAttribute("aria-describedby", warning.id);
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(onProposalReady).toHaveBeenCalledWith(
+        "dtp_42",
+        expect.objectContaining({ id: "dtp_42" }),
+      );
+    });
+  });
 });

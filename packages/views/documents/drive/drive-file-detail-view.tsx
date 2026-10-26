@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { CircleAlert, ExternalLink, FileX, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { useResourceHistory } from "@uniwork/core/audit";
 import { useAuthStore } from "@uniwork/core/auth";
+import type { DriveTaskProposal } from "@uniwork/core/drive";
 import { useDriveFile, useUnlinkDriveFile, type DriveFile, type DriveIconKind } from "@uniwork/core/drive-library";
 import { paths } from "@uniwork/core/paths";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -21,25 +22,19 @@ import { relativeTime } from "../../notifications/relative-time";
 import { DocumentTypeIcon } from "../document-type-icon";
 import { DocumentsGateState, useDocumentsGate } from "../documents-gate";
 import { DriveAskUniHeaderButton, useDriveAskUniSeam } from "./drive-ask-uni-seam";
-import {
-  DriveFileActivitySection,
-  DriveRebindSection,
-  DriveUnlinkConfirmSection,
-  DriveViewerAccessBlock,
-} from "./drive-file-detail-sections";
-import {
-  useDriveLibraryConnections,
-  type DriveConnectionSummary,
-} from "./use-drive-library-connections";
+import { DriveFileActivitySection, DriveRebindSection, DriveUnlinkConfirmSection, DriveViewerAccessBlock } from "./drive-file-detail-sections";
+import { useDriveLibraryConnections, type DriveConnectionSummary } from "./use-drive-library-connections";
+import { DriveProposeTasksPopover } from "../../tasks/drive-task-proposal-popover";
 
 export interface DriveFileDetailViewProps {
   wsId: string;
   driveFileId: string;
   /** Optional override for the caller's connected Google Drive accounts. */
   connections?: readonly DriveConnectionSummary[];
-  /** Seam for W6 "Tạo việc từ tài liệu": rendered only when `file.can_propose` AND `onPropose` is passed. */
+  /** Optional callback when "Tạo việc từ tài liệu" is opened (e.g. via `?propose=1` or click). */
   onPropose?: (file: DriveFile) => void;
-  /** Seam for W9 "Hỏi UNI": rendered only when `file.can_ask` AND `onAsk` is passed. */
+  /** Seam for W7 (`packages/views/tasks/drive-proposals/`): invoked when a task proposal batch is ready. */
+  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void;
   onAsk?: (file: DriveFile) => void;
   /** Seam for W3 Picker before calling `rebindDriveFile`. */
   onRebind?: (connectionId: string) => Promise<void> | void;
@@ -63,10 +58,7 @@ function formatShortDate(iso: string | undefined, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "short" }).format(d);
 }
 
-function driveTypeLabel(
-  kind: DriveIconKind | string,
-  t: (key: string) => string,
-): string {
+function driveTypeLabel(kind: DriveIconKind | string, t: (key: string) => string): string {
   switch (kind) {
     case "google_doc":
     case "google_sheet":
@@ -87,17 +79,7 @@ function driveTypeLabel(
 /**
  * 4.2 `/documents/drive/{driveFileId}` — Google Drive file reference detail page (spec §7.7, §7.8, §7.10, §7.11, §8.8).
  */
-export function DriveFileDetailView({
-  wsId,
-  driveFileId,
-  connections: connectionsProp,
-  onPropose,
-  onAsk,
-  onRebind,
-  onGrantAccess,
-  onReconnect,
-  onAttachToTask,
-}: DriveFileDetailViewProps) {
+export function DriveFileDetailView({ wsId, driveFileId, connections: connectionsProp, onPropose, onProposalReady, onAsk, onRebind, onGrantAccess, onReconnect, onAttachToTask }: DriveFileDetailViewProps) {
   const { t, i18n } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
@@ -108,11 +90,7 @@ export function DriveFileDetailView({
   const connections = connectionsProp ?? defaultConnections;
 
   const wsPaths = useMemo(
-    () =>
-      paths.workspace(
-        context?.workspace.organization_slug || "org",
-        context?.workspace.slug || wsId,
-      ),
+    () => paths.workspace(context?.workspace.organization_slug || "org", context?.workspace.slug || wsId),
     [context?.workspace.organization_slug, context?.workspace.slug, wsId],
   );
   const driveLibraryHref = wsPaths.documentsDrive();
@@ -124,26 +102,17 @@ export function DriveFileDetailView({
   });
   const file = query.data ?? null;
 
-  const history = useResourceHistory(
-    enabled && file ? wsId : "",
-    "drive_file",
-    enabled && file ? driveFileId : "",
-  );
+  const history = useResourceHistory(enabled && file ? wsId : "", "drive_file", enabled && file ? driveFileId : "");
   const members = useMembers(enabled && file ? wsId : "");
   const memberNames = useMemo(
     () => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])),
     [members.data],
   );
   const unlinkMutation = useUnlinkDriveFile(wsId);
-  const { showAsk, askGranted, askDisabled, triggerAsk } = useDriveAskUniSeam({
-    wsId,
-    driveFileId,
-    file,
-    detailHref: wsPaths.documentsDriveFile(driveFileId),
-    onPropose,
-    onAsk,
+  const tasksCreatedSectionRef = useRef<HTMLDivElement | null>(null);
+  const { showAsk, askGranted, askDisabled, triggerAsk, proposePopoverOpen, setProposePopoverOpen } = useDriveAskUniSeam({
+    wsId, driveFileId, file, detailHref: wsPaths.documentsDriveFile(driveFileId), onPropose, onAsk,
   });
-
   if (gate !== "on") {
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
   }
@@ -165,10 +134,7 @@ export function DriveFileDetailView({
         icon={FileX}
         title={t("driveLibrary.detail.not_found.title")}
         actions={
-          <AppLink
-            href={driveLibraryHref}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
+          <AppLink href={driveLibraryHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
             {t("driveLibrary.detail.not_found.back")}
           </AppLink>
         }
@@ -187,10 +153,7 @@ export function DriveFileDetailView({
         description={t("driveLibrary.detail.error.description")}
         actions={
           <>
-            <AppLink
-              href={driveLibraryHref}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
+            <AppLink href={driveLibraryHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
               {t("driveLibrary.detail.not_found.back")}
             </AppLink>
             <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
@@ -210,11 +173,7 @@ export function DriveFileDetailView({
     : "";
   const subtitleLine = modifiedRelative
     ? file.drive_modified_by_display
-      ? t("driveLibrary.detail.modified_by_at", {
-          type: typeLabel,
-          name: file.drive_modified_by_display,
-          time: modifiedRelative,
-        })
+      ? t("driveLibrary.detail.modified_by_at", { type: typeLabel, name: file.drive_modified_by_display, time: modifiedRelative })
       : t("driveLibrary.detail.modified_at", { type: typeLabel, time: modifiedRelative })
     : typeLabel;
 
@@ -223,17 +182,14 @@ export function DriveFileDetailView({
   const linkedByLine =
     currentUserId && file.created_by === currentUserId
       ? t("driveLibrary.detail.props.linked_by_you", { date: linkedDate })
-      : t("driveLibrary.detail.props.linked_by_other", {
-          name: file.created_by_name,
-          date: linkedDate,
-        });
+      : t("driveLibrary.detail.props.linked_by_other", { name: file.created_by_name, date: linkedDate });
 
   const ownerDisplay =
     file.drive_id && !file.owner_display
       ? t("driveLibrary.detail.props.owner_shared_drive")
       : file.owner_display;
 
-  const showPropose = file.can_propose && Boolean(onPropose);
+  const showPropose = file.can_propose;
   const usedInTotal = Math.max(file.used_in_count, file.used_in_tasks.length);
   const creations = (file.task_creations ?? []).filter((g) => g.tasks.length > 0);
   const totalCreatedCount = file.tasks_created?.count ?? 0;
@@ -256,35 +212,16 @@ export function DriveFileDetailView({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <BreadcrumbHeader
         segments={[
-          {
-            href: wsPaths.documents(),
-            label: t("driveLibrary.detail.breadcrumb_documents"),
-            className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11",
-          },
-          {
-            href: driveLibraryHref,
-            label: t("driveLibrary.detail.breadcrumb_drive"),
-            className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11",
-          },
+          { href: wsPaths.documents(), label: t("driveLibrary.detail.breadcrumb_documents"), className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11" },
+          { href: driveLibraryHref, label: t("driveLibrary.detail.breadcrumb_drive"), className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11" },
         ]}
         leaf={<span title={file.name}>{file.name}</span>}
         className="h-auto min-h-12 flex-wrap py-1.5 sm:h-12 sm:flex-nowrap sm:py-0"
         actionsClassName="basis-full max-w-none flex-wrap justify-end gap-x-2 gap-y-1 overflow-visible sm:basis-auto"
         actions={
           <>
-            <DriveAskUniHeaderButton
-              showAsk={showAsk}
-              askGranted={askGranted}
-              askDisabled={askDisabled}
-              onTriggerAsk={triggerAsk}
-            />
-            <a
-              href={file.open_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t("driveLibrary.detail.open_on_drive")}
-              className={cn(buttonVariants({ size: "sm" }), "gap-1.5 px-2 sm:px-2.5")}
-            >
+            <DriveAskUniHeaderButton showAsk={showAsk} askGranted={askGranted} askDisabled={askDisabled} onTriggerAsk={triggerAsk} />
+            <a href={file.open_url} target="_blank" rel="noopener noreferrer" aria-label={t("driveLibrary.detail.open_on_drive")} className={cn(buttonVariants({ size: "sm" }), "gap-1.5 px-2 sm:px-2.5")}>
               <ExternalLink aria-hidden className="size-4" />
               <span className="hidden sm:inline">{t("driveLibrary.detail.open_on_drive")}</span>
             </a>
@@ -308,12 +245,7 @@ export function DriveFileDetailView({
           </div>
 
           <div>
-            <a
-              href={file.open_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ size: "default" }), "gap-2")}
-            >
+            <a href={file.open_url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ size: "default" }), "gap-2")}>
               <ExternalLink aria-hidden className="size-4" />
               {t("driveLibrary.detail.open_on_drive")}
             </a>
@@ -325,17 +257,35 @@ export function DriveFileDetailView({
               : t("driveLibrary.detail.explainer_no_account")}
           </p>
 
-          {showPropose && onPropose ? (
+          {showPropose ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <Button type="button" variant="outline" onClick={() => onPropose(file)}>
-                <Sparkles aria-hidden className="size-4" />
-                {t("driveLibrary.detail.propose_tasks")}
-              </Button>
+              <DriveProposeTasksPopover
+                workspaceId={wsId}
+                driveFileId={file.id}
+                readerAccountEmail={file.viewer_account_email}
+                openUrl={file.open_url}
+                tasksCreated={file.tasks_created}
+                open={proposePopoverOpen}
+                onOpenChange={(nextOpen) => { setProposePopoverOpen(nextOpen); if (nextOpen) onPropose?.(file); }}
+                onProposalReady={onProposalReady}
+                onAccessRequired={() => { void query.refetch(); }}
+                onViewCreatedTasks={creations.length > 0 || totalCreatedCount > 0 ? () => { tasksCreatedSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); } : undefined}
+                trigger={
+                  <Button type="button" variant="outline">
+                    <Sparkles aria-hidden className="size-4" />
+                    {t("driveLibrary.detail.propose_tasks")}
+                  </Button>
+                }
+              />
             </div>
           ) : null}
 
           {creations.length > 0 || totalCreatedCount > 0 ? (
-            <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
+            <div
+              id="drive-tasks-created"
+              ref={tasksCreatedSectionRef}
+              className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-body font-semibold text-foreground">
                   {t("driveLibrary.detail.tasks_created.title")}
@@ -349,23 +299,13 @@ export function DriveFileDetailView({
               {creations.map((group) => (
                 <div key={group.proposal_id} className="flex flex-col gap-1.5">
                   <div className="text-caption font-medium text-muted-foreground">
-                    {t("driveLibrary.detail.tasks_created.group", {
-                      date: formatShortDate(group.created_at, i18n.language),
-                      name: group.created_by_name,
-                      count: group.tasks.length,
-                    })}
+                    {t("driveLibrary.detail.tasks_created.group", { date: formatShortDate(group.created_at, i18n.language), name: group.created_by_name, count: group.tasks.length })}
                   </div>
                   <ul className="flex flex-col gap-1">
                     {group.tasks.map((task) => (
                       <li key={task.task_id}>
-                        <AppLink
-                          href={wsPaths.task(task.task_id)}
-                          className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11"
-                        >
-                          {t("driveLibrary.detail.used_in.task_row", {
-                            identifier: task.identifier,
-                            title: task.title,
-                          })}
+                        <AppLink href={wsPaths.task(task.task_id)} className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11">
+                          {t("driveLibrary.detail.used_in.task_row", { identifier: task.identifier, title: task.title })}
                         </AppLink>
                       </li>
                     ))}
@@ -414,12 +354,7 @@ export function DriveFileDetailView({
                   <span>{t("driveLibrary.detail.props.bound_access_lost")}</span>
                 </span>
               ) : null}
-              <DriveRebindSection
-                wsId={wsId}
-                file={file}
-                connections={connections}
-                onRebind={onRebind}
-              />
+              <DriveRebindSection wsId={wsId} file={file} connections={connections} onRebind={onRebind} />
             </div>
 
             {file.viewer_access === "granted" ? (
@@ -435,12 +370,7 @@ export function DriveFileDetailView({
                 </span>
               </div>
             ) : (
-              <DriveViewerAccessBlock
-                file={file}
-                settingsIntegrationsHref={settingsIntegrationsHref}
-                onGrantAccess={onGrantAccess ? () => onGrantAccess(file) : undefined}
-                onReconnect={onReconnect}
-              />
+              <DriveViewerAccessBlock file={file} settingsIntegrationsHref={settingsIntegrationsHref} onGrantAccess={onGrantAccess ? () => onGrantAccess(file) : undefined} onReconnect={onReconnect} />
             )}
 
             <div className="flex flex-col gap-1">
@@ -473,12 +403,7 @@ export function DriveFileDetailView({
                 {t("driveLibrary.detail.used_in.title", { count: usedInTotal })}
               </h2>
               {onAttachToTask ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onAttachToTask(file)}
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={() => onAttachToTask(file)}>
                   {t("driveLibrary.detail.used_in.attach_to_task")}
                 </Button>
               ) : null}
@@ -491,14 +416,8 @@ export function DriveFileDetailView({
               <ul className="flex flex-col gap-1">
                 {file.used_in_tasks.map((task) => (
                   <li key={task.task_id}>
-                    <AppLink
-                      href={wsPaths.task(task.task_id)}
-                      className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11"
-                    >
-                      {t("driveLibrary.detail.used_in.task_row", {
-                        identifier: task.identifier,
-                        title: task.title,
-                      })}
+                    <AppLink href={wsPaths.task(task.task_id)} className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11">
+                      {t("driveLibrary.detail.used_in.task_row", { identifier: task.identifier, title: task.title })}
                     </AppLink>
                   </li>
                 ))}
@@ -506,20 +425,10 @@ export function DriveFileDetailView({
             )}
           </div>
 
-          <DriveFileActivitySection
-            events={history.data ?? []}
-            isPending={history.isPending}
-            isError={history.isError}
-            currentUserId={currentUserId}
-            memberNames={memberNames}
-          />
+          <DriveFileActivitySection events={history.data ?? []} isPending={history.isPending} isError={history.isError} currentUserId={currentUserId} memberNames={memberNames} />
 
           {file.can_unlink ? (
-            <DriveUnlinkConfirmSection
-              usedInCount={usedInTotal}
-              pending={unlinkMutation.isPending}
-              onConfirm={handleUnlink}
-            />
+            <DriveUnlinkConfirmSection usedInCount={usedInTotal} pending={unlinkMutation.isPending} onConfirm={handleUnlink} />
           ) : null}
         </aside>
       </div>

@@ -14438,6 +14438,50 @@
       "bound_connection_lost_badge": "Mất kết nối",
       "bound_access_lost_notice": "Tài khoản gắn không còn quyền với tệp này.",
       "blocked_action_hint": "Cần cho UniWork đọc tệp trước"
+    },
+    "proposals": {
+      "created_by_uni": "UNI",
+      "propose_button": "Tạo việc từ tài liệu",
+      "popover_title": "Tạo việc từ tài liệu",
+      "reader_line": "UNI đọc tệp bằng tài khoản {{email}} rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      "reader_line_no_email": "UNI đọc tệp bằng tài khoản Google Drive của bạn rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      "prompt_label": "Gợi ý cho UNI (tùy chọn)",
+      "prompt_placeholder": "Ví dụ: Tạo việc cho mỗi mục trong phần Phân công và Rủi ro…",
+      "submit": "Gửi cho agent",
+      "submit_anyway": "Vẫn gửi cho UNI",
+      "reading": "UNI đang đọc tài liệu…",
+      "cancel_reading": "Hủy",
+      "open_on_drive": "Mở trên Google Drive",
+      "recreate_warning": {
+        "full_one": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}, bởi {{name}}). Tạo thêm có thể trùng.",
+        "full_other": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}, bởi {{name}}). Tạo thêm có thể trùng.",
+        "with_date_one": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}). Tạo thêm có thể trùng.",
+        "with_date_other": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}). Tạo thêm có thể trùng.",
+        "with_name_one": "Tài liệu này đã được dùng để tạo {{count}} việc (bởi {{name}}). Tạo thêm có thể trùng.",
+        "with_name_other": "Tài liệu này đã được dùng để tạo {{count}} việc (bởi {{name}}). Tạo thêm có thể trùng.",
+        "count_only_one": "Tài liệu này đã được dùng để tạo {{count}} việc. Tạo thêm có thể trùng.",
+        "count_only_other": "Tài liệu này đã được dùng để tạo {{count}} việc. Tạo thêm có thể trùng.",
+        "view_created": "Xem các việc đã tạo"
+      },
+      "errors": {
+        "drive_access_required": "Bạn chưa cho UniWork đọc tệp này. Hãy cấp quyền đọc tệp trước khi tạo việc.",
+        "drive_grant_required": "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
+        "drive_format_unsupported": "UNI chưa đọc được định dạng này.",
+        "rate_limited": "Bạn đã nhờ UNI đọc tài liệu nhiều lần. Thử lại sau ít phút.",
+        "ai_disabled": "AI chưa khả dụng trên workspace này.",
+        "ai_quota_exceeded": "Tổ chức đã dùng hết hạn mức token AI của tháng. Báo quản trị viên nếu cần thêm.",
+        "ai_provider_error": "Dịch vụ AI tạm thời không phản hồi. Thử lại sau ít phút.",
+        "ai_provider_timeout": "UNI chưa đọc xong tài liệu kịp lúc. Thử lại sau giây lát.",
+        "ai_output_invalid": "UNI chưa tạo được danh sách việc từ tài liệu này. Thử lại.",
+        "drive_source_changed": "Tài liệu vừa thay đổi kết nối hoặc bị bỏ liên kết.",
+        "drive_file_not_accessible": "Tài khoản Google Drive của bạn không còn quyền với tệp này.",
+        "drive_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+        "drive_extract_unavailable": "UNI chưa đọc được tệp này lúc này, thử lại sau.",
+        "auth_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
+        "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive.",
+        "not_found": "Không tìm thấy tệp Google Drive này hoặc bạn không có quyền xem.",
+        "default": "Không tạo được đề xuất việc từ tài liệu. Thử lại."
+      }
     }
   },
   "driveLibrary": {

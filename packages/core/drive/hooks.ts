@@ -2,8 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  createDriveTaskProposal,
   disconnectDriveConnection,
   getDrivePickerToken,
+  getDriveTaskProposal,
   grantDriveFileAccess,
   isDriveConnectionLost,
   linkDriveFiles,
@@ -11,16 +13,21 @@ import {
   listTaskDriveFiles,
   removeTaskDriveFile,
   startDriveConnect,
+  type CreateDriveTaskProposalBody,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveDuplicateTask,
   type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
   type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveProposalExcerpt,
   type DriveTaskCreationGroup,
   type DriveTaskFileCard,
+  type DriveTaskProposal,
+  type DriveTaskProposalItem,
   type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 } from "../api/endpoints/drive";
@@ -29,16 +36,21 @@ import { driveKeys } from "./keys";
 export {
   driveKeys,
   isDriveConnectionLost,
+  type CreateDriveTaskProposalBody,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveDuplicateTask,
   type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
   type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveProposalExcerpt,
   type DriveTaskCreationGroup,
   type DriveTaskFileCard,
+  type DriveTaskProposal,
+  type DriveTaskProposalItem,
   type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 };
@@ -171,5 +183,50 @@ export function useGrantDriveFileAccess(wsId: string, taskId?: string) {
       }
       void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
     },
+  });
+}
+
+/**
+ * Reads a Google Drive file with the caller's connected account and creates an
+ * AI task proposal batch (`POST /workspaces/{ws}/drive-files/{driveFileID}/task-proposals`,
+ * Card B5, spec §8.2). Seeds `driveKeys.proposal(wsId, proposal.id)` on success.
+ */
+export function useCreateDriveTaskProposal(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      driveFileId,
+      body,
+      signal,
+    }: {
+      driveFileId: string;
+      body?: CreateDriveTaskProposalBody;
+      signal?: AbortSignal;
+    }) => {
+      const proposal = await createDriveTaskProposal(wsId, driveFileId, body, signal);
+      if (!proposal) throw new Error("drive_task_proposal_response_invalid");
+      return proposal;
+    },
+    onSuccess: (proposal) => {
+      qc.setQueryData(driveKeys.proposal(wsId, proposal.id), proposal);
+    },
+  });
+}
+
+/**
+ * Fetches a task proposal batch by ID (`GET /workspaces/{ws}/drive-task-proposals/{proposalID}`,
+ * Card B5, spec §8.2a). Keyed under `driveKeys.proposal(wsId, proposalId)`.
+ */
+export function useDriveTaskProposal(
+  wsId: string,
+  proposalId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<DriveTaskProposal | null>({
+    queryKey: driveKeys.proposal(wsId, proposalId),
+    queryFn: ({ signal }) => getDriveTaskProposal(wsId, proposalId, signal),
+    enabled: (options?.enabled ?? true) && Boolean(wsId) && Boolean(proposalId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }

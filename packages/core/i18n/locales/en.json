@@ -14512,6 +14512,50 @@
       "bound_connection_lost_badge": "Disconnected",
       "bound_access_lost_notice": "The bound account no longer has access to this file.",
       "blocked_action_hint": "Let UniWork read this file first"
+    },
+    "proposals": {
+      "created_by_uni": "UNI",
+      "propose_button": "Create tasks from document",
+      "popover_title": "Create tasks from document",
+      "reader_line": "UNI reads the file with account {{email}} and proposes a task list for your review. No tasks are created until you confirm.",
+      "reader_line_no_email": "UNI reads the file with your Google Drive account and proposes a task list for your review. No tasks are created until you confirm.",
+      "prompt_label": "Instructions for UNI (optional)",
+      "prompt_placeholder": "For example: Create a task for each item under Assignments and Risks…",
+      "submit": "Send to agent",
+      "submit_anyway": "Send to UNI anyway",
+      "reading": "UNI is reading the document…",
+      "cancel_reading": "Cancel",
+      "open_on_drive": "Open on Google Drive",
+      "recreate_warning": {
+        "full_one": "This document was already used to create {{count}} task (most recently {{date}}, by {{name}}). Creating more may produce duplicates.",
+        "full_other": "This document was already used to create {{count}} tasks (most recently {{date}}, by {{name}}). Creating more may produce duplicates.",
+        "with_date_one": "This document was already used to create {{count}} task (most recently {{date}}). Creating more may produce duplicates.",
+        "with_date_other": "This document was already used to create {{count}} tasks (most recently {{date}}). Creating more may produce duplicates.",
+        "with_name_one": "This document was already used to create {{count}} task (by {{name}}). Creating more may produce duplicates.",
+        "with_name_other": "This document was already used to create {{count}} tasks (by {{name}}). Creating more may produce duplicates.",
+        "count_only_one": "This document was already used to create {{count}} task. Creating more may produce duplicates.",
+        "count_only_other": "This document was already used to create {{count}} tasks. Creating more may produce duplicates.",
+        "view_created": "View created tasks"
+      },
+      "errors": {
+        "drive_access_required": "You haven't let UniWork read this file yet. Grant read access before creating tasks.",
+        "drive_grant_required": "You haven't granted UniWork access to this file yet. Pick the file again in Google Picker and try again.",
+        "drive_format_unsupported": "UNI can't read this format yet.",
+        "rate_limited": "You've asked UNI to read documents several times. Try again in a few minutes.",
+        "ai_disabled": "AI is not available in this workspace.",
+        "ai_quota_exceeded": "Your organization has used this month's AI token quota. Tell an admin if you need more.",
+        "ai_provider_error": "The AI service isn't responding right now. Try again in a few minutes.",
+        "ai_provider_timeout": "UNI didn't finish reading the document in time. Try again in a moment.",
+        "ai_output_invalid": "UNI couldn't generate a task list from this document. Try again.",
+        "drive_source_changed": "The document's connection changed or it was unlinked.",
+        "drive_file_not_accessible": "Your Google Drive account no longer has access to this file.",
+        "drive_unavailable": "Google Drive isn't responding right now. Try again in a few minutes.",
+        "drive_extract_unavailable": "UNI couldn't read this file right now. Try again later.",
+        "auth_failed": "This Google Drive connection has expired. Reconnect and try again.",
+        "blocked_by_workspace_admin": "Your organization's Google Workspace administrator hasn't allowed UniWork to access Google Drive.",
+        "not_found": "Could not find this Google Drive file or you do not have access to view it.",
+        "default": "Couldn't create task proposals from this document. Try again."
+      }
     }
   },
   "driveLibrary": {

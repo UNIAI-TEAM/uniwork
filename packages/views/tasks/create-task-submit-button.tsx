@@ -11,6 +11,7 @@ type CreateTaskSubmitButtonProps = {
   inactive: boolean;
   busy: boolean;
   type: "button" | "submit";
+  ariaDescribedBy?: string;
   onClick?: ComponentProps<typeof Button>["onClick"];
 };
 
@@ -21,6 +22,7 @@ export function CreateTaskSubmitButton({
   inactive,
   busy,
   type,
+  ariaDescribedBy,
   onClick,
 }: CreateTaskSubmitButtonProps) {
   return (
@@ -30,6 +32,7 @@ export function CreateTaskSubmitButton({
       disabled={busy}
       aria-disabled={!busy && inactive ? true : undefined}
       aria-busy={busy || undefined}
+      aria-describedby={ariaDescribedBy}
       className="min-w-28 justify-self-end gap-2"
       onClick={onClick}
     >

@@ -1,12 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronDown, Upload } from "lucide-react";
+import { ChevronDown, Sparkles, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { selectStandaloneAttachments } from "@uniwork/core/attachments/image-sequence";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
-import { useDriveConnections, useTaskDriveFiles } from "@uniwork/core/drive";
+import {
+  useDriveConnections,
+  useTaskDriveFiles,
+  type DriveTaskProposal,
+} from "@uniwork/core/drive";
 import { EMPTY_CONFIG, usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   useDeleteAttachment,
@@ -46,6 +50,7 @@ import {
 } from "../../../integrations/drive-picker";
 import { useDriveAvailable } from "../../../settings/components/drive-integration-row";
 import { toastApiError } from "../../../toast-api-error";
+import { DriveProposeTasksPopover } from "../../drive-task-proposal-popover";
 import { DriveTaskFileCard } from "./drive-task-file-card";
 
 export interface TaskDetailAttachmentsSectionProps {
@@ -56,6 +61,8 @@ export interface TaskDetailAttachmentsSectionProps {
   pickerAdapter?: DrivePickerAdapter;
   /** Whether the viewer can edit the task (add/remove attachments). Defaults to true. */
   canEdit?: boolean;
+  /** Seam for W7 (`packages/views/tasks/drive-proposals/`): invoked when a task proposal batch is ready. */
+  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void;
 }
 
 /**
@@ -72,6 +79,7 @@ export function TaskDetailAttachmentsSection({
   content = "",
   pickerAdapter,
   canEdit = true,
+  onProposalReady,
 }: TaskDetailAttachmentsSectionProps) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
@@ -294,6 +302,56 @@ export function TaskDetailAttachmentsSection({
               taskId={taskId}
               card={card}
               pickerAdapter={pickerAdapter}
+              actions={({ card: cardItem, blocked, blockedReason }) => {
+                if (!cardItem.can_propose && !blocked) return null;
+                const blockedHintId = blocked
+                  ? `task-drive-card-propose-hint-${cardItem.id}`
+                  : undefined;
+                if (blocked) {
+                  return (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-disabled="true"
+                        aria-describedby={blockedHintId}
+                        title={blockedReason}
+                      >
+                        <Sparkles className="size-3.5" aria-hidden />
+                        {t("drive.proposals.propose_button")}
+                      </Button>
+                      <span id={blockedHintId} className="sr-only">
+                        {blockedReason}
+                      </span>
+                    </>
+                  );
+                }
+                return (
+                  <DriveProposeTasksPopover
+                    workspaceId={workspaceId}
+                    driveFileId={cardItem.id}
+                    readerAccountEmail={
+                      cardItem.viewer_account_email?.trim() ||
+                      cardItem.bound_account_email.trim()
+                    }
+                    openUrl={cardItem.open_url}
+                    tasksCreated={cardItem.tasks_created}
+                    contextTaskId={taskId}
+                    parentTaskId={taskId}
+                    onProposalReady={onProposalReady}
+                    onAccessRequired={() => {
+                      void driveFilesQuery.refetch();
+                    }}
+                    trigger={
+                      <Button type="button" variant="outline" size="sm">
+                        <Sparkles className="size-3.5" aria-hidden />
+                        {t("drive.proposals.propose_button")}
+                      </Button>
+                    }
+                  />
+                );
+              }}
             />
           ))}
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import type { DriveTaskFileCard } from "@uniwork/core/drive";
@@ -705,5 +705,63 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
       enabled: true,
     });
+  });
+
+  it("renders 'Tạo việc từ tài liệu' popover on a granted DriveTaskFileCard, aria-disables it when viewer_access !== 'granted', and hides it when can_propose is false", async () => {
+    publicConfigState.data.drive = { available: true };
+    driveState.files = [
+      {
+        ...sampleDriveCard,
+        id: "df_granted",
+        name: "Tệp được cấp quyền",
+        viewer_access: "granted",
+        can_propose: true,
+        tasks_created: {
+          count: 3,
+          last_created_at: "2026-10-25T10:00:00Z",
+          last_created_by_name: "Lan",
+        },
+      },
+      {
+        ...sampleDriveCard,
+        id: "df_blocked",
+        name: "Tệp chưa cấp quyền",
+        viewer_access: "unknown",
+        can_propose: true,
+      },
+      {
+        ...sampleDriveCard,
+        id: "df_readonly",
+        name: "Tệp chỉ đọc",
+        viewer_access: "granted",
+        can_propose: false,
+      },
+    ];
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+
+    const proposeButtons = screen.getAllByRole("button", {
+      name: "Tạo việc từ tài liệu",
+    });
+    expect(proposeButtons).toHaveLength(2);
+    expect(proposeButtons[0]).not.toHaveAttribute("aria-disabled");
+    expect(proposeButtons[1]).toHaveAttribute("aria-disabled", "true");
+    expect(proposeButtons[1]).toHaveAttribute("aria-describedby");
+
+    fireEvent.click(proposeButtons[0]!);
+    expect(
+      await screen.findByText(
+        "UNI đọc tệp bằng tài khoản uni-work1@gmail.com rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      ),
+    ).toBeInTheDocument();
+    const warning = screen.getByTestId("drive-recreate-warning");
+    expect(warning).toHaveAttribute("role", "status");
+    expect(
+      within(warning).getByRole("link", { name: "Xem các việc đã tạo" }),
+    ).toHaveAttribute("href", "/org/team/documents/drive/df_granted#drive-tasks-created");
   });
 });

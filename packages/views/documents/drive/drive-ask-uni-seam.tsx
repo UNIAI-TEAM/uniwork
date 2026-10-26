@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
@@ -24,6 +24,8 @@ export interface DriveAskUniSeamState {
   askGranted: boolean;
   askDisabled: boolean;
   triggerAsk: () => void;
+  proposePopoverOpen: boolean;
+  setProposePopoverOpen: (open: boolean) => void;
 }
 
 /**
@@ -60,6 +62,7 @@ export function useDriveAskUniSeam({
   const proposeParam = searchParams?.get("propose") === "1";
   const askParam = searchParams?.get("ask") === "1";
   const handledProposeFileId = useRef<string | null>(null);
+  const [proposePopoverOpen, setProposePopoverOpen] = useState(false);
 
   useEffect(() => {
     if (!proposeParam) {
@@ -69,9 +72,10 @@ export function useDriveAskUniSeam({
 
   useEffect(() => {
     if (!file || (!proposeParam && !askParam)) return;
-    if (proposeParam && file.can_propose && onPropose && handledProposeFileId.current !== file.id) {
+    if (proposeParam && file.can_propose && handledProposeFileId.current !== file.id) {
       handledProposeFileId.current = file.id;
-      onPropose(file);
+      setProposePopoverOpen(true);
+      onPropose?.(file);
     }
     if (askParam && askCapsPending && !proposeParam) return;
     if (askParam && file.can_ask && file.viewer_access === "granted") {
@@ -98,7 +102,14 @@ export function useDriveAskUniSeam({
     else defaultAskOpener?.();
   };
 
-  return { showAsk, askGranted, askDisabled, triggerAsk };
+  return {
+    showAsk,
+    askGranted,
+    askDisabled,
+    triggerAsk,
+    proposePopoverOpen,
+    setProposePopoverOpen,
+  };
 }
 
 export interface DriveAskUniHeaderButtonProps {

@@ -15,4 +15,7 @@ export const driveKeys = {
   workspace: (wsId: string) => [...driveKeys.all, wsId] as const,
   connections: (wsId: string) => [...driveKeys.workspace(wsId), "connections"] as const,
   task: (wsId: string, taskId: string) => [...driveKeys.workspace(wsId), "tasks", taskId] as const,
+  proposals: (wsId: string) => [...driveKeys.workspace(wsId), "proposals"] as const,
+  proposal: (wsId: string, proposalId: string) =>
+    [...driveKeys.proposals(wsId), proposalId] as const,
 };

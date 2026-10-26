@@ -362,3 +362,148 @@ export async function grantDriveFileAccess(
   );
 }
 
+const DriveProposalExcerptSchema = z.object({
+  section: z.string().optional().catch("").default(""),
+  quote: z.string().optional().catch("").default(""),
+});
+
+export type DriveProposalExcerpt = z.infer<typeof DriveProposalExcerptSchema>;
+
+const DriveDuplicateTaskSchema = z.object({
+  task_id: z.string(),
+  identifier: z.string(),
+  title: z.string(),
+});
+
+export type DriveDuplicateTask = z.infer<typeof DriveDuplicateTaskSchema>;
+
+const DriveTaskProposalItemSchema = z.object({
+  index: z.number().int().nonnegative(),
+  title: z.string(),
+  assignee_member_id: z.string().optional().catch(undefined),
+  assignee_basis: z.string().optional().catch(undefined),
+  assignee_drive_access: z.string().optional().catch(undefined),
+  priority: z.string().optional().catch(undefined),
+  priority_basis: z.string().optional().catch(undefined),
+  start_date: z.string().optional().catch(undefined),
+  start_basis: z.string().optional().catch(undefined),
+  due_date: z.string().optional().catch(undefined),
+  due_basis: z.string().optional().catch(undefined),
+  label_ids: z.array(z.string()).optional().catch([]).default([]),
+  label_basis: z.string().optional().catch(undefined),
+  goal: z.string().optional().catch("").default(""),
+  checklist: z.array(z.string()).optional().catch([]).default([]),
+  excerpt: DriveProposalExcerptSchema.optional()
+    .catch({ section: "", quote: "" })
+    .default({ section: "", quote: "" }),
+  blocked_by_indexes: z.array(z.number().int().nonnegative()).optional().catch([]).default([]),
+  possible_duplicate: DriveDuplicateTaskSchema.optional().catch(undefined),
+});
+
+export type DriveTaskProposalItem = z.infer<typeof DriveTaskProposalItemSchema>;
+
+const DriveTaskProposalSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  drive_file_id: z.string(),
+  drive_file_name: z.string(),
+  drive_file_mime_type: z.string().optional().default(""),
+  drive_file_icon_kind: z.string().optional().default("generic"),
+  sharing_state: z.string().optional().default("unknown"),
+  connection_id: z.string(),
+  reader_account_email: z.string().optional().default(""),
+  requested_by: z.string(),
+  prompt: z.string().optional().catch(undefined),
+  project_id: z.string().optional().catch(undefined),
+  parent_task_id: z.string().optional().catch(undefined),
+  context_task_id: z.string().optional().catch(undefined),
+  truncated: z.boolean().optional().catch(false).default(false),
+  status: z.string().optional().default("ready"),
+  items: z
+    .array(z.unknown())
+    .optional()
+    .catch([])
+    .default([])
+    .transform((items) => {
+      const valid: DriveTaskProposalItem[] = [];
+      for (const item of items) {
+        const parsed = DriveTaskProposalItemSchema.safeParse(item);
+        if (parsed.success) {
+          valid.push(parsed.data);
+        }
+      }
+      return valid;
+    }),
+  tasks_created: DriveTasksCreatedSummarySchema.optional()
+    .catch(EMPTY_TASKS_CREATED)
+    .default(EMPTY_TASKS_CREATED),
+  prior_creations: z.array(DriveTaskCreationGroupSchema).optional().catch([]).default([]),
+  created_at: z.string(),
+  expires_at: z.string(),
+});
+
+export type DriveTaskProposal = z.infer<typeof DriveTaskProposalSchema>;
+
+const DriveTaskProposalResponseSchema = z.object({
+  proposal: DriveTaskProposalSchema,
+});
+
+export interface CreateDriveTaskProposalBody {
+  prompt?: string;
+  project_id?: string | null;
+  parent_task_id?: string | null;
+  context_task_id?: string | null;
+}
+
+export async function createDriveTaskProposal(
+  workspaceId: string,
+  driveFileId: string,
+  body?: CreateDriveTaskProposalBody,
+  signal?: AbortSignal,
+): Promise<DriveTaskProposal | null> {
+  const payload: Record<string, unknown> = {};
+  if (body?.prompt !== undefined && body.prompt.trim() !== "") {
+    payload.prompt = body.prompt;
+  }
+  if (body?.project_id !== undefined) {
+    payload.project_id = body.project_id;
+  }
+  if (body?.parent_task_id !== undefined) {
+    payload.parent_task_id = body.parent_task_id;
+  }
+  if (body?.context_task_id !== undefined) {
+    payload.context_task_id = body.context_task_id;
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/drive-files/${enc(driveFileId)}/task-proposals`,
+    { method: "POST", body: payload, signal },
+  );
+  return (
+    parseWithFallback<{ proposal: DriveTaskProposal } | null>(
+      raw,
+      DriveTaskProposalResponseSchema,
+      null,
+      { endpoint: "POST /api/v1/workspaces/{ws}/drive-files/{driveFileID}/task-proposals" },
+    )?.proposal ?? null
+  );
+}
+
+export async function getDriveTaskProposal(
+  workspaceId: string,
+  proposalId: string,
+  signal?: AbortSignal,
+): Promise<DriveTaskProposal | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/drive-task-proposals/${enc(proposalId)}`,
+    { signal },
+  );
+  return (
+    parseWithFallback<{ proposal: DriveTaskProposal } | null>(
+      raw,
+      DriveTaskProposalResponseSchema,
+      null,
+      { endpoint: "GET /api/v1/workspaces/{ws}/drive-task-proposals/{proposalID}" },
+    )?.proposal ?? null
+  );
+}
+
