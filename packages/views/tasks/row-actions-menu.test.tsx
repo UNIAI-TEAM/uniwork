@@ -428,7 +428,8 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
         "Đã chuyển vào thùng rác",
-        expect.objectContaining({ action: expect.objectContaining({ label: "Hoàn tác" }) }),
+        // Long enough to reach Hoàn tác; sonner's default is 4s.
+        expect.objectContaining({ duration: 10_000, action: expect.objectContaining({ label: "Hoàn tác" }) }),
       ),
     );
   });

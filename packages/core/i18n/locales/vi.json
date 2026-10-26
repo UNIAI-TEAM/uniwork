@@ -14103,8 +14103,8 @@
     "projects_empty_title": "Thùng rác dự án trống",
     "empty_description": "Mục bị xóa nằm ở đây 30 ngày trước khi bị xóa vĩnh viễn.",
     "errors": {
-      "trash_too_large": "Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại.",
-      "duplicate_project_title": "Đã có dự án trùng tên nên chưa khôi phục được. Hãy đổi tên dự án đó rồi thử lại."
+      "trash_too_large": "Có quá nhiều task trong một lần chuyển vào thùng rác. Hãy chọn ít task hơn rồi thử lại.",
+      "duplicate_project_title": "Đã có dự án trùng tên trong workspace này. Hãy chọn tên khác hoặc đổi tên dự án kia rồi thử lại."
     }
   }
 }

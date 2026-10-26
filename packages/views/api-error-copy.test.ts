@@ -24,9 +24,9 @@ describe("apiErrorCopy", () => {
     );
   });
 
-  it("words the two trash restore refusals itself", async () => {
+  it("words the trash refusals itself", async () => {
     expect(apiErrorCopy(new ApiError("x", "trash_too_large", 422))).toBe(
-      "Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại.",
+      "Có quá nhiều task trong một lần chuyển vào thùng rác. Hãy chọn ít task hơn rồi thử lại.",
     );
     await setLocale("en");
     expect(apiErrorCopy(new ApiError("x", "duplicate_project_title", 409))).toMatch(/same title already exists/);

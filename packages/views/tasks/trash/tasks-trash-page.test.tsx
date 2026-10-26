@@ -77,17 +77,17 @@ describe("TasksTrashPage", () => {
     expect(posts().map(([path]) => path)).toEqual(["/api/v1/tasks/t1/purge"]);
   });
 
-  it("explains a batch that is too large to restore", async () => {
+  it("explains a restore whose task is gone", async () => {
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
       const p = String(path);
-      if (init?.method === "POST") return Promise.reject(new ApiError("x", "trash_too_large", 422));
+      if (init?.method === "POST") return Promise.reject(new ApiError("x", "not_found", 404));
       if (p.endsWith("/members")) return Promise.resolve({ members: [] });
       return Promise.resolve(pages[0]);
     });
     render(wrap(<TasksTrashPage workspaceId="w1" />));
     fireEvent.click(await screen.findByRole("button", { name: "Khôi phục Soạn hợp đồng" }));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại."),
+      expect(toast.error).toHaveBeenCalledWith("Nội dung này không còn tồn tại hoặc đã bị xóa."),
     );
   });
 

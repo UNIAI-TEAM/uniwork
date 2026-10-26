@@ -15,7 +15,7 @@ type TaskTrashItemDTO struct {
 	TrashedAt  string `json:"trashed_at" description:"RFC 3339" example:"2026-10-26T09:00:00Z"`
 	TrashedBy  string `json:"trashed_by" description:"ULID người xoá" example:"01J8X4USERN1P2Q3R4S5T6U7"`
 	PurgeAfter string `json:"purge_after" description:"RFC 3339; sau mốc này công việc bị xoá vĩnh viễn" example:"2026-11-25T09:00:00Z"`
-	BatchSize  int    `json:"batch_size" description:"Số công việc trong lô, tính cả gốc" example:"3"`
+	BatchSize  int    `json:"batch_size" description:"Số công việc của nhánh gốc này trong lô (gốc và các việc con cùng lô), đúng số bị xoá khi xoá vĩnh viễn dòng này" example:"3"`
 }
 
 // TaskTrashPageSDO is GET /workspaces/{workspaceID}/tasks/trash.
@@ -31,7 +31,7 @@ type ProjectTrashItemDTO struct {
 	TrashedAt  string `json:"trashed_at" description:"RFC 3339" example:"2026-10-26T09:00:00Z"`
 	TrashedBy  string `json:"trashed_by" description:"ULID người xoá" example:"01J8X4USERN1P2Q3R4S5T6U7"`
 	PurgeAfter string `json:"purge_after" description:"RFC 3339; sau mốc này dự án bị xoá vĩnh viễn" example:"2026-11-25T09:00:00Z"`
-	TaskCount  int    `json:"task_count" description:"Số công việc từng thuộc dự án" example:"12"`
+	TaskCount  int    `json:"task_count" description:"Số công việc còn sống mà khôi phục sẽ gắn lại vào dự án (việc đã chuyển sang dự án khác không tính)" example:"12"`
 }
 
 // ProjectTrashPageSDO is GET /workspaces/{workspaceID}/projects/trash.

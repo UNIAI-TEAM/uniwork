@@ -178,7 +178,7 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-update", what: "task ids", allow2xx: true,
 		body: map[string]any{"task_ids": []any{isoRef("task2")}, "updates": map[string]any{"priority": "high"}}, covers: []string{"BatchUpdateTasksSDI.task_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-delete", what: "task ids", allow2xx: true,
-		body: map[string]any{"task_ids": []any{isoRef("task2")}}, noControl: "deleting B's own task would break later cases", covers: []string{"BatchDeleteTasksSDI.task_ids"}},
+		body: map[string]any{"task_ids": []any{isoRef("task2")}}, noControl: "moving B's own task to the trash would break later cases", covers: []string{"BatchDeleteTasksSDI.task_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/query", what: "project filter", allow2xx: true,
 		body: map[string]any{"project_id": isoRef("project")}, covers: []string{"QueryTasksSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/pins", what: "pinned task", body: map[string]any{"item_type": "task", "item_id": isoRef("task2")}, covers: []string{"CreatePinSDI.item_id"}},

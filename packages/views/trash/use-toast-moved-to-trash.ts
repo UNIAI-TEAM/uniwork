@@ -14,6 +14,7 @@ export function useToastMovedToTrash(): (undo: () => Promise<unknown>) => void {
   return useCallback(
     (undo) => {
       toast.success(t("trash.moved"), {
+        duration: 10_000,
         action: {
           label: t("trash.undo"),
           onClick: () => {

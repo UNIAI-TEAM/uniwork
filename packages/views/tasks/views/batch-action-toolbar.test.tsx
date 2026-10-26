@@ -427,7 +427,7 @@ describe("BatchActionToolbar trash", () => {
     fireEvent.click(screen.getByTestId("batch-delete-confirm"));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        "Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại.",
+        "Có quá nhiều task trong một lần chuyển vào thùng rác. Hãy chọn ít task hơn rồi thử lại.",
       ),
     );
     expect(toast.success).not.toHaveBeenCalled();
