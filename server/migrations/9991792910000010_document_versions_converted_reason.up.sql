@@ -5,6 +5,11 @@
 ALTER TABLE document_versions ADD COLUMN IF NOT EXISTS converted_from_version INTEGER;
 ALTER TABLE document_versions ADD COLUMN IF NOT EXISTS converted_from_checksum TEXT;
 
-ALTER TABLE document_versions DROP CONSTRAINT document_versions_reason_check;
+--
+-- The widened CHECK goes in NOT VALID so adding it takes only a brief lock
+-- (no scan of the document_versions table under ACCESS EXCLUSIVE); the next
+-- migration validates it in its own transaction, where the scan only holds
+-- SHARE UPDATE EXCLUSIVE.
+ALTER TABLE document_versions DROP CONSTRAINT IF EXISTS document_versions_reason_check;
 ALTER TABLE document_versions ADD CONSTRAINT document_versions_reason_check
-  CHECK (reason IN ('manual', 'auto', 'restore', 'upload', 'agent', 'converted_version'));
+  CHECK (reason IN ('manual', 'auto', 'restore', 'upload', 'agent', 'converted_version')) NOT VALID;
