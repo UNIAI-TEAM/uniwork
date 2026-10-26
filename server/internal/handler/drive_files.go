@@ -120,6 +120,9 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "invalid_request", "limit phải là số nguyên dương")
 			return
 		}
+		if n > 100 {
+			n = 100
+		}
 		limit = int32(n)
 	}
 	res, err := h.DriveFiles.ListMine(

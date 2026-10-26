@@ -51,13 +51,13 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 		summary: "Get short-lived Google Picker token",
 		description: "Phát hành `access_token` ngắn hạn (scope `drive.file`) từ kết nối Google Drive `active` của chính người gọi để trình duyệt mở Google Picker (spec §7.1, §17.5). " +
 			"Không bao giờ trả về `refresh_token`. Từ chối 403 `forbidden` với phiên desktop native, 404 nếu kết nối không tồn tại hoặc thuộc người khác, " +
-			"409 `drive_reconnect_required` khi refresh thất bại vì token đã bị thu hồi hoặc hết hạn, và 503 `drive_unavailable` khi Google lỗi tạm thời.",
+			"409 `auth_failed` khi kết nối cần kết nối lại hoặc refresh thất bại vì token đã bị thu hồi/hết hạn, và 503 `drive_unavailable` khi Google lỗi tạm thời.",
 		tags: []string{"drive"}, sdo: sdo.DrivePickerTokenSDO{}, auth: true,
 	})
 	d.Post("/workspaces/{workspaceID}/drive-files", h.LinkDriveFiles, apiOp{
 		summary: "Link Google Drive files to workspace or task",
 		description: "Liên kết 1..20 tệp Google Drive vào workspace (và tùy chọn gắn vào công việc `task_id` trong cùng workspace) bằng kết nối `active` của chính người gọi (spec §7.2, §6.3). " +
-			"Mỗi tệp được kiểm tra qua Google Drive `files.get` trong transaction độc lập và trả kết quả từng tệp (`linked`, `already_linked` hoặc `error` kèm `error_code` = `not_found_or_not_shared`, `auth_failed`, `provider_unavailable`).",
+			"Mỗi tệp được kiểm tra qua Google Drive `files.get` trong transaction độc lập và trả kết quả từng tệp (`linked`, `already_linked` hoặc `error` kèm `error_code` = `drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`).",
 		tags: []string{"drive"}, sdi: sdi.LinkDriveFilesSDI{}, sdo: sdo.DriveFileLinkResultsSDO{}, auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/drive-files", h.ListDriveFiles, apiOp{
@@ -81,19 +81,21 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 	d.Post("/workspaces/{workspaceID}/drive-files/{driveFileID}/access", h.GrantDriveFileAccess, apiOp{
 		summary: "Grant caller's read access to a linked Google Drive file",
 		description: "Ghi nhận quyền đọc `drive_file_access` của người gọi trên tệp Google Drive đã liên kết sau khi người gọi chọn tệp trong Google Picker `setFileIds` (spec §7.4, §6.3, W4 gaps §3). " +
-			"Dùng cho trạng thái `unknown` hoặc `lost`; nếu dòng đã `granted` thì trả về 200 idempotent. Nếu người gọi là `bound_by` trên dòng `lost` và chọn kết nối khác thì đồng thời đổi kết nối gắn của tệp như `/rebind`.",
+			"Dùng cho trạng thái `unknown` hoặc `lost`; nếu dòng đã `granted` thì trả về 200 idempotent. Nếu người gọi là `bound_by` trên dòng `lost` và chọn kết nối khác thì đồng thời đổi kết nối gắn của tệp như `/rebind`. " +
+			"Trả lỗi Google Drive theo §5.7 (`drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`).",
 		tags: []string{"drive"}, sdi: sdi.GrantDriveFileAccessSDI{}, sdo: sdo.DriveFileSDO{}, auth: true,
 	})
 	d.Put("/workspaces/{workspaceID}/drive-files/{driveFileID}/access", h.ChangeDriveFileReadAccount, apiOp{
 		summary: "Switch caller's read account on a linked Google Drive file",
 		description: "Đổi kết nối Google Drive đọc riêng của người gọi trên dòng `drive_file_access` đang `granted` mà không thay đổi `connection_id` gắn của tệp (spec §6.3, W4 gaps §3). " +
-			"Trả 409 `use_rebind` nếu người gọi là `bound_by` của tệp (dùng `POST .../rebind` để đổi tài khoản gắn).",
+			"Trả 409 `use_rebind` nếu người gọi là `bound_by` của tệp (dùng `POST .../rebind` để đổi tài khoản gắn), 409 `use_grant_access` nếu dòng truy cập của người gọi đang là `unknown` hoặc `lost` (dùng `POST .../access`), " +
+			"và các mã lỗi Google Drive theo §5.7 (`drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`).",
 		tags: []string{"drive"}, sdi: sdi.GrantDriveFileAccessSDI{}, sdo: sdo.DriveFileSDO{}, auth: true,
 	})
 	d.Post("/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", h.RebindDriveFile, apiOp{
 		summary: "Rebind a Google Drive file reference to another connection",
 		description: "Đổi kết nối Google Drive gắn của tệp (`drive_files.connection_id` và `bound_by`) sang kết nối `active` của người gọi và cập nhật dòng `drive_file_access` của người gọi (spec §6.2, §6.3, §7.7). " +
-			"Giữ nguyên các dòng `drive_file_access` của thành viên khác.",
+			"Giữ nguyên các dòng `drive_file_access` của thành viên khác. Trả lỗi Google Drive theo §5.7 (`drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`).",
 		tags: []string{"drive"}, sdi: sdi.RebindDriveFileSDI{}, sdo: sdo.DriveFileSDO{}, auth: true,
 	})
 	d.Get("/tasks/{taskID}/drive-files", h.ListTaskDriveFiles, apiOp{
