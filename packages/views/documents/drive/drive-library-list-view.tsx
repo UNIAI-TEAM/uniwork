@@ -197,22 +197,22 @@ export function DriveLibraryListView({
           aria-busy="true"
           aria-label={t("documents.library.loading")}
         >
-          <table className="w-full border-collapse text-body md:min-w-[44rem]">
+          <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
             <thead>
               <tr className="border-b border-border text-left text-caption text-muted-foreground">
-                <th scope="col" className="px-4 py-3 font-medium">
+                <th scope="col" className="w-full px-4 py-3 font-medium">
                   {t("driveLibrary.list.columns.name")}
                 </th>
-                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                   {t("driveLibrary.list.columns.account")}
                 </th>
-                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                   {t("driveLibrary.list.columns.access")}
                 </th>
-                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                   {t("driveLibrary.list.columns.used_in")}
                 </th>
-                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                   {t("driveLibrary.list.columns.tasks_created")}
                 </th>
               </tr>
@@ -220,7 +220,7 @@ export function DriveLibraryListView({
             <tbody className="divide-y divide-border">
               {Array.from({ length: 5 }).map((_, index) => (
                 <tr key={index}>
-                  <td className="px-4 py-3">
+                  <td className="w-full max-w-0 px-4 py-3">
                     <Skeleton className="h-5 w-48 max-w-full rounded-md" />
                   </td>
                   <td className="hidden px-4 py-3 md:table-cell">
@@ -281,22 +281,22 @@ export function DriveLibraryListView({
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-border bg-background">
-            <table className="w-full border-collapse text-body md:min-w-[44rem]">
+            <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
               <thead>
                 <tr className="border-b border-border text-left text-caption text-muted-foreground">
-                  <th scope="col" className="px-4 py-3 font-medium">
+                  <th scope="col" className="w-full px-4 py-3 font-medium">
                     {t("driveLibrary.list.columns.name")}
                   </th>
-                  <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                     {t("driveLibrary.list.columns.account")}
                   </th>
-                  <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                     {t("driveLibrary.list.columns.access")}
                   </th>
-                  <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                     {t("driveLibrary.list.columns.used_in")}
                   </th>
-                  <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
                     {t("driveLibrary.list.columns.tasks_created")}
                   </th>
                 </tr>
@@ -315,16 +315,16 @@ export function DriveLibraryListView({
 
                   return (
                     <tr key={file.id} className="hover:bg-accent/40">
-                      <td className="px-4 py-3">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0" />
-                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <td className="w-full max-w-0 px-4 py-3">
+                        <div className="flex min-w-0 items-start gap-3 md:items-center">
+                          <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0 md:mt-0" />
+                          <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
                             <AppLink
                               href={wsPaths.documentsDriveFile(file.id)}
                               title={file.name}
-                              className="inline-flex min-h-6 items-center font-medium text-foreground hover:underline pointer-coarse:min-h-11"
+                              className="inline-flex min-h-6 min-w-0 max-w-full items-center font-medium text-foreground hover:underline pointer-coarse:min-h-11"
                             >
-                              <span className="truncate">{file.name}</span>
+                              <span className="min-w-0 truncate">{file.name}</span>
                             </AppLink>
                             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground md:hidden">
                               <span className="truncate text-foreground">{accountEmail}</span>
@@ -350,7 +350,7 @@ export function DriveLibraryListView({
                           </div>
                         </div>
                       </td>
-                      <td className="hidden px-4 py-3 md:table-cell">
+                      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-caption text-foreground">{accountEmail}</span>
                           {rowNeedsReconnect ? (
@@ -364,7 +364,7 @@ export function DriveLibraryListView({
                           ) : null}
                         </div>
                       </td>
-                      <td className="hidden px-4 py-3 md:table-cell">
+                      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
                         <span
                           className={cn(
                             "inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium",
@@ -374,10 +374,10 @@ export function DriveLibraryListView({
                           {badge.label}
                         </span>
                       </td>
-                      <td className="hidden px-4 py-3 text-caption text-muted-foreground md:table-cell">
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
                         {formatUsedIn(file, t)}
                       </td>
-                      <td className="hidden px-4 py-3 text-caption text-muted-foreground md:table-cell">
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
                         {createdCount > 0
                           ? t("driveLibrary.list.tasks_created", { count: createdCount })
                           : null}

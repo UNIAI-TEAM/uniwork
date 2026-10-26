@@ -280,7 +280,10 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.tasks_created") })).toBeInTheDocument();
 
     expect(nameLink).toHaveAttribute("title", "Kế hoạch ra mắt Q4");
-    expect(nameLink).toHaveClass("pointer-coarse:min-h-11");
+    expect(nameLink).toHaveClass("min-w-0", "max-w-full", "pointer-coarse:min-h-11");
+    expect(nameLink.querySelector("span")).toHaveClass("min-w-0", "truncate");
+    expect(nameLink.closest("td")).toHaveClass("w-full", "max-w-0");
+    expect(nameLink.nextElementSibling).toHaveClass("md:hidden");
     expect(within(table).getAllByText(t("driveLibrary.list.access.private")).length).toBeGreaterThan(0);
     expect(within(table).getByText("UNI-1042 và 4 việc khác")).toBeInTheDocument();
     expect(within(table).getByText("4 việc")).toBeInTheDocument();
