@@ -768,7 +768,124 @@ func TestDriveOAuthRefreshFenceAndInvalidGrant(t *testing.T) {
 		t.Fatalf("refresh race must never revoke tokens, got %v", fx.fake.RevokeCalls())
 	}
 
-	// Now expire again and return invalid_grant -> marks needs_reconnect.
+	// Cross-pod refresh fence (R1-3 / R1-13): two independent DriveConnectionService
+	// instances (separate in-process mutexes) race on the same expiring row.
+	// Scenario A: Both pods get 200 OK from Google; Pod B writes first, Pod A's
+	// UpdateDriveConnectionTokens affects 0 rows -> Pod A drops its token without
+	// revoking it and returns Pod B's winning token.
+	if _, err := fx.pool.Exec(ctx, `UPDATE drive_connections SET access_expires_at = $2 WHERE id = $1`, connID, soon); err != nil {
+		t.Fatal(err)
+	}
+	crossPodRow, err := fx.q.GetDriveConnection(ctx, db.GetDriveConnectionParams{ID: connID, OrganizationID: fx.org.ID, UserID: fx.user.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	podA := NewDriveConnectionService(fx.pool, fx.q, fx.ws, fx.box)
+	podB := NewDriveConnectionService(fx.pool, fx.q, fx.ws, fx.box)
+	podA.SetFlags(driveConnectorFlags(t, true))
+	podB.SetFlags(driveConnectorFlags(t, true))
+
+	fakeA := NewFakeDriveProvider(config.Config{APIPublicURL: "https://api.example.com", GoogleDriveClientID: "drive-client-id", GoogleDriveClientSecret: "sec-1"})
+	fakeB := NewFakeDriveProvider(config.Config{APIPublicURL: "https://api.example.com", GoogleDriveClientID: "drive-client-id", GoogleDriveClientSecret: "sec-1"})
+	podA.SetProvider(fakeA)
+	podB.SetProvider(fakeB)
+
+	podAInRefresh := make(chan struct{})
+	releasePodA := make(chan struct{})
+	fakeA.SetRefresh(func(_ context.Context, refreshToken string) (DriveTokenResponse, error) {
+		close(podAInRefresh)
+		<-releasePodA
+		return DriveTokenResponse{
+			AccessToken:  "tok-loser-a",
+			RefreshToken: refreshToken,
+			Expiry:       time.Now().UTC().Add(2 * time.Hour).Truncate(time.Microsecond),
+		}, nil
+	})
+	fakeB.SetRefresh(func(_ context.Context, refreshToken string) (DriveTokenResponse, error) {
+		return DriveTokenResponse{
+			AccessToken:  "tok-winner-b",
+			RefreshToken: refreshToken,
+			Expiry:       time.Now().UTC().Add(time.Hour).Truncate(time.Microsecond),
+		}, nil
+	})
+
+	var tokA string
+	var errA error
+	doneA := make(chan struct{})
+	go func() {
+		defer close(doneA)
+		tokA, _, errA = podA.AccessToken(ctx, crossPodRow)
+	}()
+	<-podAInRefresh
+	tokB, _, errB := podB.AccessToken(ctx, crossPodRow)
+	if errB != nil || tokB != "tok-winner-b" {
+		t.Fatalf("podB AccessToken = %q, err=%v, want tok-winner-b", tokB, errB)
+	}
+	close(releasePodA)
+	<-doneA
+	if errA != nil || tokA != "tok-winner-b" {
+		t.Fatalf("podA (loser) AccessToken = %q, err=%v, want winner's tok-winner-b", tokA, errA)
+	}
+	if len(fakeA.RevokeCalls()) != 0 || len(fakeB.RevokeCalls()) != 0 {
+		t.Fatalf("cross-pod refresh race must never revoke tokens: A=%v B=%v", fakeA.RevokeCalls(), fakeB.RevokeCalls())
+	}
+
+	// Scenario B (R1-3): Pod A gets a late invalid_grant on the old snapshot while
+	// Pod B already refreshed at the same credential_version (updating access_expires_at
+	// and access_token_enc). Pod A's markAuthFailed must NOT overwrite Pod B's winning
+	// token or mark the connection failed, even if markAuthFailed runs directly against
+	// the stale snapshot!
+	if _, err := fx.pool.Exec(ctx, `UPDATE drive_connections SET access_expires_at = $2 WHERE id = $1`, connID, soon); err != nil {
+		t.Fatal(err)
+	}
+	staleForInvalidGrant, err := fx.q.GetDriveConnection(ctx, db.GetDriveConnectionParams{ID: connID, OrganizationID: fx.org.ID, UserID: fx.user.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	podAStartedInvalid := make(chan struct{})
+	releasePodAInvalid := make(chan struct{})
+	fakeA.SetRefresh(func(_ context.Context, _ string) (DriveTokenResponse, error) {
+		close(podAStartedInvalid)
+		<-releasePodAInvalid
+		return DriveTokenResponse{}, &oauth2.RetrieveError{
+			Response:  &http.Response{StatusCode: http.StatusBadRequest},
+			ErrorCode: "invalid_grant",
+		}
+	})
+	fakeB.SetRefresh(func(_ context.Context, refreshToken string) (DriveTokenResponse, error) {
+		return DriveTokenResponse{
+			AccessToken:  "tok-winner-b2",
+			RefreshToken: refreshToken,
+			Expiry:       time.Now().UTC().Add(time.Hour).Truncate(time.Microsecond),
+		}, nil
+	})
+	doneAInvalid := make(chan struct{})
+	go func() {
+		defer close(doneAInvalid)
+		tokA, _, errA = podA.AccessToken(ctx, staleForInvalidGrant)
+	}()
+	<-podAStartedInvalid
+	tokB2, _, errB2 := podB.AccessToken(ctx, staleForInvalidGrant)
+	if errB2 != nil || tokB2 != "tok-winner-b2" {
+		t.Fatalf("podB2 AccessToken = %q, err=%v", tokB2, errB2)
+	}
+	close(releasePodAInvalid)
+	<-doneAInvalid
+	if errA != nil || tokA != "tok-winner-b2" {
+		t.Fatalf("podA late invalid_grant after podB refresh = %q, err=%v, want tok-winner-b2", tokA, errA)
+	}
+	// Also call markAuthFailed directly with the stale snapshot (simulating Pod A
+	// passing the reread check microseconds before Pod B committed its refresh)
+	// to prove the SQL UPDATE predicate itself fences on PrevExpiresAt + RefreshTokenEnc.
+	if podA.markAuthFailed(ctx, staleForInvalidGrant, staleForInvalidGrant.CredentialVersion, "invalid_grant") {
+		t.Fatal("markAuthFailed with stale expiry snapshot must return false after winning refresh")
+	}
+	listAfterLateInvalid, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID)
+	if err != nil || len(listAfterLateInvalid) != 1 || listAfterLateInvalid[0].NeedsReconnect || listAfterLateInvalid[0].Status != DriveConnectionStatusActive {
+		t.Fatalf("connection after late invalid_grant = %+v, err=%v, want active", listAfterLateInvalid, err)
+	}
+
+	// Now expire again and return uncontested invalid_grant -> marks needs_reconnect.
 	if _, err := fx.pool.Exec(ctx, `UPDATE drive_connections SET access_expires_at = $2 WHERE id = $1`, connID, soon); err != nil {
 		t.Fatal(err)
 	}

@@ -92,7 +92,8 @@ WHERE id = sqlc.arg('id')
 
 -- name: MarkDriveConnectionAuthFailed :one
 -- Marks the connection lost on invalid_grant / unauthorized_client only when
--- the row still holds the credential_version that failed (spec §5.3).
+-- the row still holds the exact credential snapshot (credential_version,
+-- access_expires_at, and refresh_token_enc) that failed (spec §5.3).
 UPDATE drive_connections c
 SET auth_failed_at = now(),
     auth_failed_reason = sqlc.arg('reason'),
@@ -105,6 +106,8 @@ FROM (
   WHERE o.id = sqlc.arg('id')
     AND o.organization_id = sqlc.arg('organization_id')
     AND o.credential_version = sqlc.arg('credential_version')
+    AND o.access_expires_at IS NOT DISTINCT FROM sqlc.narg('prev_expires_at')::timestamptz
+    AND o.refresh_token_enc = sqlc.arg('refresh_token_enc')
     AND o.disconnected_at IS NULL
     AND o.auth_failed_at IS NULL
   FOR UPDATE

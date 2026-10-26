@@ -119,7 +119,14 @@ func (s *DriveConnectionService) oauthRefreshFailed(ctx context.Context, read db
 		!sameDriveExpiry(current.AccessExpiresAt, read.AccessExpiresAt) {
 		return s.accessTokenOf(current)
 	}
-	s.markAuthFailed(ctx, read, read.CredentialVersion, re.ErrorCode)
+	if !s.markAuthFailed(ctx, read, read.CredentialVersion, re.ErrorCode) {
+		if latest, lerr := s.rereadDriveConnection(ctx, read); lerr == nil {
+			if latest.CredentialVersion != read.CredentialVersion || latest.RefreshTokenEnc != read.RefreshTokenEnc ||
+				!sameDriveExpiry(latest.AccessExpiresAt, read.AccessExpiresAt) {
+				return s.accessTokenOf(latest)
+			}
+		}
+	}
 	return "", time.Time{}, ErrDriveReauthRequired
 }
 
@@ -140,6 +147,8 @@ func (s *DriveConnectionService) markAuthFailed(ctx context.Context, conn db.Dri
 		ID:                conn.ID,
 		OrganizationID:    conn.OrganizationID,
 		CredentialVersion: version,
+		PrevExpiresAt:     conn.AccessExpiresAt,
+		RefreshTokenEnc:   conn.RefreshTokenEnc,
 		Reason:            reason,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

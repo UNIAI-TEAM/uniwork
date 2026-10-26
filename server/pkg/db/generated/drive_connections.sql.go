@@ -595,6 +595,8 @@ FROM (
   WHERE o.id = $2
     AND o.organization_id = $3
     AND o.credential_version = $4
+    AND o.access_expires_at IS NOT DISTINCT FROM $5::timestamptz
+    AND o.refresh_token_enc = $6
     AND o.disconnected_at IS NULL
     AND o.auth_failed_at IS NULL
   FOR UPDATE
@@ -604,20 +606,25 @@ RETURNING c.id, c.organization_id, c.user_id, c.provider, c.google_sub, c.google
 `
 
 type MarkDriveConnectionAuthFailedParams struct {
-	Reason            string `json:"reason"`
-	ID                string `json:"id"`
-	OrganizationID    string `json:"organization_id"`
-	CredentialVersion int64  `json:"credential_version"`
+	Reason            string             `json:"reason"`
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	CredentialVersion int64              `json:"credential_version"`
+	PrevExpiresAt     pgtype.Timestamptz `json:"prev_expires_at"`
+	RefreshTokenEnc   string             `json:"refresh_token_enc"`
 }
 
 // Marks the connection lost on invalid_grant / unauthorized_client only when
-// the row still holds the credential_version that failed (spec §5.3).
+// the row still holds the exact credential snapshot (credential_version,
+// access_expires_at, and refresh_token_enc) that failed (spec §5.3).
 func (q *Queries) MarkDriveConnectionAuthFailed(ctx context.Context, arg MarkDriveConnectionAuthFailedParams) (DriveConnection, error) {
 	row := q.db.QueryRow(ctx, markDriveConnectionAuthFailed,
 		arg.Reason,
 		arg.ID,
 		arg.OrganizationID,
 		arg.CredentialVersion,
+		arg.PrevExpiresAt,
+		arg.RefreshTokenEnc,
 	)
 	var i DriveConnection
 	err := row.Scan(
