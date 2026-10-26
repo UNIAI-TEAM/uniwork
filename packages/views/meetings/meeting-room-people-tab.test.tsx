@@ -383,6 +383,8 @@ describe("MeetingRoomPeopleTab", () => {
       signals.hands = ["id-Bình", "uw_participant_p-host"];
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
       const hands = await screen.findByRole("list", { name: "Giơ tay · 2" });
+      // It scrolls past six hands, so a keyboard can reach it to scroll.
+      expect(hands).toHaveAttribute("tabindex", "0");
       const rows = within(hands).getAllByRole("listitem");
       expect(rows.map((r) => r.textContent)).toEqual([expect.stringMatching(/^1.*Bình/), expect.stringMatching(/^2.*Me/)]);
       expect(within(rows[0]!).queryByRole("button", { name: "Hạ tay" })).not.toBeInTheDocument();

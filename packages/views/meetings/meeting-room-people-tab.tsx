@@ -221,7 +221,12 @@ export function MeetingRoomPeopleTab({
                 <Hand aria-hidden className="size-3.5 shrink-0" />
                 {t("meetings.panel.people.hands", { count: raised.length })}
               </h3>
-              <ul aria-labelledby={handsHeadingId} className="max-h-48 overflow-y-auto">
+              <ul
+                aria-labelledby={handsHeadingId}
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable list takes focus so a keyboard can scroll it (axe scrollable-region-focusable)
+                tabIndex={0}
+                className="max-h-48 overflow-y-auto"
+              >
                 {raised.map((participant, i) => (
                   <li key={participant.identity} className="flex min-h-11.5 items-center gap-2.5 px-1">
                     <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-warning-soft text-micro font-bold tabular-nums text-warning-soft-foreground">
