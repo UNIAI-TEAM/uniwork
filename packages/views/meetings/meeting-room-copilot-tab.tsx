@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useRecordings } from "@uniwork/core/meetings";
@@ -140,6 +140,19 @@ export function MeetingRoomCopilotTab({
     setAsk(next);
     if (next.pending && view === "transcript") showView("feed");
   };
+  // The card sits after the whole feed: bring it into view when an ask starts and when its answer lands,
+  // not when a remount reads the last answer back.
+  const askCard = useRef<HTMLDivElement>(null);
+  const asking = useRef(false);
+  const askPending = ask?.pending ?? false;
+  const askAnswer = ask?.answer?.id;
+  useEffect(() => {
+    if (askPending) asking.current = true;
+    else if (!askAnswer || !asking.current) return;
+    else asking.current = false;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    askCard.current?.scrollIntoView?.({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [askPending, askAnswer]);
   const openCarried = () => {
     setFilter("task");
     setCarriedOpen(true);
@@ -206,7 +219,7 @@ export function MeetingRoomCopilotTab({
             onOpenCarried={openCarried}
           />
           {workspaceId && ask ? (
-            <div className="px-3 pt-3 empty:hidden">
+            <div ref={askCard} className="px-3 pt-3 empty:hidden">
               <AskAnswerCard {...ask} canShare meetingId={meetingId} workspaceId={workspaceId} />
             </div>
           ) : null}

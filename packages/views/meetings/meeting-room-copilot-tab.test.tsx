@@ -238,6 +238,26 @@ describe("MeetingRoomCopilotTab › wiring between the views", () => {
     expect(await screen.findByRole("article", { name: "Hỏi UNI" })).toBeInTheDocument();
   });
 
+  it("brings the answer card into view when an ask starts and again when its answer arrives", async () => {
+    serve();
+    const base = requestMock.getMockImplementation()!;
+    let answerNow: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/ask") ? new Promise((resolve) => (answerNow = resolve)) : base(path, init),
+    );
+    renderTab();
+    await findFeed();
+    scrollIntoView.mockReset();
+    fireEvent.click(await screen.findByRole("button", { name: "Đã chốt gì?" }));
+    const card = await screen.findByTestId("meeting-ask-uni");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(scrollIntoView.mock.contexts[0]).toBe(card.parentElement);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest", behavior: "smooth" });
+    act(() => answerNow({ conversation_id: "c1", message: { id: "x", role: "assistant", content: "Thứ Sáu.", citations: [] } }));
+    expect(await screen.findByText("Thứ Sáu.")).toBeInTheDocument();
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+  });
+
   it("the carried-over card takes a member who is not a clerk to those items too, read-only", async () => {
     serve({ summary: ok({ summary: null }), items: ok({ items: [], counts: {} }) });
     renderTab({ canClerk: false });
