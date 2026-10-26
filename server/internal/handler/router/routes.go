@@ -161,6 +161,9 @@ type Routes struct {
 	UpdateTask            http.HandlerFunc
 	PutTaskSuite          http.HandlerFunc
 	DeleteTask            http.HandlerFunc
+	RestoreTask           http.HandlerFunc
+	PurgeTask             http.HandlerFunc
+	ListTaskTrash         http.HandlerFunc
 	ListComments          http.HandlerFunc
 	CreateComment         http.HandlerFunc
 	QueryTasks            http.HandlerFunc
@@ -256,6 +259,9 @@ type Routes struct {
 	GetProject            http.HandlerFunc
 	PutProject            http.HandlerFunc
 	DeleteProject         http.HandlerFunc
+	RestoreProject        http.HandlerFunc
+	PurgeProject          http.HandlerFunc
+	ListProjectTrash      http.HandlerFunc
 	ListProjectResources  http.HandlerFunc
 	CreateProjectResource http.HandlerFunc
 	PutProjectResource    http.HandlerFunc
