@@ -176,9 +176,7 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 
 	js, err := c.Submit(runCtx, grant, env, src)
 	if err != nil {
-		if submitMaybeAdmitted(err) {
-			c.cancelDetached(jobID, grant)
-		}
+		c.cancelDetached(jobID, grant)
 		if runCtx.Err() != nil {
 			return ExtractTextResult{}, fmt.Errorf("%w: %w", ErrExtractUnavailable, runCtx.Err())
 		}
@@ -209,11 +207,6 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 
 func (c *Client) extractStatus(ctx context.Context, jobID, grant string) (JobStatus, error) {
 	return c.jobWithinLimit(ctx, c.cfg.RequestTimeout, http.MethodGet, "/v1/jobs/"+url.PathEscape(jobID), grant, nil, maxExtractStatusResponseBytes)
-}
-
-func submitMaybeAdmitted(err error) bool {
-	var ee *EngineError
-	return errors.As(err, &ee) && ee.Code == "engine_crashed" && (ee.Reason == "unreachable" || ee.Reason == "response_read")
 }
 
 func (c *Client) cancelDetached(jobID, grant string) {

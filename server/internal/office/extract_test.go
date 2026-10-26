@@ -21,20 +21,22 @@ type extractFakeEngine struct {
 	srv *httptest.Server
 	cli *Client
 
-	mu            sync.Mutex
-	readyStatus   int
-	submitErr     int
-	statusErr     int
-	statusRawBody string
-	hangStatus    bool
-	blockSubmit   <-chan struct{}
-	blockStatus   <-chan struct{}
-	blockCancel   <-chan struct{}
-	omitResult    bool
-	jobState      JobState
-	jobResult     any
-	jobError      *JobError
-	pollsBefore   int
+	mu              sync.Mutex
+	readyStatus     int
+	submitErr       int
+	submitRawBody   string
+	submitTruncBody bool
+	statusErr       int
+	statusRawBody   string
+	hangStatus      bool
+	blockSubmit     <-chan struct{}
+	blockStatus     <-chan struct{}
+	blockCancel     <-chan struct{}
+	omitResult      bool
+	jobState        JobState
+	jobResult       any
+	jobError        *JobError
+	pollsBefore     int
 
 	seenGrants    []ServiceGrant
 	seenEnvelopes []Envelope
@@ -121,6 +123,8 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 			finalState := e.jobState
 			res := e.jobResult
 			jobErr := e.jobError
+			subRaw := e.submitRawBody
+			subTrunc := e.submitTruncBody
 			e.mu.Unlock()
 
 			if blockSub != nil {
@@ -129,6 +133,23 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 				case <-r.Context().Done():
 					return
 				}
+			}
+			if subTrunc {
+				w.Header().Set("Content-Length", "1024")
+				w.WriteHeader(http.StatusAccepted)
+				_, _ = w.Write([]byte(`{"job_id":"`))
+				if hj, ok := w.(http.Hijacker); ok {
+					if conn, _, err := hj.Hijack(); err == nil {
+						_ = conn.Close()
+						return
+					}
+				}
+				return
+			}
+			if subRaw != "" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(subRaw))
+				return
 			}
 			state := JobRunning
 			if polls < 0 {
@@ -247,6 +268,12 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 	}
 	e.cli = cli
 	return e
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func waitCancelJobID(t *testing.T, ch <-chan string) string {
@@ -483,6 +510,84 @@ func TestExtractTextBlockedSubmitAndBlockedStatusCancelPromptly(t *testing.T) {
 					t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
 				}
 			})
+		}
+	})
+
+	t.Run("malformed_submit_with_caller_cancelled_before_parse_cancels_admitted_job", func(t *testing.T) {
+		withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+		e := newExtractFakeEngine(t)
+		e.submitRawBody = `{"job_id":"","state":"bogus"}`
+		unblockCancel := make(chan struct{})
+		defer close(unblockCancel)
+		e.blockCancel = unblockCancel
+
+		ctx, cancelCaller := context.WithCancel(context.Background())
+		defer cancelCaller()
+
+		baseClient := e.srv.Client()
+		baseRT := baseClient.Transport
+		if baseRT == nil {
+			baseRT = http.DefaultTransport
+		}
+		httpCli := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				res, err := baseRT.RoundTrip(req)
+				if err == nil && req.Method == http.MethodPost && req.URL.Path == "/v1/jobs" {
+					body, readErr := io.ReadAll(res.Body)
+					_ = res.Body.Close()
+					if readErr != nil {
+						return nil, readErr
+					}
+					cancelCaller()
+					res.Body = io.NopCloser(strings.NewReader(string(body)))
+				}
+				return res, err
+			}),
+		}
+		cli, err := NewClient(Config{
+			BaseURL:        e.srv.URL,
+			ServiceToken:   testToken,
+			GrantKey:       testKey,
+			RequestTimeout: 2 * time.Second,
+		}, httpCli)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.cli = cli
+
+		start := time.Now()
+		_, err = e.cli.ExtractText(ctx, sampleExtractReq([]byte("bytes")))
+		elapsed := time.Since(start)
+		if !errors.Is(err, ErrExtractUnavailable) {
+			t.Fatalf("expected ErrExtractUnavailable, got %v", err)
+		}
+		if elapsed >= 500*time.Millisecond {
+			t.Fatalf("foreground blocked on cancel cleanup: elapsed %v", elapsed)
+		}
+		cancelledID := waitCancelJobID(t, e.cancelCh)
+		e.mu.Lock()
+		wantJobID := e.seenGrants[0].JobID
+		e.mu.Unlock()
+		if cancelledID != wantJobID {
+			t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
+		}
+	})
+
+	t.Run("truncated_submit_response_body_cancels_admitted_job", func(t *testing.T) {
+		withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+		e := newExtractFakeEngine(t)
+		e.submitTruncBody = true
+
+		_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+		if !errors.Is(err, ErrExtractUnavailable) {
+			t.Fatalf("expected ErrExtractUnavailable, got %v", err)
+		}
+		cancelledID := waitCancelJobID(t, e.cancelCh)
+		e.mu.Lock()
+		wantJobID := e.seenGrants[0].JobID
+		e.mu.Unlock()
+		if cancelledID != wantJobID {
+			t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
 		}
 	})
 }
