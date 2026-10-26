@@ -3594,7 +3594,7 @@ func assertTaskDriveAuditMetadata(t *testing.T, f *auditFixture, action, taskID,
 	t.Helper()
 	var rawMeta []byte
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 ORDER BY created_at DESC LIMIT 1`,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 LIMIT 1`,
 		f.orgID, action, taskID,
 	).Scan(&rawMeta); err != nil {
 		t.Fatalf("query audit metadata for %s: %v", action, err)
@@ -3615,7 +3615,7 @@ func assertAuditOutboxTopic(t *testing.T, f *auditFixture, topic, key, wantVal s
 	t.Helper()
 	var count int
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload->>$2 = $3`,
+		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload::jsonb->>$2 = $3`,
 		topic, key, wantVal,
 	).Scan(&count); err != nil || count == 0 {
 		t.Fatalf("outbox topic %s (%s=%s) count = %d, err=%v, want >= 1", topic, key, wantVal, count, err)
