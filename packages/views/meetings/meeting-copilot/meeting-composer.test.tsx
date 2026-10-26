@@ -337,6 +337,8 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
     expect(await screen.findByText("Hết lượt Hỏi UNI tháng này", { selector: "span" })).toBeInTheDocument();
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
+    // The strip says it; the edge stays at rest rather than the ink of a chosen note.
+    expect(frame()).not.toHaveClass("ai-edge-note");
     fireEvent.click(radio("Hỏi"));
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     fireEvent.keyDown(radio("Ghi chú"), { key: "ArrowLeft" });

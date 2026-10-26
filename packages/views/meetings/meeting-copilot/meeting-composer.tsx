@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, AtSign, Check, CircleQuestionMark, Lock, PencilLine, Sparkles, Users } from "lucide-react";
+import { ArrowUp, AtSign, Check, CircleAlert, CircleQuestionMark, Lock, PencilLine, Sparkle, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiKeys, useAiCapabilities, useAiMessages, useAiPanelStore, useAskUni } from "@uniwork/core/ai";
 import { useAddNote } from "@uniwork/core/meetings";
@@ -204,7 +204,7 @@ export function MeetingComposer({
   };
 
   const modes: { id: Mode; label: string; tone: string; icon: ReactNode }[] = [
-    { id: "ask", label: tc("ask"), tone: "text-brand", icon: blocked ? <Lock aria-hidden /> : <Sparkles aria-hidden /> },
+    { id: "ask", label: tc("ask"), tone: "text-brand", icon: blocked ? <Lock aria-hidden /> : <Sparkle aria-hidden /> },
     { id: "note", label: tc("note"), tone: "text-foreground", icon: <PencilLine aria-hidden /> },
   ];
   // Leaving Ask clears its failure: it was about a question no longer on screen.
@@ -246,12 +246,13 @@ export function MeetingComposer({
       <div
         data-testid="meeting-composer-frame"
         // Positioned: the @ picker opens above the frame. 22px corners on a phone (important beats the unlayered rule).
-        className={cn("ai-edge relative pointer-coarse:[--ai-edge-radius:22px]!", mode === "note" && "ai-edge-note", pending && "border-beam-ai")}
+        // Blocked, the strip says it: the edge stays at rest (Composer board, state 6), not the ink of a chosen note.
+        className={cn("ai-edge relative pointer-coarse:[--ai-edge-radius:22px]!", mode === "note" && !blocked && "ai-edge-note", pending && "border-beam-ai")}
       >
         <div>
           {blocked ? (
             <div className="flex items-center gap-2 rounded-t-[inherit] bg-warning-soft px-3 py-1.5 text-caption font-medium text-warning-soft-foreground">
-              <Lock aria-hidden className="size-3.5 shrink-0" />
+              <CircleAlert aria-hidden className="size-3.5 shrink-0" />
               <span id={reasonId} className="min-w-0 flex-1">
                 {tc(blocked)}
               </span>
@@ -299,9 +300,12 @@ export function MeetingComposer({
               className={pending ? "flex h-5.5 items-center gap-2 px-0.5 text-body font-medium" : "sr-only"}
             >
               {pending ? (
-                <span className="ai-shimmer">
-                  {notesCount > 0 && hasTranscript ? tc("readingNotes", { count: notesCount }) : tc("reading")}
-                </span>
+                <>
+                  <Sparkle aria-hidden className="size-4 shrink-0 text-brand" />
+                  <span className="ai-shimmer">
+                    {notesCount > 0 && hasTranscript ? tc("readingNotes", { count: notesCount }) : tc("reading")}
+                  </span>
+                </>
               ) : blocked ? (
                 // The strip shows the reason; this says it when Ask closes.
                 tc(blocked)
@@ -336,7 +340,7 @@ export function MeetingComposer({
                 <div
                   role="radiogroup"
                   aria-label={tc("modeLabel")}
-                  className={cn("flex rounded-[10px] p-0.5", mode === "note" ? "bg-warning-soft/60" : "bg-surface-hover")}
+                  className={cn("flex rounded-[10px] p-0.5", mode === "note" && !blocked ? "bg-warning-soft/60" : "bg-surface-hover")}
                 >
                   {modes.map((m, i) => (
                     <ModeRadio
