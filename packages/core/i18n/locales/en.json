@@ -14424,6 +14424,12 @@
       "source_badge": "Google Drive",
       "remove_aria": "Remove {{name}}"
     },
+    "paste_chip": {
+      "link_prompt": "Link this Google Drive file to the task?",
+      "connect_prompt": "Connect Google Drive to link",
+      "dismiss_aria": "Dismiss Google Drive link suggestion",
+      "group_aria": "Google Drive file link suggestion"
+    },
     "attachments": {
       "drive_load_error": "Couldn't load Google Drive files linked to this task.",
       "uploads_load_error": "Couldn't load uploaded attachments.",

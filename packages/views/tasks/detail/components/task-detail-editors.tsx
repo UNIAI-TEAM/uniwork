@@ -28,6 +28,11 @@ import {
 } from "../../../editor";
 import { NodeHistorySection } from "../../../graph/node-history-section";
 import { toastApiError } from "../../../toast-api-error";
+import type { DrivePickerAdapter } from "../../../integrations/drive-picker";
+import {
+  DrivePasteSuggestionChips,
+  useDrivePasteSuggestions,
+} from "../../drive-paste-suggestion-chips";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
 import { TaskDetailContextLine } from "./task-detail-context-line";
 import { TaskDetailSubtasksSection } from "./subtasks-section";
@@ -39,12 +44,14 @@ export function TaskDetailEditors({
   onSaveTitle,
   onSaveDescription,
   scrollContainerRef,
+  pickerAdapter,
 }: {
   task: Task;
   workspaceId: string;
   onSaveTitle: (title: string) => void;
   onSaveDescription: (markdown: string) => void;
   scrollContainerRef?: (el: HTMLElement | null) => void;
+  pickerAdapter?: DrivePickerAdapter;
 }) {
   const { t } = useTranslation();
   const titleEditorRef = useRef<TitleEditorRef>(null);
@@ -102,6 +109,12 @@ export function TaskDetailEditors({
     resetKey: task.id,
   });
 
+  const drivePaste = useDrivePasteSuggestions();
+
+  useEffect(() => {
+    drivePaste.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id]);
   useEffect(() => {
     setLiveDescription(task.description ?? "");
   }, [task.description, task.id]);
@@ -178,8 +191,18 @@ export function TaskDetailEditors({
               attachments={attachments.data}
               onUploadFile={(file) => uploadIntoDescription(file)}
               disableMentions
+              onPasteDriveFileIds={drivePaste.onPasteDriveFileIds}
             />
           </EditorLinkProvider>
+          <DrivePasteSuggestionChips
+            workspaceId={workspaceId}
+            taskId={task.id}
+            suggestedFileIds={drivePaste.suggestedFileIds}
+            onDismiss={drivePaste.dismissFileId}
+            onResolved={drivePaste.resolveFileId}
+            pickerAdapter={pickerAdapter}
+            className="mt-2"
+          />
           <div className="mt-3 flex items-center gap-1">
             <ReactionBar
               reactions={task.reactions ?? []}

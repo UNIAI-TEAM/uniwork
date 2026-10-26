@@ -120,6 +120,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       attachments,
       flushPendingOnUnmount = false,
       onReady,
+      onPasteDriveFileIds,
     },
     ref,
   ) {
@@ -136,6 +137,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
     const onUploadingChangeRef = useRef(onUploadingChange);
+    const onPasteDriveFileIdsRef = useRef(onPasteDriveFileIds);
     const onUploadFileRef = useRef<
       ((file: File, uploadId: string) => Promise<UploadResult | null>) | undefined
     >(undefined);
@@ -261,6 +263,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     onReadyRef.current = onReady;
     onUploadingChangeRef.current = onUploadingChange;
     onUploadFileRef.current = wrappedOnUploadFile;
+    onPasteDriveFileIdsRef.current = onPasteDriveFileIds;
     pasteAsFileThresholdRef.current = pasteAsFileThreshold;
     mentionContextItemsRef.current = mentionContextItems ?? [];
     quickActionMenuRef.current = quickActionMenu;
@@ -335,16 +338,13 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         }
       },
       content: mountChunked ? "" : initialContent,
-      contentType: mountChunked
-        ? undefined
-        : initialMarkdown
-          ? "markdown"
-          : undefined,
+      contentType: mountChunked || !initialMarkdown ? undefined : "markdown",
       extensions: createEditorExtensions({
         placeholder: () => placeholderRef.current,
         queryClient,
         onSubmitRef,
         onUploadFileRef,
+        onPasteDriveFileIdsRef,
         pasteAsFileThresholdRef,
         disableMentions,
         mentionMode,

@@ -125,6 +125,13 @@ export interface ContentEditorBaseProps {
    * signal to swap their static shell for the live editor.
    */
   onReady?: () => void;
+  /**
+   * Called when the user pastes one or more Google Drive file URLs into the
+   * editor (spec §7.5, QĐ 8). Receives the distinct external file IDs in order
+   * of appearance while leaving link insertion (`linkOnPaste` / `markdownPaste`)
+   * unchanged.
+   */
+  onPasteDriveFileIds?: (fileIds: string[]) => void;
 }
 
 export type ContentEditorValueProps =

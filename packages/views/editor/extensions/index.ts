@@ -52,6 +52,7 @@ import { PageShortcutsExtension } from "./page-shortcuts";
 import { CodeBlockView } from "./code-block-view";
 import { PatchedListItem, PatchedTaskItem } from "./list-item";
 import { createMarkdownPasteExtension } from "./markdown-paste";
+import { createDriveUrlPasteExtension } from "./drive-url-paste";
 import { createMarkdownCopyExtension } from "./markdown-copy";
 import { createBlurShortcutExtension } from "./blur-shortcut";
 import { createSubmitShortcutExtension } from "./submit-shortcut";
@@ -229,6 +230,13 @@ export interface EditorExtensionsOptions {
    * context; the setup layer owns React Query + workspace access.
    */
   resolveTaskIdentifierRef?: RefObject<TaskIdentifierResolver | undefined>;
+  /**
+   * Callback ref notified when the user pastes one or more Google Drive file
+   * URLs (spec §7.5, QĐ 8). Registered before `LinkExtension` and
+   * `markdownPaste` and always returns `false` from `handlePaste` so link
+   * insertion stays untouched.
+   */
+  onPasteDriveFileIdsRef?: RefObject<((fileIds: string[]) => void) | undefined>;
 }
 
 export function createEditorExtensions(
@@ -273,6 +281,7 @@ export function createEditorExtensions(
     // ⚠️ Link MUST appear before markdownPaste in this array.
     // linkOnPaste relies on Link's handlePaste plugin firing first;
     // markdownPaste's handlePaste is a catch-all that returns true.
+    createDriveUrlPasteExtension(options.onPasteDriveFileIdsRef),
     LinkExtension,
     ImageExtension,
     TableExtension,
