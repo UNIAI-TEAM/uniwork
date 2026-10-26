@@ -146,9 +146,47 @@ describe("MeetingRoomSidebar", () => {
     expect(screen.getByRole("tab", { name: /^UNI\W+2 việc UNI mới ghi$/ })).toBeInTheDocument();
   });
 
-  it("has no recordings tab any more", () => {
-    render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
-    expect(screen.queryByRole("tab", { name: /^Bản ghi/ })).not.toBeInTheDocument();
+  describe("recordings, for guests only", () => {
+    const done = { id: "r1", meeting_id: "m1", status: "COMPLETE", started_at: "2026-10-01T02:05:00Z", ended_at: "2026-10-01T02:40:00Z" };
+    const serveRecordings = (recordings: unknown[]) => {
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: unknown, init?: unknown) =>
+        String(path).endsWith("/recordings") ? Promise.resolve({ recordings }) : base(path, init),
+      );
+    };
+    const settle = async () => {
+      await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/meetings/m1/recordings"))).toBe(true));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+
+    it("gives a guest a recordings tab once one can be played, and plays it", async () => {
+      serveRecordings([done]);
+      const onTabChange = vi.fn();
+      const { rerender } = render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={onTabChange} guestMode />));
+      fireEvent.click(await screen.findByRole("tab", { name: "Bản ghi" }));
+      expect(onTabChange).toHaveBeenCalledWith("recordings");
+      rerender(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="recordings" onTabChange={onTabChange} guestMode />));
+      const list = await screen.findByRole("list", { name: "Bản ghi" });
+      fireEvent.click(within(list).getByRole("button", { name: /^Phát bản ghi lúc / }));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("gives a guest no recordings tab while none can be played", async () => {
+      serveRecordings([{ ...done, status: "PROCESSING" }]);
+      render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
+      await settle();
+      expect(screen.queryByRole("tab", { name: /^Bản ghi/ })).not.toBeInTheDocument();
+    });
+
+    it("never gives a member the tab: recordings are in the UNI feed", async () => {
+      setSessionUser(me);
+      serveRecordings([done]);
+      render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="chat" onTabChange={() => {}} />));
+      await screen.findByRole("tab", { name: "Biểu quyết" });
+      expect(screen.queryByRole("tab", { name: /^Bản ghi/ })).not.toBeInTheDocument();
+    });
   });
 
   it("offers a collapse button beside the tabs when the panel can collapse", () => {

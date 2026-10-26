@@ -149,7 +149,7 @@ function FeedRow({
 }
 
 /** "Play recording", named with its time so several recordings can be told apart. */
-function PlayRecordingButton({ time, onPlay }: { time: string | null; onPlay: () => void }) {
+export function PlayRecordingButton({ time, onPlay }: { time: string | null; onPlay: () => void }) {
   const { t } = useTranslation();
   return (
     <button

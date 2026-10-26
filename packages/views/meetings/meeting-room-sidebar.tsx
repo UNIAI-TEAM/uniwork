@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { MessageCircle, PanelRightClose, Users, Vote } from "lucide-react";
+import { CirclePlay, MessageCircle, PanelRightClose, Users, Vote } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useRecordings } from "@uniwork/core/meetings";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { motionsTabState, useMeetingMotions } from "@uniwork/core/meetings/motions";
 import type { Meeting } from "@uniwork/core/types";
@@ -14,14 +15,15 @@ import type { MeetingFeedFilter } from "./meeting-copilot/feed-filter-chips";
 import type { UniView } from "./meeting-copilot/uni-status-row";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
+import { MeetingRoomRecordingsTab } from "./meeting-room-recordings-tab";
 import type { ScribeChipState } from "./meeting-scribe-chip";
 import { RoomPanelNavigation } from "./room-panel-navigation";
 import { RoomPanelTabs, type RoomPanelBadge } from "./room-panel-tabs";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
-export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions";
+export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions" | "recordings";
 
-const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions"];
+const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions", "recordings"];
 
 const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden";
 // The UNI tab lays out its own rows edge to edge (status row, scroll area, pinned composer).
@@ -126,6 +128,9 @@ export function MeetingRoomSidebar({
   const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
   const { data: motions } = useMeetingMotions(meetingId ?? "", Boolean(meetingId));
   const motionsTab = motionsTabState(motions, isClerk);
+  // A member finds recordings in the UNI feed; a guest has no UNI tab, so gets a tab once one can be played.
+  const { data: recordings } = useRecordings(meetingId ?? "", Boolean(guestMode));
+  const guestRecordings = Boolean(guestMode) && (recordings ?? []).some((r) => r.status === "COMPLETE");
 
   function tabLabel(id: MeetingSidebarTab): string {
     switch (id) {
@@ -137,6 +142,8 @@ export function MeetingRoomSidebar({
         return t("meetings.people");
       case "motions":
         return t("meetings.governance.motionsTab");
+      case "recordings":
+        return t("meetings.recordingsTab");
     }
   }
 
@@ -150,6 +157,8 @@ export function MeetingRoomSidebar({
         return <Users aria-hidden className="size-4" />;
       case "motions":
         return <Vote aria-hidden className="size-4" />;
+      case "recordings":
+        return <CirclePlay aria-hidden className="size-4" />;
     }
   }
 
@@ -171,7 +180,8 @@ export function MeetingRoomSidebar({
   const panelId = (id: MeetingSidebarTab) => `${baseId}-panel-${id}`;
   // Clerks always see Votes; everyone else once something has been opened.
   const sidebarTabs = SIDEBAR_TABS.filter(
-    (id) => !(guestMode && id === "copilot") && (id !== "motions" || motionsTab.visible),
+    (id) =>
+      !(guestMode && id === "copilot") && (id !== "motions" || motionsTab.visible) && (id !== "recordings" || guestRecordings),
   );
   const activeTab = sidebarTabs.includes(tab) ? tab : (sidebarTabs[0] ?? "chat");
 
@@ -218,6 +228,8 @@ export function MeetingRoomSidebar({
             />
           </div>
         ) : null;
+      case "recordings":
+        return meetingId ? <MeetingRoomRecordingsTab meetingId={meetingId} /> : null;
     }
   }
 
