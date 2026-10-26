@@ -153,54 +153,12 @@ func (s *TaskService) BatchUpdateTasks(ctx context.Context, actor Actor, workspa
 	return updated, nil
 }
 
-// BatchDeleteTasks deletes every listed id in one transaction. Unknown
-// non-empty ids fail the whole batch; empty strings are ignored.
+// BatchDeleteTasks moves every listed id and its subtasks to the trash in one
+// batch (TrashMany) and answers how many rows went. Unknown non-empty ids fail
+// the whole batch; empty strings are ignored.
 func (s *TaskService) BatchDeleteTasks(ctx context.Context, actor Actor, workspaceID string, taskIDs []string) (int, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return 0, err
-	}
-	if len(taskIDs) == 0 {
-		return 0, Invalid("task_ids không được để trống")
-	}
-	if len(taskIDs) > maxBatchTaskIDs {
-		return 0, Invalid("task_ids tối đa 100")
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return 0, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
-	deleted := 0
-	for _, id := range taskIDs {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		task, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
-			ID: id, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		})
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return 0, Invalid("task_ids chứa id không thuộc workspace")
-			}
-			return 0, err
-		}
-		if err := s.deleteTaskInTx(ctx, q, actor.ID, task, ws); err != nil {
-			return 0, err
-		}
-		deleted++
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return 0, err
-	}
-	return deleted, nil
+	res, err := s.TrashMany(ctx, actor, workspaceID, taskIDs)
+	return len(res.IDs), err
 }
 
 // NormalizeIdempotencyError maps the bare in-flight sentinel to a coded error.

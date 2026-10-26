@@ -73,6 +73,61 @@ func (q *Queries) GetProjectIncludingTrashed(ctx context.Context, arg GetProject
 	return i, err
 }
 
+const getTaskByIDIncludingTrashed = `-- name: GetTaskByIDIncludingTrashed :one
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE id = $1
+`
+
+// Restore and purge arrive with a task id only: this finds the row (trashed
+// or not) so the caller can run the workspace membership gate on it.
+// tenant: by-id
+func (q *Queries) GetTaskByIDIncludingTrashed(ctx context.Context, id string) (Task, error) {
+	row := q.db.QueryRow(ctx, getTaskByIDIncludingTrashed, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+		&i.StartAt,
+		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
+	)
+	return i, err
+}
+
 const getTaskIncludingTrashed = `-- name: GetTaskIncludingTrashed :one
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE id = $1
@@ -664,6 +719,102 @@ func (q *Queries) LockTaskForPurge(ctx context.Context, arg LockTaskForPurgePara
 		&i.TrashedProjectID,
 	)
 	return i, err
+}
+
+const lockTaskTrashSubtree = `-- name: LockTaskTrashSubtree :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, r.trash_batch_id
+  FROM tasks r
+  WHERE r.id = $3
+    AND r.organization_id = $1
+    AND r.workspace_id = $2
+    AND r.trashed_at IS NOT NULL
+  UNION ALL
+  SELECT c.id, c.trash_batch_id
+  FROM tasks c
+  INNER JOIN sub s ON c.parent_task_id = s.id AND c.trash_batch_id = s.trash_batch_id
+  WHERE c.organization_id = $1
+    AND c.workspace_id = $2
+    AND c.trashed_at IS NOT NULL
+)
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id
+FROM tasks t
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND t.id IN (SELECT sub.id FROM sub)
+ORDER BY t.id
+FOR UPDATE
+`
+
+type LockTaskTrashSubtreeParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	RootID         string `json:"root_id"`
+}
+
+// A purge's scope: the row and its descendants that left in the same trash
+// batch, never batch siblings that are roots of their own. Locked so a
+// concurrent purge or restore of one of them waits; a row the other side
+// already deleted is not returned, one it restored is (the caller re-checks).
+func (q *Queries) LockTaskTrashSubtree(ctx context.Context, arg LockTaskTrashSubtreeParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, lockTaskTrashSubtree, arg.OrganizationID, arg.WorkspaceID, arg.RootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+			&i.StartAt,
+			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const relinkTasksForProjectRestore = `-- name: RelinkTasksForProjectRestore :many

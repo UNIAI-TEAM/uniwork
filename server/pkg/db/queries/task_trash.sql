@@ -141,6 +141,40 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
 FOR UPDATE;
 
+-- Restore and purge arrive with a task id only: this finds the row (trashed
+-- or not) so the caller can run the workspace membership gate on it.
+-- name: GetTaskByIDIncludingTrashed :one
+-- tenant: by-id
+SELECT * FROM tasks WHERE id = sqlc.arg(id);
+
+-- A purge's scope: the row and its descendants that left in the same trash
+-- batch, never batch siblings that are roots of their own. Locked so a
+-- concurrent purge or restore of one of them waits; a row the other side
+-- already deleted is not returned, one it restored is (the caller re-checks).
+-- name: LockTaskTrashSubtree :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, r.trash_batch_id
+  FROM tasks r
+  WHERE r.id = sqlc.arg(root_id)
+    AND r.organization_id = sqlc.arg(organization_id)
+    AND r.workspace_id = sqlc.arg(workspace_id)
+    AND r.trashed_at IS NOT NULL
+  UNION ALL
+  SELECT c.id, c.trash_batch_id
+  FROM tasks c
+  INNER JOIN sub s ON c.parent_task_id = s.id AND c.trash_batch_id = s.trash_batch_id
+  WHERE c.organization_id = sqlc.arg(organization_id)
+    AND c.workspace_id = sqlc.arg(workspace_id)
+    AND c.trashed_at IS NOT NULL
+)
+SELECT t.*
+FROM tasks t
+WHERE t.organization_id = sqlc.arg(organization_id)
+  AND t.workspace_id = sqlc.arg(workspace_id)
+  AND t.id IN (SELECT sub.id FROM sub)
+ORDER BY t.id
+FOR UPDATE;
+
 -- name: LockProjectForPurge :one
 SELECT * FROM projects
 WHERE id = sqlc.arg(id)
