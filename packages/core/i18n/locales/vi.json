@@ -1094,7 +1094,8 @@
         "downgrade_not_allowed": "Không hạ gói trả phí tại đây. Dùng Ngừng gói cuối kỳ hoặc liên hệ hỗ trợ.",
         "quota_exceeded": "Tổ chức đang dùng vượt hạn mức gói đích. Giảm mức dùng rồi thử lại.",
         "billing_provider_unavailable": "Chưa bật cổng thanh toán. Liên hệ quản trị viên.",
-        "version_conflict": "Gói vừa được người khác đổi. Tải lại trang rồi thử lại."
+        "version_conflict": "Gói vừa được người khác đổi. Tải lại trang rồi thử lại.",
+        "cancel_not_available": "Gói này không có kỳ thanh toán nên không ngừng được tại đây. Liên hệ quản trị nếu cần đổi gói."
       },
       "action_failed": "Không đổi được gói. Thử lại sau ít phút.",
       "plans_error": "Không tải được danh sách gói.",
@@ -1127,7 +1128,10 @@
       "status": {
         "paid": "Đã thanh toán",
         "open": "Chưa thanh toán",
-        "draft": "Nháp"
+        "draft": "Nháp",
+        "refunded": "Đã hoàn tiền",
+        "refund_pending": "Đang hoàn tiền",
+        "partial_refund_pending": "Chờ hoàn một phần"
       },
       "provider": {
         "vnpay": "VNPay",
@@ -7860,6 +7864,7 @@
       "refund_vnpay_failed": "VNPay từ chối hoặc không phản hồi.",
       "refund_invoice_number": "Số hóa đơn",
       "refund_amount_label": "Số tiền đã thanh toán:",
+      "refund_remaining_label": "Còn có thể hoàn:",
       "refund_amount_full_hint": "Toàn phần",
       "refund_amount_partial_hint": "Một phần",
       "refund_mode_full": "Hoàn toàn phần",
@@ -9163,7 +9168,7 @@
       ],
       "enterpriseCta": "Xem quản trị tổ chức",
       "pricingTitle": "Khởi đầu với Starter.",
-      "pricingDescription": "Một lựa chọn để nhóm khám phá UniWork trước khi phát hành rộng rãi.",
+      "pricingDescription": "Starter miễn phí, Team và Business trả phí theo tháng — hạn mức và giá khớp catalog trong ứng dụng.",
       "solutionLabel": "Giải pháp",
       "resourcesLabel": "Bắt đầu và tìm hiểu"
     },
@@ -10382,21 +10387,33 @@
       "ent4": "SCIM và chính sách lưu trữ dữ liệu"
     },
     "pricing": {
-      "title": "Bắt đầu cùng Starter.",
-      "sub": "Gói hiện tại cho đội ngũ muốn trải nghiệm UniWork trước khi sản phẩm phát hành rộng.",
-      "planName": "Starter",
-      "planPrice": "Miễn phí",
-      "planDesc": "Gói mặc định trong giai đoạn hiện tại",
-      "quotasLabel": "Các hạng mục được theo dõi mức sử dụng",
-      "q1": "Thành viên tổ chức",
-      "q2": "Workspace",
-      "q3": "Phút tham dự họp",
-      "q4": "Ghi hình cuộc họp",
-      "q5": "Tóm tắt họp bằng AI",
-      "q6": "Token AI",
-      "q7": "Dung lượng lưu trữ",
-      "q8": "Đăng nhập SSO",
-      "status": "Các gói thương mại và hạn mức đang được hoàn thiện. Đây chưa phải cam kết sử dụng miễn phí không giới hạn lâu dài.",
+      "title": "Ba gói cho mọi quy mô đội.",
+      "sub": "Bắt đầu miễn phí với hạn mức rõ ràng; nâng cấp khi nhóm cần thêm thành viên, họp và AI.",
+      "p1": {
+        "name": "Starter",
+        "price": "Miễn phí",
+        "desc": "Tối đa 5 thành viên, 2 workspace — phù hợp thử nghiệm và nhóm nhỏ."
+      },
+      "p2": {
+        "name": "Team",
+        "price": "499.000 VND / tháng",
+        "desc": "Tối đa 30 thành viên, ghi hình họp, liên kết tài liệu công khai và 2 triệu token AI mỗi tháng."
+      },
+      "p3": {
+        "name": "Business",
+        "price": "1.499.000 VND / tháng",
+        "desc": "Tối đa 150 thành viên, SSO, dung lượng và phút họp cao hơn — cho tổ chức đang mở rộng."
+      },
+      "quotasLabel": "Hạn mức gói Starter (mặc định khi đăng ký)",
+      "q1": "5 thành viên tổ chức",
+      "q2": "2 workspace",
+      "q3": "200 công việc",
+      "q4": "3.000 phút tham dự họp",
+      "q5": "Ghi hình và tóm tắt họp bằng AI (theo gói)",
+      "q6": "100.000 token AI",
+      "q7": "5 GB dung lượng lưu trữ",
+      "q8": "Liên kết tài liệu công khai (SSO chỉ ở gói Business trả phí)",
+      "status": "Giá và hạn mức khớp catalog trong ứng dụng; sau khi đăng ký bạn chọn gói và thanh toán qua VNPay nếu nâng cấp.",
       "cta": "Tạo workspace"
     },
     "final": {
@@ -10897,7 +10914,7 @@
       "pricing": {
         "viewPlan": "Xem gói Starter",
         "checkTitle": "Rõ giai đoạn hiện tại. Rõ điều cần xác nhận.",
-        "checkDescription": "Đối chiếu gói hiện có, cấu hình AI và nhu cầu triển khai. Chưa có bảng giá thương mại hay hạn mức cố định được công bố.",
+        "checkDescription": "Đối chiếu gói Starter, Team và Business với nhu cầu triển khai, cấu hình AI và quy mô đội.",
         "enterpriseLink": "Xem nền tảng doanh nghiệp",
         "closing": "Khám phá UniWork cùng Starter.",
         "rows": [

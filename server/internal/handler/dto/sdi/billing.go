@@ -9,6 +9,5 @@ type ChangePlanSDI struct {
 // CheckoutSDI is POST /api/v1/orgs/{orgID}/billing/checkout.
 type CheckoutSDI struct {
 	PlanCode    string `json:"plan_code" minLength:"1" description:"Mã gói muốn thanh toán" example:"team"`
-	SuccessPath string `json:"success_path" description:"Đường dẫn quay về khi thanh toán xong" example:"/acme/team/settings?tab=billing"`
-	CancelPath  string `json:"cancel_path" description:"Đường dẫn quay về khi hủy" example:"/acme/team/settings?tab=billing"`
+	SuccessPath string `json:"success_path" description:"Đường dẫn quay về khi thanh toán xong (VNPay cũng dùng cho hủy trên cổng)" example:"/acme/team/settings?tab=billing"`
 }

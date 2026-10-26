@@ -131,6 +131,13 @@ describe("BillingTab", () => {
     expect(within(screen.getByTestId("plan-card-team_free")).queryByRole("button", { name: "Chọn gói này" })).toBeNull();
   });
 
+  it("hides stop when the paid plan has no billing period end", async () => {
+    mockApi("owner", { ...paidSubscription, current_period_end: undefined });
+    renderTab();
+    await screen.findByTestId("plan-card-team");
+    expect(screen.queryByRole("button", { name: "Ngừng gói" })).toBeNull();
+  });
+
   it("asks before stopping the plan and only then calls the server", async () => {
     mockApi("owner", paidSubscription);
     renderTab();

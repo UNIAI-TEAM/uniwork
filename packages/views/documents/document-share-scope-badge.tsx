@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, House, Link2, Lock, Share2, Users, type LucideIcon } from "lucide-react";
+import { BuildingComplex, House, Link2, Lock, Share2, Users, type LucideIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DocumentShareScope } from "@uniwork/core/types/document";
@@ -165,7 +165,7 @@ export function DocumentShareScopeBadge({
           : kind === "people"
             ? Users
             : kind === "organization"
-              ? Building2
+              ? BuildingComplex
               : House;
 
   return (

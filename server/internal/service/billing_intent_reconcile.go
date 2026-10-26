@@ -33,7 +33,7 @@ func (s *BillingService) ProcessStalePaymentIntentReconcile(ctx context.Context)
 }
 
 func (s *BillingService) reconcileOneStalePaymentIntent(ctx context.Context, vnp *billing.VNPay, intent db.BillingPaymentIntent) {
-	ev, err := s.vnpayQueryDR(ctx, vnp, intent, "")
+	ev, _, err := s.vnpayQueryDR(ctx, vnp, intent, "")
 	if err != nil {
 		s.billingLogWarn("billing intent reconcile querydr", err, "intent_id", intent.ID)
 		return

@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState } from "react";
-import { CircleAlert, Trash2 } from "lucide-react";
+import { CircleAlert, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useDeleteTranscript, useEditTranscriptSegment } from "@uniwork/core/meetings/transcript";
@@ -144,7 +144,7 @@ export function TranscriptChangeDialog({
       description={t(all ? "meetings.transcriptDeleteAllDescription" : "meetings.transcriptDeleteLineDescription")}
       confirmLabel={t("meetings.transcriptDeleteConfirm")}
       pending={pending}
-      icon={Trash2}
+      icon={Trash}
       onConfirm={() => {
         // The dialog stays until the server answers; a failure says so and keeps it open.
         if (pending) return;

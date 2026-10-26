@@ -280,9 +280,9 @@ func (s *BillingService) recordChange(ctx context.Context, q *db.Queries, actor 
 	}, evs...)
 }
 
-// Cancel schedules the end of the subscription at the period end (now for a
-// plan without a period). The row stays live until a provider event or a
-// platform admin ends it (C-04); until then the organization keeps its plan.
+// Cancel schedules the end of the subscription at current_period_end. Plans
+// without a billing period (manual grants, contact pricing) cannot be stopped
+// here — contact platform admin. Lapse applies when cancel_at is reached.
 func (s *BillingService) Cancel(ctx context.Context, userID, orgID string) (EntitlementSnapshot, error) {
 	return s.setCancelAt(ctx, userID, orgID, true)
 }
@@ -315,7 +315,8 @@ func (s *BillingService) setCancelAt(ctx context.Context, userID, orgID string, 
 		kind = "cancel"
 		at = sub.CurrentPeriodEnd
 		if !at.Valid {
-			at = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+			return EntitlementSnapshot{}, CodedError{Code: "cancel_not_available", Status: http.StatusConflict,
+				Msg: "gói không có kỳ thanh toán; đổi gói hoặc liên hệ quản trị"}
 		}
 	}
 	actor := Human(userID)

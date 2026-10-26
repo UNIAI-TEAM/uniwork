@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, MessageSquare, Pencil, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useAiConversations,
@@ -231,7 +231,7 @@ export function AskUniHistory({ title }: { title: string }) {
                                 aria-label={t("delete_conversation")}
                                 onClick={() => setDeleting(c)}
                               >
-                                <Trash2 aria-hidden className="size-3.5" />
+                                <Trash aria-hidden className="size-3.5" />
                               </Button>
                             </div>
                           </>

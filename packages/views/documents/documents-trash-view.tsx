@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
@@ -143,7 +143,7 @@ export function DocumentsTrashView({
         selectionKey={selectionKey}
         label={t("documents.trash.title")}
         highlightId={focusId}
-        empty={{ icon: Trash2, title: t("documents.home.empty.archived_title"), description: t("documents.home.empty.archived_description") }}
+        empty={{ icon: Trash, title: t("documents.home.empty.archived_title"), description: t("documents.home.empty.archived_description") }}
       />
       {/* Always rendered so a screen reader hears the text when it appears; empty it takes no room. */}
       <p role="status" className="text-caption text-muted-foreground empty:sr-only">

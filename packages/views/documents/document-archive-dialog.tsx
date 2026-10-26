@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArchiveRestore, Trash2 } from "lucide-react";
+import { ArchiveRestore, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
@@ -369,7 +369,7 @@ export function DocumentArchiveDialog({
                 </>
               ) : isArchive ? (
                 <>
-                  <Trash2 aria-hidden className="size-3.5" />
+                  <Trash aria-hidden className="size-3.5" />
                   {t(folder ? "documents.archive.delete_confirm" : "documents.archive.archive_confirm")}
                 </>
               ) : (

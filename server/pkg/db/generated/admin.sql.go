@@ -30,72 +30,6 @@ func (q *Queries) AdminChatReportQueue(ctx context.Context) (AdminChatReportQueu
 	return i, err
 }
 
-const adminConfirmInvoiceRefund = `-- name: AdminConfirmInvoiceRefund :one
-UPDATE invoices SET
-  refund_confirm_reason = $1,
-  amount_refunded = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-    THEN amount_refunded + partial_refund_amount
-    ELSE amount_paid
-  END,
-  partial_refund_amount = NULL,
-  status = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
-    ELSE 'refunded'
-  END,
-  refunded_at = CASE
-    WHEN status = 'refund_pending' THEN now()
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
-    ELSE refunded_at
-  END,
-  updated_at = now()
-WHERE id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
-RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
-`
-
-type AdminConfirmInvoiceRefundParams struct {
-	RefundConfirmReason pgtype.Text `json:"refund_confirm_reason"`
-	ID                  string      `json:"id"`
-}
-
-// tenant: platform
-func (q *Queries) AdminConfirmInvoiceRefund(ctx context.Context, arg AdminConfirmInvoiceRefundParams) (Invoice, error) {
-	row := q.db.QueryRow(ctx, adminConfirmInvoiceRefund, arg.RefundConfirmReason, arg.ID)
-	var i Invoice
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.SubscriptionID,
-		&i.Provider,
-		&i.ProviderInvoiceID,
-		&i.Number,
-		&i.Status,
-		&i.AmountDue,
-		&i.AmountPaid,
-		&i.Currency,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.HostedUrl,
-		&i.IssuedAt,
-		&i.PaidAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.InitiatedBy,
-		&i.InitiatedByKind,
-		&i.RefundedAt,
-		&i.RefundProviderRef,
-		&i.RefundRequestedAt,
-		&i.AmountRefunded,
-		&i.PartialRefundAmount,
-		&i.RefundReason,
-		&i.RefundConfirmReason,
-		&i.PaymentIntentID,
-	)
-	return i, err
-}
-
 const adminCountDemoRequests = `-- name: AdminCountDemoRequests :one
 SELECT count(*) FROM demo_requests
 WHERE ($1::text IS NULL OR status = $1::text)
@@ -117,17 +51,27 @@ WHERE ($1::text IS NULL OR i.provider = $1::text)
   AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
     OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
     OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < $5::timestamptz)
 `
 
 type AdminCountInvoicesParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
 }
 
 // tenant: platform
 func (q *Queries) AdminCountInvoices(ctx context.Context, arg AdminCountInvoicesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, adminCountInvoices, arg.Provider, arg.Status, arg.Q)
+	row := q.db.QueryRow(ctx, adminCountInvoices,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -163,17 +107,27 @@ WHERE ($1::text IS NULL OR pi.provider = $1::text)
     OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
     OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
     OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR pi.created_at >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR pi.created_at < $5::timestamptz)
 `
 
 type AdminCountPaymentIntentsParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
 }
 
 // tenant: platform
 func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPaymentIntentsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, adminCountPaymentIntents, arg.Provider, arg.Status, arg.Q)
+	row := q.db.QueryRow(ctx, adminCountPaymentIntents,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -240,8 +194,8 @@ SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoic
 FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
 LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-LEFT JOIN plans pl ON pl.id = sub.plan_id
 LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
 LEFT JOIN LATERAL (
   SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
   FROM billing_payment_intents pi
@@ -575,11 +529,11 @@ FROM (
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
   LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-  LEFT JOIN plans pl ON pl.id = sub.plan_id
+  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+  LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
   LEFT JOIN users init_u ON init_u.id = i.initiated_by
   LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
-  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
   LEFT JOIN LATERAL (
     SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
     FROM billing_payment_intents pi
@@ -594,17 +548,21 @@ FROM (
     AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
       OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
       OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+    AND ($4::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= $4::timestamptz)
+    AND ($5::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < $5::timestamptz)
 ) t
 ORDER BY COALESCE(t.paid_at, t.created_at) DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type AdminListInvoicesParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
-	Offset   int32       `json:"offset"`
-	Limit    int32       `json:"limit"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+	Offset   int32              `json:"offset"`
+	Limit    int32              `json:"limit"`
 }
 
 type AdminListInvoicesRow struct {
@@ -652,6 +610,8 @@ func (q *Queries) AdminListInvoices(ctx context.Context, arg AdminListInvoicesPa
 		arg.Provider,
 		arg.Status,
 		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -874,17 +834,21 @@ FROM (
       OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
       OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
       OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+    AND ($4::timestamptz IS NULL OR pi.created_at >= $4::timestamptz)
+    AND ($5::timestamptz IS NULL OR pi.created_at < $5::timestamptz)
 ) t
 ORDER BY t.created_at DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type AdminListPaymentIntentsParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
-	Offset   int32       `json:"offset"`
-	Limit    int32       `json:"limit"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+	Offset   int32              `json:"offset"`
+	Limit    int32              `json:"limit"`
 }
 
 type AdminListPaymentIntentsRow struct {
@@ -918,6 +882,8 @@ func (q *Queries) AdminListPaymentIntents(ctx context.Context, arg AdminListPaym
 		arg.Provider,
 		arg.Status,
 		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -1352,17 +1318,6 @@ func (q *Queries) AdminUpdateDemoRequest(ctx context.Context, arg AdminUpdateDem
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getOrganizationStatus = `-- name: GetOrganizationStatus :one
-SELECT status FROM organizations WHERE id = $1
-`
-
-func (q *Queries) GetOrganizationStatus(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRow(ctx, getOrganizationStatus, id)
-	var status string
-	err := row.Scan(&status)
-	return status, err
 }
 
 const insertAdminAction = `-- name: InsertAdminAction :exec

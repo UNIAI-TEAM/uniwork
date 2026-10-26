@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
+import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Star, Trash } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -222,7 +222,7 @@ export function DocumentTreeRowMenu({
               className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
               onClick={() => actions?.onDelete(node)}
             >
-              <Trash2 aria-hidden className="size-3.5" />
+              <Trash aria-hidden className="size-3.5" />
               {t("documents.tree.menu.delete")}
             </DropdownMenuItem>
           </>

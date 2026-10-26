@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { CircleAlert, FileHeadphone, Info, RefreshCw, Trash2, Upload } from "lucide-react";
+import { CircleAlert, FileHeadphone, Info, RefreshCw, Trash, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, errorClassOf, errorCode } from "@uniwork/core/api";

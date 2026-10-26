@@ -18,7 +18,7 @@ import (
 func toInvoiceDTO(inv db.Invoice) sdo.InvoiceDTO {
 	return sdo.InvoiceDTO{
 		ID: inv.ID, Number: inv.Number, Status: inv.Status, Provider: inv.Provider,
-		AmountPaid: inv.AmountPaid, Currency: inv.Currency,
+		AmountPaid: inv.AmountPaid, AmountRefunded: inv.AmountRefunded, Currency: inv.Currency,
 		PeriodStart: inv.PeriodStart.Time.Format(time.RFC3339),
 		PeriodEnd:   inv.PeriodEnd.Time.Format(time.RFC3339),
 		PaidAt:      optTime(inv.PaidAt),
@@ -142,13 +142,9 @@ func (h *handlers) createCheckout(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	if err := service.ValidateCheckoutPath(in.CancelPath); err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
 	origin := h.Cfg.FrontendOrigin
 	clientIP := middleware.ClientIP(r, h.proxies)
-	sess, err := h.Billing.Checkout(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.PlanCode, origin+in.SuccessPath, origin+in.CancelPath, clientIP)
+	sess, err := h.Billing.Checkout(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.PlanCode, origin+in.SuccessPath, clientIP)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
