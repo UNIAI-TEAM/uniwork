@@ -1,6 +1,6 @@
 # Hỏi UNI tự chủ có kiểm soát — đợt 1: khung chung — Implementation Plan
 
-> **Trạng thái:** in-progress — chờ chủ sản phẩm duyệt kế hoạch; spec đã duyệt 2026-10-26 (`docs/superpowers/specs/2026-10-26-ask-uni-full-actions-design.md`); issue UNI-2170 (cha: epic UNI-415).
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt kế hoạch 2026-10-26, chưa bắt đầu (Task 9 cần thùng rác UNI-2171 đã merge); spec đã duyệt 2026-10-26 (`docs/superpowers/specs/2026-10-26-ask-uni-full-actions-design.md`); issue UNI-2170 (cha: epic UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

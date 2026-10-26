@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI: tự chủ có kiểm soát (làm mọi thao tác trong quyền)
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-26; issue UNI-2170 (cha: epic UNI-415); kế hoạch: thùng rác `docs/superpowers/plans/2026-10-26-task-project-trash.md`, khung chung đợt 1 `docs/superpowers/plans/2026-10-26-ask-uni-full-actions-p1.md`; cả hai chờ duyệt.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-26; issue UNI-2170 (cha: epic UNI-415); kế hoạch: thùng rác `docs/superpowers/plans/2026-10-26-task-project-trash.md`, khung chung đợt 1 `docs/superpowers/plans/2026-10-26-ask-uni-full-actions-p1.md`; cả hai đã duyệt 2026-10-26. Thùng rác (§8.1) code xong trên UNI-2171, chờ PR; đợt 1 chưa bắt đầu.
 
 **Ngày:** 2026-10-26
 **Bổ sung cho:**

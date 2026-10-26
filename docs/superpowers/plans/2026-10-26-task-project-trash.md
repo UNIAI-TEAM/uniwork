@@ -1,6 +1,6 @@
 # Thùng rác cho task và dự án — Implementation Plan
 
-> **Trạng thái:** in-progress — chờ chủ sản phẩm duyệt kế hoạch; spec đã duyệt 2026-10-26 (`docs/superpowers/specs/2026-10-26-ask-uni-full-actions-design.md` §8.1); issue: sub-issue của UNI-2170, tạo khi bắt đầu.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt kế hoạch 2026-10-26; Task 1–9 xong trên nhánh `feature/UNI-2171-thung-rac-cho-task-va-du-an` (UNI-2171, sub-issue của UNI-2170), kiểm tay trên app local 2026-10-26; chờ review cuối và PR. Spec: `docs/superpowers/specs/2026-10-26-ask-uni-full-actions-design.md` §8.1.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
