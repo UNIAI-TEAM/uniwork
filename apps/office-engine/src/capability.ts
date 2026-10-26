@@ -126,8 +126,8 @@ function capabilityRows(format: OfficeFormat, pdfMissing: string | null): Capabi
             operation: op,
             supported: true,
             runtime: "internal_service",
-            evidence_level: "proven",
-            reason: `selective ${format} text reader bound and proven (UNI-2185 B11; S6 20 MiB corpus)`,
+            evidence_level: "pending",
+            reason: `selective ${format} text reader bound in the engine service; product evidence packet pending`,
           };
         }
         return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "no text extractor is bound for this format in this service build" };
