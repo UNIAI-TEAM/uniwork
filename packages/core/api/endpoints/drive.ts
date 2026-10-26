@@ -199,3 +199,181 @@ export async function linkDriveFiles(
     endpoint: "POST /api/v1/workspaces/{ws}/drive-files",
   });
 }
+
+const DriveTasksCreatedSummarySchema = z.object({
+  count: z.number().int().nonnegative().optional().catch(0).default(0),
+  last_created_at: z.string().optional().catch(undefined),
+  last_created_by_name: z.string().optional().catch(undefined),
+});
+
+export type DriveTasksCreatedSummary = z.infer<typeof DriveTasksCreatedSummarySchema>;
+
+const DriveLinkedTaskRefSchema = z.object({
+  task_id: z.string(),
+  identifier: z.string(),
+  title: z.string(),
+  status: z.string().optional().default("todo"),
+});
+
+export type DriveLinkedTaskRef = z.infer<typeof DriveLinkedTaskRefSchema>;
+
+const DriveTaskCreationGroupSchema = z.object({
+  proposal_id: z.string(),
+  created_at: z.string(),
+  created_by_id: z.string(),
+  created_by_name: z.string(),
+  tasks: z.array(DriveLinkedTaskRefSchema).optional().catch([]).default([]),
+});
+
+export type DriveTaskCreationGroup = z.infer<typeof DriveTaskCreationGroupSchema>;
+
+const EMPTY_TASKS_CREATED: DriveTasksCreatedSummary = { count: 0 };
+
+const DriveFileSchema = z.object({
+  id: z.string(),
+  organization_id: z.string(),
+  workspace_id: z.string(),
+  external_file_id: z.string(),
+  drive_id: z.string().optional().catch(undefined),
+  name: z.string(),
+  mime_type: z.string(),
+  icon_kind: z.string().optional().default("generic"),
+  web_view_link: z.string(),
+  open_url: z.string(),
+  owner_display: z.string().optional().default(""),
+  drive_modified_at: z.string().optional().catch(undefined),
+  drive_modified_by_display: z.string().optional().catch(undefined),
+  sharing_state: z.string().optional().default("unknown"),
+  shared_user_count: z.number().int().nonnegative().optional().catch(undefined),
+  connection_id: z.string(),
+  bound_account_email: z.string(),
+  bound_connection_lost: z.boolean().optional().catch(false).default(false),
+  access_lost_at: z.string().optional().catch(undefined),
+  bound_by_id: z.string(),
+  bound_by_name: z.string().optional().default(""),
+  created_by: z.string(),
+  created_by_kind: z.string().optional().default("human"),
+  created_by_name: z.string().optional().default(""),
+  created_at: z.string(),
+  updated_at: z.string().optional().default(""),
+  metadata_refreshed_at: z.string().optional().catch(undefined),
+  viewer_access: z.string().optional().default("unknown"),
+  viewer_connection_id: z.string().optional().catch(undefined),
+  viewer_account_email: z.string().optional().catch(undefined),
+  can_unlink: z.boolean().optional().catch(false).default(false),
+  can_rebind: z.boolean().optional().catch(false).default(false),
+  can_propose: z.boolean().optional().catch(false).default(false),
+  can_ask: z.boolean().optional().catch(false).default(false),
+  used_in_count: z.number().int().nonnegative().optional().catch(0).default(0),
+  used_in_tasks: z.array(DriveLinkedTaskRefSchema).optional().catch([]).default([]),
+  tasks_created: DriveTasksCreatedSummarySchema.optional()
+    .catch(EMPTY_TASKS_CREATED)
+    .default(EMPTY_TASKS_CREATED),
+  task_creations: z.array(DriveTaskCreationGroupSchema).optional().catch(undefined),
+});
+
+export type DriveFile = z.infer<typeof DriveFileSchema>;
+
+const DriveFileResponseSchema = z.object({
+  file: DriveFileSchema,
+});
+
+const DriveTaskFileCardSchema = z.object({
+  id: z.string(),
+  task_id: z.string(),
+  workspace_id: z.string(),
+  external_file_id: z.string(),
+  drive_id: z.string().optional().catch(undefined),
+  name: z.string(),
+  mime_type: z.string(),
+  icon_kind: z.string().optional().default("generic"),
+  sharing_state: z.string().optional().default("unknown"),
+  owner_display: z.string().optional().default(""),
+  drive_modified_at: z.string().optional().catch(undefined),
+  drive_modified_by_display: z.string().optional().catch(undefined),
+  connection_id: z.string(),
+  bound_account_email: z.string(),
+  bound_connection_lost: z.boolean().optional().catch(false).default(false),
+  access_lost_at: z.string().optional().catch(undefined),
+  bound_by_id: z.string(),
+  bound_by_name: z.string().optional().default(""),
+  created_by: z.string(),
+  created_by_name: z.string().optional().default(""),
+  linked_at: z.string(),
+  viewer_access: z.string().optional().default("unknown"),
+  viewer_connection_id: z.string().optional().catch(undefined),
+  viewer_account_email: z.string().optional().catch(undefined),
+  open_url: z.string(),
+  can_remove_from_task: z.boolean().optional().catch(false).default(false),
+  can_propose: z.boolean().optional().catch(false).default(false),
+  can_ask: z.boolean().optional().catch(false).default(false),
+  tasks_created: DriveTasksCreatedSummarySchema.optional()
+    .catch(EMPTY_TASKS_CREATED)
+    .default(EMPTY_TASKS_CREATED),
+});
+
+export type DriveTaskFileCard = z.infer<typeof DriveTaskFileCardSchema>;
+
+const DriveTaskFileListSchema = z.object({
+  files: z.array(z.unknown()).transform((items) => {
+    const valid: DriveTaskFileCard[] = [];
+    for (const item of items) {
+      const parsed = DriveTaskFileCardSchema.safeParse(item);
+      if (parsed.success) {
+        valid.push(parsed.data);
+      }
+    }
+    return valid;
+  }),
+});
+
+const EMPTY_TASK_DRIVE_FILES: { files: DriveTaskFileCard[] } = { files: [] };
+
+export async function listTaskDriveFiles(taskId: string): Promise<DriveTaskFileCard[]> {
+  const raw = await request(`/api/v1/tasks/${enc(taskId)}/drive-files`);
+  return parseWithFallback(raw, DriveTaskFileListSchema, EMPTY_TASK_DRIVE_FILES, {
+    endpoint: "GET /api/v1/tasks/{taskID}/drive-files",
+  }).files;
+}
+
+export async function removeTaskDriveFile(taskId: string, driveFileId: string): Promise<void> {
+  const raw = await request(
+    `/api/v1/tasks/${enc(taskId)}/drive-files/${enc(driveFileId)}`,
+    { method: "DELETE" },
+  );
+  parseWithFallback(raw, DisconnectResponseSchema, { status: "ok" }, {
+    endpoint: "DELETE /api/v1/tasks/{taskID}/drive-files/{driveFileID}",
+  });
+}
+
+export async function grantDriveFileAccess(
+  workspaceId: string,
+  driveFileId: string,
+  connectionId: string,
+): Promise<DriveFile | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/drive-files/${enc(driveFileId)}/access`,
+    { method: "POST", body: { connection_id: connectionId } },
+  );
+  return (
+    parseWithFallback<{ file: DriveFile } | null>(raw, DriveFileResponseSchema, null, {
+      endpoint: "POST /api/v1/workspaces/{ws}/drive-files/{driveFileID}/access",
+    })?.file ?? null
+  );
+}
+
+export async function changeDriveFileAccess(
+  workspaceId: string,
+  driveFileId: string,
+  connectionId: string,
+): Promise<DriveFile | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/drive-files/${enc(driveFileId)}/access`,
+    { method: "PUT", body: { connection_id: connectionId } },
+  );
+  return (
+    parseWithFallback<{ file: DriveFile } | null>(raw, DriveFileResponseSchema, null, {
+      endpoint: "PUT /api/v1/workspaces/{ws}/drive-files/{driveFileID}/access",
+    })?.file ?? null
+  );
+}

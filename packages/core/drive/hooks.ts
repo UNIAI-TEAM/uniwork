@@ -2,18 +2,27 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  changeDriveFileAccess,
   disconnectDriveConnection,
   getDrivePickerToken,
+  grantDriveFileAccess,
   isDriveConnectionLost,
   linkDriveFiles,
   listDriveConnections,
+  listTaskDriveFiles,
+  removeTaskDriveFile,
   startDriveConnect,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
+  type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveTaskCreationGroup,
+  type DriveTaskFileCard,
+  type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 } from "../api/endpoints/drive";
 import { driveKeys } from "./keys";
@@ -23,10 +32,15 @@ export {
   isDriveConnectionLost,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
+  type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveTaskCreationGroup,
+  type DriveTaskFileCard,
+  type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 };
 /**
@@ -92,6 +106,98 @@ export function useLinkDriveFiles(wsId: string) {
   return useMutation({
     mutationFn: (body: LinkDriveFilesBody) => linkDriveFiles(wsId, body),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
+    },
+  });
+}
+
+/**
+ * Lists the Google Drive file cards attached to a task (`GET /tasks/{taskID}/drive-files`).
+ * Keyed under `driveKeys.task(wsId, taskId)` so workspace-scoped Drive events
+ * (`driveKeys.workspace(wsId)`) refresh open task cards automatically.
+ */
+export function useTaskDriveFiles(
+  wsId: string,
+  taskId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<DriveTaskFileCard[]>({
+    queryKey: driveKeys.task(wsId, taskId),
+    queryFn: () => listTaskDriveFiles(taskId),
+    enabled: (options?.enabled ?? true) && Boolean(wsId) && Boolean(taskId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Removes a Google Drive file reference from a task (`DELETE /tasks/{taskID}/drive-files/{driveFileID}`).
+ * Awaits the server response (no optimistic removal) and invalidates both the
+ * task's Drive files key and `driveKeys.workspace(wsId)`.
+ */
+export function useRemoveTaskDriveFile(wsId: string, taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (driveFileId: string) => removeTaskDriveFile(taskId, driveFileId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: driveKeys.task(wsId, taskId) });
+      void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
+    },
+  });
+}
+
+/**
+ * Grants `drive.file` read access for the caller after picking the file via
+ * Google Picker `setFileIds` (`POST /workspaces/{ws}/drive-files/{driveFileID}/access`).
+ * Awaits the server response and invalidates the task's Drive files key (when
+ * provided) plus `driveKeys.workspace(wsId)`.
+ */
+export function useGrantDriveFileAccess(wsId: string, taskId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      driveFileId,
+      connectionId,
+    }: {
+      driveFileId: string;
+      connectionId: string;
+    }) => {
+      const file = await grantDriveFileAccess(wsId, driveFileId, connectionId);
+      if (!file) throw new Error("drive_access_grant_response_invalid");
+      return file;
+    },
+    onSuccess: () => {
+      if (taskId) {
+        void qc.invalidateQueries({ queryKey: driveKeys.task(wsId, taskId) });
+      }
+      void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
+    },
+  });
+}
+
+/**
+ * Switches the caller's reading account for a Drive file (`PUT /workspaces/{ws}/drive-files/{driveFileID}/access`).
+ * Awaits the server response and invalidates the task's Drive files key (when
+ * provided) plus `driveKeys.workspace(wsId)`.
+ */
+export function useChangeDriveFileAccess(wsId: string, taskId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      driveFileId,
+      connectionId,
+    }: {
+      driveFileId: string;
+      connectionId: string;
+    }) => {
+      const file = await changeDriveFileAccess(wsId, driveFileId, connectionId);
+      if (!file) throw new Error("drive_access_change_response_invalid");
+      return file;
+    },
+    onSuccess: () => {
+      if (taskId) {
+        void qc.invalidateQueries({ queryKey: driveKeys.task(wsId, taskId) });
+      }
       void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
     },
   });
