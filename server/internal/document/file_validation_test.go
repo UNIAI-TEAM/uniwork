@@ -3,6 +3,7 @@ package document
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"image"
 	"image/color"
@@ -320,7 +321,10 @@ func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func TestValidateFileRefusesHugeCentralDirectoryWithinBoundedReads(t *testing.T) {
+	const odt = "application/vnd.oasis.opendocument.text"
 	entries := []zipEntry{
+		{name: "mimetype", body: []byte(odt), stored: true},
+		{name: "content.xml", body: []byte("<office:document-content/>")},
 		{name: "[Content_Types].xml", body: []byte("<Types/>")},
 		{name: "word/document.xml", body: []byte("<w:document/>")},
 	}
@@ -331,7 +335,7 @@ func TestValidateFileRefusesHugeCentralDirectoryWithinBoundedReads(t *testing.T)
 	raw := buildZip(t, entries...)
 	maxAllowed := zipbound.MaxDirectoryBytes + zipbound.EndRecordWindowBytes
 
-	for _, contentType := range []string{tDOCX, "application/vnd.oasis.opendocument.text"} {
+	for _, contentType := range []string{tDOCX, odt} {
 		cr := &countingReaderAt{r: bytes.NewReader(raw)}
 		_, err := ValidateFile(cr, int64(len(raw)), contentType, DefaultFileLimits)
 		wantReason(t, err, ReasonZipUnreadable)
@@ -340,8 +344,15 @@ func TestValidateFileRefusesHugeCentralDirectoryWithinBoundedReads(t *testing.T)
 		}
 	}
 
-	// ValidateUploadProbe also bounds central-directory reads through the same opener.
+	// ValidateUploadProbe also bounds central-directory reads on both the
+	// initial and EOCD-patched retry paths in openZipCentralDirectoryProbe.
+	eocd := bytes.LastIndex(raw, []byte("PK\x05\x06"))
+	if eocd < 0 {
+		t.Fatal("missing EOCD")
+	}
+	cdOffset := int64(binary.LittleEndian.Uint32(raw[eocd+16 : eocd+20]))
+	cd := raw[cdOffset:]
 	head := raw[:min(len(raw), 64<<10)]
-	err := ValidateUploadProbe(tDOCX, int64(len(raw)), head, raw, 0, int64(len(raw)), DefaultFileLimits)
+	err := ValidateUploadProbe(tDOCX, int64(len(raw)), head, cd, cdOffset, int64(len(cd)), DefaultFileLimits)
 	wantReason(t, err, ReasonZipUnreadable)
 }
