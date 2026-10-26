@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Task } from "@uniwork/core/types";
 import { toDateOnly } from "../../common/date-field";
@@ -418,6 +419,18 @@ describe("BatchActionToolbar trash", () => {
     expect(within(dialog).getByText("Chuyển vào thùng rác?")).toBeInTheDocument();
     expect(within(dialog).getByText("Có thể khôi phục trong 30 ngày.")).toBeInTheDocument();
     expect(within(dialog).queryByText(/Không hoàn tác được/)).toBeNull();
+  });
+
+  it("shows the mapped copy when the server refuses a delete as too large", async () => {
+    batchDelete.mockRejectedValue(new ApiError("không thể chuyển quá 1000 task", "trash_too_large", 422));
+    confirmDelete(["t1"], false);
+    fireEvent.click(screen.getByTestId("batch-delete-confirm"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại.",
+      ),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("offers Hoàn tác that restores the batch once, through the surface", async () => {

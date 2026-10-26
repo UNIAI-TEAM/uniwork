@@ -87,7 +87,7 @@ describe("TasksTrashPage", () => {
     render(wrap(<TasksTrashPage workspaceId="w1" />));
     fireEvent.click(await screen.findByRole("button", { name: "Khôi phục Soạn hợp đồng" }));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Lô này có quá nhiều task nên chưa khôi phục được một lần."),
+      expect(toast.error).toHaveBeenCalledWith("Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại."),
     );
   });
 

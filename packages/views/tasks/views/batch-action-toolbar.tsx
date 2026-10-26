@@ -25,6 +25,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { UI_EASE_OUT, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
+import { toastApiError } from "../../toast-api-error";
 import { useToastMovedToTrash } from "../../trash/use-toast-moved-to-trash";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
@@ -116,11 +117,7 @@ export function BatchActionToolbar({
         surfaceActions ? surfaceActions.restoreTask(ids[0]!) : restore.mutateAsync(ids[0]!),
       );
     } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : t("tasks.batch.delete_failed"),
-      );
+      toastApiError(err, t("tasks.batch.delete_failed"));
     } finally {
       deletingRef.current = false;
       setDeleting(false);

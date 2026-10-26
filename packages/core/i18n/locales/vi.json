@@ -14074,8 +14074,6 @@
   },
   "trash": {
     "title": "Thùng rác",
-    "move_title": "Chuyển vào thùng rác?",
-    "move_desc": "Có thể khôi phục trong 30 ngày.",
     "move_confirm": "Chuyển vào thùng rác",
     "moved": "Đã chuyển vào thùng rác",
     "undo": "Hoàn tác",
@@ -14105,7 +14103,7 @@
     "projects_empty_title": "Thùng rác dự án trống",
     "empty_description": "Mục bị xóa nằm ở đây 30 ngày trước khi bị xóa vĩnh viễn.",
     "errors": {
-      "trash_too_large": "Lô này có quá nhiều task nên chưa khôi phục được một lần.",
+      "trash_too_large": "Có quá nhiều task trong một lần chuyển vào thùng rác hoặc khôi phục. Hãy chọn ít task hơn rồi thử lại.",
       "duplicate_project_title": "Đã có dự án trùng tên nên chưa khôi phục được. Hãy đổi tên dự án đó rồi thử lại."
     }
   }

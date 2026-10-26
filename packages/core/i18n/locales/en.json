@@ -14146,8 +14146,6 @@
   },
   "trash": {
     "title": "Trash",
-    "move_title": "Move to trash?",
-    "move_desc": "You can restore it within 30 days.",
     "move_confirm": "Move to trash",
     "moved": "Moved to trash",
     "undo": "Undo",
@@ -14177,7 +14175,7 @@
     "projects_empty_title": "The project trash is empty",
     "empty_description": "Deleted items stay here for 30 days before they are deleted forever.",
     "errors": {
-      "trash_too_large": "This batch has too many tasks to restore at once.",
+      "trash_too_large": "Too many tasks for one move to the trash or restore. Select fewer tasks and try again.",
       "duplicate_project_title": "A project with the same title already exists, so this one could not be restored. Rename that project and try again."
     }
   }

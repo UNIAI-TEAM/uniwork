@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ExternalLink, Ellipsis, Pin, PinOff, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import {
   useCreatePin,
   useDeletePin,
@@ -130,8 +129,7 @@ export function ProjectRowActions({
                 if (operations) { operations.remove(project.id); setDeleteOpen(false); return; }
                 deleteProject.mutate(project.id, {
                   onSuccess: () => toastMovedToTrash(() => restoreProject.mutateAsync(project.id)),
-                  onError: (err) =>
-                    toast.error(err instanceof Error ? err.message : String(err)),
+                  onError: (err) => toastApiError(err, t("common.error")),
                 });
                 setDeleteOpen(false);
               }}
