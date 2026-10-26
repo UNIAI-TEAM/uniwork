@@ -19,10 +19,11 @@ import {
 import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
-import { copilotPanelShown } from "./conference-layout";
+import { copilotPanelShown, liveItemsInView } from "./conference-layout";
 import { catchUpLateMinutes, firstJoinedAt } from "./meeting-copilot/meeting-catch-up-card";
 import { LiveItemsAnnouncer, useUnseenLiveItems } from "./meeting-copilot/live-items-unseen";
-import type { CopilotSection } from "./meeting-room-copilot-tab";
+import type { MeetingFeedFilter } from "./meeting-copilot/feed-filter-chips";
+import type { UniView } from "./meeting-copilot/uni-status-row";
 import {
   captionsErrorKey,
   captionsSupported,
@@ -218,9 +219,14 @@ function ConferenceStage({
   const chatVisible = sidebarTab === "chat" && panelShown;
   // The Votes tab carries the same ballot as the stage's prompt: one on screen at a time.
   const votesTabShown = sidebarTab === "motions" && panelShown;
-  // The live items the scribe writes are seen once the UNI panel's Việc section is on screen.
-  const [copilotSection, setCopilotSection] = useState<CopilotSection>("insights");
-  const liveItemsSeeing = copilotActive && copilotSection === "actions";
+  // The live items the scribe writes are seen once the UNI highlights show them (all kinds, or the tasks).
+  const [uniView, setUniView] = useState<UniView>("feed");
+  const [uniFilter, setUniFilter] = useState<MeetingFeedFilter>("all");
+  const onUniViewChange = useCallback((view: UniView, filter: MeetingFeedFilter) => {
+    setUniView(view);
+    setUniFilter(filter);
+  }, []);
+  const liveItemsSeeing = liveItemsInView(copilotActive, uniView, uniFilter);
   const liveItems = useUnseenLiveItems(guestMode ? undefined : resolvedMeetingId || undefined, liveItemsSeeing);
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
 
@@ -247,11 +253,10 @@ function ConferenceStage({
   const scribeInRoom = useScribeInRoom();
   const scribePaused = useScribePaused();
   const scribeCaptioning = scribeInRoom && !scribePaused;
-  // On its way in (the chip's "joining"), the scribe's own box says so rather
-  // than handing the viewer device captions for its first seconds.
-  const scribeOnItsWay =
-    caps?.scribe === true && !!meeting && scribeChipState(meeting, scribeInRoom, scribePaused) === "joining";
-  const scribeJoining = useScribeJoinWait(scribeOnItsWay);
+  // What the scribe is doing (the UNI tab's status row), where the workspace has one. On its way in
+  // ("joining"), the scribe's own box says so rather than handing the viewer device captions for its first seconds.
+  const scribeState = caps?.scribe === true && meeting ? scribeChipState(meeting, scribeInRoom, scribePaused) : undefined;
+  const scribeJoining = useScribeJoinWait(scribeState === "joining");
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -268,8 +273,10 @@ function ConferenceStage({
       tabsEnd={tabsEnd}
       onCollapse={compact ? undefined : collapseSidebar}
       scribeOn={scribeInRoom}
+      scribeState={scribeState}
       liveItemsUnseen={liveItems.count}
-      onCopilotSectionChange={setCopilotSection}
+      liveItemIds={liveItems.ids}
+      onUniViewChange={onUniViewChange}
     />
   );
 

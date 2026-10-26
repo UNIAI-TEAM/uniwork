@@ -224,12 +224,12 @@ describe("MeetingRoomSidebar", () => {
         </MeetingSidebarDock>,
       );
     const { rerender } = render(docked(true));
-    fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Ghi chú mới" }), { target: { value: "Chốt ngân sách" } });
+    fireEvent.click(await screen.findByRole("radio", { name: "Ghi chú" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" }), { target: { value: "Chốt ngân sách" } });
 
     rerender(docked(false));
     rerender(docked(true));
 
-    expect(screen.getByRole("textbox", { name: "Ghi chú mới" })).toHaveValue("Chốt ngân sách");
+    expect(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" })).toHaveValue("Chốt ngân sách");
   });
 });

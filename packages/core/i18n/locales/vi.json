@@ -5109,6 +5109,19 @@
         "newItemOwner": "Việc mới · {{owner}}"
       },
       "collapse": "Thu gọn bảng",
+      "status": {
+        "listening": "Đang nghe",
+        "live": "Đang ghi",
+        "paused": "Tạm dừng",
+        "joining": "Đang vào",
+        "failed": "Chưa vào được",
+        "off": "Tắt"
+      },
+      "views": {
+        "label": "Cách xem",
+        "feed": "Tổng hợp",
+        "transcript": "Lời thoại"
+      },
       "summary": {
         "title": "Tóm tắt đến giờ",
         "update": "Cập nhật tóm tắt",

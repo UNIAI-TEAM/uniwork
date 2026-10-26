@@ -395,6 +395,11 @@ export function copilotPanelShown({
   return tab === "copilot" && (compact ? sheetOpen : pinned);
 }
 
+/** The scribe's live items are on screen: the UNI panel shows its highlights, unfiltered or on the tasks. */
+export function liveItemsInView(copilotShown: boolean, view: "feed" | "transcript", filter: string): boolean {
+  return copilotShown && view === "feed" && (filter === "all" || filter === "task");
+}
+
 /** A camera frame's shape until its video reports its own. */
 export const DEFAULT_CAMERA_ASPECT = 16 / 9;
 /** How much narrower than its video a camera tile may get, cropping only the sides. */

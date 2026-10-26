@@ -36,7 +36,7 @@ const LABEL_KEY: Record<ScribeChipState, string> = {
 };
 
 /** The mark moves while the scribe transcribes or joins; paused fades, failed greys, off is the outline. */
-const MARK_STATE: Record<ScribeChipState, ScribeMarkState> = {
+export const MARK_STATE: Record<ScribeChipState, ScribeMarkState> = {
   on: "live",
   paused: "paused",
   joining: "joining",

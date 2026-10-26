@@ -10,8 +10,11 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
-import { MeetingRoomCopilotTab, type CopilotSection } from "./meeting-room-copilot-tab";
+import type { MeetingFeedFilter } from "./meeting-copilot/feed-filter-chips";
+import type { UniView } from "./meeting-copilot/uni-status-row";
+import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
+import type { ScribeChipState } from "./meeting-scribe-chip";
 import { RoomPanelNavigation } from "./room-panel-navigation";
 import { RoomPanelTabs, type RoomPanelBadge } from "./room-panel-tabs";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
@@ -20,7 +23,9 @@ export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions";
 
 const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions"];
 
-const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-3";
+const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden";
+// The UNI tab lays out its own rows edge to edge (status row, scroll area, pinned composer).
+const PANEL_PADDING = "px-3 pt-2 pb-3";
 
 /**
  * The wide-screen dock around the side panel. Closed, it stays mounted (the
@@ -79,8 +84,10 @@ export function MeetingRoomSidebar({
   lateMinutes = null,
   onDismissCatchUp,
   scribeOn = false,
+  scribeState,
   liveItemsUnseen = 0,
-  onCopilotSectionChange,
+  liveItemIds,
+  onUniViewChange,
   onCollapse,
 }: {
   meetingId?: string;
@@ -100,9 +107,13 @@ export function MeetingRoomSidebar({
   onDismissCatchUp?: () => void;
   /** The AI scribe is in the room. */
   scribeOn?: boolean;
+  /** What the scribe is doing, for the UNI tab's status row; undefined where the workspace has no scribe. */
+  scribeState?: ScribeChipState;
   /** Live items the scribe wrote that this viewer has not had on screen. */
   liveItemsUnseen?: number;
-  onCopilotSectionChange?: (section: CopilotSection) => void;
+  /** Their ids, marked new in the UNI feed. */
+  liveItemIds?: ReadonlySet<string>;
+  onUniViewChange?: (view: UniView, filter: MeetingFeedFilter) => void;
   /** Folds the docked panel away; draws the collapse button at the end of the tab row. */
   onCollapse?: () => void;
 }) {
@@ -176,11 +187,12 @@ export function MeetingRoomSidebar({
             lateMinutes={guestMode ? null : lateMinutes}
             onDismissCatchUp={onDismissCatchUp}
             scribeOn={scribeOn}
-            actionsUnseen={liveItemsUnseen}
-            onSectionChange={onCopilotSectionChange}
+            scribeState={scribeState}
+            unseenItems={liveItemIds}
+            onViewChange={onUniViewChange}
           />
         ) : (
-          <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
+          <p className="px-3 pt-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
         );
       case "chat":
         return <MeetingRoomChatTab meetingId={meetingId} />;
@@ -247,7 +259,7 @@ export function MeetingRoomSidebar({
         role="tabpanel"
         id={panelId(activeTab)}
         aria-label={tabLabel(activeTab)}
-        className={PANEL_CLASS}
+        className={cn(PANEL_CLASS, activeTab !== "copilot" && PANEL_PADDING)}
       >
         <RoomPanelNavigation>{panelContent(activeTab)}</RoomPanelNavigation>
       </div>

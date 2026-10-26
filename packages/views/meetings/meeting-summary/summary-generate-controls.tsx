@@ -1,54 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CircleAlert, Sparkles } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { Notice, type NoticeTone } from "../../common/notice";
 import type { SummaryGeneration } from "./use-summary-generation";
-
-/**
- * Generate / regenerate. While the model works it shows a spinner and holds
- * still with aria-disabled (it stays in the tab order, and says why through
- * aria-describedby when a reason element is rendered), never native disabled.
- */
-export function SummaryGenerateButton({
-  gen,
-  variant,
-  reasonId,
-  className,
-}: {
-  gen: SummaryGeneration;
-  variant: "brandSubtle" | "outline" | "default";
-  /** Id of the element that says why the button cannot be pressed, when one is shown. */
-  reasonId?: string;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  if (!gen.showGenerate) return null;
-  const blocked = gen.blockedReason !== null;
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant={variant}
-      className={className}
-      aria-disabled={blocked || undefined}
-      aria-busy={gen.generating || undefined}
-      aria-describedby={blocked && reasonId ? reasonId : undefined}
-      title={gen.blockedReason ?? undefined}
-      onClick={gen.requestGenerate}
-    >
-      {gen.generating ? <Spinner data-icon="inline-start" /> : <Sparkles aria-hidden />}
-      {gen.generating
-        ? t("meetings.summarizing")
-        : gen.summary
-          ? t("meetings.regenerateSummary")
-          : t("meetings.generateSummary")}
-    </Button>
-  );
-}
 
 /** Replacing a summary others may have read is asked first, on both screens. */
 export function SummaryRegenerateConfirm({ gen }: { gen: SummaryGeneration }) {

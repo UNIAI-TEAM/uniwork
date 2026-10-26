@@ -10,8 +10,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { meetingLocale } from "../meeting-datetime";
+import { AiBadge } from "../meeting-summary/ai-badge";
 import { summarySourceList, type SummarySource } from "../meeting-summary/summary-sources";
-import { MeetingSummaryAttribution } from "./meeting-notes-card";
 
 /** A member who joins this late (scribe spec §5.1) is offered the brief. */
 const LATE_AFTER_MINUTES = 10;
@@ -94,6 +94,19 @@ function SaidAt({ iso, locale }: { iso?: string; locale: string }) {
  * mount, so opening the room costs nothing; it is the caller's alone. Once
  * made it folds away, and the viewer can dismiss the card for the meeting.
  */
+/** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
+function CatchUpAttribution({ time, sources }: { time: string; sources: string | null }) {
+  const { t } = useTranslation();
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground" data-testid="meeting-summary-attribution">
+      <AiBadge />
+      <span className="min-w-0">
+        {sources ? t("meetings.summaryAttributionFrom", { time, sources }) : t("meetings.summaryAttribution", { time })}
+      </span>
+    </p>
+  );
+}
+
 export function MeetingCatchUpCard({
   meetingId,
   lateMinutes,
@@ -171,7 +184,7 @@ export function MeetingCatchUpCard({
       {brief && open ? (
         <>
           {generatedAt ? (
-            <MeetingSummaryAttribution time={generatedAt} sources={summarySourceList(sources, t, locale)} />
+            <CatchUpAttribution time={generatedAt} sources={summarySourceList(sources, t, locale)} />
           ) : null}
           <p className="text-body text-foreground">{brief.summary}</p>
           {brief.highlights.length > 0 ? (

@@ -5110,6 +5110,19 @@
         "newItemOwner": "New item · {{owner}}"
       },
       "collapse": "Collapse panel",
+      "status": {
+        "listening": "Listening",
+        "live": "Taking notes",
+        "paused": "Paused",
+        "joining": "Joining",
+        "failed": "Couldn't join",
+        "off": "Off"
+      },
+      "views": {
+        "label": "View",
+        "feed": "Highlights",
+        "transcript": "Transcript"
+      },
       "summary": {
         "title": "Summary so far",
         "update": "Update summary",
