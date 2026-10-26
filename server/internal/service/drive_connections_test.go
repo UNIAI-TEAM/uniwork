@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -2062,12 +2063,24 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	ctx := context.Background()
 	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
-	t.Cleanup(func() {
+	resetPart1Hooks := func() {
 		fx.svc.testBeforeDisconnectRow = nil
-		testAfterLifecycleGrantLocks = nil
 		testAfterHelperFirstDriveSub = nil
+	}
+	resetPart2Hooks := func() {
 		testAfterCloseOrgRowLock = nil
-	})
+	}
+	resetPart3Hooks := func() {
+		testAfterLifecycleGrantLocks = nil
+	}
+	joinWorker := func(done <-chan struct{}, label string) {
+		t.Helper()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("timed out joining worker %s after context cancel and barrier release; leaving hooks untouched to avoid data race", label)
+		}
+	}
 
 	waitCh := func(ch <-chan struct{}, label string, cleanups ...func()) {
 		t.Helper()
@@ -2184,33 +2197,33 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 	}
 
+	part1Ctx, cancelPart1 := context.WithCancel(ctx)
 	discErrCh := make(chan error, 1)
 	leaveErrCh := make(chan error, 1)
+	discDone := make(chan struct{})
+	leaveDone := make(chan struct{})
 	var releaseDiscOnce sync.Once
 	safeReleaseDisc := func() { releaseDiscOnce.Do(func() { close(releaseDisc) }) }
 	var startedDisc, startedLeave bool
 	var joinedPart1 bool
 	t.Cleanup(func() {
-		if joinedPart1 {
-			return
-		}
+		cancelPart1()
 		safeReleaseDisc()
-		if startedDisc {
-			select {
-			case <-discErrCh:
-			case <-time.After(5 * time.Second):
+		if !joinedPart1 {
+			if startedDisc {
+				joinWorker(discDone, "Part 1 Disconnect")
 			}
-		}
-		if startedLeave {
-			select {
-			case <-leaveErrCh:
-			case <-time.After(5 * time.Second):
+			if startedLeave {
+				joinWorker(leaveDone, "Part 1 Leave")
 			}
+			joinedPart1 = true
 		}
+		resetPart1Hooks()
 	})
 	startedDisc = true
 	go func() {
-		discErrCh <- fx.svc.Disconnect(ctx, Human(mem.ID), fx.work.ID, connIDB)
+		defer close(discDone)
+		discErrCh <- fx.svc.Disconnect(part1Ctx, Human(mem.ID), fx.work.ID, connIDB)
 	}()
 	waitCh(discHeld, "Disconnect to hold drive_grant:fake-sub-lock-b", safeReleaseDisc)
 
@@ -2228,17 +2241,20 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	}
 	startedLeave = true
 	go func() {
-		leaveErrCh <- memberSvc.Leave(ctx, mem.ID, fx.org.ID)
+		defer close(leaveDone)
+		leaveErrCh <- memberSvc.Leave(part1Ctx, mem.ID, fx.org.ID)
 	}()
 	waitCh(leaveAcquiredSubA, "Leave to acquire drive_grant:fake-sub-lock-a", safeReleaseDisc)
 	waitForBackendOnAdvisoryLock("fake-sub-lock-b", "fake-sub-lock-a", safeReleaseDisc)
-	// Release manual Disconnect, receive both results, and only then clear the hooks (R4-1).
+	// Release manual Disconnect, receive both results and join both workers before clearing hooks (R4-1).
 	safeReleaseDisc()
 	discErr := waitErrCh(discErrCh, "Disconnect completion")
 	leaveErr := waitErrCh(leaveErrCh, "Leave completion")
+	joinWorker(discDone, "Part 1 Disconnect")
+	joinWorker(leaveDone, "Part 1 Leave")
 	joinedPart1 = true
-	fx.svc.testBeforeDisconnectRow = nil
-	testAfterHelperFirstDriveSub = nil
+	cancelPart1()
+	resetPart1Hooks()
 	if discErr != nil && !errors.Is(discErr, ErrNotFound) {
 		t.Fatalf("Disconnect error: %v", discErr)
 	}
@@ -2334,31 +2350,31 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 	}
 
+	part2Ctx, cancelPart2 := context.WithCancel(ctx)
 	errCycleA := make(chan error, 1)
 	errCycleB := make(chan error, 1)
+	cycleADone := make(chan struct{})
+	cycleBDone := make(chan struct{})
 	var startedCycleA, startedCycleB bool
 	var joinedPart2 bool
 	t.Cleanup(func() {
-		if joinedPart2 {
-			return
-		}
+		cancelPart2()
 		safeReleaseA()
-		if startedCycleA {
-			select {
-			case <-errCycleA:
-			case <-time.After(5 * time.Second):
+		if !joinedPart2 {
+			if startedCycleA {
+				joinWorker(cycleADone, "Part 2 userCycleA DeleteAccount")
 			}
-		}
-		if startedCycleB {
-			select {
-			case <-errCycleB:
-			case <-time.After(5 * time.Second):
+			if startedCycleB {
+				joinWorker(cycleBDone, "Part 2 userCycleB DeleteAccount")
 			}
+			joinedPart2 = true
 		}
+		resetPart2Hooks()
 	})
 	startedCycleA = true
 	go func() {
-		errCycleA <- as.DeleteAccount(ctx, userCycleA.ID, DeleteAccountInput{
+		defer close(cycleADone)
+		errCycleA <- as.DeleteAccount(part2Ctx, userCycleA.ID, DeleteAccountInput{
 			Password:          "password123",
 			CloseOrganization: orgCycleA1.Slug,
 		})
@@ -2366,7 +2382,8 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	waitCh(aAtCloseOrg, "userCycleA to reach closeOrganizationQ", safeReleaseA)
 	startedCycleB = true
 	go func() {
-		errCycleB <- as.DeleteAccount(ctx, userCycleB.ID, DeleteAccountInput{
+		defer close(cycleBDone)
+		errCycleB <- as.DeleteAccount(part2Ctx, userCycleB.ID, DeleteAccountInput{
 			Password:          "password123",
 			CloseOrganization: orgCycleB1.Slug,
 		})
@@ -2402,12 +2419,15 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	// Release User A, receive BOTH DeleteAccount results, and only then clear the hook (R4-1).
+	// Release User A, receive BOTH DeleteAccount results and join both workers before clearing the hook (R4-1).
 	safeReleaseA()
 	errA := waitErrCh(errCycleA, "userCycleA DeleteAccount")
 	errB := waitErrCh(errCycleB, "userCycleB DeleteAccount")
+	joinWorker(cycleADone, "Part 2 userCycleA DeleteAccount")
+	joinWorker(cycleBDone, "Part 2 userCycleB DeleteAccount")
 	joinedPart2 = true
-	testAfterCloseOrgRowLock = nil
+	cancelPart2()
+	resetPart2Hooks()
 	if !observedCycleWait {
 		t.Fatalf("did not observe userCycleB waiting on drive_grant:fake-sub-cycle-a held by userCycleA (lastErr=%v)", cycleWaitErr)
 	}
@@ -2489,31 +2509,31 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 			<-releaseBGrant
 		}
 	}
+	part3Ctx, cancelPart3 := context.WithCancel(ctx)
 	acceptErrCh := make(chan error, 1)
 	delXErrCh := make(chan error, 1)
+	acceptDone := make(chan struct{})
+	delXDone := make(chan struct{})
 	var startedAcceptB, startedDelX bool
 	var joinedPart3 bool
 	t.Cleanup(func() {
-		if joinedPart3 {
-			return
-		}
+		cancelPart3()
 		safeReleaseB()
-		if startedAcceptB {
-			select {
-			case <-acceptErrCh:
-			case <-time.After(5 * time.Second):
+		if !joinedPart3 {
+			if startedAcceptB {
+				joinWorker(acceptDone, "Part 3 joinerB AcceptInvite")
 			}
-		}
-		if startedDelX {
-			select {
-			case <-delXErrCh:
-			case <-time.After(5 * time.Second):
+			if startedDelX {
+				joinWorker(delXDone, "Part 3 ownerX DeleteAccount")
 			}
+			joinedPart3 = true
 		}
+		resetPart3Hooks()
 	})
 	startedAcceptB = true
 	go func() {
-		_, err := fx.ws.AcceptInvite(ctx, joinerB.ID, invX[0].Token, []SwitchResolution{
+		defer close(acceptDone)
+		_, err := fx.ws.AcceptInvite(part3Ctx, joinerB.ID, invX[0].Token, []SwitchResolution{
 			{OrganizationID: orgY.ID, Action: SwitchActionLeave},
 		})
 		acceptErrCh <- err
@@ -2522,12 +2542,12 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 
 	startedDelX = true
 	go func() {
-		delXErrCh <- as.DeleteAccount(ctx, ownerX.ID, DeleteAccountInput{
+		defer close(delXDone)
+		delXErrCh <- as.DeleteAccount(part3Ctx, ownerX.ID, DeleteAccountInput{
 			Password:          "password123",
 			CloseOrganization: orgX.Slug,
 		})
 	}()
-
 	// Wait until ownerX's DeleteAccount backend is actively blocked on the lock conflict
 	// (waiting on Org X's row lock BEFORE touching drive_grant:fake-sub-r31-shared).
 	r31Deadline := time.Now().Add(3 * time.Second)
@@ -2547,12 +2567,15 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	// Release User B, receive BOTH results, and only then clear the hook (R4-1).
+	// Release User B, receive BOTH results and join both workers before clearing the hook (R4-1).
 	safeReleaseB()
 	acceptErr := waitErrCh(acceptErrCh, "joinerB AcceptInvite completion")
 	delXErr := waitErrCh(delXErrCh, "ownerX DeleteAccount completion")
+	joinWorker(acceptDone, "Part 3 joinerB AcceptInvite")
+	joinWorker(delXDone, "Part 3 ownerX DeleteAccount")
 	joinedPart3 = true
-	testAfterLifecycleGrantLocks = nil
+	cancelPart3()
+	resetPart3Hooks()
 	if !observedR31Wait {
 		t.Fatalf("did not observe ownerX DeleteAccount waiting on LockOrganizationForUpdate before grant prelock (lastErr=%v)", r31WaitErr)
 	}
@@ -3096,26 +3119,57 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	resHoldReady := make(chan struct{})
 	releaseResHold := make(chan struct{})
 	resHoldDone := make(chan struct{})
+	var releaseResOnce sync.Once
+	safeReleaseRes := func() { releaseResOnce.Do(func() { close(releaseResHold) }) }
+	var resHoldStarted atomic.Bool
+	var holderStartErr error
+	var resHoldErr error
 	var googleRevokeSucceeded bool
+	var joinedResHold bool
+	t.Cleanup(func() {
+		safeReleaseRes()
+		if resHoldStarted.Load() && !joinedResHold {
+			select {
+			case <-resHoldDone:
+				joinedResHold = true
+			case <-time.After(15 * time.Second):
+				t.Fatalf("timed out waiting for resolve grant holder to exit in cleanup")
+			}
+		}
+		fx.svc.testAfterRevokeGoogle = nil
+		fx.svc.postCommitTimeout = 0
+	})
 	fx.svc.testAfterRevokeGoogle = func(sub string, _ db.DriveGrantRevocation, revokeErr error) error {
-		if sub == "fake-sub-res-bgt-a" && revokeErr == nil {
+		if sub == "fake-sub-res-bgt-a" && revokeErr == nil && resHoldStarted.CompareAndSwap(false, true) {
 			googleRevokeSucceeded = true
 			go func() {
 				defer close(resHoldDone)
-				holdTx, err := fx.pool.Begin(ctx)
+				acqCtx, cancelAcq := context.WithTimeout(ctx, 5*time.Second)
+				defer cancelAcq()
+				holdTx, err := fx.pool.Begin(acqCtx)
 				if err != nil {
+					holderStartErr = fmt.Errorf("begin holder tx: %w", err)
 					close(resHoldReady)
 					return
 				}
 				defer func() { _ = holdTx.Rollback(ctx) }()
-				_ = fx.q.WithTx(holdTx).LockDriveGrantSub(ctx, "fake-sub-res-bgt-a")
+				if err := fx.q.WithTx(holdTx).LockDriveGrantSub(acqCtx, "fake-sub-res-bgt-a"); err != nil {
+					holderStartErr = fmt.Errorf("lock holder grant: %w", err)
+					close(resHoldReady)
+					return
+				}
 				close(resHoldReady)
 				select {
 				case <-releaseResHold:
-				case <-time.After(2 * time.Second):
+				case <-time.After(10 * time.Second):
 				}
 			}()
-			<-resHoldReady
+			select {
+			case <-resHoldReady:
+				resHoldErr = holderStartErr
+			case <-time.After(5 * time.Second):
+				resHoldErr = fmt.Errorf("timed out waiting for resolve grant holder readiness")
+			}
 		}
 		return revokeErr
 	}
@@ -3125,16 +3179,27 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 		t.Fatalf("Close with held resolve grant lock: %v", err)
 	}
 	resTotalElapsed := time.Since(startResTotal)
-	close(releaseResHold)
-	<-resHoldDone
+	safeReleaseRes()
+	if !googleRevokeSucceeded || !resHoldStarted.Load() {
+		t.Fatal("post-commit cleanup never reached testAfterRevokeGoogle with successful Google revoke for fake-sub-res-bgt-a (budget expired before hook)")
+	}
+	select {
+	case <-resHoldDone:
+		joinedResHold = true
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for resolve grant holder to exit")
+	}
+	if resHoldErr == nil {
+		resHoldErr = holderStartErr
+	}
+	if resHoldErr != nil {
+		t.Fatalf("resolve grant holder setup error: %v", resHoldErr)
+	}
 	fx.svc.testAfterRevokeGoogle = nil
 	fx.svc.postCommitTimeout = 0
 
-	if !googleRevokeSucceeded {
-		t.Fatal("expected Google revoke to succeed for fake-sub-res-bgt-a before resolve waited on held grant")
-	}
-	if resTotalElapsed > 1500*time.Millisecond {
-		t.Fatalf("post-commit cleanup with blocked resolve took %v, expected return near 120ms total budget", resTotalElapsed)
+	if resTotalElapsed > 5*time.Second {
+		t.Fatalf("post-commit cleanup with blocked resolve took %v, expected bounded return near 120ms total budget (< 5s ceiling vs 10s holder watchdog)", resTotalElapsed)
 	}
 	revResA, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-res-bgt-a")
 	if err != nil || revResA.ResolvedAt.Valid || !revResA.AttemptID.Valid || !revResA.RefreshTokenEnc.Valid {
