@@ -1,6 +1,6 @@
 # Connector Google Drive — Implementation Plan
 
-> **Trạng thái:** in-progress — plan nháp, chờ người dùng ký duyệt spec `docs/superpowers/specs/2026-10-26-google-drive-connector-design.md` (hitl gate); chưa cắt thẻ triển khai.
+> **Trạng thái:** in-progress — spec `docs/superpowers/specs/2026-10-26-google-drive-connector-design.md` được người dùng ký duyệt 2026-10-26 13:33 (UTC+7); thẻ triển khai là sub-issue `Drive:` của UNI-2172, chia lane ở báo cáo run `reports/drive-spec/lanes.md`.
 
 **Goal:** Người dùng kết nối Google Drive (nhiều tài khoản), liên kết tệp vào việc trên web và thấy cùng danh sách ở app desktop; UNI đọc tệp bằng quyền của chính người yêu cầu, đề xuất việc, người duyệt rồi việc được tạo.
 

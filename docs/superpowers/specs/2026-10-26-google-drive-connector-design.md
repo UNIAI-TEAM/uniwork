@@ -1,6 +1,6 @@
 # Connector Google Drive — liên kết tài liệu Drive vào việc, UNI đọc và đề xuất việc
 
-> **Trạng thái:** in-progress — bản nháp chờ người dùng ký duyệt (hitl gate); chưa có thẻ triển khai nào được cắt trước khi duyệt.
+> **Trạng thái:** in-progress — người dùng ký duyệt 2026-10-26 13:33 (UTC+7); đang triển khai theo plan, thẻ là sub-issue của UNI-2172.
 
 **Ngày:** 2026-10-26
 **Issue:** UNI-2172 (con của UNI-923). Spec nguồn của người dùng: "1244 — Cho phép kết nối dữ liệu Google Drive vào hệ thống để sử dụng tài liệu đã lưu trữ" (không phải UniAI UNI-1244).
@@ -10,11 +10,11 @@
 
 ---
 
-## 0. Điểm người dùng cần chốt (mỗi điểm kèm đề xuất)
+## 0. Điểm đã chốt (người dùng ký duyệt 2026-10-26)
 
-Người dùng trả lời drive-spec:1 ngày 2026-10-26 (qua Advisor, hai đợt): **mọi điểm Q1–Q11 đã chốt** — Q1, Q2, Q3, Q6, Q8 khác đề xuất cũ, Q5 thêm yêu cầu; spec dưới đây đã sửa theo. Không còn điểm mở nào chờ người dùng.
+Người dùng trả lời drive-spec:1 ngày 2026-10-26 (qua Advisor, hai đợt): **mọi điểm Q1–Q11 đã chốt** — Q1, Q2, Q3, Q6, Q8 khác đề xuất cũ, Q5 thêm yêu cầu; spec dưới đây đã sửa theo. Không còn điểm mở nào. Ký duyệt 2026-10-26 13:33 (UTC+7): luồng chính được duyệt qua các câu trả lời Q1–Q11; dòng xác nhận "Tên tệp sẽ hiện cho người xem được việc này" khi gắn tệp Drive chưa chia sẻ vào việc (§7.1) **giữ lại**.
 
-| # | Câu hỏi | Chốt / đề xuất | Ghi chú | Mục |
+| # | Câu hỏi | Đã chốt | Ghi chú | Mục |
 | --- | --- | --- | --- | --- |
 | Q1 | Giới hạn tên miền Google khi kết nối (QĐ 13) | **Chốt: không giới hạn, không có tùy chọn admin.** Mọi tài khoản Google Drive kết nối được; bỏ cài đặt. | Người dùng chốt 2026-10-26. | §5.4 |
 | Q2 | Một tài khoản Google cho nhiều người UniWork | **Chốt: cho phép, không chặn, không công tắc.** Mỗi người UniWork vẫn có kết nối riêng; audit ghi cả hai danh tính (người UniWork + email và `sub` Google). | Người dùng chốt 2026-10-26. | §5.5 |

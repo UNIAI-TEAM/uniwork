@@ -1,6 +1,6 @@
 # 0038 — Google Drive: chỉ tham chiếu, đọc bằng kết nối của chính người yêu cầu
 
-**Trạng thái:** proposed (bản nháp UNI-2172, 2026-10-26). Chưa có hiệu lực cho tới khi người dùng ký duyệt spec `docs/superpowers/specs/2026-10-26-google-drive-connector-design.md`. Số 0038 là tạm, đổi nếu ADR khác land trước.
+**Trạng thái:** proposed (bản nháp UNI-2172). Người dùng ký duyệt spec ngày 2026-10-26; ADR chuyển ra `docs/adr/` với trạng thái `accepted` ở nhiệm vụ B9 (cùng PR với B3), khi các test giữ luật có mặt. Số 0038 là tạm, đổi nếu ADR khác land trước.
 **Issue:** UNI-2172 (con của UNI-923) · **Liên quan:** [0010](../0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0016](../0016-work-product-la-bounded-context-tai-lieu-la-kho-duy-nhat.md), [0008](../0008-cach-ly-tenant-o-tang-service.md), [0034](../0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (khóa không rời server).
 
 ## Bối cảnh
