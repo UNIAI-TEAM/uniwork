@@ -35,8 +35,8 @@ type Tone = "default" | "success" | "destructive" | "warning";
 
 const VERB_ICONS: [RegExp, LucideIcon, Tone][] = [
   [/login_failed$/, ShieldAlert, "destructive"],
-  [/(deleted|removed|revoked)$/, Trash, "destructive"],
-  [/(created|added|joined|invited)$/, Plus, "success"],
+  [/(deleted|removed|revoked|unlinked)$/, Trash, "destructive"],
+  [/(created|added|joined|invited|linked)$/, Plus, "success"],
   [/login_succeeded$/, LogIn, "default"],
   [/password_/, KeyRound, "warning"],
   [/export_requested$/, FileDown, "default"],

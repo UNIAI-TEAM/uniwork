@@ -1348,6 +1348,8 @@
         "task.updated": "Cập nhật việc",
         "task.deleted": "Xóa việc",
         "task.comment_added": "Bình luận vào việc",
+        "task.drive_file_linked": "Liên kết tệp từ Google Drive",
+        "task.drive_file_unlinked": "Bỏ liên kết tệp Google Drive",
         "subscription.changed": "Đổi gói dịch vụ",
         "audit.retention_set": "Đổi thời gian lưu nhật ký",
         "audit.export_requested": "Yêu cầu xuất nhật ký",
@@ -3008,7 +3010,11 @@
       "attachments_uploading": "Đang tải lên {{filename}}…",
       "attachments_delete_title": "Xóa tệp đính kèm?",
       "attachments_delete_description": "Gỡ \"{{filename}}\" khỏi công việc này. Không hoàn tác được.",
-      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
+      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất.",
+      "activity_drive_file_linked": "đã liên kết {{name}} từ Google Drive",
+      "activity_drive_file_unlinked": "đã bỏ liên kết {{name}} từ Google Drive",
+      "activity_created_from_drive_proposal": "đã tạo công việc từ đề xuất của UNI ({{name}})",
+      "activity_created_from_drive_proposal_unnamed": "đã tạo công việc từ đề xuất của UNI"
     }
   },
   "myTasks": {
@@ -14371,6 +14377,67 @@
         "link_failed": "Không liên kết được tệp từ Google Drive. Thử lại.",
         "file_error_named": "{{name}}: {{reason}}"
       }
+    },
+    "attach_menu": {
+      "upload_file": "Tải tệp lên",
+      "from_drive": "Từ Google Drive",
+      "connected_accounts_one": "{{count}} tài khoản đã kết nối",
+      "connected_accounts_other": "{{count}} tài khoản đã kết nối",
+      "paste_url_hint": "Hoặc dán liên kết Google Drive vào mô tả, UniWork gợi ý liên kết tệp"
+    },
+    "draft_chip": {
+      "source_badge": "Google Drive",
+      "remove_aria": "Gỡ {{name}}"
+    },
+    "attachments": {
+      "drive_load_error": "Không tải được tệp Google Drive gắn với việc này.",
+      "uploads_load_error": "Không tải được tệp đính kèm tải lên.",
+      "retry": "Thử lại"
+    },
+    "card": {
+      "open_on_drive": "Mở trên Google Drive",
+      "more_actions_aria": "Thêm thao tác cho {{name}}",
+      "view_in_documents": "Xem trong Tài liệu",
+      "unlink": "Bỏ liên kết",
+      "unlink_confirm_title": "Bỏ liên kết tệp khỏi việc này?",
+      "unlink_confirm_description": "Chỉ xóa liên kết khỏi việc này, tệp \"{{name}}\" trên Google Drive giữ nguyên.",
+      "unlink_confirm_action": "Bỏ liên kết",
+      "unlinking": "Đang bỏ liên kết…",
+      "cancel": "Hủy",
+      "meta_drive_account": "Drive: {{email}}",
+      "meta_linked_by": "{{name}} liên kết từ Google Drive",
+      "meta_rebound_by": "(gắn lại bởi {{name}})",
+      "meta_modified_by": "{{name}} sửa {{time}}",
+      "meta_modified": "Sửa {{time}}",
+      "meta_owner": "Chủ sở hữu: {{owner}}",
+      "tasks_created_one": "Đã tạo {{count}} việc từ tài liệu",
+      "tasks_created_other": "Đã tạo {{count}} việc từ tài liệu",
+      "tasks_created_with_date_one": "Đã tạo {{count}} việc từ tài liệu · {{date}}",
+      "tasks_created_with_date_other": "Đã tạo {{count}} việc từ tài liệu · {{date}}",
+      "viewer_unknown": {
+        "title": "Bạn chưa cho UniWork đọc tệp này.",
+        "body": "Tệp do {{name}} liên kết từ Google Drive của họ. UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "body_unnamed": "UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "grant_button": "Cho UniWork đọc tệp",
+        "granting": "Đang cấp quyền…",
+        "share_hint": "Nếu Google báo bạn không có quyền, hãy nhờ chủ sở hữu chia sẻ trên Google Drive. UniWork không chia sẻ thay.",
+        "denied_notice": "Google báo tài khoản của bạn chưa có quyền với tệp này. Hãy nhờ chủ sở hữu chia sẻ trên Google Drive rồi thử lại."
+      },
+      "viewer_lost": {
+        "notice": "Tài khoản {{email}} không còn quyền với tệp này.",
+        "notice_no_email": "Tài khoản của bạn không còn quyền với tệp này.",
+        "repick_button": "Cho UniWork đọc tệp",
+        "repicking": "Đang cấp quyền…"
+      },
+      "viewer_connection_lost": {
+        "notice": "Kết nối Google Drive {{email}} đã hết hạn.",
+        "notice_no_email": "Kết nối Google Drive đã hết hạn.",
+        "reconnect_button": "Kết nối lại",
+        "reconnecting": "Đang kết nối…"
+      },
+      "bound_connection_lost_badge": "Mất kết nối",
+      "bound_access_lost_notice": "Tài khoản gắn không còn quyền với tệp này.",
+      "blocked_action_hint": "Cần cho UniWork đọc tệp trước"
     }
   },
   "driveLibrary": {

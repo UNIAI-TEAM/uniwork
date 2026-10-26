@@ -45,6 +45,16 @@ describe("driveFrameKeys and realtime invalidation", () => {
     }
   });
 
+  it("includes driveKeys.task(wsId, taskId) when drive_file.task_linked carries task_id", () => {
+    expect(
+      driveFrameKeys("ws1", "drive_file.task_linked", {
+        workspace_id: "ws1",
+        drive_file_id: "df1",
+        task_id: "t1",
+      }),
+    ).toEqual([driveKeys.workspace("ws1"), driveKeys.task("ws1", "t1")]);
+  });
+
   it("maps drive_connection.changed to connections and every cached driveKeys.workspace(*)", () => {
     expect(driveFrameKeys("ws1", "drive_connection.changed", { connection_id: "dc1", user_id: "u1" })).toEqual([
       driveKeys.connections("ws1"),
@@ -125,5 +135,35 @@ describe("driveFrameKeys and realtime invalidation", () => {
     const calledKeys = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     expect(calledKeys).toContain(JSON.stringify(driveKeys.workspace("ws1")));
     expect(calledKeys).toContain(JSON.stringify(["tasks", "ws1"]));
+  });
+
+  it("invalidates task drive-files query keys for drive_file.task_linked, unlinked, updated, and access_changed", () => {
+    vi.useFakeTimers();
+    for (const type of [
+      "drive_file.task_linked",
+      "drive_file.unlinked",
+      "drive_file.updated",
+      "drive_file.access_changed",
+    ]) {
+      const qc = new QueryClient();
+      qc.setQueryData(driveKeys.task("ws1", "t1"), [{ id: "df1" }]);
+      const setQueryDataSpy = vi.spyOn(qc, "setQueryData");
+      const client = fakeClient();
+
+      renderHook(() => useRealtimeSync(client, "ws1"), {
+        wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+      });
+
+      client.emit({
+        type,
+        payload: { workspace_id: "ws1", drive_file_id: "df1", task_id: "t1", user_id: "u1" },
+      });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+
+      expect(qc.getQueryState(driveKeys.task("ws1", "t1"))?.isInvalidated).toBe(true);
+      expect(setQueryDataSpy).not.toHaveBeenCalled();
+    }
   });
 });

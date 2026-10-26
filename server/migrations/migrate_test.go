@@ -725,3 +725,177 @@ func TestAiMessagesNoticeDownFillsNoticeRows(t *testing.T) {
 		}
 	}
 }
+
+// UNI-2213 (C5): 9991792910000010 widens document_versions_reason_check with
+// 'converted_version' (NOT VALID) and adds converted_from_version +
+// converted_from_checksum; 9991792910000011 validates the CHECK in its own
+// transaction; the down migration rewrites only converted_version rows to
+// 'upload' (keeping manual, auto, restore, upload, agent unchanged) before
+// restoring the 984 CHECK constraint and dropping the two provenance columns.
+func TestDocumentVersionsConvertedReasonUpAndDown(t *testing.T) {
+	upSQL := readMigration(t, "9991792910000010_document_versions_converted_reason.up.sql")
+	if !strings.Contains(upSQL, "NOT VALID") {
+		t.Fatalf("9991792910000010 must add document_versions_reason_check NOT VALID:\n%s", upSQL)
+	}
+	validateSQL := readMigration(t, "9991792910000011_document_versions_converted_reason_validate.up.sql")
+	if !strings.Contains(validateSQL, "VALIDATE CONSTRAINT document_versions_reason_check") {
+		t.Fatalf("9991792910000011 must validate document_versions_reason_check:\n%s", validateSQL)
+	}
+
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	var validated bool
+	if err := pool.QueryRow(ctx, `SELECT convalidated FROM pg_constraint WHERE conname = 'document_versions_reason_check'`).Scan(&validated); err != nil {
+		t.Fatal("query convalidated:", err)
+	}
+	if !validated {
+		t.Fatal("document_versions_reason_check is still NOT VALID after every migration ran")
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, mime_type, size_bytes, checksum_sha256,
+		converted_from_version, converted_from_checksum,
+		created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000002', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 2, 'file', 'converted_version',
+		'01FILE00000000000000000002', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		2048, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		'01USER00000000000000000001', 'human'
+	)`); err != nil {
+		t.Fatal("insert converted_version row:", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000003', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 3, 'file', 'bogus_reason',
+		'01FILE00000000000000000003', '01USER00000000000000000001', 'human'
+	)`); err == nil {
+		t.Fatal("expected document_versions_reason_check to refuse bogus_reason")
+	}
+	// Re-open fresh tx to test upgrade + down cycle with control rows of all
+	// five legacy reasons (manual, auto, restore, upload, agent).
+	_ = tx.Rollback(ctx)
+	tx, err = pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// Start from the pre-9991792910000010 schema, seed control rows of all old
+	// reasons, run 0010.up + 0011.up, insert a converted_version row, then run
+	// 0011.down + 0010.down and verify all old reasons remain untouched while
+	// only converted_version becomes upload.
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792910000011_document_versions_converted_reason_validate.down.sql")); err != nil {
+		t.Fatal("pre-seed validate down:", err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792910000010_document_versions_converted_reason.down.sql")); err != nil {
+		t.Fatal("pre-seed converted_reason down:", err)
+	}
+	oldReasons := []string{"manual", "auto", "restore", "upload", "agent"}
+	for i, r := range oldReasons {
+		id := fmt.Sprintf("01OLDVER00000000000000000%d", i+1)
+		fileID := fmt.Sprintf("01OLDFILE0000000000000000%d", i+1)
+		if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+			id, organization_id, workspace_id, document_id, version, kind, reason,
+			file_id, mime_type, size_bytes, checksum_sha256,
+			created_by, created_by_kind
+		) VALUES ($1, '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+			'01DOC000000000000000000001', $2, 'file', $3,
+			$4, 'application/msword', 1024, 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+			'01USER00000000000000000001', 'human')`, id, int32(i+1), r, fileID); err != nil {
+			t.Fatalf("insert pre-upgrade control row (%s): %v", r, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, upSQL); err != nil {
+		t.Fatal("up migration 0010 over control rows:", err)
+	}
+	var midValidated bool
+	if err := tx.QueryRow(ctx, `SELECT convalidated FROM pg_constraint WHERE conname = 'document_versions_reason_check'`).Scan(&midValidated); err != nil {
+		t.Fatal("query midValidated:", err)
+	}
+	if midValidated {
+		t.Fatal("document_versions_reason_check should be NOT VALID before 0011 runs")
+	}
+	if _, err := tx.Exec(ctx, validateSQL); err != nil {
+		t.Fatal("up migration 0011 over control rows:", err)
+	}
+	if err := tx.QueryRow(ctx, `SELECT convalidated FROM pg_constraint WHERE conname = 'document_versions_reason_check'`).Scan(&midValidated); err != nil {
+		t.Fatal("query validated after 0011:", err)
+	}
+	if !midValidated {
+		t.Fatal("document_versions_reason_check should be validated after 0011 runs")
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO document_versions (
+		id, organization_id, workspace_id, document_id, version, kind, reason,
+		file_id, mime_type, size_bytes, checksum_sha256,
+		converted_from_version, converted_from_checksum,
+		created_by, created_by_kind
+	) VALUES (
+		'01CONVVER00000000000000006', '01ORGA00000000000000000001', '01WSPC00000000000000000001',
+		'01DOC000000000000000000001', 6, 'file', 'converted_version',
+		'01FILE00000000000000000006', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		2048, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		'01USER00000000000000000001', 'human'
+	)`); err != nil {
+		t.Fatal("insert converted_version row before down:", err)
+	}
+	for i, wantReason := range oldReasons {
+		id := fmt.Sprintf("01OLDVER00000000000000000%d", i+1)
+		var gotReason string
+		if err := tx.QueryRow(ctx, `SELECT reason FROM document_versions WHERE id = $1`, id).Scan(&gotReason); err != nil {
+			t.Fatal(err)
+		}
+		if gotReason != wantReason {
+			t.Fatalf("control row %s reason after up = %q, want %q", id, gotReason, wantReason)
+		}
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792910000011_document_versions_converted_reason_validate.down.sql")); err != nil {
+		t.Fatal("down migration 0011:", err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792910000010_document_versions_converted_reason.down.sql")); err != nil {
+		t.Fatal("down migration 0010:", err)
+	}
+	var reason string
+	if err := tx.QueryRow(ctx, `SELECT reason FROM document_versions WHERE id = '01CONVVER00000000000000006'`).Scan(&reason); err != nil {
+		t.Fatal(err)
+	}
+	if reason != "upload" {
+		t.Fatalf("converted row reason after down = %q, want upload", reason)
+	}
+	for i, wantReason := range oldReasons {
+		id := fmt.Sprintf("01OLDVER00000000000000000%d", i+1)
+		wantFileID := fmt.Sprintf("01OLDFILE0000000000000000%d", i+1)
+		var gotReason, gotFileID, gotMime string
+		var gotSize int64
+		if err := tx.QueryRow(ctx, `SELECT reason, file_id, mime_type, size_bytes FROM document_versions WHERE id = $1`, id).Scan(&gotReason, &gotFileID, &gotMime, &gotSize); err != nil {
+			t.Fatal(err)
+		}
+		if gotReason != wantReason || gotFileID != wantFileID || gotMime != "application/msword" || gotSize != 1024 {
+			t.Fatalf("control row %s after down = (%q, %q, %q, %d), want (%q, %q, application/msword, 1024)",
+				id, gotReason, gotFileID, gotMime, gotSize, wantReason, wantFileID)
+		}
+	}
+}

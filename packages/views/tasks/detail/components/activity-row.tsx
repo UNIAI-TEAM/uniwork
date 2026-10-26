@@ -43,6 +43,38 @@ function viaClient(event: AuditEvent, askUni: string): string {
   return typeof name === "string" ? name : "";
 }
 
+function extractDriveFileName(event: AuditEvent): string {
+  const raw = event.metadata?.drive_file_name;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+function resolveActionLabel(
+  event: AuditEvent,
+  labels: { action: (action: string) => string },
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const fileName = extractDriveFileName(event);
+  if (event.action === "task.drive_file_linked") {
+    return fileName
+      ? t("tasks.detail.activity_drive_file_linked", { name: fileName })
+      : labels.action(event.action);
+  }
+  if (event.action === "task.drive_file_unlinked") {
+    return fileName
+      ? t("tasks.detail.activity_drive_file_unlinked", { name: fileName })
+      : labels.action(event.action);
+  }
+  if (
+    event.action === "task.created" &&
+    event.metadata?.source === "drive_task_proposal"
+  ) {
+    return fileName
+      ? t("tasks.detail.activity_created_from_drive_proposal", { name: fileName })
+      : t("tasks.detail.activity_created_from_drive_proposal_unnamed");
+  }
+  return labels.action(event.action);
+}
+
 /**
  * One row of the immutable log rendered inside the task timeline, told with
  * the same words and the same glyphs as the organization-wide audit log: the
@@ -95,7 +127,7 @@ export function TaskActivityRow({
         {actorName ?? shortId(event.actor_id)}
       </span>
       {via ? <span>{t("tasks.detail.activity_via", { client: via })}</span> : null}
-      <span>{labels.action(event.action)}</span>
+      <span>{resolveActionLabel(event, labels, t)}</span>
       {changes.length > 0 ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {changes.map(([field, change]) => (

@@ -122,27 +122,6 @@ vi.mock("@uniwork/core/audit", async (importOriginal) => {
   };
 });
 
-vi.mock("@uniwork/core/feature-flags", () => ({
-  usePublicConfig: () => ({
-    data: {
-      flags: {},
-      rum_sample_rate: 0,
-      work_management_capabilities: {
-        "tasks.agent_runs": {
-          status: "unavailable",
-          reason_code: "agent_runtime_missing",
-          explanation_key: "capabilities.agent_runtime_missing",
-        },
-        "tasks.vcs": {
-          status: "unavailable",
-          reason_code: "vcs_provider_missing",
-          explanation_key: "capabilities.vcs_provider_missing",
-        },
-      },
-    },
-  }),
-}));
-
 vi.mock("../../../editor", () => {
   const ContentEditor = forwardRef(function MockContentEditor(
     {

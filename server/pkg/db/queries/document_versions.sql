@@ -6,14 +6,16 @@
 INSERT INTO document_versions (
   id, organization_id, workspace_id, document_id, version, kind, reason,
   label, content, file_id, mime_type, size_bytes, checksum_sha256,
-  restored_from, engine_name, engine_version, contract_version,
+  restored_from, converted_from_version, converted_from_checksum,
+  engine_name, engine_version, contract_version,
   protocol_version, created_by, created_by_kind
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(version), sqlc.arg(kind), sqlc.arg(reason),
   sqlc.arg(label), sqlc.arg(content), sqlc.arg(file_id), sqlc.arg(mime_type),
   sqlc.arg(size_bytes), sqlc.arg(checksum_sha256),
-  sqlc.arg(restored_from), sqlc.arg(engine_name), sqlc.arg(engine_version),
+  sqlc.arg(restored_from), sqlc.arg(converted_from_version), sqlc.arg(converted_from_checksum),
+  sqlc.arg(engine_name), sqlc.arg(engine_version),
   sqlc.arg(contract_version),
   sqlc.arg(protocol_version), sqlc.arg(created_by), sqlc.arg(created_by_kind)
 )
@@ -111,6 +113,7 @@ RETURNING *;
 -- name: ListDocumentVersionsPage :many
 SELECT id, organization_id, workspace_id, document_id, version, kind, reason,
   label, file_id, mime_type, size_bytes, checksum_sha256, restored_from,
+  converted_from_version, converted_from_checksum,
   engine_name, engine_version, contract_version, protocol_version,
   created_by, created_by_kind, created_at
 FROM document_versions
