@@ -1,0 +1,4 @@
+$ cd /tmp/devbase; for i in $(seq 1 14); do test -f /tmp/pr8r3e2e-dev-b-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr8r3e2e-dev-b-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr8r3e2e-dev-b-e2e.log
+DONE_FILE=no
+  ✓  105 landing-playback.spec.ts:101:1 › current Chat and Ask UNI films also play on phones (7.2s)
+  ✓  106 landing-playback.spec.ts:123:1 › original UNI wears the shared mark and retains its static fallback (1.6s)
