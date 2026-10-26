@@ -1,0 +1,28 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18605 FRONTEND_ORIGIN=http://localhost:3055 API_PUBLIC_URL=http://localhost:18605 PREVIEW_ORIGIN=http://localhost:3056 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18605 NEXT_PUBLIC_WS_URL=ws://localhost:18605 NEXT_PUBLIC_APP_URL=http://localhost:3055 E2E_BASE_URL=http://localhost:3055 E2E_API_URL=http://localhost:18605 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; NEXT_PUBLIC_API_URL=http://localhost:18605 pnpm --filter @uniwork/e2e exec playwright test documents.spec.ts documents-home.spec.ts documents-versions.spec.ts chat-document-share.spec.ts onboarding-contrast.spec.ts > /tmp/dwd-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/dwd-E2E.log | tail -n 60; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/dwd-E2E.log; echo; echo "E2E_EXIT=$rc"
+
+Running 17 tests using 1 worker
+
+(node:33071) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 chat-document-share.spec.ts:57:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it (13.3s)
+  ✓   2 chat-document-share.spec.ts:182:1 › the sender turns an old file message into a document card in place (4.2s)
+  ✓   3 chat-document-share.spec.ts:210:1 › a new version uploaded from the card writes a version line into the conversation (4.8s)
+  ✓   4 chat-document-share.spec.ts:254:1 › inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7) (4.2s)
+  ✓   5 documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home (8.4s)
+  ✓   6 documents-home.spec.ts:129:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (4.3s)
+  ✓   7 documents-home.spec.ts:180:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.8s)
+  ✓   8 documents-home.spec.ts:297:3 › a view-only member › sees create controls at the root, and a shared page without its owner's folder (3.8s)
+  ✓   9 documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (3.8s)
+  ✓  10 documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (8.1s)
+  ✓  11 documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it (17.0s)
+  ✓  12 documents.spec.ts:92:1 › a page is created, typed into, and survives a reload (7.3s)
+  ✓  13 documents.spec.ts:140:1 › a file document takes a new version and downloads it (4.2s)
+  ✓  14 documents.spec.ts:183:1 › the library lists pages across its views and the tree opens one (6.0s)
+  ✓  15 documents.spec.ts:261:1 › the library and the page editor never call the Office service (2.6s)
+  ✓  16 onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — light (2.1s)
+  ✓  17 onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — dark (2.1s)
+
+  17 passed (2.3m)
+  17 passed (2.3m)
+
+E2E_EXIT=0
