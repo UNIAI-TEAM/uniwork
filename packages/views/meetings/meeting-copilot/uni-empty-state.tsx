@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next";
 import { useMeetingCarriedOverItems } from "@uniwork/core/meetings/action-items";
 import type { MeetingFeedKind } from "@uniwork/core/meetings/feed";
 import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
+import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
+import { MeetingPersonAvatar } from "../meeting-person";
 import type { ScribeChipState } from "../meeting-scribe-chip";
+import { useMemberIndex } from "../use-member-index";
 import { FeedKindMark } from "./feed-filter-chips";
 
 // The sample rows hint at what will appear; each bar is a different length so they read as text.
@@ -20,15 +23,26 @@ const SAMPLES: readonly { kind: MeetingFeedKind; label: string; bar: string }[] 
  */
 export function UniEmptyState({
   meetingId,
+  workspaceId,
   scribeState,
   onOpenCarried,
 }: {
   meetingId: string;
+  workspaceId: string;
   scribeState: ScribeChipState;
   onOpenCarried: () => void;
 }) {
   const { t } = useTranslation();
-  const total = useMeetingCarriedOverItems(meetingId).data?.total ?? 0;
+  const carriedOver = useMeetingCarriedOverItems(meetingId).data;
+  const { memberOf, members } = useMemberIndex(workspaceId);
+  const total = carriedOver?.total ?? 0;
+  // Up to two people the open items wait on, each once; an assignee no member list names has no face.
+  const owners = [...new Set(carriedOver?.items.map((item) => item.task.assignee_id))]
+    .flatMap((id) => {
+      const member = memberOf(id);
+      return member ? [member] : [];
+    })
+    .slice(0, 2);
   const off = scribeState === "off";
   const carried = t("meetings.panel.empty.carried", { count: total });
   const carriedFrom = t("meetings.panel.empty.carriedFrom");
@@ -59,16 +73,30 @@ export function UniEmptyState({
         <button
           type="button"
           aria-label={`${carried}, ${carriedFrom}`}
-          className="mb-3 flex w-full items-center gap-2.5 rounded-[14px] border border-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover"
+          className="group mb-3 flex w-full items-center gap-2.5 rounded-[14px] border border-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover"
           onClick={onOpenCarried}
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-surface-hover text-muted-foreground">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-surface-hover text-muted-foreground group-hover:bg-surface">
             <RotateCcwClock aria-hidden className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-label font-semibold text-foreground">{carried}</span>
             <span className="block text-caption text-muted-foreground">{carriedFrom}</span>
           </span>
+          {owners.length > 0 ? (
+            <span className="flex">
+              {owners.map((member) => (
+                <MeetingPersonAvatar
+                  key={member.user_id}
+                  name={member.display_name ?? ""}
+                  avatarUrl={member.avatar_url}
+                  size={22}
+                  tint={meetingAvatarTint(member.user_id, members)}
+                  className="ring-2 ring-surface not-first:-ml-1.5"
+                />
+              ))}
+            </span>
+          ) : null}
           <ChevronRight aria-hidden className="size-4 shrink-0 text-faint-foreground" />
         </button>
       ) : null}
