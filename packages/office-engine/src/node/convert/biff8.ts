@@ -308,15 +308,15 @@ function columnName(col: number): string {
 
 function decodeRk(rk: number): number {
   let value: number;
-  if (rk & 1) {
-    value = rk >> 2; // signed 30-bit integer
+  if (rk & 2) {
+    value = rk >> 2; // signed 30-bit integer (fInt, bit 1)
   } else {
     const buffer = new ArrayBuffer(8);
     const view = new DataView(buffer);
     view.setUint32(0, rk & 0xfffffffc);
     value = view.getFloat64(0);
   }
-  return rk & 2 ? value / 100 : value;
+  return rk & 1 ? value / 100 : value; // fX100, bit 0
 }
 
 function numberText(value: number): string {

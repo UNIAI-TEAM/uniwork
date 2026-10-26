@@ -312,6 +312,16 @@ const (
 	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
 	ActionEmailHubAccountAuthFailed   = "email_hub_account.auth_failed"
 
+	// Google Drive connector (UNI-2172, spec §11): the owner connects or
+	// reconnects a Google Drive account, a callback is refused for a policy/scope/account
+	// mismatch reason, a refresh grant is refused at Google (invalid_grant), or
+	// the connection is disconnected (manually or by organization/account lifecycle).
+	ActionDriveConnectionConnected    = "drive_connection.connected"
+	ActionDriveConnectionReconnected  = "drive_connection.reconnected"
+	ActionDriveConnectionRefused      = "drive_connection.refused"
+	ActionDriveConnectionAuthFailed   = "drive_connection.auth_failed"
+	ActionDriveConnectionDisconnected = "drive_connection.disconnected"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended    = "organization.suspended"

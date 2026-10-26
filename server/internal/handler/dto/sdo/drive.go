@@ -31,9 +31,9 @@ type DriveConnectionListSDO struct {
 
 // DrivePickerTokenSDO is POST /api/v1/workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token (spec §7.1).
 type DrivePickerTokenSDO struct {
-	AccessToken  string `json:"access_token" description:"Access token Google ngắn hạn (scope drive.file) của đúng kết nối được chọn, chỉ dùng cho Google Picker trên trình duyệt" example:"ya29.a0AfH6SM..."`
+	AccessToken  string `json:"access_token" description:"Access token Google ngắn hạn (scope drive.file) của đúng kết nối được chọn, chỉ dùng cho Google Picker trên trình duyệt" example:"picker-tok"`
 	ExpiresAt    string `json:"expires_at" format:"date-time" description:"Thời điểm hết hạn của access token (RFC3339)" example:"2026-10-26T10:00:00Z"`
-	DeveloperKey string `json:"developer_key" description:"Google Picker API developer key giới hạn theo HTTP referrer" example:"AIzaSyA1B2C3..."`
+	DeveloperKey string `json:"developer_key" description:"Google Picker API developer key giới hạn theo HTTP referrer" example:"picker-key"`
 	AppID        string `json:"app_id" description:"Google Cloud project number dùng cho Picker setAppId" example:"123456789012"`
 }
 

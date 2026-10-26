@@ -1958,6 +1958,43 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDriveConnectionConnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			_, nonce, err := svc.StartOAuth(f.ctx, Human(f.owner.ID), w.ID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, nonce, "", "")
+			if got := svc.CompleteOAuth(f.ctx, state, "code-connect", "", "", nonce); got != DriveOAuthConnected {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthConnected)
+			}
+		},
+		audit.ActionDriveConnectionReconnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-reconn", "drive-reconn@example.com")
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, "nonce-reconn", conn.ID, "fake-sub-reconn")
+			if got := svc.CompleteOAuth(f.ctx, state, "reconn", "", "", "nonce-reconn"); got != DriveOAuthReconnected {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthReconnected)
+			}
+		},
+		audit.ActionDriveConnectionRefused: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, "nonce-refused", "", "")
+			if got := svc.CompleteOAuth(f.ctx, state, "", "access_denied", "admin_policy_enforced", "nonce-refused"); got != DriveOAuthBlockedByWorkspaceAdmin {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthBlockedByWorkspaceAdmin)
+			}
+		},
+		audit.ActionDriveConnectionDisconnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-disc", "drive-disc@example.com")
+			if err := svc.Disconnect(f.ctx, Human(f.owner.ID), w.ID, conn.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2161,6 +2198,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
 			if !svc.handleAuthError(f.ctx, acc, acc.CredentialVersion, imapclient.ErrAuthFailed) {
 				t.Fatal("expected the account to be marked needs-reconnect")
+			}
+		},
+		audit.ActionDriveConnectionAuthFailed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-authfail", "drive-authfail@example.com")
+			if !svc.markAuthFailed(f.ctx, conn, conn.CredentialVersion, "invalid_grant") {
+				t.Fatal("expected drive connection to be marked needs-reconnect")
 			}
 		},
 		// UNI-1862 BIGUP: chunked multipart upload sessions (> 20 MiB).
@@ -2477,6 +2522,11 @@ func auditActions() []string {
 		audit.ActionEmailHubAccountConnected,
 		audit.ActionEmailHubAccountDisconnected,
 		audit.ActionEmailHubAccountAuthFailed,
+		audit.ActionDriveConnectionConnected,
+		audit.ActionDriveConnectionReconnected,
+		audit.ActionDriveConnectionRefused,
+		audit.ActionDriveConnectionAuthFailed,
+		audit.ActionDriveConnectionDisconnected,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3248,4 +3298,60 @@ func auditMeetingWithMinutes(t *testing.T, f *auditFixture) (*MeetingService, db
 		t.Fatal(err)
 	}
 	return svc, m
+}
+
+func newAuditDriveConnectionService(t *testing.T, f *auditFixture) *DriveConnectionService {
+	t.Helper()
+	svc := NewDriveConnectionService(f.pool, f.q, f.ws, testEmailHubBox(t))
+	svc.SetProvider(NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
+	svc.SetFlags(driveConnectorFlags(t, true))
+	return svc
+}
+
+func sealAuditDriveState(t *testing.T, svc *DriveConnectionService, userID, orgID, wsID, nonce, targetConnID, expectedSub string) string {
+	t.Helper()
+	raw, err := svc.sealOAuthState(driveOAuthState{
+		UserID:             userID,
+		OrganizationID:     orgID,
+		WorkspaceID:        wsID,
+		Provider:           "google",
+		CookieNonce:        nonce,
+		OIDCNonce:          nonce,
+		Verifier:           "ver-1",
+		TargetConnectionID: targetConnID,
+		ExpectedSub:        expectedSub,
+		Exp:                time.Now().Add(driveOAuthStateTTL).Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func seedAuditDriveConnection(t *testing.T, f *auditFixture, svc *DriveConnectionService, sub, email string) db.DriveConnection {
+	t.Helper()
+	refEnc, err := svc.sealSecret("tok-r-" + sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accEnc, err := svc.sealSecret("tok-a-" + sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := f.q.CreateDriveConnection(f.ctx, db.CreateDriveConnectionParams{
+		ID:              util.NewID(),
+		OrganizationID:  f.orgID,
+		UserID:          f.owner.ID,
+		Provider:        "google",
+		GoogleSub:       sub,
+		GoogleEmail:     email,
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return row
 }

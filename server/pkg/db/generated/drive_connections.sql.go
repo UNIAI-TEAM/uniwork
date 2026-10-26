@@ -414,6 +414,30 @@ func (q *Queries) GetDriveConnectionForShare(ctx context.Context, arg GetDriveCo
 	return i, err
 }
 
+const getDriveConnectionSubByID = `-- name: GetDriveConnectionSubByID :one
+SELECT google_sub, disconnected_at
+FROM drive_connections
+WHERE id = $1
+  AND organization_id = $2
+`
+
+type GetDriveConnectionSubByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GetDriveConnectionSubByIDRow struct {
+	GoogleSub      string             `json:"google_sub"`
+	DisconnectedAt pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+func (q *Queries) GetDriveConnectionSubByID(ctx context.Context, arg GetDriveConnectionSubByIDParams) (GetDriveConnectionSubByIDRow, error) {
+	row := q.db.QueryRow(ctx, getDriveConnectionSubByID, arg.ID, arg.OrganizationID)
+	var i GetDriveConnectionSubByIDRow
+	err := row.Scan(&i.GoogleSub, &i.DisconnectedAt)
+	return i, err
+}
+
 const getDriveGrantRevocationForUpdate = `-- name: GetDriveGrantRevocationForUpdate :one
 SELECT google_sub, generation, requested_at, refresh_token_enc, attempt_id, attempt_started_at, resolved_at, last_attempt_started_at, last_resolved_at, attempts, last_error
 FROM drive_grant_revocations
@@ -440,6 +464,45 @@ func (q *Queries) GetDriveGrantRevocationForUpdate(ctx context.Context, googleSu
 		&i.LastError,
 	)
 	return i, err
+}
+
+const listActiveDriveSubsForUser = `-- name: ListActiveDriveSubsForUser :many
+SELECT DISTINCT google_sub
+FROM drive_connections
+WHERE user_id = $1
+  AND ($2::text IS NULL OR organization_id = $2)
+  AND disconnected_at IS NULL
+ORDER BY google_sub ASC
+`
+
+type ListActiveDriveSubsForUserParams struct {
+	UserID         string      `json:"user_id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+}
+
+// tenant: self
+// Lists distinct google_sub values for the user's active Drive connections in
+// one organization or across all organizations (when organization_id is NULL)
+// without row locks so lifecycle paths can acquire sorted global drive_grant
+// advisory locks before locking drive_connections rows (spec §5.3a, §5.3b).
+func (q *Queries) ListActiveDriveSubsForUser(ctx context.Context, arg ListActiveDriveSubsForUserParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveDriveSubsForUser, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var google_sub string
+		if err := rows.Scan(&google_sub); err != nil {
+			return nil, err
+		}
+		items = append(items, google_sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDriveConnectionsByUser = `-- name: ListDriveConnectionsByUser :many
@@ -556,6 +619,8 @@ FROM (
   WHERE o.id = $2
     AND o.organization_id = $3
     AND o.credential_version = $4
+    AND o.access_expires_at IS NOT DISTINCT FROM $5::timestamptz
+    AND o.refresh_token_enc = $6
     AND o.disconnected_at IS NULL
     AND o.auth_failed_at IS NULL
   FOR UPDATE
@@ -565,20 +630,25 @@ RETURNING c.id, c.organization_id, c.user_id, c.provider, c.google_sub, c.google
 `
 
 type MarkDriveConnectionAuthFailedParams struct {
-	Reason            string `json:"reason"`
-	ID                string `json:"id"`
-	OrganizationID    string `json:"organization_id"`
-	CredentialVersion int64  `json:"credential_version"`
+	Reason            string             `json:"reason"`
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	CredentialVersion int64              `json:"credential_version"`
+	PrevExpiresAt     pgtype.Timestamptz `json:"prev_expires_at"`
+	RefreshTokenEnc   string             `json:"refresh_token_enc"`
 }
 
 // Marks the connection lost on invalid_grant / unauthorized_client only when
-// the row still holds the credential_version that failed (spec §5.3).
+// the row still holds the exact credential snapshot (credential_version,
+// access_expires_at, and refresh_token_enc) that failed (spec §5.3).
 func (q *Queries) MarkDriveConnectionAuthFailed(ctx context.Context, arg MarkDriveConnectionAuthFailedParams) (DriveConnection, error) {
 	row := q.db.QueryRow(ctx, markDriveConnectionAuthFailed,
 		arg.Reason,
 		arg.ID,
 		arg.OrganizationID,
 		arg.CredentialVersion,
+		arg.PrevExpiresAt,
+		arg.RefreshTokenEnc,
 	)
 	var i DriveConnection
 	err := row.Scan(

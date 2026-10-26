@@ -63,6 +63,12 @@ WHERE id = sqlc.arg('id')
   AND user_id = sqlc.arg('user_id')
   AND disconnected_at IS NULL;
 
+-- name: GetDriveConnectionSubByID :one
+SELECT google_sub, disconnected_at
+FROM drive_connections
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id');
+
 -- name: GetDriveConnectionForShare :one
 -- Shared lock used when verifying source liveness before saving a task proposal
 -- or creating tasks from a proposal (spec §8.2b).
@@ -92,7 +98,8 @@ WHERE id = sqlc.arg('id')
 
 -- name: MarkDriveConnectionAuthFailed :one
 -- Marks the connection lost on invalid_grant / unauthorized_client only when
--- the row still holds the credential_version that failed (spec §5.3).
+-- the row still holds the exact credential snapshot (credential_version,
+-- access_expires_at, and refresh_token_enc) that failed (spec §5.3).
 UPDATE drive_connections c
 SET auth_failed_at = now(),
     auth_failed_reason = sqlc.arg('reason'),
@@ -105,6 +112,8 @@ FROM (
   WHERE o.id = sqlc.arg('id')
     AND o.organization_id = sqlc.arg('organization_id')
     AND o.credential_version = sqlc.arg('credential_version')
+    AND o.access_expires_at IS NOT DISTINCT FROM sqlc.narg('prev_expires_at')::timestamptz
+    AND o.refresh_token_enc = sqlc.arg('refresh_token_enc')
     AND o.disconnected_at IS NULL
     AND o.auth_failed_at IS NULL
   FOR UPDATE
@@ -134,6 +143,19 @@ FROM (
 ) old
 WHERE c.id = old.id
 RETURNING old.id, old.organization_id, old.user_id, old.google_sub, old.google_email, old.refresh_token_enc;
+
+-- name: ListActiveDriveSubsForUser :many
+-- tenant: self
+-- Lists distinct google_sub values for the user's active Drive connections in
+-- one organization or across all organizations (when organization_id is NULL)
+-- without row locks so lifecycle paths can acquire sorted global drive_grant
+-- advisory locks before locking drive_connections rows (spec §5.3a, §5.3b).
+SELECT DISTINCT google_sub
+FROM drive_connections
+WHERE user_id = sqlc.arg('user_id')
+  AND (sqlc.narg('organization_id')::text IS NULL OR organization_id = sqlc.narg('organization_id'))
+  AND disconnected_at IS NULL
+ORDER BY google_sub ASC;
 
 -- name: DisconnectDriveConnectionsForUser :many
 -- tenant: self
