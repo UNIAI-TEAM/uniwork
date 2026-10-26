@@ -79,6 +79,19 @@ describe("LegacyFormatDialog", () => {
     expect(within(dialog).queryByRole("button", { name: t("office.desktop.menu") })).toBeNull();
   });
 
+  it("keeps a 150-character file name truncated so the footer buttons stay in the card", () => {
+    const longName = `${"Báo cáo kế hoạch ".repeat(9)}.doc`.slice(0, 150);
+    renderDialog({ filename: longName });
+
+    const dialog = screen.getByRole("dialog", { name: t("office.legacy.title") });
+    const fileLine = within(dialog).getByTestId("legacy-format-filename");
+    expect(fileLine).toHaveAttribute("title", longName);
+    expect(fileLine).toHaveClass("truncate", "min-w-0");
+    expect(dialog).toHaveClass("grid-cols-[minmax(0,1fr)]");
+    expect(within(dialog).getByRole("button", { name: t("office.legacy.close") })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: t("office.desktop.action") })).toBeInTheDocument();
+  });
+
   it("calls the desktop launch session and deep link on the primary action, shows the launched status, and does not auto-close or open the install prompt when installed", async () => {
     const { onOpenChange, createSession, launch, loadInstallers } = renderDialog();
 

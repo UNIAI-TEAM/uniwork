@@ -62,17 +62,17 @@ export function LegacyFormatDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-md"
+        className="grid-cols-[minmax(0,1fr)] sm:max-w-md"
         showCloseButton={false}
         initialFocus={primaryButtonRef}
         aria-describedby="office-legacy-format-description"
         data-testid="legacy-format-dialog"
       >
-        <DialogHeader>
+        <DialogHeader className="min-w-0">
           <DialogTitle>{t("title")}</DialogTitle>
           {trimmedName ? (
             <p
-              className="truncate text-caption font-medium text-foreground"
+              className="min-w-0 truncate text-caption text-muted-foreground"
               title={trimmedName}
               data-testid="legacy-format-filename"
             >
