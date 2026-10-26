@@ -321,6 +321,7 @@ const (
 	ActionDriveConnectionRefused      = "drive_connection.refused"
 	ActionDriveConnectionAuthFailed   = "drive_connection.auth_failed"
 	ActionDriveConnectionDisconnected = "drive_connection.disconnected"
+	ActionDriveFileRead               = "drive_file.read"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
