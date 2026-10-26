@@ -5101,7 +5101,15 @@
       "scribeOnFailed": "Could not turn on UNI Scribe. This meeting is not being transcribed."
     },
     "panel": {
-      "collapse": "Collapse panel"
+      "collapse": "Collapse panel",
+      "summary": {
+        "title": "Summary so far",
+        "update": "Update summary",
+        "copy": "Copy summary",
+        "none": "No summary yet",
+        "create": "Create",
+        "sourcesHelp": "What the AI read"
+      }
     }
   },
   "calendar": {

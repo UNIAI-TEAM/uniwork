@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ConfirmDialog } from "../../common/form-dialog";
-import { Notice } from "../../common/notice";
+import { Notice, type NoticeTone } from "../../common/notice";
 import type { SummaryGeneration } from "./use-summary-generation";
 
 /**
@@ -71,12 +71,21 @@ export function SummaryRegenerateConfirm({ gen }: { gen: SummaryGeneration }) {
  * said it, so the notice stays quiet; Retry only where a second try can help,
  * and through the same door as the button: it asks before replacing a summary.
  */
-export function SummaryFailureNotice({ gen, className }: { gen: SummaryGeneration; className?: string }) {
+export function SummaryFailureNotice({
+  gen,
+  tone = "destructive",
+  className,
+}: {
+  gen: SummaryGeneration;
+  /** The room's summary card says it as an amber strip inside the card. */
+  tone?: NoticeTone;
+  className?: string;
+}) {
   const { t } = useTranslation();
   if (!gen.failure) return null;
   return (
     <Notice
-      tone="destructive"
+      tone={tone}
       icon={CircleAlert}
       layout="inline"
       live="off"

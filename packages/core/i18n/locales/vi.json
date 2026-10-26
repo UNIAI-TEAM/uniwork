@@ -5100,7 +5100,15 @@
       "scribeOnFailed": "Chưa bật được Thư ký UNI. Cuộc họp này chưa được ghi lời thoại."
     },
     "panel": {
-      "collapse": "Thu gọn bảng"
+      "collapse": "Thu gọn bảng",
+      "summary": {
+        "title": "Tóm tắt đến giờ",
+        "update": "Cập nhật tóm tắt",
+        "copy": "Sao chép tóm tắt",
+        "none": "Chưa có tóm tắt",
+        "create": "Tạo",
+        "sourcesHelp": "AI viết từ đâu"
+      }
     }
   },
   "calendar": {
