@@ -15,7 +15,6 @@ export interface UseDriveAskUniSeamOptions {
   driveFileId: string;
   file: DriveFile | null;
   detailHref: string;
-  onPropose?: (file: DriveFile) => void;
   onAsk?: (file: DriveFile) => void;
 }
 
@@ -37,7 +36,6 @@ export function useDriveAskUniSeam({
   driveFileId,
   file,
   detailHref,
-  onPropose,
   onAsk,
 }: UseDriveAskUniSeamOptions): DriveAskUniSeamState {
   const nav = useOptionalNavigation();
@@ -75,7 +73,6 @@ export function useDriveAskUniSeam({
     if (proposeParam && file.can_propose && handledProposeFileId.current !== file.id) {
       handledProposeFileId.current = file.id;
       setProposePopoverOpen(true);
-      onPropose?.(file);
     }
     if (askParam && askCapsPending && !proposeParam) return;
     if (askParam && file.can_ask && file.viewer_access === "granted") {
@@ -90,8 +87,7 @@ export function useDriveAskUniSeam({
       replace(qs ? `${detailHref}?${qs}` : detailHref);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultAskOpener is recreated per render; trigger once per file/param
-  }, [file, proposeParam, askParam, askCapsPending, onPropose, onAsk, hasDefaultAskOpener, replace, searchParams, detailHref]);
-
+  }, [file, proposeParam, askParam, askCapsPending, onAsk, hasDefaultAskOpener, replace, searchParams, detailHref]);
   const askGranted = file?.viewer_access === "granted";
   const showAsk = Boolean(file && hasAskSeam && (file.can_ask || !askGranted));
   const askDisabled = !askGranted || !file?.can_ask;

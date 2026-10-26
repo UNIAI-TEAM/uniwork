@@ -5,7 +5,9 @@ import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, Ellipsis, PanelBott
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
-import { useCreateDriveTaskProposal, useDriveConnections, useLinkDriveFiles, type DriveTaskProposal } from "@uniwork/core/drive";
+import { useAiCapabilities } from "@uniwork/core/ai";
+import { ApiError } from "@uniwork/core/api";
+import { useCreateDriveTaskProposal, useDriveConnections, useLinkDriveFiles } from "@uniwork/core/drive";
 import { useDriveFile, useDriveFiles } from "@uniwork/core/drive-library";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
@@ -29,7 +31,7 @@ import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type Co
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskDriveChips } from "./create-task-drive-attachments";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
-import { DriveProposalErrorNotice, DriveRecreateWarning, handOffDriveProposalToReview, resolveDriveProposalError, type DriveProposalErrorResolution } from "./drive-task-proposal-popover";
+import { DriveProposalErrorNotice, DriveRecreateWarning, resolveDriveProposalError, useDriveProposalReview, type DriveProposalErrorResolution } from "./drive-task-proposal-popover";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
 import { PriorityPicker } from "./pickers/priority-picker";
@@ -46,8 +48,6 @@ export type CreateTaskAgentPanelProps = {
   setIsExpanded: (expanded: boolean) => void;
   createAnother: boolean;
   setCreateAnother: (createAnother: boolean) => void;
-  /** Seam for W7 (`packages/views/tasks/drive-proposals/`): invoked with the created proposal ID + DTO. */
-  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void;
 };
 
 function initialOf(name: string): string {
@@ -108,18 +108,13 @@ function AgentPicker({ agents, selected, onChange }: { agents: Agent[]; selected
   );
 }
 
-/**
- * Agent quick-create panel (spec §8.1, §8.2, §8.8).
- * Without a Drive chip: remains capability-gated (`tasks.create.agent_unavailable`).
- * With a Drive chip: replaces `AgentPicker` with "Tạo bởi UNI", requires no `selectedAgent`,
- * hides priority/due/upload buttons, shows the reading-account line + re-creation warning,
- * and submits to `POST .../drive-files/{id}/task-proposals`.
- */
-export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother, onProposalReady }: CreateTaskAgentPanelProps) {
+/** Agent quick-create remains capability-gated until the runtime API lands. */
+export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother }: CreateTaskAgentPanelProps) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
   const workspaceName = workspaceContext?.workspace.name ?? t("tasks.new");
   const sendShortcut = useShortcut("send");
+  const proposalReview = useDriveProposalReview();
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
@@ -128,8 +123,6 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const initialDraft = draftFor(workspaceId) ?? draftFromDefaults(undefined, settingsFor(workspaceId));
   const [draft, setDraft] = useState<CreateTaskDraft>(() => ({
     ...initialDraft,
-    projectId: initialDraft.projectId ?? (typeof carry?.project_id === "string" ? carry.project_id : undefined),
-    parentTaskId: initialDraft.parentTaskId ?? (typeof carry?.parent_task_id === "string" ? carry.parent_task_id : undefined),
     agentPrompt: initialDraft.agentPrompt ?? (typeof carry?.prompt === "string" ? carry.prompt : initialDraft.description),
   }));
   const draftRef = useRef(draft);
@@ -141,7 +134,10 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const [showDueDate, setShowDueDate] = useState(Boolean(draft.dueDate));
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [proposalError, setProposalError] = useState<DriveProposalErrorResolution | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const primaryDriveChip = draft.driveFiles?.[0];
   const hasDriveChip = Boolean(primaryDriveChip);
@@ -152,26 +148,23 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const uploadGate = useUploadGate(editorRef);
 
+  const aiCaps = useAiCapabilities(workspaceId, hasDriveChip && Boolean(workspaceId));
   const connectionsQuery = useDriveConnections(workspaceId, { enabled: hasDriveChip });
   const driveLibraryQuery = useDriveFiles(workspaceId, {
     connectionId: primaryDriveChip?.connectionId ?? null,
     enabled: hasDriveChip && !primaryDriveChip?.driveFileId,
   });
-  const matchingLibraryFile = useMemo(() => {
-    if (!primaryDriveChip) return undefined;
-    const pages = driveLibraryQuery.data?.pages ?? [];
-    for (const page of pages) {
-      const found = page.files.find((f) => f.external_file_id === primaryDriveChip.externalFileId);
-      if (found) return found;
-    }
-    return undefined;
-  }, [driveLibraryQuery.data?.pages, primaryDriveChip]);
+  const matchingLibraryFile = useMemo(
+    () => primaryDriveChip ? (driveLibraryQuery.data?.pages ?? []).flatMap((p) => p.files).find((f) => f.external_file_id === primaryDriveChip.externalFileId) : undefined,
+    [driveLibraryQuery.data?.pages, primaryDriveChip],
+  );
 
   const resolvedDriveFileId = primaryDriveChip?.driveFileId ?? matchingLibraryFile?.id;
   const driveFileDetailQuery = useDriveFile(workspaceId, resolvedDriveFileId ?? "", {
     enabled: hasDriveChip && Boolean(resolvedDriveFileId),
   });
   const resolvedDriveFile = driveFileDetailQuery.data ?? matchingLibraryFile;
+  const isDriveSendBlocked = aiCaps.data?.enabled === false || resolvedDriveFile?.can_propose === false;
 
   const linkDriveFilesMutation = useLinkDriveFiles(workspaceId);
   const createProposalMutation = useCreateDriveTaskProposal(workspaceId);
@@ -210,12 +203,14 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     const seed = agents.find((agent) => agent.id === carriedAgentId) ?? agents[0];
     if (seed) updateDraft({ agentId: seed.id });
   }, [agents, carry?.agent_id, hasDriveChip, selectedAgent, updateDraft]);
-
   const uploadFile = async (file: File, _uploadId: string): Promise<UploadResult | null> => {
     uploadCountRef.current += 1;
     setUploadCount(uploadCountRef.current);
     try {
-      const attachment = await uploadAttachment.mutateAsync({ file, purpose: editorAttachmentPurpose(file) });
+      const attachment = await uploadAttachment.mutateAsync({
+        file,
+        purpose: editorAttachmentPurpose(file),
+      });
       const attachments = draftRef.current.attachments ?? [];
       if (!attachments.some((item) => item.id === attachment.id)) updateDraft({ attachments: [...attachments, attachment] });
       return toUploadResult(attachment);
@@ -234,12 +229,14 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   });
   const isUploading = uploadCount > 0 || uploadGate.uploading;
 
-  const cancelProposalReading = () => { abortController?.abort(); setAbortController(null); linkDriveFilesMutation.reset(); createProposalMutation.reset(); };
+  const cancelProposalReading = () => { abortRef.current?.abort(); abortRef.current = null; setAbortController(null); linkDriveFilesMutation.reset(); createProposalMutation.reset(); };
 
   const submitDriveProposal = async () => {
-    if (!primaryDriveChip || isProposing || isUploading || uploadGate.isBlocked()) return;
+    if (!primaryDriveChip || isDriveSendBlocked || isProposing || isUploading || uploadGate.isBlocked()) return;
+    const warningWasShown = hasPriorCreations;
     setProposalError(null);
     const controller = new AbortController();
+    abortRef.current = controller;
     setAbortController(controller);
 
     try {
@@ -248,19 +245,27 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         const linkResults = await linkDriveFilesMutation.mutateAsync({
           connection_id: primaryDriveChip.connectionId,
           external_file_ids: [primaryDriveChip.externalFileId],
+          signal: controller.signal,
         });
         if (controller.signal.aborted) return;
         const firstResult = linkResults.results[0];
         if (!firstResult || firstResult.outcome === "error" || !firstResult.file?.id) {
+          abortRef.current = null;
           setAbortController(null);
-          setProposalError(resolveDriveProposalError({ code: firstResult?.error_code ?? "default", name: "ApiError" }, t));
+          setProposalError(resolveDriveProposalError(new ApiError(firstResult?.error_message ?? "link failed", firstResult?.error_code ?? "default", 422), t));
           return;
         }
         targetDriveFileId = firstResult.file.id;
+        const linkedTasksCreated = firstResult.file.tasks_created;
         const updatedDriveFiles = (draftRef.current.driveFiles ?? []).map((df, idx) =>
-          idx === 0 ? { ...df, driveFileId: targetDriveFileId } : df,
+          idx === 0 ? { ...df, driveFileId: targetDriveFileId, ...(linkedTasksCreated ? { tasksCreated: linkedTasksCreated } : {}) } : df,
         );
         updateDraft({ driveFiles: updatedDriveFiles });
+        if (!warningWasShown && (linkedTasksCreated?.count ?? 0) > 0) {
+          abortRef.current = null;
+          setAbortController(null);
+          return;
+        }
       }
 
       const trimmedPrompt = (editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "").trim();
@@ -275,12 +280,14 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      abortRef.current = null;
       setAbortController(null);
+      if (!proposalReview.open(proposal)) return;
       clearDraft(workspaceId, draftRef.current.idempotencyKey);
       onClose("submitted");
-      handOffDriveProposalToReview({ proposalId: proposal.id, proposal }, onProposalReady);
     } catch (err) {
       if (controller.signal.aborted) return;
+      abortRef.current = null;
       setAbortController(null);
       setProposalError(resolveDriveProposalError(err, t));
     }
@@ -327,19 +334,55 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">
           <Tooltip>
-            <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")} onClick={() => setIsExpanded(!isExpanded)} />}>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+                  onClick={() => setIsExpanded(!isExpanded)}
+                />
+              }
+            >
               {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
             </TooltipTrigger>
-            <TooltipContent side="bottom">{isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}</TooltipContent>
+            <TooltipContent side="bottom">
+              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50" aria-label={t("tasks.create.save_draft")} aria-disabled={isUploading || isProposing || undefined} onClick={saveCurrentDraft} />}>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-label={t("tasks.create.save_draft")}
+                  aria-disabled={isUploading || isProposing || undefined}
+                  onClick={saveCurrentDraft}
+                />
+              }
+            >
               <PanelBottomClose className="size-4" aria-hidden />
             </TooltipTrigger>
             <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={t("common.close")} onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }} />}>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={t("common.close")}
+                  onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }}
+                />
+              }
+            >
               <X className="size-4" aria-hidden />
             </TooltipTrigger>
             <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
@@ -385,9 +428,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
             driveFiles={draft.driveFiles}
             onRemove={(df) => {
               if (isProposing) return;
-              const remaining = (draft.driveFiles ?? []).filter(
-                (item) => !(item.connectionId === df.connectionId && item.externalFileId === df.externalFileId),
-              );
+              const remaining = (draft.driveFiles ?? []).filter((item) => !(item.connectionId === df.connectionId && item.externalFileId === df.externalFileId));
               setProposalError(null);
               updateDraft({ driveFiles: remaining.length ? remaining : undefined });
             }}
@@ -395,16 +436,10 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
           <p data-testid="create-task-agent-drive-reader-line" className="px-5 text-caption text-muted-foreground">
             {readerAccountEmail ? t("drive.proposals.reader_line", { email: readerAccountEmail }) : t("drive.proposals.reader_line_no_email")}
           </p>
-          {hasPriorCreations ? (
-            <div className="px-5">
-              <DriveRecreateWarning id={warningId} tasksCreated={tasksCreated} detailHref={detailHref} />
-            </div>
-          ) : null}
-          {proposalError ? (
-            <div className="px-5">
-              <DriveProposalErrorNotice error={proposalError} openUrl={resolvedDriveFile?.open_url} />
-            </div>
-          ) : null}
+          <div className={hasPriorCreations ? "px-5" : "sr-only"}>
+            <DriveRecreateWarning id={warningId} tasksCreated={tasksCreated} detailHref={detailHref} />
+          </div>
+          {proposalError ? <div className="px-5"><DriveProposalErrorNotice error={proposalError} openUrl={resolvedDriveFile?.open_url} /></div> : null}
         </div>
       ) : null}
 
@@ -425,11 +460,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
       </div>
 
       <div className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
-        <div className="flex min-h-7 items-center gap-2 sm:mr-auto">
-          {!hasDriveChip ? (
-            <FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} />
-          ) : null}
-        </div>
+        <div className="flex min-h-7 items-center gap-2 sm:mr-auto">{!hasDriveChip ? <FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} /> : null}</div>
         <button type="button" disabled={isUploading || isProposing} aria-disabled={isUploading || isProposing || undefined} aria-busy={isUploading || isProposing || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
           <ArrowLeftRight className="size-3.5" aria-hidden />{t("tasks.create.switch_to_manual")}
         </button>
@@ -439,27 +470,23 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
             <span aria-hidden>{t("tasks.create.create_another_short")}</span>
           </label>
         ) : null}
-        {isProposing ? (
-          <div className="flex items-center gap-2 justify-self-end">
-            <span aria-live="polite" className="inline-flex items-center gap-1.5 text-caption text-muted-foreground">
-              <Spinner className="size-3.5" />
-              <span>{t("drive.proposals.reading")}</span>
-            </span>
-            <Button type="button" variant="outline" size="sm" onClick={cancelProposalReading}>
-              {t("drive.proposals.cancel_reading")}
-            </Button>
-          </div>
-        ) : (
+        <div className={isProposing ? "flex items-center gap-2 justify-self-end" : "sr-only"}>
+          <span aria-live="polite" className={isProposing ? "inline-flex items-center gap-1.5 text-caption text-muted-foreground" : "sr-only"}>
+            {isProposing ? <><Spinner className="size-3.5" /><span>{t("drive.proposals.reading")}</span></> : null}
+          </span>
+          {isProposing ? <Button type="button" variant="outline" size="sm" onClick={cancelProposalReading}>{t("drive.proposals.cancel_reading")}</Button> : null}
+        </div>
+        {!isProposing ? (
           <CreateTaskSubmitButton
             type="button"
-            inactive={hasDriveChip ? false : !hasContent || !selectedAgent}
+            inactive={hasDriveChip ? isDriveSendBlocked : !hasContent || !selectedAgent}
             busy={isUploading}
             label={submitLabel}
             shortcut={sendShortcut}
             ariaDescribedBy={hasPriorCreations ? warningId : undefined}
             onClick={submit}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

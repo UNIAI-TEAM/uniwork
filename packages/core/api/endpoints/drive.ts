@@ -105,6 +105,14 @@ export type DrivePickerToken = z.infer<typeof DrivePickerTokenSchema>;
  * omitted by `omitempty` on the server; enums are parsed as `z.string()` so
  * unknown future states degrade without failing the response.
  */
+const DriveTasksCreatedSummarySchema = z.object({
+  count: z.number().int().nonnegative().optional().catch(0).default(0),
+  last_created_at: z.string().optional().catch(undefined),
+  last_created_by_name: z.string().optional().catch(undefined),
+});
+
+export type DriveTasksCreatedSummary = z.infer<typeof DriveTasksCreatedSummarySchema>;
+
 const DriveFileLinkReceiptSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
@@ -119,6 +127,7 @@ const DriveFileLinkReceiptSchema = z.object({
   viewer_access: z.string().optional().default("granted"),
   viewer_connection_id: z.string().optional().catch(undefined),
   viewer_account_email: z.string().optional().catch(undefined),
+  tasks_created: DriveTasksCreatedSummarySchema.optional().catch(undefined),
 });
 
 export type DriveFileLinkReceipt = z.infer<typeof DriveFileLinkReceiptSchema>;
@@ -159,6 +168,7 @@ export interface LinkDriveFilesBody {
   connection_id: string;
   external_file_ids: string[];
   task_id?: string | null;
+  signal?: AbortSignal;
 }
 
 const EMPTY_LINK_RESULTS: DriveFileLinkResults = { results: [] };
@@ -179,6 +189,7 @@ export async function getDrivePickerToken(
 export async function linkDriveFiles(
   workspaceId: string,
   body: LinkDriveFilesBody,
+  signal?: AbortSignal,
 ): Promise<DriveFileLinkResults> {
   const payload: {
     connection_id: string;
@@ -191,22 +202,16 @@ export async function linkDriveFiles(
   if (body.task_id) {
     payload.task_id = body.task_id;
   }
+  const resolvedSignal = signal ?? body.signal;
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/drive-files`, {
     method: "POST",
     body: payload,
+    ...(resolvedSignal !== undefined ? { signal: resolvedSignal } : {}),
   });
   return parseWithFallback(raw, DriveFileLinkResultsSchema, EMPTY_LINK_RESULTS, {
     endpoint: "POST /api/v1/workspaces/{ws}/drive-files",
   });
 }
-
-const DriveTasksCreatedSummarySchema = z.object({
-  count: z.number().int().nonnegative().optional().catch(0).default(0),
-  last_created_at: z.string().optional().catch(undefined),
-  last_created_by_name: z.string().optional().catch(undefined),
-});
-
-export type DriveTasksCreatedSummary = z.infer<typeof DriveTasksCreatedSummarySchema>;
 
 const DriveLinkedTaskRefSchema = z.object({
   task_id: z.string(),
@@ -407,18 +412,18 @@ const DriveTaskProposalSchema = z.object({
   workspace_id: z.string(),
   drive_file_id: z.string(),
   drive_file_name: z.string(),
-  drive_file_mime_type: z.string().optional().default(""),
-  drive_file_icon_kind: z.string().optional().default("generic"),
-  sharing_state: z.string().optional().default("unknown"),
+  drive_file_mime_type: z.string().optional().catch("").default(""),
+  drive_file_icon_kind: z.string().optional().catch("generic").default("generic"),
+  sharing_state: z.string().optional().catch("unknown").default("unknown"),
   connection_id: z.string(),
-  reader_account_email: z.string().optional().default(""),
+  reader_account_email: z.string().optional().catch("").default(""),
   requested_by: z.string(),
   prompt: z.string().optional().catch(undefined),
   project_id: z.string().optional().catch(undefined),
   parent_task_id: z.string().optional().catch(undefined),
   context_task_id: z.string().optional().catch(undefined),
   truncated: z.boolean().optional().catch(false).default(false),
-  status: z.string().optional().default("ready"),
+  status: z.string().optional().catch("ready").default("ready"),
   items: z
     .array(z.unknown())
     .optional()

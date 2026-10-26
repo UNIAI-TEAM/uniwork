@@ -16,8 +16,8 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
 import {
+  DriveProposalReviewProvider,
   DriveProposeTasksPopover,
-  registerDriveProposalReviewSeam,
   resolveDriveProposalError,
 } from "./drive-task-proposal-popover";
 
@@ -99,7 +99,10 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     await setLocale("vi");
     toastError.mockReset();
     requestMock.mockReset();
-    registerDriveProposalReviewSeam(null);
+    requestMock.mockImplementation(async (path: string) => {
+      if (path.endsWith("/ai/capabilities")) return { enabled: true };
+      return {};
+    });
     resetAuthStoreForTests();
     setSessionUser(defaultUser);
     useCreateTaskDraftStore.setState({
@@ -160,6 +163,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
         if (path.endsWith("/agents")) return { agents: [] };
         if (path.endsWith("/projects")) {
           return {
@@ -260,18 +264,19 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     );
 
     const onOpenChange = vi.fn();
-    const onProposalReady = vi.fn();
+    const onReviewOpen = vi.fn();
 
     render(
       renderInWorkspace(
-        <CreateTaskDialog
-          workspaceId="ws1"
-          open
-          showTrigger={false}
-          initialMode="agent"
-          onOpenChange={onOpenChange}
-          onProposalReady={onProposalReady}
-        />,
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={onOpenChange}
+          />
+        </DriveProposalReviewProvider>,
       ),
     );
 
@@ -314,9 +319,9 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       proposalGate.resolve({ proposal: createdProposal });
     });
 
-    // 5. On success, hands proposal ID + DTO to the review step seam and closes dialog
+    // 5. On success, hands proposal to DriveProposalReviewProvider and closes dialog
     await waitFor(() => {
-      expect(onProposalReady).toHaveBeenCalledWith("dtp_99", createdProposal);
+      expect(onReviewOpen).toHaveBeenCalledWith(createdProposal);
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(requestMock).toHaveBeenCalledWith(
@@ -362,6 +367,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
         if (path.endsWith("/agents")) return { agents: [] };
         if (path.endsWith("/projects")) return { projects: [], total: 0 };
         if (path.endsWith("/tasks")) return { tasks: [] };
@@ -428,17 +434,18 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       },
     );
 
-    const onProposalReady = vi.fn();
+    const onReviewOpen = vi.fn();
     render(
       renderInWorkspace(
-        <CreateTaskDialog
-          workspaceId="ws1"
-          open
-          showTrigger={false}
-          initialMode="agent"
-          onOpenChange={() => {}}
-          onProposalReady={onProposalReady}
-        />,
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </DriveProposalReviewProvider>,
       ),
     );
 
@@ -464,8 +471,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     // Warning does not block sending even when prompt is empty
     fireEvent.click(sendAnywayBtn);
     await waitFor(() => {
-      expect(onProposalReady).toHaveBeenCalledWith(
-        "dtp_recreate",
+      expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_recreate" }),
       );
     });
@@ -491,6 +497,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
         if (path === "/api/v1/workspaces/ws1/drive-files/df_1") {
           return {
             file: {
@@ -545,8 +552,357 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       },
     );
 
-    const seamSpy = vi.fn();
-    registerDriveProposalReviewSeam(seamSpy);
+    const onReviewOpen = vi.fn();
+
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    const submitBtn = await screen.findByRole("button", { name: /Gửi cho agent/ });
+    fireEvent.click(submitBtn);
+
+    const cancelBtn = await screen.findByRole("button", { name: "Hủy" });
+    fireEvent.click(cancelBtn);
+
+    // Late resolution after cancel is ignored
+    act(() => {
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_ignored" }) });
+    });
+    expect(onReviewOpen).not.toHaveBeenCalled();
+
+    // Second attempt fails with drive_format_unsupported -> shows error + "Mở trên Google Drive" link
+    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+    const errAlert = await screen.findByTestId("drive-proposal-error");
+    expect(errAlert).toHaveTextContent("UNI chưa đọc được định dạng này.");
+    const openLink = within(errAlert).getByRole("link", {
+      name: "Mở trên Google Drive",
+    });
+    expect(openLink).toHaveAttribute(
+      "href",
+      "https://drive.google.com/file/d/gdoc_1/view?authuser=uni-work1%40gmail.com",
+    );
+  });
+
+  it("keeps the draft, does not close, and shows an error toast when no DriveProposalReviewProvider is mounted (F2)", async () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_no_provider",
+      agentPrompt: "Giữ bản nháp",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_1",
+          driveFileId: "df_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          return { proposal: makeProposal({ id: "dtp_no_provider" }) };
+        }
+        return {};
+      },
+    );
+
+    const onOpenChange = vi.fn();
+    render(
+      renderInWorkspace(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          initialMode="agent"
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
+      );
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.idempotencyKey).toBe(
+      "draft_no_provider",
+    );
+  });
+
+  it("stops after the link step when a freshly picked file has tasks_created.count > 0, renders the re-creation warning + 'Vẫn gửi cho UNI', and waits for a second click (F3, F4)", async () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_fresh_prior",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_fresh_prior",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    let linkCallCount = 0;
+    let proposeCallCount = 0;
+    let linkSignal: AbortSignal | undefined;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; signal?: AbortSignal }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (path.startsWith("/api/v1/workspaces/ws1/drive-files?")) {
+          return { files: [], total_count: 0, next_cursor: null };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files" &&
+          init?.method === "POST"
+        ) {
+          linkCallCount += 1;
+          linkSignal = init.signal;
+          if (linkCallCount === 1) {
+            return {
+              results: [
+                {
+                  external_file_id: "gdoc_fresh_prior",
+                  outcome: "error",
+                  error_code: "drive_grant_required",
+                  error_message: "User has not authorized file",
+                },
+              ],
+            };
+          }
+          return {
+            results: [
+              {
+                external_file_id: "gdoc_fresh_prior",
+                outcome: "already_linked",
+                file: {
+                  id: "df_fresh_prior",
+                  workspace_id: "ws1",
+                  external_file_id: "gdoc_fresh_prior",
+                  name: "Kế hoạch ra mắt Q4",
+                  mime_type: "application/vnd.google-apps.document",
+                  icon_kind: "google_doc",
+                  sharing_state: "shared",
+                  web_view_link: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
+                  open_url: "https://docs.google.com/document/d/gdoc_fresh_prior/edit",
+                  viewer_access: "granted",
+                  tasks_created: {
+                    count: 3,
+                    last_created_by_name: "Lan",
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_fresh_prior/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          proposeCallCount += 1;
+          return { proposal: makeProposal({ id: "dtp_second_click" }) };
+        }
+        return {};
+      },
+    );
+
+    const onReviewOpen = vi.fn();
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    // 1. First click fails with drive_grant_required -> maps through real ApiError to §7.10 copy and passes AbortSignal (F4)
+    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+    const errAlert = await screen.findByTestId("drive-proposal-error");
+    expect(errAlert).toHaveTextContent(
+      "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
+    );
+    expect(linkSignal).toBeInstanceOf(AbortSignal);
+    expect(proposeCallCount).toBe(0);
+
+    // 2. Retry links file with tasks_created.count = 3 -> stops before B5, shows warning and "Vẫn gửi cho UNI" (F3)
+    fireEvent.click(screen.getByRole("button", { name: /Gửi cho agent/ }));
+    const warning = await screen.findByTestId("drive-recreate-warning");
+    expect(warning).toHaveTextContent(
+      "Tài liệu này đã được dùng để tạo 3 việc (bởi Lan). Tạo thêm có thể trùng.",
+    );
+    const sendAnywayBtn = screen.getByRole("button", { name: /Vẫn gửi cho UNI/ });
+    expect(sendAnywayBtn).toHaveAttribute("aria-describedby", warning.id);
+    expect(proposeCallCount).toBe(0);
+    expect(onReviewOpen).not.toHaveBeenCalled();
+
+    // 3. Second click after warning proceeds to B5
+    fireEvent.click(sendAnywayBtn);
+    await waitFor(() => {
+      expect(onReviewOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "dtp_second_click" }),
+      );
+    });
+    expect(proposeCallCount).toBe(1);
+  });
+
+  it("aborts in-flight proposal request on unmount (e.g. Esc / dismiss) so late resolution neither clears the draft nor opens review (F1)", async () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_unmount_abort",
+      agentPrompt: "Đừng xóa khi đóng",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_1",
+          driveFileId: "df_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    const slowGate = Promise.withResolvers<{ proposal: DriveTaskProposal }>();
+    let capturedSignal: AbortSignal | undefined;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; signal?: AbortSignal }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          capturedSignal = init.signal;
+          return slowGate.promise;
+        }
+        return {};
+      },
+    );
+
+    const onReviewOpen = vi.fn();
+    const onOpenChange = vi.fn();
+    const { unmount } = render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={onOpenChange}
+          />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+    expect(await screen.findByText("UNI đang đọc tài liệu…")).toBeInTheDocument();
+
+    unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_after_unmount" }) });
+    });
+
+    expect(onReviewOpen).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.idempotencyKey).toBe(
+      "draft_unmount_abort",
+    );
+  });
+
+  it("gates Drive-mode send when AI capability is disabled or can_propose is false (F5)", async () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_ai_disabled",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_1",
+          driveFileId: "df_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    let proposeCalled = false;
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) {
+          return { enabled: false };
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-files/df_1") {
+          return {
+            file: {
+              id: "df_1",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              external_file_id: "gdoc_1",
+              name: "Kế hoạch ra mắt Q4",
+              mime_type: "application/vnd.google-apps.document",
+              icon_kind: "google_doc",
+              web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+              open_url: "https://docs.google.com/document/d/gdoc_1/edit",
+              owner_display: "Lan",
+              sharing_state: "shared",
+              connection_id: "dc_1",
+              bound_account_email: "uni-work1@gmail.com",
+              bound_connection_lost: false,
+              bound_by_id: "u1",
+              bound_by_name: "Lan",
+              created_by: "u1",
+              created_by_kind: "human",
+              created_by_name: "Lan",
+              created_at: "2026-10-26T08:00:00Z",
+              updated_at: "2026-10-26T08:00:00Z",
+              viewer_access: "granted",
+              can_unlink: false,
+              can_rebind: false,
+              can_propose: false,
+              can_ask: false,
+              used_in_count: 0,
+              used_in_tasks: [],
+              tasks_created: { count: 0 },
+            },
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          proposeCalled = true;
+          return { proposal: makeProposal() };
+        }
+        return {};
+      },
+    );
 
     render(
       renderInWorkspace(
@@ -561,36 +917,20 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     );
 
     const submitBtn = await screen.findByRole("button", { name: /Gửi cho agent/ });
+    await waitFor(() => {
+      expect(submitBtn).toHaveAttribute("aria-disabled", "true");
+    });
+
     fireEvent.click(submitBtn);
-
-    const cancelBtn = await screen.findByRole("button", { name: "Hủy" });
-    fireEvent.click(cancelBtn);
-
-    // Late resolution after cancel is ignored
-    act(() => {
-      slowGate.resolve({ proposal: makeProposal({ id: "dtp_ignored" }) });
-    });
-    expect(seamSpy).not.toHaveBeenCalled();
-
-    // Second attempt fails with drive_format_unsupported -> shows error + "Mở trên Google Drive" link
-    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
-    const errAlert = await screen.findByTestId("drive-proposal-error");
-    expect(errAlert).toHaveTextContent("UNI chưa đọc được định dạng này.");
-    const openLink = within(errAlert).getByRole("link", {
-      name: "Mở trên Google Drive",
-    });
-    expect(openLink).toHaveAttribute(
-      "href",
-      "https://drive.google.com/file/d/gdoc_1/view?authuser=uni-work1%40gmail.com",
-    );
+    expect(proposeCalled).toBe(false);
   });
 });
 
 describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, §8.2, §8.8)", () => {
   beforeEach(async () => {
     await setLocale("vi");
+    toastError.mockReset();
     requestMock.mockReset();
-    registerDriveProposalReviewSeam(null);
   });
 
   it("opens popover, shows reading-account line, optional prompt, re-creation warning, and submits to task-proposals", async () => {
@@ -607,22 +947,23 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       },
     );
 
-    const onProposalReady = vi.fn();
+    const onReviewOpen = vi.fn();
     render(
       renderInWorkspace(
-        <DriveProposeTasksPopover
-          workspaceId="ws1"
-          driveFileId="df_1"
-          readerAccountEmail="uni-work1@gmail.com"
-          openUrl="https://docs.google.com/document/d/gdoc_1/edit"
-          tasksCreated={{
-            count: 2,
-            last_created_at: lastCreatedAt,
-            last_created_by_name: "Minh",
-          }}
-          contextTaskId="t_ctx"
-          onProposalReady={onProposalReady}
-        />,
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <DriveProposeTasksPopover
+            workspaceId="ws1"
+            driveFileId="df_1"
+            readerAccountEmail="uni-work1@gmail.com"
+            openUrl="https://docs.google.com/document/d/gdoc_1/edit"
+            tasksCreated={{
+              count: 2,
+              last_created_at: lastCreatedAt,
+              last_created_by_name: "Minh",
+            }}
+            contextTaskId="t_ctx"
+          />
+        </DriveProposalReviewProvider>,
       ),
     );
 
@@ -649,8 +990,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(onProposalReady).toHaveBeenCalledWith(
-        "dtp_pop_1",
+      expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_pop_1" }),
       );
     });
@@ -666,6 +1006,66 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
         },
       }),
     );
+  });
+
+  it("aborts in-flight popover proposal on unmount and keeps popover open with toast when no DriveProposalReviewProvider is mounted (F1, F2)", async () => {
+    const slowGate = Promise.withResolvers<{ proposal: DriveTaskProposal }>();
+    let capturedSignal: AbortSignal | undefined;
+    let callCount = 0;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; signal?: AbortSignal }) => {
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          callCount += 1;
+          capturedSignal = init.signal;
+          if (callCount === 1) return slowGate.promise;
+          return { proposal: makeProposal({ id: "dtp_pop_no_provider" }) };
+        }
+        return {};
+      },
+    );
+
+    // 1. Unmount while reading aborts signal and ignores late resolution
+    const onReviewOpen = vi.fn();
+    const { unmount } = render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <DriveProposeTasksPopover workspaceId="ws1" driveFileId="df_1" />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Gửi cho agent" }));
+    expect(await screen.findByText("UNI đang đọc tài liệu…")).toBeInTheDocument();
+
+    unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+    await act(async () => {
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_pop_late" }) });
+    });
+    expect(onReviewOpen).not.toHaveBeenCalled();
+
+    // 2. Without provider -> shows error toast and keeps prompt / popover open
+    render(
+      renderInWorkspace(
+        <DriveProposeTasksPopover workspaceId="ws1" driveFileId="df_1" />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu" }));
+    const promptInput = await screen.findByLabelText("Gợi ý cho UNI (tùy chọn)");
+    fireEvent.change(promptInput, { target: { value: "Giữ lại gợi ý" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi cho agent" }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
+      );
+    });
+    expect(screen.getByLabelText("Gợi ý cho UNI (tùy chọn)")).toHaveValue("Giữ lại gợi ý");
   });
 
   it("maps every ErrorSDO code and 429 status to localized §7.10 / §8.2 sentences", () => {

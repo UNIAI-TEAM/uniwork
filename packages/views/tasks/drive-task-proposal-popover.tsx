@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ApiError, errorCode } from "@uniwork/core/api";
 import { useCreateDriveTaskProposal, type DriveTaskProposal, type DriveTasksCreatedSummary } from "@uniwork/core/drive";
 import { paths } from "@uniwork/core/paths";
@@ -15,35 +16,48 @@ import { shortDateFormat } from "../common/date-pill";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 
-export interface DriveProposalReviewStepTarget {
-  proposalId: string;
-  proposal: DriveTaskProposal;
+export interface DriveProposalReviewContextValue {
+  /**
+   * Opens the W7 proposal review dialog for `proposal`. Returns `true` when a
+   * handler is mounted and took ownership, or `false` when no provider is
+   * mounted (after showing a localized error toast so the caller keeps the draft).
+   */
+  open: (proposal: DriveTaskProposal) => boolean;
 }
 
-type DriveProposalReviewSeamHandler = (target: DriveProposalReviewStepTarget) => void;
+const DriveProposalReviewContext = createContext<((proposal: DriveTaskProposal) => void) | null>(null);
 
-let registeredReviewSeamHandler: DriveProposalReviewSeamHandler | null = null;
-
-/**
- * Seam for W7 (`packages/views/tasks/drive-proposals/`): registers a global
- * review-dialog opener, or pass `onProposalReady` directly to the panel/popover.
- * When unset, opening the review step is a clean no-op stub.
- */
-export function registerDriveProposalReviewSeam(
-  handler: DriveProposalReviewSeamHandler | null,
-): void {
-  registeredReviewSeamHandler = handler;
+export interface DriveProposalReviewProviderProps {
+  onOpen: (proposal: DriveTaskProposal) => void;
+  children: ReactNode;
 }
 
-export function handOffDriveProposalToReview(
-  target: DriveProposalReviewStepTarget,
-  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void,
-): void {
-  if (onProposalReady) {
-    onProposalReady(target.proposalId, target.proposal);
-    return;
-  }
-  registeredReviewSeamHandler?.(target);
+export function DriveProposalReviewProvider({
+  onOpen,
+  children,
+}: DriveProposalReviewProviderProps) {
+  return (
+    <DriveProposalReviewContext.Provider value={onOpen}>
+      {children}
+    </DriveProposalReviewContext.Provider>
+  );
+}
+
+export function useDriveProposalReview(): DriveProposalReviewContextValue {
+  const { t } = useTranslation();
+  const onOpen = useContext(DriveProposalReviewContext);
+  const open = useCallback(
+    (proposal: DriveTaskProposal): boolean => {
+      if (onOpen) {
+        onOpen(proposal);
+        return true;
+      }
+      toast.error(t("drive.proposals.errors.review_unavailable"));
+      return false;
+    },
+    [onOpen, t],
+  );
+  return useMemo(() => ({ open }), [open]);
 }
 
 export function formatProposalShortDate(iso: string | undefined, locale: string): string {
@@ -122,7 +136,9 @@ export function DriveRecreateWarning({
 }: DriveRecreateWarningProps) {
   const { t, i18n } = useTranslation();
   const count = tasksCreated?.count ?? 0;
-  if (count <= 0) return null;
+  if (count <= 0) {
+    return <div id={id} role="status" className="sr-only" />;
+  }
 
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "vi";
   const date = formatProposalShortDate(tasksCreated?.last_created_at, locale);
@@ -224,9 +240,8 @@ export interface DriveProposeTasksPopoverProps {
   onViewCreatedTasks?: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void;
   onAccessRequired?: () => void;
-  trigger?: ReactNode;
+  trigger?: ReactElement;
   align?: "start" | "center" | "end";
 }
 
@@ -247,24 +262,26 @@ export function DriveProposeTasksPopover({
   onViewCreatedTasks,
   open: openProp,
   onOpenChange,
-  onProposalReady,
   onAccessRequired,
   trigger,
   align = "start",
 }: DriveProposeTasksPopoverProps) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
+  const proposalReview = useDriveProposalReview();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const [prompt, setPrompt] = useState("");
   const [errorState, setErrorState] = useState<DriveProposalErrorResolution | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const proposeMutation = useCreateDriveTaskProposal(workspaceId);
   const isReading = abortController !== null && proposeMutation.isPending;
-
   const defaultDetailHref = workspaceContext
     ? `${paths
         .workspace(workspaceContext.workspace.organization_slug, workspaceContext.workspace.slug)
@@ -278,7 +295,8 @@ export function DriveProposeTasksPopover({
   const trimmedEmail = readerAccountEmail?.trim() ?? "";
 
   const handleCancelReading = () => {
-    abortController?.abort();
+    abortRef.current?.abort();
+    abortRef.current = null;
     setAbortController(null);
     proposeMutation.reset();
   };
@@ -297,6 +315,7 @@ export function DriveProposeTasksPopover({
     if (isReading) return;
     setErrorState(null);
     const controller = new AbortController();
+    abortRef.current = controller;
     setAbortController(controller);
 
     try {
@@ -311,15 +330,14 @@ export function DriveProposeTasksPopover({
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      abortRef.current = null;
       setAbortController(null);
+      if (!proposalReview.open(proposal)) return;
       setPrompt("");
       setOpen(false);
-      handOffDriveProposalToReview(
-        { proposalId: proposal.id, proposal },
-        onProposalReady,
-      );
     } catch (err) {
       if (controller.signal.aborted) return;
+      abortRef.current = null;
       setAbortController(null);
       const resolved = resolveDriveProposalError(err, t);
       setErrorState(resolved);
@@ -333,7 +351,7 @@ export function DriveProposeTasksPopover({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
-          (trigger as React.ReactElement) ?? (
+          trigger ?? (
             <Button type="button" variant="outline" size="sm">
               <Sparkles className="size-3.5" aria-hidden />
               {t("drive.proposals.propose_button")}
@@ -389,24 +407,30 @@ export function DriveProposeTasksPopover({
         <DriveProposalErrorNotice error={errorState} openUrl={openUrl} />
 
         <div className="flex items-center justify-end gap-2 pt-1">
-          {isReading ? (
-            <>
-              <div
-                aria-live="polite"
-                className="mr-auto inline-flex items-center gap-2 text-caption text-muted-foreground"
-              >
+          <div
+            aria-live="polite"
+            className={
+              isReading
+                ? "mr-auto inline-flex items-center gap-2 text-caption text-muted-foreground"
+                : "sr-only"
+            }
+          >
+            {isReading ? (
+              <>
                 <Spinner className="size-3.5" />
                 <span>{t("drive.proposals.reading")}</span>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCancelReading}
-              >
-                {t("drive.proposals.cancel_reading")}
-              </Button>
-            </>
+              </>
+            ) : null}
+          </div>
+          {isReading ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCancelReading}
+            >
+              {t("drive.proposals.cancel_reading")}
+            </Button>
           ) : (
             <Button
               type="button"

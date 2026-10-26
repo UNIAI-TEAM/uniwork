@@ -14554,7 +14554,8 @@
         "auth_failed": "This Google Drive connection has expired. Reconnect and try again.",
         "blocked_by_workspace_admin": "Your organization's Google Workspace administrator hasn't allowed UniWork to access Google Drive.",
         "not_found": "Could not find this Google Drive file or you do not have access to view it.",
-        "default": "Couldn't create task proposals from this document. Try again."
+        "default": "Couldn't create task proposals from this document. Try again.",
+        "review_unavailable": "Couldn't open the task proposal review right now. Your draft has been kept."
       }
     }
   },

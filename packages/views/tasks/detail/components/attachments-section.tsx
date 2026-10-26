@@ -9,7 +9,6 @@ import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import {
   useDriveConnections,
   useTaskDriveFiles,
-  type DriveTaskProposal,
 } from "@uniwork/core/drive";
 import { EMPTY_CONFIG, usePublicConfig } from "@uniwork/core/feature-flags";
 import {
@@ -61,8 +60,6 @@ export interface TaskDetailAttachmentsSectionProps {
   pickerAdapter?: DrivePickerAdapter;
   /** Whether the viewer can edit the task (add/remove attachments). Defaults to true. */
   canEdit?: boolean;
-  /** Seam for W7 (`packages/views/tasks/drive-proposals/`): invoked when a task proposal batch is ready. */
-  onProposalReady?: (proposalId: string, proposal: DriveTaskProposal) => void;
 }
 
 /**
@@ -79,7 +76,6 @@ export function TaskDetailAttachmentsSection({
   content = "",
   pickerAdapter,
   canEdit = true,
-  onProposalReady,
 }: TaskDetailAttachmentsSectionProps) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
@@ -339,7 +335,6 @@ export function TaskDetailAttachmentsSection({
                     tasksCreated={cardItem.tasks_created}
                     contextTaskId={taskId}
                     parentTaskId={taskId}
-                    onProposalReady={onProposalReady}
                     onAccessRequired={() => {
                       void driveFilesQuery.refetch();
                     }}

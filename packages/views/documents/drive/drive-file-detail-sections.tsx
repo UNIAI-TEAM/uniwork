@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useRebindDriveFile, type DriveFile } from "@uniwork/core/drive-library";
+import { useRebindDriveFile, type DriveFile, type DriveTaskCreationGroup } from "@uniwork/core/drive-library";
 import type { AuditEvent } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -448,6 +448,46 @@ export function DriveFileActivitySection({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+export interface DriveTasksCreatedSectionProps {
+  sectionRef: RefObject<HTMLDivElement | null>;
+  creations: readonly DriveTaskCreationGroup[];
+  totalCreatedCount: number;
+  formatDate: (iso: string | undefined) => string;
+  taskHref: (taskId: string) => string;
+}
+
+export function DriveTasksCreatedSection({ sectionRef, creations, totalCreatedCount, formatDate, taskHref }: DriveTasksCreatedSectionProps) {
+  const { t } = useTranslation();
+  if (creations.length === 0 && totalCreatedCount <= 0) return null;
+
+  return (
+    <div id="drive-tasks-created" ref={sectionRef} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-body font-semibold text-foreground">{t("driveLibrary.detail.tasks_created.title")}</h2>
+        {totalCreatedCount > 0 ? (
+          <span className="text-caption text-muted-foreground">{t("driveLibrary.detail.tasks_created.summary", { count: totalCreatedCount })}</span>
+        ) : null}
+      </div>
+      {creations.map((group) => (
+        <div key={group.proposal_id} className="flex flex-col gap-1.5">
+          <div className="text-caption font-medium text-muted-foreground">
+            {t("driveLibrary.detail.tasks_created.group", { date: formatDate(group.created_at), name: group.created_by_name, count: group.tasks.length })}
+          </div>
+          <ul className="flex flex-col gap-1">
+            {group.tasks.map((task) => (
+              <li key={task.task_id}>
+                <AppLink href={taskHref(task.task_id)} className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11">
+                  {t("driveLibrary.detail.used_in.task_row", { identifier: task.identifier, title: task.title })}
+                </AppLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }

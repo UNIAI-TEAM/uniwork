@@ -222,6 +222,25 @@ describe("drive endpoints", () => {
         external_file_ids: ["gdoc_1"],
       },
     });
+
+    const controller = new AbortController();
+    requestMock.mockResolvedValueOnce({ results: [] });
+    await linkDriveFiles(
+      "ws1",
+      {
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1"],
+      },
+      controller.signal,
+    );
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/workspaces/ws1/drive-files", {
+      method: "POST",
+      body: {
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1"],
+      },
+      signal: controller.signal,
+    });
   });
 
   it("linkDriveFiles degrades a malformed response to an empty results list and drops only malformed items in a batch", async () => {
@@ -540,6 +559,38 @@ describe("drive endpoints", () => {
       { method: "POST", body: {}, signal: undefined },
     );
     expect(result).toBeNull();
+  });
+
+  it("createDriveTaskProposal degrades malformed optional proposal fields to defaults via .catch without losing the proposal", async () => {
+    requestMock.mockResolvedValueOnce({
+      proposal: {
+        id: "dtp_catch",
+        workspace_id: "ws_1",
+        drive_file_id: "df_1",
+        drive_file_name: "Kế hoạch ra mắt Q4",
+        drive_file_mime_type: 123,
+        drive_file_icon_kind: { bad: true },
+        sharing_state: 456,
+        connection_id: "dc_1",
+        reader_account_email: null,
+        requested_by: "u_1",
+        status: 789,
+        items: [{ index: 0, title: "Việc hợp lệ" }],
+        created_at: "2026-10-26T10:00:00Z",
+        expires_at: "2026-11-02T10:00:00Z",
+      },
+    });
+
+    const proposal = await createDriveTaskProposal("ws1", "df1");
+    expect(proposal).not.toBeNull();
+    expect(proposal?.id).toBe("dtp_catch");
+    expect(proposal?.drive_file_mime_type).toBe("");
+    expect(proposal?.drive_file_icon_kind).toBe("generic");
+    expect(proposal?.sharing_state).toBe("unknown");
+    expect(proposal?.reader_account_email).toBe("");
+    expect(proposal?.status).toBe("ready");
+    expect(proposal?.items).toHaveLength(1);
+    expect(proposal?.items[0]?.title).toBe("Việc hợp lệ");
   });
 
   it("getDriveTaskProposal fetches by encoded proposal ID and degrades malformed responses to null", async () => {

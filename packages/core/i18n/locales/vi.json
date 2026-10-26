@@ -14480,7 +14480,8 @@
         "auth_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
         "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive.",
         "not_found": "Không tìm thấy tệp Google Drive này hoặc bạn không có quyền xem.",
-        "default": "Không tạo được đề xuất việc từ tài liệu. Thử lại."
+        "default": "Không tạo được đề xuất việc từ tài liệu. Thử lại.",
+        "review_unavailable": "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại."
       }
     }
   },
