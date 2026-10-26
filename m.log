@@ -1,0 +1,108 @@
+$ rc=$(cat /tmp/pr8r2-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr8r2-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr8r2-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr8r2-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘  46 documents.spec.ts:183:1 › the library lists pages across its views and the tree opens one (6.0m)
+    Error: locator.click: Test timeout of 360000ms exceeded.
+  1 failed
+  46 passed (9.9m)
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('group', { name: 'Lọc theo loại' }).getByRole('button', { name: '.docx', exact: true })
+
+
+      225 |
+      226 |   // The type filter drops the page row.
+    > 227 |   await page.getByRole("group", { name: "Lọc theo loại" }).getByRole("button", { name: ".docx", exact: true }).click();
+          |                                                                                                                ^
+      228 |   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
+      229 |   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
+      230 |   await myFolderRow(page).click();
+        at /workspace/e2e/documents.spec.ts:227:112
+
+    Error Context: test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents.spec.ts:183:1 › the library lists pages across its views and the tree opens one ──────
+  46 passed (9.9m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=2/8`
+Exit status 1
+===== e2e/test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents.spec.ts >> the library lists pages across its views and the tree opens one
+- Location: documents.spec.ts:183:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 360000ms exceeded.
+Call log:
+  - waiting for getByRole('group', { name: 'Lọc theo loại' }).getByRole('button', { name: '.docx', exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f2e4]:
+      - 'button "Documents library 1792983054911, Team library 1792983054911: chuyển workspace" [ref=f2e6] [cursor=pointer]':
+        - generic [ref=f2e7]: T
+        - generic "Documents library 1792983054911 › Team library 1792983054911" [ref=f2e9]: Team library 1792983054911
+      - generic [ref=f2e10]:
+        - button "Tìm kiếm…" [ref=f2e11] [cursor=pointer]:
+          - generic: Ctrl+K
+        - button "Hỏi UNI" [ref=f2e13] [cursor=pointer]
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]:
+          - button "Thông báo" [ref=f2e16] [cursor=pointer]
+          - button "Tạo việc" [ref=f2e17] [cursor=pointer]
+          - button "Giao diện" [ref=f2e18] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f2e19] [cursor=pointer]
+        - 'button "Documents library, documents-library-1792983054911@example.com: tài khoản" [ref=f2e20] [cursor=pointer]':
+          - generic [ref=f2e21]: D
+    - generic [ref=f2e22]:
+      - generic [ref=f2e25]:
+        - navigation "Điều hướng workspace" [ref=f2e27]:
+          - list [ref=f2e30]:
+            - listitem [ref=f2e31]:
+              - link "Trang chủ" [ref=f2e32] [cursor=pointer]:
+                - /url: /documents-library-1792983054911/team-library-1792983054911
+            - listitem [ref=f2e38]:
+              - link "Hộp việc" [ref=f2e39] [cursor=pointer]:
+                - /url: /documents-library-1792983054911/team-library-1792983054911/inbox
+          - generic [ref=f2e45]:
+            - generic [ref=f2e46]: Làm việc
+            - list "Làm việc" [ref=f2e48]:
+              - listitem [ref=f2e49]:
+                - link "Công việc" [ref=f2e50] [cursor=pointer]:
+                  - /url: /documents-library-1792983054911/team-library-1792983054911/tasks
+              - listitem [ref=f2e56]:
+                - link "Việc của tôi" [ref=f2e57] [cursor=pointer]:
+                  - /url: /documents-library-1792983054911/team-library-1792983054911/my-tasks
+              - listitem [ref=f2e63]:
+                - link "Dự án" [ref=f2e64] [cursor=pointer]:
+                  - /url: /documents-library-1792983054911/team-library-1792983054911/projects
+              - listitem [ref=f2e69]:
+               
+E2E_EXIT=1

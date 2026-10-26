@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr8r2-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr8r2-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr8r2-e2e.log
+DONE_FILE=no
+  ✓  44 documents.spec.ts:92:1 › a page is created, typed into, and survives a reload (8.1s)
+  ✓  45 documents.spec.ts:140:1 › a file document takes a new version and downloads it (4.7s)
