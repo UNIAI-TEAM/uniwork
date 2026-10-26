@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/react";
+import type { Attachment } from "@uniwork/core/types";
 
 /** Canonical comparison form for a markdown string: drop the blank lines a
  *  block leaves behind at either end, so both sides of a dirty check compare
@@ -34,5 +35,39 @@ export function hasUploadingNode(editor: Editor): boolean {
     return !found;
   });
   return found;
+}
+
+/**
+ * Merged attachment list fed to `AttachmentDownloadProvider`.
+ *
+ * Caller-supplied `attachments` (issue / comment editors that pre-load the full
+ * `attachments[]` from the server) take precedence — we only append session
+ * uploads the caller doesn't already have, so a parent re-render that includes
+ * the same record doesn't end up with two copies.
+ *
+ * One exception on id collision: when the caller's copy has an EMPTY
+ * `download_url` (the create-issue draft strips the short-lived signed URL
+ * before persisting), backfill it from the session upload. The session copy
+ * holds the this-response signed URL, so the just-pasted image first-paints
+ * from it instead of taking an extra redirect hop through `markdown_url`.
+ */
+export function mergeProviderAttachments(
+  attachments: Attachment[] | undefined,
+  sessionUploads: Attachment[],
+): Attachment[] | undefined {
+  if (sessionUploads.length === 0) return attachments;
+  const sessionById = new Map(sessionUploads.map((a) => [a.id, a]));
+  const merged: Attachment[] = [];
+  for (const a of attachments ?? []) {
+    const session = a.id ? sessionById.get(a.id) : undefined;
+    if (session) sessionById.delete(a.id);
+    merged.push(
+      session && !a.download_url
+        ? { ...a, download_url: session.download_url }
+        : a,
+    );
+  }
+  merged.push(...sessionById.values());
+  return merged;
 }
 

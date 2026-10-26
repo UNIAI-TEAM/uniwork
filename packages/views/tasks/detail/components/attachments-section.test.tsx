@@ -604,8 +604,12 @@ describe("TaskDetailAttachmentsSection", () => {
       name: /Từ Google Drive/,
     });
     expect(fromDriveItem).not.toHaveTextContent("tài khoản đã kết nối");
+    expect(
+      screen.getByText(
+        "Hoặc dán liên kết Google Drive vào mô tả, UniWork gợi ý liên kết tệp",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(fromDriveItem);
-
     await waitFor(() => {
       expect(linkDriveFilesMutateAsync).toHaveBeenCalledWith({
         connection_id: "dc_1",

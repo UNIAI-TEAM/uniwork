@@ -1,0 +1,51 @@
+/**
+ * Google Drive URL paste detector extension (spec §7.5, QĐ 8).
+ *
+ * Observes `handlePaste` on the editor, extracts any Google Drive file IDs from
+ * the pasted text/HTML via `extractDriveFileIdsFromPaste`, reports them through
+ * `onPasteDriveFileIdsRef`, and ALWAYS returns `false` so `linkOnPaste` and
+ * `markdownPaste` insert the link exactly as today.
+ */
+import { Extension } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import {
+  extractDriveFilesFromPaste,
+  type DriveFileUrlMatch,
+} from "../../tasks/drive-paste-url";
+
+export function createDriveUrlPasteExtension(
+  getOnPasteDriveFileIds?: () =>
+    | ((fileIds: string[], matches: DriveFileUrlMatch[]) => void)
+    | undefined,
+) {
+  return Extension.create({
+    name: "driveUrlPaste",
+    priority: 1000,
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: new PluginKey("driveUrlPaste"),
+          props: {
+            handlePaste(_view, event) {
+              const callback = getOnPasteDriveFileIds?.();
+              if (!callback) return false;
+              const clipboard = event.clipboardData;
+              if (!clipboard) return false;
+
+              const text = clipboard.getData("text/plain");
+              const html = clipboard.getData("text/html");
+              const matches = extractDriveFilesFromPaste(text, html);
+              if (matches.length > 0) {
+                callback(
+                  matches.map((m) => m.id),
+                  matches,
+                );
+              }
+              return false;
+            },
+          },
+        }),
+      ];
+    },
+  });
+}

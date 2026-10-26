@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArrowLeftRight, Maximize2, Minimize2, PanelBottomClose, X } from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
@@ -25,6 +25,10 @@ import {
   CreateTaskDriveChips,
   CreateTaskPaperclipMenu,
 } from "./create-task-drive-attachments";
+import {
+  DrivePasteSuggestionChips,
+  useDrivePasteSuggestions,
+} from "./drive-paste-suggestion-chips";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityPicker, StatusPicker } from "./pickers";
@@ -125,6 +129,17 @@ export function CreateTaskManualPanel({
     }
     updateDraft({ driveFiles: next });
   };
+  const existingDriveIds = useMemo(
+    () => (draft.driveFiles ?? []).map((df) => df.externalFileId),
+    [draft.driveFiles],
+  );
+  const drivePaste = useDrivePasteSuggestions({
+    existingFileIds: existingDriveIds,
+  });
+  const { reset: resetDrivePaste } = drivePaste;
+  useEffect(() => {
+    resetDrivePaste();
+  }, [resetDrivePaste, draft.idempotencyKey]);
   const uploadGate = useUploadGate(editorRef);
   const isUploading = uploading || uploadGate.uploading;
   const canSubmit = Boolean(draft.title.trim()) && !busy && !uploadGate.uploading;
@@ -262,10 +277,23 @@ export function CreateTaskManualPanel({
             onUploadFile={uploadFile}
             onUploadingChange={uploadGate.onUploadingChange}
             attachments={draft.attachments}
+            onPasteDriveFileIds={drivePaste.onPasteDriveFileIds}
+            className="[&_a]:wrap-anywhere"
           />
           {isDragOver ? <FileDropOverlay /> : null}
         </div>
 
+        <DrivePasteSuggestionChips
+          workspaceId={workspaceId}
+          suggestedFileIds={drivePaste.suggestedFileIds}
+          fileKindsById={drivePaste.fileKindsById}
+          onDismiss={drivePaste.dismissFileId}
+          onResolved={drivePaste.resolveFileId}
+          onDraftFilesPicked={handleDriveFilesPicked}
+          draftDriveFiles={draft.driveFiles}
+          pickerAdapter={pickerAdapter}
+          className="px-5 pt-2"
+        />
         <CreateTaskDriveChips
           driveFiles={draft.driveFiles}
           onRemove={(df) => {

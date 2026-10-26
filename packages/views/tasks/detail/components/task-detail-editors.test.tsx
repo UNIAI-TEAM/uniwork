@@ -1,6 +1,13 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Task } from "@uniwork/core/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import {
+  FeatureFlagService,
+  FeatureFlagsProvider,
+  StaticProvider,
+} from "@uniwork/core/feature-flags";
+import type { Task, User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailEditors } from "./task-detail-editors";
 
@@ -23,6 +30,23 @@ const task = {
   description:
     "[spec](/acme/eng/documents/D1) and [pr](https://example.com/acme/eng/documents/D2) and [t](/acme/eng/tasks/UNI-0)",
 } as Task;
+const sessionUser: User = {
+  id: "u1",
+  email: "u1@example.com",
+  display_name: "User One",
+  onboarded_at: "2026-01-01T00:00:00Z",
+  email_verified_at: "2026-01-01T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
+const workspace: Workspace = {
+  id: "w1",
+  slug: "eng",
+  name: "Eng",
+  organization_id: "o1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
 
 async function mountAndFindLink(name: string) {
   const nav = fakeNav("/acme/eng/tasks/t1");
@@ -42,9 +66,14 @@ async function mountAndFindLink(name: string) {
 
 describe("TaskDetailEditors link context (DOC7-W03)", () => {
   beforeEach(() => {
+    resetAuthStoreForTests();
     requestMock.mockReset();
     attachmentsSlotSpy.mockReset();
     vi.spyOn(window, "open").mockImplementation(() => null);
+  });
+
+  afterEach(() => {
+    resetAuthStoreForTests();
   });
 
   it("tags an internal document link in the description with ?from=task:<task id>", async () => {
@@ -81,12 +110,35 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     expect(link.closest("[role=textbox]")).toHaveAttribute("aria-label", "Mô tả công việc");
   });
 
-  it("passes canEdit derived from useTaskPermissions to TaskDetailAttachmentsSlot", async () => {
+  it("passes canEdit: true to TaskDetailAttachmentsSlot when the signed-in user is a workspace member", async () => {
+    setSessionUser(sessionUser);
     requestMock.mockImplementation(async (path: string) => {
       if (path === "/api/v1/workspaces/w1/me") {
-        return { role: "guest", source: "membership" };
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
       }
-      return {};
+      return [];
+    });
+    await mountAndFindLink("spec");
+    await waitFor(() => {
+      expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          workspaceId: "w1",
+          taskId: "t1",
+          canEdit: true,
+        }),
+      );
+    });
+  });
+
+  it("passes canEdit: false to TaskDetailAttachmentsSlot when the signed-in user has no workspace membership", async () => {
+    setSessionUser(sessionUser);
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/workspaces/w1/me") {
+        throw Object.assign(new Error("forbidden"), { status: 403 });
+      }
+      return [];
     });
     await mountAndFindLink("spec");
     await waitFor(() => {
@@ -97,6 +149,131 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
           canEdit: false,
         }),
       );
+    });
+  });
+
+  it("shows no Drive paste chip when the user has no workspace role, and shows a chip when the user is a member (F-2)", async () => {
+    setSessionUser(sessionUser);
+    let currentRole: "member" | null = null;
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/w1/me") {
+        if (!currentRole) {
+          throw Object.assign(new Error("forbidden"), { status: 403 });
+        }
+        return {
+          membership: {
+            user_id: "u1",
+            role: currentRole,
+            source: "membership",
+          },
+        };
+      }
+      if (path === "/api/v1/workspaces/w1/drive-connections") {
+        return { connections: [] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return [];
+    });
+
+    const service = new FeatureFlagService(
+      new StaticProvider({ drive_connector: { default: true } }),
+    );
+    const pasteUrl = (editorEl: HTMLElement, url: string) => {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          files: [],
+          getData: (type: string) => (type === "text/plain" ? url : ""),
+        },
+      });
+      act(() => {
+        editorEl.dispatchEvent(event);
+      });
+    };
+
+    // 1. User with no workspace role (403 on /me -> cannot edit) pastes a Drive URL -> no chip
+    const viewerView = render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={sessionUser}>
+            <TaskDetailEditors
+              task={task}
+              workspaceId="w1"
+              onSaveTitle={vi.fn()}
+              onSaveDescription={vi.fn()}
+            />
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+        fakeNav("/acme/eng/tasks/t1"),
+      ),
+    );
+    const viewerEditor = await waitFor(() => {
+      const el = viewerView.container.querySelector("[role=textbox]");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => {
+      expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ canEdit: false }),
+      );
+    });
+    pasteUrl(
+      viewerEditor,
+      "https://docs.google.com/document/d/1GdocViewerBlocked_012345/edit",
+    );
+    expect(
+      viewerView.container.querySelector(
+        '[data-testid="drive-paste-suggestion-chips"]',
+      ),
+    ).toBeNull();
+    viewerView.unmount();
+
+    // 2. Editor (member) pastes a Drive URL -> chip appears
+    currentRole = "member";
+    const editorView = render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={sessionUser}>
+            <TaskDetailEditors
+              task={task}
+              workspaceId="w1"
+              onSaveTitle={vi.fn()}
+              onSaveDescription={vi.fn()}
+            />
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+        fakeNav("/acme/eng/tasks/t1"),
+      ),
+    );
+    const memberEditor = await waitFor(() => {
+      const el = editorView.container.querySelector("[role=textbox]");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => {
+      expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ canEdit: true }),
+      );
+    });
+    pasteUrl(
+      memberEditor,
+      "https://docs.google.com/document/d/1GdocEditorAllowed_012345/edit",
+    );
+    await waitFor(() => {
+      expect(
+        editorView.container.querySelector(
+          '[data-testid="drive-paste-suggestion-chip-1GdocEditorAllowed_012345"]',
+        ),
+      ).not.toBeNull();
     });
   });
 });
