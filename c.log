@@ -1,0 +1,4 @@
+$ git fetch -q origin develop; rm -rf /tmp/devbase; git worktree add -f /tmp/devbase FETCH_HEAD >/dev/null 2>&1; git -C /tmp/devbase log --oneline -1; cd /tmp/devbase && pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "DEVBASE_EXIT=$rc"; [ $rc -eq 0 ]
+b86272e70 (fix): design log format
+
+DEVBASE_EXIT=0

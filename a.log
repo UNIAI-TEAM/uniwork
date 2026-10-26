@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5g7-develop-pr8; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+04cac01cb02e7b50f7b60360811933a9d85d7957
+04cac01cb02e7b50f7b60360811933a9d85d7957
+04cac01cb test(e2e): pick .docx through the Loại multi-select in the library spec
+92ca30235 docs(office): name TestMemoryProposalCommandsWriteTheirRows in the G8-A08 row
+4299d61ff test(scripts): exempt develop's dc59c569d from the history check
+
+SYNCED_EXIT=0

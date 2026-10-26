@@ -1,0 +1,9 @@
+$ grep -E "^\s+✘" /tmp/pr8r3e2e-dev-a-e2e.log | sed -E "s/ \([0-9.]+m?s\)$//" | sort -u | head -300; true
+  ✘  14 files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent
+  ✘  16 meetings-governance.spec.ts:155:1 › votes: the secretary opens a drafted item from the strip, votes and closes it; the result reaches the overview and the history
+  ✘   3 ask-uni.spec.ts:158:1 › docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload
+  ✘   4 ask-uni.spec.ts:225:1 › docked Ask UNI answers with a source, proposes a task, applies it and undoes it (1.3m)
+  ✘   5 ask-uni.spec.ts:281:1 › docked Ask UNI remembers a preference, uses it, and the memory screen edits and deletes it (1.0m)
+  ✘   6 graph-related-panel.spec.ts:11:1 › a task made from a meeting shows where it came from and who owned it
+  ✘   7 meetings-attendance.spec.ts:13:1 › attendance: secretary marks in the roll drawer, finalize locks and shows in the history
+  ✘   8 tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on
