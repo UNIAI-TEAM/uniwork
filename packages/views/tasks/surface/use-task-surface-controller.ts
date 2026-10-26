@@ -11,6 +11,7 @@ import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   taskKeys,
   useBatchDeleteTasks,
+  useRestoreTask,
   useBatchUpdateTasks,
   useTableFacets,
   useTaskStatuses,
@@ -196,6 +197,7 @@ export function useTaskSurfaceController({
   const updateTaskMutation = useUpdateTask(workspaceId);
   const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
   const batchDeleteTasks = useBatchDeleteTasks(workspaceId);
+  const restoreTaskMutation = useRestoreTask(workspaceId);
   const { data: publicConfig } = usePublicConfig();
 
   const [activeTableFacet, setActiveTableFacetState] =
@@ -392,12 +394,16 @@ export function useTaskSurfaceController({
       batchDelete: async (taskIds) => {
         await batchDeleteTasks.mutateAsync(taskIds);
       },
+      restoreTask: async (taskId) => {
+        await restoreTaskMutation.mutateAsync(taskId);
+      },
     }),
     [
       batchDeleteTasks,
       batchUpdateTasks,
       moveTask,
       openCreateTask,
+      restoreTaskMutation,
       updateSurfaceTask,
       updateTaskMutation.isPending,
     ],

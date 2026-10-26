@@ -21,6 +21,7 @@ export default function ProjectsPage() {
         workspaceId={workspace.id}
         workspaceName={workspace.name}
         projectPath={(id) => ws.project(id)}
+        trashHref={ws.projectsTrash()}
       />
     </Suspense>
   );

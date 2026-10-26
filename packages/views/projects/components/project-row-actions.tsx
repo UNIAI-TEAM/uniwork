@@ -8,6 +8,7 @@ import {
   useCreatePin,
   useDeletePin,
   useDeleteProject,
+  useRestoreProject,
 } from "@uniwork/core/tasks";
 import type { Project } from "@uniwork/core/types/project";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { toastApiError } from "../../toast-api-error";
+import { useToastMovedToTrash } from "../../trash/use-toast-moved-to-trash";
 import { useProjectOperations } from "../project-operations-context";
 import type { OpenProject } from "../project-row-metrics";
 
@@ -47,6 +49,8 @@ export function ProjectRowActions({
   const createPin = useCreatePin(workspaceId);
   const deletePin = useDeletePin(workspaceId);
   const deleteProject = useDeleteProject(workspaceId);
+  const restoreProject = useRestoreProject(workspaceId);
+  const toastMovedToTrash = useToastMovedToTrash();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const operations = useProjectOperations();
 
@@ -125,6 +129,7 @@ export function ProjectRowActions({
               onClick={() => {
                 if (operations) { operations.remove(project.id); setDeleteOpen(false); return; }
                 deleteProject.mutate(project.id, {
+                  onSuccess: () => toastMovedToTrash(() => restoreProject.mutateAsync(project.id)),
                   onError: (err) =>
                     toast.error(err instanceof Error ? err.message : String(err)),
                 });

@@ -2574,11 +2574,9 @@
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
       "update_failed": "Could not update tasks",
-      "delete_success": "Deleted {{count}} tasks",
       "delete_failed": "Could not delete tasks",
-      "delete_dialog_title": "Delete {{count}} tasks?",
-      "delete_dialog_desc": "These tasks will be permanently deleted.",
-      "delete_dialog_warning": "This cannot be undone."
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days."
     },
     "row_actions": {
       "open": "Open",
@@ -2590,11 +2588,10 @@
       "change_assignee": "Change assignee",
       "set_parent": "Set parent task…",
       "delete": "Delete",
-      "delete_dialog_title": "Delete this task?",
-      "delete_dialog_desc": "\"{{title}}\" will be permanently deleted. This cannot be undone.",
-      "delete_confirm": "Delete task",
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days.",
+      "delete_confirm": "Move to trash",
       "cancel": "Cancel",
-      "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
       "assignees_failed": "Could not load members"
@@ -8483,9 +8480,9 @@
       "sidebar_label": "Project details"
     },
     "delete_dialog": {
-      "title": "Delete project",
-      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
-      "confirm": "Delete",
+      "title": "Move to trash?",
+      "description": "You can restore it within 30 days. Tasks in the project are kept and only unlinked.",
+      "confirm": "Move to trash",
       "cancel": "Cancel"
     },
     "create_dialog": {
@@ -14146,5 +14143,42 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "trash": {
+    "title": "Trash",
+    "move_title": "Move to trash?",
+    "move_desc": "You can restore it within 30 days.",
+    "move_confirm": "Move to trash",
+    "moved": "Moved to trash",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restored": "Restored",
+    "restore_failed": "Could not restore",
+    "restore_item": "Restore {{title}}",
+    "purge": "Delete forever",
+    "purge_item": "Delete {{title}} forever",
+    "purge_title": "Delete forever?",
+    "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
+    "purged": "Deleted forever",
+    "purge_failed": "Could not delete forever",
+    "cancel": "Cancel",
+    "trashed_by": "Trashed by {{name}} at {{time}}",
+    "unknown_member": "Former member",
+    "purge_in_one": "Deleted forever in {{count}} day",
+    "purge_in_other": "Deleted forever in {{count}} days",
+    "subtasks_one": "Includes {{count}} subtask",
+    "subtasks_other": "Includes {{count}} subtasks",
+    "project_tasks_one": "{{count}} task in the project",
+    "project_tasks_other": "{{count}} tasks in the project",
+    "load_more": "Load more",
+    "loading": "Loading trash",
+    "error_title": "Could not load the trash",
+    "tasks_empty_title": "The task trash is empty",
+    "projects_empty_title": "The project trash is empty",
+    "empty_description": "Deleted items stay here for 30 days before they are deleted forever.",
+    "errors": {
+      "trash_too_large": "This batch has too many tasks to restore at once.",
+      "duplicate_project_title": "A project with the same title already exists, so this one could not be restored. Rename that project and try again."
+    }
   }
 }

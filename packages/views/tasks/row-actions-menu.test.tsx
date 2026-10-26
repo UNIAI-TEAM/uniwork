@@ -93,6 +93,7 @@ function makeActions() {
     moveTask: vi.fn<TaskSurfaceActions["moveTask"]>(),
     batchUpdate: vi.fn<TaskSurfaceActions["batchUpdate"]>(async () => {}),
     batchDelete: vi.fn<TaskSurfaceActions["batchDelete"]>(async () => {}),
+    restoreTask: vi.fn<TaskSurfaceActions["restoreTask"]>(async () => {}),
   } satisfies TaskSurfaceActions;
 }
 
@@ -421,10 +422,36 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openKebab();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
     await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledTimes(1));
     expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]);
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa task"));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Đã chuyển vào thùng rác",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Hoàn tác" }) }),
+      ),
+    );
+  });
+
+  it("dialog xoá nói task chuyển vào thùng rác và khôi phục được 30 ngày", async () => {
+    renderSurface();
+    const menu = await openKebab();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Chuyển vào thùng rác?")).toBeInTheDocument();
+    expect(within(dialog).getByText("Có thể khôi phục trong 30 ngày.")).toBeInTheDocument();
+  });
+
+  it("Hoàn tác trong toast khôi phục đúng task vừa xoá", async () => {
+    const { actions } = renderSurface();
+    const menu = await openKebab();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const opts = vi.mocked(toast.success).mock.calls[0]![1] as unknown as { action: { onClick: () => void } };
+    opts.action.onClick();
+    await waitFor(() => expect(actions!.restoreTask).toHaveBeenCalledWith("t1"));
   });
 
   it("bấm xác nhận hai lần khi đang xóa chỉ gọi batchDelete một lần", async () => {
@@ -437,7 +464,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    const confirm = within(dialog).getByRole("button", { name: "Xóa task" });
+    const confirm = within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" });
 
     // Both clicks inside one act: React has not re-rendered in between, so
     // aria-disabled is not on the button yet. Only an in-flight ref stops the second.
@@ -465,7 +492,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
@@ -482,7 +509,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const contextMenu = await openContextMenu();
     await chooseItem(contextMenu, "Xóa", "mouse");
     const first = await screen.findByRole("alertdialog");
-    fireEvent.click(within(first).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(first).getByRole("button", { name: "Chuyển vào thùng rác" }));
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
 
     // Escape stays live while deleting, so the user can leave the dialog.
@@ -492,7 +519,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const dropdown = await openKebab();
     await chooseItem(dropdown, "Xóa", "mouse");
     const second = await screen.findByRole("alertdialog");
-    fireEvent.click(within(second).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(second).getByRole("button", { name: "Chuyển vào thùng rác" }));
 
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
     await act(async () => resolveDelete());
@@ -527,7 +554,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });
@@ -584,8 +611,8 @@ describe.each<Mode>(["list", "board"])("nổi bọt trên %s: hành động khô
       const dialog = await screen.findByRole("alertdialog");
       expect(onOpenTask).not.toHaveBeenCalled();
       // Clicking inside the dialog body (not a button) must not reach the row either.
-      fireEvent.click(within(dialog).getByText("Xóa task này?"));
-      fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+      fireEvent.click(within(dialog).getByText("Chuyển vào thùng rác?"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
       await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]));
       expect(onOpenTask).not.toHaveBeenCalled();
     });

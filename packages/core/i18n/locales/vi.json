@@ -2573,11 +2573,9 @@
       "cancel": "Hủy",
       "update_success": "Đã cập nhật {{count}} task",
       "update_failed": "Không cập nhật được task",
-      "delete_success": "Đã xóa {{count}} task",
       "delete_failed": "Không xóa được task",
-      "delete_dialog_title": "Xóa {{count}} task?",
-      "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
-      "delete_dialog_warning": "Không hoàn tác được."
+      "delete_dialog_title": "Chuyển vào thùng rác?",
+      "delete_dialog_desc": "Có thể khôi phục trong 30 ngày."
     },
     "row_actions": {
       "open": "Mở",
@@ -2589,11 +2587,10 @@
       "change_assignee": "Đổi người phụ trách",
       "set_parent": "Đặt công việc cha…",
       "delete": "Xóa",
-      "delete_dialog_title": "Xóa task này?",
-      "delete_dialog_desc": "\"{{title}}\" sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
-      "delete_confirm": "Xóa task",
+      "delete_dialog_title": "Chuyển vào thùng rác?",
+      "delete_dialog_desc": "Có thể khôi phục trong 30 ngày.",
+      "delete_confirm": "Chuyển vào thùng rác",
       "cancel": "Hủy",
-      "delete_success": "Đã xóa task",
       "delete_failed": "Không xóa được task",
       "assignees_loading": "Đang tải thành viên…",
       "assignees_failed": "Không tải được thành viên"
@@ -8424,9 +8421,9 @@
       "sidebar_label": "Chi tiết dự án"
     },
     "delete_dialog": {
-      "title": "Xóa dự án",
-      "description": "Dự án sẽ bị xóa. Công việc không bị xóa nhưng sẽ được gỡ liên kết.",
-      "confirm": "Xóa",
+      "title": "Chuyển vào thùng rác?",
+      "description": "Có thể khôi phục trong 30 ngày. Công việc trong dự án được giữ lại, chỉ gỡ liên kết.",
+      "confirm": "Chuyển vào thùng rác",
       "cancel": "Hủy"
     },
     "create_dialog": {
@@ -14074,5 +14071,42 @@
     "data": "Dữ liệu và AI",
     "privacy": "Chính sách quyền riêng tư",
     "terms": "Điều khoản sử dụng"
+  },
+  "trash": {
+    "title": "Thùng rác",
+    "move_title": "Chuyển vào thùng rác?",
+    "move_desc": "Có thể khôi phục trong 30 ngày.",
+    "move_confirm": "Chuyển vào thùng rác",
+    "moved": "Đã chuyển vào thùng rác",
+    "undo": "Hoàn tác",
+    "restore": "Khôi phục",
+    "restored": "Đã khôi phục",
+    "restore_failed": "Không khôi phục được",
+    "restore_item": "Khôi phục {{title}}",
+    "purge": "Xóa vĩnh viễn",
+    "purge_item": "Xóa vĩnh viễn {{title}}",
+    "purge_title": "Xóa vĩnh viễn?",
+    "purge_desc": "\"{{title}}\" sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
+    "purged": "Đã xóa vĩnh viễn",
+    "purge_failed": "Không xóa vĩnh viễn được",
+    "cancel": "Hủy",
+    "trashed_by": "Xóa bởi {{name}} lúc {{time}}",
+    "unknown_member": "Thành viên cũ",
+    "purge_in_one": "Tự xóa vĩnh viễn sau {{count}} ngày",
+    "purge_in_other": "Tự xóa vĩnh viễn sau {{count}} ngày",
+    "subtasks_one": "Gồm {{count}} task con",
+    "subtasks_other": "Gồm {{count}} task con",
+    "project_tasks_one": "{{count}} công việc trong dự án",
+    "project_tasks_other": "{{count}} công việc trong dự án",
+    "load_more": "Tải thêm",
+    "loading": "Đang tải thùng rác",
+    "error_title": "Không tải được thùng rác",
+    "tasks_empty_title": "Thùng rác công việc trống",
+    "projects_empty_title": "Thùng rác dự án trống",
+    "empty_description": "Mục bị xóa nằm ở đây 30 ngày trước khi bị xóa vĩnh viễn.",
+    "errors": {
+      "trash_too_large": "Lô này có quá nhiều task nên chưa khôi phục được một lần.",
+      "duplicate_project_title": "Đã có dự án trùng tên nên chưa khôi phục được. Hãy đổi tên dự án đó rồi thử lại."
+    }
   }
 }

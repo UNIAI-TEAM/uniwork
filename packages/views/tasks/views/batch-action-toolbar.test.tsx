@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Task } from "@uniwork/core/types";
 import { toDateOnly } from "../../common/date-field";
@@ -33,6 +34,10 @@ const publicConfigState = vi.hoisted(() => ({
 
 vi.mock("@uniwork/core/feature-flags", () => ({
   usePublicConfig: () => ({ data: publicConfigState.data }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 const batchDelete = vi.hoisted(() =>
@@ -98,9 +103,12 @@ const noopActions: TaskSurfaceActions = {
   moveTask: () => {},
   batchUpdate: async () => {},
   batchDelete: async () => {},
+  restoreTask: async () => {},
 };
 
 beforeEach(() => {
+  vi.mocked(toast.success).mockReset();
+  vi.mocked(toast.error).mockReset();
   batchDelete.mockReset();
   batchDelete.mockResolvedValue(undefined);
   clear.mockReset();
@@ -385,5 +393,56 @@ describe("BatchActionToolbar due date", () => {
     const trigger = screen.getByRole("button", { name: "Hạn" });
     expect(trigger.textContent).toBe("Chọn ngày");
     expect(screen.queryByText(/2026/)).toBeNull();
+  });
+});
+
+describe("BatchActionToolbar trash", () => {
+  const confirmDelete = (ids: string[], withSurface: boolean) => {
+    const tasks = ids.map((id) => makeTask({ id }));
+    const surface = { ...noopActions, restoreTask: vi.fn().mockResolvedValue(undefined) };
+    const tree = (
+      <TaskSurfaceSelectionProvider selection={selectionStub(ids)}>
+        <BatchActionToolbar workspaceId="w1" tasks={tasks} />
+      </TaskSurfaceSelectionProvider>
+    );
+    render(
+      wrap(withSurface ? <TaskSurfaceActionsProvider actions={surface}>{tree}</TaskSurfaceActionsProvider> : tree),
+    );
+    fireEvent.click(screen.getByTestId("batch-delete"));
+    return surface;
+  };
+
+  it("says the tasks go to the trash and can be restored within 30 days", () => {
+    confirmDelete(["t1", "t2"], true);
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("Chuyển vào thùng rác?")).toBeInTheDocument();
+    expect(within(dialog).getByText("Có thể khôi phục trong 30 ngày.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Không hoàn tác được/)).toBeNull();
+  });
+
+  it("offers Hoàn tác that restores the batch once, through the surface", async () => {
+    const surface = confirmDelete(["t1", "t2"], true);
+    fireEvent.click(screen.getByTestId("batch-delete-confirm"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const [message, options] = vi.mocked(toast.success).mock.calls[0]!;
+    expect(message).toBe("Đã chuyển vào thùng rác");
+    const action = (options as { action: { label: string; onClick: () => void } }).action;
+    expect(action.label).toBe("Hoàn tác");
+    action.onClick();
+    await waitFor(() => expect(surface.restoreTask).toHaveBeenCalledTimes(1));
+    expect(surface.restoreTask).toHaveBeenCalledWith("t1");
+  });
+
+  it("restores through the restore route when no surface is mounted", async () => {
+    requestMock.mockResolvedValue({ trash_batch_id: "b1", ids: ["t1", "t2"] });
+    confirmDelete(["t1", "t2"], false);
+    fireEvent.click(screen.getByTestId("batch-delete-confirm"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(toast.success).mock.calls[0]![1] as unknown as { action: { onClick: () => void } };
+    options.action.onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1/restore", { method: "POST" }),
+    );
+    expect(requestMock.mock.calls.filter(([path]) => String(path).endsWith("/restore"))).toHaveLength(1);
   });
 });

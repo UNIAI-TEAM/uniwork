@@ -24,6 +24,14 @@ describe("apiErrorCopy", () => {
     );
   });
 
+  it("words the two trash restore refusals itself", async () => {
+    expect(apiErrorCopy(new ApiError("x", "trash_too_large", 422))).toBe(
+      "Lô này có quá nhiều task nên chưa khôi phục được một lần.",
+    );
+    await setLocale("en");
+    expect(apiErrorCopy(new ApiError("x", "duplicate_project_title", 409))).toMatch(/same title already exists/);
+  });
+
   it("shows the server's Vietnamese sentence only to a Vietnamese reader", async () => {
     const err = new ApiError("tệp vượt quá dung lượng cho phép", "file_too_large", 413);
     expect(apiErrorCopy(err)).toBe("tệp vượt quá dung lượng cho phép");
