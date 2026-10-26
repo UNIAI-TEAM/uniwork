@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr9r1-go-service-a.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr9r1-go-service-a.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr9r1-go-service-a.log; grep -E "^=== RUN" /tmp/pr9r1-go-service-a.log | tail -1; rc=$(cat /tmp/pr9r1-go-service-a.exit 2>/dev/null || echo 99); echo "TEST_GO_EXIT=$rc"; [ $rc -eq 0 ]
+DONE_FILE=yes
+808
+=== RUN   TestWorkspaceConcurrentSlugChangesConflict
+TEST_GO_EXIT=0
