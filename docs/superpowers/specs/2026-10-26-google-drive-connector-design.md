@@ -128,9 +128,18 @@ Mã kết quả callback (popup gửi `{type:"uniwork:drive-oauth", ok, code}`):
 - Một người có nhiều dòng `drive_connections` trong tổ chức, **một dòng cho mỗi (tổ chức, người, `google_sub`) ở mọi trạng thái** (unique không điều kiện, §6.1). Callback khóa dòng `(organization_id, user_id, google_sub)` `FOR UPDATE`; có dòng (kể cả đã ngắt) thì **hồi sinh cùng dòng** (giữ id nên `drive_files`/`drive_file_access` không mất), xóa `disconnected_at`, `auth_failed_at`, tăng `credential_version`; không có thì chèn.
 - **Không thu hồi token khi thay.** Quyền Google gắn với (tài khoản Google, OAuth client), không với từng token: thu hồi token cũ sau khi kết nối lại cùng `sub` sẽ thu hồi luôn quyền vừa cấp. Token bị thay chỉ bị ghi đè; người thua cuộc đua refresh bị bỏ, không thu hồi — đúng như Email Hub (`email_hub_oauth_revoke.go:19-26`, `email_hub_oauth_refresh.go:97-101`).
 - `invalid_grant`/`unauthorized_client` khi refresh → `auth_failed_at` + audit `drive_connection.auth_failed` + sự kiện `drive_connection.changed`; UI "Mất kết nối · kết nối lại". **Không** thử tài khoản khác của người đó (QĐ 4).
-- Ngắt kết nối, trong một transaction: xóa token mã hóa, tăng `credential_version` (chặn mọi refresh đang chạy ghi lại), đặt `disconnected_at`, chuyển lô đề xuất `ready` dùng kết nối đó thành `discarded` (§8.6). Sau commit, **chỉ thu hồi ở Google khi không còn dòng `drive_connections` sống nào khác có cùng `google_sub`** (trên mọi tổ chức, vì cùng một OAuth client) — trường hợp có là khi tổ chức cho dùng chung (§5.5) hoặc tài khoản cũ đa tổ chức. Tham chiếu gắn kết nối đó ở lại, hiện "Mất kết nối · kết nối lại"; việc giữ thẻ Drive.
+- Ngắt kết nối, trong một transaction: xóa token mã hóa, tăng `credential_version` (chặn mọi refresh đang chạy ghi lại), đặt `disconnected_at`, chuyển lô đề xuất `ready` dùng kết nối đó thành `discarded` (§8.6). Cùng transaction đó ghi một yêu cầu thu hồi vào `drive_grant_revocations (google_sub, requested_at, revoked_at)`. Thu hồi ở Google **chỉ xảy ra khi không còn dòng `drive_connections` sống nào khác có cùng `google_sub`** (trên mọi tổ chức, vì quyền gắn với cùng một OAuth client) — trường hợp có là khi tổ chức cho dùng chung (§5.5) hoặc tài khoản cũ đa tổ chức — và theo giao thức điều phối toàn cục §5.3b. Tham chiếu gắn kết nối đó ở lại, hiện "Mất kết nối · kết nối lại"; việc giữ thẻ Drive.
 - Màn 1.3 liệt kê một thẻ cho mỗi tài khoản (email, trạng thái, "Ngắt kết nối") và nút **Kết nối thêm tài khoản** (cùng luồng popup, `prompt=consent select_account` để Google cho chọn tài khoản).
 - Danh sách: `GET /api/v1/workspaces/{workspaceID}/drive-connections` — kết nối của người gọi trong tổ chức của workspace (email, trạng thái, số tệp đã liên kết, `connected_at`). Không trả token. Mọi route có `{driveConnectionID}` kiểm kết nối thuộc người gọi **và** tổ chức của workspace trong đường dẫn; sai thì 404.
+
+### 5.3b Điều phối thu hồi và kết nối lại theo `google_sub`
+
+Quyền Google thuộc (OAuth client Drive, `google_sub`), không thuộc một tổ chức, nên khóa cũng toàn cục:
+
+- Khóa: advisory lock transaction trên `drive_grant:<google_sub>` (không kèm tổ chức). Mọi đường lấy khóa §5.5 `(organization_id, google_sub)` trước, khóa toàn cục sau.
+- **Bước thu hồi** (job lane provider, chạy sau commit và thử lại theo lịch): trong một transaction giữ khóa, đọc yêu cầu còn chờ, đếm lại chủ sống của `google_sub`; còn chủ → xóa yêu cầu, không gọi Google; không còn → gọi revoke của Google **trong lúc giữ khóa** (client 15 s), ghi `revoked_at`, commit. Lỗi mạng → giữ yêu cầu để thử lại. Mọi lệnh ngắt hàng loạt (§5.3a) chỉ ghi yêu cầu, không tự gọi Google.
+- **Callback** (sau khi đổi code và xác minh id_token nên đã biết `sub`): trong transaction lưu kết nối, lấy cùng khóa; xóa yêu cầu còn chờ của `sub` (lại có chủ sống); nếu có `revoked_at` **muộn hơn lúc callback bắt đầu đổi code** (một lần thu hồi chạy chen giữa) thì không lưu gì và trả `retry_connect` ("Kết nối vừa bị ngắt ở nơi khác, hãy bấm kết nối lại"). Dòng có `revoked_at` giữ 1 ngày rồi xóa.
+- Vậy không thứ tự nào để một callback đã thành công còn lại kết nối sống với quyền vừa bị thu hồi. Test: giữ bước thu hồi giữa lúc đếm và gọi Google rồi chạy callback cùng `sub` (cùng tổ chức và khác tổ chức); callback đổi code trước, thu hồi chen giữa, callback lấy khóa sau → `retry_connect`.
 
 ### 5.3a Vòng đời theo tài khoản UniWork
 
@@ -197,7 +206,7 @@ Index: unique **không điều kiện** `(organization_id, user_id, google_sub)`
 | --- | --- |
 | `id`, `organization_id`, `workspace_id` | |
 | `external_file_id`, `drive_id` | Id tệp Drive; `drive_id` khi tệp nằm trong Bộ nhớ dùng chung. Unique một phần `(workspace_id, external_file_id) WHERE unlinked_at IS NULL` — khử trùng QĐ 4. |
-| `connection_id` | **Kết nối gắn** (QĐ 4): kết nối của người liên kết đã chọn tệp. Chỉ đổi qua `/rebind` (§7.7). |
+| `connection_id`, `bound_by` | **Kết nối gắn** (QĐ 4) và chủ của nó: lúc liên kết là kết nối của người liên kết (`bound_by = created_by`); sau `/rebind` là kết nối **của người rebind** (`bound_by` = người đó). `connection_id` luôn thuộc `bound_by`; `created_by` không bao giờ đổi. Chỉ đổi qua `/rebind` (§7.7). |
 | `created_by`, `created_by_kind` | Người liên kết (`human`; agent không liên kết được ở v1). UI gọi là "Người liên kết". |
 | `name`, `mime_type`, `icon_kind`, `web_view_link`, `owner_display`, `drive_modified_at`, `drive_modified_by_display`, `sharing_state` | **Ảnh chụp metadata** (không phải nội dung), làm mới khi một người có quyền đọc mở danh sách hoặc thẻ (tối đa một lần mỗi 10 phút một tệp, bằng kết nối **của chính người đó**) và trước mỗi lượt đọc. `drive_modified_by_display` từ `lastModifyingUser.displayName` ("Lan sửa 2 giờ trước"). `sharing_state`: `private` (Drive trả `shared=false`), `shared` (`shared=true`), `unknown` (Drive không trả `shared`, như mọi tệp trong Bộ nhớ dùng chung). Tệp Bộ nhớ dùng chung không có `owners`: chủ sở hữu hiện "Bộ nhớ dùng chung". |
 | `metadata_refreshed_at`, `access_lost_at` | `access_lost_at` khi **kết nối gắn** nhận `notFound`/`insufficientFilePermissions` (§5.7) → "Tài khoản này không còn quyền với tệp" + "Liên kết lại bằng tài khoản khác". |
@@ -210,7 +219,7 @@ Cột "Quyền trên Google Drive" của 4.1 ghi "Chia sẻ với N người" tr
 | Cột | Ghi chú |
 | --- | --- |
 | `id`, `organization_id`, `workspace_id`, `drive_file_id`, `user_id` | Unique `(drive_file_id, user_id)`. |
-| `connection_id` | Kết nối của **chính người đó** đã cấp quyền với tệp (qua Picker). Với người liên kết, luôn bằng `drive_files.connection_id`. |
+| `connection_id` | Kết nối của **chính người đó** (`drive_connections.user_id = drive_file_access.user_id`, kiểm ở mọi lệnh ghi) đã cấp quyền với tệp (qua Picker). Với người đang giữ kết nối gắn (`bound_by`), luôn bằng `drive_files.connection_id`. |
 | `state` | `granted` \| `lost` (kết nối của người đó nhận `notFound`/`insufficientFilePermissions`). Không có dòng = "chưa rõ" (QĐ 5). Lỗi tạm thời (hạn mức, 5xx) không đổi `state` (§5.7). |
 | `granted_at`, `checked_at` | |
 
@@ -218,8 +227,8 @@ Cột "Quyền trên Google Drive" của 4.1 ghi "Chia sẻ với N người" tr
 
 **Luật ghi đè (không lặng lẽ đổi tài khoản):**
 - Chọn lại cùng tệp bằng **cùng** kết nối: idempotent (cập nhật `checked_at`, `state = granted`).
-- Chọn lại bằng **kết nối khác** khi dòng đang `granted`: dòng giữ nguyên; API trả `already_linked` kèm "Bạn đang mở bằng: <email cũ>". Không có đường nào đổi kết nối đọc của một người ngoài hai lệnh có tên: `/rebind` (người liên kết hoặc admin đổi kết nối gắn; cập nhật `drive_files.connection_id` và dòng truy cập của người liên kết cùng transaction) và "Đổi tài khoản đọc" (`PUT …/drive-files/{driveFileID}/access {connection_id}`, chỉ cho dòng của chính mình, sau Picker `setFileIds`).
-- Dòng đang `lost`: chọn lại bằng kết nối bất kỳ của mình thay dòng (đây là thao tác rõ ràng "Cho UniWork đọc tệp", §7.4).
+- Chọn lại bằng **kết nối khác** khi dòng đang `granted`: dòng giữ nguyên; API trả `already_linked` kèm "Bạn đang mở bằng: <email cũ>". Không có đường nào đổi kết nối đọc của một người ngoài hai lệnh có tên, và cả hai chỉ đụng dòng của **chính người gọi**: `/rebind` (người liên kết hoặc admin; đặt `drive_files.connection_id` = một kết nối của người gọi, `bound_by` = người gọi, và dòng truy cập của người gọi = kết nối đó, cùng transaction; dòng truy cập của người liên kết gốc và của mọi người khác **giữ nguyên**, vẫn trỏ tới kết nối của chính họ) và "Đổi tài khoản đọc" (`PUT …/drive-files/{driveFileID}/access {connection_id}`, sau Picker `setFileIds`). Người đang là `bound_by` gọi "Đổi tài khoản đọc" → 409 `use_rebind`: với họ, đổi tài khoản đọc là đổi kết nối gắn, nên đi qua `/rebind`.
+- Dòng đang `lost`: chọn lại bằng kết nối bất kỳ của mình thay dòng (đây là thao tác rõ ràng "Cho UniWork đọc tệp", §7.4). Nếu người gọi là `bound_by` và kết nối mới khác kết nối gắn, lệnh chạy đúng như `/rebind` (đổi cả hai phía, audit `drive_file.rebound`).
 
 ### 6.4 `drive_file_task_links`
 
@@ -260,6 +269,10 @@ Dòng này sống theo việc (không bị job lưu giữ xóa); ghi chú QĐ 11
 
 `drive_allowed_domains TEXT[] NULL`, `drive_allowed_domains_set_by TEXT NULL`, `drive_shared_account_allowed_at TIMESTAMPTZ NULL`, `drive_shared_account_allowed_by TEXT NULL`.
 
+### 6.8 `drive_grant_revocations` — hàng đợi thu hồi theo `google_sub` (§5.3b)
+
+`google_sub TEXT PRIMARY KEY`, `requested_at`, `revoked_at NULL`, `attempts`, `last_error`. Bảng hạ tầng toàn cục (quyền Google không thuộc tổ chức nào), vào `tenantExemptTables` với lý do "hàng đợi thu hồi theo danh tính Google, dùng chung mọi tổ chức; không chứa nội dung"; query mang `-- tenant: system`. Không chứa token.
+
 ## 7. Liên kết tài liệu (hàng 2 và 4)
 
 ### 7.1 Picker
@@ -279,7 +292,7 @@ Mỗi tệp một transaction:
 2. Gọi `files.get` (fields `id,name,mimeType,webViewLink,iconLink,driveId,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed`) bằng kết nối đó; lỗi ánh xạ theo §5.7.
 3. Khóa theo `(workspace_id, external_file_id)` (advisory lock) rồi tìm `drive_files` sống. Có → không tạo dòng mới; trả `already_linked` kèm email tài khoản gắn ("Đã có trong Drive: uni-work1@gmail.com"); áp luật ghi đè §6.3 cho dòng truy cập của người gọi; vẫn gắn vào `task_id` nếu có.
 4. Không có → chèn `drive_files` (gắn `connection_id`), `drive_file_access` (`granted`), và `drive_file_task_links` khi có `task_id` (người gọi phải sửa được việc — cùng cổng với thêm đính kèm).
-5. Audit `drive_file.linked` (resource `drive_file`) và, khi gắn vào việc, `task.drive_file_linked` (resource `task`, metadata `drive_file_id`, `google_email`) để dòng hiện trong Hoạt động của việc (`useResourceHistory(wsId, "task", taskId)`, `packages/views/tasks/detail/timeline.tsx:103`). Outbox `drive_file.linked` (+ `drive_file.task_linked`). Không phát `task.updated`: việc không đổi trường nào.
+5. Audit `drive_file.linked` (resource `drive_file`) và, khi gắn vào việc, `task.drive_file_linked` (resource `task`, metadata `drive_file_id`, `google_email`) để dòng hiện trong Hoạt động của việc (`useResourceHistory(wsId, "task", taskId)`, `packages/views/tasks/detail/components/timeline.tsx:103`). Outbox `drive_file.linked` (+ `drive_file.task_linked`). Không phát `task.updated`: việc không đổi trường nào.
 
 Hộp tạo việc (2.1): việc chưa tồn tại, nên client giữ `{connection_id, external_file_id}` trong nháp; `CreateTaskSDI` thêm `drive_files: [{connection_id, external_file_id}]` (tối đa 20) và service tạo việc gọi cùng hàm liên kết trong transaction tạo việc. Một tệp lỗi → **cả lệnh tạo việc lỗi**, nháp giữ nguyên, chip tệp lỗi được đánh dấu kèm lý do; người dùng bỏ chip rồi tạo lại.
 
@@ -322,7 +335,7 @@ Hộp tạo việc (2.1): việc chưa tồn tại, nên client giữ `{connecti
 - Route web `/{org}/{ws}/documents/drive/{driveFileID}` (`apps/web/app/[orgSlug]/[workspaceSlug]/documents/drive/[driveFileId]/page.tsx`; đoạn tĩnh `drive` đứng trước `[documentId]`; builder trong `packages/core/paths/`). `GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}` trả thêm `can_unlink`, `can_rebind` (server quyết, §13).
 - Nội dung: tiêu đề, loại + "<người> sửa <thời gian>", **Mở trên Google Drive**, **Tạo việc từ tài liệu**, **Hỏi UNI**; bảng thuộc tính: Nguồn, **Tài khoản gắn** (email của người liên kết), **Bạn mở bằng** (email kết nối của người xem; `unknown` → khối §7.4 thay cho dòng này), Chủ sở hữu, Người liên kết + ngày, Quyền xem và sửa "Theo chia sẻ trên Drive"; khối giải thích "Xem và sửa nội dung trên Google, bằng tài khoản <email của người xem>. UniWork chỉ lưu liên kết, các việc dùng tệp và lịch sử thao tác; nội dung vẫn nằm trên Google Drive."; "Đang dùng ở · N" + "Gắn vào việc"; "Hoạt động trong UniWork" qua `useResourceHistory(wsId, "drive_file", id)` (Q7: không có dòng "đã mở").
 - **Bỏ liên kết** (khi `can_unlink`): hộp xác nhận "Bỏ liên kết khỏi N việc? Chỉ xóa liên kết trong UniWork, tệp trên Google Drive giữ nguyên. Các việc đã tạo vẫn còn, chỉ mất liên kết về tài liệu." → `DELETE /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}`.
-- **Liên kết lại bằng tài khoản khác** (QĐ 4, khi `can_rebind` và `access_lost_at` hoặc kết nối gắn hỏng): chọn một kết nối khác của chính mình → Picker `setFileIds` → `POST …/drive-files/{driveFileID}/rebind {connection_id}`; audit `drive_file.rebound` với email cũ và mới.
+- **Liên kết lại bằng tài khoản khác** (QĐ 4, khi `can_rebind` và `access_lost_at` hoặc kết nối gắn hỏng): chọn một kết nối khác của chính mình → Picker `setFileIds` → `POST …/drive-files/{driveFileID}/rebind {connection_id}` (kết nối phải thuộc người gọi; ngữ nghĩa ở §6.3); "Tài khoản gắn" từ đó hiện email kết nối của người rebind kèm "(gắn lại bởi <tên>)"; audit `drive_file.rebound` với email cũ, email mới, `bound_by` cũ và mới.
 
 ### 7.8 Mở trên Google Drive
 
@@ -360,7 +373,7 @@ Hộp tạo việc (2.1): việc chưa tồn tại, nên client giữ `{connecti
 ### 8.1 Lối vào
 
 - **Agent mode trong hộp tạo việc (3.1):** "Chuyển sang agent" → panel agent (`create-task-agent-panel.tsx`). Khi có chip tệp Drive: hàng chọn agent (`AgentPicker`, `:267`) thay bằng hàng cố định "Tạo bởi UNI" và nút gửi không đòi `selectedAgent` (`:171`, `:303`); nút độ ưu tiên/hạn (`:279-290`) và nút tải tệp (`:304`) ẩn (hộp duyệt đặt các trường đó từng việc). Panel có ô prompt, chip tệp Drive, Dự án, "Task con của" (mặc định việc đang mở), dòng "UNI đọc tệp bằng tài khoản <email> rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt." → **Gửi cho agent**. Không có chip Drive: panel giữ nguyên hành vi hôm nay (`tasks.create.agent_unavailable`).
-- **"Tạo việc từ tài liệu"** trên thẻ Drive, trang 4.2 và câu trả lời Hỏi UNI: cùng endpoint, prompt rỗng.
+- **"Tạo việc từ tài liệu"** trên thẻ Drive, trang 4.2 và câu trả lời Hỏi UNI: mở một popover xác nhận nhỏ gồm dòng tài khoản đọc ("UNI đọc tệp bằng tài khoản <email>…"), ô prompt tùy chọn và nút **Gửi cho agent**; chỉ cú bấm đó gọi endpoint (cùng endpoint, prompt có thể rỗng). `?propose=1` (§7.11) mở đúng popover này.
 - Capability `tasks.agent_runs` giữ Unavailable; lối Drive mở theo flag `drive_connector` + `viewer_access = granted` + AI khả dụng (`useAiCapabilities`), không theo capability đó.
 
 ### 8.2 Endpoint đề xuất
@@ -439,7 +452,11 @@ Văn bản cắt ở 200.000 ký tự, `Request.Truncated = true`, hộp duyệt
 
 - Lối vào: "Hỏi UNI" trên thẻ Drive, trang 4.2 và câu trả lời. Dùng cơ chế focus sẵn có: thêm `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts:3-9`, `openWithFocus`), mở bằng `useAskUniOpener` (`packages/views/ai/ask-uni-focus-button.tsx`) nên nút tự ẩn khi Hỏi UNI không khả dụng; khóa `ai.ask_about_drive_file`. Chip "<tên> — UNI đang dùng tài liệu này làm ngữ cảnh" và dòng "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản <email của người hỏi> khi trả lời."
 - Server: focus `drive_file` được kiểm ở lớp ngữ cảnh Hỏi UNI (`server/internal/service/askuni_context.go`) — tệp thuộc workspace của lượt hỏi, người hỏi `granted`. Nội dung nạp **một lần ở lượt đầu** qua `drive_content.ReadForAI` (văn bản vào ngữ cảnh bọc "không tin cậy"; PDF ở `Attachments` của lượt đầu, vì gateway không nhận media ở lượt trả kết quả công cụ, `ai/gateway.go:486-491`). Cách này chạy được ở cả đường Hỏi UNI mặc định và đường agent (flag `ask_uni_agent`, mặc định tắt, `featureflags/keys.go:72`), không cần tool mới. Mỗi lượt đọc một dòng audit `drive_file.read` (`purpose = ask_uni`).
-- **Không lưu (đề xuất Q10):** hội thoại có focus `drive_file` không ghi tin nhắn hay trích dẫn vào lịch sử Hỏi UNI (`askuni.go:609-636` hôm nay lưu mọi câu trả lời); panel giữ hội thoại trong bộ nhớ của phiên, đóng panel là mất, chân panel ghi "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu." Đây là cách giữ đúng QĐ 2 và NFR-03 sửa đổi; muốn lưu thì cần người dùng chấp nhận một ngoại lệ lưu nội dung (Q10).
+- **Không lưu (đề xuất Q10) — chế độ tạm thời của Hỏi UNI.** Hôm nay mọi câu hỏi tạo hoặc tiếp một hội thoại lưu (`askuni.go:336`), cả hai đường dựng lịch sử từ `AiListMessages` (`askuni.go:259`, `askuni_agent.go:327`) và ghi câu trả lời (`askuni.go:609-636`); body là `AskUniSDI` (`handler/dto/sdi/ai.go:9-18`). Thêm một chế độ yêu cầu riêng:
+  - `AskUniSDI` thêm `transient` (bool) và `transcript` (≤ 20 lượt `{role: user|assistant, text}`, tổng ≤ 32.000 ký tự); `transient` bắt buộc khi `focus.kind = "drive_file"` và cấm đi cùng `conversation_id` (400).
+  - Ở chế độ này server **không** tạo hội thoại, không ghi tin nhắn hay trích dẫn, không ghi dòng nào ngoài `ai_usage_events` và audit `drive_file.read`; dùng `transcript` làm `History` (bọc "không tin cậy" như nội dung người dùng, chỉ hai vai); trích dẫn chỉ trả trong phản hồi. Chạy ở cả đường mặc định và đường agent.
+  - Mỗi yêu cầu kiểm lại focus (thành viên, tệp thuộc workspace, người hỏi `granted`) và đọc lại tệp; "lượt đầu" (PDF ở `Attachments`) nghĩa là lời gọi model đầu tiên của **mỗi yêu cầu**.
+  - Panel giữ bản chép trong bộ nhớ (store của core, không `StorageAdapter`, không `useAiMessages(conversationId)`), gửi lại mỗi câu hỏi; đóng panel hoặc đổi focus xóa bản chép; danh sách lịch sử Hỏi UNI không có mục cho hội thoại này; chân panel ghi "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu." Đây là cách giữ đúng QĐ 2 và NFR-03 sửa đổi; muốn lưu thì cần người dùng chấp nhận một ngoại lệ lưu nội dung (Q10).
 - Trích dẫn "<tài liệu> · mục N" trỏ tới trang 4.2 trong app (`isInAppHref` chỉ cho đường dẫn nội bộ, `packages/views/ai/ask-uni-links.ts:7-13`), nơi có "Mở trên Google Drive". Gợi ý "Tạo việc từ tài liệu này" → §8.2.
 
 ## 10. Flag, cấu hình, quan sát
@@ -462,7 +479,7 @@ Mọi lệnh đổi trạng thái ghi `audit_events` + `outbox_events` trong cù
 | `drive_connection.disconnected` | người dùng, admin, rời/đóng tổ chức (§5.3a) | `drive_connection.changed` |
 | `organization.drive_policy_changed` (`organization`) | đổi miền / dùng chung | — |
 | `drive_file.linked` (`drive_file`) | liên kết mới | `drive_file.linked {drive_file_id, workspace_id}` — ScopeWorkspace |
-| `drive_file.access_granted` / `.access_changed` / `.access_lost` (`drive_file`) | người xem cho UniWork đọc / đổi tài khoản đọc / Google báo mất quyền (chỉ khi trạng thái lưu đổi) | `drive_file.access_changed {drive_file_id, workspace_id, user_id}` — ScopeUser |
+| `drive_file.access_granted` / `.access_changed` / `.access_lost` (`drive_file`) | người xem cho UniWork đọc / đổi tài khoản đọc / Google báo mất quyền (chỉ khi trạng thái lưu đổi) | `drive_file.access_changed {drive_file_id, workspace_id, user_id}` — ScopeUser; khi lệnh cũng đổi trạng thái chung của tệp (`access_lost_at` của kết nối gắn đặt hoặc xóa) thì thêm `drive_file.updated {drive_file_id, workspace_id}` (ScopeWorkspace) trong cùng transaction, để người khác đang mở 4.2 thấy "Liên kết lại". Test: người thứ hai đang xem 4.2 nhận frame và làm mới |
 | `task.drive_file_linked` / `task.drive_file_unlinked` (`task`) | gắn/bỏ khỏi việc (hiện ở Hoạt động của việc) | `drive_file.task_linked {drive_file_id, task_id, workspace_id}` — ScopeWorkspace |
 | `drive_file.unlinked` (`drive_file`) | bỏ liên kết cả tệp | `drive_file.unlinked {drive_file_id, workspace_id}` |
 | `drive_file.rebound` (`drive_file`) | liên kết lại bằng tài khoản khác | `drive_file.updated {drive_file_id, workspace_id}` |
@@ -550,7 +567,7 @@ Khi người dùng duyệt spec: ADR chuyển ra `docs/adr/`, `accepted`, thêm 
 
 ### 17.3 Panel chi tiết (Q9)
 
-- Chọn một dòng Drive mở panel phải trong DocumentsHome, bố cục theo `UniworkDocInfoPanel`: tên, loại, sửa lần cuối, Nguồn, Tài khoản gắn, Bạn mở bằng (email kết nối của người xem, hoặc "Chưa cho UniWork đọc tệp" + nút chuyển sang web), Chủ sở hữu, Người liên kết + ngày, Quyền "Theo chia sẻ trên Drive", Đang dùng ở · N (mỗi việc mở web qua `webPathOf` kiểu `task`), Hoạt động (từ `GET …/drive-files/{id}` như web).
+- Chọn một dòng Drive mở panel phải trong DocumentsHome, bố cục theo `UniworkDocInfoPanel`: tên, loại, sửa lần cuối, Nguồn, Tài khoản gắn, Bạn mở bằng (email kết nối của người xem, hoặc "Chưa cho UniWork đọc tệp" + nút chuyển sang web), Chủ sở hữu, Người liên kết + ngày, Quyền "Theo chia sẻ trên Drive", Đang dùng ở · N (mỗi việc mở web qua `webPathOf` kiểu `task`), Hoạt động (cùng route lịch sử audit theo resource mà web dùng cho `useResourceHistory(wsId, "drive_file", id)`, qua kênh `uniwork-drive:get-history`).
 - Nút: **Mở trên Google Drive**, **Tạo việc từ tài liệu** (web), **Hỏi UNI** (web), **Bỏ liên kết** (cùng hộp xác nhận và câu chữ như web; chỉ người liên kết hoặc admin — server quyết, app ẩn nút khi SDO báo `can_unlink = false`).
 - "Liên kết lại bằng tài khoản khác" cần Picker → chuyển sang web (trang 4.2).
 

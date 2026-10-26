@@ -91,33 +91,33 @@
 ## Pha 1 — Server
 
 ### B1 — Migration + sqlc: kết nối và chính sách tổ chức — 1d
-- `drive_connections` (§6.1; unique không điều kiện `(organization_id, user_id, google_sub)`, index `google_sub` một phần), cột chính sách trên `organizations` (§6.7); mỗi index một file `CONCURRENTLY`.
+- `drive_connections` (§6.1; unique không điều kiện `(organization_id, user_id, google_sub)`, index `google_sub` một phần), cột chính sách trên `organizations` (§6.7), `drive_grant_revocations` (§6.8, `tenantExemptTables` có lý do); mỗi index một file `CONCURRENTLY`.
 - Query `server/pkg/db/queries/drive_connections.sql` ràng buộc `organization_id` bằng tham số.
 - Test: `server/migrations/lint_test.go`, `TestEveryQueryNamesItsTenant`.
 
-### B2 — OAuth kết nối, refresh, ngắt, chính sách, vòng đời (1.1–1.3, QĐ 4, 13) — 4d
+### B2 — OAuth kết nối, refresh, ngắt, chính sách, vòng đời (1.1–1.3, QĐ 4, 13) — 4,5d
 - `server/internal/service/drive_connections.go` (Start, Complete, List, Disconnect), `drive_oauth_refresh.go` (mẫu `email_hub_oauth_refresh.go:19-128`), `drive_policy.go` (miền + dùng chung, `requireOrgAdmin`).
 - Start/list theo workspace (`RequireMember` → tổ chức, spec §5.2); state niêm phong có nonce OIDC, `target_connection_id`, `expected_sub`.
-- Callback: ngoài nhóm có phiên nhưng đăng ký qua wrapper `api` với `apiOp` (HTML) và limiter credential, như `registerEmailHubCallback` (`handler/router/email_hub.go:200-216`); xác minh id_token bằng `go-oidc` như `server/internal/auth/google.go:24-73` (issuer, audience = client Drive, hạn, nonce, `email_verified`); từ chối thiếu `drive.file` (`scope_not_granted`), sai tài khoản khi kết nối lại (`account_mismatch`); hồi sinh dòng cũ theo `(org, user, sub)`; **không thu hồi token khi thay**; ngắt kết nối rào token trong transaction rồi chỉ thu hồi khi không còn dòng sống nào khác cùng `google_sub` (spec §5.3).
+- Callback: ngoài nhóm có phiên nhưng đăng ký qua wrapper `api` với `apiOp` (HTML) và limiter credential, như `registerEmailHubCallback` (`handler/router/email_hub.go:200-216`); xác minh id_token bằng `go-oidc` như `server/internal/auth/google.go:24-73` (issuer, audience = client Drive, hạn, nonce, `email_verified`); từ chối thiếu `drive.file` (`scope_not_granted`), sai tài khoản khi kết nối lại (`account_mismatch`); hồi sinh dòng cũ theo `(org, user, sub)`; **không thu hồi token khi thay**; ngắt kết nối rào token trong transaction và ghi `drive_grant_revocations`; job thu hồi và callback điều phối bằng khóa toàn cục `drive_grant:<google_sub>`, callback trả `retry_connect` khi một lần thu hồi chen giữa (spec §5.3, §5.3b).
 - Vòng đời §5.3a: ngắt trong transaction rời tổ chức, vô hiệu hóa, xóa tài khoản; trong transaction đóng tổ chức và `closeQ` dùng cho chuyển tổ chức (`organization_close.go:19-47`), thu hồi sau commit (`:106-128`).
 - Route: `POST /workspaces/{workspaceID}/drive-connections/google/start`, `GET /drive-connections/google/callback`, `GET /workspaces/{workspaceID}/drive-connections`, `DELETE /workspaces/{workspaceID}/drive-connections/{driveConnectionID}`, `GET|PUT /orgs/{orgID}/drive-policy`, `DELETE /orgs/{orgID}/drive-connections/{driveConnectionID}` (admin ngắt).
 - Config + env (5 biến) + `.env.example`; flag `drive_connector` (`keys.go`, `review_at` 2027-04-30); `GET /api/v1/config` báo `drive.available`.
 - Audit + outbox: `drive_connection.connected|reconnected|refused|auth_failed|disconnected`, `organization.drive_policy_changed`; `drive_connection.changed` (ScopeUser) vào ba catalogue.
-- Test: fake Google token + JWKS endpoint (nonce cookie/OIDC sai, issuer/audience/hạn sai, không refresh token, thiếu scope, `hd` sai, `sub` của người khác có/không cho phép, `admin_policy_enforced`, sai tài khoản khi kết nối lại), kết nối lại cùng `sub` không gọi revoke, ngắt khi còn/không còn chủ sống khác, ngắt → kết nối lại giữ id, refresh fence hai goroutine, `invalid_grant`; mỗi sự kiện vòng đời; tài khoản cũ thuộc hai tổ chức chỉ thấy kết nối của tổ chức trong đường dẫn; `audit_coverage_test.go`; `isoRoutes` (callback `isoPublic`/`reasonProvider`); rate limit trong `router_test`.
+- Test: fake Google token + JWKS endpoint (nonce cookie/OIDC sai, issuer/audience/hạn sai, không refresh token, thiếu scope, `hd` sai, `sub` của người khác có/không cho phép, `admin_policy_enforced`, sai tài khoản khi kết nối lại), kết nối lại cùng `sub` không gọi revoke, ngắt khi còn/không còn chủ sống khác, tranh chấp thu hồi ↔ callback cùng `sub` (cùng và khác tổ chức; thu hồi bị giữ giữa lúc đếm và gọi Google; callback đổi code trước rồi thu hồi chen giữa), ngắt → kết nối lại giữ id, refresh fence hai goroutine, `invalid_grant`; mỗi sự kiện vòng đời; tài khoản cũ thuộc hai tổ chức chỉ thấy kết nối của tổ chức trong đường dẫn; `audit_coverage_test.go`; `isoRoutes` (callback `isoPublic`/`reasonProvider`); rate limit trong `router_test`.
 
 ### B3 — Client Drive REST, ánh xạ lỗi, đọc nội dung — 1d
 - `server/internal/service/drive_api.go`: `filesGet`, `revoke`, ánh xạ lỗi theo `reason` (spec §5.7: `appNotAuthorizedToFile` → `drive_grant_required`, `domainPolicy` → admin chặn, mất quyền → `drive_file_not_accessible` + ghi `lost`, hạn mức/5xx → `drive_unavailable` không đổi trạng thái); client 15 s, không theo redirect ra ngoài host Google.
 - `server/internal/service/drive_content.go`: `ReadForAI(ctx, requester, workspaceID, driveFileID)` — duy nhất gọi `files.export`/`alt=media` (§8.3), tra kết nối qua `drive_file_access` của người yêu cầu, từ chối tệp ngoài workspace.
 - Test: bảng định dạng, cắt 200.000 ký tự, PDF thành media part, `drive_format_unsupported`, từng `reason` của S4; `TestDriveContentReadsUseTheCallersConnection`; arch test `TestDriveContentOnlyFromDriveContent`.
 
-### B4 — Tham chiếu: migration, liên kết, danh sách, chi tiết, bỏ, rebind, quyền người xem (2.x, 4.x) — 3,5d
-- Migration `drive_files` (có `drive_id`, `drive_modified_by_display`, `sharing_state`), `drive_file_access`, `drive_file_task_links` (§6.2–6.4) + index.
-- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`, khử trùng `already_linked`, luật ghi đè §6.3), `ListWorkspace` (lọc `connection_id`, `linked_by=others`), `Get` (+ `can_unlink`, `can_rebind`, `viewer_account_email`), `ListForTask`, `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind`, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
+### B4 — Tham chiếu: migration, liên kết, danh sách, chi tiết, bỏ, rebind, quyền người xem (2.x, 4.x) — 3,75d
+- Migration `drive_files` (có `bound_by`, `drive_id`, `drive_modified_by_display`, `sharing_state`), `drive_file_access`, `drive_file_task_links` (§6.2–6.4) + index.
+- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`, khử trùng `already_linked`, luật ghi đè §6.3), `ListWorkspace` (lọc `connection_id`, `linked_by=others`), `Get` (+ `can_unlink`, `can_rebind`, `viewer_account_email`), `ListForTask`, `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind` (kết nối phải thuộc người gọi, chỉ đổi dòng truy cập của người gọi, đặt `bound_by`), `use_rebind` khi người giữ kết nối gắn đổi tài khoản đọc, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
 - `CreateTaskSDI.drive_files` + gọi `Link` trong transaction tạo việc (`service/task.go`); một tệp lỗi → cả lệnh lỗi kèm chỉ số tệp.
 - Route §7.2–7.7: `POST|GET /workspaces/{workspaceID}/drive-files`, `GET|DELETE /workspaces/{workspaceID}/drive-files/{driveFileID}`, `POST|PUT …/{driveFileID}/access`, `POST …/{driveFileID}/rebind`, `GET /tasks/{taskID}/drive-files`, `DELETE /tasks/{taskID}/drive-files/{driveFileID}`, `POST /workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token`. SDI/SDO có `description`/`example`; `pathParamSDI` cho `driveConnectionID`, `driveFileID`.
 - Audit + outbox: `drive_file.linked|access_granted|access_changed|access_lost|unlinked|rebound` (resource `drive_file`), `task.drive_file_linked|drive_file_unlinked` (resource `task`); sự kiện `drive_file.linked|access_changed|task_linked|unlinked|updated`.
 - Isolation (spec §13): ánh xạ thật cho `{driveConnectionID}`, `{driveFileID}` trong ma trận (`isolation_matrix_test.go:503-516`, phân loại mixed-ID), seed own/foreign mỗi bảng, `isoReferences` cho mọi `*_id` trong body, miễn có lý do cho `external_file_id(s)`.
-- Test: quyền (sửa việc, người liên kết/admin), khử trùng giữa hai tài khoản của một người (dòng truy cập không đổi, token đọc vẫn là tài khoản cũ) và giữa hai người, rebind đổi cả dòng của người liên kết, thành viên bị vô hiệu hóa, events catalogue.
+- Test: quyền (sửa việc, người liên kết/admin), khử trùng giữa hai tài khoản của một người (dòng truy cập không đổi, token đọc vẫn là tài khoản cũ) và giữa hai người, A liên kết rồi admin B rebind (dòng của A vẫn trỏ kết nối của A; token đọc của từng người đúng chủ), người liên kết gốc mất quyền rồi chọn lại bằng tài khoản khác, `PUT access` của `bound_by` → 409 `use_rebind`, mất quyền của kết nối gắn phát `drive_file.updated` cho workspace (người thứ hai đang mở 4.2 được làm mới), thành viên bị vô hiệu hóa, events catalogue.
 
 ### B5 — Đề xuất việc: capability, prompt, endpoint, cổng lô (3.1–3.3) — 3d
 - `ai/policy.go` thêm `CapDriveTaskProposals` + policy; `ai/prompts.go` `drive_task_proposals@1` với `OutputSchema` (§8.2), nội dung bọc không tin cậy.
@@ -135,10 +135,10 @@
 - Job lane chậm mỗi giờ (§8.6): mỗi vòng một transaction `DELETE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED LIMIT 500)`; đăng ký trong trình tự tắt của `cmd/server/main.go`; metric `drive_task_proposals_purged_total`, không audit mỗi vòng (mẫu `document_retention_sweep.go`).
 - Test: xóa đúng tập (hết hạn, đã xử lý), hai worker không xóa trùng.
 
-### B8 — Hỏi UNI với focus `drive_file` (3.2, Q10) — 1,5d
+### B8 — Hỏi UNI chế độ tạm thời với focus `drive_file` (3.2, Q10) — 2,5d
 - Focus `drive_file` trong `service/askuni_context.go` (tệp thuộc workspace của lượt hỏi, người hỏi `granted`); nạp nội dung một lần ở lượt đầu qua `drive_content.ReadForAI` (PDF ở `Attachments` lượt đầu); chạy ở cả đường mặc định và đường agent (`ask_uni_agent`).
-- Hội thoại có focus `drive_file` không ghi tin nhắn/trích dẫn (`askuni.go:609-636`); audit `drive_file.read` (`purpose = ask_uni`).
-- Test: `TestAskUniDriveFocusIsNotPersisted`, người hỏi chưa có quyền → câu trả lời nói rõ, không lỗi; cả hai trạng thái flag `ask_uni_agent`; văn bản và PDF; `TestAskUniToolsAreReadOnly` và `TestAskAgentToolsAreReadOnly` vẫn qua (không thêm tool).
+- Chế độ `transient` (spec §9): `AskUniSDI` (`handler/dto/sdi/ai.go:9-18`) thêm `transient`, `transcript` có giới hạn; service bỏ qua tạo hội thoại, tin nhắn, trích dẫn ở cả đường mặc định (`askuni.go:259`, `:336`, `:609-636`) và đường agent (`askuni_agent.go:327`), dùng `transcript` làm `History` không tin cậy, trích dẫn chỉ trong phản hồi, kiểm lại focus và đọc lại tệp mỗi yêu cầu; audit `drive_file.read` (`purpose = ask_uni`).
+- Test: `TestAskUniDriveFocusIsNotPersisted` (hai câu hỏi liên tiếp, flag `ask_uni_agent` tắt và bật, không dòng hội thoại/tin nhắn/trích dẫn nào), `transient` + `conversation_id` → 400, focus `drive_file` thiếu `transient` → 400, bản chép quá giới hạn → 400, người hỏi chưa có quyền → câu trả lời nói rõ, không lỗi; cả hai trạng thái flag `ask_uni_agent`; văn bản và PDF; `TestAskUniToolsAreReadOnly` và `TestAskAgentToolsAreReadOnly` vẫn qua (không thêm tool).
 
 ### B9 — ADR 0038 accepted + luật CLAUDE.md — 0,25d (cùng PR với B3)
 - Chuyển ADR ra `docs/adr/`, bảng README, mục Audit and Events của `CLAUDE.md` nêu tên test; `scripts/governance.test.mjs`.
@@ -178,7 +178,7 @@
 
 ### W6 — Agent mode gửi tệp Drive (3.1) — 1,5d
 - `create-task-agent-panel.tsx`: có chip Drive → hàng "Tạo bởi UNI" thay `AgentPicker`, không đòi `selectedAgent`, ẩn nút độ ưu tiên/hạn/tải tệp; dự án, "Task con của", dòng tài khoản đọc; trạng thái chờ "UNI đang đọc tài liệu…" + Hủy, câu lỗi §8.2.
-- Nút "Tạo việc từ tài liệu" (thẻ Drive, 4.2, Hỏi UNI) dùng cùng hook.
+- Popover "Tạo việc từ tài liệu" (thẻ Drive, 4.2, Hỏi UNI; spec §8.1): dòng tài khoản đọc, prompt tùy chọn, **Gửi cho agent**; dùng cùng hook. `?propose=1` mở popover này.
 - Test: không có chip → hành vi cũ; có chip → gửi được khi không có agent nào.
 
 ### W7 — Hộp duyệt + toast (3.3, 3.4) — 4,5d
@@ -194,8 +194,8 @@
 - Trang `documents/drive/[driveFileId]/page.tsx`: Tài khoản gắn + Bạn mở bằng, Đang dùng ở, Gắn vào việc, Hoạt động (`useResourceHistory(wsId, "drive_file", id)`), Bỏ liên kết (xác nhận, `can_unlink`), Liên kết lại (`can_rebind`), `?propose=1` / `?ask=1` chỉ mở UI.
 - Test: views test từng trạng thái §7.10.
 
-### W9 — Hỏi UNI với tệp Drive (3.2) — 1d
-- `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts`), khóa `ai.ask_about_drive_file`, mở bằng `useAskUniOpener`; chip ngữ cảnh, dòng tài khoản đọc, chân panel "…cuộc trò chuyện này không được lưu"; trích dẫn trỏ tới trang 4.2; gợi ý "Tạo việc từ tài liệu này".
+### W9 — Hỏi UNI với tệp Drive (3.2) — 2d
+- `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts`), khóa `ai.ask_about_drive_file`, mở bằng `useAskUniOpener`; chip ngữ cảnh, dòng tài khoản đọc, chân panel "…cuộc trò chuyện này không được lưu"; chế độ tạm thời: bản chép trong store của core (không qua `useAiMessages(conversationId)` của `ask-uni-thread.tsx`), endpoint gửi `transient` + `transcript` mỗi câu hỏi (schema + case malformed), đóng panel hoặc đổi focus xóa bản chép; không thêm mục vào danh sách lịch sử; test hai câu hỏi rồi đóng panel; trích dẫn trỏ tới trang 4.2; gợi ý "Tạo việc từ tài liệu này".
 
 ### W10 — Roadmap và thuật ngữ — 0,25d
 - Dòng roadmap cho Drive (comment `PLANNED` của `integrations-tab.tsx` yêu cầu); rà `docs/conventions.md`.
@@ -205,7 +205,7 @@
 Đối chiếu fork `659b5e8b0`; đường dẫn tính từ `apps/shell/`. Lane fork theo luật fork hiện hành (eslint phạm vi đã chạm, đọc CI fork sau push).
 
 ### D1 — Client + IPC Drive trong main/preload — 1,5d
-- Kênh mới trong `src/shared/home-api.ts` (cạnh `UNIWORK_DOC_CHANNELS`, `:1795`): `uniwork-drive:list-connections`, `:list-files`, `:get-file`, `:unlink`, `:open-on-google`; kiểu trong `HomeApi` (`:1156`); preload (`src/preload/index.ts`, mẫu `:1134-1160`, `asUniworkResult`); `ipcMain.handle` trong `src/main/uniwork-drive/wiring.ts` theo mẫu `uniwork-work/wiring.ts:80-89`; client qua `createUniworkSend` (`src/main/uniwork-docs/client.ts:445-470`).
+- Kênh mới trong `src/shared/home-api.ts` (cạnh `UNIWORK_DOC_CHANNELS`, `:1795`): `uniwork-drive:list-connections`, `:list-files`, `:get-file`, `:unlink`, `:open-on-google`; kiểu trong `HomeApi` (`:1156`); preload (`src/preload/index.ts`, mẫu `:1134-1160`, `asUniworkResult`); kênh thêm `uniwork-drive:get-history` (route lịch sử audit theo resource `drive_file`); `ipcMain.handle` trong `src/main/uniwork-drive/wiring.ts` theo mẫu `uniwork-work/wiring.ts:80-89`; client qua `createUniworkSend` (`src/main/uniwork-docs/client.ts:445-470`).
 - `open-on-google`: main lấy `open_url` từ server, kiểm `https` + host `docs.google.com`/`drive.google.com`, `shell.openExternal`; renderer không truyền URL.
 - Capability `drive_connector` tùy chọn trong `parseCapabilities` (thiếu = `false`), `false` ở `NEVER_READ_CAPABILITIES` và khi quá hạn (`uniwork-sync/capability/cache.ts`).
 - Test (Vitest, node): host lạ bị từ chối, lỗi mạng → `network`, phản hồi hỏng không ném, body capability thiếu trường vẫn hợp lệ.
@@ -243,10 +243,10 @@
 | Pha | Ngày-người |
 | --- | --- |
 | Spike S1–S5 | 2,5 |
-| Server B1–B10 | 18,25 |
-| Web W1–W10 | 22,25 |
+| Server B1–B10 | 20 |
+| Web W1–W10 | 23,25 |
 | Desktop D1–D4 (lane fork) | 6,5 |
 | Kiểm thử/ra mắt Q1–Q3 | 3 |
-| **Tổng** | **52,5** |
+| **Tổng** | **55,25** |
 
 E1 không tính (công 0,5d + thời gian chờ Google). Với một lane `uniwork` hai người (BE + FE) và một lane fork, lịch khoảng 5–6 tuần; đường găng ở mục Phụ thuộc.
