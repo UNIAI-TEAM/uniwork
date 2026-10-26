@@ -264,7 +264,15 @@ export function SettingsPage() {
                     {index > 0 ? <SelectSeparator /> : null}
                     <SelectLabel>{t(`page.groups.${group.id}`)}</SelectLabel>
                     {group.tabs.map((tab) => (
-                      <SelectItem key={tab.value} value={tab.value}>
+                      <SelectItem
+                        key={tab.value}
+                        value={tab.value}
+                        onClick={() => {
+                          if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                            handleTabChange(tab.value);
+                          }
+                        }}
+                      >
                         <tab.icon aria-hidden className="text-muted-foreground" />
                         {t(`page.tabs.${tab.label}`)}
                       </SelectItem>
@@ -291,7 +299,16 @@ export function SettingsPage() {
                     ) : null}
                   </div>
                   {group.tabs.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className={SETTINGS_TAB_TRIGGER_CLASS}
+                      onClick={() => {
+                        if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                          handleTabChange(tab.value);
+                        }
+                      }}
+                    >
                       <tab.icon className="size-4" aria-hidden />
                       {t(`page.tabs.${tab.label}`)}
                     </TabsTrigger>

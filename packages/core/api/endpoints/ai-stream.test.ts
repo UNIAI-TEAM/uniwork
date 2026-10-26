@@ -233,4 +233,21 @@ describe("askUniStream", () => {
     expect(JSON.parse((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).body as string)).toEqual({ question: "q", mode: "plan" });
     expect(JSON.parse((vi.mocked(fetch).mock.calls[1]![1] as RequestInit).body as string)).toEqual({ question: "q" });
   });
+
+  it("defaults conversation_id on run frame to empty string when missing or malformed (transient mode)", async () => {
+    const events = await collect(
+      sse([
+        frame("run", { run_id: "r1", conversation_id: "" }),
+        frame("run", { run_id: "r2", conversation_id: 42 }),
+        frame("run", { run_id: "r3" }),
+        frame("delta", { text: "ok" }),
+      ]),
+    );
+    expect(events).toEqual([
+      { type: "run", runId: "r1", conversationId: "" },
+      { type: "run", runId: "r2", conversationId: "" },
+      { type: "run", runId: "r3", conversationId: "" },
+      { type: "delta", text: "ok" },
+    ]);
+  });
 });

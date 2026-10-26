@@ -211,16 +211,22 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
               }}
             >
               <Label htmlFor="document-version-label">{t("documents.versions.name_label")}</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   id="document-version-label"
+                  className="min-w-0 sm:flex-1"
                   value={label}
                   maxLength={200}
                   placeholder={t("documents.versions.name_placeholder")}
                   disabled={create.isPending}
                   onChange={(event) => changeLabel(event.target.value)}
                 />
-                <Button type="submit" size="sm" disabled={create.isPending} aria-busy={create.isPending || undefined}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full sm:w-auto sm:shrink-0"
+                  disabled={create.isPending}
+                  aria-busy={create.isPending || undefined}>
                   {create.isPending ? (
                     <>
                       <Spinner aria-hidden role="presentation" />

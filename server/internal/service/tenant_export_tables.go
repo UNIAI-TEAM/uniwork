@@ -51,6 +51,7 @@ var tenantExportExcluded = map[string]string{
 	"document_folder_uploads":        "Lô tải thư mục (UNI-2052), trạng thái tạm sống 24 giờ, xóa sau 7 ngày; thư mục và tài liệu nó tạo nằm trong documents.",
 	"document_folder_upload_files":   "Từng tệp của lô tải thư mục (UNI-2052), trạng thái tạm; tài liệu tạo ra nằm trong documents.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
+	"drive_connections":              "Kết nối Google Drive của từng người: token OAuth đã niêm phong, là bí mật phiên; nội dung tệp nằm trên Google Drive.",
 }
 
 func tenantExportIncludes(table string) bool {

@@ -52,8 +52,9 @@ export class ZipError extends Error {
 
 const NO_EOCD = "end of central directory not found";
 
-interface ZipCentralEntry {
+export interface ZipCentralEntry {
   readonly name: string;
+  readonly flags: number;
   readonly method: number;
   readonly compressed: number;
   readonly uncompressed: number;
@@ -84,6 +85,7 @@ export function readCentralDirectory(bytes: Uint8Array, mode: ZipBoundMode): Zip
       throw new ZipError("zip_unreadable", "central directory entry is truncated");
     }
     const method = view.getUint16(cursor + 10, true);
+    const flags = view.getUint16(cursor + 8, true);
     const compressed = view.getUint32(cursor + 20, true);
     const uncompressed = view.getUint32(cursor + 24, true);
     const nameLen = view.getUint16(cursor + 28, true);
@@ -98,7 +100,7 @@ export function readCentralDirectory(bytes: Uint8Array, mode: ZipBoundMode): Zip
       (total += uncompressed) > bounds.maxTotal ||
       (uncompressed > bounds.ratioFloor && uncompressed > Math.max(compressed, 1) * bounds.maxRatio);
     if (oversized) throw new ZipError("zip_too_large", `${name} inflates past the bound`);
-    out.push({ name, method, compressed, uncompressed, localOffset });
+    out.push({ name, flags, method, compressed, uncompressed, localOffset });
   }
   return out;
 }

@@ -76,7 +76,9 @@ describe("AskUniSources", () => {
     render(wrapWithNav(<AskUniSources citations={[task, person]} />));
     const toggle = screen.getByRole("button", { name: "Nguồn (2)" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("pointer-coarse:min-h-11");
     fireEvent.click(toggle);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Sửa lỗi crash" })).toHaveClass("pointer-coarse:min-h-11");
   });
 });

@@ -232,7 +232,7 @@ func (c *Client) Submit(ctx context.Context, grant string, env Envelope, input I
 	req.GetBody = func() (io.ReadCloser, error) { return frameBody(raw, input) }
 	req.Header.Set("Content-Type", jobFrameType)
 	req.Header.Set("X-Office-Envelope-Length", strconv.Itoa(len(raw)))
-	status, resp, err := c.roundTrip(req)
+	status, resp, err := c.roundTrip(req, maxResponseBytes)
 	if err != nil {
 		return JobStatus{}, err
 	}
@@ -268,7 +268,11 @@ func (c *Client) job(ctx context.Context, method, path, grant string, body []byt
 }
 
 func (c *Client) jobWithin(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte) (JobStatus, error) {
-	status, raw, err := c.doWithin(ctx, timeout, method, path, grant, body)
+	return c.jobWithinLimit(ctx, timeout, method, path, grant, body, maxResponseBytes)
+}
+
+func (c *Client) jobWithinLimit(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte, maxBytes int64) (JobStatus, error) {
+	status, raw, err := c.doWithinLimit(ctx, timeout, method, path, grant, body, maxBytes)
 	if err != nil {
 		return JobStatus{}, err
 	}
@@ -296,6 +300,10 @@ func (c *Client) do(ctx context.Context, method, path, grant string, body []byte
 }
 
 func (c *Client) doWithin(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte) (int, []byte, error) {
+	return c.doWithinLimit(ctx, timeout, method, path, grant, body, maxResponseBytes)
+}
+
+func (c *Client) doWithinLimit(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte, maxBytes int64) (int, []byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := c.newRequest(ctx, method, path, grant)
@@ -308,7 +316,7 @@ func (c *Client) doWithin(ctx context.Context, timeout time.Duration, method, pa
 		req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return c.roundTrip(req)
+	return c.roundTrip(req, maxBytes)
 }
 
 func (c *Client) newRequest(ctx context.Context, method, path, grant string) (*http.Request, error) {
@@ -323,7 +331,7 @@ func (c *Client) newRequest(ctx context.Context, method, path, grant string) (*h
 	return req, nil
 }
 
-func (c *Client) roundTrip(req *http.Request) (int, []byte, error) {
+func (c *Client) roundTrip(req *http.Request, maxBytes int64) (int, []byte, error) {
 	res, err := c.http.Do(req)
 	if err != nil {
 		// Unreachable, reset or timed out: the engine may or may not have the
@@ -331,7 +339,7 @@ func (c *Client) roundTrip(req *http.Request) (int, []byte, error) {
 		return 0, nil, NewEngineError("engine_crashed", "unreachable")
 	}
 	defer res.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes))
+	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBytes))
 	if err != nil {
 		return 0, nil, NewEngineError("engine_crashed", "response_read")
 	}

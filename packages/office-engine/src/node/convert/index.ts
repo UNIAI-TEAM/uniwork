@@ -6,6 +6,16 @@ import { writeXlsxPackage } from "./xlsx-write.ts";
 import { ZipError, type ZipBoundMode } from "./zip.ts";
 
 export { PageInputError, pageToDocx } from "./page-docx.ts";
+export {
+  extractDocumentText,
+  ExtractTypedError,
+  MAX_EXTRACT_CODE_POINTS,
+  MAX_EXTRACT_UTF8_BYTES,
+  truncateExtractedText,
+  type ExtractedText,
+  type ExtractFailureReason,
+  type ExtractTextFormat,
+} from "./extract.ts";
 
 // Q7 conversion engine (G2-07b / UNI-690): legacy/ODF -> OOXML, node-only.
 // The converters are deliberately small and honest: they carry the content

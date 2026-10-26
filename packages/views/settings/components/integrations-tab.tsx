@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
+import { EMPTY_CONFIG, useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -13,9 +14,16 @@ import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
-import { DriveIntegrationRow, type CallbackNotice } from "./drive-integration-row";
+import { DRIVE_CONNECTOR_FLAG, DriveIntegrationRow, type CallbackNotice } from "./drive-integration-row";
 import { DriveIntegrationView } from "./drive-integration-view";
-import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, SettingsTab } from "./settings-layout";
+import {
+  SettingsBadge,
+  SettingsList,
+  SettingsListItem,
+  SettingsSection,
+  SettingsTab,
+  SettingsTabSkeleton,
+} from "./settings-layout";
 
 /**
  * Only integrations the roadmap actually commits to; each cites its line.
@@ -89,23 +97,73 @@ export function IntegrationsTab({
 } = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
   const navigation = useNavigation();
+  const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
+  const publicConfigQuery = usePublicConfig();
+  const config = publicConfigQuery.data ?? EMPTY_CONFIG;
+  const driveAvailable = flagEnabled && Boolean(config.drive?.available);
+
   const [initialDriveNotice, setInitialDriveNotice] = useState<CallbackNotice | null>(null);
+  const [focusViewHeading, setFocusViewHeading] = useState(false);
+  const [focusManageButton, setFocusManageButton] = useState(false);
+  const openedInSessionRef = useRef(false);
+  const prevWantsDriveViewRef = useRef(false);
+  const strippedIntegrationRef = useRef(false);
+  const clearFocusViewHeading = useCallback(() => setFocusViewHeading(false), []);
+  const clearFocusManageButton = useCallback(() => setFocusManageButton(false), []);
 
   const activeIntegration = navigation.searchParams.get(INTEGRATION_QUERY_KEY);
   const connectFromUrl = navigation.searchParams.get("connect");
-  const showDriveView =
+  const wantsDriveView =
     activeIntegration === "drive" && !focusDriveRow && connectFromUrl !== "drive";
+  const configWaitForDrive =
+    wantsDriveView && publicConfigQuery.isLoading && publicConfigQuery.errorUpdateCount === 0;
+  const showDriveView = wantsDriveView && driveAvailable;
+
+  useEffect(() => {
+    if (activeIntegration !== "drive") {
+      strippedIntegrationRef.current = false;
+    }
+    if (!wantsDriveView || configWaitForDrive || driveAvailable || strippedIntegrationRef.current) {
+      return;
+    }
+    strippedIntegrationRef.current = true;
+    const params = new URLSearchParams(navigation.searchParams);
+    params.delete(INTEGRATION_QUERY_KEY);
+    if (!params.get("tab")) {
+      params.set("tab", "integrations");
+    }
+    const qs = params.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  }, [activeIntegration, wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
+
+  useEffect(() => {
+    if (prevWantsDriveViewRef.current && !wantsDriveView) {
+      if (openedInSessionRef.current) {
+        setFocusManageButton(true);
+      }
+      openedInSessionRef.current = false;
+    }
+    prevWantsDriveViewRef.current = wantsDriveView;
+  }, [wantsDriveView]);
 
   const openDriveView = (notice?: CallbackNotice) => {
+    openedInSessionRef.current = true;
     setInitialDriveNotice(notice ?? null);
+    setFocusViewHeading(true);
     const params = new URLSearchParams(navigation.searchParams);
     params.set("tab", "integrations");
     params.set(INTEGRATION_QUERY_KEY, "drive");
-    navigation.replace(`${navigation.pathname}?${params.toString()}`);
+    navigation.push(`${navigation.pathname}?${params.toString()}`);
   };
 
   const closeDriveView = () => {
     setInitialDriveNotice(null);
+    setFocusManageButton(true);
+    if (openedInSessionRef.current) {
+      openedInSessionRef.current = false;
+      navigation.back();
+      return;
+    }
     const params = new URLSearchParams(navigation.searchParams);
     params.delete(INTEGRATION_QUERY_KEY);
     if (!params.get("tab")) {
@@ -115,8 +173,19 @@ export function IntegrationsTab({
     navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
   };
 
+  if (configWaitForDrive) {
+    return <SettingsTabSkeleton />;
+  }
+
   if (showDriveView) {
-    return <DriveIntegrationView initialNotice={initialDriveNotice} onBack={closeDriveView} />;
+    return (
+      <DriveIntegrationView
+        initialNotice={initialDriveNotice}
+        focusHeading={focusViewHeading}
+        onHeadingFocused={clearFocusViewHeading}
+        onBack={closeDriveView}
+      />
+    );
   }
 
   return (
@@ -126,6 +195,8 @@ export function IntegrationsTab({
           <DriveIntegrationRow
             focusDriveRow={focusDriveRow}
             onDriveRowFocused={onDriveRowFocused}
+            focusManageButton={focusManageButton}
+            onManageButtonFocused={clearFocusManageButton}
             onOpenDriveView={openDriveView}
           />
           <EmailHubRow />

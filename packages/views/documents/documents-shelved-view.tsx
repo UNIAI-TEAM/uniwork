@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -32,6 +33,10 @@ export interface DocumentsShelvedViewProps {
   bulk?: DocListBulk;
   /** A new value clears the selection. */
   selectionKey?: string;
+  /** The search box rendered at the right end of the filter row (UNI-2205). */
+  search?: ReactNode;
+  /** False while search results replace the table below the toolbar (UNI-2205). */
+  showList?: boolean;
 }
 
 /**
@@ -42,7 +47,7 @@ export interface DocumentsShelvedViewProps {
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey, search, showList = true }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -58,7 +63,7 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
   ];
   const filtered = types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+    <>
       <ShelvedToolbar
         types={types}
         onTypes={onTypes}
@@ -70,32 +75,36 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
         shelvedByOptions={shelvedByOptions}
         shelvedBy={library.shelvedBy}
         onShelvedBy={library.setShelvedBy}
+        search={search}
+        searching={!showList}
       />
-      <DocumentsLibraryList
-        groups={[{ key: "all", rows: state.rows }]}
-        loading={state.loading}
-        failure={state.failure}
-        filteredBy={filtered ? (library.clientFiltered ? "client" : "server") : null}
-        emptyFiltered={{
-          title: t("documents.shelved_list.no_matches_title"),
-          description: t("documents.shelved_list.no_matches_description"),
-        }}
-        screen="shelved"
-        sort={library.sortControl}
-        selectable={Boolean(bulk)}
-        bulk={bulk}
-        selectionKey={selectionKey}
-        hasMore={state.hasMore}
-        loadingMore={state.loadingMore}
-        onLoadMore={state.loadMore}
-        onRetry={state.refetch}
-        onClearFilters={() => {
-          onTypes([]);
-          library.clearFilters();
-        }}
-        handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
-        empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}
-      />
-    </div>
+      {showList ? (
+        <DocumentsLibraryList
+          groups={[{ key: "all", rows: state.rows }]}
+          loading={state.loading}
+          failure={state.failure}
+          filteredBy={filtered ? (library.clientFiltered ? "client" : "server") : null}
+          emptyFiltered={{
+            title: t("documents.shelved_list.no_matches_title"),
+            description: t("documents.shelved_list.no_matches_description"),
+          }}
+          screen="shelved"
+          sort={library.sortControl}
+          selectable={Boolean(bulk)}
+          bulk={bulk}
+          selectionKey={selectionKey}
+          hasMore={state.hasMore}
+          loadingMore={state.loadingMore}
+          onLoadMore={state.loadMore}
+          onRetry={state.refetch}
+          onClearFilters={() => {
+            onTypes([]);
+            library.clearFilters();
+          }}
+          handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
+          empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}
+        />
+      ) : null}
+    </>
   );
 }
