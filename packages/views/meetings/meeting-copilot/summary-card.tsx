@@ -17,10 +17,13 @@ import { useNow } from "../use-now";
 const CARD = "rounded-[14px] border border-border pt-3 pr-3 pb-2.5 pl-3.5";
 const ICON_BUTTON = "text-muted-foreground";
 
-function summaryLines(text: string): string[] {
+function summaryLines(text: string, locale: string): string[] {
+  // The tldr is a few sentences in one paragraph; the Main board gives each sentence its own bullet.
+  const sentences = new Intl.Segmenter(locale, { granularity: "sentence" });
   return text
     .split(/\n+/)
     .map((line) => line.replace(/^[-•*]\s*/, "").trim())
+    .flatMap((line) => Array.from(sentences.segment(line), (s) => s.segment.trim()))
     .filter(Boolean);
 }
 
@@ -86,7 +89,7 @@ export function MeetingSummaryCard({ gen, sourcesLabel }: { gen: SummaryGenerati
     );
   }
 
-  const lines = summary ? summaryLines(summary.summary) : [];
+  const lines = summary ? summaryLines(summary.summary, meetingLocale(i18n.language)) : [];
   const createdAt = summary?.created_at ?? null;
 
   const onCopy = async () => {

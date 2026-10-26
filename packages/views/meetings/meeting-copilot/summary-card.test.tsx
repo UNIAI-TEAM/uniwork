@@ -38,6 +38,17 @@ function gen(over: Partial<SummaryGeneration> = {}): SummaryGeneration {
 }
 
 describe("MeetingSummaryCard", () => {
+  it("gives each sentence of a one-paragraph summary its own bullet", () => {
+    const paragraph = "POS 3.0 lùi ra mắt sang 12/11 để sửa lỗi thanh toán QR. Marketing giữ 120 triệu, dồn cho tuần ra mắt. Chưa chốt cách đào tạo cửa hàng.";
+    render(<MeetingSummaryCard gen={gen({ summary: { ...SUMMARY, summary: paragraph } })} sourcesLabel={null} />);
+    const items = within(screen.getByRole("region", { name: "Tóm tắt đến giờ" })).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual([
+      "POS 3.0 lùi ra mắt sang 12/11 để sửa lỗi thanh toán QR.",
+      "Marketing giữ 120 triệu, dồn cho tuần ra mắt.",
+      "Chưa chốt cách đào tạo cửa hàng.",
+    ]);
+  });
+
   it("lists each summary line and offers the refresh to a clerk only", () => {
     const { rerender } = render(<MeetingSummaryCard gen={gen({ showGenerate: true })} sourcesLabel="Lời thoại · chat" />);
     const card = screen.getByRole("region", { name: "Tóm tắt đến giờ" });
