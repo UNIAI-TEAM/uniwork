@@ -38,7 +38,7 @@ func (h *handlers) listDocumentSources(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	in := service.DocumentSourceFilter{
-		Source: q.Get("source"), Type: q.Get("type"), Q: q.Get("q"), Cursor: strings.TrimSpace(q.Get("cursor")),
+		Source: q.Get("source"), Types: documentTypesFromQuery(q), Q: q.Get("q"), Cursor: strings.TrimSpace(q.Get("cursor")),
 	}
 	sort, ok := documentSortInput(w, q, "")
 	if !ok {

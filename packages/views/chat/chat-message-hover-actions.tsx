@@ -44,6 +44,12 @@ export function chatMessageActionsRailClass(isOwn: boolean): string {
 /** The reaction a hover gives in one click, as Telegram's heart. */
 const QUICK_REACTION = "❤️";
 
+/** Vertical stack on heart hover (canvas / Telegram-style quick picker). */
+export const HEART_HOVER_REACTIONS = ["👍", "😄", "😢"] as const;
+
+const HEART_STACK_BUTTON =
+  "size-9 min-h-9 shrink-0 rounded-full p-0 text-title-sm leading-none hover:bg-muted aria-pressed:bg-brand-subtle";
+
 /** The bar's 32px round buttons (the primitive grows them to 44px on a coarse pointer). */
 const BAR_BUTTON =
   "size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground aria-pressed:bg-brand-subtle";
@@ -149,6 +155,91 @@ function MessageActionButton({
       />
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+function QuickHeartReactionStack({
+  message,
+  mine,
+  onToggleReaction,
+}: {
+  message: ChatMessage;
+  mine: Set<string>;
+  onToggleReaction: (message: ChatMessage, emoji: string) => void;
+}) {
+  const { t } = useTranslation();
+  const heartLabel = t("chat.action_react_emoji", { emoji: QUICK_REACTION });
+  const [stackOpen, setStackOpen] = useState(false);
+  const [heartTooltipOpen, setHeartTooltipOpen] = useState(false);
+  return (
+    <div
+      className="group/heart relative shrink-0"
+      onMouseEnter={() => {
+        setStackOpen(true);
+        setHeartTooltipOpen(false);
+      }}
+      onMouseLeave={() => setStackOpen(false)}
+      onFocusCapture={() => setStackOpen(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setStackOpen(false);
+        }
+      }}
+    >
+      <div
+        className={cn(
+          "absolute bottom-full left-1/2 z-30 mb-1 flex -translate-x-1/2 flex-col items-stretch gap-0.5 rounded-full border border-border bg-popover p-1 shadow-floating",
+          "pointer-events-none opacity-0 transition-opacity duration-(--duration-fast)",
+          "group-hover/heart:pointer-events-auto group-hover/heart:opacity-100",
+          "group-focus-within/heart:pointer-events-auto group-focus-within/heart:opacity-100",
+        )}
+        role="group"
+        aria-hidden={stackOpen ? undefined : true}
+        aria-label={t("chat.action_react_more")}
+      >
+        {HEART_HOVER_REACTIONS.map((emoji) => (
+          <Button
+            key={emoji}
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className={HEART_STACK_BUTTON}
+            aria-label={t("chat.action_react_emoji", { emoji })}
+            aria-pressed={mine.has(emoji) ? true : undefined}
+            onClick={() => onToggleReaction(message, emoji)}
+          >
+            <span aria-hidden className="text-body-lg leading-none">
+              {emoji}
+            </span>
+          </Button>
+        ))}
+      </div>
+      <Tooltip
+        open={stackOpen ? false : heartTooltipOpen}
+        onOpenChange={(next) => {
+          if (!stackOpen) setHeartTooltipOpen(next);
+        }}
+      >
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className={BAR_BUTTON}
+              aria-label={heartLabel}
+              aria-pressed={mine.has(QUICK_REACTION) ? true : undefined}
+              onClick={() => onToggleReaction(message, QUICK_REACTION)}
+            >
+              <span aria-hidden className="text-body-lg leading-none">
+                {QUICK_REACTION}
+              </span>
+            </Button>
+          }
+        />
+        <TooltipContent>{heartLabel}</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -273,15 +364,7 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
     >
       <TooltipProvider delay={300}>
         {onToggleReaction ? (
-          <MessageActionButton
-            label={t("chat.action_react_emoji", { emoji: QUICK_REACTION })}
-            onClick={() => onToggleReaction(message, QUICK_REACTION)}
-            pressed={mine.has(QUICK_REACTION)}
-          >
-            <span aria-hidden className="text-body-lg leading-none">
-              {QUICK_REACTION}
-            </span>
-          </MessageActionButton>
+          <QuickHeartReactionStack message={message} mine={mine} onToggleReaction={onToggleReaction} />
         ) : null}
         {onToggleReaction ? (
           <MessageReactionPicker

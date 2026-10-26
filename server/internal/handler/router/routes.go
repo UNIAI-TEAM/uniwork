@@ -108,6 +108,10 @@ type Routes struct {
 	LeaveOrganization   http.HandlerFunc
 	CloseOrganization   http.HandlerFunc
 
+	// DOC-06b: the documents an organization member owns, and their bulk transfer.
+	GetMemberDocumentOwnership http.HandlerFunc
+	TransferMemberDocuments    http.HandlerFunc
+
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
 	RevokeOrgInvitation  http.HandlerFunc
@@ -452,7 +456,6 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ForwardChatMessage               http.HandlerFunc
-	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
 	ListChatRoomLinkPreviews         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc
@@ -683,6 +686,9 @@ type Routes struct {
 	ListDocumentAccessRequests   http.HandlerFunc
 	ApproveDocumentAccessRequest http.HandlerFunc
 	DeclineDocumentAccessRequest http.HandlerFunc
+	// DOC-06 (UNI-2084): hand one document's ACL owner slot to another
+	// effective member of its workspace.
+	TransferDocumentOwner http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

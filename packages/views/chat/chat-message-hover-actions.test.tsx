@@ -98,6 +98,29 @@ describe("ChatMessageHoverActions", () => {
     expect(onToggleReaction).toHaveBeenCalledWith(row, "❤️");
   });
 
+  it("shows a vertical quick reaction stack when the heart is hovered", async () => {
+    const user = userEvent.setup();
+    const onToggleReaction = vi.fn();
+    render(
+      wrap(
+        <ChatMessageHoverActions
+          message={message("m1")}
+          isOwn={false}
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onToggleReaction={onToggleReaction}
+          onPin={vi.fn()}
+        />,
+      ),
+    );
+    const heart = screen.getByRole("button", { name: "Thả ❤️" });
+    await user.hover(heart);
+    const thumbs = await screen.findByRole("button", { name: "Thả 👍" });
+    expect(thumbs).toBeVisible();
+    await user.click(thumbs);
+    expect(onToggleReaction).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }), "👍");
+  });
+
   it("puts everything else in the more menu: the reaction strip first, delete apart", async () => {
     const user = userEvent.setup();
     const onToggleReaction = vi.fn();

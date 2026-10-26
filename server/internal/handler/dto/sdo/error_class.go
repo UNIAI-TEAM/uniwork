@@ -196,6 +196,11 @@ var errorClassByCode = map[string]string{
 //     a quota or a permission denial, and the client counts the wait down on
 //     the locked card from fields.retry_after_seconds instead of running a
 //     recovery path.
+//   owner_target_not_member (422) the chosen recipient of a document owner
+//     transfer is not a person, not an active member, or not an effective
+//     member of the document's workspace (DOC-06 §4.2, R1-1). The picker shows
+//     the error in place: not a lost permission (permission) nor a state
+//     conflict (conflict), so it carries no class.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

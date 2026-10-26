@@ -13,7 +13,7 @@ describe("search request boundaries", () => {
   });
   it("does not grant public indexing to application paths", () => {
     configureRuntime({ appUrl: "https://uniworkos.com" });
-    for (const path of ["/admin", "/acme/team/tasks", "/vi/admin", "/office/private"]) {
+    for (const path of ["/login", "/register", "/admin", "/acme/team/tasks", "/vi/admin", "/office/private"]) {
       const response = searchProxy(new NextRequest(`https://uniworkos.com${path}`, { headers: { "x-uniwork-marketing-locale": "vi" } }));
       expect(response.headers.get("x-middleware-request-x-uniwork-marketing-locale")).toBeNull();
       expect(response.headers.get("x-robots-tag")).toContain("noindex");

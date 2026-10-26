@@ -40,6 +40,9 @@ type docsWorld struct {
 	// files is the in-memory FileService the document service runs on, for
 	// tests that seed an avatar or a file.
 	files *filesfake.Fake
+	// docs is the DocumentService behind the routes, for tests that plug a
+	// Work Product owner resolver into it.
+	docs *service.DocumentService
 }
 
 // docsPNG is a valid 1x1 PNG: the document layer decodes the image header,
@@ -88,7 +91,7 @@ func newDocsWorld(t *testing.T) *docsWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &docsWorld{srv: srv, pool: pool, files: fakeFiles}
+	w := &docsWorld{srv: srv, pool: pool, files: fakeFiles, docs: docs}
 	w.token, w.userID = filesRegister(t, srv, "docs-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Docs Org", "slug": "docs-org"})
 	if res.StatusCode != 201 {

@@ -17,8 +17,8 @@ import (
 // tenures when the holder loses the right to edit by something other than
 // their own editor (UNI-1645 §3.5): a revoked session (edge 10, holds
 // included - revoking a session revokes the device), a deactivation or
-// departure, a removal, a share revoke or move that drops them below edit,
-// a suspension, a delete. Archive is not here: it releases in its own
+// departure, a removal, a share revoke, move or owner transfer that drops them
+// below edit, a suspension, a delete. Archive is not here: it releases in its own
 // transaction.
 //
 // It runs on the notify lane (main.go, A2): each release writes an audit row
@@ -45,6 +45,7 @@ func (*DocumentEditLockReleaser) Topics() []string {
 		"session.revoked",
 		"member.deactivated", "member.left", "member.removed",
 		"document.share_revoked", "document.moved", "document.deleted",
+		"document.owner_transferred",
 		"organization.suspended",
 	}
 }
@@ -79,7 +80,8 @@ func (c *DocumentEditLockReleaser) Handle(ctx context.Context, ev outbox.Row) er
 		// workspace may read through a workspace share (as the lease
 		// consumer, G508S-BE-2).
 		return c.releaseUserInOrganization(ctx, orgID, userID, DocumentEditEndAccessLost, true)
-	case "document.share_revoked", "document.moved":
+	case "document.share_revoked", "document.moved", "document.owner_transferred":
+		// The transfer demotes the previous owner without a share revoke.
 		return c.recheckDocument(ctx, orgID, documentID)
 	case "document.deleted":
 		return c.releaseDeleted(ctx, orgID, documentID, strings.TrimSpace(payload["workspace_id"]))

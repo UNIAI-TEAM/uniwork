@@ -418,7 +418,7 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 			t.Fatalf("%s never listed", id)
 		}
 	}
-	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Source: DocumentSourceTask, Type: "pdf"})
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Source: DocumentSourceTask, Types: []string{"pdf"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -746,18 +746,18 @@ func TestDocumentSourceCursorAndFilters(t *testing.T) {
 			t.Fatalf("cursor %q accepted", bad)
 		}
 	}
-	if mode, exts, err := documentSourceTypeFilter("docx"); err != nil || mode != "ext" || len(exts) != 2 {
+	if mode, exts, err := documentSourceTypeFilter([]string{"docx"}); err != nil || mode != "ext" || len(exts) != 2 {
 		t.Fatalf("docx filter = %s %v %v", mode, exts, err)
 	}
-	if mode, exts, err := documentSourceTypeFilter(""); err != nil || mode != "ext" || len(exts) != len(documentSourceAllExts) {
+	if mode, exts, err := documentSourceTypeFilter(nil); err != nil || mode != "ext" || len(exts) != len(documentSourceAllExts) {
 		t.Fatalf("empty filter = %s %v %v, want every document extension", mode, exts, err)
 	}
 	for _, typ := range []string{"image", "other"} {
-		if _, _, err := documentSourceTypeFilter(typ); err == nil {
+		if _, _, err := documentSourceTypeFilter([]string{typ}); err == nil {
 			t.Fatalf("type %q accepted", typ)
 		}
 	}
-	if _, _, err := documentSourceTypeFilter("exe"); err == nil {
+	if _, _, err := documentSourceTypeFilter([]string{"exe"}); err == nil {
 		t.Fatal("an unknown type was accepted")
 	}
 	for name, want := range map[string]string{"A.DOCX": "docx", "noext": "", "trail.": "", "x.tar.gz": "gz", "x.d o": ""} {

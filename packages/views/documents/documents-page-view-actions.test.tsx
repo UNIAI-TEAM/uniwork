@@ -250,6 +250,14 @@ describe("file from another module", () => {
     expect(within(dialog).getByText(t("documents.home.row.view_only_notice"))).toBeInTheDocument();
     // One close control, in the header (no second default × over the frame).
     expect(within(dialog).getAllByRole("button", { name: t("documents.home.row.preview_close") })).toHaveLength(1);
+    // The expand toggle widens the dialog to the viewport and restores it.
+    const viewer = screen.getByTestId("source-office-viewer");
+    expect(viewer).toHaveClass("sm:max-w-5xl");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.row.preview_expand") }));
+    expect(viewer).toHaveClass("sm:max-w-[calc(100%-2rem)]");
+    expect(viewer).not.toHaveClass("sm:max-w-5xl");
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.row.preview_restore") }));
+    expect(viewer).toHaveClass("sm:max-w-5xl");
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(adapter.push).not.toHaveBeenCalled();
     expect(calls("POST").some(([path]) => String(path).endsWith("/sources/chat%3Ad9/office/frame-token"))).toBe(true);

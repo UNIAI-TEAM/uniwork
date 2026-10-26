@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { pickTypeFilter } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 
 // TV-3 (approved Main.dc board): the home "Tài liệu" section lists ROOT
@@ -301,12 +302,11 @@ describe("home root empty states", () => {
   });
 
   it("keeps the no-results state, distinct from both empty copies, when a type filter matches nothing", async () => {
-    route({ ...withFolder, list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
+    route({ ...withFolder, list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
 
-    const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-    fireEvent.click(within(chips).getByRole("button", { name: t("documents.home.chips.pdf") }));
+    await pickTypeFilter("pdf");
 
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();

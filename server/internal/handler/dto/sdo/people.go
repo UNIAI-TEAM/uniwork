@@ -123,3 +123,38 @@ type OrgInvitationListSDO struct {
 	Invitations []OrgInvitationDTO `json:"invitations"`
 	Skipped     []string           `json:"skipped"`
 }
+
+// MemberDocumentWorkspaceCountDTO is one workspace's count of a member's
+// documents. A count only, never a title.
+type MemberDocumentWorkspaceCountDTO struct {
+	WorkspaceID   string `json:"workspace_id" description:"ULID workspace" example:"01J8X4WS00N1P2Q3R4S5T6U7V8"`
+	WorkspaceName string `json:"workspace_name" description:"Tên workspace" example:"Kinh doanh"`
+	Count         int64  `json:"count" description:"Số tài liệu thành viên là chủ sở hữu trong workspace" example:"12"`
+}
+
+// MemberDocumentOwnershipSDO is GET /api/v1/orgs/{org}/members/{userID}/document-ownership
+// (DOC-06b, §4.2): how many documents the member owns, by workspace,
+// archived ones included, Work Product documents excluded.
+type MemberDocumentOwnershipSDO struct {
+	UserID     string                            `json:"user_id" description:"ULID thành viên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Total      int64                             `json:"total" description:"Tổng số tài liệu" example:"15"`
+	Workspaces []MemberDocumentWorkspaceCountDTO `json:"workspaces" description:"Số tài liệu theo workspace"`
+}
+
+// MemberDocumentsSkippedDTO counts the documents of one batch left with the
+// source, by reason.
+type MemberDocumentsSkippedDTO struct {
+	RecipientNotMember int `json:"recipient_not_member" description:"Tài liệu ở workspace người nhận chưa tham gia" example:"3"`
+	SelfRestricted     int `json:"self_restricted" description:"Tài liệu hạn chế người gọi tự nhận mà không có quyền quản lý" example:"0"`
+}
+
+// MemberDocumentsTransferSDO is the 200 body of POST
+// /api/v1/orgs/{org}/members/{userID}/document-ownership (DOC-06b, §2.2,
+// R1-10). cursor is empty when has_more is false.
+type MemberDocumentsTransferSDO struct {
+	BulkID      string                    `json:"bulk_id" description:"ULID của đợt; gửi lại ở các lần gọi tiếp" example:"01J8X4BULK0N1P2Q3R4S5T6U7"`
+	Transferred int                       `json:"transferred" description:"Số tài liệu đã chuyển trong lần gọi này" example:"497"`
+	Skipped     MemberDocumentsSkippedDTO `json:"skipped" description:"Số tài liệu bỏ qua theo lý do"`
+	HasMore     bool                      `json:"has_more" description:"Còn tài liệu sau lô này; gọi tiếp với cursor" example:"true"`
+	Cursor      string                    `json:"cursor" description:"Mờ; rỗng khi hết" example:"01J8X4DOCZN1P2Q3R4S5T6U7"`
+}
