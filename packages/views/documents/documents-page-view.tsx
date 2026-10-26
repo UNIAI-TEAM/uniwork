@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
+import { FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -13,15 +13,14 @@ import { paths } from "@uniwork/core/paths";
 import { canCreateInsideFolder, canEditDocument, useCurrentMember } from "@uniwork/core/permissions";
 import { isMyFolder } from "@uniwork/core/types/document";
 import { useMembers } from "@uniwork/core/workspaces";
-import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
-import { CollectionPageState } from "../layout/collection-page";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { AppLink, useNavigation } from "../navigation";
+import { useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentsDropOverlay } from "./documents-drop-overlay";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
-import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
+import { DocumentsCollectionHeader, DocumentsFolderInvalidState, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
 import type { DocumentTypeFilter } from "./library-rows";
@@ -393,6 +392,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     />
   );
   const searchBox = <DocumentsSearchBox search={search} folderPlaceholder={Boolean(folderDoc)} />;
+  const searchResults = (
+    <DocumentsSearchResults
+      search={search}
+      myFolderId={myFolderId}
+      onSelectFolder={(id) => {
+        search.clear();
+        goHome({ kind: "home" }, id);
+      }}
+      onSelectDocument={onOpen}
+    />
+  );
   const toolbar = {
     types,
     onTypes: setTypes,
@@ -442,26 +452,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 <DocumentsScreenHead view={view} actions={navButton} />
               </div>
             ) : null}
-            {folderInvalid && !searching ? (
-              <>
-                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-5 sm:px-6">{searchBox}</div>
-                <CollectionPageState
-                  icon={CircleAlert}
-                  tone="destructive"
-                  role="alert"
-                  title={t("documents.home.folder_invalid.title")}
-                  description={t("documents.home.folder_invalid.description")}
-                  actions={
-                    <AppLink
-                      href={wsPaths.documents()}
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
-                      onClick={() => setView({ kind: "home" })}
-                    >
-                      {t("documents.home.folder_invalid.back")}
-                    </AppLink>
-                  }
-                />
-              </>
+            {folderInvalid ? (
+              <div className="@container mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+                {searchBox}
+                {searching ? searchResults : <DocumentsFolderInvalidState backHref={wsPaths.documents()} onBack={() => setView({ kind: "home" })} />}
+              </div>
             ) : view.kind === "archived" ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
@@ -514,15 +509,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   />
                 ) : null}
                 {searching ? (
-                  <DocumentsSearchResults
-                    search={search}
-                    myFolderId={myFolderId}
-                    onSelectFolder={(id) => {
-                      search.clear();
-                      goHome({ kind: "home" }, id);
-                    }}
-                    onSelectDocument={onOpen}
-                  />
+                  searchResults
                 ) : view.kind === "shelved" ? null : homeView ? (
                   <>
                     <DocumentsSections

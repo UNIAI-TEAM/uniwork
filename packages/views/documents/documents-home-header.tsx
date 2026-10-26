@@ -1,21 +1,22 @@
 "use client";
 
-import { Ellipsis } from "lucide-react";
+import { CircleAlert, Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { isMyFolder, type Document } from "@uniwork/core/types/document";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { CollectionPageHeader } from "../layout/collection-page";
+import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
+import { AppLink } from "../navigation";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { folderMenuItems } from "./documents-folders-grid";
 import { FolderBreadcrumb } from "./folder-breadcrumb";
@@ -148,6 +149,29 @@ export function DocumentsCollectionHeader() {
       icon={MODULE_ICONS.documents}
       tone={moduleTone("documents")}
       title={t("documents.page.title")}
+    />
+  );
+}
+
+/** Shown when `?folder=` names a missing, trashed, or inaccessible folder. */
+export function DocumentsFolderInvalidState({ backHref, onBack }: { backHref: string; onBack: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <CollectionPageState
+      icon={CircleAlert}
+      tone="destructive"
+      role="alert"
+      title={t("documents.home.folder_invalid.title")}
+      description={t("documents.home.folder_invalid.description")}
+      actions={
+        <AppLink
+          href={backHref}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+          onClick={onBack}
+        >
+          {t("documents.home.folder_invalid.back")}
+        </AppLink>
+      }
     />
   );
 }

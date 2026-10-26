@@ -86,7 +86,7 @@ export function LibraryToolbar({
   return (
     <div className={cn("@container flex flex-wrap items-start gap-2 @min-[48rem]:flex-nowrap", className)}>
       {!searching ? (
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div data-slot="documents-filter-zone" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
           <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
           <FilterSelect
