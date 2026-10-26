@@ -1,0 +1,43 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -count=1 -v ./internal/handler -run '^TestDocumentDownloadIntent$' -timeout 10m > /tmp/mv3-intent.log 2>&1; rc=$?; cut -c1-400 /tmp/mv3-intent.log | head -200; echo; echo "GO_INTENT_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+=== RUN   TestDocumentDownloadIntent
+2026/10/26 06:11:58 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.212ms request_id=cursor/Ojl3QDE0RX-000001 correlation_id=01M5VDCKKR3DP2JJTWZ0SS0F3R
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.564ms request_id=cursor/Ojl3QDE0RX-000002 correlation_id=01M5VDCKKX969E5GFDGZRH3JJC
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.472ms request_id=cursor/Ojl3QDE0RX-000003 correlation_id=01M5VDCKKYZK4P5RFRF4NRH5CJ
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/orgs/01M5VDCKM03JQ8073XT43EPY1H/workspaces status=201 duration=4.187ms request_id=cursor/Ojl3QDE0RX-000004 correlation_id=01M5VDCKM3WCSS2J4WDBWQYHJN
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.638ms request_id=cursor/Ojl3QDE0RX-000005 correlation_id=01M5VDCKM7JYF51WD3ZMW7BQQ6
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=465µs request_id=cursor/Ojl3QDE0RX-000006 correlation_id=01M5VDCKM9ESXRW7FV6ZG7QCRN
+=== RUN   TestDocumentDownloadIntent/intent=view_writes_one_view_row_and_keeps_attachment_headers
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=5.795ms request_id=cursor/Ojl3QDE0RX-000007 correlation_id=01M5VDCKMA2VKNPQXE4XSW78WS
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMDSPP3KNPK7308N93M/download status=206 duration=1.634ms request_id=cursor/Ojl3QDE0RX-000008 correlation_id=01M5VDCKMHPMCQXV2QYT9BW80H
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMDSPP3KNPK7308N93M/download status=200 duration=684µs request_id=cursor/Ojl3QDE0RX-000009 correlation_id=01M5VDCKMJYBFTP4FA12G8155Z
+=== RUN   TestDocumentDownloadIntent/no_intent_and_intent=download_write_download_and_coalesce
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=2.41ms request_id=cursor/Ojl3QDE0RX-000010 correlation_id=01M5VDCKMKM5XB9HEA6H3KB593
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMN8ES99298ZHF8QRCN/download status=200 duration=667µs request_id=cursor/Ojl3QDE0RX-000011 correlation_id=01M5VDCKMPAG4Q2M3KPT3HZVS7
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMN8ES99298ZHF8QRCN/download status=200 duration=408µs request_id=cursor/Ojl3QDE0RX-000012 correlation_id=01M5VDCKMQ9WB54WFKA4QSCHB3
+=== RUN   TestDocumentDownloadIntent/coalesce_is_per_action:_view_then_download_within_5_min_writes_two_rows
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=2.496ms request_id=cursor/Ojl3QDE0RX-000013 correlation_id=01M5VDCKMRCNJBSFQ2126W5R9V
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMS4KZ03K6TVZQ4HW8X/download status=200 duration=912µs request_id=cursor/Ojl3QDE0RX-000014 correlation_id=01M5VDCKMVVJSJT2M93TKABTRM
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKMS4KZ03K6TVZQ4HW8X/download status=200 duration=708µs request_id=cursor/Ojl3QDE0RX-000015 correlation_id=01M5VDCKMW2Z4J2WK1BXYBV2FA
+=== RUN   TestDocumentDownloadIntent/HEAD_and_meta=1_respect_intent
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=2.227ms request_id=cursor/Ojl3QDE0RX-000016 correlation_id=01M5VDCKMXA4H820WMAT3RJXYP
+2026/10/26 06:11:58 INFO http request method=HEAD path=/api/v1/documents/01M5VDCKMYG62SNBA1VGKBTZPF/download status=200 duration=665µs request_id=cursor/Ojl3QDE0RX-000017 correlation_id=01M5VDCKN0YZJ67EYF93GN3GGX
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=2.237ms request_id=cursor/Ojl3QDE0RX-000018 correlation_id=01M5VDCKN0YZJ67EYF97ES2EJD
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKN103FW331RWG0N2182/download status=200 duration=535µs request_id=cursor/Ojl3QDE0RX-000019 correlation_id=01M5VDCKN3ACXTFSD0KR7DKKGF
+2026/10/26 06:11:58 INFO http request method=GET path=/api/v1/documents/01M5VDCKN103FW331RWG0N2182/download status=200 duration=533µs request_id=cursor/Ojl3QDE0RX-000020 correlation_id=01M5VDCKN4P9WJRCPZAP85F4KJ
+=== RUN   TestDocumentDownloadIntent/invalid_intent_answers_400_invalid_request_and_writes_no_row
+2026/10/26 06:11:58 INFO http request method=POST path=/api/v1/workspaces/01M5VDCKM49E3A0BB9DQAT96H4/documents/files status=201 duration=2.637ms request_id=cursor/Ojl3QDE0RX-000021 correlation_id=01M5VDCKN5REXCH70N1QHMN5Z4
+2026/10/26 06:11:58 WARN http request method=GET path=/api/v1/documents/01M5VDCKN6A9MMG8266DMAT7PD/download status=400 duration=174µs request_id=cursor/Ojl3QDE0RX-000022 correlation_id=01M5VDCKN88HPHZCWRX8QQ17J2
+2026/10/26 06:11:58 WARN http request method=HEAD path=/api/v1/documents/01M5VDCKN6A9MMG8266DMAT7PD/download status=400 duration=136µs request_id=cursor/Ojl3QDE0RX-000023 correlation_id=01M5VDCKN88HPHZCWRX9A6W29Q
+--- PASS: TestDocumentDownloadIntent (0.72s)
+    --- PASS: TestDocumentDownloadIntent/intent=view_writes_one_view_row_and_keeps_attachment_headers (0.01s)
+    --- PASS: TestDocumentDownloadIntent/no_intent_and_intent=download_write_download_and_coalesce (0.00s)
+    --- PASS: TestDocumentDownloadIntent/coalesce_is_per_action:_view_then_download_within_5_min_writes_two_rows (0.01s)
+    --- PASS: TestDocumentDownloadIntent/HEAD_and_meta=1_respect_intent (0.01s)
+    --- PASS: TestDocumentDownloadIntent/invalid_intent_answers_400_invalid_request_and_writes_no_row (0.00s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/handler	0.736s
+
+GO_INTENT_EXIT=0
