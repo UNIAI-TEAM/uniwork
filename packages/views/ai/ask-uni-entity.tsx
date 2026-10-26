@@ -22,6 +22,7 @@ import { isInAppHref } from "./ask-uni-links";
 const KIND_MODULE = {
   task: "tasks",
   document: "documents",
+  drive_file: "documents",
   meeting: "meetings",
   project: "projects",
   member: "people",

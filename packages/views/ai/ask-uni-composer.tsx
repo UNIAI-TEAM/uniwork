@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
+import { ArrowUp, ExternalLink, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import { askDisplayAttachments, type StagedAskFile } from "@uniwork/core/ai/attachments";
@@ -73,6 +73,7 @@ export function AskUniComposer({
   const page = useShownPage();
   const sent = useEffectiveFocus();
   const dismissPage = useAiPanelStore((s) => s.dismissPage);
+  const transientTrimmed = useAiPanelStore((s) => s.transientWindowTrimmed);
   const { model, effort } = useAskModelSelection(workspace.id);
   const askMode = useAskUniMode(workspace.id)?.mode;
   const tainted = useAiConversations(workspace.id).data?.find((c) => c.id === conversationId)?.tainted ?? false;
@@ -106,7 +107,13 @@ export function AskUniComposer({
   // An entry point's focus becomes the chip once.
   useEffect(() => {
     if (!pendingFocus) return;
-    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label });
+    setFocus({
+      kind: pendingFocus.kind,
+      id: pendingFocus.id,
+      label: pendingFocus.label,
+      accountEmail: pendingFocus.accountEmail,
+      openUrl: pendingFocus.openUrl,
+    });
     clearPendingFocus();
     box.current?.focus();
   }, [pendingFocus, clearPendingFocus, setFocus]);
@@ -122,9 +129,24 @@ export function AskUniComposer({
 
   // A hand-picked focus wins over the page; a removed page chip stays off until another page.
   const shownPage = focus ? null : page;
-  const focusLabel = focus ? (focus.label ? `${kindLabel(focus.kind)}: ${focus.label}` : kindLabel(focus.kind)) : "";
+  const isDriveFocus = sent?.kind === "drive_file";
+  const focusLabel = focus
+    ? focus.kind === "drive_file"
+      ? focus.label
+        ? t("drive.context_chip", { name: focus.label })
+        : t("drive.context_chip_unnamed")
+      : focus.label
+        ? `${kindLabel(focus.kind)}: ${focus.label}`
+        : kindLabel(focus.kind)
+    : "";
   const placeholderKind = sent?.kind;
-  const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";
+  const pageLabel = shownPage
+    ? shownPage.kind === "drive_file"
+      ? shownPage.label
+        ? t("drive.context_chip", { name: shownPage.label })
+        : t("drive.context_chip_unnamed")
+      : t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) })
+    : "";
 
   // A file still uploading is not yet a file, and a failed one would silently drop out: the question waits for both.
   const filesWait = !!attachments && (attachments.busy || attachments.blocked);
@@ -144,7 +166,7 @@ export function AskUniComposer({
     const outcome = onSend(
       {
         question,
-        conversation_id: conversationId ?? undefined,
+        ...(isDriveFocus ? {} : { conversation_id: conversationId ?? undefined }),
         focus: sent ? { kind: sent.kind, id: sent.id } : undefined,
         mentions,
         attachment_ids: ids.length > 0 ? ids : undefined,
@@ -206,11 +228,32 @@ export function AskUniComposer({
             />
           </div>
         ) : null}
+        {isDriveFocus ? (
+          <p className="px-1 text-caption text-muted-foreground" data-slot="ask-uni-drive-reader-line">
+            {sent?.accountEmail ? t("drive.reader_line", { email: sent.accountEmail }) : t("drive.reader_line_no_email")}
+          </p>
+        ) : null}
+        {isDriveFocus && transientTrimmed ? (
+          <p className="px-1 text-caption text-muted-foreground" data-slot="ask-uni-drive-window-trimmed">
+            {t("drive.window_trimmed")}
+          </p>
+        ) : null}
         {attachments ? <AskUniAttachmentRow attachments={attachments} /> : null}
         {refusal ? (
-          <p role="alert" className="text-caption text-destructive">
-            {t(`errors.${refusal}`, { defaultValue: t("errors.default") })}
-          </p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-caption text-destructive">
+            <span>{t(`errors.${refusal}`, { defaultValue: t("errors.default") })}</span>
+            {refusal === "drive_format_unsupported" && sent?.openUrl ? (
+              <a
+                href={sent.openUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <ExternalLink aria-hidden className="size-3.5" />
+                {t("drive.open_on_drive")}
+              </a>
+            ) : null}
+          </div>
         ) : null}
         <AskUniEditor
           ref={box}
@@ -254,6 +297,11 @@ export function AskUniComposer({
           </div>
         </div>
       </div>
+      {isDriveFocus ? (
+        <p className="mt-2 px-1 text-caption text-muted-foreground" data-slot="ask-uni-drive-footer">
+          {t("drive.footer")}
+        </p>
+      ) : null}
     </div>
   );
 }

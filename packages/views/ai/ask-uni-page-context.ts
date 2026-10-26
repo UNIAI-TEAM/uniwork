@@ -3,16 +3,26 @@
 import { useEffect } from "react";
 import { useAiPanelStore } from "@uniwork/core/ai";
 
-type PageFocus = { kind: "task" | "meeting" | "document" | "project" | "room"; id: string; label: string };
+type PageFocus = {
+  kind: "task" | "meeting" | "document" | "drive_file" | "project" | "room";
+  id: string;
+  label: string;
+  accountEmail?: string;
+  openUrl?: string;
+};
 
 /** Tells Ask UNI which object this page shows, so the composer offers it as a chip. Pass null while it loads. */
 export function useAskUniPageContext(focus: PageFocus | null): void {
   const kind = focus?.kind;
   const id = focus?.id;
   const label = focus?.label;
+  const accountEmail = focus?.accountEmail;
+  const openUrl = focus?.openUrl;
   useEffect(() => {
-    if (kind && id !== undefined && label !== undefined) useAiPanelStore.getState().setPage({ kind, id, label });
-  }, [kind, id, label]);
+    if (kind && id !== undefined && label !== undefined) {
+      useAiPanelStore.getState().setPage({ kind, id, label, accountEmail, openUrl });
+    }
+  }, [kind, id, label, accountEmail, openUrl]);
   // The next page may already have set itself: clear only what is still this page's.
   useEffect(() => {
     if (!kind) return;

@@ -626,4 +626,77 @@ describe("AskUniComposer", () => {
     expect(onSend.mock.calls[0]![0]).not.toHaveProperty("mode");
   });
 
+
+  describe("drive_file focus (spec §9)", () => {
+    it("renders the context chip, reader line with account email, and transient footer, and sends only kind+id without conversation_id", async () => {
+      const { onSend } = mount();
+      act(() =>
+        useAiPanelStore.getState().openWithFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+          openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+        }),
+      );
+      expect(
+        await screen.findByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản uni-work1@gmail.com khi trả lời.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeInTheDocument();
+      expect(box()).toHaveAttribute("aria-placeholder", "Hỏi về tài liệu…");
+
+      type("Tóm tắt các mốc");
+      key("Enter");
+      expect(onSend).toHaveBeenCalledTimes(1);
+      const payload = onSend.mock.calls[0]![0];
+      expect(payload.focus).toEqual({ kind: "drive_file", id: "df1" });
+      expect(payload).not.toHaveProperty("conversation_id");
+    });
+
+    it("shows the sliding-window notice line when transientWindowTrimmed is true", async () => {
+      mount();
+      act(() => {
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Kế hoạch ra mắt Q4",
+          accountEmail: "uni-work1@gmail.com",
+        });
+        useAiPanelStore.getState().setTransientWindowTrimmed(true);
+      });
+      expect(await screen.findByText("UNI chỉ nhớ các lượt gần nhất")).toBeInTheDocument();
+    });
+
+    it("shows drive_format_unsupported refusal with 'Mở trên Google Drive' link", async () => {
+      const { onSend } = mount();
+      onSend.mockResolvedValueOnce({ accepted: false, code: "drive_format_unsupported", message: "" });
+      act(() =>
+        useAiPanelStore.getState().setFocus({
+          kind: "drive_file",
+          id: "df1",
+          label: "Tệp lạ.zip",
+          accountEmail: "uni-work1@gmail.com",
+          openUrl: "https://drive.google.com/file/d/ext-1/view?authuser=uni-work1%40gmail.com",
+        }),
+      );
+      type("Tóm tắt");
+      key("Enter");
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("UNI chưa đọc được định dạng này.");
+      const openLink = within(alert).getByRole("link", { name: "Mở trên Google Drive" });
+      expect(openLink).toHaveAttribute(
+        "href",
+        "https://drive.google.com/file/d/ext-1/view?authuser=uni-work1%40gmail.com",
+      );
+    });
+  });
 });

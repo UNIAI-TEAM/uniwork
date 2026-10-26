@@ -18,6 +18,7 @@ export function askRefHref(ws: Workspace | undefined, r: Pick<AiContextRef, "kin
     case "project": return base?.project(r.id) ?? null;
     case "meeting": return base?.meeting(r.id) ?? null;
     case "document": return base?.document(r.id) ?? null;
+    case "drive_file": return base?.documentsDriveFile(r.id) ?? null;
     case "member": return base?.person(r.id) ?? null;
     case "room": return base?.chatConversation(r.id) ?? null;
     default: return null;
@@ -34,7 +35,7 @@ export function AskUniContextChips({ refs }: { refs: AiContextRef[] }) {
     <ul className="mt-1 flex flex-wrap justify-end gap-1">
       {refs.map((r) => {
         const Icon = entityKindIcon(r.kind === "room" ? "chat" : r.kind);
-        const kindLabel = t(["task", "project", "meeting", "document", "member"].includes(r.kind) ? r.kind : r.kind === "room" ? "chat" : "other");
+        const kindLabel = t(["task", "project", "meeting", "document", "drive_file", "member"].includes(r.kind) ? r.kind : r.kind === "room" ? "chat" : "other");
         const to = href(r);
         const body = (
           <>

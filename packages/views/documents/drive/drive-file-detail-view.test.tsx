@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@uniwork/core/api";
+import { useAiPanelStore } from "@uniwork/core/ai";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import {
   FeatureFlagsProvider,
@@ -118,6 +119,7 @@ beforeEach(() => {
   requestMock.mockReset();
   resetAuthStoreForTests();
   setSessionUser(sessionUser);
+  useAiPanelStore.getState().reset();
 });
 
 describe("DriveFileDetailView (4.2)", () => {
@@ -576,5 +578,75 @@ describe("DriveFileDetailView (4.2)", () => {
     fireEvent.click(within(rebindDialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
     await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith(t("driveLibrary.detail.rebind.failed")));
     toastErrorSpy.mockRestore();
+  });
+
+  it("renders Hỏi UNI aria-disabled with access_required_hint when viewer_access !== 'granted' and seam is present (§7.4)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            viewer_access: "unknown",
+            viewer_account_email: undefined,
+            can_ask: false,
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    const onAsk = vi.fn();
+    render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} onAsk={onAsk} />));
+
+    const askBtn = await screen.findByRole("button", { name: t("driveLibrary.detail.ask_uni") });
+    expect(askBtn).toHaveAttribute("aria-disabled", "true");
+    const hintId = askBtn.getAttribute("aria-describedby");
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId!)).toHaveTextContent(t("driveLibrary.detail.access_required_hint"));
+
+    fireEvent.click(askBtn);
+    expect(onAsk).not.toHaveBeenCalled();
+  });
+
+  it("wires default useAskUniOpener when onAsk is omitted so Hỏi UNI and ?ask=1 open Ask UNI with drive_file focus", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({ can_ask: true, viewer_access: "granted" }),
+        });
+      }
+      if (path.endsWith("/ai/capabilities")) {
+        return Promise.resolve({ enabled: true, ask_uni: true });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    const nav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?ask=1`);
+    const service = new FeatureFlagService(
+      new StaticProvider({
+        documents: { default: true },
+        ask_uni_stream: { default: true },
+      }),
+    );
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={sessionUser}>
+          <FeatureFlagsProvider service={service}>
+            <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />
+          </FeatureFlagsProvider>
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+
+    await screen.findByRole("button", { name: t("driveLibrary.detail.ask_uni") });
+    await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({
+      kind: "drive_file",
+      id: FILE_ID,
+      label: "Kế hoạch ra mắt Q4",
+      accountEmail: "uni-work1@gmail.com",
+      openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+    });
+    expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);
   });
 });
