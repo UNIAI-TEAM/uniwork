@@ -55,4 +55,13 @@ describe("LinkHoverCard Open (DOC7-W03)", () => {
     clickOpen();
     expect(nav.push).toHaveBeenCalledWith("/acme/eng/documents/D1");
   });
+
+  it("keeps the portaled hover card zIndex below z-50 overlays and Drive paste suggestion chips (RF-1)", () => {
+    mount("/acme/eng/documents/D1", false);
+    const cardEl = document.querySelector<HTMLElement>(".link-hover-card");
+    expect(cardEl).not.toBeNull();
+    // jsdom has no paint/stacking-context engine, so assert the numeric z-index contract directly.
+    expect(Number(cardEl!.style.zIndex)).toBe(49);
+    expect(Number(cardEl!.style.zIndex)).toBeLessThan(50);
+  });
 });
