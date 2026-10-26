@@ -94,6 +94,7 @@
     "./office/office-modules": "./office/office-modules.ts",
     "./office/draft-session-key": "./office/draft-session-key.ts",
     "./office/error-state": "./office/error-state.ts",
+    "./office/releases-hooks": "./office/releases-hooks.ts",
     "./drafts/cleanup-registry": "./drafts/cleanup-registry.ts",
     "./documents/errors": "./documents/errors.ts",
     "./documents/hooks-comments": "./documents/hooks-comments.ts",
