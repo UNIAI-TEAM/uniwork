@@ -61,7 +61,6 @@ const (
 var (
 	errOverLimit    = errors.New("decompressed data over the 64 MiB limit")
 	errTablesTooBig = errors.New("shared strings, sheets, relationships or slides over the 16 MiB limit")
-	errBigDirectory = errors.New("zip directory over the 1 MiB limit")
 	errTooDeep      = errors.New("XML nested deeper than 100 elements")
 	errTagTooLong   = errors.New("XML tag longer than 64 KiB")
 	errTextTooLong  = errors.New("XML text or comment longer than 4 MiB")

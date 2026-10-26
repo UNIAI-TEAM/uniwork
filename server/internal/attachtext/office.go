@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/unicomhub/uniwork/server/internal/zipbound"
 )
 
 // zipDoc is an opened Office/ODF package. It streams entries and counts every
@@ -23,32 +25,13 @@ type zipDoc struct {
 	keep   keeper // bytes of text the file may keep in Parts
 }
 
-// dirReader caps what zip.NewReader may read: the end record and the central
-// directory are all it reads, so past left bytes the directory is too large.
-// A left below zero lifts the cap, for reading the entries afterwards.
-type dirReader struct {
-	io.ReaderAt
-	left int64
-}
-
-func (d *dirReader) ReadAt(p []byte, off int64) (int, error) {
-	if d.left >= 0 {
-		if d.left -= int64(len(p)); d.left < 0 {
-			return 0, errBigDirectory
-		}
-	}
-	return d.ReaderAt.ReadAt(p, off)
-}
-
 func openZip(r io.ReaderAt, size int64) (*zipDoc, error) {
 	// The end record sits in the last 64 KiB; archive/zip reads it in 1 KiB steps.
-	dr := &dirReader{ReaderAt: r, left: maxZipDirectory + 70<<10}
-	zr, err := zip.NewReader(dr, size)
+	zr, err := zipbound.NewReaderMax(r, size, maxZipDirectory)
 	// ErrInsecurePath only warns about names we never extract to disk.
 	if err != nil && !errors.Is(err, zip.ErrInsecurePath) {
 		return nil, unreadable(err)
 	}
-	dr.left = -1
 	z := &zipDoc{files: make(map[string]*zip.File, len(zr.File)), left: maxReadBytes,
 		tables: budget{maxTables}, keep: keeper{left: maxRetained}}
 	for _, f := range zr.File {

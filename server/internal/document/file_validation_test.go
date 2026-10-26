@@ -7,9 +7,13 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/zipbound"
 )
 
 const (
@@ -302,4 +306,42 @@ func TestUploadExtensionsMatchTheMIMEMap(t *testing.T) {
 	if _, ok := ExpectedMIMEForExtension("setup.exe"); ok {
 		t.Fatal("exe accepted")
 	}
+}
+
+type countingReaderAt struct {
+	r     io.ReaderAt
+	bytes int64
+}
+
+func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	n, err := c.r.ReadAt(p, off)
+	c.bytes += int64(n)
+	return n, err
+}
+
+func TestValidateFileRefusesHugeCentralDirectoryWithinBoundedReads(t *testing.T) {
+	entries := []zipEntry{
+		{name: "[Content_Types].xml", body: []byte("<Types/>")},
+		{name: "word/document.xml", body: []byte("<w:document/>")},
+	}
+	bigName := strings.Repeat("a", 900)
+	for i := range 1500 {
+		entries = append(entries, zipEntry{name: "word/media/" + strconv.Itoa(i) + "_" + bigName, body: []byte("x")})
+	}
+	raw := buildZip(t, entries...)
+	maxAllowed := zipbound.MaxDirectoryBytes + zipbound.EndRecordWindowBytes
+
+	for _, contentType := range []string{tDOCX, "application/vnd.oasis.opendocument.text"} {
+		cr := &countingReaderAt{r: bytes.NewReader(raw)}
+		_, err := ValidateFile(cr, int64(len(raw)), contentType, DefaultFileLimits)
+		wantReason(t, err, ReasonZipUnreadable)
+		if cr.bytes > maxAllowed {
+			t.Fatalf("%s: read %d bytes, want <= %d", contentType, cr.bytes, maxAllowed)
+		}
+	}
+
+	// ValidateUploadProbe also bounds central-directory reads through the same opener.
+	head := raw[:min(len(raw), 64<<10)]
+	err := ValidateUploadProbe(tDOCX, int64(len(raw)), head, raw, 0, int64(len(raw)), DefaultFileLimits)
+	wantReason(t, err, ReasonZipUnreadable)
 }
