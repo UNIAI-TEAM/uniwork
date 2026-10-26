@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; export REDIS_TEST_URL=redis://localhost:6379/1; cd server; go test -p 1 ./migrations/... ./internal/ -count=1 -timeout 30m > /tmp/c5-mig.log 2>&1; rc=$?; grep -E "^\s*--- (FAIL|SKIP)|^(FAIL|ok|panic)|_test.go:[0-9]+:" /tmp/c5-mig.log | cut -c1-400 | head -40; echo; echo "GO_MIG_ARCH_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/migrations	9.741s
+ok  	github.com/unicomhub/uniwork/server/internal	1.892s
+
+GO_MIG_ARCH_EXIT=0
