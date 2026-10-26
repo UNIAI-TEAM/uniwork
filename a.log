@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^259b98935" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=259b98935ab438e0f01dde2b13539213beaa23ed
+259b98935 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-2186-drive-web
+f988decf5 fix(drive): prevent cold-load config error refetch and replace loop (N7-1)
+c481986d1 fix(drive): align row action and title line with tile offset and complete r8 tests
