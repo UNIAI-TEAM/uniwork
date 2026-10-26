@@ -5211,6 +5211,17 @@
         "converted": "Đã giao · {{count}}",
         "editLabel": "Sửa & giao \"{{title}}\"",
         "selectedRegion": "Việc đã chọn"
+      },
+      "people": {
+        "waiting_one": "{{count}} người đang chờ",
+        "waiting_other": "{{count}} người đang chờ",
+        "admit": "Cho vào",
+        "showWaiting": "Xem từng người",
+        "hands": "Giơ tay · {{count}}",
+        "lowerMine": "Hạ tay",
+        "inRoom": "Trong phòng · {{count}}",
+        "scribeRole": "Trợ lý AI · đang ghi",
+        "you": "bạn"
       }
     }
   },

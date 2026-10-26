@@ -5212,6 +5212,17 @@
         "converted": "Assigned · {{count}}",
         "editLabel": "Edit & assign \"{{title}}\"",
         "selectedRegion": "Selected items"
+      },
+      "people": {
+        "waiting_one": "{{count}} person waiting",
+        "waiting_other": "{{count}} people waiting",
+        "admit": "Admit",
+        "showWaiting": "Show each person",
+        "hands": "Hands raised · {{count}}",
+        "lowerMine": "Lower hand",
+        "inRoom": "In the room · {{count}}",
+        "scribeRole": "AI assistant · taking notes",
+        "you": "you"
       }
     }
   },

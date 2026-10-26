@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
-import { Eye, EyeOff, Lock, MicOff, EllipsisVertical, Pin, PinOff, Volume2 } from "lucide-react";
+import { Eye, EyeOff, Lock, MicOff, EllipsisVertical, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -24,9 +24,21 @@ function displayName(participant: Participant): string {
   return participant.name || participant.identity;
 }
 
+/** Three green bars: someone is talking right now. */
+function SpeakingBars({ label }: { label: string }) {
+  return (
+    <span role="img" aria-label={label} className="flex h-3.5 w-4 items-end justify-center gap-0.5">
+      <span className="h-[7px] w-[3px] rounded-xs bg-success" />
+      <span className="h-3.5 w-[3px] rounded-xs bg-success" />
+      <span className="h-[9px] w-[3px] rounded-xs bg-success" />
+    </span>
+  );
+}
+
 export function MeetingParticipantRow({
   participant,
-  subtitle,
+  host = false,
+  sharedMic = false,
   canHost,
   pinned,
   avatarUrl,
@@ -35,7 +47,10 @@ export function MeetingParticipantRow({
   removable = true,
 }: {
   participant: Participant;
-  subtitle?: string;
+  /** The meeting's host: a chip beside the name. */
+  host?: boolean;
+  /** Whose mic the AI scribe splits into speakers: the clerk set it, everyone should see it. */
+  sharedMic?: boolean;
   canHost?: boolean;
   pinned?: boolean;
   /** Photo for this person when the caller can resolve it (e.g. from workspace members). */
@@ -55,54 +70,50 @@ export function MeetingParticipantRow({
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const name = displayName(participant);
-  const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
+  const chips = [host ? "host" : null, roleChip, sharedMic ? "sharedMic" : null].filter(
+    (chip): chip is MeetingParticipantRole | "host" | "sharedMic" => chip !== null,
+  );
 
   return (
     <div
       className={cn(
-        "group flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 transition-colors",
+        "group flex min-h-12 min-w-0 items-center gap-2.5 rounded-xl px-1 py-1.5 transition-colors",
         "hover:bg-surface-hover",
         pinned && "bg-surface-selected",
       )}
     >
-      <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} />
+      <MeetingPersonAvatar
+        name={name}
+        avatarUrl={avatarUrl}
+        size={30}
+        className={cn(speaking && "ring-2 ring-success/60 ring-offset-2 ring-offset-background")}
+      />
 
-      <div className="min-w-0 flex-1">
-        <p className="flex min-w-0 items-center gap-1.5 text-body text-foreground">
-          <span className="min-w-0 truncate">{label}</span>
-          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
-        </p>
-        {subtitle ? (
-          <p className="truncate text-caption text-muted-foreground">{subtitle}</p>
+      <p className="flex min-w-0 flex-1 items-center gap-1.5 text-body font-medium text-foreground">
+        <span className="min-w-0 truncate">{name}</span>
+        {participant.isLocal ? (
+          <span className="shrink-0 text-caption font-normal text-faint-foreground">{t("meetings.panel.people.you")}</span>
         ) : null}
-      </div>
+        {chips.map((chip) => (
+          <MeetingRoleChip key={chip} role={chip} />
+        ))}
+      </p>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {micLocked ? (
-          <span
-            role="img"
-            className="flex size-7 items-center justify-center rounded-full text-warning"
-            aria-label={t("meetings.micLocked")}
-          >
-            <Lock aria-hidden className="size-3.5" />
-          </span>
-        ) : micMuted ? (
-          <span
-            role="img"
-            className="flex size-7 items-center justify-center rounded-full text-muted-foreground"
-            aria-label={t("meetings.micIsOff")}
-          >
-            <MicOff aria-hidden className="size-3.5" />
-          </span>
-        ) : speaking ? (
-          <span
-            role="img"
-            className="flex size-7 items-center justify-center rounded-full text-success"
-            aria-label={t("meetings.speaking")}
-          >
-            <Volume2 aria-hidden className="size-3.5" />
-          </span>
-        ) : null}
+        {/* One fixed column, so every row's mic state lines up. */}
+        <span className="flex size-7 items-center justify-center">
+          {micLocked ? (
+            <span role="img" className="text-warning" aria-label={t("meetings.micLocked")}>
+              <Lock aria-hidden className="size-4" />
+            </span>
+          ) : micMuted ? (
+            <span role="img" className="text-destructive" aria-label={t("meetings.micIsOff")}>
+              <MicOff aria-hidden className="size-4" />
+            </span>
+          ) : speaking ? (
+            <SpeakingBars label={t("meetings.speaking")} />
+          ) : null}
+        </span>
 
         <DropdownMenu>
           <DropdownMenuTrigger

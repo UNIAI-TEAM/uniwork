@@ -1,23 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
-import { ChevronDown, Hand, Plus, Search } from "lucide-react";
+import { Hand, Search, UserPlus, UserRoundCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
 import { useAttendanceFinalized, useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
+import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@uniwork/ui/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
-import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
-import { cn } from "@uniwork/ui/lib/utils";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingAttendancePanel } from "./meeting-attendance-panel";
 import { meetingLocale } from "./meeting-datetime";
@@ -25,6 +19,7 @@ import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingSharedMicMenuItem } from "./meeting-shared-mic-menu-item";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import {
@@ -35,11 +30,10 @@ import {
   ROSTER_EVENTS,
 } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 import { useWindowedList } from "./use-windowed-list";
 
-/** The pressed view lifts out of the track: the meeting list's filter chip, stretched to half the track. */
-const SEGMENT = `${MEETING_TOGGLE_CHIP} w-full rounded-lg hover:bg-transparent`;
+/** The tool row's icon buttons: 36px, the search field's height and radius. */
+const TOOL = "size-9 shrink-0 rounded-[11px]";
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -67,7 +61,8 @@ function orderParticipants(
     if (pinnedIdentity && p.identity === pinnedIdentity) return -1;
     const hand = handIndex.get(p.identity);
     if (hand !== undefined) return hand;
-    if (p.isLocal) return 1_000_000;
+    // You come first after the pin and the raised hands: your own row is the one you look for.
+    if (p.isLocal) return 250_000;
     return 500_000;
   };
   return participants
@@ -94,12 +89,13 @@ export function MeetingRoomPeopleTab({
   const liveParticipants = useMemo(() => humanParticipants(roomParticipants), [roomParticipants]);
   // The shared-mic entry matters only while the AI scribe listens.
   const scribeInRoom = roomParticipants.some((p) => p.isAgent);
-  const { hands } = useMeetingSignals();
+  const { hands, toggleHand } = useMeetingSignals();
+  const handsHeadingId = useId();
+  const roomHeadingId = useId();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const [search, setSearch] = useState("");
-  const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
   // Hosts and admins are clerks, so this is the roll the attendance view reads too.
@@ -149,57 +145,61 @@ export function MeetingRoomPeopleTab({
   );
   const list = useWindowedList(filtered.length);
 
-  function rowSubtitle(participant: Participant): string | undefined {
-    const meta = participantMeta.get(participant.identity);
-    const role =
-      meta?.isHost || (participant.isLocal && canHost)
-        ? t("meetings.meetingHost")
-        : hands.includes(participant.identity)
-          ? t("meetings.handRaised")
-          : undefined;
-    // Whose mic the AI scribe splits into speakers: the clerk set it, everyone should see it.
-    const sharedMic = meta?.api.shared_mic ? t("meetings.scribe.sharedMicBadge") : undefined;
-    return [role, sharedMic].filter(Boolean).join(" · ") || undefined;
-  }
+  // The queue in the order hands went up; someone who left drops out of it.
+  const raised = useMemo(() => {
+    const byIdentity = new Map(liveParticipants.map((p) => [p.identity, p]));
+    return hands.flatMap((identity) => byIdentity.get(identity) ?? []);
+  }, [liveParticipants, hands]);
+  const canInvite = Boolean(canHost && meetingId && workspaceId && !guestMode);
+  const rollView = isClerk && view === "attendance" && meeting;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Above the view switch: latecomers knock while the roll is being taken. */}
+      {/* Above the tools: latecomers knock while the roll is being taken. */}
       {canHost && meetingId ? <MeetingJoinRequestsSection meetingId={meetingId} /> : null}
-      {isClerk ? (
-        <ToggleGroup
-          value={[view]}
-          onValueChange={(v) => {
-            // Pressing the view that is on would clear the group; one view is always shown.
-            const next = v[0];
-            if (next === "room" || next === "attendance") setView(next);
-          }}
-          aria-label={t("meetings.governance.viewSwitch")}
-          spacing={1}
-          className="mb-3 grid w-full shrink-0 grid-cols-2 rounded-xl bg-surface-hover p-1"
-        >
-          <ToggleGroupItem value="room" className={SEGMENT}>
-            {t("meetings.governance.viewRoom")}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="attendance" className={SEGMENT}>
-            {t("meetings.governance.viewAttendance")}
-          </ToggleGroupItem>
-        </ToggleGroup>
-      ) : null}
-      {/* One search for both views: a long roll needs it as much as the room does. */}
-      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
-        <InputGroupAddon align="inline-start">
-          <Search aria-hidden className="size-4" />
-        </InputGroupAddon>
-        <InputGroupInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("meetings.searchPeople")}
-          aria-label={t("meetings.searchPeople")}
-          className="bg-transparent"
-        />
-      </InputGroup>
-      {isClerk && view === "attendance" && meeting ? (
+      <div className="mb-3 flex shrink-0 items-center gap-1">
+        {/* One search for both views: a long roll needs it as much as the room does. */}
+        <InputGroup className="h-9 min-w-0 flex-1 rounded-[11px] bg-surface-hover">
+          <InputGroupAddon align="inline-start">
+            <Search aria-hidden className="size-4" />
+          </InputGroupAddon>
+          <InputGroupInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("meetings.searchPeople")}
+            aria-label={t("meetings.searchPeople")}
+            className="bg-transparent"
+          />
+        </InputGroup>
+        {canInvite ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={TOOL}
+            aria-label={t("meetings.addPeople")}
+            onClick={() => setInviteOpen(true)}
+          >
+            <UserPlus aria-hidden className="size-4" />
+          </Button>
+        ) : null}
+        {/* Host only (the moderation context says so); a guest host link never gets it. */}
+        {!guestMode && liveParticipants.length > 1 ? <MeetingMuteAllButton className="shrink-0" /> : null}
+        {isClerk ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={`${TOOL} aria-pressed:bg-surface-selected`}
+            aria-label={t("meetings.governance.viewAttendance")}
+            aria-pressed={view === "attendance"}
+            onClick={() => setView(view === "attendance" ? "room" : "attendance")}
+          >
+            <UserRoundCheck aria-hidden className="size-4" />
+          </Button>
+        ) : null}
+      </div>
+      {rollView ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <MeetingAttendancePanel
             meeting={meeting}
@@ -211,117 +211,140 @@ export function MeetingRoomPeopleTab({
         </div>
       ) : (
         <>
-          {canHost && meetingId && workspaceId && !guestMode ? (
-            <Button
-              type="button"
-              variant="brand"
-              className="mb-3 h-9 w-full shrink-0 rounded-xl"
-              onClick={() => setInviteOpen(true)}
-            >
-              <Plus aria-hidden className="size-4" />
-              {t("meetings.addPeople")}
-            </Button>
-          ) : null}
-          {/* Host only (the moderation context says so); a guest host link never gets it. */}
-          {!guestMode && liveParticipants.length > 1 ? <MeetingMuteAllButton className="mb-3 shrink-0" /> : null}
-
-          {hands.length > 0 ? (
-            <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
-              <Hand aria-hidden className="size-3.5 shrink-0" />
-              {t("meetings.handsRaised", { count: hands.length })}
-            </p>
-          ) : null}
-
-          <p className="mb-2 shrink-0 text-label font-medium text-muted-foreground">{t("meetings.inTheMeeting")}</p>
-
-          <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
-            <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
-              <ChevronDown
-                aria-hidden
-                className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-fast motion-reduce:transition-none", !contributorsOpen && "-rotate-90")}
-              />
-              <span className="min-w-0 flex-1">{t("meetings.contributors")}</span>
-              <span className="text-caption tabular-nums text-muted-foreground">{filtered.length}</span>
-            </CollapsibleTrigger>
-
-            <CollapsibleContent ref={list.scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <p className="px-2 py-4 text-center text-caption text-muted-foreground">
-                  {needle ? t("meetings.noPeopleMatch") : t("meetings.noParticipantsYet")}
-                </p>
-              ) : (
-                // A long room mounts only the rows near the viewport; each row
-                // keeps its place in the whole list for assistive tech.
-                <ul
-                  className="pb-2"
-                  style={list.windowed ? { paddingTop: list.window.padTop, paddingBottom: list.window.padBottom } : undefined}
-                >
-                  {filtered.slice(list.window.start, list.window.end).map((participant, i) => {
-                    const meta = participantMeta.get(participant.identity);
-                    const index = list.window.start + i;
-                    return (
-                      <li
-                        key={participant.identity}
-                        // Spacing inside the row, so the row measured is the row repeated.
-                        className="pb-0.5"
-                        ref={i === 0 ? list.measureRow : undefined}
-                        aria-setsize={list.windowed ? filtered.length : undefined}
-                        aria-posinset={list.windowed ? index + 1 : undefined}
+          {raised.length > 0 ? (
+            <section className="mb-2 shrink-0">
+              <h3
+                id={handsHeadingId}
+                className="mx-1 mb-1.5 flex items-center gap-1.5 text-caption font-semibold text-warning-soft-foreground"
+              >
+                <Hand aria-hidden className="size-3.5 shrink-0" />
+                {t("meetings.panel.people.hands", { count: raised.length })}
+              </h3>
+              <ul aria-labelledby={handsHeadingId} className="max-h-48 overflow-y-auto">
+                {raised.map((participant, i) => (
+                  <li key={participant.identity} className="flex min-h-11.5 items-center gap-2.5 px-1">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-warning-soft text-micro font-bold tabular-nums text-warning-soft-foreground">
+                      {i + 1}
+                    </span>
+                    <MeetingPersonAvatar
+                      name={displayName(participant)}
+                      avatarUrl={avatarOf(participant.identity)}
+                      size={30}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
+                      {displayName(participant)}
+                    </span>
+                    {/* Only your own: nobody lowers someone else's hand. */}
+                    {participant.isLocal ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-7.5 shrink-0 rounded-[9px] bg-surface-hover px-2.5 text-caption font-medium"
+                        onClick={toggleHand}
                       >
-                        <MeetingParticipantRow
-                          participant={participant}
-                          subtitle={rowSubtitle(participant)}
-                          // The guest chip wins: a guest is an observer unless promoted.
-                          roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
-                          avatarUrl={avatarOf(participant.identity)}
-                          canHost={canHost}
-                          removable={!meta?.isHost}
-                          pinned={pinnedIdentity === participant.identity}
-                          menuExtra={
-                            !guestMode && meetingId && meta ? (
-                              <>
-                                {canHost ? (
-                                  <MeetingDutyMenuItems
-                                    meetingId={meetingId}
-                                    participant={meta.api}
-                                    name={displayName(participant)}
-                                    separatorBefore
-                                    rollFinalized={rollFinalized}
-                                    standingOnly={meta.isHost}
-                                  />
-                                ) : null}
-                                {/* Never a phone line: the scribe would diarize it under the caller's id. */}
-                                {isClerk && scribeInRoom && participantRole(participant, guests) !== "phone" ? (
-                                  <MeetingSharedMicMenuItem
-                                    meetingId={meetingId}
-                                    participant={meta.api}
-                                    name={displayName(participant)}
-                                    separatorBefore={!canHost}
-                                  />
-                                ) : null}
-                              </>
-                            ) : null
-                          }
-                        />
-                      </li>
-                    );
-                  })}
+                        {t("meetings.panel.people.lowerMine")}
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <h3 id={roomHeadingId} className="mx-1 mb-1.5 shrink-0 text-caption font-semibold text-muted-foreground">
+            {t("meetings.panel.people.inRoom", { count: filtered.length })}
+          </h3>
+
+          {/* The scribe row sits above the windowed list: one row of offset, well inside its overscan. */}
+          <div ref={list.scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+            {scribeInRoom && !needle ? (
+              <div className="flex min-h-12 items-center gap-2.5 px-1 py-1.5">
+                <ScribeMark size={30} state="live" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body font-medium text-foreground">{t("meetings.scribe.name")}</span>
+                  <span className="block truncate text-caption text-muted-foreground">
+                    {t("meetings.panel.people.scribeRole")}
+                  </span>
+                </span>
+              </div>
+            ) : null}
+            {filtered.length === 0 ? (
+              <p className="px-2 py-4 text-center text-caption text-muted-foreground">
+                {needle ? t("meetings.noPeopleMatch") : t("meetings.noParticipantsYet")}
+              </p>
+            ) : (
+              // A long room mounts only the rows near the viewport; each row
+              // keeps its place in the whole list for assistive tech.
+              <ul
+                aria-labelledby={roomHeadingId}
+                className="pb-2"
+                style={list.windowed ? { paddingTop: list.window.padTop, paddingBottom: list.window.padBottom } : undefined}
+              >
+                {filtered.slice(list.window.start, list.window.end).map((participant, i) => {
+                  const meta = participantMeta.get(participant.identity);
+                  const index = list.window.start + i;
+                  return (
+                    <li
+                      key={participant.identity}
+                      // Spacing inside the row, so the row measured is the row repeated.
+                      className="pb-0.5"
+                      ref={i === 0 ? list.measureRow : undefined}
+                      aria-setsize={list.windowed ? filtered.length : undefined}
+                      aria-posinset={list.windowed ? index + 1 : undefined}
+                    >
+                      <MeetingParticipantRow
+                        participant={participant}
+                        host={Boolean(meta?.isHost || (participant.isLocal && canHost))}
+                        sharedMic={Boolean(meta?.api.shared_mic)}
+                        // The guest chip wins: a guest is an observer unless promoted.
+                        roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
+                        avatarUrl={avatarOf(participant.identity)}
+                        canHost={canHost}
+                        removable={!meta?.isHost}
+                        pinned={pinnedIdentity === participant.identity}
+                        menuExtra={
+                          !guestMode && meetingId && meta ? (
+                            <>
+                              {canHost ? (
+                                <MeetingDutyMenuItems
+                                  meetingId={meetingId}
+                                  participant={meta.api}
+                                  name={displayName(participant)}
+                                  separatorBefore
+                                  rollFinalized={rollFinalized}
+                                  standingOnly={meta.isHost}
+                                />
+                              ) : null}
+                              {/* Never a phone line: the scribe would diarize it under the caller's id. */}
+                              {isClerk && scribeInRoom && participantRole(participant, guests) !== "phone" ? (
+                                <MeetingSharedMicMenuItem
+                                  meetingId={meetingId}
+                                  participant={meta.api}
+                                  name={displayName(participant)}
+                                  separatorBefore={!canHost}
+                                />
+                              ) : null}
+                            </>
+                          ) : null
+                        }
+                      />
+                    </li>
+                  );
+                })}
                 </ul>
               )}
-            </CollapsibleContent>
-          </Collapsible>
-
-          {canHost && meetingId && workspaceId && !guestMode ? (
-            <AddMeetingParticipantsDialog
-              workspaceId={workspaceId}
-              meetingId={meetingId}
-              excludeUserIds={excludeUserIds}
-              open={inviteOpen}
-              onOpenChange={setInviteOpen}
-            />
-          ) : null}
+          </div>
         </>
       )}
+      {canInvite && meetingId && workspaceId ? (
+        <AddMeetingParticipantsDialog
+          workspaceId={workspaceId}
+          meetingId={meetingId}
+          excludeUserIds={excludeUserIds}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+        />
+      ) : null}
     </div>
   );
 }

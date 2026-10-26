@@ -29,17 +29,21 @@ describe("MeetingJoinRequestsSection", () => {
     });
   });
 
-  it("lists waiting guests with admit all for hosts", async () => {
+  it("folds the waiting guests into one card with admit all", async () => {
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
 
-    expect(await screen.findByText("Đang chờ vào phòng")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cho tất cả vào" })).toBeInTheDocument();
-    expect(screen.getByText("Guest One")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "2 người đang chờ" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cho vào" })).toBeInTheDocument();
+    expect(screen.queryByText("Guest One")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xem từng người" }));
+    expect(await screen.findByText("Guest One")).toBeInTheDocument();
     expect(screen.getByText("Guest Two")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xem từng người" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("approves a single guest from the people tab row", async () => {
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem từng người" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Cho Guest One vào" }));
 
@@ -61,6 +65,7 @@ describe("MeetingJoinRequestsSection", () => {
       }),
     );
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem từng người" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Cho Guest One vào" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Cho Guest One vào" })).toBeDisabled());

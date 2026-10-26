@@ -10,10 +10,10 @@ beforeAll(() => {
   initI18n();
 });
 
-const livekit = vi.hoisted(() => ({ muted: false }));
+const livekit = vi.hoisted(() => ({ muted: false, speaking: false }));
 
 vi.mock("@livekit/components-react", () => ({
-  useIsSpeaking: () => false,
+  useIsSpeaking: () => livekit.speaking,
   useIsMuted: () => livekit.muted,
 }));
 
@@ -93,5 +93,36 @@ describe("MeetingParticipantRow", () => {
     render(<MeetingParticipantRow participant={fakeParticipant()} menuExtra={<li role="menuitem">Giao vai thư ký</li>} />);
     fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
     expect(await screen.findByRole("menuitem", { name: "Giao vai thư ký" })).toBeInTheDocument();
+  });
+  it("marks you with a faint word, not a suffix on your name", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant({ isLocal: true, name: "Lan" })} />);
+    expect(screen.getByText("Lan")).toBeInTheDocument();
+    expect(screen.getByText("bạn")).toHaveClass("text-faint-foreground");
+    expect(screen.queryByText(/\(Bạn\)/)).not.toBeInTheDocument();
+  });
+
+  it("shows the host and the room mic as chips", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} host sharedMic roleChip="secretary" />);
+    expect(screen.getByText("Chủ trì")).toHaveClass("bg-brand-subtle");
+    expect(screen.getByText("Mic hội trường")).toHaveClass("bg-tint-violet");
+    expect(screen.getByText("Thư ký")).toBeInTheDocument();
+  });
+
+  it("rings a speaker's face and shows a muted mic in red", () => {
+    livekit.speaking = true;
+    try {
+      const { container } = render(<MeetingParticipantRow participant={fakeParticipant()} />);
+      expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-2", "ring-success/60");
+      expect(screen.getByRole("img", { name: "Đang nói" })).toBeInTheDocument();
+    } finally {
+      livekit.speaking = false;
+    }
+    livekit.muted = true;
+    try {
+      render(<MeetingParticipantRow participant={fakeParticipant({ identity: "uw_participant_p2" })} />);
+      expect(screen.getByRole("img", { name: "Mic đang tắt" })).toHaveClass("text-destructive");
+    } finally {
+      livekit.muted = false;
+    }
   });
 });
