@@ -36,6 +36,18 @@ type isoReference struct {
 	// meetingKey does the same for {meetingID} (a meeting held without a
 	// room, for the transcription case).
 	meetingKey string
+	// driveFileKey names the fixture Drive file the path's {driveFileID}
+	// should name instead of the owner-bound default (for PUT /access, a
+	// file bound by another member on which the owner holds granted access).
+	driveFileKey string
+	// controlBody, when non-nil, is used instead of body in referenceControls
+	// (e.g. when the own-rows control switches to the caller's second
+	// connection while the attack names A's primary connection).
+	controlBody any
+	// wantAttackStatus, when non-zero, requires the cross-tenant and
+	// member-of-both reference attacks to answer with this exact HTTP status
+	// rather than any 4xx.
+	wantAttackStatus int
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -138,6 +150,9 @@ func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	path, ok := isoPath(t, c.pattern, tn)
 	if ok && c.meetingKey != "" {
 		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
+	}
+	if ok && c.driveFileKey != "" {
+		path = strings.Replace(path, tn.ids["driveFile"], tn.get(t, c.driveFileKey), 1)
 	}
 	if !ok || c.docKey == "" {
 		return path, ok
@@ -546,10 +561,32 @@ var isoReferences = []isoReference{
 		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
 		covers: []string{"SummaryTaskItemSDI.project_id"}},
 
-	// Google Drive connector (UNI-2172 / B2).
+	// Google Drive connector (UNI-2172 / B2 & B4).
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-connections/google/start", what: "reconnect connection", body: map[string]any{
 		"reconnect_connection_id": isoRef("driveConnection")},
 		covers: []string{"StartDriveGoogleOAuthSDI.reconnect_connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "drive file connection", body: map[string]any{
+		"title":       isoUnique("ref-drive"),
+		"drive_files": []any{map[string]any{"connection_id": isoRef("driveConnection"), "external_file_id": "iso-drive-ref-task"}}},
+		covers: []string{"CreateTaskDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection"), "external_file_ids": []any{"iso-drive-ref-conn"}},
+		covers: []string{"LinkDriveFilesSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "task", body: map[string]any{
+		"connection_id": isoOwn("driveConnection"), "external_file_ids": []any{"iso-drive-ref-tasklink"}, "task_id": isoRef("task")},
+		covers: []string{"LinkDriveFilesSDI.task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"GrantDriveFileAccessSDI.connection_id"}},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection",
+		driveFileKey:     "peerBoundDriveFile",
+		body:             map[string]any{"connection_id": isoRef("driveConnection")},
+		controlBody:      map[string]any{"connection_id": isoOwn("driveConnection2")},
+		wantAttackStatus: 404,
+		covers:           []string{"GrantDriveFileAccessSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"RebindDriveFileSDI.connection_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request
@@ -565,7 +602,11 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		if !ok {
 			continue
 		}
-		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
+		ctrl := c
+		if c.controlBody != nil {
+			ctrl.body = c.controlBody
+		}
+		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, ctrl.build(w, w.bravo, w.bravo))
 		if status < 200 || status >= 300 {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
 		} else if c.afterControl != nil {
@@ -709,11 +750,6 @@ var isoRefFieldExempt = map[string]string{
 	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
 	"CreateTaskDriveFileSDI.external_file_id":            "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
 	"LinkDriveFilesSDI.external_file_ids":                "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
-	"CreateTaskDriveFileSDI.connection_id":               "contract-first DTO (UNI-2177); wired into CreateTaskSDI and isoReferences in B4 (UNI-2180)",
-	"LinkDriveFilesSDI.connection_id":                    "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"LinkDriveFilesSDI.task_id":                          "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"GrantDriveFileAccessSDI.connection_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
-	"RebindDriveFileSDI.connection_id":                   "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
 	"CreateDriveTaskProposalSDI.project_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
 	"CreateDriveTaskProposalSDI.parent_task_id":          "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
 	"CreateDriveTaskProposalSDI.context_task_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",

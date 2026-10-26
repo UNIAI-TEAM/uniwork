@@ -51,7 +51,9 @@ type AuditService struct {
 	// expiry release. nil until wiring sets it: the service then behaves as
 	// before, and audit_exports rows the legacy consumer wrote simply have no
 	// file_id to serve.
-	files files.Service
+	files                 files.Service
+	driveFiles            *DriveFileService
+	authorizeProposalHist func(ctx context.Context, userID, workspaceID, proposalID string) error
 }
 
 func NewAuditService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *AuditService {
@@ -62,6 +64,24 @@ func NewAuditService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationServic
 // owns cmd/server/main.go); it is the same constructor-level selector the
 // export consumer's SetFileService is.
 func (s *AuditService) SetFileService(fs files.Service) { s.files = fs }
+
+// SetDriveFiles attaches DriveFileService so ResourceHistory enforces the
+// §7.6a visibility gates on drive_file and drive_connection before reading
+// audit rows.
+func (s *AuditService) SetDriveFiles(df *DriveFileService) {
+	if s != nil {
+		s.driveFiles = df
+	}
+}
+
+// SetDriveProposalHistoryAuthorizer attaches the §7.6a / §8.2a requester-only
+// gate for drive_task_proposal resource history (wired by B5, or tested via
+// this hook before B5 lands).
+func (s *AuditService) SetDriveProposalHistoryAuthorizer(fn func(ctx context.Context, userID, workspaceID, proposalID string) error) {
+	if s != nil {
+		s.authorizeProposalHist = fn
+	}
+}
 
 // AuditFilter narrows a page of the log. Every field is optional; Before is a
 // cursor, not an offset, so paging stays stable while rows arrive.
@@ -150,6 +170,33 @@ func (s *AuditService) Get(ctx context.Context, userID, orgID, eventID string) (
 func (s *AuditService) ResourceHistory(ctx context.Context, userID, workspaceID, resourceType, resourceID string, limit int32) ([]AuditEventView, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return nil, err
+	}
+	// Google Drive resources carry google_email and google_sub in audit metadata
+	// (spec §7.6a, §11): gate visibility by resource type BEFORE reading any
+	// audit rows, answering 404 when not visible so foreign or invisible IDs do
+	// not act as an existence oracle.
+	switch resourceType {
+	case "drive_file":
+		if s.driveFiles == nil {
+			return nil, ErrNotFound
+		}
+		if err := s.driveFiles.AuthorizeDriveFileHistory(ctx, userID, workspaceID, resourceID); err != nil {
+			return nil, err
+		}
+	case "drive_connection":
+		if s.driveFiles == nil {
+			return nil, ErrNotFound
+		}
+		if err := s.driveFiles.AuthorizeDriveConnectionHistory(ctx, userID, workspaceID, resourceID); err != nil {
+			return nil, err
+		}
+	case "drive_task_proposal":
+		if s.authorizeProposalHist == nil {
+			return nil, ErrNotFound
+		}
+		if err := s.authorizeProposalHist(ctx, userID, workspaceID, resourceID); err != nil {
+			return nil, err
+		}
 	}
 	if limit <= 0 || limit > AuditPageMax {
 		limit = AuditPageMax

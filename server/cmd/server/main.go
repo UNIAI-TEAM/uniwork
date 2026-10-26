@@ -481,6 +481,7 @@ func main() {
 	driveFileSvc.SetLogger(log)
 	driveFileSvc.SetFlags(flags)
 	taskSvc.SetDriveFiles(driveFileSvc)
+	auditSvc.SetDriveFiles(driveFileSvc)
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
 	// Sockets are checked only when they connect or subscribe; this closes
@@ -894,6 +895,7 @@ func main() {
 		CalendarConnections: calendarConnectionSvc,
 		EmailHub:            emailHubSvc,
 		DriveConnections:    driveConnectionSvc,
+		DriveFiles:          driveFileSvc,
 		Agents:              agentSvc,
 		Actors:              actorSvc,
 		Audit:               auditSvc,
