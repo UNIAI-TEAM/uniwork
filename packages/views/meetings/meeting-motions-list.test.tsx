@@ -258,7 +258,9 @@ describe("MeetingMotionsList — room", () => {
       open(),
     ];
     renderRoom();
-    const bar = await screen.findByRole("img", { name: "6 tán thành, 1 không tán thành, 1 không ý kiến" });
+    const bar = await screen.findByRole("img", {
+      name: "6 tán thành, 1 không tán thành, 1 không ý kiến. Cần 5/8 phiếu tán thành",
+    });
     expect(screen.getByText("Thông qua")).toBeInTheDocument();
     const order = ["Thông qua kế hoạch", "Tiếp theo", "Chọn hình thức đào tạo", "Đã xong", "Lùi ngày ra mắt"].map((text) =>
       screen.getByText(text),
@@ -268,8 +270,53 @@ describe("MeetingMotionsList — room", () => {
     }
     expect(order[4]!.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One vote runs at a time: the draft's open button waits and says why.
-    const openDraft = await screen.findByRole("button", { name: "Mở biểu quyết" });
+    const openDraft = await screen.findByRole("button", { name: "Mở biểu quyết: Chọn hình thức đào tạo" });
     expect(openDraft).toHaveAttribute("aria-disabled", "true");
     expect(openDraft).toHaveAttribute("title", "Đang có nội dung khác mở biểu quyết.");
+    expect(openDraft).toHaveAccessibleDescription("Đang có nội dung khác mở biểu quyết.");
+  });
+
+  it("says there were no voters instead of drawing an empty bar", async () => {
+    motions = [
+      motion({
+        status: "CLOSED",
+        roll_size: 0,
+        cast_count: 0,
+        result: { yes: 0, no: 0, abstain: 0, required: 0, outcome: "FAILED" },
+      }),
+    ];
+    renderRoom();
+    expect(await screen.findByText("Không có cử tri")).toBeInTheDocument();
+    expect(screen.getByText("Không thông qua")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("moves focus to the confirmation when the ballot it was in gives way to it", async () => {
+    motions = [open()];
+    renderRoom();
+    fireEvent.click(await screen.findByRole("radio", { name: "Tán thành" }));
+    const submit = screen.getByRole("button", { name: "Gửi phiếu" });
+    submit.focus();
+    // The refetch after casting reports the ballot in.
+    ballots = [{ motion_id: "mo1", cast: true, choice: "YES" }];
+    fireEvent.click(submit);
+    const done = await screen.findByText("Bạn đã chọn: Tán thành");
+    await waitFor(() => expect(done).toHaveFocus());
+  });
+
+  it("leaves focus alone when the ballot is replaced while focus is elsewhere", async () => {
+    motions = [open()];
+    ballots = [{ motion_id: "mo1", cast: false }];
+    renderRoom();
+    await screen.findByRole("button", { name: "Gửi phiếu" });
+    const help = screen.getByRole("button", { name: "Cách tính phiếu" });
+    help.focus();
+    ballots = [{ motion_id: "mo1", cast: true, choice: "NO" }];
+    fireEvent.click(screen.getByRole("radio", { name: "Không tán thành" }));
+    help.focus();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi phiếu" }));
+    const done = await screen.findByText("Bạn đã chọn: Không tán thành");
+    expect(done).not.toHaveFocus();
+    expect(help).toHaveFocus();
   });
 });

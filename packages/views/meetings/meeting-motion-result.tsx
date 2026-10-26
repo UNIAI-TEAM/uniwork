@@ -108,14 +108,23 @@ export function MeetingMotionResult({
     </Collapsible>
   );
   if (room) {
+    if (denominator === 0) {
+      return (
+        <div className="space-y-2">
+          <p className="text-caption text-muted-foreground">{t("meetings.governance.motionNoVoters")}</p>
+          {names}
+        </div>
+      );
+    }
     const tally = BALLOT_CHOICES.map((c) => ({ c, count: result[COUNT_OF[c]] }));
+    const required = t("meetings.governance.motionRequired", { required: result.required, base: denominator });
     return (
       <div className="space-y-2">
         <div
           role="img"
-          aria-label={tally
+          aria-label={`${tally
             .map(({ c, count }) => `${count} ${t(`meetings.governance.choice_${c}`).toLocaleLowerCase(i18n.language)}`)
-            .join(", ")}
+            .join(", ")}. ${required}`}
           className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-muted"
         >
           {tally.map(({ c, count }) =>
@@ -125,13 +134,15 @@ export function MeetingMotionResult({
             ) : null,
           )}
         </div>
-        <div aria-hidden className="flex gap-3 text-caption font-medium text-muted-foreground tabular-nums">
+        {/* The bar's label already reads all of this. */}
+        <div aria-hidden className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground tabular-nums">
           {tally.map(({ c, count }) => (
-            <span key={c} className="inline-flex items-center gap-1.5">
+            <span key={c} className="inline-flex items-center gap-1.5 font-medium">
               <span className={cn("size-2 rounded-full", ROOM_SEGMENT[c])} />
               {count}
             </span>
           ))}
+          <span className="ms-auto">{required}</span>
         </div>
         {names}
       </div>

@@ -27,7 +27,7 @@ const ROOM_CHOICE: Record<BallotChoice, { icon: LucideIcon; radio: string; text:
     icon: ThumbsDown,
     radio: "data-checked:border-destructive data-checked:bg-destructive/5 dark:data-checked:bg-destructive/5",
     text: "text-destructive",
-    tick: "bg-destructive text-on-solid",
+    tick: "bg-destructive-solid text-on-solid",
   },
   ABSTAIN: {
     icon: CircleMinus,

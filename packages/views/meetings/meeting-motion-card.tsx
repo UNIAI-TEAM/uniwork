@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -174,9 +174,19 @@ function OwnBallot({
   const { t } = useTranslation();
   const mine = motion.my_ballot;
   const myChoice = BALLOT_CHOICES.find((c) => c === mine?.choice);
-  if (mine?.cast) {
+  const cast = Boolean(mine?.cast);
+  // Focus was in the ballot when it last moved; the ballot's removal drops it on <body>.
+  const focusInBallot = useRef(false);
+  const confirmation = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (!cast || !focusInBallot.current) return;
+    focusInBallot.current = false;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (lost) confirmation.current?.focus();
+  }, [cast]);
+  if (cast) {
     return (
-      <p className="flex items-center gap-2 text-label text-success-soft-foreground">
+      <p ref={confirmation} tabIndex={-1} className="flex items-center gap-2 text-label text-success-soft-foreground">
         <CircleCheck aria-hidden className="size-4 shrink-0" />
         {myChoice
           ? t("meetings.governance.motionYourVote", { choice: t(`meetings.governance.choice_${myChoice}`) })
@@ -186,12 +196,22 @@ function OwnBallot({
   }
   if (canVote && mine?.on_roll) {
     return (
-      <MeetingMotionBallot
-        meetingId={meetingId}
-        motion={motion}
-        room={room}
-        onCast={() => toast.success(t("meetings.governance.voteRecorded"))}
-      />
+      <div
+        onFocus={() => {
+          focusInBallot.current = true;
+        }}
+        onBlur={(e) => {
+          // A null relatedTarget is also what removal looks like, so only a move elsewhere counts.
+          if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) focusInBallot.current = false;
+        }}
+      >
+        <MeetingMotionBallot
+          meetingId={meetingId}
+          motion={motion}
+          room={room}
+          onCast={() => toast.success(t("meetings.governance.voteRecorded"))}
+        />
+      </div>
     );
   }
   if (canVote) return <p className="text-caption text-muted-foreground">{t("meetings.governance.motionNotOnRoll")}</p>;
@@ -363,18 +383,25 @@ export function MeetingMotionCard({
         </span>
         {draftActions ? (
           <>
-            {/* aria-disabled keeps the button reachable; its title says why it waits. */}
+            {/* aria-disabled keeps the button reachable; the hidden hint says why it waits, the title shows it on hover. */}
             <Button
               type="button"
               variant="ghost"
               size="sm"
+              aria-label={t("meetings.detail.live.draftOpenName", { title: motion.title })}
               aria-disabled={openBlocked ? true : undefined}
+              aria-describedby={openBlocked ? hintId : undefined}
               title={openBlocked ?? undefined}
               className="bg-surface-hover hover:bg-surface-hover/70 aria-disabled:text-faint-foreground"
               onClick={onOpen}
             >
               {t("meetings.governance.motionOpen")}
             </Button>
+            {openBlocked ? (
+              <span id={hintId} className="sr-only">
+                {openBlocked}
+              </span>
+            ) : null}
             <DraftMenu
               title={motion.title}
               canMoveUp={canMoveUp}
