@@ -1,0 +1,5 @@
+$ pnpm exec eslint --max-warnings 0 packages/office-engine/src/node/convert/biff8.ts packages/office-engine/src/node/convert/xls-reading.test.ts
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "eslint" not found
+
+Did you mean "pnpm exec esbuild"?

@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/office-engine typecheck
+
+> @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+> tsc --noEmit
+
+src/node/convert/xls-reading.test.ts(132,12): error TS18048: 'formatKm.content.cells' is possibly 'undefined'.
+src/node/convert/xls-reading.test.ts(133,12): error TS18048: 'formatKm.content.cells' is possibly 'undefined'.
+src/node/convert/xls-reading.test.ts(136,12): error TS18048: 'twoCharts.content.cells' is possibly 'undefined'.
+src/node/convert/xls-reading.test.ts(137,12): error TS18048: 'twoCharts.content.cells' is possibly 'undefined'.
+/workspace/packages/office-engine:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/office-engine@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
