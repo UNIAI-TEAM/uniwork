@@ -22,7 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Suspense, lazy, type ComponentType } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useMyConnectedApps } from "@uniwork/core/connect";
 import { useFlag } from "@uniwork/core/feature-flags";
@@ -139,6 +139,8 @@ const ALL_TABS = GROUPS.flatMap((group) => group.tabs);
 const VALID_TABS = new Set(ALL_TABS.map((tab) => tab.value));
 const DEFAULT_TAB = "profile";
 const TAB_QUERY_KEY = "tab";
+const CONNECT_QUERY_KEY = "connect";
+const INTEGRATION_QUERY_KEY = "integration";
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 // Line-variant TabsTrigger zeroes active background; force surface-selected
@@ -184,10 +186,40 @@ export function SettingsPage() {
   const hidden = useHiddenGates();
 
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
-  const activeTab = tabFromUrl && VALID_TABS.has(tabFromUrl) ? tabFromUrl : DEFAULT_TAB;
+  const connectFromUrl = navigation.searchParams.get(CONNECT_QUERY_KEY);
+  const activeTab =
+    tabFromUrl && VALID_TABS.has(tabFromUrl)
+      ? tabFromUrl
+      : connectFromUrl === "drive"
+        ? "integrations"
+        : DEFAULT_TAB;
+  const [focusDriveRow, setFocusDriveRow] = useState(
+    () => connectFromUrl === "drive" && activeTab === "integrations",
+  );
+  const clearFocusDriveRow = useCallback(() => setFocusDriveRow(false), []);
+
+  useEffect(() => {
+    if (!connectFromUrl) return;
+    if (connectFromUrl === "drive" && activeTab === "integrations") {
+      setFocusDriveRow(true);
+    }
+    const nextParams = new URLSearchParams(navigation.searchParams);
+    nextParams.delete(CONNECT_QUERY_KEY);
+    if (connectFromUrl === "drive") {
+      nextParams.delete(INTEGRATION_QUERY_KEY);
+      if (!nextParams.get(TAB_QUERY_KEY)) {
+        nextParams.set(TAB_QUERY_KEY, "integrations");
+      }
+    }
+    const qs = nextParams.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  }, [activeTab, connectFromUrl, navigation]);
 
   const handleTabChange = (next: string) => {
+    setFocusDriveRow(false);
     const params = new URLSearchParams(navigation.searchParams);
+    params.delete(CONNECT_QUERY_KEY);
+    params.delete(INTEGRATION_QUERY_KEY);
     params.set(TAB_QUERY_KEY, next);
     navigation.replace(`${navigation.pathname}?${params.toString()}`);
   };
@@ -232,7 +264,15 @@ export function SettingsPage() {
                     {index > 0 ? <SelectSeparator /> : null}
                     <SelectLabel>{t(`page.groups.${group.id}`)}</SelectLabel>
                     {group.tabs.map((tab) => (
-                      <SelectItem key={tab.value} value={tab.value}>
+                      <SelectItem
+                        key={tab.value}
+                        value={tab.value}
+                        onClick={() => {
+                          if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                            handleTabChange(tab.value);
+                          }
+                        }}
+                      >
                         <tab.icon aria-hidden className="text-muted-foreground" />
                         {t(`page.tabs.${tab.label}`)}
                       </SelectItem>
@@ -259,7 +299,16 @@ export function SettingsPage() {
                     ) : null}
                   </div>
                   {group.tabs.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className={SETTINGS_TAB_TRIGGER_CLASS}
+                      onClick={() => {
+                        if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                          handleTabChange(tab.value);
+                        }
+                      }}
+                    >
                       <tab.icon className="size-4" aria-hidden />
                       {t(`page.tabs.${tab.label}`)}
                     </TabsTrigger>
@@ -283,7 +332,14 @@ export function SettingsPage() {
                   <Panel />
                 ) : (
                   <Suspense fallback={<SettingsTabSkeleton />}>
-                    <Panel />
+                    {value === "integrations" ? (
+                      <IntegrationsTab
+                        focusDriveRow={activeTab === "integrations" && focusDriveRow}
+                        onDriveRowFocused={clearFocusDriveRow}
+                      />
+                    ) : (
+                      <Panel />
+                    )}
                   </Suspense>
                 )}
               </TabsContent>

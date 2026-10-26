@@ -164,7 +164,7 @@ fails on drift. One flat namespace, keys nested by section:
 | Concept | vi | en | Note |
 | --- | --- | --- | --- |
 | task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"` |
-| subtask | **công việc con** | Sub-task | `tasks.detail.child_of = "Công việc con của"`; always the full term, never the short "việc con", even where "việc" alone stands for the task |
+| subtask | **công việc con** | Sub-task | `tasks.detail.child_of = "Công việc con của"`; always the full term, never the short "việc con", even where "việc" alone stands for the task. Note: the task creation UI, review dialog and toast (`tasks.create.*`, `vi.json`) keep "sub-task" / "Task cha" as shipped |
 | meeting | **cuộc họp** | Meeting | `meetings.title = "Cuộc họp"` |
 | workspace | **workspace** | Workspace | kept in English in vi copy: `workspace.create = "Tạo workspace"` |
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |
@@ -229,6 +229,14 @@ fails on drift. One flat namespace, keys nested by section:
 | keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
 | offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
 | origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
+| link (Drive file) | **liên kết** | Link | `drive.terms.link = "Liên kết"`; linking a Google Drive file reference to a task or workspace (distinct from **gắn** for chat ↔ work item) |
+| unlink (Drive file) | **bỏ liên kết** | Unlink | `drive.terms.unlink = "Bỏ liên kết"`; removes the reference in UniWork while the file on Google Drive stays untouched |
+| bound account (Drive file) | **Tài khoản gắn** | Bound account | `drive.terms.bound_account = "Tài khoản gắn"`; the Google account bound to a linked Drive file (`bound_by` / `connection_id`) |
+| opens with (Drive file) | **Mở bằng tài khoản** | Opens with | `drive.terms.opens_with = "Mở bằng tài khoản"`; the viewer's own connected Google account used to open or read the file |
+| connection (Google Drive) | **kết nối** | Connection | `drive.terms.connection = "Kết nối"`, `settings.integrations.drive.*`; a user's Google Drive OAuth connection in an organization |
+| disconnected · reconnect (Drive) | **Mất kết nối · kết nối lại** | Disconnected · Reconnect | `drive.terms.disconnected_reconnect = "Mất kết nối · kết nối lại"`; in account cards beside the "Kết nối lại" / "Reconnect" button, `settings.integrations.drive.account.lost_reconnect` is shortened to "Mất kết nối" / "Disconnected" (`TriangleAlert` + `RefreshCw`) |
+| tasks created from this document (Drive) | **Việc đã tạo từ tài liệu** | Tasks created from this document | `drive.terms.tasks_created = "Việc đã tạo từ tài liệu"`; durable provenance block and count from `drive_task_proposal_links` |
+| let UniWork read this file (Drive) | **Cho UniWork đọc tệp** | Let UniWork read this file | `drive.terms.grant_read = "Cho UniWork đọc tệp"`; action for a second viewer to grant `drive.file` access with their own Google account via Picker |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say
