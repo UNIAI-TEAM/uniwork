@@ -1,0 +1,33 @@
+$ pnpm lint > /tmp/pr8r4-lint.log 2>&1; rc=$?; grep -E "error|warning|✖" /tmp/pr8r4-lint.log | head -60; tail -20 /tmp/pr8r4-lint.log; echo; echo "LINT_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/chat-desktop:lint: > eslint . --max-warnings 0
+@uniwork/views:lint:   5:10  error  'Trash2' import from 'lucide-react' is restricted. Deprecated lucide alias. Import Trash (or TrashIcon in packages/ui) — docs/conventions.md › Icons  no-restricted-imports
+@uniwork/views:lint: ✖ 1 problem (1 error, 0 warnings)
+@uniwork/chat-desktop:lint: > eslint . --max-warnings 0
+@uniwork/chat-desktop:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/admin/organization-deletion.tsx
+@uniwork/views:lint:   5:10  error  'Trash2' import from 'lucide-react' is restricted. Deprecated lucide alias. Import Trash (or TrashIcon in packages/ui) — docs/conventions.md › Icons  no-restricted-imports
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 1 problem (1 error, 0 warnings)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.4/bin/pnpm run lint exited (1)
+
+ Tasks:    7 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m32.698s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.
+
+LINT_EXIT=0

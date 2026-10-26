@@ -1,0 +1,11 @@
+$ cd packages/views && NODE_OPTIONS=--max-old-space-size=6144 pnpm exec eslint . --max-warnings 0 > /tmp/pr8r4-views-lint.log 2>&1; rc=$?; cd - >/dev/null; grep -E "error|warning|problem|Aborted|heap" /tmp/pr8r4-views-lint.log | head -60; tail -10 /tmp/pr8r4-views-lint.log; echo; echo "VIEWS_LINT_EXIT=$rc"; [ $rc -eq 0 ]
+  5:10  error  'Trash2' import from 'lucide-react' is restricted. Deprecated lucide alias. Import Trash (or TrashIcon in packages/ui) — docs/conventions.md › Icons  no-restricted-imports
+✖ 1 problem (1 error, 0 warnings)
+
+/workspace/packages/views/admin/organization-deletion.tsx
+  5:10  error  'Trash2' import from 'lucide-react' is restricted. Deprecated lucide alias. Import Trash (or TrashIcon in packages/ui) — docs/conventions.md › Icons  no-restricted-imports
+
+✖ 1 problem (1 error, 0 warnings)
+
+
+VIEWS_LINT_EXIT=1
