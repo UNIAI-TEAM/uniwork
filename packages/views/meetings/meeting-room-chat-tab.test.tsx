@@ -222,6 +222,17 @@ describe("MeetingRoomChatTab bubbles", () => {
     expect(mine).toHaveClass("rounded-tr-[4px]");
   });
 
+  it("makes a web address in a message a link that opens apart", () => {
+    liveMessages = [
+      { id: "a", message: "Báo cáo QA: https://qa.saomai.vn/r/1043", timestamp: 1_000, from: { identity: "u-other", name: "Tuấn" } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const link = screen.getByRole("link", { name: "https://qa.saomai.vn/r/1043" });
+    expect(link).toHaveAttribute("href", "https://qa.saomai.vn/r/1043");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveClass("underline", "text-brand-subtle-foreground");
+  });
+
   it("names the sender of my own messages for screen readers, with no visible name", () => {
     liveMessages = [
       { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
@@ -268,7 +279,7 @@ describe("MeetingRoomChatTab look", () => {
   it("types into a 16px gradient-edge box with a round 32px send button, no beam and no modes", () => {
     render(wrapWithNav(<MeetingRoomChatTab />));
     const box = screen.getByRole("textbox", { name: "Trò chuyện" });
-    expect(box).toHaveAttribute("placeholder", "Nhập tin nhắn…");
+    expect(box).toHaveAttribute("placeholder", "Nhắn cho mọi người…");
     const frame = box.closest<HTMLElement>(".ai-edge");
     expect(frame).not.toBeNull();
     expect(frame).not.toHaveClass("border-beam-ai");

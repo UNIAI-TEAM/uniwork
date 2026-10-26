@@ -2,12 +2,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useMeetingChat, useOlderMeetingChat } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
+import { linkify } from "../chat/chat-message-body";
 import { CHAT_BUBBLE_OWN } from "../chat/chat-message-row";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
 import { senderNameClass } from "../chat/sender-colors";
@@ -19,6 +21,10 @@ import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
+
+// A link is the bubble's own colour on the brand bubble, the brand ink on the grey one (Chat board), as in Chat.
+const LINK_OWN = "font-medium underline decoration-1 underline-offset-2 hover:decoration-2 text-chat-bubble-own-foreground";
+const LINK_OTHER = "font-medium underline decoration-1 underline-offset-2 hover:decoration-2 text-brand-subtle-foreground";
 
 /** How close to the bottom (px) still counts as "reading the latest". */
 const STICK_THRESHOLD = 48;
@@ -188,7 +194,12 @@ function MeetingRoomChatView({
                 className={cn("flex w-full gap-2", group.isLocal && "flex-row-reverse")}
               >
                 {group.isLocal ? null : (
-                  <MeetingPersonAvatar name={group.fromName} avatarUrl={avatarOf(group.fromIdentity)} size={28} />
+                  <MeetingPersonAvatar
+                    name={group.fromName}
+                    avatarUrl={avatarOf(group.fromIdentity)}
+                    tint={identityTint(group.fromIdentity)}
+                    size={28}
+                  />
                 )}
                 <div
                   className={cn(
@@ -223,7 +234,7 @@ function MeetingRoomChatView({
                         group.isLocal ? CHAT_BUBBLE_OWN : "bg-surface-hover",
                       )}
                     >
-                      {msg.message}
+                      {linkify(msg.message, group.isLocal ? LINK_OWN : LINK_OTHER)}
                     </p>
                   ))}
                 </div>
@@ -239,7 +250,7 @@ function MeetingRoomChatView({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
-            placeholder={t("meetings.chatPlaceholder")}
+            placeholder={t("meetings.panel.chat.placeholder")}
             aria-label={t("meetings.chat")}
             className={cn(
               "max-h-32 min-h-8 resize-none rounded-none border-0 bg-transparent px-0 py-1.25 focus-visible:ring-0 dark:bg-transparent",

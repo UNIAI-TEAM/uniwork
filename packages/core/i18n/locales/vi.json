@@ -5233,6 +5233,9 @@
         "secret": "Kín",
         "progress": "{{cast}}/{{roll}} đã bỏ phiếu",
         "open": "Mở"
+      },
+      "chat": {
+        "placeholder": "Nhắn cho mọi người…"
       }
     }
   },

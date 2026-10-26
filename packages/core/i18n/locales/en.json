@@ -5234,6 +5234,9 @@
         "secret": "Secret",
         "progress": "{{cast}} of {{roll}} voted",
         "open": "Open"
+      },
+      "chat": {
+        "placeholder": "Message everyone…"
       }
     }
   },
