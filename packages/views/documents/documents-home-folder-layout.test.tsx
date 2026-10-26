@@ -326,7 +326,7 @@ describe("folder layout (Folder.dc)", () => {
     expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
     expect(row).not.toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    expect(typeFilterSelect()!.parentElement!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(document.querySelector('[data-slot="documents-filter-zone"]')!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),
@@ -384,12 +384,15 @@ describe("folder layout (Folder.dc)", () => {
     const row = box.parentElement as HTMLElement;
     expect(row).toHaveClass("flex-wrap");
     expect(row).not.toHaveClass("@container", "flex-nowrap", "lg:flex-nowrap");
-    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
-    expect(row).not.toContainElement(search);
-    const filterZone = typeFilterSelect()!.parentElement;
-    expect(filterZone).not.toContainElement(search);
-    expect(filterZone!.parentElement).toContainElement(search);
-    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:w-56", "@min-[48rem]:shrink-0", "@min-[48rem]:basis-auto", "@min-[48rem]:focus-within:w-80");
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    const searchSlot = searchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
+    const searchBox = searchInput.closest<HTMLElement>('[data-slot="documents-search-box"]')!;
+    expect(row).not.toContainElement(searchSlot);
+    const filterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    expect(filterZone).not.toContainElement(searchSlot);
+    expect(filterZone.parentElement).toContainElement(searchSlot);
+    expect(searchSlot).toHaveClass("basis-full", "justify-end", "@min-[48rem]:ml-auto", "@min-[48rem]:w-80", "@min-[48rem]:shrink-0", "@min-[48rem]:basis-auto");
+    expect(searchBox).toHaveClass("@min-[24rem]:w-56", "@min-[24rem]:focus-within:w-80", "@min-[48rem]:w-56", "@min-[48rem]:focus-within:w-full");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
     expect(row.lastElementChild).toHaveClass("shrink-0");
     expect(row.lastElementChild).toContainElement(create);
