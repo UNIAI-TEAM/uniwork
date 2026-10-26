@@ -20,7 +20,10 @@ const (
 	driveRevocationLeaseTTL = 2 * time.Minute
 	// driveRevocationHTTPTimeout bounds the Google revoke HTTP call (spec §5.3b step 2).
 	driveRevocationHTTPTimeout = 15 * time.Second
-	// driveRevocationAbandonWindow is the 24h retry budget after which an
+	// driveRevocationResolveTimeout bounds the detached resolution DB transaction
+	// (pool acquisition, advisory lock and commit) so a held DB lock cannot keep
+	// a worker alive past the 30s shutdown wait (R1-17).
+	driveRevocationResolveTimeout = 15 * time.Second
 	// unresolved revocation is abandoned and alerted (spec §5.3b step 3).
 	driveRevocationAbandonWindow = 24 * time.Hour
 	// driveRevocationEvidenceRetention is the 1-day window after which resolved/empty
@@ -31,6 +34,8 @@ const (
 	driveRevocationPurgeInterval = time.Hour
 	driveRevocationBatchLimit    = int32(25)
 )
+
+var errDriveRevocationUnsealFailed = errors.New("drive revocation unseal failed")
 
 // enqueueGrantRevocationInTx enqueues a refresh token into drive_grant_revocations
 // inside an active transaction that already holds LockDriveGrantSub(googleSub)
@@ -86,7 +91,7 @@ func (s *DriveConnectionService) RunWorkers(ctx context.Context) {
 // ProcessDueRevocations claims and processes a batch of due revocation rows
 // from drive_grant_revocations.
 func (s *DriveConnectionService) ProcessDueRevocations(ctx context.Context) int {
-	if s == nil || s.q == nil || s.pool == nil || !s.Available() {
+	if s == nil || s.q == nil || s.pool == nil || !s.RevocationAvailable() {
 		return 0
 	}
 	cutoff := pgtype.Timestamptz{Time: s.nowUTC().Add(-driveRevocationLeaseTTL), Valid: true}
@@ -124,10 +129,9 @@ func (s *DriveConnectionService) ProcessDueRevocations(ctx context.Context) int 
 //     attempt_id) when Google succeeded or returned 400 invalid_token, or when
 //     the 24h retry window is exhausted (abandoning with metric + warn log).
 func (s *DriveConnectionService) ProcessOneRevocation(ctx context.Context, googleSub string) bool {
-	if s == nil || s.q == nil || s.pool == nil || !s.Available() || googleSub == "" {
+	if s == nil || s.q == nil || s.pool == nil || !s.RevocationAvailable() || googleSub == "" {
 		return false
 	}
-
 	claimed, ok, err := s.claimRevocationAttempt(ctx, googleSub)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -145,21 +149,19 @@ func (s *DriveConnectionService) ProcessOneRevocation(ctx context.Context, googl
 
 	// Step 2: Outside any DB transaction, decrypt the token ONLY to call Google's
 	// revoke endpoint (spec §5.3b step 2; held by TestDriveRevocationTokenOnlyRevokes).
+	var revokeErr error
 	token, err := s.openSecret(claimed.RefreshTokenEnc.String)
 	if err != nil {
-		s.log.Warn("drive grant revocation unseal failed", "code", "unseal_failed")
-		_ = s.resolveRevocationAttempt(ctx, claimed.GoogleSub, claimed.Generation, claimed.AttemptID.String, "unseal_failed")
-		return true
+		revokeErr = errDriveRevocationUnsealFailed
+	} else {
+		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveRevocationHTTPTimeout)
+		revokeErr = s.tokenRevoker().RevokeToken(revokeCtx, token)
+		cancel()
 	}
-
-	revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveRevocationHTTPTimeout)
-	revokeErr := s.provider.RevokeToken(revokeCtx, token)
-	cancel()
 
 	if s.testAfterRevokeGoogle != nil {
 		revokeErr = s.testAfterRevokeGoogle(googleSub, claimed, revokeErr)
 	}
-
 	// Step 3: Transaction 2 under LockDriveGrantSub.
 	if revokeErr == nil || errors.Is(revokeErr, ErrDriveRevokeAlreadyInvalid) {
 		if err := s.resolveRevocationAttempt(ctx, claimed.GoogleSub, claimed.Generation, claimed.AttemptID.String, ""); err != nil {
@@ -279,7 +281,13 @@ func (s *DriveConnectionService) resolveRevocationAttempt(ctx context.Context, g
 			return err
 		}
 	}
-	ctx = context.WithoutCancel(ctx)
+	timeout := driveRevocationResolveTimeout
+	if s.resolveTimeout > 0 {
+		timeout = s.resolveTimeout
+	}
+	resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	ctx = resolveCtx
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -321,6 +329,8 @@ func classifyRevokeErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return ""
+	case errors.Is(err, errDriveRevocationUnsealFailed):
+		return "unseal_failed"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "timeout"
 	default:

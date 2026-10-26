@@ -1629,3 +1629,181 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 	}
 }
+
+// TestDriveRevocationUnsealRetryConfigAndBoundedResolve covers R1-5, R1-16, and R1-17:
+//   - R1-5: an unseal failure (corrupt ciphertext or wrong key) keeps the row and
+//     ciphertext in-flight for retry; restoring the key after the lease expires
+//     revokes and resolves; persistent unseal failure past 24h abandons and
+//     increments drive_revocation_abandoned_total.
+//   - R1-16: unsetting GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET makes
+//     Available() false (disabling StartOAuth), while RevocationAvailable() stays
+//     true and queued revocations still run.
+//   - R1-17: resolveRevocationAttempt bounds its detached context with an explicit
+//     timeout; holding the drive_grant:<sub> advisory lock and cancelling the
+//     worker exits within the timeout while keeping the row and ciphertext retryable.
+func TestDriveRevocationUnsealRetryConfigAndBoundedResolve(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	fx.svc.now = func() time.Time { return now }
+
+	connectAndDisconnect := func(code string) {
+		u, nonce, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, _ := extractStateFromAuthURL(t, u)
+		if got := fx.svc.CompleteOAuth(ctx, st, code, "", "", nonce); got != DriveOAuthConnected {
+			t.Fatalf("CompleteOAuth(%s) = %q", code, got)
+		}
+		list, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var connID string
+		for _, c := range list {
+			if c.GoogleEmail == "drive-"+code+"@example.com" {
+				connID = c.ID
+			}
+		}
+		if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, connID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 1. R1-5: Key mismatch / unseal failure keeps ciphertext in-flight -> key restored -> revokes;
+	// corrupt ciphertext past 24h -> abandoned + metric incremented.
+	connectAndDisconnect("unseal-rec")
+	wrongBox := testDriveBox(t)
+	wrongKeySvc := NewDriveConnectionService(fx.pool, fx.q, fx.ws, wrongBox)
+	wrongKeySvc.SetProvider(fx.fake)
+	wrongKeySvc.now = func() time.Time { return now }
+	var abandonedCount atomic.Int32
+	wrongKeySvc.SetMetrics(&testDriveMetrics{onAbandoned: func() { abandonedCount.Add(1) }})
+
+	if wrongKeySvc.ProcessOneRevocation(ctx, "fake-sub-unseal-rec") {
+		t.Fatal("first unseal failure must not resolve the revocation row before 24h")
+	}
+	if abandonedCount.Load() != 0 {
+		t.Fatalf("abandonedCount after first unseal failure = %d, want 0", abandonedCount.Load())
+	}
+	rowAfterUnsealFail, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-unseal-rec")
+	if err != nil || rowAfterUnsealFail.ResolvedAt.Valid || !rowAfterUnsealFail.RefreshTokenEnc.Valid || !rowAfterUnsealFail.AttemptID.Valid {
+		t.Fatalf("row after unseal failure must keep ciphertext and stay in-flight: %+v, err=%v", rowAfterUnsealFail, err)
+	}
+	// Restore the right key after lease expires -> revokes and resolves!
+	now = now.Add(driveRevocationLeaseTTL + time.Second)
+	if !fx.svc.ProcessOneRevocation(ctx, "fake-sub-unseal-rec") {
+		t.Fatal("expected revocation to succeed after key restoration")
+	}
+	rowAfterRestore, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-unseal-rec")
+	if err != nil || !rowAfterRestore.ResolvedAt.Valid || rowAfterRestore.RefreshTokenEnc.Valid {
+		t.Fatalf("row after key restoration = %+v, err=%v", rowAfterRestore, err)
+	}
+
+	// Corrupt ciphertext past 24h -> abandoned + metric incremented.
+	connectAndDisconnect("unseal-24h")
+	if _, err := fx.pool.Exec(ctx, `UPDATE drive_grant_revocations SET refresh_token_enc = 'corrupt-ciphertext' WHERE google_sub = 'fake-sub-unseal-24h'`); err != nil {
+		t.Fatal(err)
+	}
+	fx.svc.SetMetrics(&testDriveMetrics{onAbandoned: func() { abandonedCount.Add(1) }})
+	if fx.svc.ProcessOneRevocation(ctx, "fake-sub-unseal-24h") {
+		t.Fatal("corrupt ciphertext before 24h must not resolve")
+	}
+	rowBefore24h, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-unseal-24h")
+	if err != nil || rowBefore24h.ResolvedAt.Valid || rowBefore24h.RefreshTokenEnc.String != "corrupt-ciphertext" {
+		t.Fatalf("corrupt ciphertext before 24h must be preserved: %+v, err=%v", rowBefore24h, err)
+	}
+	now = now.Add(driveRevocationAbandonWindow + time.Minute)
+	if !fx.svc.ProcessOneRevocation(ctx, "fake-sub-unseal-24h") {
+		t.Fatal("corrupt ciphertext past 24h must abandon")
+	}
+	if abandonedCount.Load() != 1 {
+		t.Fatalf("abandonedCount = %d, want 1", abandonedCount.Load())
+	}
+	rowAfter24h, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-unseal-24h")
+	if err != nil || !rowAfter24h.ResolvedAt.Valid || rowAfter24h.RefreshTokenEnc.Valid || rowAfter24h.LastError != "unseal_failed" {
+		t.Fatalf("row after 24h unseal abandon = %+v, err=%v", rowAfter24h, err)
+	}
+
+	// 2. R1-16: Revoke without OAuth client id/secret configured.
+	now = now.Add(5 * time.Second)
+	connectAndDisconnect("no-oauth-cfg")
+	oidcSrv := newFakeDriveOIDCServer(t)
+	revokeOnlySvc := NewDriveConnectionService(fx.pool, fx.q, fx.ws, fx.box)
+	revokeOnlySvc.SetFlags(driveConnectorFlags(t, true))
+	revokeOnlySvc.now = func() time.Time { return now }
+	// ConfigureOAuth with empty client ID and secret: Available() must be false,
+	// but RevocationAvailable() is true!
+	revokeOnlySvc.ConfigureOAuth(config.Config{
+		GoogleDriveClientID:     "",
+		GoogleDriveClientSecret: "",
+	})
+	if revokeOnlySvc.Available() {
+		t.Fatal("Available() must be false when client id/secret are unset")
+	}
+	if !revokeOnlySvc.RevocationAvailable() {
+		t.Fatal("RevocationAvailable() must be true when box is set even without client id/secret")
+	}
+	if _, _, err := revokeOnlySvc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, ""); !errors.Is(err, ErrDriveNotConfigured) {
+		t.Fatalf("StartOAuth without client id/secret = %v, want ErrDriveNotConfigured", err)
+	}
+	// Point the internal GoogleDriveProvider revoker at the local httptest revoke endpoint.
+	gp := revokeOnlySvc.revoker.(*GoogleDriveProvider)
+	gp.revokeURL = oidcSrv.srv.URL + "/revoke"
+	gp.revokeHTTP = oidcSrv.srv.Client()
+	if n := revokeOnlySvc.ProcessDueRevocations(ctx); n < 1 {
+		t.Fatalf("ProcessDueRevocations without OAuth client id/secret = %d, want >= 1", n)
+	}
+	revNoOAuth, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-no-oauth-cfg")
+	if err != nil || !revNoOAuth.ResolvedAt.Valid || revNoOAuth.RefreshTokenEnc.Valid {
+		t.Fatalf("revNoOAuth = %+v, err=%v", revNoOAuth, err)
+	}
+
+	// 3. R1-17: Bounded resolve timeout when grant lock is held and worker context is cancelled.
+	now = now.Add(5 * time.Second)
+	connectAndDisconnect("bounded-res")
+	boundedSvc := NewDriveConnectionService(fx.pool, fx.q, fx.ws, fx.box)
+	boundedSvc.SetProvider(fx.fake)
+	boundedSvc.now = func() time.Time { return now }
+	boundedSvc.resolveTimeout = 100 * time.Millisecond
+
+	// Hold drive_grant:fake-sub-bounded-res in another transaction while step 3 tries to resolve.
+	lockReady := make(chan struct{})
+	releaseLock := make(chan struct{})
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	defer cancelWorker()
+
+	boundedSvc.testAfterRevokeGoogle = func(sub string, _ db.DriveGrantRevocation, revokeErr error) error {
+		if sub == "fake-sub-bounded-res" {
+			go func() {
+				holdTx, err := fx.pool.Begin(ctx)
+				if err == nil {
+					_ = fx.q.WithTx(holdTx).LockDriveGrantSub(ctx, sub)
+					close(lockReady)
+					<-releaseLock
+					_ = holdTx.Rollback(ctx)
+				}
+			}()
+			<-lockReady
+			cancelWorker()
+		}
+		return revokeErr
+	}
+
+	startResolve := time.Now()
+	resolved := boundedSvc.ProcessOneRevocation(workerCtx, "fake-sub-bounded-res")
+	elapsed := time.Since(startResolve)
+	close(releaseLock)
+
+	if resolved {
+		t.Fatal("ProcessOneRevocation must return false when resolve transaction times out on held advisory lock")
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("resolve transaction took %v, expected bounded exit near 100ms", elapsed)
+	}
+	rowAfterTimeout, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-bounded-res")
+	if err != nil || rowAfterTimeout.ResolvedAt.Valid || !rowAfterTimeout.RefreshTokenEnc.Valid || !rowAfterTimeout.AttemptID.Valid {
+		t.Fatalf("row after resolve timeout must keep ciphertext and stay retryable: %+v, err=%v", rowAfterTimeout, err)
+	}
+}

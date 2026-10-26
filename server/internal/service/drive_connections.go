@@ -111,18 +111,18 @@ type driveOAuthState struct {
 // DriveConnectionService manages Google Drive OAuth connections, token refresh,
 // disconnection, lifecycle cleanup, and the §5.3b global grant revocation queue.
 type DriveConnectionService struct {
-	pool         *pgxpool.Pool
-	q            *db.Queries
-	ws           *WorkspaceService
-	box          *secretbox.Box
-	flags        *featureflag.Service
-	log          *slog.Logger
-	provider     DriveProvider
-	metrics      DriveMetrics
-	refreshLocks sync.Map // connectionID -> *sync.Mutex
-	now          func() time.Time
-
-	// Test hooks for deterministic §5.3b race tests.
+	pool                       *pgxpool.Pool
+	q                          *db.Queries
+	ws                         *WorkspaceService
+	box                        *secretbox.Box
+	flags                      *featureflag.Service
+	log                        *slog.Logger
+	provider                   DriveProvider
+	revoker                    DriveTokenRevoker
+	metrics                    DriveMetrics
+	refreshLocks               sync.Map // connectionID -> *sync.Mutex
+	now                        func() time.Time
+	resolveTimeout             time.Duration
 	testBeforeCallbackTx       func(sub string)
 	testAfterCallbackGrantLock func(sub string)
 	testBeforeDisconnectRow    func(sub string)
@@ -131,9 +131,16 @@ type DriveConnectionService struct {
 	testBeforeResolveTx        func(sub string, generation int64, attemptID string) error
 }
 
+// DriveTokenRevoker is the revocation-only subset of DriveProvider so queued
+// grant revocations can still run when DRIVE_CREDENTIAL_KEY is configured even
+// if GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET are unset (R1-16).
+type DriveTokenRevoker interface {
+	RevokeToken(ctx context.Context, token string) error
+}
+
 // NewDriveConnectionService constructs a DriveConnectionService. box may be nil
-// when DRIVE_CREDENTIAL_KEY is unset; ConfigureProvider then leaves the
-// provider disabled.
+// when DRIVE_CREDENTIAL_KEY is unset; ConfigureOAuth then leaves the provider
+// disabled.
 func NewDriveConnectionService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *DriveConnectionService {
 	var poolRef *pgxpool.Pool
 	if pool != nil {
@@ -171,6 +178,12 @@ func (s *DriveConnectionService) SetMetrics(m DriveMetrics) {
 // SetProvider overrides the DriveProvider (used by unit and integration tests).
 func (s *DriveConnectionService) SetProvider(p DriveProvider) {
 	s.provider = p
+	s.revoker = p
+}
+
+// SetRevoker overrides the DriveTokenRevoker used by the revocation worker.
+func (s *DriveConnectionService) SetRevoker(r DriveTokenRevoker) {
+	s.revoker = r
 }
 
 // Provider returns the active DriveProvider, or nil when not configured.
@@ -197,16 +210,38 @@ func (s *DriveConnectionService) ConfigureOAuth(cfg config.Config) {
 		}
 		if cfg.GoogleDriveClientID == "" || cfg.GoogleDriveClientSecret == "" {
 			s.provider = nil
+			s.revoker = NewFakeDriveProvider(cfg)
 			return
 		}
-		s.provider = NewFakeDriveProvider(cfg)
+		fp := NewFakeDriveProvider(cfg)
+		s.provider = fp
+		s.revoker = fp
 		return
 	}
+	gp := NewGoogleDriveProvider(cfg)
+	s.revoker = gp
 	if cfg.GoogleDriveClientID == "" || cfg.GoogleDriveClientSecret == "" {
 		s.provider = nil
 		return
 	}
-	s.provider = NewGoogleDriveProvider(cfg)
+	s.provider = gp
+}
+
+func (s *DriveConnectionService) tokenRevoker() DriveTokenRevoker {
+	if s == nil {
+		return nil
+	}
+	if s.revoker != nil {
+		return s.revoker
+	}
+	return s.provider
+}
+
+// RevocationAvailable reports whether the server can unseal and revoke stored
+// refresh tokens in drive_grant_revocations (needs only DRIVE_CREDENTIAL_KEY
+// and a revoke HTTP client, even if OAuth client id/secret are unset; R1-16).
+func (s *DriveConnectionService) RevocationAvailable() bool {
+	return s != nil && s.box != nil && s.tokenRevoker() != nil
 }
 
 // Available reports whether the server has both the credential secretbox and a
