@@ -79,7 +79,7 @@ type CreateTasksFromDriveProposalSDI struct {
 	ProjectID    *string                    `json:"project_id,omitempty" description:"ULID dự án áp dụng cho cả lô; null hoặc bỏ trống = không gắn dự án" example:"01J8X4PROJ0N1P2Q3R4S5T6U7V"`
 	ParentTaskID *string                    `json:"parent_task_id,omitempty" description:"ULID công việc cha áp dụng cho cả lô; null hoặc bỏ trống = việc cấp cao nhất" example:"01J8X4TASKN1P2Q3R4S5T6U7V8"`
 	Status       string                     `json:"status,omitempty" description:"Khóa trạng thái áp dụng cho cả lô; bỏ trống = trạng thái Cần làm đầu tiên của workspace" example:"todo"`
-	Items        []DriveProposalTaskItemSDI `json:"items" minItems:"1" maxItems:"20" description:"Danh sách 1–20 việc người dùng đã chọn tạo"`
+	Items        []DriveProposalTaskItemSDI `json:"items" minItems:"1" maxItems:"20" description:"Danh sách 1–20 việc người dùng đã chọn tạo" example:"[{\"index\":0,\"title\":\"Chốt phạm vi tính năng beta\",\"description\":\"Mục tiêu: Chốt danh sách tính năng beta.\",\"priority\":\"high\",\"start_date\":\"2026-10-27\",\"due_date\":\"2026-11-05\",\"label_ids\":[\"01J8X4LBL00N1P2Q3R4S5T6U7V\"],\"blocked_by_indexes\":[],\"allow_duplicate\":false}]"`
 }
 
 // AskUniTranscriptTurnSDI is one in-memory turn sent by the client in transient Ask UNI mode (spec §9).
@@ -93,5 +93,5 @@ type AskUniTranscriptTurnSDI struct {
 // when focus.kind == "drive_file" (spec §9). Kept separate in B1 so AskUniSDI stays untouched until B8.
 type AskUniTransientFieldsSDI struct {
 	Transient  bool                      `json:"transient,omitempty" description:"true = chế độ tạm thời không lưu hội thoại, bắt buộc khi focus.kind = drive_file và cấm đi kèm conversation_id" example:"true"`
-	Transcript []AskUniTranscriptTurnSDI `json:"transcript,omitempty" maxItems:"20" description:"Cửa sổ trượt tối đa 20 lượt thoại trước đó (tổng ≤ 32.000 ký tự) làm ngữ cảnh không tin cậy cho chế độ tạm thời"`
+	Transcript []AskUniTranscriptTurnSDI `json:"transcript,omitempty" maxItems:"20" description:"Cửa sổ trượt tối đa 20 lượt thoại trước đó (tổng ≤ 32.000 ký tự) làm ngữ cảnh không tin cậy cho chế độ tạm thời" example:"[{\"role\":\"user\",\"text\":\"Tài liệu này nêu những mốc ra mắt nào?\"}]"`
 }

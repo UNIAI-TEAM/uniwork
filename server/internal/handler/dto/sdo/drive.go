@@ -26,7 +26,7 @@ type DriveConnectionDTO struct {
 
 // DriveConnectionListSDO is GET /api/v1/workspaces/{workspaceID}/drive-connections (spec §5.3).
 type DriveConnectionListSDO struct {
-	Connections []DriveConnectionDTO `json:"connections" description:"Danh sách kết nối Google Drive của người gọi trong tổ chức của workspace"`
+	Connections []DriveConnectionDTO `json:"connections" description:"Danh sách kết nối Google Drive của người gọi trong tổ chức của workspace" example:"[{\"id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"provider\":\"google\",\"google_email\":\"uni-work1@gmail.com\",\"status\":\"active\",\"needs_reconnect\":false,\"linked_file_count\":3,\"connected_at\":\"2026-10-26T08:00:00Z\",\"updated_at\":\"2026-10-26T08:00:00Z\"}]"`
 }
 
 // DrivePickerTokenSDO is POST /api/v1/workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token (spec §7.1).
@@ -41,7 +41,6 @@ type DrivePickerTokenSDO struct {
 type DriveTasksCreatedSummaryDTO struct {
 	Count             int64   `json:"count" description:"Tổng số công việc (mà người xem có quyền thấy) đã được tạo từ tài liệu này" example:"4"`
 	LastCreatedAt     *string `json:"last_created_at,omitempty" format:"date-time" description:"Thời điểm lần tạo việc gần nhất (RFC3339); vắng mặt khi count = 0" example:"2026-10-26T09:58:00Z"`
-	LastCreatedByID   *string `json:"last_created_by_id,omitempty" description:"ULID người xác nhận lần tạo việc gần nhất; vắng mặt khi count = 0" example:"01J8X4USER0N1P2Q3R4S5T6U7V"`
 	LastCreatedByName *string `json:"last_created_by_name,omitempty" description:"Tên hiển thị của người xác nhận lần tạo việc gần nhất; vắng mặt khi count = 0" example:"Minh Nguyễn"`
 }
 
@@ -59,7 +58,7 @@ type DriveTaskCreationGroupDTO struct {
 	CreatedAt     string                  `json:"created_at" format:"date-time" description:"Thời điểm tạo lô việc (RFC3339)" example:"2026-10-26T09:58:00Z"`
 	CreatedByID   string                  `json:"created_by_id" description:"ULID người duyệt và tạo việc" example:"01J8X4USER0N1P2Q3R4S5T6U7V"`
 	CreatedByName string                  `json:"created_by_name" description:"Tên hiển thị của người duyệt và tạo việc" example:"Minh Nguyễn"`
-	Tasks         []DriveLinkedTaskRefDTO `json:"tasks" description:"Danh sách công việc thuộc lần tạo này mà người xem được phép thấy"`
+	Tasks         []DriveLinkedTaskRefDTO `json:"tasks" description:"Danh sách công việc thuộc lần tạo này mà người xem được phép thấy" example:"[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]"`
 }
 
 // DriveFileDTO is a Google Drive file reference in the workspace (list row on 4.1 and detail on 4.2; spec §6.2, §7.6, §7.7, §8.8).
@@ -99,36 +98,56 @@ type DriveFileDTO struct {
 	CanPropose             bool                        `json:"can_propose" description:"true khi người xem được phép bấm Tạo việc từ tài liệu (viewer_access = granted + AI bật + không phải khách)" example:"true"`
 	CanAsk                 bool                        `json:"can_ask" description:"true khi người xem được phép bấm Hỏi UNI về tệp này" example:"true"`
 	UsedInCount            int64                       `json:"used_in_count" description:"Số công việc đang gắn tệp này mà người xem có quyền thấy" example:"5"`
-	UsedInTasks            []DriveLinkedTaskRefDTO     `json:"used_in_tasks" description:"Danh sách công việc đang gắn tệp này mà người xem có quyền thấy"`
-	TasksCreated           DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt số công việc đã tạo từ tài liệu này qua đề xuất của UNI (§8.8)"`
-	TaskCreations          []DriveTaskCreationGroupDTO `json:"task_creations,omitempty" description:"Danh sách tối đa 10 lần tạo việc gần nhất từ tài liệu này (chỉ trả trên chi tiết 4.2, §8.8)"`
+	UsedInTasks            []DriveLinkedTaskRefDTO     `json:"used_in_tasks" description:"Danh sách công việc đang gắn tệp này mà người xem có quyền thấy" example:"[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]"`
+	TasksCreated           DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt số công việc đã tạo từ tài liệu này qua đề xuất của UNI (§8.8)" example:"{\"count\":4,\"last_created_at\":\"2026-10-26T09:58:00Z\",\"last_created_by_name\":\"Minh Nguyễn\"}"`
+	TaskCreations          []DriveTaskCreationGroupDTO `json:"task_creations,omitempty" description:"Danh sách tối đa 10 lần tạo việc gần nhất từ tài liệu này (chỉ trả trên chi tiết 4.2, §8.8)" example:"[{\"proposal_id\":\"01J8X4PROP0N1P2Q3R4S5T6U7V\",\"created_at\":\"2026-10-26T09:58:00Z\",\"created_by_id\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"created_by_name\":\"Minh Nguyễn\",\"tasks\":[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]}]"`
 }
 
 // DriveFileSDO wraps a single DriveFileDTO (GET detail 4.2, POST/PUT access, POST rebind).
 type DriveFileSDO struct {
-	File DriveFileDTO `json:"file" description:"Thông tin chi tiết tệp Google Drive"`
+	File DriveFileDTO `json:"file" description:"Thông tin chi tiết tệp Google Drive" example:"{\"id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"organization_id\":\"01J8X4ORGN1P2Q3R4S5T6U7V8\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"name\":\"Kế hoạch ra mắt Q4\",\"mime_type\":\"application/vnd.google-apps.document\",\"icon_kind\":\"google_doc\",\"web_view_link\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit\",\"open_url\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com\",\"owner_display\":\"Lan\",\"sharing_state\":\"private\",\"connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"bound_account_email\":\"uni-work1@gmail.com\",\"bound_connection_lost\":false,\"bound_by_id\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"bound_by_name\":\"Minh Nguyễn\",\"created_by\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"created_by_kind\":\"human\",\"created_by_name\":\"Minh Nguyễn\",\"created_at\":\"2026-10-26T08:15:00Z\",\"updated_at\":\"2026-10-26T08:15:00Z\",\"viewer_access\":\"granted\",\"viewer_connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"viewer_account_email\":\"uni-work1@gmail.com\",\"can_unlink\":true,\"can_rebind\":true,\"can_propose\":true,\"can_ask\":true,\"used_in_count\":1,\"used_in_tasks\":[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}],\"tasks_created\":{\"count\":0}}"`
 }
 
 // DriveFileListSDO is GET /api/v1/workspaces/{workspaceID}/drive-files (4.1 list; spec §7.6).
 type DriveFileListSDO struct {
-	Files      []DriveFileDTO `json:"files" description:"Danh sách tệp Google Drive trong danh sách của người gọi"`
+	Files      []DriveFileDTO `json:"files" description:"Danh sách tệp Google Drive trong danh sách của người gọi" example:"[{\"id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"organization_id\":\"01J8X4ORGN1P2Q3R4S5T6U7V8\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"name\":\"Kế hoạch ra mắt Q4\",\"mime_type\":\"application/vnd.google-apps.document\",\"icon_kind\":\"google_doc\",\"web_view_link\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit\",\"open_url\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com\",\"owner_display\":\"Lan\",\"sharing_state\":\"private\",\"connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"bound_account_email\":\"uni-work1@gmail.com\",\"bound_connection_lost\":false,\"bound_by_id\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"bound_by_name\":\"Minh Nguyễn\",\"created_by\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"created_by_kind\":\"human\",\"created_by_name\":\"Minh Nguyễn\",\"created_at\":\"2026-10-26T08:15:00Z\",\"updated_at\":\"2026-10-26T08:15:00Z\",\"viewer_access\":\"granted\",\"viewer_connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"viewer_account_email\":\"uni-work1@gmail.com\",\"can_unlink\":true,\"can_rebind\":true,\"can_propose\":true,\"can_ask\":true,\"used_in_count\":1,\"used_in_tasks\":[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}],\"tasks_created\":{\"count\":0}}]"`
 	TotalCount int64          `json:"total_count" description:"Tổng số tệp Google Drive của người gọi trong workspace" example:"5"`
 	NextCursor *string        `json:"next_cursor" description:"Con trỏ trang kế tiếp; null khi ở trang cuối" example:"eyJpZCI6IjAxSjifQ"`
 }
 
+// DriveFileLinkReceiptDTO is the privacy-safe file receipt returned inside DriveFileLinkItemDTO on
+// POST /api/v1/workspaces/{workspaceID}/drive-files (spec §7.2). It carries only the file identity,
+// display metadata, and the caller's own viewer access/account—never another member's bound_account_email,
+// bound_by_*, or created_by_*.
+type DriveFileLinkReceiptDTO struct {
+	ID                 string  `json:"id" description:"ULID tham chiếu tệp Drive trong UniWork" example:"01J8X4DRVFILE0N1P2Q3R4S5T6"`
+	WorkspaceID        string  `json:"workspace_id" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	ExternalFileID     string  `json:"external_file_id" description:"ID tệp trên Google Drive" example:"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"`
+	DriveID            *string `json:"drive_id,omitempty" description:"ID Bộ nhớ dùng chung (Shared Drive) nếu tệp nằm trong Bộ nhớ dùng chung; vắng mặt nếu ở Drive cá nhân" example:"0AJ8X4SHAREDDRV001"`
+	Name               string  `json:"name" description:"Tên tệp chụp từ Google Drive" example:"Kế hoạch ra mắt Q4"`
+	MimeType           string  `json:"mime_type" description:"MIME type của tệp trên Google Drive" example:"application/vnd.google-apps.document"`
+	IconKind           string  `json:"icon_kind" description:"Loại biểu tượng hiển thị: google_doc, google_sheet, google_slide, pdf, docx, xlsx, pptx, text, markdown hoặc generic" example:"google_doc"`
+	SharingState       string  `json:"sharing_state" description:"Trạng thái chia sẻ chụp từ Drive: private, shared hoặc unknown" example:"private"`
+	WebViewLink        string  `json:"web_view_link" description:"URL gốc mở tệp trên Google Drive (chưa gắn authuser)" example:"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"`
+	OpenURL            string  `json:"open_url" description:"URL mở tệp trên Google Drive đã gắn authuser theo tài khoản đọc của chính người gọi" example:"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com"`
+	ViewerAccess       string  `json:"viewer_access" description:"Quyền đọc của chính người gọi sau lệnh liên kết: granted" example:"granted"`
+	ViewerConnectionID *string `json:"viewer_connection_id,omitempty" description:"ULID kết nối Google Drive trong dòng truy cập của chính người gọi" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+	ViewerAccountEmail string  `json:"viewer_account_email,omitempty" format:"email" description:"Email Google trong dòng truy cập của chính người gọi" example:"uni-work1@gmail.com"`
+}
+
 // DriveFileLinkItemDTO is the per-file result of POST /api/v1/workspaces/{workspaceID}/drive-files (spec §7.2).
 type DriveFileLinkItemDTO struct {
-	ExternalFileID string        `json:"external_file_id" description:"ID tệp trên Google Drive" example:"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"`
-	Outcome        string        `json:"outcome" description:"Kết quả liên kết: linked, already_linked hoặc error" example:"linked"`
-	File           *DriveFileDTO `json:"file,omitempty" description:"Thông tin tệp đã liên kết khi outcome là linked hoặc already_linked"`
-	AccountEmail   string        `json:"account_email,omitempty" format:"email" description:"Email tài khoản Google đang mở tệp của chính người gọi khi outcome = already_linked" example:"uni-work1@gmail.com"`
-	ErrorCode      string        `json:"error_code,omitempty" description:"Mã lỗi theo §5.7 khi outcome = error (ví dụ drive_grant_required, drive_file_not_accessible)" example:"drive_grant_required"`
-	ErrorMessage   string        `json:"error_message,omitempty" description:"Thông báo lỗi khi outcome = error" example:"Tài khoản chưa cấp quyền đọc tệp này cho UniWork."`
+	ExternalFileID string                   `json:"external_file_id" description:"ID tệp trên Google Drive" example:"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"`
+	Outcome        string                   `json:"outcome" description:"Kết quả liên kết: linked, already_linked hoặc error" example:"linked"`
+	File           *DriveFileLinkReceiptDTO `json:"file,omitempty" description:"Thông tin tóm tắt tệp đã liên kết (chỉ chứa tài khoản của chính người gọi) khi outcome là linked hoặc already_linked" example:"{\"id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"name\":\"Kế hoạch ra mắt Q4\",\"mime_type\":\"application/vnd.google-apps.document\",\"icon_kind\":\"google_doc\",\"sharing_state\":\"private\",\"web_view_link\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit\",\"open_url\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com\",\"viewer_access\":\"granted\",\"viewer_connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"viewer_account_email\":\"uni-work1@gmail.com\"}"`
+	AccountEmail   string                   `json:"account_email,omitempty" format:"email" description:"Email tài khoản Google đang mở tệp của chính người gọi khi outcome = already_linked" example:"uni-work1@gmail.com"`
+	ErrorCode      string                   `json:"error_code,omitempty" description:"Mã lỗi theo §5.7 khi outcome = error (ví dụ drive_grant_required, drive_file_not_accessible)" example:"drive_grant_required"`
+	ErrorMessage   string                   `json:"error_message,omitempty" description:"Thông báo lỗi khi outcome = error" example:"Tài khoản chưa cấp quyền đọc tệp này cho UniWork."`
 }
 
 // DriveFileLinkResultsSDO is POST /api/v1/workspaces/{workspaceID}/drive-files (spec §7.2).
 type DriveFileLinkResultsSDO struct {
-	Results []DriveFileLinkItemDTO `json:"results" description:"Kết quả xử lý từng tệp theo thứ tự gửi lên"`
+	Results []DriveFileLinkItemDTO `json:"results" description:"Kết quả xử lý từng tệp theo thứ tự gửi lên" example:"[{\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"outcome\":\"linked\",\"file\":{\"id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"name\":\"Kế hoạch ra mắt Q4\",\"mime_type\":\"application/vnd.google-apps.document\",\"icon_kind\":\"google_doc\",\"sharing_state\":\"private\",\"web_view_link\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit\",\"open_url\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com\",\"viewer_access\":\"granted\",\"viewer_connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"viewer_account_email\":\"uni-work1@gmail.com\"}}]"`
 }
 
 // DriveTaskFileCardDTO is one Google Drive card in the task's Attachments section: GET /api/v1/tasks/{taskID}/drive-files (spec §7.3, §8.8).
@@ -161,12 +180,12 @@ type DriveTaskFileCardDTO struct {
 	CanRemoveFromTask      bool                        `json:"can_remove_from_task" description:"true khi người xem có quyền sửa công việc (được gỡ tệp khỏi việc)" example:"true"`
 	CanPropose             bool                        `json:"can_propose" description:"true khi người xem được phép bấm Tạo việc từ tài liệu" example:"true"`
 	CanAsk                 bool                        `json:"can_ask" description:"true khi người xem được phép bấm Hỏi UNI" example:"true"`
-	TasksCreated           DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt số công việc đã tạo từ tài liệu này (§8.8)"`
+	TasksCreated           DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt số công việc đã tạo từ tài liệu này (§8.8)" example:"{\"count\":4,\"last_created_at\":\"2026-10-26T09:58:00Z\",\"last_created_by_name\":\"Minh Nguyễn\"}"`
 }
 
 // DriveTaskFileListSDO is GET /api/v1/tasks/{taskID}/drive-files (spec §7.3).
 type DriveTaskFileListSDO struct {
-	Files []DriveTaskFileCardDTO `json:"files" description:"Danh sách thẻ tệp Google Drive gắn với công việc"`
+	Files []DriveTaskFileCardDTO `json:"files" description:"Danh sách thẻ tệp Google Drive gắn với công việc" example:"[{\"id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\",\"name\":\"Kế hoạch ra mắt Q4\",\"mime_type\":\"application/vnd.google-apps.document\",\"icon_kind\":\"google_doc\",\"sharing_state\":\"private\",\"owner_display\":\"Lan\",\"connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"bound_account_email\":\"uni-work1@gmail.com\",\"bound_connection_lost\":false,\"bound_by_id\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"bound_by_name\":\"Minh Nguyễn\",\"created_by\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"created_by_name\":\"Minh Nguyễn\",\"linked_at\":\"2026-10-26T08:20:00Z\",\"viewer_access\":\"granted\",\"viewer_connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"viewer_account_email\":\"uni-work1@gmail.com\",\"open_url\":\"https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?authuser=uni-work1%40gmail.com\",\"can_remove_from_task\":true,\"can_propose\":true,\"can_ask\":true,\"tasks_created\":{\"count\":0}}]"`
 }
 
 // DriveProposalExcerptDTO is the source section and quote UNI extracted for one proposed task (spec §8.2).
@@ -199,9 +218,9 @@ type DriveTaskProposalItemDTO struct {
 	LabelBasis          string                  `json:"label_basis,omitempty" description:"Căn cứ UNI chọn nhãn" example:"Mục sản phẩm"`
 	Goal                string                  `json:"goal" description:"Mục tiêu của công việc" example:"Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11."`
 	Checklist           []string                `json:"checklist" description:"Danh sách các bước cần làm (tối đa 10 mục)" example:"[\"Liệt kê tính năng ứng viên\",\"Họp chốt với nhóm sản phẩm\"]"`
-	Excerpt             DriveProposalExcerptDTO `json:"excerpt" description:"Đoạn trích và vị trí trong tài liệu làm căn cứ"`
+	Excerpt             DriveProposalExcerptDTO `json:"excerpt" description:"Đoạn trích và vị trí trong tài liệu làm căn cứ" example:"{\"section\":\"Mục 2\",\"quote\":\"Nhóm sản phẩm chốt phạm vi beta trước ngày 05/11.\"}"`
 	BlockedByIndexes    []int                   `json:"blocked_by_indexes" description:"Danh sách index các việc khác trong cùng lô chặn việc này" example:"[]"`
-	PossibleDuplicate   *DriveDuplicateTaskDTO  `json:"possible_duplicate,omitempty" description:"Công việc đang mở có tiêu đề trùng trong cùng dự án và việc cha; null khi không trùng"`
+	PossibleDuplicate   *DriveDuplicateTaskDTO  `json:"possible_duplicate,omitempty" description:"Công việc đang mở có tiêu đề trùng trong cùng dự án và việc cha; null khi không trùng" example:"{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1037\",\"title\":\"Soạn FAQ sản phẩm\"}"`
 }
 
 // DriveTaskProposalDTO is the proposal batch returned on POST .../task-proposals and GET .../drive-task-proposals/{proposalID} (spec §8.2, §8.8).
@@ -222,27 +241,27 @@ type DriveTaskProposalDTO struct {
 	ContextTaskID      *string                     `json:"context_task_id,omitempty" description:"ULID công việc đang mở lúc yêu cầu" example:"01J8X4TASKN1P2Q3R4S5T6U7V8"`
 	Truncated          bool                        `json:"truncated" description:"true khi tài liệu dài hơn 200.000 ký tự và UNI chỉ đọc phần đầu" example:"false"`
 	Status             string                      `json:"status" description:"Trạng thái lô đề xuất: ready, converted hoặc discarded" example:"ready"`
-	Items              []DriveTaskProposalItemDTO  `json:"items" description:"Danh sách công việc UNI đề xuất (rỗng sau khi lô đã chuyển thành việc hoặc bị hủy)"`
-	TasksCreated       DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt các việc đã được tạo từ tài liệu này trước đây (§8.8)"`
-	PriorCreations     []DriveTaskCreationGroupDTO `json:"prior_creations" description:"Danh sách các lần tạo việc trước đây từ tài liệu này để hộp duyệt cảnh báo (§8.8)"`
+	Items              []DriveTaskProposalItemDTO  `json:"items" description:"Danh sách công việc UNI đề xuất (rỗng sau khi lô đã chuyển thành việc hoặc bị hủy)" example:"[{\"index\":0,\"title\":\"Chốt phạm vi tính năng beta\",\"label_ids\":[],\"goal\":\"Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11.\",\"checklist\":[\"Liệt kê tính năng ứng viên\"],\"excerpt\":{\"section\":\"Mục 2\",\"quote\":\"Nhóm sản phẩm chốt phạm vi beta trước ngày 05/11.\"},\"blocked_by_indexes\":[]}]"`
+	TasksCreated       DriveTasksCreatedSummaryDTO `json:"tasks_created" description:"Tóm tắt các việc đã được tạo từ tài liệu này trước đây (§8.8)" example:"{\"count\":4,\"last_created_at\":\"2026-10-26T09:58:00Z\",\"last_created_by_name\":\"Minh Nguyễn\"}"`
+	PriorCreations     []DriveTaskCreationGroupDTO `json:"prior_creations" description:"Danh sách các lần tạo việc trước đây từ tài liệu này để hộp duyệt cảnh báo (§8.8)" example:"[{\"proposal_id\":\"01J8X4PROP0N1P2Q3R4S5T6U7V\",\"created_at\":\"2026-10-26T09:58:00Z\",\"created_by_id\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"created_by_name\":\"Minh Nguyễn\",\"tasks\":[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]}]"`
 	CreatedAt          string                      `json:"created_at" format:"date-time" description:"Thời điểm tạo lô đề xuất (RFC3339)" example:"2026-10-26T09:55:00Z"`
 	ExpiresAt          string                      `json:"expires_at" format:"date-time" description:"Thời điểm hết hạn lô đề xuất (created_at + 7 ngày, RFC3339)" example:"2026-11-02T09:55:00Z"`
 }
 
 // DriveTaskProposalSDO wraps DriveTaskProposalDTO (POST .../task-proposals, GET .../drive-task-proposals/{proposalID}).
 type DriveTaskProposalSDO struct {
-	Proposal DriveTaskProposalDTO `json:"proposal" description:"Lô đề xuất công việc từ tài liệu Google Drive"`
+	Proposal DriveTaskProposalDTO `json:"proposal" description:"Lô đề xuất công việc từ tài liệu Google Drive" example:"{\"id\":\"01J8X4PROP0N1P2Q3R4S5T6U7V\",\"workspace_id\":\"01J8X4WS0N1P2Q3R4S5T6U7V8\",\"drive_file_id\":\"01J8X4DRVFILE0N1P2Q3R4S5T6\",\"drive_file_name\":\"Kế hoạch ra mắt Q4\",\"drive_file_mime_type\":\"application/vnd.google-apps.document\",\"drive_file_icon_kind\":\"google_doc\",\"sharing_state\":\"private\",\"connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"reader_account_email\":\"uni-work1@gmail.com\",\"requested_by\":\"01J8X4USER0N1P2Q3R4S5T6U7V\",\"truncated\":false,\"status\":\"ready\",\"items\":[],\"tasks_created\":{\"count\":0},\"prior_creations\":[],\"created_at\":\"2026-10-26T09:55:00Z\",\"expires_at\":\"2026-11-02T09:55:00Z\"}"`
 }
 
 // DriveProposalDuplicateItemDTO is one item's duplicate check result on POST .../duplicates (spec §8.4).
 type DriveProposalDuplicateItemDTO struct {
 	Index             int                    `json:"index" description:"Vị trí mục trong danh sách gửi lên" example:"0"`
-	PossibleDuplicate *DriveDuplicateTaskDTO `json:"possible_duplicate,omitempty" description:"Công việc đang mở trùng tiêu đề; null khi không trùng"`
+	PossibleDuplicate *DriveDuplicateTaskDTO `json:"possible_duplicate,omitempty" description:"Công việc đang mở trùng tiêu đề; null khi không trùng" example:"{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1037\",\"title\":\"Soạn FAQ sản phẩm\"}"`
 }
 
 // DriveProposalDuplicatesSDO is POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates (spec §8.4).
 type DriveProposalDuplicatesSDO struct {
-	Duplicates []DriveProposalDuplicateItemDTO `json:"duplicates" description:"Kết quả kiểm trùng cho từng mục khi đổi dự án hoặc việc cha"`
+	Duplicates []DriveProposalDuplicateItemDTO `json:"duplicates" description:"Kết quả kiểm trùng cho từng mục khi đổi dự án hoặc việc cha" example:"[{\"index\":0,\"possible_duplicate\":{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1037\",\"title\":\"Soạn FAQ sản phẩm\"}}]"`
 }
 
 // DriveProposalCreatedTaskItemDTO pairs a converted proposal item index with its created task ID (spec §8.5).
@@ -254,5 +273,5 @@ type DriveProposalCreatedTaskItemDTO struct {
 // DriveProposalTasksCreatedSDO is POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks (spec §8.5).
 type DriveProposalTasksCreatedSDO struct {
 	TaskIDs []string                          `json:"task_ids" description:"Danh sách ULID các công việc vừa tạo, theo thứ tự gửi lên" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7V8\"]"`
-	Items   []DriveProposalCreatedTaskItemDTO `json:"items" description:"Ánh xạ từng mục đề xuất sang ULID công việc vừa tạo"`
+	Items   []DriveProposalCreatedTaskItemDTO `json:"items" description:"Ánh xạ từng mục đề xuất sang ULID công việc vừa tạo" example:"[{\"index\":0,\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\"}]"`
 }
