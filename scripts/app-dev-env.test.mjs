@@ -87,7 +87,7 @@ test("business env files carry no secrets", () => {
 test("compose files pin registry images", () => {
   const compose = fs.readFileSync(path.join(root, "deploy/app-dev/docker-compose.yml"), "utf8");
   assert.match(compose, /^name: uniwork-app-dev$/m);
-  assert.match(compose, /subnet: 10\.230\.19\.0\/24/);
+  assert.match(compose, /subnet: 10\.250\.0\.0\/24/);
   assert.equal(/^\s*build\s*:/m.test(compose), false);
   assert.equal(/^\s{2}(postgres|redis|minio)\s*:/m.test(compose), false);
 
@@ -98,6 +98,31 @@ test("compose files pin registry images", () => {
   assert.match(secrets, /OFFICE_ENGINE_SERVICE_TOKEN: \$\{OFFICE_ENGINE_SERVICE_TOKEN:\?\}/);
   assert.match(secrets, /OFFICE_ENGINE_GRANT_KEY: \$\{OFFICE_ENGINE_GRANT_KEY:\?\}/);
   assert.equal(secrets.includes("dev-only-office-engine"), false);
+
+  assert.match(secrets, /LIVEKIT_API_KEY: \$\{LIVEKIT_API_KEY:\?\}/);
+  assert.match(secrets, /LIVEKIT_API_SECRET: \$\{LIVEKIT_API_SECRET:\?\}/);
+  assert.match(secrets, /ASSEMBLYAI_API_KEY: \$\{ASSEMBLYAI_API_KEY:\?\}/);
+
+  const agentAt = compose.indexOf("\n  uniwork-meeting-agent:\n");
+  const feAt = compose.indexOf("\n  uniwork-fe:\n");
+  assert.equal(agentAt > 0 && feAt > agentAt, true);
+  const agentService = compose.slice(agentAt, feAt);
+  assert.match(agentService, /image: registry-harbor\.ubos\.vn\/uniwork\/uniwork-meeting-agent:\$\{UNIWORK_IMAGE_TAG:\?\}/);
+  assert.match(agentService, /command: \["python", "agent\.py", "dev"\]/);
+  assert.match(agentService, /path: env\/uniwork-meeting-agent\.env/);
+  assert.match(agentService, /init: true/);
+  assert.match(agentService, /cap_drop:\n {6}- ALL/);
+  assert.match(agentService, /no-new-privileges:true/);
+  assert.match(agentService, /restart: unless-stopped/);
+  assert.match(agentService, /stop_grace_period: 150s/);
+  assert.match(agentService, /cpus: 1/);
+  assert.match(agentService, /mem_limit: 2g/);
+  assert.match(agentService, /pids_limit: 256/);
+  assert.match(agentService, /http:\/\/127\.0\.0\.1:8081\/worker/);
+  assert.match(agentService, /uniwork-be:\n {8}condition: service_healthy/);
+  assert.equal(agentService.includes("ports:"), false);
+  assert.equal(agentService.includes("read_only:"), false);
+  assert.equal(agentService.includes("cap_add:"), false);
 });
 
 test("Jenkinsfile deploys by SSH without a latest tag", () => {
