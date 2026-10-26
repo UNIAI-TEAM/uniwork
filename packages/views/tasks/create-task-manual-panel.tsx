@@ -136,10 +136,10 @@ export function CreateTaskManualPanel({
   const drivePaste = useDrivePasteSuggestions({
     existingFileIds: existingDriveIds,
   });
+  const { reset: resetDrivePaste } = drivePaste;
   useEffect(() => {
-    drivePaste.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.idempotencyKey]);
+    resetDrivePaste();
+  }, [resetDrivePaste, draft.idempotencyKey]);
   const uploadGate = useUploadGate(editorRef);
   const isUploading = uploading || uploadGate.uploading;
   const canSubmit = Boolean(draft.title.trim()) && !busy && !uploadGate.uploading;

@@ -9,6 +9,7 @@ import {
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useCreateTaskDraftStore } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import type { Task, User, Workspace } from "@uniwork/core/types";
+import { ContentEditor } from "../editor";
 import { createFakeDrivePickerAdapter } from "../integrations/drive-picker";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -176,12 +177,12 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     });
 
     const pastedUrl =
-      "https://docs.google.com/document/d/gdoc_plan_q4/edit?usp=sharing";
+      "https://docs.google.com/document/d/1GdocPlanQ4_0123456789ab/edit?usp=sharing";
     pasteTextIntoEditor(editor, pastedUrl);
 
     // Chip is rendered with a button group and accessible dismiss label
     const chipGroup = await screen.findByTestId(
-      "drive-paste-suggestion-chip-gdoc_plan_q4",
+      "drive-paste-suggestion-chip-1GdocPlanQ4_0123456789ab",
     );
     expect(chipGroup).toHaveAttribute("role", "group");
     expect(
@@ -202,7 +203,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     // Never calls the server with the pasted URL
     expect(requestMock).not.toHaveBeenCalledWith(
-      expect.stringContaining("gdoc_plan_q4"),
+      expect.stringContaining("1GdocPlanQ4_0123456789ab"),
       expect.anything(),
     );
   });
@@ -279,7 +280,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     pasteTextIntoEditor(
       editor,
-      "https://docs.google.com/document/d/gdoc_hidden/edit",
+      "https://docs.google.com/document/d/1GdocHidden_0123456789ab/edit",
     );
 
     expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
@@ -304,7 +305,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
               id: "df_existing",
               task_id: "t1",
               workspace_id: "ws1",
-              external_file_id: "already_linked_id",
+              external_file_id: "1AlreadyLinkedId_0123456",
               name: "Đã gắn",
               mime_type: "application/vnd.google-apps.document",
               icon_kind: "google_doc",
@@ -321,7 +322,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
               viewer_connection_id: "dc_1",
               viewer_account_email: "uni-work1@gmail.com",
               open_url:
-                "https://docs.google.com/document/d/already_linked_id/edit",
+                "https://docs.google.com/document/d/1AlreadyLinkedId_0123456/edit",
               can_remove_from_task: true,
               can_propose: true,
               can_ask: true,
@@ -360,19 +361,21 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     pasteTextIntoEditor(
       editor,
       [
-        "https://docs.google.com/document/d/dup_doc_1/edit",
-        "https://docs.google.com/document/u/0/d/dup_doc_1/view",
-        "https://docs.google.com/document/d/already_linked_id/edit",
+        "https://docs.google.com/document/d/1DupDoc_0123456789abcdef/edit",
+        "https://docs.google.com/document/u/0/d/1DupDoc_0123456789abcdef/view",
+        "https://docs.google.com/document/d/1AlreadyLinkedId_0123456/edit",
       ].join(" "),
     );
 
     const chip = await screen.findByTestId(
-      "drive-paste-suggestion-chip-dup_doc_1",
+      "drive-paste-suggestion-chip-1DupDoc_0123456789abcdef",
     );
     expect(chip).toBeInTheDocument();
     await waitFor(() => {
       expect(
-        screen.queryByTestId("drive-paste-suggestion-chip-already_linked_id"),
+        screen.queryByTestId(
+          "drive-paste-suggestion-chip-1AlreadyLinkedId_0123456",
+        ),
       ).toBeNull();
     });
     expect(
@@ -389,16 +392,20 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     );
 
     expect(
-      screen.queryByTestId("drive-paste-suggestion-chip-dup_doc_1"),
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1DupDoc_0123456789abcdef",
+      ),
     ).toBeNull();
 
     // Re-pasting a dismissed ID in the same session does not bring it back
     pasteTextIntoEditor(
       editor,
-      "https://docs.google.com/document/d/dup_doc_1/edit",
+      "https://docs.google.com/document/d/1DupDoc_0123456789abcdef/edit",
     );
     expect(
-      screen.queryByTestId("drive-paste-suggestion-chip-dup_doc_1"),
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1DupDoc_0123456789abcdef",
+      ),
     ).toBeNull();
   });
 
@@ -407,7 +414,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       status: "picked",
       files: [
         {
-          id: "gdoc_task_link",
+          id: "1GdocTaskLink_0123456789",
           name: "Tài liệu Q4",
           mimeType: "application/vnd.google-apps.document",
           sharingState: "private",
@@ -449,7 +456,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           return {
             results: [
               {
-                external_file_id: "gdoc_task_link",
+                external_file_id: "1GdocTaskLink_0123456789",
                 outcome: "linked",
               },
             ],
@@ -478,7 +485,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     pasteTextIntoEditor(
       editor,
-      "https://docs.google.com/document/d/gdoc_task_link/edit",
+      "https://docs.google.com/document/d/1GdocTaskLink_0123456789/edit",
     );
 
     const linkBtn = await screen.findByRole("button", {
@@ -491,7 +498,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       name: "Liên kết 1 tệp",
     });
     expect(adapter.calls).toHaveLength(1);
-    expect(adapter.calls[0]?.fileIds).toEqual(["gdoc_task_link"]);
+    expect(adapter.calls[0]?.fileIds).toEqual(["1GdocTaskLink_0123456789"]);
 
     fireEvent.click(confirmBtn);
 
@@ -502,7 +509,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           method: "POST",
           body: {
             connection_id: "dc_1",
-            external_file_ids: ["gdoc_task_link"],
+            external_file_ids: ["1GdocTaskLink_0123456789"],
             task_id: "t1",
           },
         }),
@@ -511,7 +518,9 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("drive-paste-suggestion-chip-gdoc_task_link"),
+        screen.queryByTestId(
+          "drive-paste-suggestion-chip-1GdocTaskLink_0123456789",
+        ),
       ).toBeNull();
     });
   });
@@ -521,7 +530,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       status: "picked",
       files: [
         {
-          id: "gsheet_draft_1",
+          id: "1GsheetDraft_0123456789a",
           name: "Bảng ngân sách Q4",
           mimeType: "application/vnd.google-apps.spreadsheet",
           sharingState: "shared",
@@ -576,7 +585,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     pasteTextIntoEditor(
       editor,
-      "https://docs.google.com/spreadsheets/d/gsheet_draft_1/edit",
+      "https://docs.google.com/spreadsheets/d/1GsheetDraft_0123456789a/edit",
     );
 
     const linkBtn = await screen.findByRole("button", {
@@ -586,24 +595,27 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     // Becomes a W4 draft Drive chip and clears the suggestion chip
     const draftChip = await screen.findByTestId(
-      "create-task-drive-chip-gsheet_draft_1",
+      "create-task-drive-chip-1GsheetDraft_0123456789a",
     );
     expect(draftChip).toHaveTextContent("Bảng ngân sách Q4");
     expect(adapter.calls).toHaveLength(1);
-    expect(adapter.calls[0]?.fileIds).toEqual(["gsheet_draft_1"]);
+    expect(adapter.calls[0]?.fileIds).toEqual(["1GsheetDraft_0123456789a"]);
     expect(
-      screen.queryByTestId("drive-paste-suggestion-chip-gsheet_draft_1"),
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1GsheetDraft_0123456789a",
+      ),
     ).toBeNull();
 
     // Pasting the already-drafted file ID again does not show a suggestion chip
     pasteTextIntoEditor(
       editor,
-      "https://docs.google.com/spreadsheets/d/gsheet_draft_1/edit",
+      "https://docs.google.com/spreadsheets/d/1GsheetDraft_0123456789a/edit",
     );
     expect(
-      screen.queryByTestId("drive-paste-suggestion-chip-gsheet_draft_1"),
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1GsheetDraft_0123456789a",
+      ),
     ).toBeNull();
-
     resetAuthStoreForTests();
   });
 
@@ -643,7 +655,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     pasteTextIntoEditor(
       editor,
-      "https://drive.google.com/file/d/gfile_no_conn/view",
+      "https://drive.google.com/file/d/1GfileNoConn_0123456789a/view",
     );
 
     const connectBtn = await screen.findByRole("button", {
@@ -659,5 +671,169 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
         "Kết nối tài khoản Google Drive để chọn và liên kết tệp ngay tại đây.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps undo history and chip behaviour sane after pasting a Drive URL", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/drive-connections") {
+        return { connections: [ACTIVE_CONN] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return {};
+    });
+
+    render(
+      renderWithWorkspace(
+        <TaskDetailEditors
+          task={sampleTask}
+          workspaceId="ws1"
+          onSaveTitle={vi.fn()}
+          onSaveDescription={vi.fn()}
+        />,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Mô tả công việc",
+    });
+
+    const pastedUrl =
+      "https://docs.google.com/document/d/1GdocUndoSanity_01234567/edit";
+    pasteTextIntoEditor(editor, pastedUrl);
+
+    expect(
+      await screen.findByTestId(
+        "drive-paste-suggestion-chip-1GdocUndoSanity_01234567",
+      ),
+    ).toBeInTheDocument();
+    expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
+
+    // Undo removes the pasted link in the editor in a single step because
+    // driveUrlPaste never dispatches a ProseMirror transaction; the non-intrusive
+    // suggestion chip remains actionable/dismissible until dismissed or linked.
+    fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+    expect(editor.querySelector("a")).toBeNull();
+    expect(
+      screen.getByTestId(
+        "drive-paste-suggestion-chip-1GdocUndoSanity_01234567",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Bỏ qua gợi ý liên kết Google Drive",
+      }),
+    );
+    expect(
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1GdocUndoSanity_01234567",
+      ),
+    ).toBeNull();
+  });
+
+  it("handles editor-level paste of prose mixed with a URL and of two distinct Drive URLs", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/drive-connections") {
+        return { connections: [ACTIVE_CONN] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return {};
+    });
+
+    render(
+      renderWithWorkspace(
+        <TaskDetailEditors
+          task={sampleTask}
+          workspaceId="ws1"
+          onSaveTitle={vi.fn()}
+          onSaveDescription={vi.fn()}
+        />,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Mô tả công việc",
+    });
+
+    // 1. Prose mixed with a single Drive URL
+    const urlOne =
+      "https://docs.google.com/document/d/1GdocProseMixOne_0123456/edit";
+    pasteTextIntoEditor(editor, `Xem bản nháp tại ${urlOne} trước buổi họp.`);
+
+    expect(
+      await screen.findByTestId(
+        "drive-paste-suggestion-chip-1GdocProseMixOne_0123456",
+      ),
+    ).toBeInTheDocument();
+    expect(editor).toHaveTextContent("Xem bản nháp tại");
+    expect(editor).toHaveTextContent("trước buổi họp.");
+
+    // 2. Paste containing two distinct Drive URLs
+    const urlTwo =
+      "https://docs.google.com/spreadsheets/d/1GsheetMultiTwo_01234567/edit";
+    const urlThree =
+      "https://drive.google.com/file/d/1GfileMultiThree_0123456/view";
+    pasteTextIntoEditor(editor, `Tài liệu liên quan: ${urlTwo} và ${urlThree}`);
+
+    expect(
+      await screen.findByTestId(
+        "drive-paste-suggestion-chip-1GsheetMultiTwo_01234567",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByTestId(
+        "drive-paste-suggestion-chip-1GfileMultiThree_0123456",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Liên kết tệp Google Drive này vào việc?",
+      }),
+    ).toHaveLength(3);
+  });
+
+  it("keeps a ContentEditor without onPasteDriveFileIds completely inert on pasting a Drive URL", async () => {
+    render(
+      renderWithWorkspace(
+        <ContentEditor
+          defaultValue=""
+          ariaLabel="Trình soạn thảo bình luận"
+          disableMentions
+        />,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Trình soạn thảo bình luận",
+    });
+
+    const pastedUrl =
+      "https://docs.google.com/document/d/1GdocInertComment_012345/edit";
+    pasteTextIntoEditor(editor, pastedUrl);
+
+    expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
+    expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 });

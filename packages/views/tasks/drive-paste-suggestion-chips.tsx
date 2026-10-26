@@ -296,10 +296,12 @@ function DrivePasteSuggestionChipsInner({
             role="group"
             aria-label={t("drive.paste_chip.group_aria")}
             data-testid={`drive-paste-suggestion-chip-${fileId}`}
-            className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-2.5 text-caption text-foreground"
+            className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-1.5 text-caption text-foreground"
           >
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
               disabled={picker.pending}
               onClick={() => {
                 setActiveFileId(fileId);
@@ -309,14 +311,14 @@ function DrivePasteSuggestionChipsInner({
                   linkOnPick: !isDraftMode,
                 });
               }}
-              className="inline-flex min-h-7 items-center gap-2 rounded-sm text-left font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
+              className="h-auto min-h-7 gap-2 px-1.5 py-0.5 text-left text-caption font-medium whitespace-normal text-foreground hover:bg-brand/10 hover:text-primary dark:hover:bg-brand/20"
             >
               <GoogleDriveMark
                 className="size-4 shrink-0"
                 aria-hidden="true"
               />
               <span>{promptText}</span>
-            </button>
+            </Button>
             <Button
               type="button"
               variant="ghost"

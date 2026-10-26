@@ -236,7 +236,7 @@ export interface EditorExtensionsOptions {
    * `markdownPaste` and always returns `false` from `handlePaste` so link
    * insertion stays untouched.
    */
-  onPasteDriveFileIdsRef?: RefObject<((fileIds: string[]) => void) | undefined>;
+  getOnPasteDriveFileIds?: () => ((fileIds: string[]) => void) | undefined;
 }
 
 export function createEditorExtensions(
@@ -278,10 +278,10 @@ export function createEditorExtensions(
     TaskList,
     PatchedTaskItem,
     CodeBlockExtension,
+    createDriveUrlPasteExtension(options.getOnPasteDriveFileIds),
     // ⚠️ Link MUST appear before markdownPaste in this array.
     // linkOnPaste relies on Link's handlePaste plugin firing first;
     // markdownPaste's handlePaste is a catch-all that returns true.
-    createDriveUrlPasteExtension(options.onPasteDriveFileIdsRef),
     LinkExtension,
     ImageExtension,
     TableExtension,

@@ -112,11 +112,11 @@ export function TaskDetailEditors({
   });
 
   const drivePaste = useDrivePasteSuggestions();
+  const { reset: resetDrivePaste } = drivePaste;
 
   useEffect(() => {
-    drivePaste.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id]);
+    resetDrivePaste();
+  }, [resetDrivePaste, task.id]);
   useEffect(() => {
     setLiveDescription(task.description ?? "");
   }, [task.description, task.id]);

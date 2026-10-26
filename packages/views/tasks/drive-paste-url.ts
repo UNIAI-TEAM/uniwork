@@ -7,8 +7,26 @@
  *
  * With or without `https://` / `http://`, `/edit`, `/view`, query string, or `#` hash.
  * Anything else (folders, `drive.google.com/drive/folders/...`, `open?id=...`,
- * forms, other hosts or schemes) returns `null`.
+ * published-to-web `/d/e/<id>/pub`, forms, ids shorter than `MIN_DRIVE_FILE_ID_LENGTH`,
+ * tokens exceeding `MAX_URL_CANDIDATE_LENGTH`, or other hosts/schemes) returns `null`.
  */
+
+/**
+ * Minimum character length for a valid Google Drive file ID.
+ * Real Google Drive / Docs / Sheets / Slides file IDs are opaque base64url-like
+ * identifiers of 25–44+ characters (legacy ~25–28 chars, modern v3 ~33–44 chars).
+ * Requiring ≥ 20 characters safely accepts all real Drive file IDs while
+ * rejecting single-letter path markers like `/d/e/...` (published-to-web) and
+ * short accidental path segments.
+ */
+const MIN_DRIVE_FILE_ID_LENGTH = 20;
+
+/**
+ * Maximum candidate URL token length inspected during paste parsing.
+ * Normal Drive URLs are well under 500 characters; capping at 2048 prevents
+ * pathological multi-kilobyte tokens from spending CPU in `new URL()` or string scans.
+ */
+const MAX_URL_CANDIDATE_LENGTH = 2048;
 
 const FILE_ID_RE = /^[A-Za-z0-9_-]+$/;
 const USER_INDEX_RE = /^\d+$/;
@@ -17,9 +35,24 @@ const DOCS_KINDS: Record<string, true> = {
   spreadsheets: true,
   presentation: true,
 };
+const TRAILING_PUNCTUATION: Record<string, true> = {
+  ".": true,
+  ",": true,
+  ";": true,
+  ":": true,
+  "!": true,
+  "?": true,
+  ")": true,
+  "]": true,
+  "}": true,
+};
 
 function trimUrlCandidate(raw: string): string {
-  let s = raw.trim();
+  const trimmed = raw.trim();
+  if (trimmed.length > MAX_URL_CANDIDATE_LENGTH) {
+    return "";
+  }
+  let s = trimmed;
   if (s.startsWith("<") && s.endsWith(">")) {
     s = s.slice(1, -1).trim();
   }
@@ -77,6 +110,14 @@ function stripUserSegment(segments: string[], startIndex: number): number {
   return startIndex;
 }
 
+function isValidDriveFileId(fileId: string | undefined): fileId is string {
+  return (
+    typeof fileId === "string" &&
+    fileId.length >= MIN_DRIVE_FILE_ID_LENGTH &&
+    FILE_ID_RE.test(fileId)
+  );
+}
+
 function parseDocsSegments(segments: string[]): string | null {
   let idx = stripUserSegment(segments, 0);
   const kind = segments[idx];
@@ -84,7 +125,9 @@ function parseDocsSegments(segments: string[]): string | null {
   idx = stripUserSegment(segments, idx + 1);
   if (segments[idx] !== "d") return null;
   const fileId = segments[idx + 1];
-  if (!fileId || !FILE_ID_RE.test(fileId)) return null;
+  // Reject published-to-web URLs (`/document/d/e/<pubId>/pub`) explicitly as
+  // well as enforcing the minimum file ID length.
+  if (fileId === "e" || !isValidDriveFileId(fileId)) return null;
   return fileId;
 }
 
@@ -94,7 +137,7 @@ function parseDriveFileSegments(segments: string[]): string | null {
   idx = stripUserSegment(segments, idx + 1);
   if (segments[idx] !== "d") return null;
   const fileId = segments[idx + 1];
-  if (!fileId || !FILE_ID_RE.test(fileId)) return null;
+  if (fileId === "e" || !isValidDriveFileId(fileId)) return null;
   return fileId;
 }
 
@@ -104,7 +147,11 @@ const URL_TOKEN_CANDIDATE_RE =
 const HREF_ATTR_RE = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/gi;
 
 function stripTrailingPunctuation(token: string): string {
-  return token.replace(/[.,;:!?)\]}]+$/, "");
+  let end = token.length;
+  while (end > 0 && TRAILING_PUNCTUATION[token[end - 1]!]) {
+    end--;
+  }
+  return end === token.length ? token : token.slice(0, end);
 }
 
 /**
@@ -117,9 +164,11 @@ export function extractDriveFileIdsFromPaste(
 ): string[] {
   const seen = new Set<string>();
   const addCandidate = (raw: string) => {
+    if (raw.length > MAX_URL_CANDIDATE_LENGTH) return;
+    const stripped = stripTrailingPunctuation(raw);
     const id =
       parseDriveFileUrl(raw) ??
-      parseDriveFileUrl(stripTrailingPunctuation(raw));
+      (stripped !== raw ? parseDriveFileUrl(stripped) : null);
     if (id && !seen.has(id)) {
       seen.add(id);
     }

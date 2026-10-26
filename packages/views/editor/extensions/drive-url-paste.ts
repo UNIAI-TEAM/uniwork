@@ -6,13 +6,12 @@
  * `onPasteDriveFileIdsRef`, and ALWAYS returns `false` so `linkOnPaste` and
  * `markdownPaste` insert the link exactly as today.
  */
-import type { RefObject } from "react";
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { extractDriveFileIdsFromPaste } from "../../tasks/drive-paste-url";
 
 export function createDriveUrlPasteExtension(
-  onPasteDriveFileIdsRef?: RefObject<((fileIds: string[]) => void) | undefined>,
+  getOnPasteDriveFileIds?: () => ((fileIds: string[]) => void) | undefined,
 ) {
   return Extension.create({
     name: "driveUrlPaste",
@@ -23,7 +22,7 @@ export function createDriveUrlPasteExtension(
           key: new PluginKey("driveUrlPaste"),
           props: {
             handlePaste(_view, event) {
-              const callback = onPasteDriveFileIdsRef?.current;
+              const callback = getOnPasteDriveFileIds?.();
               if (!callback) return false;
               const clipboard = event.clipboardData;
               if (!clipboard) return false;

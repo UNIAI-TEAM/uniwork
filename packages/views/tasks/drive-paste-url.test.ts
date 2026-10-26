@@ -14,45 +14,47 @@ describe("parseDriveFileUrl", () => {
 
     expect(
       parseDriveFileUrl(
-        "https://docs.google.com/spreadsheets/d/sheet_id_123/edit?usp=sharing#gid=0",
+        "https://docs.google.com/spreadsheets/d/1SheetId_1234567890_abcdef/edit?usp=sharing#gid=0",
       ),
-    ).toBe("sheet_id_123");
+    ).toBe("1SheetId_1234567890_abcdef");
 
     expect(
       parseDriveFileUrl(
-        "https://docs.google.com/presentation/d/slide-id-999/view",
+        "https://docs.google.com/presentation/d/1Slide-Id-999-AbCdEfGhIjKl/view",
       ),
-    ).toBe("slide-id-999");
+    ).toBe("1Slide-Id-999-AbCdEfGhIjKl");
   });
 
   it("parses drive.google.com/file/d/<id> URLs", () => {
     expect(
       parseDriveFileUrl(
-        "https://drive.google.com/file/d/1xYzFileId_42/view?usp=drive_link",
+        "https://drive.google.com/file/d/1xYzFileId_42_AbCdEfGhIj/view?usp=drive_link",
       ),
-    ).toBe("1xYzFileId_42");
+    ).toBe("1xYzFileId_42_AbCdEfGhIj");
   });
 
   it("handles scheme-less URLs, /u/0/ user indices, trailing slashes, queries, and hashes", () => {
     expect(
-      parseDriveFileUrl("docs.google.com/document/d/doc_no_scheme"),
-    ).toBe("doc_no_scheme");
+      parseDriveFileUrl("docs.google.com/document/d/1DocNoScheme_0123456789"),
+    ).toBe("1DocNoScheme_0123456789");
 
     expect(
       parseDriveFileUrl(
-        "https://docs.google.com/document/u/0/d/doc_u0/edit?tab=t.0#heading=h.123",
+        "https://docs.google.com/document/u/0/d/1DocU0_AbCdEfGhIjKlMnOp/edit?tab=t.0#heading=h.123",
       ),
-    ).toBe("doc_u0");
+    ).toBe("1DocU0_AbCdEfGhIjKlMnOp");
 
     expect(
       parseDriveFileUrl(
-        "https://drive.google.com/file/u/2/d/file_u2/preview",
+        "https://drive.google.com/file/u/2/d/1FileU2_AbCdEfGhIjKlMnOp/preview",
       ),
-    ).toBe("file_u2");
+    ).toBe("1FileU2_AbCdEfGhIjKlMnOp");
 
     expect(
-      parseDriveFileUrl("drive.google.com/u/1/file/d/file_u1_prefix/"),
-    ).toBe("file_u1_prefix");
+      parseDriveFileUrl(
+        "drive.google.com/u/1/file/d/1FileU1Prefix_0123456789/",
+      ),
+    ).toBe("1FileU1Prefix_0123456789");
   });
 
   it("returns null for folders, open?id=, other Google paths, and other hosts", () => {
@@ -94,23 +96,64 @@ describe("parseDriveFileUrl", () => {
     expect(parseDriveFileUrl("")).toBeNull();
     expect(parseDriveFileUrl("not a url at all")).toBeNull();
   });
+
+  it("rejects published-to-web URLs (/d/e/<pubId>/pub), short IDs (< 20 chars), userinfo URLs, and overlong tokens", () => {
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/document/d/e/2PACX-1vSomePublishedIdHere1234567890/pub",
+      ),
+    ).toBeNull();
+
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/spreadsheets/d/e/2PACX-1vPublishedSheetId1234567890/pubhtml",
+      ),
+    ).toBeNull();
+
+    // ID shorter than 20 characters (19 chars) is rejected; 20 characters is accepted
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/document/d/1234567890123456789/edit",
+      ),
+    ).toBeNull();
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/document/d/12345678901234567890/edit",
+      ),
+    ).toBe("12345678901234567890");
+
+    // Userinfo host spoofing (`docs.google.com@evil.com/...`)
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com@evil.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit",
+      ),
+    ).toBeNull();
+
+    // Overlong candidate (> 2048 chars)
+    expect(
+      parseDriveFileUrl(
+        `https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit?pad=${"a".repeat(2500)}`,
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("extractDriveFileIdsFromPaste", () => {
   it("extracts distinct Drive file IDs in order from plain text and HTML", () => {
     const text = [
-      "Check https://docs.google.com/document/d/doc_alpha/edit,",
-      "and (drive.google.com/file/d/file_beta/view?usp=sharing).",
-      "Duplicate: https://docs.google.com/document/u/0/d/doc_alpha/preview",
-      "Folder ignored: https://drive.google.com/drive/folders/folder_123",
+      "Check https://docs.google.com/document/d/1DocAlpha_0123456789abcd/edit,",
+      "and (drive.google.com/file/d/1FileBeta_0123456789abcd/view?usp=sharing).",
+      "Duplicate: https://docs.google.com/document/u/0/d/1DocAlpha_0123456789abcd/preview",
+      "Published ignored: https://docs.google.com/document/d/e/2PACX-1vSomePublishedIdHere1234567890/pub",
+      "Folder ignored: https://drive.google.com/drive/folders/1FolderId_0123456789abcd",
     ].join(" ");
     const html =
-      '<p>Also <a href="https://docs.google.com/spreadsheets/d/sheet_gamma/edit">budget</a></p>';
+      '<p>Also <a href="https://docs.google.com/spreadsheets/d/1SheetGamma_0123456789ab/edit">budget</a></p>';
 
     expect(extractDriveFileIdsFromPaste(text, html)).toEqual([
-      "doc_alpha",
-      "file_beta",
-      "sheet_gamma",
+      "1DocAlpha_0123456789abcd",
+      "1FileBeta_0123456789abcd",
+      "1SheetGamma_0123456789ab",
     ]);
   });
 
@@ -121,5 +164,15 @@ describe("extractDriveFileIdsFromPaste", () => {
         '<a href="https://github.com/org/repo">repo</a>',
       ),
     ).toEqual([]);
+  });
+
+  it("parses a 100k-character pathological punctuation token in < 200 ms without quadratic backtracking", () => {
+    const pathological = `https://docs.google.com/${".".repeat(100_000)}x https://docs.google.com/document/d/1ValidAfterPathological_01/edit`;
+    const start = performance.now();
+    const ids = extractDriveFileIdsFromPaste(pathological);
+    const elapsedMs = performance.now() - start;
+
+    expect(ids).toEqual(["1ValidAfterPathological_01"]);
+    expect(elapsedMs).toBeLessThan(200);
   });
 });
