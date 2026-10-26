@@ -201,6 +201,13 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
+| `drive_connection.changed` | 1 | `connection_id`, `user_id` | — | user | outbox |
+| `drive_file.access_changed` | 1 | `drive_file_id`, `workspace_id`, `user_id` | — | user | outbox |
+| `drive_file.linked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.task_linked` | 1 | `drive_file_id`, `task_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.unlinked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.updated` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_task_proposal.converted` | 1 | `proposal_id`, `workspace_id` | — | workspace | outbox |
 | `office_lease.granted` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.renewed` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.released` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
