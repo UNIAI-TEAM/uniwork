@@ -107,13 +107,40 @@ func VerifyGrant(token string, key []byte) (ServiceGrant, error) {
 
 func validateServiceGrant(g ServiceGrant) error {
 	if g.Operation == OperationExtractText {
-		if g.DocumentID != "" || g.DriveFileID == "" || g.BaseRevision != 0 || g.BaseVersionID != "" || g.Input == nil || g.Output != nil {
+		if !validGrantStr(g.GrantID, 128) || !validGrantStr(g.JobID, 128) ||
+			!validGrantStr(g.ActorID, 128) || !validActorKind(g.ActorKind) ||
+			!validGrantStr(g.OrganizationID, 128) || !validGrantStr(g.WorkspaceID, 128) ||
+			!validGrantStr(g.DriveFileID, 128) {
+			return ErrGrantInvalid
+		}
+		if g.DocumentID != "" || g.BaseRevision != 0 || g.BaseVersionID != "" || g.Output != nil || !validGrantInput(g.Input) {
 			return ErrGrantInvalid
 		}
 		return nil
 	}
-	if g.DriveFileID != "" {
+	if g.DriveFileID != "" || !validGrantStr(g.DocumentID, 128) || !validGrantStr(g.BaseVersionID, 128) || g.BaseRevision < 0 {
 		return ErrGrantInvalid
 	}
 	return nil
+}
+
+func validGrantStr(s string, max int) bool {
+	return len(s) > 0 && len(s) <= max
+}
+
+func validActorKind(k string) bool {
+	return k == "human" || k == "agent" || k == "system"
+}
+
+func validGrantInput(in *GrantInput) bool {
+	if in == nil || in.Length < 0 || in.Length > (1<<53)-1 || len(in.Checksum) != 64 {
+		return false
+	}
+	for i := range 64 {
+		c := in.Checksum[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }

@@ -48,6 +48,7 @@ const (
 
 	maxExtractStatusResponseBytes = 2 << 20
 	extractGrantWindow            = 30 * time.Second
+	extractCancelTimeout          = 2 * time.Second
 )
 
 // ErrExtractUnavailable reports that the engine is not ready, unreachable,
@@ -175,8 +176,11 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 
 	js, err := c.Submit(runCtx, grant, env, src)
 	if err != nil {
-		if c.cancelOnTimeout(ctx, runCtx, jobID, grant) {
-			return ExtractTextResult{}, fmt.Errorf("%w: deadline exceeded", ErrExtractUnavailable)
+		if submitMaybeAdmitted(err) {
+			c.cancelDetached(jobID, grant)
+		}
+		if runCtx.Err() != nil {
+			return ExtractTextResult{}, fmt.Errorf("%w: %w", ErrExtractUnavailable, runCtx.Err())
 		}
 		return ExtractTextResult{}, mapExtractCallError(err)
 	}
@@ -186,14 +190,15 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 		select {
 		case <-runCtx.Done():
 			timer.Stop()
-			c.cancelOnTimeout(ctx, runCtx, jobID, grant)
+			c.cancelDetached(jobID, grant)
 			return ExtractTextResult{}, fmt.Errorf("%w: %w", ErrExtractUnavailable, runCtx.Err())
 		case <-timer.C:
 		}
 		js, err = c.extractStatus(runCtx, jobID, grant)
 		if err != nil {
-			if c.cancelOnTimeout(ctx, runCtx, jobID, grant) {
-				return ExtractTextResult{}, fmt.Errorf("%w: deadline exceeded", ErrExtractUnavailable)
+			c.cancelDetached(jobID, grant)
+			if runCtx.Err() != nil {
+				return ExtractTextResult{}, fmt.Errorf("%w: %w", ErrExtractUnavailable, runCtx.Err())
 			}
 			return ExtractTextResult{}, mapExtractCallError(err)
 		}
@@ -206,14 +211,21 @@ func (c *Client) extractStatus(ctx context.Context, jobID, grant string) (JobSta
 	return c.jobWithinLimit(ctx, c.cfg.RequestTimeout, http.MethodGet, "/v1/jobs/"+url.PathEscape(jobID), grant, nil, maxExtractStatusResponseBytes)
 }
 
-func (c *Client) cancelOnTimeout(parentCtx, runCtx context.Context, jobID, grant string) bool {
-	if runCtx.Err() == nil && parentCtx.Err() == nil {
-		return false
+func submitMaybeAdmitted(err error) bool {
+	var ee *EngineError
+	return errors.As(err, &ee) && ee.Code == "engine_crashed" && (ee.Reason == "unreachable" || ee.Reason == "response_read")
+}
+
+func (c *Client) cancelDetached(jobID, grant string) {
+	timeout := min(c.cfg.RequestTimeout, extractCancelTimeout)
+	if timeout <= 0 {
+		timeout = extractCancelTimeout
 	}
-	cancelCtx, cancel := context.WithTimeout(context.Background(), c.cfg.RequestTimeout)
-	defer cancel()
-	_, _ = c.Cancel(cancelCtx, jobID, grant)
-	return true
+	go func() {
+		cancelCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		_, _ = c.Cancel(cancelCtx, jobID, grant)
+	}()
 }
 
 func mapExtractCallError(err error) error {

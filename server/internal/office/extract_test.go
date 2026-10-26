@@ -21,20 +21,26 @@ type extractFakeEngine struct {
 	srv *httptest.Server
 	cli *Client
 
-	mu          sync.Mutex
-	readyStatus int
-	submitErr   int
-	statusErr   int
-	hangStatus  bool
-	jobState    JobState
-	jobResult   any
-	jobError    *JobError
-	pollsBefore int
+	mu            sync.Mutex
+	readyStatus   int
+	submitErr     int
+	statusErr     int
+	statusRawBody string
+	hangStatus    bool
+	blockSubmit   <-chan struct{}
+	blockStatus   <-chan struct{}
+	blockCancel   <-chan struct{}
+	omitResult    bool
+	jobState      JobState
+	jobResult     any
+	jobError      *JobError
+	pollsBefore   int
 
 	seenGrants    []ServiceGrant
 	seenEnvelopes []Envelope
 	seenInputs    [][]byte
 	cancelCalls   atomic.Int32
+	cancelCh      chan string
 	statusCalls   atomic.Int32
 }
 
@@ -48,6 +54,7 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 			"truncated": false,
 			"format":    "docx",
 		},
+		cancelCh: make(chan string, 16),
 	}
 	e.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+testToken {
@@ -109,11 +116,23 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 			e.seenEnvelopes = append(e.seenEnvelopes, env)
 			e.seenInputs = append(e.seenInputs, inputBytes)
 			polls := e.pollsBefore
+			blockSub := e.blockSubmit
+			omitRes := e.omitResult
+			finalState := e.jobState
+			res := e.jobResult
+			jobErr := e.jobError
 			e.mu.Unlock()
 
+			if blockSub != nil {
+				select {
+				case <-blockSub:
+				case <-r.Context().Done():
+					return
+				}
+			}
 			state := JobRunning
 			if polls < 0 {
-				state = e.jobState
+				state = finalState
 			}
 			resp := map[string]any{
 				"job_id":    g.JobID,
@@ -121,10 +140,10 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 				"operation": g.Operation,
 				"format":    g.Format,
 			}
-			if state == JobCompleted {
-				resp["result"] = e.jobResult
-			} else if state == JobFailed && e.jobError != nil {
-				resp["error"] = e.jobError
+			if state == JobCompleted && !omitRes {
+				resp["result"] = res
+			} else if state != JobCompleted && jobErr != nil {
+				resp["error"] = jobErr
 			}
 			raw, _ := json.Marshal(resp)
 			w.WriteHeader(http.StatusOK)
@@ -141,12 +160,28 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 			}
 			e.mu.Lock()
 			stErr := e.statusErr
+			rawBody := e.statusRawBody
 			hang := e.hangStatus
+			blockSt := e.blockStatus
+			omitRes := e.omitResult
 			polls := e.pollsBefore
 			finalState := e.jobState
 			res := e.jobResult
 			jobErr := e.jobError
 			e.mu.Unlock()
+
+			if blockSt != nil {
+				select {
+				case <-blockSt:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			if rawBody != "" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(rawBody))
+				return
+			}
 
 			if stErr != 0 {
 				w.WriteHeader(stErr)
@@ -163,9 +198,9 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 				"operation": OperationExtractText,
 				"format":    FormatDOCX,
 			}
-			if state == JobCompleted {
+			if state == JobCompleted && !omitRes {
 				resp["result"] = res
-			} else if state == JobFailed && jobErr != nil {
+			} else if state != JobCompleted && jobErr != nil {
 				resp["error"] = jobErr
 			}
 			raw, _ := json.Marshal(resp)
@@ -175,6 +210,20 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cancel"):
 			e.cancelCalls.Add(1)
 			jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), "/cancel")
+			select {
+			case e.cancelCh <- jobID:
+			default:
+			}
+			e.mu.Lock()
+			blockCan := e.blockCancel
+			e.mu.Unlock()
+			if blockCan != nil {
+				select {
+				case <-blockCan:
+				case <-r.Context().Done():
+					return
+				}
+			}
 			raw, _ := json.Marshal(map[string]any{
 				"job_id": jobID,
 				"state":  JobCancelled,
@@ -198,6 +247,17 @@ func newExtractFakeEngine(t *testing.T) *extractFakeEngine {
 	}
 	e.cli = cli
 	return e
+}
+
+func waitCancelJobID(t *testing.T, ch <-chan string) string {
+	t.Helper()
+	select {
+	case id := <-ch:
+		return id
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for cancel request")
+		return ""
+	}
 }
 
 func withShortExtractTimers(t *testing.T, timeout, poll time.Duration) {
@@ -300,18 +360,131 @@ func TestExtractTextMapsUnreadableReasons(t *testing.T) {
 	}
 }
 
-func TestExtractTextTimeoutCancelsAndReturnsUnavailable(t *testing.T) {
+func TestExtractTextTimeoutCancelsPromptlyEvenWhenCancelStalls(t *testing.T) {
 	withShortExtractTimers(t, 40*time.Millisecond, 10*time.Millisecond)
 	e := newExtractFakeEngine(t)
 	e.hangStatus = true
+	unblockCancel := make(chan struct{})
+	defer close(unblockCancel)
+	e.blockCancel = unblockCancel
 
+	start := time.Now()
 	_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+	elapsed := time.Since(start)
 	if !errors.Is(err, ErrExtractUnavailable) {
 		t.Fatalf("expected ErrExtractUnavailable on timeout, got %v", err)
 	}
-	if e.cancelCalls.Load() == 0 {
-		t.Fatalf("expected Cancel to be called on timeout")
+	if elapsed >= 500*time.Millisecond {
+		t.Fatalf("ExtractText blocked on cancel cleanup: elapsed %v (RequestTimeout=%v)", elapsed, e.cli.Config().RequestTimeout)
 	}
+	cancelledID := waitCancelJobID(t, e.cancelCh)
+	e.mu.Lock()
+	wantJobID := e.seenGrants[0].JobID
+	e.mu.Unlock()
+	if cancelledID != wantJobID {
+		t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
+	}
+}
+
+func TestExtractTextBlockedSubmitAndBlockedStatusCancelPromptly(t *testing.T) {
+	t.Run("blocked_submit_exceeds_extract_deadline", func(t *testing.T) {
+		withShortExtractTimers(t, 40*time.Millisecond, 10*time.Millisecond)
+		e := newExtractFakeEngine(t)
+		unblockSubmit := make(chan struct{})
+		defer close(unblockSubmit)
+		unblockCancel := make(chan struct{})
+		defer close(unblockCancel)
+		e.blockSubmit = unblockSubmit
+		e.blockCancel = unblockCancel
+
+		start := time.Now()
+		_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+		elapsed := time.Since(start)
+		if !errors.Is(err, ErrExtractUnavailable) {
+			t.Fatalf("expected ErrExtractUnavailable, got %v", err)
+		}
+		if elapsed >= 500*time.Millisecond {
+			t.Fatalf("blocked submit did not honour extract deadline promptly: elapsed %v", elapsed)
+		}
+		cancelledID := waitCancelJobID(t, e.cancelCh)
+		e.mu.Lock()
+		wantJobID := e.seenGrants[0].JobID
+		e.mu.Unlock()
+		if cancelledID != wantJobID {
+			t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
+		}
+	})
+
+	t.Run("blocked_status_exceeds_extract_deadline", func(t *testing.T) {
+		withShortExtractTimers(t, 40*time.Millisecond, 5*time.Millisecond)
+		e := newExtractFakeEngine(t)
+		unblockStatus := make(chan struct{})
+		defer close(unblockStatus)
+		unblockCancel := make(chan struct{})
+		defer close(unblockCancel)
+		e.blockStatus = unblockStatus
+		e.blockCancel = unblockCancel
+
+		start := time.Now()
+		_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+		elapsed := time.Since(start)
+		if !errors.Is(err, ErrExtractUnavailable) {
+			t.Fatalf("expected ErrExtractUnavailable, got %v", err)
+		}
+		if elapsed >= 500*time.Millisecond {
+			t.Fatalf("blocked status did not honour extract deadline promptly: elapsed %v", elapsed)
+		}
+		cancelledID := waitCancelJobID(t, e.cancelCh)
+		e.mu.Lock()
+		wantJobID := e.seenGrants[0].JobID
+		e.mu.Unlock()
+		if cancelledID != wantJobID {
+			t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
+		}
+	})
+
+	t.Run("per_request_timeout_on_submit_and_status_cancels_job", func(t *testing.T) {
+		withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+		for _, which := range []string{"submit", "status"} {
+			t.Run(which, func(t *testing.T) {
+				e := newExtractFakeEngine(t)
+				cli, err := NewClient(Config{
+					BaseURL:        e.srv.URL,
+					ServiceToken:   testToken,
+					GrantKey:       testKey,
+					RequestTimeout: 40 * time.Millisecond,
+				}, e.srv.Client())
+				if err != nil {
+					t.Fatal(err)
+				}
+				e.cli = cli
+				unblock := make(chan struct{})
+				defer close(unblock)
+				if which == "submit" {
+					e.blockSubmit = unblock
+				} else {
+					e.blockStatus = unblock
+				}
+
+				start := time.Now()
+				_, err = e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+				elapsed := time.Since(start)
+				if !errors.Is(err, ErrExtractUnavailable) {
+					t.Fatalf("%s per-request timeout: got %v, want ErrExtractUnavailable", which, err)
+				}
+				if elapsed >= 500*time.Millisecond {
+					t.Fatalf("%s per-request timeout took %v", which, elapsed)
+				}
+				cancelledID := waitCancelJobID(t, e.cancelCh)
+				e.mu.Lock()
+				wantJobID := e.seenGrants[0].JobID
+				e.mu.Unlock()
+				if cancelledID != wantJobID {
+					t.Fatalf("cancelled job %q, want %q", cancelledID, wantJobID)
+				}
+			})
+		}
+	})
 }
 
 func TestExtractTextUnavailableOnEngineDownNotReadyOr5xx(t *testing.T) {
@@ -331,13 +504,29 @@ func TestExtractTextUnavailableOnEngineDownNotReadyOr5xx(t *testing.T) {
 		t.Fatalf("submit 503: got %v, want ErrExtractUnavailable", err)
 	}
 
-	// Status 502
+	// Status 502 cancels the already-submitted job and returns unavailable.
 	st502 := newExtractFakeEngine(t)
 	st502.statusErr = http.StatusBadGateway
 	if _, err := st502.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes"))); !errors.Is(err, ErrExtractUnavailable) {
 		t.Fatalf("status 502: got %v, want ErrExtractUnavailable", err)
 	}
+	cancelledID := waitCancelJobID(t, st502.cancelCh)
+	st502.mu.Lock()
+	wantJobID := st502.seenGrants[0].JobID
+	st502.mu.Unlock()
+	if cancelledID != wantJobID {
+		t.Fatalf("status 502 cancelled %q, want %q", cancelledID, wantJobID)
+	}
 
+	// Malformed status body cancels the already-submitted job and returns unavailable.
+	stMalformed := newExtractFakeEngine(t)
+	stMalformed.statusRawBody = `{"job_id":"","state":"bogus"}`
+	if _, err := stMalformed.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes"))); !errors.Is(err, ErrExtractUnavailable) {
+		t.Fatalf("status malformed: got %v, want ErrExtractUnavailable", err)
+	}
+	if got := waitCancelJobID(t, stMalformed.cancelCh); got == "" {
+		t.Fatal("expected cancel on malformed status")
+	}
 	// Engine down (closed server)
 	down := newExtractFakeEngine(t)
 	down.srv.Close()
@@ -440,6 +629,121 @@ func TestExtractTextS6StatusCapCases(t *testing.T) {
 				if ErrorCode(statusErr) != "engine_result_invalid" {
 					t.Fatalf("expected non-extract Status over 1 MiB to fail with engine_result_invalid, got %v", statusErr)
 				}
+			}
+		})
+	}
+
+	t.Run("completed_status_over_2mib_cap_is_rejected_as_unavailable", func(t *testing.T) {
+		const fixedTwoMiB = 2 << 20
+		e := newExtractFakeEngine(t)
+		e.jobResult = map[string]any{
+			"text":      strings.Repeat("X", fixedTwoMiB),
+			"truncated": true,
+			"format":    "docx",
+		}
+		probeBody, err := json.Marshal(map[string]any{
+			"job_id":    "01JOB00000000000000000000P",
+			"state":     JobCompleted,
+			"operation": OperationExtractText,
+			"format":    FormatDOCX,
+			"result":    e.jobResult,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(probeBody) <= fixedTwoMiB {
+			t.Fatalf("expected probe body > %d bytes, got %d", fixedTwoMiB, len(probeBody))
+		}
+		_, err = e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("docx-bytes")))
+		if !errors.Is(err, ErrExtractUnavailable) {
+			t.Fatalf("expected ErrExtractUnavailable for >2 MiB status body (%d bytes), got %v", len(probeBody), err)
+		}
+	})
+}
+
+func TestExtractTextTerminalInfrastructureStatesReturnUnavailable(t *testing.T) {
+	withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+
+	cases := []struct {
+		name  string
+		state JobState
+		err   *JobError
+	}{
+		{name: "timed_out", state: JobTimedOut, err: &JobError{Code: "engine_timeout", Reason: "deadline_exceeded"}},
+		{name: "crashed", state: JobCrashed, err: &JobError{Code: "engine_crashed", Reason: "worker_exit"}},
+		{name: "cancelled", state: JobCancelled, err: nil},
+		{name: "failed_unknown_engine_result_invalid_reason", state: JobFailed, err: &JobError{Code: "engine_result_invalid", Reason: "unknown_future_reason"}},
+		{name: "failed_without_error_body", state: JobFailed, err: nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newExtractFakeEngine(t)
+			e.pollsBefore = -1
+			e.jobState = tc.state
+			e.jobError = tc.err
+
+			_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+			if !errors.Is(err, ErrExtractUnavailable) {
+				t.Fatalf("%s: expected ErrExtractUnavailable, got %v", tc.name, err)
+			}
+			var ue *ExtractUnreadableError
+			if errors.As(err, &ue) {
+				t.Fatalf("%s: must not map to ExtractUnreadableError, got %+v", tc.name, ue)
+			}
+		})
+	}
+}
+
+func TestExtractTextCompletedResultValidation(t *testing.T) {
+	withShortExtractTimers(t, 2*time.Second, 5*time.Millisecond)
+
+	t.Run("control_empty_text_and_truncated_false_succeeds", func(t *testing.T) {
+		e := newExtractFakeEngine(t)
+		e.pollsBefore = -1
+		e.jobResult = map[string]any{
+			"text":      "",
+			"truncated": false,
+			"format":    "docx",
+		}
+		res, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.Text != "" || res.Truncated {
+			t.Fatalf("unexpected result: %+v", res)
+		}
+	})
+
+	malformed := []struct {
+		name   string
+		omit   bool
+		result any
+	}{
+		{name: "result_missing", omit: true},
+		{name: "result_null", result: nil},
+		{name: "text_missing", result: map[string]any{"truncated": false, "format": "docx"}},
+		{name: "text_null", result: map[string]any{"text": nil, "truncated": false, "format": "docx"}},
+		{name: "truncated_missing", result: map[string]any{"text": "hello", "format": "docx"}},
+		{name: "truncated_null", result: map[string]any{"text": "hello", "truncated": nil, "format": "docx"}},
+		{name: "text_wrong_type", result: map[string]any{"text": 123, "truncated": false, "format": "docx"}},
+		{name: "truncated_wrong_type", result: map[string]any{"text": "hello", "truncated": "no", "format": "docx"}},
+	}
+
+	for _, tc := range malformed {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newExtractFakeEngine(t)
+			e.pollsBefore = -1
+			e.omitResult = tc.omit
+			e.jobResult = tc.result
+
+			_, err := e.cli.ExtractText(context.Background(), sampleExtractReq([]byte("bytes")))
+			if !errors.Is(err, ErrExtractUnavailable) {
+				t.Fatalf("%s: expected ErrExtractUnavailable, got %v", tc.name, err)
+			}
+			var ue *ExtractUnreadableError
+			if errors.As(err, &ue) {
+				t.Fatalf("%s: must not map to ExtractUnreadableError, got %+v", tc.name, ue)
 			}
 		})
 	}
