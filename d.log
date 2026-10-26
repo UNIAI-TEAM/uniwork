@@ -1,0 +1,4 @@
+$ pnpm exec turbo typecheck --filter=@uniwork/office-contracts --filter=@uniwork/office-engine --filter=@uniwork/office-engine-app > /tmp/de-tc.log 2>&1; rc=$?; grep -E "error TS|Tasks:|Failed" /tmp/de-tc.log | head -30; echo; echo "TYPECHECK_EXIT=$rc"
+ Tasks:    3 successful, 3 total
+
+TYPECHECK_EXIT=0
