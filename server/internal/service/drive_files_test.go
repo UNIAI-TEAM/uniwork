@@ -352,6 +352,73 @@ func TestDriveFileLinkTwoMembersNoCrossEmailLeakAndConcurrentRace(t *testing.T) 
 		t.Fatalf("connsA = %+v, err=%v", connsA, err)
 	}
 
+	// F04: Two overlapping stale readers claim metadata refresh via conditional UPDATE;
+	// only one calls Google files.get, and a transient failure keeps old metadata and respects the 10m throttle.
+	sharedFileID := resA[0].File.ID
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, sharedFileID); err != nil {
+		t.Fatalf("age metadata_refreshed_at: %v", err)
+	}
+	env.googleSrv.SetFile("ext-shared-race", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:          "ext-shared-race",
+			Name:        "Ngân sách 2026 (Mới)",
+			MimeType:    DriveMimeGoogleSheet,
+			WebViewLink: "https://docs.google.com/spreadsheets/d/ext-shared-race/edit",
+			Shared:      new(true),
+		},
+	})
+	callsBeforeRefresh := len(env.googleSrv.Calls())
+	refreshEntered := make(chan struct{})
+	refreshRelease := make(chan struct{})
+	var refreshOnce sync.Once
+	env.googleSrv.SetOverride(func(_ http.ResponseWriter, _ *http.Request, call FakeGoogleDriveCall) bool {
+		if call.FileID == "ext-shared-race" && call.Op == "get" {
+			refreshOnce.Do(func() { close(refreshEntered) })
+			<-refreshRelease
+		}
+		return false
+	})
+	var wgRefresh sync.WaitGroup
+	wgRefresh.Add(2)
+	go func() {
+		defer wgRefresh.Done()
+		_, _ = env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, sharedFileID)
+	}()
+	<-refreshEntered
+	go func() {
+		defer wgRefresh.Done()
+		_, _ = env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, sharedFileID)
+	}()
+	time.Sleep(25 * time.Millisecond)
+	close(refreshRelease)
+	wgRefresh.Wait()
+	env.googleSrv.SetOverride(nil)
+	if gotRefreshCalls := len(env.googleSrv.Calls()) - callsBeforeRefresh; gotRefreshCalls != 1 {
+		t.Fatalf("overlapping stale readers Google calls = %d, want 1", gotRefreshCalls)
+	}
+
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, sharedFileID); err != nil {
+		t.Fatalf("age metadata_refreshed_at for transient failure: %v", err)
+	}
+	env.googleSrv.SetFile("ext-shared-race", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-shared-race", Name: "Should Not Apply", MimeType: DriveMimeGoogleSheet},
+		DefaultError: &FakeGoogleDriveErrorResponse{Status: http.StatusServiceUnavailable, Reason: "backendError"},
+	})
+	callsBeforeFail := len(env.googleSrv.Calls())
+	afterFail1, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, sharedFileID)
+	if err != nil || afterFail1.Name != "Ngân sách 2026 (Mới)" {
+		t.Fatalf("Get on transient refresh failure = %+v, err=%v", afterFail1, err)
+	}
+	afterFail2, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, sharedFileID)
+	if err != nil || afterFail2.Name != "Ngân sách 2026 (Mới)" {
+		t.Fatalf("second Get after transient refresh failure = %+v, err=%v", afterFail2, err)
+	}
+	if gotFailCalls := len(env.googleSrv.Calls()) - callsBeforeFail; gotFailCalls != 1 {
+		t.Fatalf("transient refresh failure Google calls across 2 Gets = %d, want 1 (throttle held)", gotFailCalls)
+	}
+	env.googleSrv.SetFile("ext-shared-race", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-shared-race", Name: "Ngân sách 2026 (Mới)", MimeType: DriveMimeGoogleSheet},
+	})
 	// F03: A disconnect that commits while files.get is in flight causes the Link
 	// save transaction (and task-create linking) to reject the disconnected connection
 	// under the FOR SHARE lock without writing any drive_files or access rows.

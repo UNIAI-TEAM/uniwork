@@ -11,6 +11,59 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimDriveFileMetadataRefresh = `-- name: ClaimDriveFileMetadataRefresh :one
+UPDATE drive_files
+SET metadata_refreshed_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND unlinked_at IS NULL
+  AND (
+    metadata_refreshed_at IS NULL
+    OR metadata_refreshed_at < now() - interval '10 minutes'
+  )
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+`
+
+type ClaimDriveFileMetadataRefreshParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ClaimDriveFileMetadataRefresh(ctx context.Context, arg ClaimDriveFileMetadataRefreshParams) (DriveFile, error) {
+	row := q.db.QueryRow(ctx, claimDriveFileMetadataRefresh, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i DriveFile
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ExternalFileID,
+		&i.DriveID,
+		&i.ConnectionID,
+		&i.BoundBy,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.Name,
+		&i.MimeType,
+		&i.IconKind,
+		&i.WebViewLink,
+		&i.OwnerDisplay,
+		&i.DriveModifiedAt,
+		&i.DriveModifiedByDisplay,
+		&i.SharingState,
+		&i.SharedUserCount,
+		&i.MetadataRefreshedAt,
+		&i.AccessLostAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UnlinkedAt,
+		&i.UnlinkedBy,
+		&i.UnlinkedByKind,
+	)
+	return i, err
+}
+
 const clearDriveFileBoundAccessLost = `-- name: ClearDriveFileBoundAccessLost :one
 UPDATE drive_files
 SET access_lost_at = NULL,

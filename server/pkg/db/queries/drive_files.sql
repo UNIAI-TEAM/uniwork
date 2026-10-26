@@ -90,6 +90,18 @@ WHERE id = sqlc.arg('id')
   AND unlinked_at IS NULL
 RETURNING *;
 
+-- name: ClaimDriveFileMetadataRefresh :one
+UPDATE drive_files
+SET metadata_refreshed_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND unlinked_at IS NULL
+  AND (
+    metadata_refreshed_at IS NULL
+    OR metadata_refreshed_at < now() - interval '10 minutes'
+  )
+RETURNING *;
 -- name: RebindDriveFile :one
 UPDATE drive_files
 SET connection_id = sqlc.arg('connection_id'),

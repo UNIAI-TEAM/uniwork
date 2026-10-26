@@ -187,10 +187,17 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	if err != nil || conn.AuthFailedAt.Valid {
 		return false
 	}
+	if _, err := s.q.ClaimDriveFileMetadataRefresh(ctx, db.ClaimDriveFileMetadataRefreshParams{
+		ID:             driveFileID,
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	}); err != nil {
+		return false
+	}
 	meta, err := s.api.FilesGetWithConnection(ctx, s.connections, conn, externalFileID)
 	if err != nil {
 		s.maybeRecordAccessLost(ctx, viewerID, ws.OrganizationID, ws.ID, driveFileID, conn.ID, err)
-		return shouldMarkDriveAccessLost(err)
+		return true
 	}
 	params := normalizeMetadataForDB(meta, externalFileID, s.nowUTC())
 	if _, err := s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
