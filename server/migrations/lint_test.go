@@ -505,18 +505,45 @@ func TestActorKindOnEveryCreatedBy(t *testing.T) {
 //
 // No drive_* table may declare a column pointing at object storage
 // (object_key, bucket, storage_path, file_id, blob_key).
-var driveObjectStorageColumnPattern = regexp.MustCompile(`(?i)\b(object_key|object_url|bucket|storage_path|blob_key)\b`)
+var (
+	driveObjectStorageColumnPattern    = regexp.MustCompile(`(?i)\b(object_key|object_url|bucket|storage_path|blob_key)\b`)
+	driveAlterTableAddObjectColPattern = regexp.MustCompile(`(?is)\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(drive_\w+)\b([^;]*?\bADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?[^;]+)`)
+)
+
+func findDriveObjectStorageColumnViolations(sql string) []string {
+	var out []string
+	for table, body := range createdTables(sql) {
+		if !strings.HasPrefix(table, "drive_") {
+			continue
+		}
+		if m := driveObjectStorageColumnPattern.FindString(body); m != "" {
+			out = append(out, table+":"+m)
+		}
+	}
+	for _, m := range driveAlterTableAddObjectColPattern.FindAllStringSubmatch(sql, -1) {
+		table := strings.ToLower(m[1])
+		if col := driveObjectStorageColumnPattern.FindString(m[2]); col != "" {
+			out = append(out, table+":"+col)
+		}
+	}
+	return out
+}
 
 func TestDriveTablesCarryNoObjectStorageColumns(t *testing.T) {
+	// Prove the guard catches ALTER TABLE drive_* ADD [COLUMN] as well as CREATE TABLE.
+	for _, badSQL := range []string{
+		"ALTER TABLE drive_connections ADD COLUMN object_key TEXT;",
+		"ALTER TABLE IF EXISTS drive_files ADD storage_path TEXT NOT NULL DEFAULT '';",
+	} {
+		if got := findDriveObjectStorageColumnViolations(badSQL); len(got) == 0 {
+			t.Fatalf("findDriveObjectStorageColumnViolations(%q) = empty, want violation", badSQL)
+		}
+	}
+
 	for _, name := range newMigrationUpFiles(t) {
 		sql := stripSQLComments(readMigration(t, name))
-		for table, body := range createdTables(sql) {
-			if !strings.HasPrefix(table, "drive_") {
-				continue
-			}
-			if m := driveObjectStorageColumnPattern.FindString(body); m != "" {
-				t.Errorf("%s creates %s with object-storage column %q; Drive tables store references only, never bytes (ADR 0047)", name, table, m)
-			}
+		for _, v := range findDriveObjectStorageColumnViolations(sql) {
+			t.Errorf("%s declares object-storage column on Drive table (%s); Drive tables store references only, never bytes (ADR 0047)", name, v)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -1776,4 +1777,210 @@ func TestDriveOfficeExtractWritesNoObject(t *testing.T) {
 	if g.Output != nil || g.DocumentID != "" || g.DriveFileID != driveFileID || g.Operation != office.OperationExtractText {
 		t.Fatalf("grant must have nil Output and empty DocumentID: %+v", g)
 	}
+}
+
+type repeatingByteReader struct {
+	b         byte
+	remaining int64
+}
+
+func (r *repeatingByteReader) Read(p []byte) (int, error) {
+	if r.remaining <= 0 {
+		return 0, io.EOF
+	}
+	n := int64(len(p))
+	if n > r.remaining {
+		n = r.remaining
+	}
+	for i := int64(0); i < n; i++ {
+		p[i] = r.b
+	}
+	r.remaining -= n
+	return int(n), nil
+}
+
+// TestDriveContentSizeCeilings verifies the exact cap and cap+1 boundaries for
+// every distinct Drive response ceiling (R1-10: metadata 1 MiB, text 1 MiB,
+// export 10 MiB, PDF 10 MiB, Office 20 MiB) plus chunked unknown-length
+// (no Content-Length header) oversized responses. Oversized responses are
+// rejected before extraction or model use and write no read audit row.
+func TestDriveContentSizeCeilings(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+
+	const (
+		orgID  = "01ORG000000000000000000001"
+		wsID   = "01WS0000000000000000000001"
+		userID = "01USER00000000000000000001"
+	)
+	conn := activeTestDriveConnection("conn-cap", orgID, userID, "sub-cap", "cap@example.com")
+	tokens := &fakeDriveTokenSource{tokensByConn: map[string]string{"conn-cap": "tok-cap"}}
+	var extractedLengths []int
+	extractor := &fakeDriveOfficeExtractor{
+		fn: func(_ context.Context, req office.ExtractTextRequest) (office.ExtractTextResult, error) {
+			extractedLengths = append(extractedLengths, len(req.Content))
+			return office.ExtractTextResult{Text: "office-cap-ok"}, nil
+		},
+	}
+	lookup := &fakeDriveFileAccessLookup{rows: make(map[string]driveFileAccessRow)}
+	ws := newTestDriveWorkspaceService(map[string]string{wsID + "|" + userID: orgID})
+	svc := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, extractor)
+	var auditCount int
+	svc.auditHook = func(_ context.Context, _ audit.Entry) error {
+		auditCount++
+		return nil
+	}
+
+	type streamSpec struct {
+		mime         string
+		metaBytes    int64 // if > 0, stream a JSON metadata response of exactly metaBytes
+		bodyBytes    int64 // streamed on export or media
+		chunkedNoLen bool  // omit Content-Length and flush headers so resp.ContentLength == -1
+	}
+	var specMu sync.Mutex
+	specs := make(map[string]streamSpec)
+	registerStreamFile := func(id, mime string, sp streamSpec) {
+		sp.mime = mime
+		specMu.Lock()
+		specs[id] = sp
+		specMu.Unlock()
+		lookup.rows[userID+"|"+wsID+"|"+id] = driveFileAccessRow{
+			DriveFileID:    id,
+			OrganizationID: orgID,
+			WorkspaceID:    wsID,
+			ExternalFileID: id,
+			Name:           id,
+			MimeType:       mime,
+			HasAccessRow:   true,
+			AccessState:    "granted",
+			Connection:     conn,
+		}
+	}
+
+	gSrv.SetOverride(func(w http.ResponseWriter, _ *http.Request, call FakeGoogleDriveCall) bool {
+		specMu.Lock()
+		sp, ok := specs[call.FileID]
+		specMu.Unlock()
+		if !ok {
+			return false
+		}
+		if call.Op == "get" {
+			w.Header().Set("Content-Type", "application/json")
+			if sp.metaBytes <= 0 {
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(googleDriveFileJSON{
+					ID:       call.FileID,
+					Name:     call.FileID,
+					MimeType: sp.mime,
+				})
+				return true
+			}
+			prefix := `{"id":"` + call.FileID + `","name":"` + call.FileID + `","mimeType":"` + sp.mime + `","webViewLink":"https://drive.google.com/`
+			suffix := `"}`
+			pad := sp.metaBytes - int64(len(prefix)+len(suffix))
+			if !sp.chunkedNoLen {
+				w.Header().Set("Content-Length", strconv.FormatInt(sp.metaBytes, 10))
+			}
+			w.WriteHeader(http.StatusOK)
+			if sp.chunkedNoLen {
+				if fl, ok := w.(http.Flusher); ok {
+					fl.Flush()
+				}
+			}
+			_, _ = io.WriteString(w, prefix)
+			_, _ = io.Copy(w, &repeatingByteReader{b: 'x', remaining: pad})
+			_, _ = io.WriteString(w, suffix)
+			return true
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		if !sp.chunkedNoLen {
+			w.Header().Set("Content-Length", strconv.FormatInt(sp.bodyBytes, 10))
+		}
+		w.WriteHeader(http.StatusOK)
+		if sp.chunkedNoLen {
+			if fl, ok := w.(http.Flusher); ok {
+				fl.Flush()
+			}
+		}
+		_, _ = io.Copy(w, &repeatingByteReader{b: 'a', remaining: sp.bodyBytes})
+		return true
+	})
+
+	assertTooLarge := func(t *testing.T, label string, dc DriveContent, err error, prevAudits, prevExtracts int) {
+		t.Helper()
+		var ce CodedError
+		if !errors.As(err, &ce) || ce.Status != http.StatusUnprocessableEntity || ce.Code != "drive_file_too_large" || !errors.Is(err, ErrDriveFormatUnsupported) {
+			t.Fatalf("%s: err = %v (ce=%+v), want 422 drive_file_too_large wrapping ErrDriveFormatUnsupported", label, err, ce)
+		}
+		if dc.Text != "" || len(dc.Attachments) != 0 {
+			t.Fatalf("%s: oversized response must not return content or attachments: %+v", label, dc)
+		}
+		if auditCount != prevAudits {
+			t.Fatalf("%s: auditCount = %d, want unchanged %d", label, auditCount, prevAudits)
+		}
+		if len(extractedLengths) != prevExtracts {
+			t.Fatalf("%s: extractor calls = %d, want unchanged %d", label, len(extractedLengths), prevExtracts)
+		}
+	}
+
+	// 1. Metadata ceiling (driveMetadataMaxBytes = 1 MiB): cap succeeds, cap+1 fails before download/audit.
+	registerStreamFile("df-meta-cap", DriveMimePlainText, streamSpec{metaBytes: driveMetadataMaxBytes, bodyBytes: 16})
+	dc, err := svc.ReadForAI(ctx, userID, wsID, "df-meta-cap", DriveContentPurposeAskUni)
+	if err != nil || len(dc.Text) != 16 || auditCount != 1 {
+		t.Fatalf("metadata exact cap: len=%d auditCount=%d err=%v", len(dc.Text), auditCount, err)
+	}
+	registerStreamFile("df-meta-over", DriveMimePlainText, streamSpec{metaBytes: driveMetadataMaxBytes + 1, bodyBytes: 16})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-meta-over", DriveContentPurposeAskUni)
+	assertTooLarge(t, "metadata cap+1", dc, err, 1, 0)
+
+	// 2. Plain text ceiling (DrivePlainTextMaxBytes = 1 MiB): cap succeeds, cap+1 fails.
+	registerStreamFile("df-text-cap", DriveMimePlainText, streamSpec{bodyBytes: DrivePlainTextMaxBytes})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-text-cap", DriveContentPurposeAskUni)
+	if err != nil || !dc.Truncated || len(dc.Text) != DriveContentMaxChars || auditCount != 2 {
+		t.Fatalf("text exact cap: truncated=%v len=%d auditCount=%d err=%v", dc.Truncated, len(dc.Text), auditCount, err)
+	}
+	registerStreamFile("df-text-over", DriveMimePlainText, streamSpec{bodyBytes: DrivePlainTextMaxBytes + 1})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-text-over", DriveContentPurposeAskUni)
+	assertTooLarge(t, "text cap+1", dc, err, 2, 0)
+
+	// 3. Google export ceiling (DriveExportMaxBytes = 10 MiB): cap succeeds, cap+1 fails.
+	registerStreamFile("df-export-cap", DriveMimeGoogleSheet, streamSpec{bodyBytes: DriveExportMaxBytes})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-export-cap", DriveContentPurposeTaskProposal)
+	if err != nil || !dc.Truncated || len(dc.Text) != DriveContentMaxChars || auditCount != 3 {
+		t.Fatalf("export exact cap: truncated=%v len=%d auditCount=%d err=%v", dc.Truncated, len(dc.Text), auditCount, err)
+	}
+	registerStreamFile("df-export-over", DriveMimeGoogleSheet, streamSpec{bodyBytes: DriveExportMaxBytes + 1})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-export-over", DriveContentPurposeTaskProposal)
+	assertTooLarge(t, "export cap+1", dc, err, 3, 0)
+
+	// 4. PDF attachment ceiling (DrivePDFMaxBytes = 10 MiB): cap succeeds, cap+1 fails.
+	registerStreamFile("df-pdf-cap", DriveMimePDF, streamSpec{bodyBytes: DrivePDFMaxBytes})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-pdf-cap", DriveContentPurposeAskUni)
+	if err != nil || len(dc.Attachments) != 1 || int64(len(dc.Attachments[0].Data)) != DrivePDFMaxBytes || auditCount != 4 {
+		t.Fatalf("PDF exact cap: attachments=%d auditCount=%d err=%v", len(dc.Attachments), auditCount, err)
+	}
+	dc.Attachments = nil
+	registerStreamFile("df-pdf-over", DriveMimePDF, streamSpec{bodyBytes: DrivePDFMaxBytes + 1})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-pdf-over", DriveContentPurposeAskUni)
+	assertTooLarge(t, "PDF cap+1", dc, err, 4, 0)
+
+	// 5. Office extract ceiling (DriveOfficeExtractMaxBytes = 20 MiB): cap reaches extractor, cap+1 rejected before extractor.
+	registerStreamFile("df-office-cap", DriveMimeDOCX, streamSpec{bodyBytes: DriveOfficeExtractMaxBytes})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-office-cap", DriveContentPurposeTaskProposal)
+	if err != nil || dc.Text != "office-cap-ok" || len(extractedLengths) != 1 || int64(extractedLengths[0]) != DriveOfficeExtractMaxBytes || auditCount != 5 {
+		t.Fatalf("Office exact cap: text=%q extractedLengths=%v auditCount=%d err=%v", dc.Text, extractedLengths, auditCount, err)
+	}
+	registerStreamFile("df-office-over", DriveMimeDOCX, streamSpec{bodyBytes: DriveOfficeExtractMaxBytes + 1})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-office-over", DriveContentPurposeTaskProposal)
+	assertTooLarge(t, "Office cap+1 (with Content-Length)", dc, err, 5, 1)
+
+	// 6. Unknown-length (chunked, no Content-Length header) oversized stream:
+	// exercises the io.LimitReader(resp.Body, maxBytes+1) path when resp.ContentLength == -1.
+	registerStreamFile("df-office-chunked-over", DriveMimeDOCX, streamSpec{
+		bodyBytes:    DriveOfficeExtractMaxBytes + 1,
+		chunkedNoLen: true,
+	})
+	dc, err = svc.ReadForAI(ctx, userID, wsID, "df-office-chunked-over", DriveContentPurposeTaskProposal)
+	assertTooLarge(t, "Office cap+1 (chunked unknown Content-Length)", dc, err, 5, 1)
 }
