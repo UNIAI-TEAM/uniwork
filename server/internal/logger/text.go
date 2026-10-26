@@ -72,7 +72,7 @@ func newTextHandler(w io.Writer, level slog.Leveler, color bool) slog.Handler {
 	h.tint = tint.NewTextHandler(lw, &tint.Options{
 		Level:      level,
 		TimeFormat: textTimeFormat,
-		NoColor:    true,
+		NoColor:    !color,
 	})
 	return h
 }

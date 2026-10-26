@@ -239,7 +239,7 @@ func TestTextGroupFallsBackToTint(t *testing.T) {
 	if err := h.Handle(context.Background(), r); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "g.method=GET") {
+	if !strings.Contains(stripANSI(buf.String()), "g.method=GET") {
 		t.Fatalf("kind group: %s", buf.String())
 	}
 }
