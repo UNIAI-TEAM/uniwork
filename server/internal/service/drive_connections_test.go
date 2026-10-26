@@ -1488,10 +1488,10 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	<-w1LateDone
 
 	// Verify generation 2 is STILL open and owned by worker 3's attempt!
-	gen2AfterLateW1, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-threeworkers")
-	if err != nil || gen2AfterLateW1.ResolvedAt.Valid || !gen2AfterLateW1.RefreshTokenEnc.Valid ||
-		gen2AfterLateW1.Generation != w3ClaimedRow.Generation || gen2AfterLateW1.AttemptID.String != w3ClaimedRow.AttemptID.String {
-		t.Fatalf("late worker 1 with retained old (gen, attempt_id) must not settle gen 2: %+v, err=%v", gen2AfterLateW1, err)
+	rowAfterLate, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-threeworkers")
+	if err != nil || rowAfterLate.ResolvedAt.Valid || !rowAfterLate.RefreshTokenEnc.Valid ||
+		rowAfterLate.Generation != w3ClaimedRow.Generation || rowAfterLate.AttemptID.String != w3ClaimedRow.AttemptID.String {
+		t.Fatalf("late worker 1 with retained old (gen, attempt_id) must not settle gen 2: %+v, err=%v", rowAfterLate, err)
 	}
 	// Release worker 3 -> settles generation 2 cleanly.
 	close(releaseW3)
