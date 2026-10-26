@@ -12,7 +12,11 @@ import { cn } from "@uniwork/ui/lib/utils";
 export type SettingsSaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function SettingsTab({
-  title, description, actions, headingRef, children,
+  title,
+  description,
+  actions,
+  headingRef,
+  children,
 }: {
   title: ReactNode;
   description?: ReactNode;
@@ -25,7 +29,14 @@ export function SettingsTab({
     <div className="space-y-8">
       <header className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className={cn("text-title-lg font-semibold tracking-tight text-balance", headingRef && "rounded-sm")}>
+          <h2
+            ref={headingRef}
+            tabIndex={headingRef ? -1 : undefined}
+            className={cn(
+              "text-title-lg font-semibold tracking-tight text-balance",
+              headingRef && "rounded-sm",
+            )}
+          >
             {title}
           </h2>
           {description ? (
@@ -188,7 +199,18 @@ export function SettingsList({
 }
 
 export function SettingsListItem({
-  leading, title, meta, badge, actions, className, muted = false, align = "center", wrapTitle = false, rowRef, tabIndex, "data-testid": testId,
+  leading,
+  title,
+  meta,
+  badge,
+  actions,
+  className,
+  muted = false,
+  align = "center",
+  wrapTitle = false,
+  rowRef,
+  tabIndex,
+  "data-testid": testId,
 }: {
   /** An avatar, an IconTile or a device glyph. */
   leading?: ReactNode;
@@ -213,10 +235,28 @@ export function SettingsListItem({
   "data-testid"?: string;
 }) {
   return (
-    <li ref={rowRef} tabIndex={tabIndex} data-testid={testId} className={cn("flex min-h-14 flex-wrap gap-3 px-4 py-2.5 sm:flex-nowrap", align === "start" ? "items-start" : "items-center", className)}>
-      {leading ? <div className={cn("shrink-0", align === "start" && "mt-0.5", muted && "opacity-60")}>{leading}</div> : null}
+    <li
+      ref={rowRef}
+      tabIndex={tabIndex}
+      data-testid={testId}
+      className={cn(
+        "flex min-h-14 flex-wrap gap-3 px-4 py-2.5 sm:flex-nowrap",
+        align === "start" ? "items-start" : "items-center",
+        className,
+      )}
+    >
+      {leading ? (
+        <div className={cn("shrink-0", align === "start" && "mt-0.5", muted && "opacity-60")}>
+          {leading}
+        </div>
+      ) : null}
       <div className="min-w-0 flex-1">
-        <div className={cn("flex min-w-0 items-center", wrapTitle ? "flex-wrap gap-x-2 gap-y-1" : "gap-2")}>
+        <div
+          className={cn(
+            "flex min-w-0 items-center",
+            wrapTitle ? "flex-wrap gap-x-2 gap-y-1" : "gap-2",
+          )}
+        >
           <span className={cn("truncate text-body font-medium", muted ? "text-muted-foreground" : "text-foreground")}>
             {title}
           </span>
@@ -225,7 +265,14 @@ export function SettingsListItem({
         {meta ? <div className="truncate text-caption text-muted-foreground">{meta}</div> : null}
       </div>
       {actions ? (
-        <div className={cn("flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto", align === "start" && "mt-0.5")}>{actions}</div>
+        <div
+          className={cn(
+            "flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto",
+            align === "start" && "mt-0.5",
+          )}
+        >
+          {actions}
+        </div>
       ) : null}
     </li>
   );

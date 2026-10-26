@@ -205,14 +205,24 @@ export function DriveIntegrationView({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const reconnectTargetRef = useRef<DriveConnection | null>(null);
   const lastDisconnectEmailRef = useRef("");
+  const justConnectedRef = useRef(initialNotice?.tone === "success");
   const [notice, setNotice] = useState<CallbackNotice | null>(initialNotice);
   const [pendingDisconnect, setPendingDisconnect] = useState<DriveConnection | null>(null);
 
   useEffect(() => {
     if (initialNotice) {
       setNotice(initialNotice);
+      if (initialNotice.tone === "success") {
+        justConnectedRef.current = true;
+      }
     }
   }, [initialNotice]);
+
+  useEffect(() => {
+    if (!connectionsQuery.isFetching) {
+      justConnectedRef.current = false;
+    }
+  }, [connectionsQuery.isFetching]);
 
   useEffect(() => {
     if (!driveAvailable || !focusHeading) return;
@@ -266,7 +276,8 @@ export function DriveIntegrationView({
   const connections = connectionsQuery.data?.connections ?? [];
   const totalLinkedFiles = connections.reduce((sum, c) => sum + c.linked_file_count, 0);
   const busy = popup.pending || startConnect.isPending;
-
+  const firstConnectFetching =
+    justConnectedRef.current && connectionsQuery.isFetching && connections.length === 0;
   const handleConnect = (reconnect?: DriveConnection) => {
     setNotice(null);
     reconnectTargetRef.current = reconnect ?? null;
@@ -318,7 +329,7 @@ export function DriveIntegrationView({
         }
       >
         <div className="space-y-6">
-          {notice && !(connectionsQuery.isFetching && connections.length === 0) ? (
+          {notice && !firstConnectFetching ? (
             <DriveCallbackAlert notice={notice} />
           ) : null}
 
@@ -341,7 +352,7 @@ export function DriveIntegrationView({
           ) : null}
 
           <SettingsSection title={t("view.accounts_title")}>
-            {connectionsQuery.isLoading || (connectionsQuery.isFetching && connections.length === 0) ? (
+            {connectionsQuery.isLoading || firstConnectFetching ? (
               <SettingsSkeletonRows rows={2} />
             ) : connectionsQuery.isError ? (
               <SettingsCard>

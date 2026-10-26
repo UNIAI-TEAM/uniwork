@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
@@ -105,6 +105,7 @@ export function IntegrationsTab({
   const [initialDriveNotice, setInitialDriveNotice] = useState<CallbackNotice | null>(null);
   const [focusViewHeading, setFocusViewHeading] = useState(false);
   const [focusManageButton, setFocusManageButton] = useState(false);
+  const openedInSessionRef = useRef(false);
   const clearFocusViewHeading = useCallback(() => setFocusViewHeading(false), []);
   const clearFocusManageButton = useCallback(() => setFocusManageButton(false), []);
 
@@ -112,7 +113,7 @@ export function IntegrationsTab({
   const connectFromUrl = navigation.searchParams.get("connect");
   const wantsDriveView =
     activeIntegration === "drive" && !focusDriveRow && connectFromUrl !== "drive";
-  const configWaitForDrive = wantsDriveView && flagEnabled && publicConfigQuery.isLoading;
+  const configWaitForDrive = wantsDriveView && publicConfigQuery.isLoading;
   const showDriveView = wantsDriveView && driveAvailable;
 
   useEffect(() => {
@@ -126,7 +127,14 @@ export function IntegrationsTab({
     navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
   }, [wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
 
+  useEffect(() => {
+    if (!wantsDriveView) {
+      openedInSessionRef.current = false;
+    }
+  }, [wantsDriveView]);
+
   const openDriveView = (notice?: CallbackNotice) => {
+    openedInSessionRef.current = true;
     setInitialDriveNotice(notice ?? null);
     setFocusViewHeading(true);
     const params = new URLSearchParams(navigation.searchParams);
@@ -138,6 +146,11 @@ export function IntegrationsTab({
   const closeDriveView = () => {
     setInitialDriveNotice(null);
     setFocusManageButton(true);
+    if (openedInSessionRef.current) {
+      openedInSessionRef.current = false;
+      navigation.back();
+      return;
+    }
     const params = new URLSearchParams(navigation.searchParams);
     params.delete(INTEGRATION_QUERY_KEY);
     if (!params.get("tab")) {

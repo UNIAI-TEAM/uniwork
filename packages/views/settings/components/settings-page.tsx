@@ -264,7 +264,15 @@ export function SettingsPage() {
                     {index > 0 ? <SelectSeparator /> : null}
                     <SelectLabel>{t(`page.groups.${group.id}`)}</SelectLabel>
                     {group.tabs.map((tab) => (
-                      <SelectItem key={tab.value} value={tab.value}>
+                      <SelectItem
+                        key={tab.value}
+                        value={tab.value}
+                        onClick={() => {
+                          if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                            handleTabChange(tab.value);
+                          }
+                        }}
+                      >
                         <tab.icon aria-hidden className="text-muted-foreground" />
                         {t(`page.tabs.${tab.label}`)}
                       </SelectItem>
