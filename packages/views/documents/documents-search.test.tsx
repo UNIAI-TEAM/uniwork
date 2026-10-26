@@ -571,15 +571,20 @@ describe("Documents unified search (FD-10)", () => {
     expect(homeHeadRow.contains(homeSearchBox)).toBe(false);
 
     const typeCombo = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
-    const filterRow = typeCombo.parentElement!;
+    const filterZone = typeCombo.parentElement!;
+    const filterRow = filterZone.parentElement!;
     expect(filterRow.contains(homeSearchBox)).toBe(true);
+    expect(filterZone.contains(homeSearchBox)).toBe(false);
     expect(filterRow.className).toContain("@container");
     expect(filterRow.className).toContain("flex-wrap");
+    expect(filterRow.className).toContain("@min-[48rem]:flex-nowrap");
+    expect(filterZone.className).toContain("flex-1");
+    expect(filterZone.className).toContain("flex-wrap");
     expect(homeSearchBox.className).toContain("basis-full");
     expect(homeSearchBox.className).toContain("@min-[48rem]:ml-auto");
-    expect(homeSearchBox.className).toContain("@min-[48rem]:grow");
-    expect(homeSearchBox.className).toContain("@min-[48rem]:basis-56");
-
+    expect(homeSearchBox.className).toContain("@min-[48rem]:w-56");
+    expect(homeSearchBox.className).toContain("@min-[48rem]:shrink-0");
+    expect(homeSearchBox.className).toContain("@min-[48rem]:basis-auto");
     unmount();
 
     // Open folder: search box is on the filter row with folder placeholder, not in breadcrumb head row
@@ -602,7 +607,8 @@ describe("Documents unified search (FD-10)", () => {
     expect(folderSearchInput).toHaveAttribute("placeholder", t("documents.home.search.placeholder_folder"));
     expect(folderHeadRow.contains(folderSearchInput)).toBe(false);
     const folderTypeCombo = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
-    expect(folderTypeCombo.parentElement!.contains(folderSearchInput)).toBe(true);
+    expect(folderTypeCombo.parentElement!.contains(folderSearchInput)).toBe(false);
+    expect(folderTypeCombo.parentElement!.parentElement!.contains(folderSearchInput)).toBe(true);
 
     unmountFolder();
 
@@ -623,7 +629,8 @@ describe("Documents unified search (FD-10)", () => {
     const recentSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     expect(recentHeadRow.contains(recentSearchInput)).toBe(false);
     const recentTypeCombo = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
-    expect(recentTypeCombo.parentElement!.contains(recentSearchInput)).toBe(true);
+    expect(recentTypeCombo.parentElement!.contains(recentSearchInput)).toBe(false);
+    expect(recentTypeCombo.parentElement!.parentElement!.contains(recentSearchInput)).toBe(true);
 
     // Shelved screen (Lưu trữ): search box is inside ShelvedToolbar (LibraryToolbar), not in DocumentsScreenHead
     fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.shelved")) })[0]!);
@@ -632,7 +639,8 @@ describe("Documents unified search (FD-10)", () => {
     const shelvedSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     expect(shelvedHeadRow.contains(shelvedSearchInput)).toBe(false);
     const shelvedTypeCombo = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
-    expect(shelvedTypeCombo.parentElement!.contains(shelvedSearchInput)).toBe(true);
+    expect(shelvedTypeCombo.parentElement!.contains(shelvedSearchInput)).toBe(false);
+    expect(shelvedTypeCombo.parentElement!.parentElement!.contains(shelvedSearchInput)).toBe(true);
 
     unmountList();
 
@@ -670,30 +678,37 @@ describe("Documents unified search (FD-10)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     const searchBox = searchInput.parentElement!;
 
-    // Before search is active: filter controls and DocumentsHomeNote (quick create strip) are visible
-    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    // Before search is active: filter zone (holding the comboboxes) and DocumentsHomeNote (quick create strip) are visible
+    const initialTypeCombo = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) });
+    const filterZone = initialTypeCombo.parentElement!;
+    const filterRow = filterZone.parentElement!;
+    expect(filterRow.contains(searchBox)).toBe(true);
+    expect(filterZone.contains(searchBox)).toBe(false);
     expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
 
-    // At rest: compact 14rem basis/max-width, smooth max-width transition into free space with motion-reduce opt-out (DSR-2)
+    // At rest: compact 14rem width (w-56 shrink-0 on container breakpoint), smooth width transition with motion-reduce opt-out
     expect(searchBox).toHaveAttribute("data-expanded", "false");
-    expect(searchBox.className).toContain("@min-[48rem]:grow");
-    expect(searchBox.className).toContain("@min-[48rem]:basis-56");
-    expect(searchBox.className).toContain("@min-[48rem]:max-w-56");
-    expect(searchBox.className).toContain("@min-[48rem]:focus-within:max-w-80");
-    expect(searchBox.className).toContain("transition-[max-width]");
+    expect(searchBox.className).toContain("@min-[48rem]:w-56");
+    expect(searchBox.className).toContain("@min-[48rem]:shrink-0");
+    expect(searchBox.className).toContain("@min-[48rem]:focus-within:w-80");
+    expect(searchBox.className).toContain("transition-[width]");
     expect(searchBox.className).toContain("motion-reduce:transition-none");
 
-    // Focus input and type first character -> search becomes active, same input element stays mounted and focused;
-    // filter controls and DocumentsHomeNote hide while active (DSR-1, DSR-6)
+    // Focus input and type first character -> search becomes active, same input & box elements stay mounted and focused;
+    // filter zone and DocumentsHomeNote hide while active (DSR-1, DSR-6, fix2)
     searchInput.focus();
     expect(document.activeElement).toBe(searchInput);
 
     fireEvent.change(searchInput, { target: { value: "h" } });
     const afterFirstCharInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     expect(afterFirstCharInput).toBe(searchInput);
+    expect(afterFirstCharInput.parentElement).toBe(searchBox);
     expect(document.activeElement).toBe(searchInput);
     expect(searchBox).toHaveAttribute("data-expanded", "true");
     expect(searchInput.className).toContain("pr-8");
+    expect(filterZone.isConnected).toBe(false);
+    expect(filterRow.children).toHaveLength(1);
+    expect(filterRow.firstElementChild).toBe(searchBox);
     expect(screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeNull();
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
 
@@ -703,7 +718,7 @@ describe("Documents unified search (FD-10)", () => {
     // Blurring while query is non-empty keeps the expanded state via data-expanded="true"
     searchInput.blur();
     expect(searchBox).toHaveAttribute("data-expanded", "true");
-    expect(searchBox.className).toContain("@min-[48rem]:data-[expanded=true]:max-w-80");
+    expect(searchBox.className).toContain("@min-[48rem]:data-[expanded=true]:w-80");
 
     // Clearing via clear button returns to rest state and restores filter controls and DocumentsHomeNote
     const clearBtn = screen.getByRole("button", { name: t("documents.home.search.clear") });

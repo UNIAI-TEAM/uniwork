@@ -326,7 +326,7 @@ describe("folder layout (Folder.dc)", () => {
     expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
     expect(row).not.toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    expect(typeFilterSelect()!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(typeFilterSelect()!.parentElement!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),
@@ -386,8 +386,10 @@ describe("folder layout (Folder.dc)", () => {
     expect(row).not.toHaveClass("@container", "flex-nowrap", "lg:flex-nowrap");
     const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
     expect(row).not.toContainElement(search);
-    expect(typeFilterSelect()!.parentElement).toContainElement(search);
-    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:grow", "@min-[48rem]:basis-56", "@min-[48rem]:max-w-56", "@min-[48rem]:focus-within:max-w-80");
+    const filterZone = typeFilterSelect()!.parentElement;
+    expect(filterZone).not.toContainElement(search);
+    expect(filterZone!.parentElement).toContainElement(search);
+    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:w-56", "@min-[48rem]:shrink-0", "@min-[48rem]:basis-auto", "@min-[48rem]:focus-within:w-80");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
     expect(row.lastElementChild).toHaveClass("shrink-0");
     expect(row.lastElementChild).toContainElement(create);
