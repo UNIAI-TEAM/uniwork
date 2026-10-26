@@ -284,3 +284,27 @@ SET trashed_project_id = NULL
 WHERE trashed_project_id = sqlc.arg(project_id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id);
+
+-- A project trash, restore or purge rewrites task rows; this locks them first,
+-- in id order like the task trash batch locks, so a project command and a task
+-- restore or purge queue instead of deadlocking. It covers every row the three
+-- commands touch: linked to the project, or remembering it.
+-- name: LockProjectTrashTasks :many
+SELECT id FROM tasks
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND (project_id = sqlc.arg(project_id)::text OR trashed_project_id = sqlc.arg(project_id)::text)
+ORDER BY id
+FOR UPDATE;
+
+-- The project trash page's task count: live tasks a restore brings back into
+-- the project (one moved to another project meanwhile does not count).
+-- name: CountProjectTrashTasks :many
+SELECT trashed_project_id::text AS project_id, count(*)::bigint AS task_count
+FROM tasks
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND trashed_project_id = ANY(sqlc.arg(project_ids)::text[])
+  AND project_id IS NULL
+  AND trashed_at IS NULL
+GROUP BY trashed_project_id;

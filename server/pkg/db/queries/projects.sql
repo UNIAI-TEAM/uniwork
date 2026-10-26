@@ -158,11 +158,6 @@ WHERE id = $1
 DELETE FROM project_resources
 WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3;
 
--- name: ClearTasksProjectID :many
-UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
-WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
-RETURNING id;
-
 -- name: DeleteTaskViewsByProjectScope :exec
 DELETE FROM task_views
 WHERE organization_id = $1

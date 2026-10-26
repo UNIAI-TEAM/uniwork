@@ -32,6 +32,50 @@ func (q *Queries) ClearTrashedProjectLinks(ctx context.Context, arg ClearTrashed
 	return err
 }
 
+const countProjectTrashTasks = `-- name: CountProjectTrashTasks :many
+SELECT trashed_project_id::text AS project_id, count(*)::bigint AS task_count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND trashed_project_id = ANY($3::text[])
+  AND project_id IS NULL
+  AND trashed_at IS NULL
+GROUP BY trashed_project_id
+`
+
+type CountProjectTrashTasksParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ProjectIds     []string `json:"project_ids"`
+}
+
+type CountProjectTrashTasksRow struct {
+	ProjectID string `json:"project_id"`
+	TaskCount int64  `json:"task_count"`
+}
+
+// The project trash page's task count: live tasks a restore brings back into
+// the project (one moved to another project meanwhile does not count).
+func (q *Queries) CountProjectTrashTasks(ctx context.Context, arg CountProjectTrashTasksParams) ([]CountProjectTrashTasksRow, error) {
+	rows, err := q.db.Query(ctx, countProjectTrashTasks, arg.OrganizationID, arg.WorkspaceID, arg.ProjectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountProjectTrashTasksRow{}
+	for rows.Next() {
+		var i CountProjectTrashTasksRow
+		if err := rows.Scan(&i.ProjectID, &i.TaskCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectIncludingTrashed = `-- name: GetProjectIncludingTrashed :one
 SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE id = $1
@@ -655,6 +699,45 @@ func (q *Queries) LockProjectForPurge(ctx context.Context, arg LockProjectForPur
 		&i.PurgeAfter,
 	)
 	return i, err
+}
+
+const lockProjectTrashTasks = `-- name: LockProjectTrashTasks :many
+SELECT id FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (project_id = $3::text OR trashed_project_id = $3::text)
+ORDER BY id
+FOR UPDATE
+`
+
+type LockProjectTrashTasksParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ProjectID      string `json:"project_id"`
+}
+
+// A project trash, restore or purge rewrites task rows; this locks them first,
+// in id order like the task trash batch locks, so a project command and a task
+// restore or purge queue instead of deadlocking. It covers every row the three
+// commands touch: linked to the project, or remembering it.
+func (q *Queries) LockProjectTrashTasks(ctx context.Context, arg LockProjectTrashTasksParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, lockProjectTrashTasks, arg.OrganizationID, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockTaskForPurge = `-- name: LockTaskForPurge :one

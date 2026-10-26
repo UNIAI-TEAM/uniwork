@@ -11,38 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const clearTasksProjectID = `-- name: ClearTasksProjectID :many
-UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
-WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
-RETURNING id
-`
-
-type ClearTasksProjectIDParams struct {
-	ProjectID      pgtype.Text `json:"project_id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-}
-
-func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProjectIDParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, clearTasksProjectID, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const countSearchProjects = `-- name: CountSearchProjects :one
 SELECT count(*)::bigint FROM projects
 WHERE organization_id = $1 AND workspace_id = $2

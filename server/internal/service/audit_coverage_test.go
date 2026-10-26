@@ -633,7 +633,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := f.tasks.DeleteProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.PurgeProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectTrashed: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Trash"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectRestored: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Restore"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.RestoreProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2332,6 +2358,9 @@ func auditActions() []string {
 		audit.ActionTaskTrashed,
 		audit.ActionTaskRestored,
 		audit.ActionTaskDeleted,
+		audit.ActionProjectTrashed,
+		audit.ActionProjectRestored,
+		audit.ActionProjectDeleted,
 		audit.ActionTaskCommentAdded,
 		audit.ActionTaskCommentUpdated,
 		audit.ActionTaskCommentDeleted,
