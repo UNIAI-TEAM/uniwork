@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-e2e.exit && echo yes || echo no)"; tail -2 /tmp/sync1-e2e.log
+DONE_FILE=no
+  ✓  30 document-access-requests.spec.ts:58:1 › a member asks for access, the owner approves lower, a second request is declined into the cooldown (20.5s)
+  ✓  31 document-body-mention.spec.ts:49:1 › owner mentions a member without view, gets the hint, and sharing clears it (7.0s)

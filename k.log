@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-e2e.exit && echo yes || echo no)"; tail -2 /tmp/sync1-e2e.log
+DONE_FILE=no
+  ✓  70 documents-folders.spec.ts:2013:1 › FD-A11 a clashing folder create takes the next free (n) (case-insensitive, accent-sensitive NFC, concurrent race, My Folder leak check), a rename into a taken name is 409, and same-name documents are allowed (5.8s)
+  ✓  71 documents-folders.spec.ts:2233:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision (12.3s)
