@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^70eb492a6" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=70eb492a697afedcc3955d60778437fc9035a092
+70eb492a6 fix(drive): address review-fe-1 findings for Drive integration row and contract
+30f360134 feat(drive): add Google Drive integration row in Settings and glossary rows
+237f51b76 feat(drive): add Drive connection endpoints, hooks, config flag and realtime invalidation

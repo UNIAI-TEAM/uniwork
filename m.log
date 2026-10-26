@@ -1,0 +1,5 @@
+$ node --test scripts/*.test.mjs > /tmp/dw2-scripts.log 2>&1; rc=$?; grep -E "^not ok|✖|ℹ (pass|fail)|^# (pass|fail)" /tmp/dw2-scripts.log | head -40; echo; echo "SCRIPTS_EXIT=$rc"
+# pass 131
+# fail 0
+
+SCRIPTS_EXIT=0
