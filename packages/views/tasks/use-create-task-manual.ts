@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
+import { errorCode, errorFields } from "@uniwork/core/api";
+import { driveKeys } from "@uniwork/core/drive";
+import { useQueryClient } from "@tanstack/react-query";
 import { paths } from "@uniwork/core/paths";
 import { useBillingPermissions } from "@uniwork/core/permissions";
 import {
@@ -19,6 +22,7 @@ import {
   useCreateTaskDraftStore,
   type CreateTaskDraft,
   type CreateTaskSettings,
+  type CreateTaskDraftDriveFile,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
@@ -26,6 +30,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastCreateTaskError } from "./create-task-error-toast";
+import { driveLinkErrorReason } from "../integrations/drive-picker/use-drive-picker";
 import { propertyFieldKey, type OverflowFieldKey } from "./create-task-manual-overflow";
 import { useWorkspaceAssigneeOptions } from "./pickers/member-options";
 
@@ -146,6 +151,7 @@ export function useCreateTaskManualState({
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const create = useCreateTask(workspaceId);
+  const queryClient = useQueryClient();
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
@@ -267,6 +273,12 @@ export function useCreateTaskManualState({
           contentReferencesAttachment(currentDraft.description ?? "", attachment),
         )
         .map((attachment) => attachment.id),
+      drive_files: currentDraft.driveFiles?.length
+        ? currentDraft.driveFiles.map((df) => ({
+            connection_id: df.connectionId,
+            external_file_id: df.externalFileId,
+          }))
+        : undefined,
       properties: currentDraft.properties,
     };
     if (submitter) {
@@ -281,6 +293,11 @@ export function useCreateTaskManualState({
     void create
       .mutateAsync({ ...body, idempotencyKey: currentDraft.idempotencyKey })
       .then((task) => {
+        if (submitted.driveFiles?.length) {
+          void queryClient.invalidateQueries({
+            queryKey: driveKeys.workspace(workspaceId),
+          });
+        }
         const latest = draftRef.current;
         const submittedIsStillCurrent =
           latest.idempotencyKey === submitted.idempotencyKey &&
@@ -324,6 +341,67 @@ export function useCreateTaskManualState({
   };
 
   const reportCreateError = (error: unknown) => {
+    const code = errorCode(error);
+    const fields = errorFields(error) ?? {};
+    const failedExternalFileId =
+      typeof fields.external_file_id === "string"
+        ? fields.external_file_id
+        : typeof fields.file_id === "string"
+          ? fields.file_id
+          : undefined;
+    const failedConnectionId =
+      typeof fields.connection_id === "string" ? fields.connection_id : undefined;
+    const isDriveCode =
+      code === "drive_grant_required" ||
+      code === "drive_file_not_accessible" ||
+      code === "blocked_by_workspace_admin" ||
+      code === "drive_unavailable" ||
+      code === "auth_failed" ||
+      code === "drive_connection_lost" ||
+      code === "needs_reconnect";
+
+    if (
+      (failedExternalFileId || isDriveCode) &&
+      draftRef.current.driveFiles?.length
+    ) {
+      const reason = driveLinkErrorReason(code, (k) => t(`drive.picker.${k}`));
+      const currentFiles = draftRef.current.driveFiles;
+      let matchedName: string | undefined;
+      const updatedDriveFiles: CreateTaskDraftDriveFile[] = currentFiles.map(
+        (df) => {
+          const matchesFile = failedExternalFileId
+            ? df.externalFileId === failedExternalFileId &&
+              (!failedConnectionId || df.connectionId === failedConnectionId)
+            : failedConnectionId
+              ? df.connectionId === failedConnectionId
+              : currentFiles.length === 1;
+          if (matchesFile) {
+            matchedName = df.name;
+            return {
+              ...df,
+              errorCode: code ?? "link_failed",
+              errorMessage: reason,
+            };
+          }
+          return df;
+        },
+      );
+      updateDraft({ driveFiles: updatedDriveFiles });
+      if (matchedName) {
+        toast.error(
+          t("drive.picker.errors.file_error_named", {
+            name: matchedName,
+            reason,
+          }),
+        );
+        return;
+      }
+      if (isDriveCode) {
+        toast.error(reason);
+        return;
+      }
+    }
+
     toastCreateTaskError(
       error,
       {

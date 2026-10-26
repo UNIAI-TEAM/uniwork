@@ -1,0 +1,264 @@
+"use client";
+
+import { useRef } from "react";
+import { Paperclip, TriangleAlert, Upload, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useDriveConnections } from "@uniwork/core/drive";
+import { useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
+import type { CreateTaskDraftDriveFile } from "@uniwork/core/tasks/stores/create-task-draft-store";
+import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
+import { cn } from "@uniwork/ui/lib/utils";
+import { GoogleDriveMark } from "../common/provider-icons";
+import {
+  DocumentTypeIcon,
+  type DocumentIconFormat,
+} from "../documents/document-type-icon";
+import {
+  useDrivePicker,
+  type DrivePickerAdapter,
+} from "../integrations/drive-picker";
+import { DRIVE_CONNECTOR_FLAG } from "../settings/components/drive-integration-row";
+
+const EMPTY_CONFIG = {
+  flags: {} as Record<string, boolean>,
+  rum_sample_rate: 0,
+  work_management_capabilities: {},
+  drive: { available: false },
+} as const;
+
+export function driveMimeToIconFormat(
+  mimeType: string,
+  iconKind?: string,
+): DocumentIconFormat {
+  if (iconKind === "google_doc") return "google_doc";
+  if (iconKind === "google_sheet") return "google_sheet";
+  if (iconKind === "google_slide") return "google_slide";
+  if (iconKind === "folder") return "folder";
+  if (iconKind === "pdf") return "pdf";
+  if (iconKind === "docx") return "docx";
+  if (iconKind === "xlsx") return "xlsx";
+  if (iconKind === "pptx") return "pptx";
+  if (mimeType === "application/vnd.google-apps.document") return "google_doc";
+  if (mimeType === "application/vnd.google-apps.spreadsheet") {
+    return "google_sheet";
+  }
+  if (mimeType === "application/vnd.google-apps.presentation") {
+    return "google_slide";
+  }
+  if (mimeType === "application/vnd.google-apps.folder") return "folder";
+  if (mimeType === "application/pdf") return "pdf";
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mimeType === "application/msword"
+  ) {
+    return "docx";
+  }
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimeType === "application/vnd.ms-excel"
+  ) {
+    return "xlsx";
+  }
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    mimeType === "application/vnd.ms-powerpoint"
+  ) {
+    return "pptx";
+  }
+  return "file";
+}
+
+export function CreateTaskDriveChips({
+  driveFiles,
+  onRemove,
+}: {
+  driveFiles?: CreateTaskDraftDriveFile[];
+  onRemove: (file: CreateTaskDraftDriveFile) => void;
+}) {
+  const { t } = useTranslation();
+  if (!driveFiles?.length) return null;
+
+  return (
+    <div
+      data-testid="create-task-drive-chips"
+      className="flex shrink-0 flex-wrap gap-2 px-5 pt-2"
+    >
+      {driveFiles.map((df) => {
+        const hasError = Boolean(df.errorCode || df.errorMessage);
+        return (
+          <div
+            key={`${df.connectionId}:${df.externalFileId}`}
+            data-testid={`create-task-drive-chip-${df.externalFileId}`}
+            data-error={hasError ? "true" : undefined}
+            className={cn(
+              "inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border py-1 pr-1.5 pl-2.5 text-caption",
+              hasError
+                ? "border-destructive/50 bg-destructive/5 text-destructive"
+                : "border-primary/25 bg-primary/5 text-foreground",
+            )}
+          >
+            <DocumentTypeIcon
+              format={driveMimeToIconFormat(df.mimeType, df.iconKind)}
+              className="size-4 shrink-0"
+            />
+            <span className="truncate font-medium text-foreground">
+              {df.name}
+            </span>
+            <span className="shrink-0 text-muted-foreground">
+              · {t("drive.terms.google_drive")}
+            </span>
+            {hasError && df.errorMessage ? (
+              <span className="inline-flex items-center gap-1 text-destructive">
+                <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{df.errorMessage}</span>
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("drive.draft_chip.remove_aria", {
+                name: df.name,
+              })}
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => onRemove(df)}
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function CreateTaskPaperclipMenu({
+  workspaceId,
+  disabled,
+  pickerAdapter,
+  onUploadFile,
+  onDriveFilesPicked,
+}: {
+  workspaceId: string;
+  disabled: boolean;
+  pickerAdapter?: DrivePickerAdapter;
+  onUploadFile: (file: File) => void;
+  onDriveFilesPicked: (
+    connectionId: string,
+    files: Array<{ id: string; name: string; mimeType: string }>,
+  ) => void;
+}) {
+  const { t } = useTranslation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: publicConfig } = usePublicConfig();
+  const config = publicConfig ?? EMPTY_CONFIG;
+  const flagFromContext = useFlag(DRIVE_CONNECTOR_FLAG, false);
+  const driveFlagEnabled =
+    flagFromContext || Boolean(config.flags?.[DRIVE_CONNECTOR_FLAG]);
+  const driveAvailable = driveFlagEnabled && Boolean(config.drive?.available);
+
+  const connectionsQuery = useDriveConnections(workspaceId, {
+    enabled: driveAvailable,
+  });
+  const connectedCount = connectionsQuery.data?.connections.length ?? 0;
+
+  const picker = useDrivePicker({
+    wsId: workspaceId,
+    forTask: true,
+    adapter: pickerAdapter,
+    onPicked: ({ connectionId, pickedFiles }) => {
+      onDriveFilesPicked(connectionId, pickedFiles);
+    },
+  });
+
+  if (!driveAvailable) {
+    return (
+      <FileUploadButton
+        size="sm"
+        multiple
+        disabled={disabled}
+        onSelect={onUploadFile}
+      />
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        disabled={disabled}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          if (files.length === 0) return;
+          e.target.value = "";
+          for (const file of files) {
+            onUploadFile(file);
+          }
+        }}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled || picker.pending}
+              aria-label={t("ui.attach_file")}
+              title={t("ui.attach_file")}
+              className="text-muted-foreground hover:text-foreground"
+            />
+          }
+        >
+          <Paperclip className="size-3.5" aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="top" className="w-72">
+          <DropdownMenuItem
+            onClick={() => {
+              fileInputRef.current?.click();
+            }}
+          >
+            <Upload aria-hidden="true" />
+            <span>{t("drive.attach_menu.upload_file")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              picker.open({ linkOnPick: false });
+            }}
+          >
+            <GoogleDriveMark className="size-4 shrink-0" aria-hidden="true" />
+            <div className="flex min-w-0 flex-col">
+              <span>{t("drive.attach_menu.from_drive")}</span>
+              {connectedCount > 0 ? (
+                <span className="text-caption text-muted-foreground">
+                  {t("drive.attach_menu.connected_accounts", {
+                    count: connectedCount,
+                  })}
+                </span>
+              ) : null}
+            </div>
+          </DropdownMenuItem>
+          <div className="mt-1 border-t border-border/60 px-2.5 pt-2 pb-1 text-caption leading-snug text-muted-foreground">
+            {t("drive.attach_menu.paste_url_hint")}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {picker.dialogs}
+    </>
+  );
+}

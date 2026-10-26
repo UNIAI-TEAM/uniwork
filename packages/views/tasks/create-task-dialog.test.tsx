@@ -1,10 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import type { User } from "@uniwork/core/types";
+import type { User, Workspace } from "@uniwork/core/types";
 import { useCreateTaskDraftStore } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { requestMock, wrap } from "../test/api-mock";
+import { createFakeDrivePickerAdapter } from "../integrations/drive-picker";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
 
 const toastError = vi.hoisted(() => vi.fn());
@@ -166,5 +169,335 @@ describe("CreateTaskDialog", () => {
       expect.stringMatching(/\/tasks$/),
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("opens the paperclip menu with 'Tải tệp lên' and 'Từ Google Drive', renders draft Drive chips, removes chips, and submits drive_files in POST /tasks", async () => {
+    const user: User = {
+      id: "u1",
+      email: "a@b.c",
+      display_name: "Minh",
+      onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z",
+      onboarding_questionnaire: {},
+      locale: "vi",
+    };
+    const workspace: Workspace = {
+      id: "ws1",
+      slug: "team",
+      name: "Moon",
+      organization_id: "o1",
+      organization_slug: "acme",
+      organization_name: "Acme",
+    };
+    setSessionUser(user);
+    useCreateTaskDraftStore.setState({
+      drafts: {},
+      activeDraftIds: {},
+      settings: {},
+      ownerId: null,
+    });
+
+    const adapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "gdoc_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+          sharingState: "shared",
+        },
+        {
+          id: "gsheet_2",
+          name: "Ngân sách Q4",
+          mimeType: "application/vnd.google-apps.spreadsheet",
+          sharingState: "shared",
+        },
+      ],
+    });
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; body?: unknown }) => {
+        if (path === "/api/v1/config") {
+          return {
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return {
+            connections: [
+              {
+                id: "dc_1",
+                provider: "google",
+                google_email: "uni-work1@gmail.com",
+                status: "active",
+                needs_reconnect: false,
+                linked_file_count: 3,
+                connected_at: "2026-10-26T09:00:00Z",
+                updated_at: "2026-10-26T09:00:00Z",
+              },
+            ],
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-connections/dc_1/picker-token" &&
+          init?.method === "POST"
+        ) {
+          return {
+            access_token: "ya29.tok",
+            expires_at: "2026-10-26T10:30:00Z",
+            developer_key: "AIzaSyTest",
+            app_id: "123456",
+            google_email: "uni-work1@gmail.com",
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/tasks" && init?.method === "POST") {
+          return {
+            task: {
+              id: "t_created",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              number: 42,
+              identifier: "UNI-42",
+              revision: 1,
+              title: "Chuẩn bị kế hoạch Q4",
+              description: "",
+              status: "todo",
+              priority: "none",
+              position: 1024,
+              created_by: "u1",
+              created_at: "2026-10-26T10:00:00Z",
+              updated_at: "2026-10-26T10:00:00Z",
+            },
+          };
+        }
+        return {};
+      },
+    );
+
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            onOpenChange={() => {}}
+            pickerAdapter={adapter}
+          />
+        </WorkspaceProvider>,
+      ),
+    );
+
+    const attachBtn = await waitFor(() => {
+      const btn = screen.getByRole("button", { name: "Đính kèm tệp" });
+      expect(btn).toHaveAttribute("aria-haspopup", "menu");
+      return btn;
+    });
+
+    fireEvent.click(attachBtn);
+
+    expect(
+      await screen.findByRole("menuitem", { name: "Tải tệp lên" }),
+    ).toBeInTheDocument();
+    const fromDriveItem = await screen.findByRole("menuitem", {
+      name: /Từ Google Drive/,
+    });
+    expect(fromDriveItem).toHaveTextContent("1 tài khoản đã kết nối");
+
+    fireEvent.click(fromDriveItem);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("create-task-drive-chip-gdoc_1"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("create-task-drive-chip-gsheet_2"),
+      ).toBeInTheDocument();
+    });
+
+    // Picker did NOT call POST .../drive-files during draft stage
+    expect(requestMock).not.toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files",
+      expect.anything(),
+    );
+
+    // Remove the second chip before submitting
+    fireEvent.click(
+      screen.getByRole("button", { name: "Gỡ Ngân sách Q4" }),
+    );
+    expect(
+      screen.queryByTestId("create-task-drive-chip-gsheet_2"),
+    ).toBeNull();
+
+    // Enter title and submit
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Chuẩn bị kế hoạch Q4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Tạo/ }));
+
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/tasks",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.objectContaining({
+            title: "Chuẩn bị kế hoạch Q4",
+            drive_files: [
+              {
+                connection_id: "dc_1",
+                external_file_id: "gdoc_1",
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    resetAuthStoreForTests();
+  });
+
+  it("keeps the modal open and marks the offending Drive chip when POST /tasks fails on a Drive file", async () => {
+    const user: User = {
+      id: "u1",
+      email: "a@b.c",
+      display_name: "Minh",
+      onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z",
+      onboarding_questionnaire: {},
+      locale: "vi",
+    };
+    const workspace: Workspace = {
+      id: "ws1",
+      slug: "team",
+      name: "Moon",
+      organization_id: "o1",
+      organization_slug: "acme",
+      organization_name: "Acme",
+    };
+    setSessionUser(user);
+    useCreateTaskDraftStore.setState({
+      drafts: {},
+      activeDraftIds: {},
+      settings: {},
+      ownerId: null,
+    });
+
+    const adapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "gdoc_bad",
+          name: "Tài liệu bị thu hồi",
+          mimeType: "application/vnd.google-apps.document",
+          sharingState: "shared",
+        },
+      ],
+    });
+
+    const onOpenChange = vi.fn();
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path === "/api/v1/config") {
+          return {
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return {
+            connections: [
+              {
+                id: "dc_1",
+                provider: "google",
+                google_email: "uni-work1@gmail.com",
+                status: "active",
+                needs_reconnect: false,
+                linked_file_count: 1,
+                connected_at: "2026-10-26T09:00:00Z",
+                updated_at: "2026-10-26T09:00:00Z",
+              },
+            ],
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-connections/dc_1/picker-token" &&
+          init?.method === "POST"
+        ) {
+          return {
+            access_token: "ya29.tok",
+            expires_at: "2026-10-26T10:30:00Z",
+            developer_key: "AIzaSyTest",
+            app_id: "123456",
+            google_email: "uni-work1@gmail.com",
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/tasks" && init?.method === "POST") {
+          throw new ApiError(
+            "drive grant required",
+            "drive_grant_required",
+            403,
+            undefined,
+            {
+              connection_id: "dc_1",
+              external_file_id: "gdoc_bad",
+            },
+          );
+        }
+        return {};
+      },
+    );
+
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            onOpenChange={onOpenChange}
+            pickerAdapter={adapter}
+          />
+        </WorkspaceProvider>,
+      ),
+    );
+
+    const attachBtn = await waitFor(() => {
+      const btn = screen.getByRole("button", { name: "Đính kèm tệp" });
+      expect(btn).toHaveAttribute("aria-haspopup", "menu");
+      return btn;
+    });
+
+    fireEvent.click(attachBtn);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Từ Google Drive/ }),
+    );
+
+    const chip = await screen.findByTestId("create-task-drive-chip-gdoc_bad");
+    expect(chip).not.toHaveAttribute("data-error");
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Việc có tệp lỗi" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Tạo/ }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        expect.stringContaining("Tài liệu bị thu hồi"),
+      );
+    });
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(
+      screen.getByTestId("create-task-drive-chip-gdoc_bad"),
+    ).toHaveAttribute("data-error", "true");
+    expect(
+      screen.getByTestId("create-task-drive-chip-gdoc_bad"),
+    ).toHaveTextContent("Bạn chưa cấp cho UniWork quyền đọc tệp này.");
+
+    resetAuthStoreForTests();
   });
 });

@@ -17,7 +17,7 @@ import { paths } from "@uniwork/core/paths";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { apiErrorCopy } from "../../api-error-copy";
-import { useWorkspace } from "../../layout/workspace-context";
+import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
 import { useDriveConnectPopup } from "../use-drive-connect-popup";
 import {
@@ -239,7 +239,7 @@ export function useDrivePicker({
   onPicked,
 }: UseDrivePickerOptions): UseDrivePickerReturn {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "drive.picker" });
-  const { workspace } = useWorkspace();
+  const workspaceContext = useOptionalWorkspace();
   const connectionsQuery = useDriveConnections(wsId);
   const pickerTokenMutation = useDrivePickerToken(wsId);
   const linkFilesMutation = useLinkDriveFiles(wsId);
@@ -253,7 +253,9 @@ export function useDrivePicker({
   const activeRequestRef = useRef<DrivePickerOpenRequest>({});
   const busyRef = useRef(false);
 
-  const reconnectHref = `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=integrations&connect=drive`;
+  const reconnectHref = workspaceContext
+    ? `${paths.workspace(workspaceContext.workspace.organization_slug, workspaceContext.workspace.slug).settings()}?tab=integrations&connect=drive`
+    : "?tab=integrations&connect=drive";
 
   const rememberConnection = useCallback(
     (connectionId: string) => {
