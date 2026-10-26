@@ -286,6 +286,20 @@
           "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Câu trả lời của Hỏi UNI chỉ ghi tên trạng thái như trên màn hình, không còn kèm mã trạng thái nội bộ trong ngoặc như \"Cần làm (todo)\". Hỏi công việc theo tên trạng thái mà nhóm tự đặt, ví dụ \"Chờ QA\", cũng tìm đúng công việc.",
           "cc8f02e00827170d00e7198c4e86696d603f9e452": "Ghi âm cuộc gọi trong Chat: khi hai người cùng bắt đầu ghi âm một cuộc gọi cùng lúc, cuộc gọi chỉ có một bản ghi âm thay vì hai bản trùng nhau."
         }
+      },
+      "v1_10_0": {
+        "title": "Chuyển chủ sở hữu tài liệu, giao diện chia khung và lịch gửi email đồng bộ hơn",
+        "summary": "Tài liệu cho phép chuyển chủ sở hữu từng tài liệu hoặc mọi tài liệu của một thành viên, lọc nhiều loại cùng lúc, và chuyển vào thùng rác không còn bị chặn bởi trang hay tệp con bạn không quản lý được. Trên máy tính, thanh trên, thanh bên, trang chính và Hỏi UNI được chia thành các khung riêng. Email Hub cập nhật ngay thư mục Đã lên lịch sau khi hẹn giờ gửi.",
+        "note": "Giao diện chia khung áp dụng trên màn hình rộng; điện thoại, máy tính bảng và UniChat giữ giao diện cũ.",
+        "features": {
+          "c237fc6d47c92be3f0abdf2c6d40c893d6acfc3af": "Tài liệu: chuyển chủ sở hữu một tài liệu cho người khác, hoặc chuyển cùng lúc mọi tài liệu của một thành viên sang thành viên khác; chủ sở hữu mới nhận được thông báo. Bộ lọc Loại chọn được nhiều loại cùng lúc, hiện thành các thẻ bỏ được từng thẻ. Khi chuyển một trang, tệp hoặc thư mục vào thùng rác, trang và tệp con mà bạn không quản lý được sẽ được chuyển ra gốc workspace thay vì chặn cả thao tác; thư mục con bạn không xem hoặc không quản lý được vẫn chặn thao tác. Trang cài UniWork Office có thêm cách cài qua kho apt và một lệnh cài nhanh bên cạnh tệp .deb, và trình xem tệp nguồn Office có nút phóng to."
+        },
+        "improvements": {
+          "ca6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99": "Giao diện trên máy tính được chia thành các khung: thanh trên chạy ngang toàn ứng dụng, gồm ô chọn tổ chức và workspace, tìm kiếm, Hỏi UNI, thông báo, tạo mới và tài khoản; thanh bên là một khung riêng thu gọn được (phím ⌘B vẫn dùng được); trang chính và Hỏi UNI là hai khung cạnh nhau, kéo được để đổi độ rộng. Nút Tạo việc trên thanh trên dùng biểu tượng cặp hồ sơ có dấu cộng, và mọi biểu tượng có nét dày như nhau ở mọi cỡ."
+        },
+        "fixes": {
+          "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541": "Email Hub: sau khi hẹn giờ gửi một email, hộp thư đang mở chuyển sang đúng tài khoản gửi email đó, thư mục Đã lên lịch tải lại khi mở, và danh sách cùng số đếm ở thanh bên cập nhật ngay."
+        }
       }
     }
   },
