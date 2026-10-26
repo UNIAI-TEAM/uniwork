@@ -127,26 +127,6 @@ type logFormatPanic struct{}
 
 func (logFormatPanic) Error() string { panic("nope") }
 
-func logValueResolveFailed(v slog.Value) bool {
-	if v.Kind() != slog.KindAny {
-		return false
-	}
-	err, ok := v.Any().(error)
-	if !ok {
-		return false
-	}
-	var msg string
-	func() {
-		defer func() {
-			if recover() != nil {
-				msg = ""
-			}
-		}()
-		msg = err.Error()
-	}()
-	return strings.HasPrefix(msg, "LogValue panicked")
-}
-
 func joinPrefix(prefix, key string) string {
 	if prefix == "" {
 		return key
@@ -167,10 +147,6 @@ func flattenAttrs(prefix string, attrs []slog.Attr) []slog.Attr {
 		val := a.Value
 		if val.Kind() == slog.KindLogValuer {
 			resolved := val.Resolve()
-			if logValueResolveFailed(resolved) {
-				out = append(out, slog.Attr{Key: key, Value: slog.AnyValue(logFormatPanic{})})
-				continue
-			}
 			if resolved.Kind() == slog.KindGroup {
 				children := resolved.Group()
 				if len(children) == 0 {
@@ -181,7 +157,21 @@ func flattenAttrs(prefix string, attrs []slog.Attr) []slog.Attr {
 			}
 			if resolved.Kind() == slog.KindAny {
 				if err, ok := resolved.Any().(error); ok && err != nil {
-					out = append(out, slog.Attr{Key: key, Value: slog.StringValue(err.Error())})
+					var msg string
+					panicked := false
+					func() {
+						defer func() {
+							if recover() != nil {
+								panicked = true
+							}
+						}()
+						msg = err.Error()
+					}()
+					if panicked || strings.HasPrefix(msg, "LogValue panicked") {
+						out = append(out, slog.Attr{Key: key, Value: slog.AnyValue(logFormatPanic{})})
+					} else {
+						out = append(out, slog.Attr{Key: key, Value: slog.StringValue(msg)})
+					}
 					continue
 				}
 			}

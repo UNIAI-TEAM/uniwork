@@ -422,6 +422,48 @@ func (panicLogValuer) LogValue() slog.Value {
 	panic("nope")
 }
 
+type errorLogValuer struct {
+	err error
+}
+
+func (v errorLogValuer) LogValue() slog.Value {
+	return slog.AnyValue(v.err)
+}
+
+func TestTextLogValuerErrorCallsErrorOnce(t *testing.T) {
+	var n int
+	err := countingErr{n: &n, msg: "timeout"}
+	got := render(t, false, slog.LevelError, "x", slog.Any("err", errorLogValuer{err: err}))
+	if n != 1 {
+		t.Fatalf("Error() calls = %d, want 1", n)
+	}
+	if !strings.Contains(got, "timeout") {
+		t.Fatalf("missing error text: %s", got)
+	}
+	if strings.Contains(got, "!PANIC") {
+		t.Fatalf("unexpected panic marker: %s", got)
+	}
+}
+
+func TestTextLogValuerPanickingErrorDoesNotEscapeHandle(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTextHandler(&buf, slog.LevelDebug, false)
+	r := fixedRecord(slog.LevelError, "x",
+		slog.Any("err", errorLogValuer{err: panicErr{}}),
+		"room_id", "r1",
+	)
+	if err := h.Handle(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "!PANIC") {
+		t.Fatalf("missing panic marker: %s", got)
+	}
+	if !strings.Contains(got, "room_id=r1") {
+		t.Fatalf("dropped trailing attr: %s", got)
+	}
+}
+
 func TestTextLogValuerGroupAndPanic(t *testing.T) {
 	got := render(t, false, slog.LevelInfo, "valuer group", slog.Any("g", groupLogValuer{}))
 	if !strings.Contains(got, "g.method=GET") {
