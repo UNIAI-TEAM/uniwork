@@ -324,8 +324,9 @@ describe("folder layout (Folder.dc)", () => {
     expect(within(heading).queryByRole("button")).toBeNull();
     const row = crumb.parentElement?.parentElement;
     expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
-    expect(row).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(row).not.toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+    expect(typeFilterSelect()!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),
@@ -378,15 +379,15 @@ describe("folder layout (Folder.dc)", () => {
     expect(heading.parentElement).not.toHaveClass("shrink-[1000000]", "shrink-[0.001]", "shrink-0");
     expect(heading).toHaveClass("min-w-10", "truncate");
 
-    // The row is a size container (the sidebars decide the width, not the viewport): the
-    // breadcrumb and the actions share row one, the search box moves under them until the
-    // row is wide enough to hold it beside the actions.
+    // The header row holds the breadcrumb and the actions; the search box sits on the filter row below.
     const box = crumb.parentElement as HTMLElement;
     const row = box.parentElement as HTMLElement;
     expect(row).toHaveClass("@container", "flex-wrap");
     expect(row).not.toHaveClass("flex-nowrap", "lg:flex-nowrap");
     const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
-    expect(search).toHaveClass("order-last", "basis-full", "@min-[60rem]:order-none", "@min-[60rem]:w-56");
+    expect(row).not.toContainElement(search);
+    expect(typeFilterSelect()!.parentElement).toContainElement(search);
+    expect(search).toHaveClass("basis-full", "@min-[48rem]:ml-auto", "@min-[48rem]:w-56", "@min-[48rem]:focus-within:w-80");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
     expect(row.lastElementChild).toHaveClass("shrink-0");
     expect(row.lastElementChild).toContainElement(create);
