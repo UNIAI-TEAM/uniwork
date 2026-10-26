@@ -53,8 +53,6 @@ export type CreateTaskManualPanelProps = {
   pickerAdapter?: DrivePickerAdapter;
 };
 
-
-
 export function CreateTaskManualPanel({
   workspaceId,
   defaults,
@@ -70,7 +68,6 @@ export function CreateTaskManualPanel({
   pickerAdapter,
 }: CreateTaskManualPanelProps) {
   const editorRef = useRef<ContentEditorRef>(null);
-
   const sendShortcut = useShortcut("send");
   const state = useCreateTaskManualState({
     workspaceId,

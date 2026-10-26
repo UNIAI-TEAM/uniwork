@@ -2,18 +2,60 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import {
+  FeatureFlagService,
+  FeatureFlagsProvider,
+  StaticProvider,
+} from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { useCreateTaskDraftStore } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { createFakeDrivePickerAdapter } from "../integrations/drive-picker";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrap, wrapWithNav } from "../test/api-mock";
+import { requestMock, wrapWithNav } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
 
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 
 initI18n();
+
+const defaultUser: User = {
+  id: "u1",
+  email: "a@b.c",
+  display_name: "Minh",
+  onboarded_at: "2026-01-01T00:00:00Z",
+  email_verified_at: "2026-01-01T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
+
+const defaultWorkspace: Workspace = {
+  id: "ws1",
+  slug: "team",
+  name: "Moon",
+  organization_id: "o1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
+
+function renderInWorkspace(
+  ui: React.ReactElement,
+  opts?: { driveFlag?: boolean },
+) {
+  const service = new FeatureFlagService(
+    new StaticProvider({
+      drive_connector: { default: opts?.driveFlag ?? false },
+    }),
+  );
+  return wrapWithNav(
+    <FeatureFlagsProvider service={service}>
+      <WorkspaceProvider workspace={defaultWorkspace} user={defaultUser}>
+        {ui}
+      </WorkspaceProvider>
+    </FeatureFlagsProvider>,
+  );
+}
 
 describe("CreateTaskDialog", () => {
   beforeEach(() => {
@@ -24,7 +66,7 @@ describe("CreateTaskDialog", () => {
 
   it("switches body mode without unmounting the dialog role", async () => {
     render(
-      wrap(
+      renderInWorkspace(
         <CreateTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
       ),
     );
@@ -38,7 +80,7 @@ describe("CreateTaskDialog", () => {
 
   it("renders the manual composer with compact property pills", () => {
     render(
-      wrap(
+      renderInWorkspace(
         <CreateTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
       ),
     );
@@ -70,7 +112,7 @@ describe("CreateTaskDialog", () => {
     const submit = vi.fn(async () => {});
     const onOpenChange = vi.fn();
     const { rerender } = render(
-      wrap(
+      renderInWorkspace(
         <CreateTaskDialog
           workspaceId="ws1"
           open
@@ -96,7 +138,7 @@ describe("CreateTaskDialog", () => {
     // The next item: the composer starts over on it, with the caret in its title.
     screen.getByRole("button", { name: /^Tạo/ }).focus();
     rerender(
-      wrap(
+      renderInWorkspace(
         <CreateTaskDialog
           workspaceId="ws1"
           open
@@ -143,7 +185,7 @@ describe("CreateTaskDialog", () => {
     });
 
     render(
-      wrap(
+      renderInWorkspace(
         <CreateTaskDialog
           workspaceId="ws1"
           open
@@ -171,25 +213,40 @@ describe("CreateTaskDialog", () => {
     );
   });
 
+  it("renders the plain paperclip button without a dropdown menu when Drive is unavailable", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: false },
+          rum_sample_rate: 0,
+          drive: { available: false },
+        };
+      }
+      return {};
+    });
+
+    render(
+      renderInWorkspace(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={() => {}}
+        />,
+        { driveFlag: false },
+      ),
+    );
+
+    const attachBtn = screen.getByRole("button", { name: "Đính kèm tệp" });
+    expect(attachBtn).not.toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(attachBtn);
+    expect(
+      screen.queryByRole("menuitem", { name: /Từ Google Drive/ }),
+    ).toBeNull();
+  });
+
   it("opens the paperclip menu with 'Tải tệp lên' and 'Từ Google Drive', renders draft Drive chips, removes chips, and submits drive_files in POST /tasks", async () => {
-    const user: User = {
-      id: "u1",
-      email: "a@b.c",
-      display_name: "Minh",
-      onboarded_at: "2026-01-01T00:00:00Z",
-      email_verified_at: "2026-01-01T00:00:00Z",
-      onboarding_questionnaire: {},
-      locale: "vi",
-    };
-    const workspace: Workspace = {
-      id: "ws1",
-      slug: "team",
-      name: "Moon",
-      organization_id: "o1",
-      organization_slug: "acme",
-      organization_name: "Acme",
-    };
-    setSessionUser(user);
+    setSessionUser(defaultUser);
     useCreateTaskDraftStore.setState({
       drafts: {},
       activeDraftIds: {},
@@ -237,6 +294,16 @@ describe("CreateTaskDialog", () => {
                 connected_at: "2026-10-26T09:00:00Z",
                 updated_at: "2026-10-26T09:00:00Z",
               },
+              {
+                id: "dc_2",
+                provider: "google",
+                google_email: "work2@vietants.vn",
+                status: "active",
+                needs_reconnect: false,
+                linked_file_count: 1,
+                connected_at: "2026-10-26T09:10:00Z",
+                updated_at: "2026-10-26T09:10:00Z",
+              },
             ],
           };
         }
@@ -245,9 +312,9 @@ describe("CreateTaskDialog", () => {
           init?.method === "POST"
         ) {
           return {
-            access_token: "ya29.tok",
+            access_token: "picker-tok",
             expires_at: "2026-10-26T10:30:00Z",
-            developer_key: "AIzaSyTest",
+            developer_key: "dev-key",
             app_id: "123456",
             google_email: "uni-work1@gmail.com",
           };
@@ -277,16 +344,15 @@ describe("CreateTaskDialog", () => {
     );
 
     render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <CreateTaskDialog
-            workspaceId="ws1"
-            open
-            showTrigger={false}
-            onOpenChange={() => {}}
-            pickerAdapter={adapter}
-          />
-        </WorkspaceProvider>,
+      renderInWorkspace(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={() => {}}
+          pickerAdapter={adapter}
+        />,
+        { driveFlag: true },
       ),
     );
 
@@ -304,10 +370,14 @@ describe("CreateTaskDialog", () => {
     const fromDriveItem = await screen.findByRole("menuitem", {
       name: /Từ Google Drive/,
     });
-    expect(fromDriveItem).toHaveTextContent("1 tài khoản đã kết nối");
+    expect(fromDriveItem).toHaveTextContent("2 tài khoản đã kết nối");
 
     fireEvent.click(fromDriveItem);
 
+    const continueBtn = await screen.findByRole("button", {
+      name: "Mở Google Picker",
+    });
+    fireEvent.click(continueBtn);
     await waitFor(() => {
       expect(
         screen.getByTestId("create-task-drive-chip-gdoc_1"),
@@ -359,24 +429,7 @@ describe("CreateTaskDialog", () => {
   });
 
   it("keeps the modal open and marks the offending Drive chip when POST /tasks fails on a Drive file", async () => {
-    const user: User = {
-      id: "u1",
-      email: "a@b.c",
-      display_name: "Minh",
-      onboarded_at: "2026-01-01T00:00:00Z",
-      email_verified_at: "2026-01-01T00:00:00Z",
-      onboarding_questionnaire: {},
-      locale: "vi",
-    };
-    const workspace: Workspace = {
-      id: "ws1",
-      slug: "team",
-      name: "Moon",
-      organization_id: "o1",
-      organization_slug: "acme",
-      organization_name: "Acme",
-    };
-    setSessionUser(user);
+    setSessionUser(defaultUser);
     useCreateTaskDraftStore.setState({
       drafts: {},
       activeDraftIds: {},
@@ -387,6 +440,12 @@ describe("CreateTaskDialog", () => {
     const adapter = createFakeDrivePickerAdapter({
       status: "picked",
       files: [
+        {
+          id: "gdoc_ok",
+          name: "Tài liệu hợp lệ",
+          mimeType: "application/vnd.google-apps.document",
+          sharingState: "shared",
+        },
         {
           id: "gdoc_bad",
           name: "Tài liệu bị thu hồi",
@@ -428,9 +487,9 @@ describe("CreateTaskDialog", () => {
           init?.method === "POST"
         ) {
           return {
-            access_token: "ya29.tok",
+            access_token: "picker-tok",
             expires_at: "2026-10-26T10:30:00Z",
-            developer_key: "AIzaSyTest",
+            developer_key: "dev-key",
             app_id: "123456",
             google_email: "uni-work1@gmail.com",
           };
@@ -442,7 +501,7 @@ describe("CreateTaskDialog", () => {
             403,
             undefined,
             {
-              connection_id: "dc_1",
+              drive_files_index: 1,
               external_file_id: "gdoc_bad",
             },
           );
@@ -452,16 +511,15 @@ describe("CreateTaskDialog", () => {
     );
 
     render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <CreateTaskDialog
-            workspaceId="ws1"
-            open
-            showTrigger={false}
-            onOpenChange={onOpenChange}
-            pickerAdapter={adapter}
-          />
-        </WorkspaceProvider>,
+      renderInWorkspace(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+          pickerAdapter={adapter}
+        />,
+        { driveFlag: true },
       ),
     );
 
@@ -476,8 +534,10 @@ describe("CreateTaskDialog", () => {
       await screen.findByRole("menuitem", { name: /Từ Google Drive/ }),
     );
 
-    const chip = await screen.findByTestId("create-task-drive-chip-gdoc_bad");
-    expect(chip).not.toHaveAttribute("data-error");
+    const okChip = await screen.findByTestId("create-task-drive-chip-gdoc_ok");
+    const badChip = await screen.findByTestId("create-task-drive-chip-gdoc_bad");
+    expect(okChip).not.toHaveAttribute("data-error");
+    expect(badChip).not.toHaveAttribute("data-error");
 
     fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
       target: { value: "Việc có tệp lỗi" },
@@ -492,11 +552,24 @@ describe("CreateTaskDialog", () => {
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(
+      screen.getByTestId("create-task-drive-chip-gdoc_ok"),
+    ).not.toHaveAttribute("data-error");
+    expect(
       screen.getByTestId("create-task-drive-chip-gdoc_bad"),
     ).toHaveAttribute("data-error", "true");
     expect(
       screen.getByTestId("create-task-drive-chip-gdoc_bad"),
     ).toHaveTextContent("Bạn chưa cấp cho UniWork quyền đọc tệp này.");
+
+    const persistedDraft = useCreateTaskDraftStore.getState().draftFor("ws1");
+    expect(persistedDraft?.driveFiles?.[0]).not.toHaveProperty("errorCode");
+    expect(persistedDraft?.driveFiles?.[1]).toEqual(
+      expect.objectContaining({
+        externalFileId: "gdoc_bad",
+        errorCode: "drive_grant_required",
+      }),
+    );
+    expect(persistedDraft?.driveFiles?.[1]).not.toHaveProperty("errorMessage");
 
     resetAuthStoreForTests();
   });

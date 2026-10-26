@@ -4,7 +4,6 @@ import { useRef } from "react";
 import { Paperclip, TriangleAlert, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDriveConnections } from "@uniwork/core/drive";
-import { useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
 import type { CreateTaskDraftDriveFile } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -21,17 +20,11 @@ import {
   type DocumentIconFormat,
 } from "../documents/document-type-icon";
 import {
+  driveLinkErrorReason,
   useDrivePicker,
   type DrivePickerAdapter,
 } from "../integrations/drive-picker";
-import { DRIVE_CONNECTOR_FLAG } from "../settings/components/drive-integration-row";
-
-const EMPTY_CONFIG = {
-  flags: {} as Record<string, boolean>,
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-  drive: { available: false },
-} as const;
+import { useDriveAvailable } from "../settings/components/drive-integration-row";
 
 export function driveMimeToIconFormat(
   mimeType: string,
@@ -94,7 +87,10 @@ export function CreateTaskDriveChips({
       className="flex shrink-0 flex-wrap gap-2 px-5 pt-2"
     >
       {driveFiles.map((df) => {
-        const hasError = Boolean(df.errorCode || df.errorMessage);
+        const hasError = Boolean(df.errorCode);
+        const errorMessage = df.errorCode
+          ? driveLinkErrorReason(df.errorCode, (k) => t(`drive.picker.${k}`))
+          : undefined;
         return (
           <div
             key={`${df.connectionId}:${df.externalFileId}`}
@@ -103,8 +99,8 @@ export function CreateTaskDriveChips({
             className={cn(
               "inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border py-1 pr-1.5 pl-2.5 text-caption",
               hasError
-                ? "border-destructive/50 bg-destructive/5 text-destructive"
-                : "border-primary/25 bg-primary/5 text-foreground",
+                ? "border-destructive-soft-foreground/20 bg-destructive-soft text-destructive-soft-foreground"
+                : "border-brand/25 bg-brand-subtle text-foreground",
             )}
           >
             <DocumentTypeIcon
@@ -117,10 +113,10 @@ export function CreateTaskDriveChips({
             <span className="shrink-0 text-muted-foreground">
               · {t("drive.terms.google_drive")}
             </span>
-            {hasError && df.errorMessage ? (
-              <span className="inline-flex items-center gap-1 text-destructive">
+            {errorMessage ? (
+              <span className="inline-flex items-center gap-1 text-destructive-soft-foreground">
                 <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{df.errorMessage}</span>
+                <span className="truncate">{errorMessage}</span>
               </span>
             ) : null}
             <Button
@@ -158,28 +154,7 @@ export function CreateTaskPaperclipMenu({
     files: Array<{ id: string; name: string; mimeType: string }>,
   ) => void;
 }) {
-  const { t } = useTranslation();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { data: publicConfig } = usePublicConfig();
-  const config = publicConfig ?? EMPTY_CONFIG;
-  const flagFromContext = useFlag(DRIVE_CONNECTOR_FLAG, false);
-  const driveFlagEnabled =
-    flagFromContext || Boolean(config.flags?.[DRIVE_CONNECTOR_FLAG]);
-  const driveAvailable = driveFlagEnabled && Boolean(config.drive?.available);
-
-  const connectionsQuery = useDriveConnections(workspaceId, {
-    enabled: driveAvailable,
-  });
-  const connectedCount = connectionsQuery.data?.connections.length ?? 0;
-
-  const picker = useDrivePicker({
-    wsId: workspaceId,
-    forTask: true,
-    adapter: pickerAdapter,
-    onPicked: ({ connectionId, pickedFiles }) => {
-      onDriveFilesPicked(connectionId, pickedFiles);
-    },
-  });
+  const driveAvailable = useDriveAvailable();
 
   if (!driveAvailable) {
     return (
@@ -192,6 +167,46 @@ export function CreateTaskPaperclipMenu({
     );
   }
 
+  return (
+    <CreateTaskPaperclipDropdownMenu
+      workspaceId={workspaceId}
+      disabled={disabled}
+      pickerAdapter={pickerAdapter}
+      onUploadFile={onUploadFile}
+      onDriveFilesPicked={onDriveFilesPicked}
+    />
+  );
+}
+
+function CreateTaskPaperclipDropdownMenu({
+  workspaceId,
+  disabled,
+  pickerAdapter,
+  onUploadFile,
+  onDriveFilesPicked,
+}: {
+  workspaceId: string;
+  disabled: boolean;
+  pickerAdapter?: DrivePickerAdapter;
+  onUploadFile: (file: File) => void;
+  onDriveFilesPicked: (
+    connectionId: string,
+    files: Array<{ id: string; name: string; mimeType: string }>,
+  ) => void;
+}) {
+  const { t } = useTranslation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const connectionsQuery = useDriveConnections(workspaceId);
+  const connectedCount = connectionsQuery.data?.connections.length ?? 0;
+
+  const picker = useDrivePicker({
+    wsId: workspaceId,
+    forTask: true,
+    adapter: pickerAdapter,
+    onPicked: ({ connectionId, pickedFiles }) => {
+      onDriveFilesPicked(connectionId, pickedFiles);
+    },
+  });
   return (
     <>
       <input
@@ -244,7 +259,7 @@ export function CreateTaskPaperclipMenu({
             <GoogleDriveMark className="size-4 shrink-0" aria-hidden="true" />
             <div className="flex min-w-0 flex-col">
               <span>{t("drive.attach_menu.from_drive")}</span>
-              {connectedCount > 0 ? (
+              {connectedCount > 1 ? (
                 <span className="text-caption text-muted-foreground">
                   {t("drive.attach_menu.connected_accounts", {
                     count: connectedCount,

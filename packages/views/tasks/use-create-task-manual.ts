@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
-import { errorCode, errorFields } from "@uniwork/core/api";
 import { driveKeys } from "@uniwork/core/drive";
 import { useQueryClient } from "@tanstack/react-query";
 import { paths } from "@uniwork/core/paths";
@@ -22,7 +21,6 @@ import {
   useCreateTaskDraftStore,
   type CreateTaskDraft,
   type CreateTaskSettings,
-  type CreateTaskDraftDriveFile,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
@@ -30,7 +28,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastCreateTaskError } from "./create-task-error-toast";
-import { driveLinkErrorReason } from "../integrations/drive-picker/use-drive-picker";
+import { resolveCreateTaskDriveError } from "./create-task-drive-errors";
 import { propertyFieldKey, type OverflowFieldKey } from "./create-task-manual-overflow";
 import { useWorkspaceAssigneeOptions } from "./pickers/member-options";
 
@@ -341,65 +339,15 @@ export function useCreateTaskManualState({
   };
 
   const reportCreateError = (error: unknown) => {
-    const code = errorCode(error);
-    const fields = errorFields(error) ?? {};
-    const failedExternalFileId =
-      typeof fields.external_file_id === "string"
-        ? fields.external_file_id
-        : typeof fields.file_id === "string"
-          ? fields.file_id
-          : undefined;
-    const failedConnectionId =
-      typeof fields.connection_id === "string" ? fields.connection_id : undefined;
-    const isDriveCode =
-      code === "drive_grant_required" ||
-      code === "drive_file_not_accessible" ||
-      code === "blocked_by_workspace_admin" ||
-      code === "drive_unavailable" ||
-      code === "auth_failed" ||
-      code === "drive_connection_lost" ||
-      code === "needs_reconnect";
-
-    if (
-      (failedExternalFileId || isDriveCode) &&
-      draftRef.current.driveFiles?.length
-    ) {
-      const reason = driveLinkErrorReason(code, (k) => t(`drive.picker.${k}`));
-      const currentFiles = draftRef.current.driveFiles;
-      let matchedName: string | undefined;
-      const updatedDriveFiles: CreateTaskDraftDriveFile[] = currentFiles.map(
-        (df) => {
-          const matchesFile = failedExternalFileId
-            ? df.externalFileId === failedExternalFileId &&
-              (!failedConnectionId || df.connectionId === failedConnectionId)
-            : failedConnectionId
-              ? df.connectionId === failedConnectionId
-              : currentFiles.length === 1;
-          if (matchesFile) {
-            matchedName = df.name;
-            return {
-              ...df,
-              errorCode: code ?? "link_failed",
-              errorMessage: reason,
-            };
-          }
-          return df;
-        },
-      );
-      updateDraft({ driveFiles: updatedDriveFiles });
-      if (matchedName) {
-        toast.error(
-          t("drive.picker.errors.file_error_named", {
-            name: matchedName,
-            reason,
-          }),
-        );
-        return;
-      }
-      if (isDriveCode) {
-        toast.error(reason);
-        return;
-      }
+    const driveResolution = resolveCreateTaskDriveError(
+      error,
+      draftRef.current.driveFiles,
+      t,
+    );
+    if (driveResolution) {
+      updateDraft({ driveFiles: driveResolution.updatedDriveFiles });
+      toast.error(driveResolution.toastMessage);
+      return;
     }
 
     toastCreateTaskError(
