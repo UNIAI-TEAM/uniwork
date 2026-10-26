@@ -141,11 +141,10 @@ export function DriveFileDetailView({
 
   useEffect(() => {
     if (!file || scrolledFileIdRef.current === file.id) return;
-    const matchesHash = globalThis.location?.hash === "#drive-tasks-created" || nav?.pathname.endsWith("#drive-tasks-created") === true;
-    if (!matchesHash || !tasksCreatedSectionRef.current) return;
+    if (globalThis.location?.hash !== "#drive-tasks-created" || !tasksCreatedSectionRef.current) return;
     scrolledFileIdRef.current = file.id;
     tasksCreatedSectionRef.current.scrollIntoView?.({ behavior: "smooth", block: "start" });
-  }, [file, nav?.pathname]);
+  }, [file]);
 
   if (gate !== "on") {
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;

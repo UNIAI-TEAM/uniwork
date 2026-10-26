@@ -125,7 +125,6 @@ const DriveFileLinkReceiptSchema = z.object({
   viewer_access: z.string().optional().default("granted"),
   viewer_connection_id: z.string().optional().catch(undefined),
   viewer_account_email: z.string().optional().catch(undefined),
-  tasks_created: DriveTasksCreatedSummarySchema.optional().catch(undefined),
 });
 
 export type DriveFileLinkReceipt = z.infer<typeof DriveFileLinkReceiptSchema>;
