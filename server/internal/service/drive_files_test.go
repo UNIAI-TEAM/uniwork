@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -1285,5 +1286,149 @@ func TestDriveFilePrincipalIsolationGuestAndDeactivatedMember(t *testing.T) {
 	}
 	if _, err := env.fileSvc.Get(ctx, Human(deact.ID), env.wsA.ID, sharedFileID); err != nil {
 		t.Fatalf("deact after reactivation Get: %v", err)
+	}
+}
+
+type failingDriveRoundTripper struct {
+	t *testing.T
+}
+
+func (f failingDriveRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	f.t.Errorf("unexpected outbound HTTP request under DRIVE_FAKE_PROVIDER=1: %s %s", req.Method, req.URL.String())
+	return nil, errors.New("outbound HTTP disabled in fake provider test")
+}
+
+func TestDriveFakeProviderInMemoryFilesGet(t *testing.T) {
+	t.Parallel()
+
+	box := testDriveBox(t)
+	connSvc := NewDriveConnectionService(nil, nil, nil, box)
+	connSvc.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		DriveFakeProvider: true,
+	})
+	fileSvc := NewDriveFileService(nil, nil, nil, connSvc, nil)
+	fileSvc.api.httpClient.Transport = failingDriveRoundTripper{t: t}
+
+	accEnc, err := connSvc.sealSecret("fake-access-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := db.DriveConnection{
+		ID:              "01J8X4FAKECONN000000000001",
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+	}
+
+	extID := "ext-fake-doc-seed-01"
+	meta, err := fileSvc.api.FilesGetWithConnection(context.Background(), connSvc, conn, extID)
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection under DRIVE_FAKE_PROVIDER=1: %v", err)
+	}
+	wantWebURL := "https://docs.google.com/document/d/" + extID + "/edit"
+	if meta.ExternalFileID != extID ||
+		meta.Name != extID ||
+		meta.MimeType != DriveMimeGoogleDoc ||
+		meta.IconKind != "google_doc" ||
+		meta.WebViewLink != wantWebURL ||
+		meta.OwnerDisplay != "Fake Drive Owner" ||
+		meta.SharingState != DriveSharingStateShared ||
+		meta.Trashed {
+		t.Fatalf("fake FilesGetWithConnection metadata = %+v", meta)
+	}
+}
+
+func TestDriveFakeProviderLinkAndCreateTaskWithDriveFiles(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+
+	fx.svc.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		DriveFakeProvider: true,
+		FrontendOrigin:    "http://localhost:3000",
+		APIPublicURL:      "http://localhost:8080",
+	})
+	fileSvc := NewDriveFileService(fx.pool, fx.q, fx.ws, fx.svc, nil)
+	fileSvc.SetFlags(fx.svc.flags)
+	fileSvc.api.httpClient.Transport = failingDriveRoundTripper{t: t}
+
+	taskSvc := NewTaskService(fx.pool, fx.q, fx.ws, nil)
+	taskSvc.SetDriveFiles(fileSvc)
+
+	refEnc, err := fx.svc.sealSecret("tok-r-fake-link")
+	if err != nil {
+		t.Fatal(err)
+	}
+	accEnc, err := fx.svc.sealSecret("tok-a-fake-link")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := fx.q.CreateDriveConnection(ctx, db.CreateDriveConnectionParams{
+		ID:              util.NewID(),
+		OrganizationID:  fx.org.ID,
+		UserID:          fx.user.ID,
+		Provider:        "google",
+		GoogleSub:       "sub-fake-link-" + util.NewID(),
+		GoogleEmail:     "fake-link@example.com",
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
+	})
+	if err != nil {
+		t.Fatalf("CreateDriveConnection: %v", err)
+	}
+
+	extLinkID := "ext-fake-link-doc"
+	linkRes, err := fileSvc.Link(ctx, Human(fx.user.ID), fx.work.ID, LinkDriveFilesInput{
+		ConnectionID:    conn.ID,
+		ExternalFileIDs: []string{extLinkID},
+	})
+	if err != nil || len(linkRes) != 1 || linkRes[0].Outcome != DriveFileLinkOutcomeLinked || linkRes[0].File == nil {
+		t.Fatalf("Link under DRIVE_FAKE_PROVIDER=1 = %+v, err=%v", linkRes, err)
+	}
+	got, err := fileSvc.Get(ctx, Human(fx.user.ID), fx.work.ID, linkRes[0].File.ID)
+	if err != nil {
+		t.Fatalf("Get linked Drive file: %v", err)
+	}
+	wantLinkURL := "https://docs.google.com/document/d/" + extLinkID + "/edit"
+	if got.ExternalFileID != extLinkID ||
+		got.Name != extLinkID ||
+		got.MimeType != DriveMimeGoogleDoc ||
+		got.IconKind != "google_doc" ||
+		got.WebViewLink != wantLinkURL ||
+		got.OwnerDisplay != "Fake Drive Owner" ||
+		got.SharingState != DriveSharingStateShared {
+		t.Fatalf("Link stored metadata = %+v", got)
+	}
+
+	extTaskID := "ext-fake-task-doc"
+	createdTask, err := taskSvc.Create(ctx, Human(fx.user.ID), fx.work.ID, CreateTaskInput{
+		Title: "Fake Drive Task",
+		DriveFiles: []CreateTaskDriveFileInput{{
+			ConnectionID:   conn.ID,
+			ExternalFileID: extTaskID,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CreateTask with DriveFiles under DRIVE_FAKE_PROVIDER=1: %v", err)
+	}
+	cards, err := fileSvc.ListForTask(ctx, Human(fx.user.ID), createdTask.ID)
+	if err != nil || len(cards) != 1 {
+		t.Fatalf("ListForTask = %+v, err=%v", cards, err)
+	}
+	taskFile, err := fileSvc.Get(ctx, Human(fx.user.ID), fx.work.ID, cards[0].ID)
+	if err != nil {
+		t.Fatalf("Get task Drive file: %v", err)
+	}
+	wantTaskURL := "https://docs.google.com/document/d/" + extTaskID + "/edit"
+	if taskFile.ExternalFileID != extTaskID ||
+		taskFile.Name != extTaskID ||
+		taskFile.MimeType != DriveMimeGoogleDoc ||
+		taskFile.IconKind != "google_doc" ||
+		taskFile.WebViewLink != wantTaskURL ||
+		taskFile.OwnerDisplay != "Fake Drive Owner" ||
+		taskFile.SharingState != DriveSharingStateShared {
+		t.Fatalf("CreateTask stored Drive file = %+v", taskFile)
 	}
 }
