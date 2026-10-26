@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { e2eApiUrl } from "./api-url";
 import { auditText } from "./contrast";
 import { checkActiveFocusIndicator, checkActiveFocusRingContrast } from "./focus";
+import { VI_LOCALE_STATE } from "./locale-state";
 import {
   createRecordingAccount,
   joinWorkspaceAsMember,
@@ -21,6 +22,8 @@ import {
  */
 test.describe.configure({ timeout: 240_000 });
 const B4_ON_ROOT = false; // flip to true when UNI-2180 (B4 drive-files routes) is on the root
+// Drive-be's fake files.get (DRIVE_FAKE_PROVIDER=1) echoes the external id as the file name; change here if its fake changes.
+const fakeDriveName = (externalFileId: string) => externalFileId;
 
 interface FakeDriveSeedFile {
   id: string;
@@ -194,7 +197,7 @@ test("2. User A links a Drive file from the create-task dialog (paperclip / Atta
 
   const seedFile: FakeDriveSeedFile = {
     id: "fake_gdoc_q1_task",
-    name: "Kế hoạch ra mắt Q4",
+    name: fakeDriveName("fake_gdoc_q1_task"),
     mimeType: "application/vnd.google-apps.document",
     sharingState: "shared",
   };
@@ -212,7 +215,7 @@ test("2. User A links a Drive file from the create-task dialog (paperclip / Atta
 
   const card = attachmentsSection.locator('[data-testid^="task-drive-card-"]').first();
   await expect(card).toBeVisible({ timeout: 20_000 });
-  await expect(card.getByText(seedFile.name)).toBeVisible();
+  await expect(card.getByText(fakeDriveName(seedFile.id))).toBeVisible();
   await expect(card.getByText(`Drive: ${googleEmail}`)).toBeVisible();
   await expect(card.getByRole("link", { name: "Mở trên Google Drive" })).toBeVisible();
 });
@@ -230,7 +233,7 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
 
   const seedFile: FakeDriveSeedFile = {
     id: "fake_gdoc_q1_41",
-    name: "Tài liệu chiến lược Q4",
+    name: fakeDriveName("fake_gdoc_q1_41"),
     mimeType: "application/vnd.google-apps.document",
     sharingState: "shared",
   };
@@ -257,7 +260,7 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
   await expect(sidebarAccountBtn).toBeVisible();
 
   const table = page.getByRole("table");
-  await expect(table.getByRole("link", { name: seedFile.name })).toBeVisible({ timeout: 20_000 });
+  await expect(table.getByRole("link", { name: fakeDriveName(seedFile.id) })).toBeVisible({ timeout: 20_000 });
   await expect(table.getByText(googleEmail)).toBeVisible();
   await expect(table.getByText(taskIdentifier)).toBeVisible();
 
@@ -267,7 +270,7 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
   await expect(
     page.getByRole("heading", { level: 1, name: `Drive: ${googleEmail}` }),
   ).toBeVisible();
-  await expect(table.getByRole("link", { name: seedFile.name })).toBeVisible();
+  await expect(table.getByRole("link", { name: fakeDriveName(seedFile.id) })).toBeVisible();
 });
 
 test("4. User B (same workspace, no connection): sees the file on the task card as unknown/no access per §7.10, and B's 4.1 shows none of A's files (empty state)", async ({
@@ -284,7 +287,7 @@ test("4. User B (same workspace, no connection): sees the file on the task card 
 
   const seedFile: FakeDriveSeedFile = {
     id: "fake_gdoc_q1_visibility",
-    name: "Đặc tả kỹ thuật nội bộ",
+    name: fakeDriveName("fake_gdoc_q1_visibility"),
     mimeType: "application/vnd.google-apps.document",
     sharingState: "shared",
   };
@@ -297,18 +300,30 @@ test("4. User B (same workspace, no connection): sees the file on the task card 
   );
 
   // Register User B in a separate browser context and invite B into A's workspace without connecting Drive.
-  const contextB = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const contextB = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    locale: "vi-VN",
+    storageState: VI_LOCALE_STATE,
+  });
   try {
     const pageB = await contextB.newPage();
     const userB = await registerApiUser(pageB, e2eApiUrl, "drive-q1-user-b");
     await joinWorkspaceAsMember(pageB, e2eApiUrl, accountA.token, accountA.wsId, userB);
+    const onboardedB = await pageB.request.post(`${e2eApiUrl}/api/v1/me/onboarding/complete`, {
+      headers: { authorization: `Bearer ${userB.token}`, "content-type": "application/json" },
+      data: { completion_path: "full", workspace_id: accountA.wsId },
+    });
+    expect(
+      onboardedB.ok(),
+      `user B onboarding: HTTP ${onboardedB.status()} ${await onboardedB.text()}`,
+    ).toBeTruthy();
     await loginViaUi(pageB, userB.email);
 
     // B opens the task and sees the Drive card in the viewer_access === "unknown" state (§7.10).
     await pageB.goto(`/${accountA.orgSlug}/${accountA.wsSlug}/tasks/${taskId}`);
     const attachmentsB = pageB.getByRole("region", { name: "Đính kèm" });
     await expect(attachmentsB).toBeVisible({ timeout: 30_000 });
-    await expect(attachmentsB.getByText(seedFile.name)).toBeVisible({ timeout: 20_000 });
+    await expect(attachmentsB.getByText(fakeDriveName(seedFile.id))).toBeVisible({ timeout: 20_000 });
 
     const unknownBlock = attachmentsB.locator('[data-testid^="task-drive-card-unknown-"]').first();
     await expect(unknownBlock).toBeVisible();
@@ -326,7 +341,7 @@ test("4. User B (same workspace, no connection): sees the file on the task card 
     await expect(
       pageB.getByText("Chưa có tệp Google Drive nào được liên kết."),
     ).toBeVisible({ timeout: 20_000 });
-    await expect(pageB.getByText(seedFile.name)).toHaveCount(0);
+    await expect(pageB.getByText(fakeDriveName(seedFile.id))).toHaveCount(0);
     const sidebarB = pageB.getByRole("navigation", { name: "Điều hướng tài liệu" });
     await expect(sidebarB.getByRole("button", { name: /^Google Drive/ })).toHaveCount(0);
   } finally {
@@ -348,7 +363,7 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
 
   const seedFile: FakeDriveSeedFile = {
     id: "fake_gdoc_q1_unlink",
-    name: "Báo cáo tiến độ tuần",
+    name: fakeDriveName("fake_gdoc_q1_unlink"),
     mimeType: "application/vnd.google-apps.document",
     sharingState: "shared",
   };
@@ -366,7 +381,7 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
   await expect(attachmentsSection).toBeVisible({ timeout: 30_000 });
   const card = attachmentsSection.locator('[data-testid^="task-drive-card-"]').first();
   await expect(card).toBeVisible({ timeout: 20_000 });
-  await expect(card.getByText(seedFile.name)).toBeVisible();
+  await expect(card.getByText(fakeDriveName(seedFile.id))).toBeVisible();
   const cardTestId = await card.getAttribute("data-testid");
   const driveFileId = (cardTestId ?? "").replace(/^task-drive-card-/, "");
   expect(driveFileId).toBeTruthy();
@@ -378,7 +393,7 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
     `/${account.orgSlug}/${account.wsSlug}/documents/drive/${encodeURIComponent(driveFileId)}`,
   );
   await expect(
-    detailPage.getByRole("heading", { level: 1, name: seedFile.name }),
+    detailPage.getByRole("heading", { level: 1, name: fakeDriveName(seedFile.id) }),
   ).toBeVisible({ timeout: 30_000 });
   await expect(detailPage.getByRole("heading", { name: "Đang dùng ở · 1" })).toBeVisible();
   await expect(detailPage.getByRole("link", { name: new RegExp(taskIdentifier) })).toBeVisible();
@@ -397,10 +412,10 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
   await expect(
     detailPage.getByText("Chưa có tệp Google Drive nào được liên kết."),
   ).toBeVisible({ timeout: 20_000 });
-  await expect(detailPage.getByText(seedFile.name)).toHaveCount(0);
+  await expect(detailPage.getByText(fakeDriveName(seedFile.id))).toHaveCount(0);
 
   // On the already-open task page (`page`), the card disappears without a reload via `drive_file.unlinked` realtime invalidation.
-  await expect(attachmentsSection.getByText(seedFile.name)).toHaveCount(0, { timeout: 20_000 });
+  await expect(attachmentsSection.getByText(fakeDriveName(seedFile.id))).toHaveCount(0, { timeout: 20_000 });
   await expect(attachmentsSection.getByTestId("task-attachments-empty")).toBeVisible({
     timeout: 20_000,
   });
@@ -509,7 +524,7 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
 
   const seedFile: FakeDriveSeedFile = {
     id: "fake_gdoc_q1_a11y",
-    name: "Tài liệu kiểm thử tương phản",
+    name: fakeDriveName("fake_gdoc_q1_a11y"),
     mimeType: "application/vnd.google-apps.document",
     sharingState: "shared",
   };
@@ -526,7 +541,7 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
   await expect(page.getByRole("heading", { level: 1, name: "Google Drive" })).toBeVisible({
     timeout: 30_000,
   });
-  const fileLink = page.getByRole("table").getByRole("link", { name: seedFile.name });
+  const fileLink = page.getByRole("table").getByRole("link", { name: fakeDriveName(seedFile.id) });
   await expect(fileLink).toBeVisible({ timeout: 20_000 });
 
   for (const mode of ["light", "dark"] as const) {
@@ -554,7 +569,7 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
   await expect(page).toHaveURL(/\/documents\/drive\/[0-9A-HJKMNP-TV-Z]{26}$/, {
     timeout: 20_000,
   });
-  await expect(page.getByRole("heading", { level: 1, name: seedFile.name })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 1, name: fakeDriveName(seedFile.id) })).toBeVisible({
     timeout: 30_000,
   });
 
