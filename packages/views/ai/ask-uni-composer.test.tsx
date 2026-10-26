@@ -642,10 +642,10 @@ describe("AskUniComposer", () => {
       const chip = await screen.findByTitle("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh");
       expect(chip).toHaveTextContent("Kế hoạch ra mắt Q4— UNI đang dùng tài liệu này làm ngữ cảnh");
       const nameSpan = within(chip).getByText("Kế hoạch ra mắt Q4");
-      expect(nameSpan).toHaveClass("truncate");
+      expect(nameSpan).toHaveClass("truncate", "sm:max-w-[60%]", "sm:shrink-0");
       expect(nameSpan).toHaveAttribute("title", "Kế hoạch ra mắt Q4");
       expect(nameSpan.parentElement).toHaveClass("flex-col", "sm:flex-row", "sm:gap-1");
-      expect(within(chip).getByText(/UNI đang dùng tài liệu này làm ngữ cảnh/)).toHaveClass("shrink-0");
+      expect(within(chip).getByText(/UNI đang dùng tài liệu này làm ngữ cảnh/)).toHaveClass("min-w-0", "truncate");
       expect(
         screen.getByText(
           "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản uni-work1@gmail.com khi trả lời.",

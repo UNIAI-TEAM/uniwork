@@ -56,14 +56,14 @@ function Chip({
       {Icon ? <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
       {name && suffix ? (
         <span className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-1">
-          <span title={name} className="min-w-0 truncate">
+          <span title={name} className="min-w-0 truncate sm:max-w-[60%] sm:shrink-0">
             {name}
           </span>
-          <span className="shrink-0 whitespace-nowrap">
+          <span className="min-w-0 truncate">
             <span aria-hidden className="hidden sm:inline">
               {"— "}
             </span>
-            {suffix.replace(/^\s*—\s*/, "")}
+            {suffix}
           </span>
         </span>
       ) : (

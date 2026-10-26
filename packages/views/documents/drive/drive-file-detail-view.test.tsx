@@ -185,6 +185,7 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(openLinks.length).toBeGreaterThan(0);
     expect(openLinks[0]).toHaveAttribute("aria-label", t("driveLibrary.detail.open_on_drive"));
     expect(within(openLinks[0]!).getByText(t("driveLibrary.detail.open_on_drive"))).toHaveClass("hidden", "sm:inline");
+    expect(openLinks[0]!.parentElement).toHaveClass("basis-full", "sm:basis-auto");
     for (const link of openLinks) {
       expect(link).toHaveAttribute(
         "href",
@@ -604,6 +605,7 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(hintId).toBeTruthy();
     const hint = document.getElementById(hintId!);
     expect(hint).toHaveTextContent(t("driveLibrary.detail.access_required_hint"));
+    expect(askBtn.parentElement).toHaveClass("basis-full", "sm:basis-auto");
     expect(hint).toHaveClass("basis-full", "order-last");
     fireEvent.click(askBtn);
     expect(onAsk).not.toHaveBeenCalled();

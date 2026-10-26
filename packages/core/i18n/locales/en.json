@@ -7451,7 +7451,7 @@
     "page_chip": "This page: {{label}}",
     "drive": {
       "context_chip": "{{name}} — UNI is using this document as context",
-      "context_chip_suffix": " — UNI is using this document as context",
+      "context_chip_suffix": "UNI is using this document as context",
       "context_chip_unnamed": "Google Drive file — UNI is using this document as context",
       "reader_line": "View the document content on Google Drive. UNI reads the file using {{email}} when answering.",
       "reader_line_no_email": "View the document content on Google Drive. UNI reads the file using your Google Drive account when answering.",
