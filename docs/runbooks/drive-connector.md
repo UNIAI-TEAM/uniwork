@@ -1,6 +1,6 @@
 # drive-connector — vận hành connector Google Drive (UNI-2172)
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UNI-2172 (alert thu hồi token: [`DriveRevocationAbandoned.md`](DriveRevocationAbandoned.md)) · **File:** `server/internal/service/drive_connections.go`, `server/internal/service/drive_oauth_refresh.go`, `server/internal/service/drive_oauth_revoke.go`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** [`DriveTokenRefreshFailuresHigh.md`](DriveTokenRefreshFailuresHigh.md), [`DriveRevocationAbandoned.md`](DriveRevocationAbandoned.md) · **File:** `server/internal/service/drive_connections.go`, `server/internal/service/drive_oauth_refresh.go`, `server/internal/service/drive_oauth_revoke.go`
 
 Connector Google Drive (UNI-2172) dùng OAuth client riêng (`GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`), khóa mã hóa riêng (`DRIVE_CREDENTIAL_KEY`) và cờ `drive_connector`.
 
@@ -8,14 +8,14 @@ Connector Google Drive (UNI-2172) dùng OAuth client riêng (`GOOGLE_DRIVE_CLIEN
 
 - Nút "Kết nối Google Drive" không hiện trên web/desktop (`GET /api/v1/config` trả `drive.available: false`), hoặc `POST /api/v1/workspaces/{workspaceID}/drive-connections/google/start` trả `503 drive_unavailable` / `404 feature_disabled`.
 - Người dùng nhận kết quả popup `blocked_by_workspace_admin`, `scope_not_granted`, `account_mismatch`, `retry_connect`, hoặc kết nối chuyển sang `needs_reconnect` (`auth_failed_reason = invalid_grant`).
-- Cảnh báo `DriveRevocationAbandoned` bắn do worker không gọi được `https://oauth2.googleapis.com/revoke` trong 24 giờ.
+- Cảnh báo `DriveTokenRefreshFailuresHigh` bắn khi số lần đổi refresh token thất bại tăng cao, hoặc `DriveRevocationAbandoned` bắn do worker không gọi được `https://oauth2.googleapis.com/revoke` trong 24 giờ.
 
 ## Kiểm tra
 
 1. Biến môi trường trên server: `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `GOOGLE_DRIVE_PICKER_API_KEY`, `GOOGLE_DRIVE_APP_ID`, `DRIVE_CREDENTIAL_KEY` (32 byte base64, khác hoàn toàn `EMAIL_HUB_CREDENTIAL_KEY` và `CALENDAR_CREDENTIAL_KEY`). Trên môi trường dev/E2E không gọi Google thật có thể đặt `DRIVE_FAKE_PROVIDER=1` (server từ chối khởi động nếu bật khi `APP_ENV=production`).
 2. Cờ `drive_connector` trong `/admin/flags` (mặc định `false`; bật theo tổ chức hoặc toàn cục khi triển khai).
 3. Chỉ số Prometheus:
-   - `drive_token_refresh_failures_total`: số lần đổi refresh token lấy access token thất bại.
+   - `drive_token_refresh_failures_total`: số lần đổi refresh token lấy access token thất bại (xem [`DriveTokenRefreshFailuresHigh.md`](DriveTokenRefreshFailuresHigh.md)).
    - `drive_revocation_abandoned_total`: số dòng thu hồi grant bỏ cuộc sau 24 giờ thử lại (xem [`DriveRevocationAbandoned.md`](DriveRevocationAbandoned.md)).
 4. Trạng thái hàng đợi thu hồi grant:
    ```sql

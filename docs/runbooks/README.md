@@ -52,6 +52,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `UniworkAiRunCreditsHigh` | 3 | p95 token mỗi run UniWork AI > 64.000 (pending G7-D1) | [UniworkAiRunCreditsHigh.md](UniworkAiRunCreditsHigh.md) |
 | `UniworkAiDroppedToolCalls` | 3 | > 20 tool call bị bỏ / lý do trong 15 phút (pending G7-D1) | [UniworkAiDroppedToolCalls.md](UniworkAiDroppedToolCalls.md) |
 | `DriveRevocationAbandoned` | 3 | thu hồi grant Google Drive bỏ cuộc sau 24 giờ thử lại | [DriveRevocationAbandoned.md](DriveRevocationAbandoned.md) |
+| `DriveTokenRefreshFailuresHigh` | 3 | lỗi làm mới access token Google Drive > 10 lần trong 15 phút | [DriveTokenRefreshFailuresHigh.md](DriveTokenRefreshFailuresHigh.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
 

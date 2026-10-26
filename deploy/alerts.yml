@@ -557,3 +557,13 @@ groups:
           summary: "Thu hồi grant Google Drive bỏ cuộc sau 24 giờ thử lại"
           description: "{{ $value | humanize }} dòng thu hồi refresh token Google Drive đã quá 24 giờ thử lại và bị bỏ cuộc trong 15 phút qua."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/DriveRevocationAbandoned.md
+      # Google Drive connector (UNI-2172 §10): sustained refresh-token exchange failures
+      # against Google's OAuth token endpoint.
+      - alert: DriveTokenRefreshFailuresHigh
+        expr: sum(increase(drive_token_refresh_failures_total[15m])) > 10
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Lỗi làm mới token Google Drive tăng cao"
+          description: "{{ $value | humanize }} lần làm mới access token Google Drive thất bại trong 15 phút qua."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/DriveTokenRefreshFailuresHigh.md
