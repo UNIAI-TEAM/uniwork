@@ -151,8 +151,9 @@ function MeetingRoomChatView({
       </p>
       <ol
         ref={listRef}
-        // On top of the panel's own px-3 pt-2: the board's 14px sides and 16px top.
-        className="min-h-0 w-full flex-1 space-y-3.5 overflow-y-auto overscroll-contain px-0.5 py-2"
+        // On top of the panel's own px-3 pt-2: the board's 14px sides and 16px top. A short conversation sits on
+        // the box, as on the Chat board: the first row's auto margin takes the free space and scrolls away with it.
+        className="flex min-h-0 w-full flex-1 flex-col space-y-3.5 overflow-y-auto overscroll-contain px-0.5 py-2 [&>li:first-child]:mt-auto"
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
