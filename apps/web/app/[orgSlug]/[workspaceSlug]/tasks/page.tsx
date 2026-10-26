@@ -24,7 +24,6 @@ export default function TasksPage() {
       <TaskSurfacePage
         workspaceId={workspace.id}
         onOpenTask={onOpenTask}
-        trashHref={ws.tasksTrash()}
       />
     </Suspense>
   );

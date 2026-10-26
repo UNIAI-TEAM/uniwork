@@ -121,3 +121,17 @@ describe("SettingsPage AI tabs", () => {
     expect(await screen.findByRole("heading", { name: "Truy cập của trợ lý AI", level: 2 })).toBeInTheDocument();
   });
 });
+
+describe("SettingsPage trash tab", () => {
+  it("ends the Workspace group with Thùng rác, for every member", async () => {
+    renderPage({ flag: false, role: "member" });
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.at(-1)).toHaveAccessibleName("Thùng rác");
+  });
+
+  it("opens the trash from ?tab=trash", async () => {
+    renderPage({ flag: false, role: "member", search: "tab=trash" });
+    expect(await screen.findByRole("tab", { name: "Thùng rác" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("heading", { name: "Thùng rác", level: 2 })).toBeInTheDocument();
+  });
+});

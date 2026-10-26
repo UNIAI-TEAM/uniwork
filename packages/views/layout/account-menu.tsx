@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { ChevronDown, LogOut, Settings, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
@@ -26,7 +26,7 @@ function initialOf(name: string) {
 }
 
 /**
- * The account menu (settings, log out). On a desktop shell it is the avatar at
+ * The account menu (settings, the trash, log out). On a desktop shell it is the avatar at
  * the top bar's end, as in ClickUp; in the phone sheet it stays the sidebar's
  * footer row with the name and email.
  */
@@ -98,6 +98,10 @@ export function AccountMenu({ placement, onNavigate }: { placement: "sidebar" | 
           <DropdownMenuItem render={<AppLink href={ws.settings()} onClick={onNavigate} />}>
             <Settings aria-hidden />
             {t("nav.settings")}
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<AppLink href={`${ws.settings()}?tab=trash`} onClick={onNavigate} />}>
+            <Trash aria-hidden />
+            {t("nav.trash")}
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"

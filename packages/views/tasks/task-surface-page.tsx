@@ -6,7 +6,6 @@ import { CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
-import { TrashLink } from "../trash/trash-link";
 import { TaskSurface } from "./surface/task-surface";
 import type { TaskSurfaceMode } from "./surface/types";
 
@@ -24,12 +23,9 @@ const WORKSPACE_SCOPE = { type: "workspace" as const };
 export function TaskSurfacePage({
   workspaceId,
   onOpenTask,
-  trashHref,
 }: {
   workspaceId: string;
   onOpenTask: (id: string) => void;
-  /** Where the Thùng rác button goes; absent, the header has no button. */
-  trashHref?: string;
 }) {
   const { t } = useTranslation();
 
@@ -38,11 +34,6 @@ export function TaskSurfacePage({
       <PageHeader>
         <MODULE_ICONS.tasks className="size-4 text-muted-foreground" aria-hidden />
         <h1 className="text-body font-medium">{t("tasks.title")}</h1>
-        {trashHref ? (
-          <div className="ml-auto flex shrink-0 items-center">
-            <TrashLink href={trashHref} />
-          </div>
-        ) : null}
       </PageHeader>
 
       <TaskSurface

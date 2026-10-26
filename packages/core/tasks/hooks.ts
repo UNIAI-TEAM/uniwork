@@ -121,7 +121,6 @@ export function useDeleteTask(workspaceId: string) {
   return useMutation({
     mutationFn: (taskId: string) => tasks.deleteTask(taskId),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
       void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       invalidatePagedTaskLists(qc, workspaceId);

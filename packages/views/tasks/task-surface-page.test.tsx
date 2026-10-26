@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
-import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
+import { requestMock, wrap } from "../test/api-mock";
 import { TaskSurfacePage } from "./task-surface-page";
 
 initI18n();
@@ -64,21 +64,7 @@ describe("TaskSurfacePage", () => {
     expect(screen.getByTestId("task-mode-swimlane")).toBeInTheDocument();
   });
 
-  it("links the header to the trash page when the host gives its address", () => {
-    const nav = fakeNav("/acme/main/tasks");
-    render(
-      wrapWithNav(
-        <TaskSurfacePage workspaceId="w1" onOpenTask={() => {}} trashHref="/acme/main/tasks/trash" />,
-        nav,
-      ),
-    );
-    const link = screen.getByRole("link", { name: "Thùng rác" });
-    expect(link).toHaveAttribute("href", "/acme/main/tasks/trash");
-    fireEvent.click(link);
-    expect(nav.push).toHaveBeenCalledWith("/acme/main/tasks/trash");
-  });
-
-  it("shows no trash link without an address", () => {
+  it("has no trash button: the shared trash lives in settings", () => {
     render(wrap(<TaskSurfacePage workspaceId="w1" onOpenTask={() => {}} />));
     expect(screen.queryByRole("link", { name: "Thùng rác" })).toBeNull();
   });

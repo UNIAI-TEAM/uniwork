@@ -445,24 +445,10 @@ describe("ProjectsListPage", () => {
     );
   });
 
-  it("links the header to the project trash when the host gives its address", async () => {
-    const adapter = nav();
-    render(
-      wrapWithNav(
-        <WorkspaceProvider workspace={workspace} user={me}>
-          <ProjectsListPage
-            workspaceId="w1"
-            projectPath={(id) => `/acme/main/projects/${id}`}
-            trashHref="/acme/main/projects/trash"
-          />
-        </WorkspaceProvider>,
-        adapter,
-      ),
-    );
-    const link = await screen.findByRole("link", { name: "Thùng rác" });
-    expect(link).toHaveAttribute("href", "/acme/main/projects/trash");
-    fireEvent.click(link);
-    expect(adapter.push).toHaveBeenCalledWith("/acme/main/projects/trash");
+  it("has no trash button: the shared trash lives in settings", async () => {
+    renderPage();
+    expect(await screen.findByRole("heading", { level: 1, name: "Dự án" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thùng rác" })).toBeNull();
   });
 
   it("clamps to the last valid page when deletion shrinks the result", async () => {

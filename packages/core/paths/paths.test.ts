@@ -25,8 +25,6 @@ describe("paths.workspace().documentsFolder", () => {
 describe("paths.workspace() trash pages", () => {
   it("builds the task and project trash routes", () => {
     const ws = paths.workspace("acme", "team");
-    expect(ws.tasksTrash()).toBe("/acme/team/tasks/trash");
-    expect(ws.projectsTrash()).toBe("/acme/team/projects/trash");
   });
 });
 

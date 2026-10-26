@@ -608,7 +608,8 @@
     "projects": "Dự án",
     "calendar": "Lịch",
     "squads": "Squad",
-    "runtimes": "Runtime"
+    "runtimes": "Runtime",
+    "trash": "Thùng rác"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -796,7 +797,8 @@
         "connectedApps": "Ứng dụng AI",
         "aiAccess": "Truy cập AI",
         "taskStatuses": "Trạng thái công việc",
-        "taskLabels": "Nhãn"
+        "taskLabels": "Nhãn",
+        "trash": "Thùng rác"
       },
       "nav_label": "Mục cài đặt",
       "section_picker": "Chọn mục cài đặt",
@@ -14132,31 +14134,59 @@
     "restore": "Khôi phục",
     "restored": "Đã khôi phục",
     "restore_failed": "Không khôi phục được",
-    "restore_item": "Khôi phục {{title}}",
     "purge": "Xóa vĩnh viễn",
-    "purge_item": "Xóa vĩnh viễn {{title}}",
     "purge_title": "Xóa vĩnh viễn?",
     "purge_desc": "\"{{title}}\" sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
     "purged": "Đã xóa vĩnh viễn",
     "purge_failed": "Không xóa vĩnh viễn được",
     "cancel": "Hủy",
-    "trashed_by": "Xóa bởi {{name}} lúc {{time}}",
     "unknown_member": "Thành viên cũ",
-    "purge_in_one": "Tự xóa vĩnh viễn sau {{count}} ngày",
-    "purge_in_other": "Tự xóa vĩnh viễn sau {{count}} ngày",
-    "subtasks_one": "Gồm {{count}} task con",
-    "subtasks_other": "Gồm {{count}} task con",
-    "project_tasks_one": "{{count}} công việc trong dự án",
-    "project_tasks_other": "{{count}} công việc trong dự án",
     "load_more": "Tải thêm",
-    "loading": "Đang tải thùng rác",
     "error_title": "Không tải được thùng rác",
-    "tasks_empty_title": "Thùng rác công việc trống",
-    "projects_empty_title": "Thùng rác dự án trống",
-    "empty_description": "Mục bị xóa nằm ở đây 30 ngày trước khi bị xóa vĩnh viễn.",
     "errors": {
       "trash_too_large": "Có quá nhiều task trong một lần chuyển vào thùng rác. Hãy chọn ít task hơn rồi thử lại.",
       "duplicate_project_title": "Đã có dự án trùng tên trong workspace này. Hãy chọn tên khác hoặc đổi tên dự án kia rồi thử lại."
-    }
+    },
+    "description": "Mục đã xóa nằm ở đây 30 ngày, sau đó tự xóa vĩnh viễn.",
+    "filters_label": "Lọc thùng rác",
+    "search": "Tìm theo tên…",
+    "kind_label": "Loại",
+    "kind_all": "Tất cả",
+    "kinds": {
+      "task": "Công việc",
+      "project": "Dự án",
+      "document": "Tài liệu"
+    },
+    "trashed_by_label": "Người xóa",
+    "trashed_by_anyone": "Mọi người",
+    "trashed_by_me": "Tôi",
+    "table_label": "Mục trong thùng rác",
+    "columns": {
+      "name": "Tên",
+      "location": "Vị trí",
+      "trashed_at": "Xóa lúc",
+      "trashed_by": "Người xóa",
+      "left": "Còn",
+      "actions": "Thao tác"
+    },
+    "days_left_one": "{{count}} ngày",
+    "days_left_other": "{{count}} ngày",
+    "sub": {
+      "task_with_one": "Công việc · kèm {{count}} việc con",
+      "task_with_other": "Công việc · kèm {{count}} việc con",
+      "project_with_one": "Dự án · {{count}} công việc sẽ gắn lại khi khôi phục",
+      "project_with_other": "Dự án · {{count}} công việc sẽ gắn lại khi khôi phục",
+      "page": "Trang",
+      "file": "Tệp",
+      "folder": "Thư mục"
+    },
+    "row_actions": "Thao tác cho {{title}}",
+    "locked": {
+      "project": "Chỉ người tạo, người phụ trách hoặc quản trị viên mới khôi phục hay xóa vĩnh viễn được dự án này.",
+      "document": "Cần quyền quản lý tài liệu này."
+    },
+    "empty_title": "Thùng rác trống",
+    "no_match_title": "Không có mục nào khớp",
+    "clear_filters": "Bỏ lọc"
   }
 }

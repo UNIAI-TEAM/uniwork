@@ -72,7 +72,6 @@ export function useDeleteProject(workspaceId: string) {
     mutationFn: (projectId: string) => projects.deleteProject(workspaceId, projectId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) });
-      void qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
       void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
     },

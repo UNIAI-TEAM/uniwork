@@ -609,7 +609,8 @@
     "projects": "Projects",
     "calendar": "Calendar",
     "squads": "Squads",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "trash": "Trash"
   },
   "topbar": {
     "search": "Search…",
@@ -797,7 +798,8 @@
         "connectedApps": "AI apps",
         "aiAccess": "AI access",
         "taskStatuses": "Task statuses",
-        "taskLabels": "Labels"
+        "taskLabels": "Labels",
+        "trash": "Trash"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -14206,31 +14208,59 @@
     "restore": "Restore",
     "restored": "Restored",
     "restore_failed": "Could not restore",
-    "restore_item": "Restore {{title}}",
     "purge": "Delete forever",
-    "purge_item": "Delete {{title}} forever",
     "purge_title": "Delete forever?",
     "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
     "purged": "Deleted forever",
     "purge_failed": "Could not delete forever",
     "cancel": "Cancel",
-    "trashed_by": "Trashed by {{name}} at {{time}}",
     "unknown_member": "Former member",
-    "purge_in_one": "Deleted forever in {{count}} day",
-    "purge_in_other": "Deleted forever in {{count}} days",
-    "subtasks_one": "Includes {{count}} subtask",
-    "subtasks_other": "Includes {{count}} subtasks",
-    "project_tasks_one": "{{count}} task in the project",
-    "project_tasks_other": "{{count}} tasks in the project",
     "load_more": "Load more",
-    "loading": "Loading trash",
     "error_title": "Could not load the trash",
-    "tasks_empty_title": "The task trash is empty",
-    "projects_empty_title": "The project trash is empty",
-    "empty_description": "Deleted items stay here for 30 days before they are deleted forever.",
     "errors": {
       "trash_too_large": "Too many tasks for one move to the trash. Select fewer tasks and try again.",
       "duplicate_project_title": "A project with the same title already exists in this workspace. Choose another title or rename that project, then try again."
-    }
+    },
+    "description": "Deleted items stay here for 30 days, then are deleted forever.",
+    "filters_label": "Filter the trash",
+    "search": "Search by name…",
+    "kind_label": "Type",
+    "kind_all": "All",
+    "kinds": {
+      "task": "Task",
+      "project": "Project",
+      "document": "Document"
+    },
+    "trashed_by_label": "Deleted by",
+    "trashed_by_anyone": "Anyone",
+    "trashed_by_me": "Me",
+    "table_label": "Items in the trash",
+    "columns": {
+      "name": "Name",
+      "location": "Location",
+      "trashed_at": "Deleted",
+      "trashed_by": "Deleted by",
+      "left": "Left",
+      "actions": "Actions"
+    },
+    "days_left_one": "{{count}} day",
+    "days_left_other": "{{count}} days",
+    "sub": {
+      "task_with_one": "Task · with {{count}} subtask",
+      "task_with_other": "Task · with {{count}} subtasks",
+      "project_with_one": "Project · {{count}} task is reattached on restore",
+      "project_with_other": "Project · {{count}} tasks are reattached on restore",
+      "page": "Page",
+      "file": "File",
+      "folder": "Folder"
+    },
+    "row_actions": "Actions for {{title}}",
+    "locked": {
+      "project": "Only the creator, the lead or an admin can restore or delete this project forever.",
+      "document": "You need permission to manage this document."
+    },
+    "empty_title": "The trash is empty",
+    "no_match_title": "No items match",
+    "clear_filters": "Clear filters"
   }
 }

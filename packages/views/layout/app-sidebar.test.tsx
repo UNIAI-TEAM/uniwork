@@ -260,7 +260,11 @@ describe("AppSidebar", () => {
       fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
       const settings = await screen.findByRole("menuitem", { name: "Cài đặt" });
       expect(settings).toHaveAttribute("href", "/acme/team/settings");
+      // The shared trash sits right under Cài đặt and opens its settings tab.
+      const trash = screen.getByRole("menuitem", { name: "Thùng rác" });
+      expect(trash).toHaveAttribute("href", "/acme/team/settings?tab=trash");
       const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
+      expect(screen.getAllByRole("menuitem")).toEqual([settings, trash, logout]);
       fireEvent.click(logout);
 
       await vi.waitFor(() => expect(sheet.nav.replace).toHaveBeenCalledWith("/login"));

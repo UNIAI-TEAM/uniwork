@@ -1395,21 +1395,6 @@ describe("useRealtimeSync › trash frames", () => {
     vi.useRealTimers();
   });
 
-  it.each([
-    ["task.trashed", { task_id: "t1", workspace_id: "ws1" }, ["tasks-trash", "ws1"]],
-    ["task.restored", { task_id: "t1", workspace_id: "ws1" }, ["tasks-trash", "ws1"]],
-    ["project.trashed", { project_id: "p1", workspace_id: "ws1" }, ["projects-trash", "ws1"]],
-    ["project.restored", { project_id: "p1", workspace_id: "ws1" }, ["projects-trash", "ws1"]],
-  ])("%s invalidates the trash list", (type, payload, trashKey) => {
-    vi.useFakeTimers();
-    const { invalidate, client } = setup();
-    client.emit({ type, payload } as WSMessage);
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
-    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(trashKey)]));
-  });
-
   it.each(["task.trashed", "task.restored"])("%s refreshes the calendar like a task change", (type) => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

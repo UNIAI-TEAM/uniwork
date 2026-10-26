@@ -40,7 +40,6 @@ import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { navigateInternal, useOptionalNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
-import { TrashLink } from "../trash/trash-link";
 import { useToastMovedToTrash } from "../trash/use-toast-moved-to-trash";
 import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import { CreateProjectDialog } from "./create-project-dialog";
@@ -196,14 +195,11 @@ export function ProjectsListPage({
   workspaceId,
   workspaceName,
   projectPath,
-  trashHref,
 }: {
   workspaceId: string;
   workspaceName?: string;
   /** In-app path of a project's detail page; tab intents open it in a new tab. */
   projectPath: (projectId: string) => string;
-  /** Where the Thùng rác button goes; absent, the header has no button. */
-  trashHref?: string;
 }) {
   const { t, i18n } = useTranslation();
   const navigation = useOptionalNavigation();
@@ -312,7 +308,6 @@ export function ProjectsListPage({
         count={projects.length}
         actions={
           <>
-            {trashHref ? <TrashLink href={trashHref} /> : null}
             <CollectionPageHeaderAction
               icon={Plus}
               label={t("projects.page.new_project")}

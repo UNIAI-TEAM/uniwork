@@ -72,9 +72,6 @@ export const taskKeys = {
   viewPrefsScoped: (wsId: string, scopeHash: string) =>
     ["task-view-prefs", wsId, scopeHash] as const,
   pins: (wsId: string) => ["task-pins", wsId] as const,
-  /** Trash lists; a root of their own so a list refetch never drags them along. */
-  trash: (wsId: string) => ["tasks-trash", wsId] as const,
-  projectTrash: (wsId: string) => ["projects-trash", wsId] as const,
   projects: (wsId: string) => ["projects", wsId] as const,
   projectSearch: (wsId: string, filterHash: string) => ["projects-search", wsId, filterHash] as const,
   project: (wsId: string, projectId: string) => ["project", wsId, projectId] as const,

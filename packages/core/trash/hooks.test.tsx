@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
+import { useBulkDocumentCommand } from "../documents/hooks-bulk";
 import { useArchiveDocument, usePurgeDocument, useRestoreDocument } from "../documents/hooks-collections";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { useDeleteTask } from "../tasks/hooks";
@@ -91,6 +92,7 @@ describe("shared trash hooks", () => {
     ["useRestoreDocument", () => useRestoreDocument(WS), archived, "d1"],
     ["usePurgeDocument", () => usePurgeDocument(WS), {}, "d1"],
     ["useArchiveDocument", () => useArchiveDocument(WS), archived, { documentId: "d1" }],
+    ["useBulkDocumentCommand", () => useBulkDocumentCommand(WS), {}, { command: "purge", ids: ["d1"] }],
   ] as const)("%s invalidates the shared trash", async (_name, useHook, body, arg) => {
     vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(body)));
     const { qc, wrapper } = setup();

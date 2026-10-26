@@ -61,7 +61,7 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
         if (event.type === "task.updated") push(taskKeys.subscribers(payload.task_id));
       }
       // The sidebar hides a pin to a trashed item and shows it again on restore.
-      if (event.type === "task.trashed" || event.type === "task.restored") push(taskKeys.trash(wsId), taskKeys.pins(wsId));
+      if (event.type === "task.trashed" || event.type === "task.restored") push(taskKeys.pins(wsId));
       // Only task.updated declares Patch in the catalogue.
       if (event.type === "task.updated") patch = parseTaskPatchFrame(payload);
       break;
@@ -134,7 +134,7 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
     case "project.restored": {
       push(taskKeys.projects(wsId));
       if (event.type === "project.trashed" || event.type === "project.restored") {
-        push(taskKeys.projectTrash(wsId), taskKeys.pins(wsId));
+        push(taskKeys.pins(wsId));
       }
       if (payload.project_id) push(taskKeys.project(wsId, payload.project_id));
       break;

@@ -1,36 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import {
-  listProjectTrash,
-  listTaskTrash,
-  purgeProject,
-  purgeTask,
-  restoreProject,
-  restoreTask,
-} from "./tasks-trash";
+import { purgeProject, purgeTask, restoreProject, restoreTask } from "./tasks-trash";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-
-const taskItem = {
-  id: "t1",
-  identifier: "UNI-1",
-  title: "Việc",
-  trashed_at: "2026-10-26T00:00:00Z",
-  trashed_by: "u1",
-  purge_after: "2026-11-25T00:00:00Z",
-  batch_size: 3,
-};
-const projectItem = {
-  id: "p1",
-  title: "Dự án",
-  trashed_at: "2026-10-26T00:00:00Z",
-  trashed_by: "u1",
-  purge_after: "2026-11-25T00:00:00Z",
-  task_count: 4,
-};
-const emptyPage = { items: [], next_cursor: "" };
 
 describe("trash endpoints", () => {
   beforeEach(() => {
@@ -47,20 +21,6 @@ describe("trash endpoints", () => {
   const url = (n = 0) => String(vi.mocked(fetch).mock.calls[n]![0]);
   const method = (n = 0) => vi.mocked(fetch).mock.calls[n]![1]!.method;
 
-  it("listTaskTrash returns the page and sends the cursor", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [taskItem], next_cursor: "c2" }));
-    const page = await listTaskTrash("ws1", "c1");
-    expect(page.items[0]).toMatchObject({ id: "t1", batch_size: 3 });
-    expect(page.next_cursor).toBe("c2");
-    expect(url()).toBe("http://api.test/api/v1/workspaces/ws1/tasks/trash?cursor=c1");
-  });
-
-  it("listTaskTrash degrades to an empty page on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ items: "nope" }));
-    await expect(listTaskTrash("ws1")).resolves.toEqual(emptyPage);
-    expect(url()).toBe("http://api.test/api/v1/workspaces/ws1/tasks/trash");
-  });
-
   it("restoreTask returns the batch and degrades on drift", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ trash_batch_id: "b1", ids: ["t1", "t2"] }))
@@ -76,15 +36,6 @@ describe("trash endpoints", () => {
     await expect(purgeTask("t1")).resolves.toBeUndefined();
     expect(url()).toBe("http://api.test/api/v1/tasks/t1/purge");
     expect(method()).toBe("POST");
-  });
-
-  it("listProjectTrash returns the page, degrades on drift", async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(json({ items: [projectItem], next_cursor: "" }))
-      .mockResolvedValueOnce(json([1]));
-    expect((await listProjectTrash("ws1")).items[0]).toMatchObject({ id: "p1", task_count: 4 });
-    expect(url()).toBe("http://api.test/api/v1/workspaces/ws1/projects/trash");
-    await expect(listProjectTrash("ws1")).resolves.toEqual(emptyPage);
   });
 
   it("restoreProject / purgeProject post to the project routes", async () => {
