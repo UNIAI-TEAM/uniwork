@@ -214,6 +214,22 @@ func lockProjectTasks(ctx context.Context, q *db.Queries, p db.Project) error {
 // project.restored) and one task.updated per task whose project_id moved, the
 // shape a project delete wrote for its unlinked tasks before the trash.
 func recordProjectTrash(ctx context.Context, q *db.Queries, actor Actor, p db.Project, action string, taskIDs []string) error {
+	recs := append(taskUpdatedRecords(actor, p, taskIDs), audit.Recorded{
+		Entry: audit.Entry{
+			OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+			Actor: actor, Action: action,
+			ResourceType: "project", ResourceID: p.ID,
+		},
+		Events: []audit.Event{{Topic: action, Payload: map[string]string{
+			"project_id": p.ID, "workspace_id": p.WorkspaceID,
+		}}},
+	})
+	return auditRecorder.RecordMany(ctx, q, recs)
+}
+
+// taskUpdatedRecords is one task.updated audit row and event per task of p
+// whose project_id a project command moved.
+func taskUpdatedRecords(actor Actor, p db.Project, taskIDs []string) []audit.Recorded {
 	recs := make([]audit.Recorded, 0, len(taskIDs)+1)
 	for _, id := range taskIDs {
 		recs = append(recs, audit.Recorded{
@@ -227,15 +243,5 @@ func recordProjectTrash(ctx context.Context, q *db.Queries, actor Actor, p db.Pr
 			}}},
 		})
 	}
-	recs = append(recs, audit.Recorded{
-		Entry: audit.Entry{
-			OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
-			Actor: actor, Action: action,
-			ResourceType: "project", ResourceID: p.ID,
-		},
-		Events: []audit.Event{{Topic: action, Payload: map[string]string{
-			"project_id": p.ID, "workspace_id": p.WorkspaceID,
-		}}},
-	})
-	return auditRecorder.RecordMany(ctx, q, recs)
+	return recs
 }

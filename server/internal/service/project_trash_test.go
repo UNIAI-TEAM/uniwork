@@ -316,6 +316,41 @@ func TestPurgeProjectDeletesResourcesViewsPinsAndClearsLinks(t *testing.T) {
 	}
 }
 
+// A task create or update that checked the project while it was live can
+// still commit project_id after the trash; the purge unlinks it too.
+func TestPurgeProjectUnlinksATaskLinkedAfterTheTrash(t *testing.T) {
+	s, events, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	p, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Liên kết muộn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	late := projectTrashTask(t, s, ua, w, "", "Gắn muộn")
+	if err := s.TrashProject(ctx, actor, w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE tasks SET project_id = $1 WHERE id = $2`, p.ID, late.ID); err != nil {
+		t.Fatal(err)
+	}
+	before := rawTask(t, s, late.ID)
+	seen := len(events.drain(t)) // the capture is cumulative
+
+	if err := s.PurgeProject(ctx, actor, w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	row := rawTask(t, s, late.ID)
+	if row.ProjectID.Valid || row.Revision != before.Revision+1 {
+		t.Fatalf("task after purge: project %v revision %d (was %d)", row.ProjectID, row.Revision, before.Revision)
+	}
+	if n := taskEvents(events.drain(t)[seen:], "task.updated", late.ID); n != 1 {
+		t.Fatalf("task.updated events = %d, want 1", n)
+	}
+	if n := auditRows(t, s, "task.updated", late.ID); n != 1 {
+		t.Fatalf("task.updated audit rows = %d, want 1", n)
+	}
+}
+
 func TestTrashProjectNeedsEditRights(t *testing.T) {
 	s, _, ub, uc, w := projectEditFixture(t)
 	ctx := context.Background()

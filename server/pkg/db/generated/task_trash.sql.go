@@ -1227,6 +1227,46 @@ func (q *Queries) TrashTasks(ctx context.Context, arg TrashTasksParams) ([]strin
 	return items, nil
 }
 
+const unlinkTasksForProjectPurge = `-- name: UnlinkTasksForProjectPurge :many
+UPDATE tasks
+SET project_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE project_id = $1::text
+  AND organization_id = $2
+  AND workspace_id = $3
+RETURNING id
+`
+
+type UnlinkTasksForProjectPurgeParams struct {
+	ProjectID      string `json:"project_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// A purge's last unlink: a task create or update that checked the project
+// while it was live can still commit project_id after the trash; this drops
+// that link so no task points at a deleted project.
+func (q *Queries) UnlinkTasksForProjectPurge(ctx context.Context, arg UnlinkTasksForProjectPurgeParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, unlinkTasksForProjectPurge, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unlinkTasksForProjectTrash = `-- name: UnlinkTasksForProjectTrash :many
 UPDATE tasks
 SET trashed_project_id = project_id,

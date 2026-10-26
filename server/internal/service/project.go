@@ -464,6 +464,17 @@ func (s *TaskService) purgeProjectInTx(ctx context.Context, q *db.Queries, p db.
 	if err := lockProjectTasks(ctx, q, p); err != nil {
 		return err
 	}
+	// normalizeProjectID reads the project unlocked, so a task create or
+	// update that saw it live can still link a task after the trash.
+	late, err := q.UnlinkTasksForProjectPurge(ctx, db.UnlinkTasksForProjectPurgeParams{
+		ProjectID: p.ID, OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+	})
+	if err != nil {
+		return err
+	}
+	if err := auditRecorder.RecordMany(ctx, q, taskUpdatedRecords(actor, p, late)); err != nil {
+		return err
+	}
 	if err := q.DeleteProjectResourcesByProject(ctx, db.DeleteProjectResourcesByProjectParams{
 		ProjectID: p.ID, OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
 	}); err != nil {

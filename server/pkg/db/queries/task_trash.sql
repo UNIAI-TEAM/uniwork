@@ -285,6 +285,19 @@ WHERE trashed_project_id = sqlc.arg(project_id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id);
 
+-- A purge's last unlink: a task create or update that checked the project
+-- while it was live can still commit project_id after the trash; this drops
+-- that link so no task points at a deleted project.
+-- name: UnlinkTasksForProjectPurge :many
+UPDATE tasks
+SET project_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE project_id = sqlc.arg(project_id)::text
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+RETURNING id;
+
 -- A project trash, restore or purge rewrites task rows; this locks them first,
 -- in id order like the task trash batch locks, so a project command and a task
 -- restore or purge queue instead of deadlocking. It covers every row the three
