@@ -23,6 +23,7 @@ const businessFiles = [
   "deploy/app-dev/env/uniwork-fe.env",
   "deploy/app-dev/env/uniwork-fe.build.env",
   "deploy/app-dev/env/uniwork-office-engine.env",
+  "deploy/app-dev/env/uniwork-meeting-agent.env",
 ];
 
 test("business env files carry no secrets", () => {
@@ -55,6 +56,14 @@ test("business env files carry no secrets", () => {
   assert.equal(be.get("TRUSTED_PROXIES"), "10.230.19.0/24");
   assert.equal(be.get("PREVIEW_ORIGIN"), "https://preview.unicomhub.com");
   assert.equal(be.get("OFFICE_ENGINE_URL"), "");
+  assert.equal(be.get("MEETING_SCRIBE_ENABLED"), "true");
+  assert.equal(be.get("MEETING_SCRIBE_AGENT_NAME"), "uniwork-scribe");
+
+  const example = fs.readFileSync(path.join(root, "deploy/app-dev/.env.example"), "utf8");
+  const exampleKey = example.indexOf("ASSEMBLYAI_API_KEY=");
+  const exampleOptional = example.indexOf("# Optional.");
+  assert.equal(exampleKey > 0 && exampleOptional > exampleKey, true);
+  assert.match(example, /^ASSEMBLYAI_API_KEY=$/m);
 
   const office = assignments("deploy/app-dev/env/uniwork-office-engine.env");
   assert.equal(office.get("OFFICE_ENGINE_OUTPUT_ORIGINS"), "https://minio.ubos.vn");
@@ -99,4 +108,33 @@ test("Jenkinsfile deploys by SSH without a latest tag", () => {
   assert.equal(/docker\s+(tag|push)\b[^\n]*:latest/.test(text), false);
   assert.equal(text.includes("cfg=\\\\$(mktemp -d)"), true, "cfg=\\\\$(mktemp -d)");
   assert.equal((text.match(/sh '''#!\/bin\/bash/g) || []).length, 2);
+});
+
+test("meeting agent env lists only non-secret assignments", () => {
+  const agent = assignments("deploy/app-dev/env/uniwork-meeting-agent.env");
+  assert.deepEqual([...agent.keys()], [
+    "MEETING_SCRIBE_AGENT_NAME",
+    "SCRIBE_STT_PROVIDER",
+    "SCRIBE_STT_BASE_URL",
+    "AI_MEETING_TRANSCRIBE_BASE_URL",
+    "UNIWORK_API_URL",
+    "LIVEKIT_URL",
+    "SCRIBE_HEALTH_PORT",
+    "SCRIBE_METRICS_PORT",
+    "SCRIBE_DRAIN_TIMEOUT_S",
+    "PROMETHEUS_MULTIPROC_DIR",
+  ]);
+  assert.equal(agent.get("MEETING_SCRIBE_AGENT_NAME"), "uniwork-scribe");
+  assert.equal(agent.get("SCRIBE_STT_PROVIDER"), "assemblyai");
+  assert.equal(agent.get("SCRIBE_STT_BASE_URL"), "");
+  assert.equal(agent.get("AI_MEETING_TRANSCRIBE_BASE_URL"), "");
+  assert.equal(agent.get("UNIWORK_API_URL"), "http://uniwork-be:8080");
+  assert.equal(agent.get("LIVEKIT_URL"), "wss://livekit.ubos.vn");
+  assert.equal(agent.get("SCRIBE_HEALTH_PORT"), "8081");
+  assert.equal(agent.get("SCRIBE_METRICS_PORT"), "9100");
+  assert.equal(agent.get("SCRIBE_DRAIN_TIMEOUT_S"), "20");
+  assert.equal(agent.get("PROMETHEUS_MULTIPROC_DIR"), "/tmp/scribe-metrics");
+  for (const secret of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "ASSEMBLYAI_API_KEY"]) {
+    assert.equal(agent.has(secret), false, secret);
+  }
 });
