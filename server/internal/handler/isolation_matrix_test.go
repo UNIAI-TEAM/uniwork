@@ -444,6 +444,7 @@ var isoWritesLast = map[string]string{
 	"POST /api/v1/orgs/{org}/members/{userID}/deactivate":                              "it ends the peer's room memberships, which the chat member routes act on",
 	"POST /api/v1/orgs/{org}/transfer-ownership":                                       "the owner stops being one",
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":           "the other Email Hub routes name the mailbox in their query",
+	"DELETE /api/v1/workspaces/{workspaceID}/drive-connections/{connectionID}":         "disconnecting ends the Drive connection row other Drive routes use",
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}": "the thread routes name the message under a shorter path",
 }
 
@@ -916,7 +917,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "session")
 	case "{notificationID}":
 		return tn.get(t, "notification")
-	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
+	case "{connectionID}":
+		if under("/drive-connections/") {
+			return tn.get(t, "driveConnection")
+		}
+		// Stubbed VCS routes: no row exists for anyone.
+		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
+	case "{quickActionID}", "{agentTaskID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
 	}

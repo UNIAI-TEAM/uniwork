@@ -255,6 +255,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	}); err != nil {
 		return db.OrganizationMember{}, err
 	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), targetID, orgID, "member_deactivated"); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	// Sessions are per user, not per organization: revoking them while the
 	// person still belongs somewhere else would sign them out of a tenant that
 	// never asked for it.
@@ -441,6 +444,9 @@ func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, a
 		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
 	})
 	if err != nil {
+		return nil, err
+	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), actorID, orgID, "member_left"); err != nil {
 		return nil, err
 	}
 	// Ask UNI memory is private to the person and this organization (P4, R18).

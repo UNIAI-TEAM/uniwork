@@ -146,6 +146,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, qtx, audit.User(userID), userID, "", "account_deleted"); err != nil {
+		return err
+	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
 		Action: audit.ActionUserDeleted, ResourceType: "user", ResourceID: userID,

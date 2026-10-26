@@ -770,6 +770,22 @@ func main() {
 		log.Warn("connected calendars disabled", "err", err)
 	}
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
+	var driveBox *secretbox.Box
+	if key, err := secretbox.LoadKey("DRIVE_CREDENTIAL_KEY"); err == nil {
+		if box, err := secretbox.New(key); err == nil {
+			driveBox = box
+		} else {
+			log.Warn("google drive connector disabled", "err", err)
+		}
+	} else if os.Getenv("DRIVE_CREDENTIAL_KEY") != "" {
+		log.Warn("google drive connector disabled", "err", err)
+	}
+	driveConnectionSvc := service.NewDriveConnectionService(pool, q, wsSvc, driveBox)
+	driveConnectionSvc.SetLogger(log)
+	driveConnectionSvc.ConfigureOAuth(cfg)
+	driveConnectionSvc.SetFlags(flags)
+	driveWorkersDone := make(chan struct{})
+	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
 	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
 	// server still boots and the credential routes answer 503.
 	var aiCredentialBox *secretbox.Box
@@ -860,6 +876,7 @@ func main() {
 		Calendar:            service.NewCalendarService(q, wsSvc),
 		CalendarConnections: calendarConnectionSvc,
 		EmailHub:            emailHubSvc,
+		DriveConnections:    driveConnectionSvc,
 		Agents:              agentSvc,
 		Actors:              actorSvc,
 		Audit:               auditSvc,
@@ -1052,6 +1069,11 @@ func main() {
 	case <-mcpCleanupDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("mcp: cleanup sweep did not stop in time")
+	}
+	select {
+	case <-driveWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("drive: workers did not stop in time")
 	}
 	select {
 	case <-officeDone:

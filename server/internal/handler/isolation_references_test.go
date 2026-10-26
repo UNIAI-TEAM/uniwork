@@ -545,6 +545,11 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "project", body: map[string]any{
 		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
 		covers: []string{"SummaryTaskItemSDI.project_id"}},
+
+	// Google Drive connector (UNI-2172 / B2).
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-connections/google/start", what: "reconnect connection", body: map[string]any{
+		"reconnect_connection_id": isoRef("driveConnection")},
+		covers: []string{"StartDriveGoogleOAuthSDI.reconnect_connection_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request
@@ -704,7 +709,6 @@ var isoRefFieldExempt = map[string]string{
 	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
 	"CreateTaskDriveFileSDI.external_file_id":            "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
 	"LinkDriveFilesSDI.external_file_ids":                "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
-	"StartDriveGoogleOAuthSDI.reconnect_connection_id":   "contract-first DTO (UNI-2177); route and isoReferences case register in B2 (UNI-2178)",
 	"CreateTaskDriveFileSDI.connection_id":               "contract-first DTO (UNI-2177); wired into CreateTaskSDI and isoReferences in B4 (UNI-2180)",
 	"LinkDriveFilesSDI.connection_id":                    "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
 	"LinkDriveFilesSDI.task_id":                          "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",

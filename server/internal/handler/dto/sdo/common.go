@@ -55,6 +55,7 @@ type ConfigSDO struct {
 	UniChatInstallers          OfficeInstallerChannelsSDO      `json:"unichat_installers" description:"Bản cài UniChat desktop theo kênh, cùng hợp đồng nền tảng với Office; mảng rỗng là chưa phát hành"`
 	UniChatStores              config.UniChatStoreLinks        `json:"unichat_stores" description:"Link store điện thoại của UniChat; chuỗi rỗng là chưa phát hành"`
 	Documents                  DocumentsConfigSDO              `json:"documents" description:"Giới hạn tải lên, lưu và mở tài liệu trên trình duyệt"`
+	Drive                      DriveConfigSDO                  `json:"drive" description:"Trạng thái sẵn sàng của connector Google Drive (UNI-2172)"`
 	// UniChat mobile (UNI-2053): the phone reads these at boot and on every
 	// return to the foreground.
 	MinSupportedMobileVersion string          `json:"min_supported_mobile_version" description:"Phiên bản UniChat mobile thấp nhất còn được phục vụ (MAJOR.MINOR.PATCH); app thấp hơn hiện màn Cần cập nhật. Chuỗi rỗng là không chặn" example:"0.3.0"`

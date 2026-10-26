@@ -244,6 +244,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.EmailHub.AI = d.Meetings.AI
 	d.EmailHub.Tasks = d.Tasks
 	d.AskUNI.SetEmailHub(d.EmailHub)
+	d.DriveConnections = service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	d.DriveConnections.SetProvider(service.NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
+	d.DriveConnections.SetFlags(d.FeatureFlags)
 	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
 	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
 	// turns every one on) and the read tools, as main.go wires them. The asks
@@ -1034,6 +1037,17 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("email account: %v", err)
 	}
 	tn.ids["emailAccount"] = acc.ID
+	driveConn, err := w.q.CreateDriveConnection(ctx, db.CreateDriveConnectionParams{
+		ID: util.NewID(), OrganizationID: tn.orgID, UserID: tn.userID, Provider: "google",
+		GoogleSub: "google-sub-" + strings.ToLower(m), GoogleEmail: strings.ToLower(m) + "-drive@example.com",
+		RefreshTokenEnc: "enc", AccessTokenEnc: "enc",
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+		Scopes:          "openid email https://www.googleapis.com/auth/drive.file",
+	})
+	if err != nil {
+		t.Fatalf("drive connection: %v", err)
+	}
+	tn.ids["driveConnection"] = driveConn.ID
 	th, err := w.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 		ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: 1,
 		Subject: m + " mail subject", Snippet: m + " mail snippet", FromAddr: "sender@example.com",

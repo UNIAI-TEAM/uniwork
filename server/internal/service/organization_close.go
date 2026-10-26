@@ -119,6 +119,9 @@ func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, conf
 	if err != nil {
 		return nil, err
 	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), actorID, orgID, "organization_closed"); err != nil {
+		return nil, err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		Actor:          audit.User(actorID),

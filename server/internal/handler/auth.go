@@ -204,6 +204,10 @@ func classifyServiceError(err error) serviceFailure {
 		return serviceFailure{status: http.StatusConflict, code: "email_hub_reauth_required", msg: "Email Hub account needs to be reconnected"}
 	case errors.Is(err, service.ErrEmailHubSMTPDisabled):
 		return serviceFailure{status: http.StatusBadRequest, code: "email_hub_smtp_disabled", msg: "SMTP AUTH is disabled for this mailbox"}
+	case errors.Is(err, service.ErrDriveNotConfigured):
+		return serviceFailure{status: http.StatusServiceUnavailable, code: sdo.DriveErrUnavailable, msg: "Google Drive connector is not configured"}
+	case errors.Is(err, service.ErrDriveReauthRequired):
+		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrAuthFailed, msg: "Google Drive connection needs to be reconnected"}
 	case errors.Is(err, service.ErrCalendarProviderNotConfigured):
 		return serviceFailure{status: http.StatusServiceUnavailable, code: "calendar_provider_not_configured", msg: "Calendar provider is not configured"}
 	}
