@@ -68,6 +68,11 @@ function statusTone(status: string): SettingsBadgeTone {
     case "open":
     case "draft":
       return "muted";
+    case "refunded":
+      return "muted";
+    case "refund_pending":
+    case "partial_refund_pending":
+      return "warning";
     default:
       return "info";
   }
@@ -122,7 +127,7 @@ export function InvoicesPanel({ orgId }: InvoicesPanelProps) {
     const rows = invoices.data ?? [];
     if (!rows.length) return null;
     const currency = rows[0]?.currency ?? "VND";
-    const total = rows.reduce((sum, inv) => sum + inv.amount_paid, 0);
+    const total = rows.reduce((sum, inv) => sum + inv.amount_paid - inv.amount_refunded, 0);
     return { count: rows.length, total, currency };
   }, [invoices.data]);
 

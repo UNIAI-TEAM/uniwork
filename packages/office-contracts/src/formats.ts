@@ -5,8 +5,10 @@ import { z } from "zod";
 // the editable six with the Q7 conversion *source* formats: `xls` (BIFF8) and
 // `odt` (ODF text) are accepted for capability and for `convert` jobs (their
 // only bound target is an OOXML copy); open/edit/serialize stay not-bound for
-// them, so an editor can never open them in place.
-export const officeFormats = ["docx", "xlsx", "pptx", "pdf", "md", "html", "xls", "odt"] as const;
+// them, so an editor can never open them in place. `page` (UNI-2004) is a
+// UniNote page - its sanitized ProseMirror JSON, title and images as one JSON
+// input - accepted for capability and `export` (to docx or pdf) only.
+export const officeFormats = ["docx", "xlsx", "pptx", "pdf", "md", "html", "xls", "odt", "page"] as const;
 export const officeFormatSchema = z.enum(officeFormats);
 export type OfficeFormat = (typeof officeFormats)[number];
 export function isOfficeFormat(value: string): value is OfficeFormat {

@@ -46,11 +46,11 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if err != nil {
 		return err
 	}
-	if err := s.trackVoiceCallInvite(room, callID, userID, callerName, video, invitees); err != nil {
+	if err := s.trackVoiceCallInvite(ctx, room, callID, userID, callerName, video, invitees); err != nil {
 		return err
 	}
 	if err := s.emitVoiceCallRings(ctx, room, userID, callID, invitees); err != nil {
-		dropVoiceCallInvite(room.ID, callID)
+		s.dropVoiceCallInvite(ctx, room.ID, callID)
 		return err
 	}
 	ev := Event{
@@ -75,12 +75,12 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	if err := s.requireVoiceCallActor(ctx, room, userID, true); err != nil {
 		return err
 	}
-	s.trackVoiceCallAccept(roomID, callID, userID)
-	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.trackVoiceCallAccept(ctx, room.OrganizationID, roomID, callID, userID)
+	s.trackVoiceCallParticipant(ctx, room.OrganizationID, roomID, callID, userID)
 	// Their ring row closes either way; their phones are told to stop only
 	// when the call rang them (a ring row in the database, or this node's
 	// session), whichever node the answer reached.
-	s.closeAnsweredRing(ctx, room, callID, userID, voiceCallInvitee(roomID, callID, userID))
+	s.closeAnsweredRing(ctx, room, callID, userID, s.voiceCallInvitee(ctx, roomID, callID, userID))
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{
@@ -106,8 +106,7 @@ func (s *ChatService) SignalVoiceHangup(
 		return err
 	}
 	if voiceCallMultiPartyKind(room.Kind) {
-		key := voiceCallSessionKey(roomID, callID)
-		sess, ok := loadVoiceCallSession(key)
+		sess, ok := s.loadVoiceCallSession(ctx, roomID, callID)
 		if !ok {
 			return ErrForbidden
 		}
@@ -115,7 +114,7 @@ func (s *ChatService) SignalVoiceHangup(
 			return ErrForbidden
 		}
 	}
-	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.trackVoiceCallParticipant(ctx, room.OrganizationID, roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
 	// The session is gone either way, so the other side hears the hangup even
 	// when the call log could not be written.
@@ -150,7 +149,7 @@ func (s *ChatService) SignalVoiceDecline(ctx context.Context, userID, workspaceI
 	if !voiceCallMultiPartyKind(room.Kind) {
 		return s.SignalVoiceHangup(ctx, userID, workspaceID, roomID, callID)
 	}
-	if !trackVoiceCallDecline(room.ID, callID, userID) {
+	if !s.trackVoiceCallDecline(ctx, room.OrganizationID, room.ID, callID, userID) {
 		return nil
 	}
 	s.closeVoiceCallRings(ctx, room, callID, userID, []string{userID})
@@ -208,7 +207,7 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 }
 
 // closeRoomNotifications closes the reader's open message notifications of
-// the room (a DM, a mention) and, when one of those had reached a phone
+// the room (a DM, a mention, a room message) and, when one of those had reached a phone
 // (phone_pushed_at), writes in the same transaction the
 // chat.room.notifications_cleared row the push lane turns into a "read
 // elsewhere" push: the reader's Android phones take those notifications out of
@@ -225,7 +224,7 @@ func (s *ChatService) closeRoomNotifications(ctx context.Context, room db.ChatRo
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 	closed, err := qtx.CloseRoomNotificationGroups(ctx, db.CloseRoomNotificationGroupsParams{
-		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID)},
+		UserID: userID, GroupKeys: []string{ChatDMNotifyGroup(room.ID), ChatMentionNotifyGroup(room.ID), ChatRoomNotifyGroup(room.ID)},
 	})
 	if err != nil {
 		return err

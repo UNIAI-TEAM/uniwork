@@ -59,7 +59,7 @@ export async function resumeSubscription(orgId: string): Promise<SubscriptionVie
 /** Payment page URL from the provider; 503 billing_provider_unavailable on manual. */
 export async function createCheckout(
   orgId: string,
-  body: { plan_code: string; success_path: string; cancel_path: string },
+  body: { plan_code: string; success_path: string },
 ): Promise<string> {
   const raw = await request(`/api/v1/orgs/${enc(orgId)}/billing/checkout`, { method: "POST", body });
   return parseWithFallback<{ url: string }>(raw, CheckoutResponse, { url: "" }, {

@@ -42,6 +42,8 @@ jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefin
 jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
 jest.mock("../api", () => ({ api: { tag: "transport" } }));
 jest.mock("../calls/native-calls", () => ({ nativeCalls: { available: true } }));
+// An iPhone build with calls: its PushKit token goes on and off with push (data/push.ts).
+jest.mock("../calls/native-call-session", () => ({ voipPush: { token: () => "ab12" } }));
 jest.mock("../push", () => ({ setPushEnabled: jest.fn(async () => "ExponentPushToken[x]") }));
 jest.mock("expo-constants", () => ({ expoConfig: { extra: { eas: { projectId: "proj-1" } } } }));
 jest.mock("../queries/devices", () => ({
@@ -61,6 +63,7 @@ import { answerAiConsent } from "../ai-consent";
 import { setPushPreviews } from "../push-previews";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
+import { voipPush as mockVoip } from "../calls/native-call-session";
 import { Platform } from "react-native";
 import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews, useTransferOwnership } from "./account";
 import { useSetPushEnabled } from "./push";
@@ -190,9 +193,9 @@ describe("safety and account commands", () => {
     expect(jest.mocked(setPushPreviews).mock.calls).toEqual([[false]]);
     const ask = jest.fn(async () => true);
     expect(await run(() => useSetPushEnabled(), { enabled: true, ask })).toBe("ExponentPushToken[x]");
-    expect(setPushEnabled).toHaveBeenCalledWith(true, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask });
+    expect(setPushEnabled).toHaveBeenCalledWith(true, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask, voip: mockVoip });
     await run(() => useSetPushEnabled(), { enabled: false });
-    expect(setPushEnabled).toHaveBeenLastCalledWith(false, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask: undefined });
+    expect(setPushEnabled).toHaveBeenLastCalledWith(false, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask: undefined, voip: mockVoip });
   });
 
   it("refreshes the device list after a revoke, whether or not the server agreed", async () => {

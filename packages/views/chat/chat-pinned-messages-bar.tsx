@@ -150,7 +150,7 @@ export function ChatPinnedMessagesBar({
         disabled={togglePin.isPending}
         onClick={() => void handleUnpin(id)}
       >
-        <X className="size-4.5" aria-hidden />
+        <X className="size-4" aria-hidden />
       </Button>
     ) : null;
   const jumpTitle = windowFull ? t("chat.pinned_bar_window", { count: CHAT_MESSAGE_INITIAL }) : undefined;

@@ -222,7 +222,9 @@ func main() {
 		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
-		STTAgentSecret: cfg.MeetingSTTAgentSecret,
+		ScribeEnabled: cfg.MeetingScribeEnabled, ScribeAgentName: cfg.MeetingScribeAgentName,
+		DialInEnabled: cfg.MeetingSIPEnabled, DialInNumber: cfg.MeetingDialInNumber, SIPTrunkID: cfg.MeetingSIPTrunkID,
+		SummaryMaxRunes: cfg.MeetingSummaryMaxRunes,
 	})
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc
@@ -300,6 +302,7 @@ func main() {
 	// Presence lives in Redis when there is one, so every replica sees the same
 	// online set and a transition is announced once; nil keeps it in process.
 	chatSvc.SetPresenceStore(rdb)
+	hub.SetPresenceSignaler(handler.ChatPresenceSignaler(chatSvc))
 	// Call sessions are journaled in Redis when there is one, so a restart or a
 	// deploy keeps the calls ringing and under way (chat_voice_journal.go).
 	chatSvc.SetVoiceCallJournal(rdb)
@@ -423,6 +426,12 @@ func main() {
 		FolderUploadMaxFiles: cfg.FolderUploadMaxFiles,
 		FolderUploadMaxBytes: cfg.FolderUploadMaxBytes,
 	})
+	// A meeting's minutes are a page of this service (UNI-2003).
+	meetingSvc.Docs = documentSvc
+	// The meeting_scribe flag decides per organization whether the AI scribe is dispatched (UNI-2023).
+	// Set before RunWorkers: the dial-in sweep reads both, and nil flags drop every rule.
+	meetingSvc.SetFlags(flags)
+	meetingSvc.SetUploads(documentSvc)
 	// The chat document send files its bytes into the Documents tree and the
 	// read path resolves each message's document block against it
 	// (UNI-1966), so the chat service holds the one Documents service the
@@ -550,7 +559,24 @@ func main() {
 		log.Error("EXPO_ACCESS_TOKEN is not set in production: mobile pushes are sent unauthenticated and Expo refuses them once enhanced push security is on (docs/runbooks/unichat-mobile-release.md)")
 	}
 	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
-	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
+	// iPhone calls ring through CallKit: VoIP pushes straight to APNs (ADR
+	// 0038). No key, or a broken one, leaves VoIP off and iPhones on the Expo
+	// call push; a broken key is loud, never a boot error.
+	var voipSender notification.PushSender
+	apns, err := notification.NewAPNsVoIPSender(notification.APNsConfig{
+		KeyID: cfg.APNSKeyID, TeamID: cfg.APNSTeamID, PrivateKey: cfg.APNSPrivateKey, Topic: cfg.APNSVoIPTopic,
+	})
+	switch {
+	case err != nil:
+		log.Error("APNs VoIP push disabled: the key is incomplete or unreadable", "error", err)
+	case apns != nil:
+		if reg != nil {
+			apns.SetMetrics(reg.Notifications)
+		}
+		voipSender = apns
+		log.Info("APNs VoIP push enabled", "key_id", cfg.APNSKeyID)
+	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender, voipSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
 	pushConsumer.SetBadges(chatSvc)
@@ -606,10 +632,19 @@ func main() {
 	go func() { meetingSvc.RunWorkers(runCtx); close(meetingWorkersDone) }()
 	meetingAutoEndDone := make(chan struct{})
 	go func() { meetingSvc.RunAutoEnd(runCtx); close(meetingAutoEndDone) }()
+	// Transcript retention (UNI-1995 #5): hourly, one replica per pass (an
+	// advisory lock); awaited in the shutdown sequence below.
+	transcriptRetention := meetingSvc.NewTranscriptRetentionSweeper()
+	transcriptRetentionDone := make(chan struct{})
+	go func() { transcriptRetention.Run(runCtx); close(transcriptRetentionDone) }()
 	billingWorkersDone := make(chan struct{})
 	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// follow-2: pending items a day after a meeting, meeting tasks due and
+	// overdue. Like the reminder above it stops with runCancel; a tick cut
+	// short is retried by the next one, so it is not awaited.
+	go notification.NewFollowThroughReminder(notifConsumer).Run(runCtx)
 	// Chat reminders (H16) fire from here, not the browser; stops with
 	// runCancel and is awaited below.
 	chatRemindersDone := make(chan struct{})
@@ -678,6 +713,30 @@ func main() {
 			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
 		}
 	}
+	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
+	// identity tokens may name. The key that signs Apple client secrets is
+	// what lets a sign-in keep a refresh token and account deletion revoke
+	// it, which Apple requires; without it sign-in still works and the
+	// missing revoke is logged here.
+	var appleAuth *service.AppleAuthService
+	if cfg.AppleSignInEnabled() {
+		var appleClient service.AppleTokenClient
+		if cfg.AppleRevokeConfigured() {
+			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
+			if err != nil {
+				log.Error("sign in with apple: token revoke disabled", "err", err)
+			} else {
+				appleClient = c
+			}
+		} else {
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+		}
+		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		appleAuth.SetMail(renderer, mailOutbox)
+		authSvc.SetApple(appleAuth)
+		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
@@ -729,6 +788,11 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
 	askUNI.SetFlags(flags)
+	aiMemorySvc := service.NewAiMemoryService(pool, q, orgSvc, wsSvc)
+	aiMemorySvc.SetFlags(flags)
+	aiMemorySvc.SetImport(gateway, rdb)
+	askUNI.SetMemory(aiMemorySvc)
+	askUNI.SetFiles(fileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
@@ -769,6 +833,7 @@ func main() {
 	askUNI.SetReadTools(mcpTools)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
+		aiMemorySvc.SetMetrics(reg.AIAsk)
 	}
 	// The sweep of expired attempts, tokens and abandoned clients stops with
 	// runCancel and is awaited below.
@@ -778,6 +843,7 @@ func main() {
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
+		AppleAuth:           appleAuth,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
@@ -800,6 +866,7 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		AiMemory:            aiMemorySvc,
 		McpAuth:             mcpAuth,
 		McpTools:            mcpTools,
 		AIBYOK:              aiBYOK,
@@ -891,6 +958,15 @@ func main() {
 		log.Warn("http shutdown", "err", err)
 	}
 	<-wsDrained
+	// A clerk's summary run outlives its request (UNI-1995 #12). A run takes
+	// 1-3 minutes, so waiting for it would not fit the pod's 30s default
+	// grace (deployment-be.yaml sets none): the runs get 2s, then are
+	// cancelled, and each settles its usage row and gives its lease back
+	// (failure code on GET summary) while the pod is still alive. A run
+	// already storing finishes its store (summaryStoreTimeout).
+	if !meetingSvc.StopSummaryRuns(2 * time.Second) {
+		log.Warn("meetings: summary runs did not stop in time")
+	}
 	stopWorker()
 	select {
 	case <-outboxDone:
@@ -920,6 +996,11 @@ func main() {
 	case <-meetingAutoEndDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("meetings: auto-end did not stop in time")
+	}
+	select {
+	case <-transcriptRetentionDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("meetings: transcript retention did not stop in time")
 	}
 	select {
 	case <-chatRemindersDone:

@@ -52,6 +52,20 @@ describe("chat-mention-utils", () => {
     expect(deserializeMessageBodyToComposerDraft("plain text")).toBe("plain text");
   });
 
+  it("matches names without accents", () => {
+    const candidates: ChatMentionCandidate[] = [
+      { kind: "member", userId: "u1", label: "Nguyễn Văn Tuấn", email: "other@x.com" },
+      { kind: "member", userId: "u2", label: "Trần Đức", email: "tranduc@x.com" },
+    ];
+    const filter = (query: string) =>
+      filterMentionCandidates(candidates, query, { allLabel: "all", includeAll: false }).map(
+        (c) => c.userId,
+      );
+    expect(filter("tuan")).toContain("u1");
+    expect(filter("duc")).toContain("u2");
+    expect(filter("nguyen")).toContain("u1");
+  });
+
   it("filters candidates and keeps @all at the top", () => {
     const candidates = filterMentionCandidates(
       [

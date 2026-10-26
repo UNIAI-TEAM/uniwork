@@ -342,7 +342,7 @@ export function GroupSettingsSheet({
                           title={t("chat.nickname_action")}
                           onClick={() => setNicknameTarget({ userId: member.key, label: member.legalLabel })}
                         >
-                          <Tag className="size-4.5" aria-hidden />
+                          <Tag className="size-4" aria-hidden />
                         </Button>
                         {!member.isSelf && isModerator ? (
                           <ChatRoomMemberActions

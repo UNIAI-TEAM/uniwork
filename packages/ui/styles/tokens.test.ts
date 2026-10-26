@@ -265,6 +265,25 @@ describe("token contract", () => {
     });
   }
 
+  // Thư ký UNI's caption box floats over screen shares, very often a white slide. Its surface must be opaque
+  // enough that its faintest words still read there: the muted line at the trough of its breathing, and the
+  // dimmed interim words (audit 2026-10-26: at 64% the muted line measured 1.78:1).
+  it("keeps Thư ký UNI's captions readable over a white slide", () => {
+    const glass = value(".dark", "--meeting-caption-glass").match(/^rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)$/);
+    expect(glass, "--meeting-caption-glass is rgb(r g b / a)").not.toBeNull();
+    const [r, g, b, a] = (glass ?? []).slice(1).map(Number) as [number, number, number, number];
+    const trough = Number(baseCss.match(/@keyframes caption-breathe \{ 0%, 100% \{ opacity: ([\d.]+); \}/)?.[1]);
+    expect(trough, "caption-breathe's trough").toBeGreaterThan(0);
+    const mix = (top: number[], alpha: number, under: number[]) => top.map((t, i) => alpha * t + (1 - alpha) * (under[i] ?? 0));
+    const hex = (c: number[]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+    const rgbOf = (token: string) => srgb(value(".dark", token)).map((v) => v * 255);
+    const card = mix([r, g, b], a, [255, 255, 255]);
+    const faintest = { "--meeting-bar-muted-foreground": trough, "--meeting-bar-foreground": 0.6 };
+    for (const [token, opacity] of Object.entries(faintest)) {
+      expect(contrast(hex(mix(rgbOf(token), opacity, card)), hex(card)), `${token} at ${opacity}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("holds the CSS motion set to lib/motion.ts", () => {
     // base.css animates with these; motion/react animates with the JS
     // constants. Equal numbers or the two halves of the app move at

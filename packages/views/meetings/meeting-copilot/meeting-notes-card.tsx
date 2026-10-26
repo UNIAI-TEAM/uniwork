@@ -1,12 +1,12 @@
 "use client";
 
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { PanelCard } from "../../common/panel-card";
+import { AiBadge } from "../meeting-summary/ai-badge";
 
 function summaryLines(text: string): string[] {
   return text
@@ -15,7 +15,11 @@ function summaryLines(text: string): string[] {
     .filter(Boolean);
 }
 
-/** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
+/**
+ * AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles).
+ * The model is provenance for whoever asks (the tooltip), as on the detail page.
+ * A summary with a model was asked for; one without is the automatic catch-up.
+ */
 export function MeetingSummaryAttribution({
   model,
   time,
@@ -29,18 +33,16 @@ export function MeetingSummaryAttribution({
   const { t } = useTranslation();
   return (
     <p
+      title={model || undefined}
       className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground"
       data-testid="meeting-summary-attribution"
     >
-      <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
-        <Sparkles aria-hidden />
-        {t("meetings.aiLabel")}
-      </Badge>
+      <AiBadge />
       <span className="min-w-0">
         {model && sources
-          ? t("meetings.summaryAttributionModelFrom", { model, time, sources })
+          ? t("meetings.summaryAttributionMadeFrom", { time, sources })
           : model
-            ? t("meetings.summaryAttributionModel", { model, time })
+            ? time
             : sources
               ? t("meetings.summaryAttributionFrom", { time, sources })
               : t("meetings.summaryAttribution", { time })}
@@ -93,7 +95,8 @@ export function MeetingNotesCard({
   return (
     <PanelCard
       id="meeting-notes-card"
-      title={t("meetings.meetingNotes")}
+      // The AI summary, never "notes": the notes are what people write in the notes section.
+      title={t("meetings.summaryTab")}
       action={
         copyText ? (
           <Button type="button" size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => void onCopy()}>
@@ -105,20 +108,17 @@ export function MeetingNotesCard({
     >
       <div className="space-y-4">
         <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-caption font-medium text-foreground">{t("meetings.summaryTab")}</h3>
-            {summarizing ? (
-              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-                <Spinner className="size-3.5" />
-                {t("meetings.summarizing")}
-              </span>
-            ) : null}
-          </div>
+          {summarizing ? (
+            <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+              <Spinner />
+              {t("meetings.summarizing")}
+            </p>
+          ) : null}
           {summary && summaryUpdatedAt ? (
             <MeetingSummaryAttribution model={summaryModel} time={summaryUpdatedAt} sources={summarySources} />
           ) : null}
           {lines.length > 0 ? (
-            <p className="text-pretty text-body text-muted-foreground">{lines[0]}</p>
+            <p className="text-pretty text-body text-foreground">{lines[0]}</p>
           ) : (
             <p className="text-label text-muted-foreground">{emptyHint}</p>
           )}
@@ -130,7 +130,7 @@ export function MeetingNotesCard({
             <ul className="space-y-1.5">
               {lines.slice(1).map((line, i) => (
                 <li key={i} className="flex gap-2 text-body text-foreground">
-                  <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" />
+                  <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
                   <span className="text-pretty">{line}</span>
                 </li>
               ))}
@@ -144,7 +144,8 @@ export function MeetingNotesCard({
             <ul className="space-y-1.5">
               {decisions.map((d, i) => (
                 <li key={i} className="flex gap-2 text-body text-foreground">
-                  <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
+                  {/* A plain bullet: a check in the brand colour read as confirmed, and the AI only drew it out. */}
+                  <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
                   <span className="text-pretty">{d}</span>
                 </li>
               ))}

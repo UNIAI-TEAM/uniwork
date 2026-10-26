@@ -68,6 +68,8 @@ server/internal/handler/data/
 !.github/workflows/chat-desktop-release.yml
 !.github/workflows/chat-mobile-release.yml
 !.github/workflows/chat-mobile-verify.yml
+!.github/workflows/meeting-agent-verify.yml
+!.github/workflows/meeting-scribe-nightly.yml
 !.github/workflows/chat-mobile-update.yml
 !.github/workflows/chat-mobile-production.yml
 !.github/workflows/chat-mobile-promote.yml
@@ -75,6 +77,7 @@ server/internal/handler/data/
 !.github/workflows/chat-mobile-rollback.yml
 !.github/workflows/chat-mobile-device-farm.yml
 !.github/workflows/chat-mobile-store-screenshots.yml
+!.github/workflows/chat-mobile-tls-pins.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

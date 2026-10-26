@@ -22,6 +22,7 @@ import {
   observeChatSends,
   retryPendingSend,
   sendChatMessage,
+  sendsSettled,
   type ChatSendDeps,
 } from "./chat-send";
 import type { OutboxFiles } from "./outbox-files";
@@ -722,5 +723,34 @@ describe("every workspace", () => {
     // The app's own clock by default.
     await flushAllQueuedSends(qc, "u1", { ...deps, now: undefined });
     expect(statuses()).toEqual(["failed"]);
+  });
+});
+
+// The background drain (data/outbox-drain/) holds the app awake until the sends end: a message already on the wire,
+// which a flush of the queued ones does not see, is waited for too.
+describe("sendsSettled", () => {
+  it("resolves once the send on the wire ends, though a flush of the queued messages returned at once", async () => {
+    const qc = new QueryClient();
+    let answer: () => void = () => undefined;
+    sendMessage.mockImplementationOnce(async (_ws, _room, body) => {
+      await new Promise<void>((resolve) => (answer = resolve));
+      return echo(body.client_msg_id);
+    });
+    const sending = sendChatMessage(qc, input, deps);
+    await settle();
+    expect(statuses()).toEqual(["sending"]);
+    await flushAllQueuedSends(qc, "u1", deps);
+    let settled = false;
+    const done = sendsSettled().then(() => void (settled = true));
+    await settle();
+    expect(settled).toBe(false);
+    answer();
+    await done;
+    await sending;
+    expect(statuses()).toEqual([]);
+  });
+
+  it("resolves at once with nothing on the wire", async () => {
+    await expect(sendsSettled()).resolves.toBeUndefined();
   });
 });

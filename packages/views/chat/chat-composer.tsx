@@ -512,7 +512,7 @@ export function ChatComposer({
                 ) : editing.saving ? (
                   <Spinner className="size-5" />
                 ) : (
-                  <Check className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
+                  <Check className={cn("size-5", ICON_POP_IN)} aria-hidden />
                 )}
               </Button>
             ) : (
@@ -530,7 +530,7 @@ export function ChatComposer({
                   else void voiceRecorder.start();
                 }}
               >
-                <Mic className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
+                <Mic className={cn("size-5", ICON_POP_IN)} aria-hidden />
               </Button>
             )}
           </div>

@@ -1,17 +1,31 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
-import type { AiMessage } from "@uniwork/core/types";
+import { downloadAskAttachment } from "@uniwork/core/api/endpoints/ai-attachments";
+import { ApiError } from "@uniwork/core/api/http";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { AiProposalSchema, type AiFileNote, type AiMessage } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
 import { isInAppHref } from "./ask-uni-links";
+
+vi.mock("sonner", async (orig) => {
+  const mod = await orig<typeof import("sonner")>();
+  return { ...mod, toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) };
+});
+
+vi.mock("@uniwork/core/api/endpoints/ai-attachments", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/ai-attachments")>()),
+  downloadAskAttachment: vi.fn(),
+}));
 
 initI18n();
 
 const cite = { source_id: "S1", kind: "task", title: "Thiết kế trang chủ", quote: "Hạn thứ sáu, chưa có người nhận", href: "/acme/team/tasks/T1" };
 
 function msg(over: Partial<AiMessage> = {}): AiMessage {
-  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", created_at: "", ...over };
+  return { id: "m1", role: "assistant", content: "", notice: "", citations: [], steps: [], followups: [], focus: null, mentions: [], model: "", attachments: [], file_notes: [], proposals: [], memory_ids: [], memory_proposals: [], created_at: "", ...over };
 }
 
 function mount(message: AiMessage, props: Partial<Parameters<typeof AskUniMessageTurn>[0]> = {}) {
@@ -21,6 +35,8 @@ function mount(message: AiMessage, props: Partial<Parameters<typeof AskUniMessag
 beforeEach(() => {
   requestMock.mockReset();
   requestMock.mockResolvedValue({});
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(downloadAskAttachment).mockReset();
 });
 
 describe("AskUniMessageTurn", () => {
@@ -126,7 +142,7 @@ describe("AskUniMessageTurn", () => {
   });
 
   it("shows the message's own stored steps as a collapsed line", () => {
-    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {} }, { tool: "get_task", label: "B", counts: {} }] }));
+    mount(msg({ content: "xong", steps: [{ tool: "search", label: "a", counts: {}, note: "", thought: "", kind: "" }, { tool: "get_task", label: "B", counts: {}, note: "", thought: "", kind: "" }] }));
     expect(screen.getByRole("button", { name: "Xong sau 2 bước" })).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -242,5 +258,279 @@ describe("AskUniMessageTurn", () => {
     unmount();
     mount(msg({ content: "a" }));
     expect(screen.getByText(/^UNI/)).toBeInTheDocument();
+  });
+
+  describe("the proposal card", () => {
+    const proposal = AiProposalSchema.parse({
+      id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "pending", mode: "ask",
+      preview: { target: { kind: "task", id: "T1", title: "Viết spec" }, fields: [{ field: "title", type: "text", from: "a", to: "b" }] },
+    });
+    const serveActions = (enabled: boolean, ceiling = "plan") =>
+      requestMock.mockImplementation((path: string) =>
+        Promise.resolve(path === "/api/v1/workspaces/ws1/ai/capabilities" ? { enabled: true, ask_uni: true, actions: { enabled, ceiling, mode: "ask" } } : {}),
+      );
+    const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+    it("offers the buttons while actions are on", async () => {
+      serveActions(true);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      expect(await screen.findByRole("button", { name: "Áp dụng" })).toBeInTheDocument();
+    });
+
+    it("keeps the rows as history, with no button, once actions are off", async () => {
+      serveActions(false);
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
+
+    it("keeps the rows as history under an off ceiling too, where the server refuses every decision", async () => {
+      serveActions(true, "off");
+      mount(msg({ content: "Xong.", proposals: [proposal] }), { wsId: "ws1" });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+      await settle();
+      expect(screen.getByText("Viết spec")).toBeInTheDocument();
+      for (const name of ["Áp dụng", "Sửa", "Bỏ qua"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    });
+  });
+
+  describe("files the question carried", () => {
+    const pdf = { id: "att1", name: "bao-cao.pdf", mime: "application/pdf", size: 2048, kind: "pdf" };
+    const png = { id: "att2", name: "anh.png", mime: "image/png", size: 4096, kind: "image" };
+
+    it("shows them under the question and saves one under its own name on click", async () => {
+      const pdfBlob = new Blob(["x"], { type: "application/pdf" });
+      vi.mocked(downloadAskAttachment).mockImplementation((_ws, id) =>
+        Promise.resolve(id === "att1" ? pdfBlob : new Blob(["p"], { type: "image/png" })),
+      );
+      const anchors: HTMLAnchorElement[] = [];
+      const realCreate = document.createElement.bind(document);
+      const createSpy = vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
+        const el = realCreate(tag);
+        if (tag === "a") {
+          (el as HTMLAnchorElement).click = vi.fn();
+          anchors.push(el as HTMLAnchorElement);
+        }
+        return el;
+      }) as typeof document.createElement);
+      URL.createObjectURL = vi.fn(() => "blob:x");
+      URL.revokeObjectURL = vi.fn();
+      mount(msg({ id: "u1", role: "user", content: "Tóm tắt giúp", attachments: [pdf, png] }), { wsId: "ws1" });
+      expect(screen.getByText("anh.png")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Tải bao-cao.pdf" }));
+      try {
+        await waitFor(() => expect(anchors.at(-1)?.download).toBe("bao-cao.pdf"));
+        expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att1");
+        expect(vi.mocked(URL.createObjectURL).mock.calls.filter(([b]) => b === pdfBlob)).toHaveLength(1);
+        expect(toast.error).not.toHaveBeenCalled();
+      } finally {
+        createSpy.mockRestore();
+      }
+    });
+
+    it("loads a stored picture once, however many bubbles draw it, and shows it in its chip", async () => {
+      const picture = new Blob(["p"], { type: "image/png" });
+      vi.mocked(downloadAskAttachment).mockResolvedValue(picture);
+      URL.createObjectURL = vi.fn(() => "blob:anh");
+      URL.revokeObjectURL = vi.fn();
+      render(
+        wrapWithNav(
+          <>
+            <AskUniMessageTurn message={msg({ id: "u1", role: "user", content: "Q", attachments: [pdf, png] })} conversationId="c1" wsId="ws1" />
+            <AskUniMessageTurn message={msg({ id: "u2", role: "user", content: "Q2", attachments: [png] })} conversationId="c1" wsId="ws1" />
+          </>,
+        ),
+      );
+      await waitFor(() => expect(document.querySelectorAll('[data-slot="ask-uni-attachment"] img')).toHaveLength(2));
+      expect(downloadAskAttachment).toHaveBeenCalledTimes(1);
+      expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att2");
+      expect(URL.createObjectURL).toHaveBeenCalledWith(picture);
+    });
+
+    it("waits for a stored picture to scroll into view, and keeps the image icon when it cannot be loaded", async () => {
+      vi.mocked(downloadAskAttachment).mockRejectedValue(new ApiError("not found", "not_found", 404));
+      let reveal: (() => void) | undefined;
+      const Real = globalThis.IntersectionObserver;
+      globalThis.IntersectionObserver = class {
+        constructor(private cb: IntersectionObserverCallback) {}
+        observe(target: Element) {
+          reveal = () => this.cb([{ isIntersecting: true, target } as IntersectionObserverEntry], this as never);
+        }
+        unobserve() {}
+        disconnect() {}
+        takeRecords() {
+          return [];
+        }
+      } as never;
+      try {
+        mount(msg({ id: "u1", role: "user", content: "Q", attachments: [png] }), { wsId: "ws1" });
+        await act(async () => {});
+        expect(downloadAskAttachment).not.toHaveBeenCalled();
+        act(() => reveal!());
+        await waitFor(() => expect(downloadAskAttachment).toHaveBeenCalledWith("ws1", "att2"));
+        await act(async () => {});
+        expect(document.querySelector('[data-slot="ask-uni-attachment"] img')).toBeNull();
+        expect(document.querySelector('[data-slot="ask-uni-attachment"] .lucide-image')).not.toBeNull();
+        expect(toast.error).not.toHaveBeenCalled();
+      } finally {
+        globalThis.IntersectionObserver = Real;
+      }
+    });
+
+    it("says in words when a file cannot be downloaded", async () => {
+      vi.mocked(downloadAskAttachment).mockRejectedValue(new ApiError("not found", "not_found", 404));
+      mount(msg({ id: "u1", role: "user", content: "Q", attachments: [pdf] }), { wsId: "ws1" });
+      fireEvent.click(screen.getByRole("button", { name: "Tải bao-cao.pdf" }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tải được bao-cao.pdf, thử lại nhé."));
+    });
+
+    it.each([
+      ["a question the stream is still answering", "live-question"],
+      ["the echo the cache holds until the refetch", "pending-a2"],
+    ])("shows the files of %s without a way to download them", (_n, id) => {
+      mount(msg({ id, role: "user", content: "Q", attachments: [pdf] }), { wsId: "ws1" });
+      expect(screen.getByText("bao-cao.pdf")).toBeInTheDocument();
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("draws nothing for a question without files", () => {
+      mount(msg({ id: "u1", role: "user", content: "Q" }), { wsId: "ws1" });
+      expect(screen.queryByRole("list")).toBeNull();
+    });
+  });
+
+  describe("what UNI read of the files", () => {
+    const note = (over: Partial<AiFileNote> = {}): AiFileNote => ({ name: "bao-cao.pdf", unit: "page", read: 15, total: 80, ...over });
+    it("writes one note per file UNI read only in part", () => {
+      mount(msg({ content: "Tóm tắt đây.", file_notes: [note(), note({ name: "so-lieu.xlsx", unit: "row", read: 200, total: 5000 })] }));
+      expect(screen.getByText("UNI đã đọc trang 1–15 trên 80 trang của bao-cao.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI đã đọc 200 trên 5000 dòng của so-lieu.xlsx")).toBeInTheDocument();
+    });
+
+    it("wraps a note with a long unbroken name instead of overflowing the dock", () => {
+      mount(msg({ content: "ok", file_notes: [note({ name: "a".repeat(200) + ".pdf" })] }));
+      expect(screen.getByText(/UNI đã đọc trang 1–15/)).toHaveClass("break-words");
+    });
+
+    it.each([
+      ["page", "UNI đã đọc trang 1–3 trên 9 trang của f"],
+      ["slide", "UNI đã đọc slide 1–3 trên 9 slide của f"],
+      ["row", "UNI đã đọc 3 trên 9 dòng của f"],
+      ["paragraph", "UNI đã đọc đoạn 1–3 trên 9 đoạn của f"],
+      ["line", "UNI đã đọc dòng 1–3 trên 9 dòng của f"],
+    ])("words a %s count", (unit, line) => {
+      mount(msg({ content: "ok", file_notes: [note({ name: "f", unit, read: 3, total: 9 })] }));
+      expect(screen.getByText(line)).toBeInTheDocument();
+    });
+
+    it.each([
+      ["page", "UNI đã đọc trang 1 trên 9 trang của f"],
+      ["slide", "UNI đã đọc slide 1 trên 9 slide của f"],
+      ["row", "UNI đã đọc 1 trên 9 dòng của f"],
+      ["paragraph", "UNI đã đọc đoạn 1 trên 9 đoạn của f"],
+      ["line", "UNI đã đọc dòng 1 trên 9 dòng của f"],
+    ])("words one %s read without a range", (unit, line) => {
+      mount(msg({ content: "ok", file_notes: [note({ name: "f", unit, read: 1, total: 9 })] }));
+      expect(screen.getByText(line)).toBeInTheDocument();
+    });
+
+    it("says only the start was read when not even one whole unit fit", () => {
+      mount(msg({ content: "ok", file_notes: [note({ read: 0 })] }));
+      expect(screen.getByText("UNI chỉ đọc được phần đầu của bao-cao.pdf")).toBeInTheDocument();
+    });
+
+    it("falls back to the same general line for a unit it does not know", () => {
+      mount(msg({ content: "ok", file_notes: [note({ unit: "sheet" })] }));
+      expect(screen.getByText("UNI chỉ đọc được phần đầu của bao-cao.pdf")).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/read_note/);
+    });
+
+    it("reads right in English, one unit read apart from several", async () => {
+      await setLocale("en");
+      mount(
+        msg({
+          content: "ok",
+          file_notes: [
+            note({ read: 15 }),
+            note({ name: "a.pdf", read: 1 }),
+            note({ name: "b.pdf", unit: "slide", read: 4, total: 30 }),
+            note({ name: "c.pdf", read: 0 }),
+            note({ name: "d.xlsx", unit: "row", read: 1, total: 40 }),
+            note({ name: "e.xlsx", unit: "row", read: 12, total: 40 }),
+          ],
+        }),
+      );
+      expect(screen.getByText("UNI read pages 1–15 of 80 in bao-cao.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI read page 1 of 80 in a.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI read slides 1–4 of 30 in b.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI read only the start of c.pdf")).toBeInTheDocument();
+      expect(screen.getByText("UNI read 1 of 40 rows in d.xlsx")).toBeInTheDocument();
+      expect(screen.getByText("UNI read 12 of 40 rows in e.xlsx")).toBeInTheDocument();
+    });
+
+    it("writes no note when every file was read whole", () => {
+      mount(msg({ content: "Tóm tắt đây.", file_notes: [] }));
+      expect(screen.getByText("Tóm tắt đây.")).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/UNI đã đọc|UNI chỉ đọc/);
+    });
+  });
+});
+
+describe("AskUniMessageTurn memory", () => {
+  const ws = { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" };
+  const me = { id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "", email_verified_at: "", onboarding_questionnaire: {}, locale: "vi" };
+  const mem = { id: "p1", message_id: "m1", position: 0, action: "remember", memory_id: "", kind: "fact", text: "Tôi là kế toán", before_kind: "", before_text: "", status: "pending", expires_at: "" };
+  const mountMem = (message: AiMessage) =>
+    render(wrapWithNav(<WorkspaceProvider workspace={ws} user={me}><AskUniMessageTurn message={message} conversationId="c1" wsId="ws1" /></WorkspaceProvider>));
+  // The workspace is organization "o1" with the slug "acme": the memory routes take the slug.
+  const MEMORY = "/api/v1/orgs/acme/ai/memory";
+  const answerWith = (memoryEnabled: boolean) =>
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/ai/capabilities")
+          ? { enabled: true, ask_uni: true, actions: { enabled: true, ceiling: "plan", mode: "ask" }, memory: { enabled: memoryEnabled, on: true } }
+          : path === MEMORY
+            ? { entries: [{ id: "e1", kind: "fact", text: "Trả lời ngắn gọn", source: "", created_at: "", updated_at: "" }], on: true, limit: 50, remaining: 49 }
+            : {},
+      ),
+    );
+  // Braces: a function returned from beforeEach is run as its teardown, and the mock is one.
+  beforeEach(() => {
+    answerWith(true);
+  });
+
+  it("puts the memory card under the P3 card and shows the used line above the actions", async () => {
+    const proposal = AiProposalSchema.parse({ id: "q1", message_id: "m1", position: 1, tool: "create_task", status: "pending", mode: "ask", preview: { target: { kind: "task", id: "", title: "Viết spec" }, fields: [] } });
+    mountMem(msg({ content: "Xong.", proposals: [proposal], memory_proposals: [mem], memory_ids: ["e1"] }));
+    const p3 = await screen.findByText("UNI đề xuất · cần bạn xác nhận");
+    const card = await screen.findByText("Nhớ điều này?");
+    expect(p3.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const used = await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/);
+    const copy = screen.getByRole("button", { name: "Sao chép" });
+    expect(used.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("does not copy the used line", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mountMem(msg({ content: "Xong.", memory_ids: ["e1"] }));
+    await screen.findByText(/Đã dùng bộ nhớ/);
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(writeText.mock.calls[0]![0]).not.toContain("Đã dùng bộ nhớ");
+  });
+
+  it("shows no memory card or used line, and reads no memory, with the memory flag off", async () => {
+    answerWith(false);
+    mountMem(msg({ content: "Xong.", memory_proposals: [mem], memory_ids: ["e1"] }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+    // Let the capabilities answer land; with the flag on the card shows by then.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(screen.getByText("Xong.")).toBeInTheDocument();
+    expect(screen.queryByText("Nhớ điều này?")).toBeNull();
+    expect(screen.queryByText(/Đã dùng bộ nhớ/)).toBeNull();
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/ai/memory"))).toBe(false);
   });
 });

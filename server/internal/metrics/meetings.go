@@ -17,7 +17,11 @@ type Meetings struct {
 	// quota, rate_limited, timeout, provider, parse, empty, store), so a billed
 	// call that produced no summary is told from a provider outage.
 	SummaryErrors *prometheus.CounterVec
-	lifecycle     *prometheus.CounterVec
+	// ScribeRuns: ACTIVE scribe runs with people in the room (state=active)
+	// and those with no transcript line for 3 minutes (state=silent), set by
+	// every replica's sweep with the same fleet-wide numbers.
+	ScribeRuns *prometheus.GaugeVec
+	lifecycle  *prometheus.CounterVec
 }
 
 func NewMeetings() *Meetings {
@@ -62,6 +66,10 @@ func NewMeetings() *Meetings {
 			Name: "uniwork_meeting_summary_errors_total",
 			Help: "Failed AI meeting summary runs by reason.",
 		}, []string{"reason"}),
+		ScribeRuns: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "uniwork_meeting_scribe_runs",
+			Help: "ACTIVE scribe runs with people in the room, and those silent for 3 minutes, by state.",
+		}, []string{"state"}),
 		lifecycle: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_meetings_total",
 			Help: "Meeting lifecycle and AI outcomes by event (started, ended, auto_ended, summary_ok, summary_error).",
@@ -78,6 +86,13 @@ func (m *Meetings) Inc(event string) {
 func (m *Meetings) IncSummaryError(reason string) {
 	if m != nil && m.SummaryErrors != nil && reason != "" {
 		m.SummaryErrors.WithLabelValues(reason).Inc()
+	}
+}
+
+func (m *Meetings) SetScribeRuns(active, silent int) {
+	if m != nil && m.ScribeRuns != nil {
+		m.ScribeRuns.WithLabelValues("active").Set(float64(active))
+		m.ScribeRuns.WithLabelValues("silent").Set(float64(silent))
 	}
 }
 
@@ -150,6 +165,7 @@ func (m *Meetings) Collectors() []prometheus.Collector {
 		m.OutboxDeadLetter,
 		m.ProviderDesync,
 		m.SummaryErrors,
+		m.ScribeRuns,
 		m.lifecycle,
 	}
 }

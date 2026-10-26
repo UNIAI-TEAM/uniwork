@@ -94,6 +94,16 @@ export function shouldLock(settings: PrivacySettings, leftAt: number | null, now
   return leftAt === null || now - leftAt >= settings.relockAfterMs;
 }
 
+/**
+ * Whether a notification's actions must treat the app as locked (data/chat-notification-actions.ts: no Reply then),
+ * from the choices as carried out (`settings` already raised to the floor): unknown (null) until the
+ * saved choices are read, and locked when the read failed or did not answer in time, as the guard treats a cold start.
+ */
+export function notificationActionsLocked(state: { loaded: boolean; restored: boolean; settings: PrivacySettings }): boolean | null {
+  if (!state.loaded) return null;
+  return !state.restored || state.settings.appLock;
+}
+
 /** Whether the app is covered while it is not in front (the app switcher's snapshot, the notification shade). */
 export function coversWhenAway(settings: PrivacySettings): boolean {
   return settings.appLock || settings.screenSecurity;

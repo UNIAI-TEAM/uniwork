@@ -137,6 +137,38 @@ spec:
                   key: {{ .key }}
                   optional: true
             {{- end }}
+            {{- with .Values.be.secrets.apns }}
+            # APNs key for iPhone VoIP call pushes (ADR 0038). Optional: without it VoIP is off and
+            # iPhones keep the Expo call push. APNS_TEAM_ID comes from the ConfigMap.
+            - name: APNS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .keyID }}
+                  optional: true
+            - name: APNS_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .privateKey }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.siwa }}
+            # Sign in with Apple key (ADR 0041). Optional: without it sign-in still works and
+            # account deletion cannot revoke the Apple grant. APPLE_SIWA_TEAM_ID comes from the ConfigMap.
+            - name: APPLE_SIWA_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .keyID }}
+                  optional: true
+            - name: APPLE_SIWA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .privateKey }}
+                  optional: true
+            {{- end }}
             {{- with .Values.be.secrets.anthropicAPIKey }}
             - name: ANTHROPIC_API_KEY
               valueFrom:

@@ -19,20 +19,20 @@ import (
 
 // backdateVoiceCallAnswer moves a live call's answer time back by d, so the
 // server-measured duration covers d without the test sleeping.
-func backdateVoiceCallAnswer(t *testing.T, roomID, callID string, d time.Duration) {
+func backdateVoiceCallAnswer(t *testing.T, s *ChatService, roomID, callID string, d time.Duration) {
 	t.Helper()
+	ctx := context.Background()
 	key := voiceCallSessionKey(roomID, callID)
-	raw, ok := voiceCallSessions.Load(key)
+	sess, ok := s.loadVoiceCallSession(ctx, roomID, callID)
 	if !ok {
 		t.Fatalf("no live call %s", key)
 	}
-	sess := raw.(voiceCallSession)
 	if sess.acceptedAt == nil {
 		t.Fatalf("call %s was never answered", key)
 	}
 	at := sess.acceptedAt.Add(-d)
 	sess.acceptedAt = &at
-	voiceCallSessions.Store(key, sess)
+	s.storeVoiceCallSession(ctx, "", sess)
 }
 
 // queuedVoiceSummaries counts the summary jobs queued for a room.
@@ -51,7 +51,7 @@ func queuedVoiceSummaries(t *testing.T, pool *pgxpool.Pool, roomID string) int {
 func talk(t *testing.T, s *ChatService, caller, callee db.User, w db.Workspace, roomID, callID string, d time.Duration) {
 	t.Helper()
 	acceptDMVoiceCall(t, s, caller, callee, w, roomID, callID)
-	backdateVoiceCallAnswer(t, roomID, callID, d)
+	backdateVoiceCallAnswer(t, s, roomID, callID, d)
 	if err := s.SignalVoiceHangup(context.Background(), caller.ID, w.ID, roomID, callID); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	backdateVoiceCallAnswer(t, dm.ID, "summary-call-1", 45*time.Second)
+	backdateVoiceCallAnswer(t, s, dm.ID, "summary-call-1", 45*time.Second)
 	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestEditingASummaryKeepsTheSummary(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
 		t.Fatal(err)
 	}
-	backdateVoiceCallAnswer(t, dm.ID, "edit-summary-call", 45*time.Second)
+	backdateVoiceCallAnswer(t, s, dm.ID, "edit-summary-call", 45*time.Second)
 	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	backdateVoiceCallAnswer(t, dm.ID, "summary-call-2", 45*time.Second)
+	backdateVoiceCallAnswer(t, s, dm.ID, "summary-call-2", 45*time.Second)
 	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestVoiceCallLogAndSummaryJobCommitTogether(t *testing.T) {
 	}
 	failVoiceSummaryJobsFor(t, pool, dm.ID)
 	acceptDMVoiceCall(t, s, ua, ub, w, dm.ID, "tx-fail")
-	backdateVoiceCallAnswer(t, dm.ID, "tx-fail", 45*time.Second)
+	backdateVoiceCallAnswer(t, s, dm.ID, "tx-fail", 45*time.Second)
 	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "tx-fail"); err == nil {
 		t.Fatal("hangup succeeded although the summary job could not be queued")
 	}

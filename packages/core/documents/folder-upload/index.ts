@@ -36,6 +36,7 @@ export {
 } from "./transport";
 export { folderUploadLimits, type FolderUploadRunLimits } from "./limits";
 export { runFolderUpload } from "./runner";
+export { findUnreadable, type UnreadableCandidate } from "./unreadable";
 export {
   createFakeFolderUploadTransport,
   folderUploadApiError,

@@ -22,14 +22,16 @@ name: Mobile Verify
 #                   apps/chat-mobile/bundle-budget.json
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
 #                   production config: proves the native project still builds;
-#                   the same Gradle run tests the calls module's Kotlin on
-#                   Robolectric (`:unichat-calls:testReleaseUnitTest`), then
+#                   the same Gradle run tests the local modules' Kotlin on
+#                   Robolectric (`:unichat-calls:testReleaseUnitTest`,
+#                   `:unichat-background:testReleaseUnitTest`), then
 #                   the APK gets a static security scan
 #                   (scripts/mobile-apk-scan.mjs: no credential in any file,
 #                   not debuggable, no backup or cleartext, no component other
 #                   apps reach without a permission beyond
-#                   apps/chat-mobile/apk-scan-baseline.json, every class
-#                   native code finds by name still in the dex).
+#                   apps/chat-mobile/apk-scan-baseline.json, no permission
+#                   outside apps/chat-mobile/android-permissions.json, every
+#                   class native code finds by name still in the dex).
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
@@ -39,7 +41,7 @@ name: Mobile Verify
 #   android-smoke   installs that APK on an emulator and runs
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
 #                   cold-starts to its sign-in screen and stays up; then times
-#                   five cold starts and weighs the APK against
+#                   ten cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs);
 #                   then runs the calls module's instrumented test APK
 #                   (modules/unichat-calls/android/src/androidTest).
@@ -105,6 +107,7 @@ on:
       - ".github/workflows/chat-mobile-rollback.yml"
       - ".github/workflows/chat-mobile-device-farm.yml"
       - ".github/workflows/chat-mobile-store-screenshots.yml"
+      - ".github/workflows/chat-mobile-tls-pins.yml"
       - "docs/runbooks/unichat-mobile-release.md"
       - "docs/events/CATALOGUE.md"
       - "server/internal/handler/dto/sdo/**"
@@ -116,6 +119,7 @@ on:
       - "server/internal/handler/workspace.go"
       - "server/internal/handler/task.go"
       - "server/internal/handler/organization_members.go"
+      - "server/internal/handler/router/*.go"
       - "server/internal/config/unichat_downloads.go"
       - "server/internal/featureflags/keys.go"
       - "server/internal/service/account_deletion.go"
@@ -258,7 +262,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/mobile-e2e-seed.test.mjs scripts/mobile-ci-provisioning.test.mjs scripts/mobile-ftl-devices.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs scripts/mobile-asc-release.test.mjs scripts/mobile-play-vitals.test.mjs scripts/mobile-ota-rollback.test.mjs scripts/mobile-sentry-alerts.test.mjs scripts/mobile-store-screenshots.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/mobile-e2e-seed.test.mjs scripts/mobile-ci-provisioning.test.mjs scripts/mobile-ftl-devices.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs scripts/mobile-apk-scan.test.mjs scripts/mobile-asc-release.test.mjs scripts/mobile-play-vitals.test.mjs scripts/mobile-ota-rollback.test.mjs scripts/mobile-sentry-alerts.test.mjs scripts/mobile-store-screenshots.test.mjs scripts/mobile-route-catalogue.test.mjs scripts/mobile-tls-pins.test.mjs scripts/mobile-sentry-symbols.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -351,15 +355,16 @@ jobs:
       - name: Prebuild the native project
         working-directory: apps/chat-mobile
         run: pnpm exec expo prebuild -p android --no-install --clean
-      - name: Assemble the release APK and run the calls module's JVM tests
+      - name: Assemble the release APK and run the local modules' JVM tests
         working-directory: apps/chat-mobile/android
         # One ABI, the emulator's: what can break is shared by all four, and it
         # halves the build. The nightly builds every ABI (android-production).
-        # The calls module's Robolectric tests (modules/unichat-calls/android/src/test)
-        # share the release compilation; Robolectric runs SDK 34 on this JDK 17.
+        # The local modules' Robolectric tests (modules/unichat-calls/android/src/test,
+        # modules/unichat-background/android/src/test: the outbox drain job on WorkManager's
+        # test runtime) share the release compilation; Robolectric runs SDK 34 on this JDK 17.
         # :unichat-calls:assembleDebugAndroidTest builds the module's instrumented test APK
         # (src/androidTest), which android-smoke runs on its emulator.
-        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
+        run: ./gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest :unichat-background:testReleaseUnitTest :unichat-calls:assembleDebugAndroidTest --no-daemon -PreactNativeArchitectures=x86_64 "-Dorg.gradle.jvmargs=$GRADLE_DAEMON_JVMARGS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -367,6 +372,8 @@ jobs:
           path: |
             apps/chat-mobile/modules/unichat-calls/android/build/reports/tests/**
             apps/chat-mobile/android/**/unichat-calls/reports/tests/**
+            apps/chat-mobile/modules/unichat-background/android/build/reports/tests/**
+            apps/chat-mobile/android/**/unichat-background/reports/tests/**
           if-no-files-found: ignore
           retention-days: 7
       - name: APK size
@@ -376,7 +383,8 @@ jobs:
           { echo "### UniChat Android release APK (x86_64)"; echo; ls -l *.apk | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Security scan of the release APK
         # Audit "Security & privacy", no-ci-binary-security-scan: what Gradle merged and the bundler shipped, read from
-        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json.
+        # the APK itself (aapt2 from the runner's Android SDK). Blocks on a finding outside apk-scan-baseline.json and on
+        # a permission (a library's included) that android-permissions.json does not review.
         run: node scripts/mobile-apk-scan.mjs apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -432,23 +440,35 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Cold start on an emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # A Maestro run whose own log shows the emulator's adb transport dropped ("device offline" on its first
+          # command) gets a fresh adb server and runs again without spending an attempt (scripts/maestro-retry.sh,
+          # UNI-2142): the drop lasts under half a second, Maestro 2.11.0 does not ride it out, and the plain retry
+          # met it again on the same emulator.
+          MAESTRO_ADB_RECOVER: "1"
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
           disable-animations: true
-          # Then on the device (audit P1 Perf): the APK's size, and five cold starts timed to Android's first
-          # frame and to the sign-in screen drawn under the lifted splash, each held to its ceiling. Last (audit
+          # Then on the device (audit P1 Perf): the APK's size, and ten cold starts timed to Android's first
+          # frame (held until the splash lifts) and to the sign-in screen drawn under it, each median held to its
+          # ceiling. Ten, after an untimed launch, a fixed compile state and a settled CPU before each (UNI-2142): on
+          # this freshly booted emulator one launch varied by ~28 %, and five gave the same commit 2056 and 2748. Last (audit
           # UX "no-device-a11y-verification"), at the largest font scale and in dark mode: the sign-in screen
           # still shows its copy and reaches its button, and every control on it is named and 48 dp a side.
           # Then (review P2) the calls module's instrumented test: an incoming call posted through
           # CallNotifications reaches System UI's shade as a call with Answer and Decline.
+          # hide_error_dialogs: a busy, freshly booted emulator's own apps raise "Pixel Launcher isn't responding" over
+          # the app, and Maestro then cannot see the sign-in button drawn under it (UNI-2142). The setting hides those
+          # system dialogs only; a UniChat crash still fails the flow, since its screen never shows.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && ${{ github.workspace }}/scripts/maestro-retry.sh test flows/smoke-launch.yaml
             mkdir -p "${{ runner.temp }}/perf"
             node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf/apk.json"
-            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf/startup.json"
+            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 10 --out "${{ runner.temp }}/perf/startup.json"
             node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf/apk.json" "${{ runner.temp }}/perf/startup.json"
             adb shell settings put system font_scale 2.0
             adb shell cmd uimode night yes
@@ -613,13 +633,20 @@ jobs:
           # The web (3000) and API (8080) on the runner, mapped again before every attempt (scripts/maestro-retry.sh):
           # a failed attempt can restart adbd, and the retry then met localhost refused in the sign-in Custom Tab.
           MAESTRO_ADB_REVERSE: "3000 8080"
+          # And a fresh adb server for a run that lost the transport, as in android-smoke.
+          MAESTRO_ADB_RECOVER: "1"
+          # Every failed run's maestro.log and device log, without the password's lines: Maestro clears logcat at each
+          # flow start, so MAESTRO_LOGCAT holds only the last attempt, and its own log is not uploaded otherwise.
+          MAESTRO_ATTEMPT_LOGS: ${{ runner.temp }}/maestro-attempts
         with:
           api-level: 35
           # google_apis carries Chrome, which hosts the sign-in Custom Tab.
           target: google_apis
           arch: x86_64
           disable-animations: true
+          # hide_error_dialogs: as in android-smoke, a system ANR dialog must not cover the app under test.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb reverse tcp:3000 tcp:3000
             adb reverse tcp:8080 tcp:8080
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
@@ -650,9 +677,10 @@ jobs:
         with:
           name: maestro-e2e
           # Screenshots, the server logs and the device log without the password's lines: Maestro's command log records
-          # the typed test password.
+          # the typed test password, so only the copies scripts/maestro-retry.sh redacted (maestro-attempts) go.
           path: |
             ~/.maestro/tests/**/*.png
+            ${{ runner.temp }}/maestro-attempts/**
             ${{ runner.temp }}/server.log
             ${{ runner.temp }}/web.log
             ${{ runner.temp }}/logcat.txt
@@ -678,6 +706,10 @@ jobs:
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
       # The startup marks the cold-start timing reads (data/perf/marks-file.ts); outside the fingerprint, never in a store build.
       UNICHAT_PERF_MARKS: "1"
+      # Maestro's XCTest driver gets 5 minutes to answer, not its default 2: its first launch on a freshly booted
+      # simulator took 161 s and 176 s in the runs that went red (October 2026). A driver that answers sooner is used
+      # at once; scripts/maestro-retry.sh › MAESTRO_IOS_UDID clears a timed-out one before the retry.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -721,7 +753,7 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
-          echo "UDID=$udid" >> "$GITHUB_ENV"
+          { echo "UDID=$udid"; echo "MAESTRO_IOS_UDID=$udid"; } >> "$GITHUB_ENV"
           { echo "### UniChat iOS simulator Release build"; echo; du -sh build/Build/Products/Release-iphonesimulator/*.app | awk '{printf "- `%s`: %s\n", $2, $1}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install Maestro ${{ env.MAESTRO_VERSION }}
         run: |

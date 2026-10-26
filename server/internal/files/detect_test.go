@@ -237,6 +237,11 @@ func TestDetectContentTypeEdges(t *testing.T) {
 		{"mp4_m4a_only_brands", ftyp("M4A ", "isom"), "voice.m4a", "audio/mp4"},
 		{"mp4_m4b_compatible", ftyp("mp42", "M4B ", "mp42"), "book.m4b", "audio/mp4"},
 		{"mp4_box_longer_than_head", []byte("\x00\x00\x00\x40ftypM4A\x00\x00\x00\x00"), "voice.m4a", "application/octet-stream"},
+		// An MP3 without an ID3 tag opens on a frame header; only a .mp3
+		// name makes those two bytes evidence (UNI-2001 meeting audio).
+		{"mp3_frame_without_id3", append([]byte{0xff, 0xfb, 0x90, 0x64}, bytes.Repeat([]byte{0}, 64)...), "meeting.mp3", "audio/mpeg"},
+		{"mp3_frame_bytes_named_bin", append([]byte{0xff, 0xfb, 0x90, 0x64}, bytes.Repeat([]byte{0}, 64)...), "meeting.bin", "application/octet-stream"},
+		{"wav_is_audio_wave", append([]byte("RIFF\x24\x00\x00\x00WAVEfmt "), bytes.Repeat([]byte{0}, 64)...), "meeting.wav", "audio/wave"},
 	}
 	for _, c := range cases {
 		if got := files.DetectContentType(c.body, c.filename); got != c.want {

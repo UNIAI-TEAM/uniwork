@@ -227,7 +227,7 @@ export function ChatForwardDialog({
                             checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface text-transparent",
                           )}
                         >
-                          <Check strokeWidth={3.2} className="size-3.5" />
+                          <Check className="size-3.5" />
                         </span>
                         <RoomFace room={room} title={title} />
                         <span className="min-w-0 flex-1">

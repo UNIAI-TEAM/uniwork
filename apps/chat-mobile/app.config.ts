@@ -3,7 +3,8 @@
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
 // are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
-// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN, UNICHAT_IOS_CALLS and, for an OTA only, UNICHAT_CRITICAL_UPDATE; the app reads the result from
+// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN, UNICHAT_IOS_CALLS and, for an OTA only, UNICHAT_CRITICAL_UPDATE (TLS pins are
+// committed, tls-pins.json); the app reads the result from
 // `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
 // the dev values; staging and production have none (eas.json, runbook
 // docs/runbooks/unichat-mobile-release.md).
@@ -26,6 +27,9 @@ const APP_LINK_HOST = "app.uniworkos.com";
 export const ANDROID_KEEP_RULES = [
   "-keep class com.margelo.nitro.** { *; }",
   "-keep class expo.modules.unichatcalls.** { *; }",
+  // The outbox's drain job (modules/unichat-background): WorkManager finds the worker by its class name, kept in its
+  // database across app updates.
+  "-keep class expo.modules.unichatbackground.** { *; }",
   "-keep class livekit.org.jni_zero.** { *; }",
 ].join("\n");
 
@@ -58,10 +62,12 @@ function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoCon
 
 /**
  * Calls on iPhone are a capability of the binary, not of a server switch (Apple 2.5.4 and 2.3.1, audit
- * "ios-dormant-calls-bg-audio"): the `audio` background mode is declared only by a build that can place a call a
- * reviewer can try, and a binary built without it never shows calling, whatever unichat_mobile_calls_ios says
- * (data/remote-config.ts › setBuildLacks). UNICHAT_IOS_CALLS=1 turns it on, and only once the call module ships its iOS
- * half (CallKit and PushKit, docs/adr/drafts/0038): asked for before that, the config refuses to build.
+ * "ios-dormant-calls-bg-audio"): the `audio` and `voip` background modes are declared only by a build that can place a
+ * call a reviewer can try, and a binary built without them never shows calling, whatever unichat_mobile_calls_ios says
+ * (data/remote-config.ts › setBuildLacks). UNICHAT_IOS_CALLS=1 turns it on, and only where the call module ships its
+ * iOS half (CallKit and PushKit, docs/adr/0038): asked for without it, the config refuses to build. The module's call
+ * center starts only in a build that declares `voip` (ios/CallCenter.swift), so a build without the variable registers
+ * no VoIP token and reports nothing to CallKit.
  */
 export function iosCallsBuilt(projectRoot: string): boolean {
   if (process.env.UNICHAT_IOS_CALLS !== "1") return false;
@@ -151,40 +157,64 @@ function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, dev
 
 /** A base64 SHA-256 of a SubjectPublicKeyInfo: 32 bytes, 44 characters with padding. */
 const SPKI_PIN = /^[A-Za-z0-9+/]{43}=$/;
-/** A bare DNS hostname: no scheme, port, path or wildcard. */
+/** A bare DNS hostname: no scheme, path or wildcard. */
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
+/** The committed pin-set, tls-pins.json (runbook docs/runbooks/unichat-tls-pins.md). */
+export type TlsPins = {
+  /** YYYY-MM-DD: the day Android stops enforcing the pin-set. iOS has no such date. */
+  expires: string;
+  /** The CA keys pinned, each with the certificate it was computed from (certs/tls-pins/). */
+  pins: { sha256: string; ca: string; operator: string; certificate: string }[];
+  /** The hosts each release variant pins, `host` or `host:port` (the port is the scheduled check's, not the app's). */
+  hosts: Partial<Record<"staging" | "production", string[]>>;
+};
+
+const TLS_PINS_FILE = "tls-pins.json";
+
 /**
- * TLS pinning of UniChat's own servers (plugins/with-tls-pins.js), from the build's environment:
- * UNICHAT_TLS_PINS (comma-separated base64 SPKI SHA-256, at least two: the current CA key and a backup)
- * and UNICHAT_TLS_PIN_EXPIRES (YYYY-MM-DD, after which Android stops enforcing them). The API and web
- * hosts are pinned, plus any UNICHAT_TLS_PIN_HOSTS names (comma-separated hostnames: the LiveKit
- * signalling host, which carries a call's join token; its chain must end in one of the pins). Unset, nothing is
- * pinned. Half a configuration, one pin, a malformed pin or a past date is a broken build, not a phone
- * that cannot reach its server: the config refuses it. Never for dev, whose server is plain http on a LAN.
+ * TLS pinning of UniChat's own servers (plugins/with-tls-pins.js) for every staging and production build, from the
+ * committed tls-pins.json: the API, the web app and the LiveKit signalling host (which carries a call's join token)
+ * pinned to CA keys of at least two CA operators, so the server can move to the backup CA without locking a
+ * binary out, with the date Android stops enforcing them. The hosts come from the file, never from the servers'
+ * URLs: the pins are part of the native fingerprint, which the OTA workflow must compute as the builder did.
+ * A malformed file is refused wherever the config is read. On the EAS builder (`onBuilder`), an expired pin-set
+ * or a server host the file does not pin is refused too: that binary would be broken (or unpinned) for its whole
+ * life, while CI's placeholder builds and the OTA workflow must still read the config. Never for dev, whose
+ * server is plain http on a LAN.
  */
-export function tlsPinning(env: AppEnv, hosts: string[], now: Date = new Date()): { domains: string[]; pins: string[]; expiration: string } | null {
-  const pins: string[] = String(process.env.UNICHAT_TLS_PINS ?? "")
-    .split(",")
-    .map((pin: string) => pin.trim())
-    .filter(Boolean);
-  const expiration = String(process.env.UNICHAT_TLS_PIN_EXPIRES ?? "").trim();
-  const extraHosts: string[] = String(process.env.UNICHAT_TLS_PIN_HOSTS ?? "")
-    .split(",")
-    .map((host: string) => host.trim())
-    .filter(Boolean);
-  if (pins.length === 0 && !expiration && extraHosts.length === 0) return null;
-  if (env === "dev") throw new Error("UNICHAT_TLS_PINS is for staging and production builds only");
-  if (pins.length < 2) throw new Error("UNICHAT_TLS_PINS needs at least two pins: the current CA key and a backup");
-  const bad = pins.find((pin: string) => !SPKI_PIN.test(pin));
-  if (bad) throw new Error(`UNICHAT_TLS_PINS has a value that is not a base64 SHA-256: ${bad}`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiration) || Number.isNaN(Date.parse(expiration))) throw new Error("UNICHAT_TLS_PIN_EXPIRES must be a date like 2027-10-01");
-  if (Date.parse(expiration) <= now.getTime()) throw new Error("UNICHAT_TLS_PIN_EXPIRES is in the past: Android would not enforce the pins");
-  const badHost = extraHosts.find((host: string) => !HOSTNAME.test(host));
-  if (badHost) throw new Error(`UNICHAT_TLS_PIN_HOSTS has a value that is not a bare hostname: ${badHost}`);
-  const domains: string[] = [...new Set([...hosts, ...extraHosts.map((host: string) => host.toLowerCase())].filter(Boolean))];
-  if (domains.length === 0) throw new Error("UNICHAT_TLS_PINS needs UNICHAT_API_URL and UNICHAT_APP_URL to name the hosts to pin");
-  return { domains, pins: [...new Set(pins)], expiration };
+export function tlsPinning(
+  env: AppEnv,
+  serverHosts: string[],
+  file: TlsPins,
+  now: Date = new Date(),
+  onBuilder: boolean = process.env.EAS_BUILD === "true",
+): { domains: string[]; pins: string[]; expiration: string } | null {
+  if (env === "dev") return null;
+  const pins: string[] = [...new Set((file.pins ?? []).map((pin) => pin.sha256))];
+  if (pins.length < 2) throw new Error(`${TLS_PINS_FILE} needs at least two pins: the current CA key and a backup`);
+  const bad = pins.find((pin) => !SPKI_PIN.test(pin));
+  if (bad) throw new Error(`${TLS_PINS_FILE} has a pin that is not a base64 SHA-256: ${bad}`);
+  if (new Set(file.pins.map((pin) => pin.operator)).size < 2) {
+    throw new Error(`${TLS_PINS_FILE} needs pins from at least two CA operators: a backup the server can move to without a new binary`);
+  }
+  const expiration = String(file.expires ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiration) || Number.isNaN(Date.parse(expiration))) throw new Error(`${TLS_PINS_FILE} › expires must be a date like 2027-10-01`);
+  const entries = file.hosts?.[env] ?? [];
+  if (entries.length === 0) throw new Error(`${TLS_PINS_FILE} names no hosts for ${env}`);
+  const domains = entries.map((entry) => {
+    const match = /^([^:]+)(?::(\d{1,5}))?$/.exec(entry.trim());
+    const port = Number(match?.[2] ?? 443);
+    if (!match || !HOSTNAME.test(match[1]!) || port < 1 || port > 65535) throw new Error(`${TLS_PINS_FILE} › hosts.${env} has a value that is not a hostname (and port): ${entry}`);
+    return match[1]!.toLowerCase();
+  });
+  const pinned = [...new Set(domains)];
+  if (onBuilder) {
+    if (Date.parse(expiration) <= now.getTime()) throw new Error(`${TLS_PINS_FILE} › expires is in the past: Android would not enforce the pins (runbook unichat-tls-pins › Khắc phục)`);
+    const unpinned = serverHosts.map((host) => host.toLowerCase()).find((host) => host && !pinned.includes(host));
+    if (unpinned) throw new Error(`${unpinned} is not pinned: add it to ${TLS_PINS_FILE} › hosts.${env}, where the scheduled check watches it`);
+  }
+  return { domains: pinned, pins, expiration };
 }
 
 const hostOf = (url: string): string => {
@@ -223,7 +253,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   // Read first: a missing or cleartext server is the first thing a broken release build is told.
   const apiUrl = serverUrl("UNICHAT_API_URL", env, "http://localhost:8080");
   const appUrl = serverUrl("UNICHAT_APP_URL", env, "http://localhost:3000");
-  const pinning = tlsPinning(env, [hostOf(apiUrl), hostOf(appUrl)]);
+  const pinning =
+    env === "dev" ? null : tlsPinning(env, [hostOf(apiUrl), hostOf(appUrl)], JSON.parse(fs.readFileSync(path.resolve(projectRoot ?? process.cwd(), TLS_PINS_FILE), "utf8")) as TlsPins);
   const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
   // Crash reporting stays off without it (data/sentry.ts); a DSN is not a secret, it only routes events.
   const sentryDsn = process.env.SENTRY_DSN?.trim() || undefined;
@@ -276,10 +307,11 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
       // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
       config: { usesNonExemptEncryption: false },
-      // A call keeps its audio when the person switches app or locks the phone, in a build that has calls
-      // (iosCallsBuilt); without them the binary declares no background mode a reviewer could not exercise.
+      // A build that has calls (iosCallsBuilt): `voip` for PushKit's pushes, which CallKit rings on a locked phone or a
+      // closed app, and `audio` so the call keeps its sound when the person switches app or locks the phone. Without
+      // calls the binary declares no background mode a reviewer could not exercise.
       // Vietnamese is the base language (the usage strings below are written in it; `locales.en` translates them).
-      infoPlist: { ...(iosCalls ? { UIBackgroundModes: ["audio"] } : {}), CFBundleDevelopmentRegion: "vi" },
+      infoPlist: { ...(iosCalls ? { UIBackgroundModes: ["audio", "voip"] } : {}), CFBundleDevelopmentRegion: "vi" },
       privacyManifests: IOS_PRIVACY_MANIFEST,
     },
     android: {
@@ -292,11 +324,15 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // DETECT_SCREEN_CAPTURE stays: on Android 14+ the module registers its ScreenCaptureCallback when it is created,
       // and without that install-time permission the registration throws while the bundle loads and the app dies at
       // launch (CI's API 35 emulator, 2026-10-23). It is a normal permission: no prompt, nothing for Play to review.
+      // expo-application links installreferrer, whose manifest asks to bind Play's install-referrer service: only
+      // getInstallReferrerAsync uses it, and UniChat never asks how it was installed. What stays, a Maven library's
+      // included, is reviewed one by one in android-permissions.json (scripts/mobile-apk-scan.mjs reads the binary).
       blockedPermissions: [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
+        "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
       ],
       // No cloud backup of the app's files: unsent attachments sit in plain files under documents/outbox, and a
       // restored session store cannot open on another phone anyway (its Keystore key never leaves this one).
@@ -348,6 +384,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // later is this switch plus its translation.
       ["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }],
       "expo-web-browser",
+      // Sign in with Apple on iPhone (ADR 0041, Apple 4.8: the sign-in page offers Google): the
+      // com.apple.developer.applesignin entitlement; EAS turns the capability on for the App ID when it signs.
+      "expo-apple-authentication",
       // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
       // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,
       // which the call notifications look up too (modules/unichat-calls › CallNotifications.smallIcon).
@@ -400,6 +439,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ["expo-local-authentication", { faceIDPermission: USAGE_VI.NSFaceIDUsageDescription }],
       // Calls (M3): LiveKit's native setup, then WebRTC's permissions.
       "@livekit/react-native-expo-plugin",
+      // The outbox's scheduled drain on iOS (data/outbox-drain/background-send.ts): the BGTask identifier
+      // expo-background-task registers at launch, and the `processing` background mode it runs under (review note:
+      // "sends messages the user wrote offline once the network is back"; plugins/with-unichat-calls keeps it).
+      "expo-background-task",
       [
         "@config-plugins/react-native-webrtc",
         { cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
@@ -408,11 +451,12 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ["./plugins/with-removed-android-services", { services: ["com.oney.WebRTCModule.MediaProjectionService"] }],
       // Android 12+ copies app data to a new phone even with allowBackup off: nothing of UniChat's goes either way.
       "./plugins/with-android-backup-rules",
-      // TLS pinning of the API and web hosts, only when the build's environment names the pins (tlsPinning).
+      // TLS pinning of the API, web and LiveKit hosts on every staging and production build (tlsPinning, tls-pins.json).
       ...(pinning ? [["./plugins/with-tls-pins", pinning] as [string, typeof pinning]] : []),
-      // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
-      // ringing screen's full-screen intent, the call's foreground service
-      // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.
+      // Native calls (docs/adr/0038, modules/unichat-calls). Android: the ringing
+      // screen's full-screen intent, the call's foreground service (phoneCall,
+      // microphone, camera), Bluetooth audio and the Decline / Hang up actions.
+      // iOS: the `audio` and `voip` background modes of a build with calls only.
       ["./plugins/with-unichat-calls", { iosCalls }],
       // Crash reporting: uploads source maps and native symbols from the EAS
       // build. Organization, project and token come from the build's

@@ -50,6 +50,12 @@ func FromEnv(get func(string) string) (provider.Provider, Options) {
 			name = "ollama"
 		}
 	}
+	// The HTTP clients' own cap is only a backstop: the gateway bounds every
+	// call by its capability (CallTimeoutFor), so it must not cut a longer one.
+	httpTimeout := opts.Timeout
+	for _, p := range policies {
+		httpTimeout = max(httpTimeout, opts.Timeout*time.Duration(p.TimeoutScale))
+	}
 	switch name {
 	case "anthropic":
 		if key := get("ANTHROPIC_API_KEY"); key != "" {
@@ -57,10 +63,10 @@ func FromEnv(get func(string) string) (provider.Provider, Options) {
 		}
 	case "openai":
 		if key := get("OPENAI_API_KEY"); key != "" {
-			return provider.NewOpenAI(get("OPENAI_BASE_URL"), key, opts.Timeout), opts
+			return provider.NewOpenAI(get("OPENAI_BASE_URL"), key, httpTimeout), opts
 		}
 	case "ollama":
-		return provider.NewOllama(get("OLLAMA_BASE_URL"), opts.Timeout), opts
+		return provider.NewOllama(get("OLLAMA_BASE_URL"), httpTimeout), opts
 	case "fake":
 		return &provider.Fake{Reply: FakeReply}, opts
 	}

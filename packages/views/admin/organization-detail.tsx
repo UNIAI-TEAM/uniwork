@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, Building2 } from "lucide-react";
+import { CircleAlert, BuildingComplex } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAdminFlags,
@@ -318,7 +318,7 @@ export function AdminOrganizationDetailView({ orgId }: { orgId: string }) {
       <>
         <BreadcrumbHeader segments={[{ href: paths.admin.root(), label: t("crumb") }]} leaf={t("not_found")} />
         <CollectionPageState
-          icon={detail.isError ? CircleAlert : Building2}
+          icon={detail.isError ? CircleAlert : BuildingComplex}
           tone={detail.isError ? "destructive" : "muted"}
           role={detail.isError ? "alert" : "status"}
           title={detail.isError ? t("error_title") : t("not_found")}

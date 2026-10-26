@@ -69,8 +69,8 @@ describe("privacy policy", () => {
   });
 
   it("carries a machine-readable effective date", () => {
-    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-22");
-    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-22");
+    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-23");
+    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-23");
   });
 
   // Long provider names and descriptions overflowed the Office table's narrow middle column.
@@ -104,6 +104,7 @@ describe("privacy policy", () => {
     "Mã định danh trong báo cáo crash": { vi: ["mã người dùng UniWork"], en: ["your UniWork user id"] },
     "Xử lý AI (Anthropic, bên thứ ba)": { vi: ["Anthropic"], en: ["Anthropic"] },
     "Báo cáo vi phạm": { vi: ["Báo cáo và chặn"], en: ["Reports and blocking"] },
+    "Đăng nhập bằng Apple (chỉ iPhone)": { vi: ["Đăng nhập bằng Apple trên iPhone", "mã tài khoản Apple"], en: ["Sign in with Apple on iPhone", "Apple account id"] },
   };
 
   it("says what the store listing declares, row for row, in both languages", () => {

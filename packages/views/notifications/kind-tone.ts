@@ -7,10 +7,13 @@ import { moduleTone } from "../layout/module-tones";
  * read from the same table the sidebar uses — so a task notification carries
  * the tasks green the person already knows from the nav, a meeting one the
  * meetings violet. A kind from a newer server, or one with no module, takes
- * the neutral grey.
+ * the neutral grey. A failure keeps its module tint here (the settings matrix
+ * names the module); its mark carries the destructive signal instead, see
+ * `kindSignal`.
  */
 const KIND_TONES: Record<NotificationKind, Tint> = {
   task_assigned: moduleTone("tasks"),
+  tasks_assigned: moduleTone("tasks"),
   task_status_changed: moduleTone("tasks"),
   task_commented: moduleTone("tasks"),
   mentioned: moduleTone("chat"),
@@ -19,6 +22,12 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   meeting_invited: moduleTone("meetings"),
   meeting_starting: moduleTone("meetings"),
   meeting_summary_reminder: moduleTone("meetings"),
+  meeting_summary_ready: moduleTone("meetings"),
+  meeting_recap_ready: moduleTone("meetings"),
+  meeting_action_items_pending: moduleTone("meetings"),
+  meeting_task_due: moduleTone("tasks"),
+  meeting_transcript_ready: moduleTone("meetings"),
+  meeting_transcript_failed: moduleTone("meetings"),
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",
@@ -36,6 +45,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_break_glass: moduleTone("documents"),
   chat_mentioned: moduleTone("chat"),
   chat_dm: moduleTone("chat"),
+  chat_message: moduleTone("chat"),
   chat_thread_replied: moduleTone("chat"),
   chat_call_incoming: moduleTone("chat"),
   document_access_requested: moduleTone("documents"),
@@ -48,4 +58,11 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
 
 export function kindTone(kind: string): Tint {
   return (KIND_TONES as Record<string, Tint>)[kind] ?? "gray";
+}
+
+/** Kinds that report a failure: their mark takes the destructive signal, not a tint. */
+const FAILURE_KINDS: ReadonlySet<string> = new Set<NotificationKind>(["meeting_transcript_failed"]);
+
+export function kindSignal(kind: string): "destructive" | null {
+  return FAILURE_KINDS.has(kind) ? "destructive" : null;
 }

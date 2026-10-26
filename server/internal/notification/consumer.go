@@ -244,10 +244,19 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 		OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 	}}
 	// A merged row is one the person has not looked at yet; pushing again
-	// would be the spam the merge exists to prevent.
-	if prefs.Push && !merged {
+	// would be the spam the merge exists to prevent. A chat message is the
+	// exception (UNI-2141): every message pushes, as messengers do, naming its
+	// message so the push shows that message's words; the phone groups them
+	// under the row's tag and the push lane keeps a burst to one alert
+	// (PushConsumer.claimChatPush).
+	chat := isChatPushKind(d.Kind)
+	if prefs.Push && (!merged || chat) {
+		payload := map[string]string{"notification_id": row.ID, "user_id": d.UserID}
+		if chat {
+			payload["message_id"] = d.ResourceID
+		}
 		events = append(events, audit.Event{
-			Topic: TopicPush, Payload: map[string]string{"notification_id": row.ID, "user_id": d.UserID},
+			Topic: TopicPush, Payload: payload,
 			OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 		})
 	}

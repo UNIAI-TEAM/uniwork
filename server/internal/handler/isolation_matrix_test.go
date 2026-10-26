@@ -223,11 +223,7 @@ func TestIsolationMatrix(t *testing.T) {
 			}
 			label := "references " + c.method + " " + c.pattern + " " + c.what
 			raw := w.attack(t, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
-			for _, bad := range c.mustNotContain {
-				if strings.Contains(string(raw), bad) {
-					t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
-				}
-			}
+			c.checkMustNotContain(t, label, raw, w.alpha)
 			if c.afterAttack != nil {
 				c.afterAttack(t, w, label)
 			}
@@ -270,7 +266,8 @@ func TestIsolationMatrix(t *testing.T) {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
 			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
-			w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			raw := w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			c.checkMustNotContain(t, label, raw, w.alpha)
 			if c.afterAttack != nil {
 				c.afterAttack(t, w, label)
 			}
@@ -613,11 +610,27 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{projectID}":
 		return tn.get(t, "project")
 	case "{meetingID}":
+		// A transcript line lives in the live meeting, an uploaded
+		// transcription in the held one (UNI-1995 #5).
+		switch {
+		case under("/transcript/{segmentID}"):
+			return tn.get(t, "liveMeeting")
+		case under("/transcriptions/{transcriptionID}"):
+			return tn.get(t, "heldMeeting")
+		}
 		return tn.get(t, "meeting")
 	case "{participantID}":
 		return tn.get(t, "participant")
+	case "{speakerLabelID}":
+		return tn.get(t, "speakerLabel")
+	case "{segmentID}":
+		return tn.get(t, "transcriptSegment")
+	case "{transcriptionID}":
+		return tn.get(t, "transcription")
 	case "{motionID}":
 		return tn.get(t, "motion")
+	case "{actionItemID}":
+		return tn.get(t, "actionItem")
 	case "{invitationID}":
 		return tn.get(t, "meetingInvitation")
 	case "{linkId}":
@@ -644,6 +657,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "fileMessage")
 		}
 		return tn.get(t, "message")
+	case "{proposalID}":
+		return tn.get(t, "aiProposal")
+	case "{memoryID}":
+		return tn.get(t, "aiMemory")
+	case "{memoryProposalID}":
+		return tn.get(t, "aiMemoryProposal")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{sessionID}":
@@ -791,6 +810,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{scheduledSendID}":
 		return tn.get(t, "scheduledSend")
 	case "{fileID}":
+		if under("/ai/attachments/") {
+			// An unclaimed Ask UNI upload of the tenant's owner: any other
+			// file is not the route's to cancel.
+			return tn.get(t, "aiUpload")
+		}
 		return tn.get(t, "file")
 	case "{sourceFileID}":
 		// The documents home's other sources (UNI-1305): the task
@@ -827,6 +851,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{attachmentID}":
 		if under("/email-hub/") {
 			return tn.get(t, "emailAttachment")
+		}
+		if under("/ai/attachments/") {
+			// The row a sent Ask UNI question holds its file by, not the
+			// upload's file id.
+			return tn.get(t, "aiAttachment")
 		}
 		return tn.get(t, "attachment")
 	case "{recordingID}":
@@ -1117,6 +1146,8 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{orgID}", tn.orgID,
 		// The access report's folder (UNI-1643) rides in ?folder_id=.
 		"{folderID}", tn.ids["folder"],
+		// A meeting note cited as evidence (UNI-2002) rides in ?refs=.
+		"{meetingNote}", tn.ids["meetingNote"],
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),
@@ -1290,6 +1321,7 @@ var isoUnseeded = map[string]string{
 	"billing_payment_intents":    "created only by owner checkout; isolation matrix does not run paid checkout",
 	"file_backfill_items":        "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
 	"meeting_reminders":          "written only by the meeting reminder job (internal/notification); no route fills it",
+	"meeting_summary_task_links": "no code writes it since UNI-1998 (meeting_action_items replaced it); a later release drops it",
 	"graph_dirty":                "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
 	"file_derivatives":           "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
 	"chat_link_previews":         "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",

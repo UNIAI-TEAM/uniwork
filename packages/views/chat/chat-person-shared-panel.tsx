@@ -196,7 +196,7 @@ function SharedList({
                     className="flex min-h-12 w-full cursor-pointer items-center gap-3 py-2 pr-4 pl-5 text-left text-body-lg text-foreground hover:bg-surface-hover"
                     onClick={() => onOpenGroup(group.roomId)}
                   >
-                    <Users className="size-4.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 flex-1 truncate">{group.name}</span>
                     <ChevronRight className="size-4 shrink-0 text-faint-foreground" aria-hidden />
                   </button>

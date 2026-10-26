@@ -38,12 +38,24 @@ vi.mock("./entitlement-gate-toast", () => ({ EntitlementGateToastHost: () => nul
 vi.mock("./app-sidebar", () => ({ AppSidebar: () => <div data-testid="app-sidebar" /> }));
 vi.mock("./workspace-rail", () => ({ WorkspaceRail: () => <div data-testid="workspace-rail" /> }));
 vi.mock("./workspace-chat-toast", () => ({ WorkspaceChatToast: () => null }));
+vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
 vi.mock("./browser-notifications-prompt", () => ({ BrowserNotificationsPrompt: () => null }));
 vi.mock("./workspace-top-bar", () => ({
-  WorkspaceChrome: ({ children, bare }: { children: ReactNode; bare?: boolean }) => (
+  WorkspaceChrome: ({
+    children,
+    bare,
+    nav,
+    frame,
+  }: {
+    children: ReactNode;
+    bare?: boolean;
+    nav?: ReactNode;
+    frame: (content: ReactNode) => ReactNode;
+  }) => (
     <div data-testid="chrome" data-bare={String(Boolean(bare))}>
-      {children}
+      {nav}
+      {frame(children)}
     </div>
   ),
 }));
@@ -129,5 +141,36 @@ describe("DashboardLayout variant", () => {
     expect(screen.getByTestId("workspace-rail")).toBeInTheDocument();
     expect(screen.queryByTestId("app-sidebar")).toBeNull();
     expect(screen.getByTestId("chrome")).toHaveAttribute("data-bare", "true");
+  });
+});
+
+describe("DashboardLayout frame", () => {
+  // A hidden frame still scrolls under scrollIntoView/focus once an sr-only
+  // node inside a page's scroller overflows it; clip cannot scroll at all.
+  it("clips the main frame instead of hiding its overflow", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("overflow-clip");
+    expect(main).not.toHaveClass("overflow-hidden");
+  });
+
+  it("leaves the desktop workspace frame to its cards, and keeps chat-only's canvas", () => {
+    const view = render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByRole("main")).toHaveClass("lg:bg-transparent");
+    view.unmount();
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team" variant="chat-only">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    expect(screen.getByRole("main")).not.toHaveClass("lg:bg-transparent");
   });
 });

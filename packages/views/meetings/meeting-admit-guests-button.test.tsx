@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -55,6 +55,18 @@ describe("MeetingAdmitGuestsButton", () => {
     render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
 
     expect(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" })).toBeInTheDocument();
+  });
+
+  it("shortens to the icon and the count in a narrow header, keeping the full meaning in its name", async () => {
+    pendingTwo();
+    render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
+    const chip = await screen.findByRole("button", { name: "2 người đang chờ, xem danh sách" });
+    const count = screen.getByTestId("meeting-admit-count");
+    expect(count).toHaveTextContent("2");
+    expect(count.className).toMatch(/@4xl\/stagehead:hidden/);
+    const full = within(chip).getByText("2 người đang chờ");
+    expect(full.className).toMatch(/\bhidden\b/);
+    expect(full.className).toMatch(/@4xl\/stagehead:inline/);
   });
 
   it("takes a full-screen share out of the way once for each new knock", async () => {

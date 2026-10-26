@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   Sparkles,
   Star,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
@@ -116,7 +116,7 @@ function TriageOverflowMenu({
           />
         }
       >
-        <Ellipsis className="size-4.5" aria-hidden />
+        <Ellipsis className="size-4" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         {can.canTriage ? (
@@ -133,7 +133,7 @@ function TriageOverflowMenu({
         ) : null}
         {can.canTrash ? (
           <DropdownMenuItem variant="destructive" disabled={pending.move} onClick={actions.onTrash}>
-            <Trash2 aria-hidden />
+            <Trash aria-hidden />
             {t("email_hub.trash")}
           </DropdownMenuItem>
         ) : null}
@@ -241,7 +241,7 @@ export function EmailHubThreadToolbar({
         ) : null}
         {can.canTrash ? (
           <EmailHubIconAction
-            icon={Trash2}
+            icon={Trash}
             label={t("email_hub.trash")}
             tooltip={t("email_hub.trash_shortcut")}
             keyShortcuts={keys(KEYSHORTCUTS.trash)}
@@ -282,7 +282,7 @@ export function EmailHubThreadToolbar({
                     />
                   }
                 >
-                  <Clock className="size-4.5" aria-hidden />
+                  <Clock className="size-4" aria-hidden />
                 </DropdownMenuTrigger>
                 <TooltipContent>{t("email_hub.snooze.action")}</TooltipContent>
               </Tooltip>
@@ -323,7 +323,7 @@ export function EmailHubThreadToolbar({
               />
             }
           >
-            <Star className={cn("size-4.5", thread.is_starred && "fill-current")} aria-hidden />
+            <Star className={cn("size-4", thread.is_starred && "fill-current")} aria-hidden />
           </TooltipTrigger>
           <TooltipContent>{thread.is_starred ? t("email_hub.unstar") : t("email_hub.star")}</TooltipContent>
         </Tooltip>
@@ -341,7 +341,7 @@ export function EmailHubThreadToolbar({
               />
             }
           >
-            <Sparkles className="size-4.5" aria-hidden />
+            <Sparkles className="size-4" aria-hidden />
           </TooltipTrigger>
           <TooltipContent>{t("email_hub.ai_title")}</TooltipContent>
         </Tooltip>

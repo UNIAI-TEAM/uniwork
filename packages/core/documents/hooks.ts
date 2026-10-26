@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { create } from "zustand";
 import {
   createDocument,
   createDocumentFile,
@@ -17,6 +18,7 @@ import {
   type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
+import { exportDocumentPage, getPageExportFormats, type PageExportFormat } from "../api/endpoints/documents-page-export";
 import {
   DocumentNotVerifiableError,
   type Document,
@@ -268,6 +270,50 @@ export function useDocumentDownload(wsId: string, documentId: string) {
   return useMutation({
     mutationFn: ({ version }: { version?: number } = {}) =>
       downloadDocumentFile(documentId, version),
+  });
+}
+
+/** A UniNote page as DOCX or PDF (UNI-2004): a mutation, since it is a
+ *  user-triggered download that changes no cached state. */
+export function useExportDocumentPage(documentId: string) {
+  return useMutation({
+    mutationFn: (format: PageExportFormat) => exportDocumentPage(documentId, format),
+  });
+}
+
+// A refusal may come from a rollout (an engine and a server of different
+// versions) or a credential being rotated: offer the format again after this.
+const PAGE_EXPORT_UNAVAILABLE_MS = 10 * 60_000;
+
+/**
+ * Export formats this deployment refused to render (no engine, no PDF
+ * renderer, an engine it cannot use right now): every export menu leaves them
+ * out for PAGE_EXPORT_UNAVAILABLE_MS, whichever document or menu mount learned
+ * it, then offers them again.
+ */
+export const usePageExportUnavailable = create<{
+  formats: readonly PageExportFormat[];
+  markUnavailable: (formats: readonly PageExportFormat[]) => void;
+}>((set) => ({
+  formats: [],
+  markUnavailable: (formats) => {
+    set((s) => ({ formats: [...new Set([...s.formats, ...formats])] }));
+    setTimeout(() => set((s) => ({ formats: s.formats.filter((f) => !formats.includes(f)) })), PAGE_EXPORT_UNAVAILABLE_MS);
+  },
+}));
+
+/**
+ * The formats a page exports to on this deployment (follow-6): pdf only where
+ * the engine has the Docs renderer staged. Fetched once the export is offered
+ * at all; null when the answer could not be read.
+ */
+export function usePageExportFormats(wsId: string, documentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: documentKeys.pageExportFormats(wsId, documentId),
+    queryFn: () => getPageExportFormats(documentId),
+    enabled,
+    staleTime: PAGE_EXPORT_UNAVAILABLE_MS,
+    retry: false,
   });
 }
 

@@ -78,6 +78,8 @@
     "members": "Thành viên",
     "settings": "Cài đặt",
     "workspace_group": "Điều hướng workspace",
+    "collapse_sidebar": "Thu gọn thanh bên",
+    "expand_sidebar": "Mở rộng thanh bên",
     "group_work": "Làm việc",
     "group_communication": "Trao đổi",
     "pinned": "Đã ghim",
@@ -1449,6 +1451,9 @@
       "login_browser_hint": "Đăng nhập bằng tài khoản UniWork trong trình duyệt",
       "login_sample_in": "Chiều nay họp lúc 3 giờ được không?",
       "login_sample_out": "Được, em vào ngay",
+      "login_apple_failed": "Không đăng nhập được bằng Apple. Thử lại.",
+      "login_apple_conflict": "Email Apple của bạn đã thuộc một tài khoản UniWork khác. Hãy đăng nhập bằng trình duyệt.",
+      "login_apple_mfa": "Tài khoản này bật xác thực hai bước. Hãy đăng nhập bằng trình duyệt.",
       "thread_reply_placeholder": "Trả lời trong chủ đề…",
       "back_to_conversation": "Quay lại cuộc trò chuyện",
       "cancel_reply": "Hủy trả lời",
@@ -1596,6 +1601,7 @@
       "deleting": "Đang xóa…",
       "deleted": "Đã xóa tài khoản của bạn.",
       "no_workspace": "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
+      "no_workspace_relay": "Bạn đăng nhập bằng Ẩn địa chỉ email của Apple, nên tài khoản này dùng địa chỉ {{email}}. Lời mời gửi tới email công việc của bạn không vào được tài khoản này: hãy đăng xuất rồi đăng nhập qua trình duyệt bằng email mà tổ chức đã mời.",
       "signed_in_as": "Đang đăng nhập bằng {{email}}",
       "erased_name": "Người dùng đã xóa"
     },
@@ -1686,6 +1692,8 @@
       "channel_messages_hint": "Tin nhắn trực tiếp và trả lời trong chủ đề bạn theo dõi.",
       "channel_general": "Thông báo khác",
       "channel_general_hint": "Công việc, tài liệu, nhắc hẹn và các cập nhật khác.",
+      "channel_quiet": "Tin nhắn liền sau",
+      "channel_quiet_hint": "Tin đến ngay sau một tin vừa báo trong cùng cuộc trò chuyện: hiện im lặng, không chuông, không rung.",
       "full_screen_calls": "Hiện cuộc gọi đến toàn màn hình",
       "full_screen_calls_hint": "Android đang chặn màn hình đổ chuông khi máy khóa, nên cuộc gọi chỉ hiện như một thông báo. Bật lại để không lỡ cuộc gọi.",
       "background_battery": "Cho UniChat chạy nền",
@@ -1734,7 +1742,8 @@
       "reply": "Trả lời",
       "reply_placeholder": "Nhập tin trả lời…",
       "send": "Gửi",
-      "mark_read": "Đánh dấu đã đọc"
+      "mark_read": "Đánh dấu đã đọc",
+      "reply_locked": "Chưa gửi tin trả lời vì UniChat đang khoá. Mở UniChat để trả lời."
     },
     "voice": {
       "seek_forward": "Tua tới {{seconds}} giây",

@@ -70,7 +70,7 @@ export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) 
           >
             <Settings aria-hidden />
           </TooltipTrigger>
-          <TooltipContent side="top">{label}</TooltipContent>
+          <TooltipContent side="top" className="dark">{label}</TooltipContent>
         </Tooltip>
       }
     />
@@ -124,7 +124,7 @@ export function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
           >
             <LayoutGrid aria-hidden />
           </TooltipTrigger>
-          <TooltipContent side="top">{label}</TooltipContent>
+          <TooltipContent side="top" className="dark">{label}</TooltipContent>
         </Tooltip>
       }
     />

@@ -58,7 +58,7 @@ export function AuthSubmit({
         {pending ? (
           <Spinner strokeWidth={1.75} />
         ) : (
-          <ArrowRight className="size-4" strokeWidth={1.75} />
+          <ArrowRight className="size-4" />
         )}
       </span>
     </Button>

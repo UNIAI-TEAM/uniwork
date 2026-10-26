@@ -19,6 +19,12 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `BILLING_VNPAY_WEBHOOK` | 2 | billing webhook dead letter trong 15 phút | [BILLING_VNPAY_WEBHOOK.md](BILLING_VNPAY_WEBHOOK.md) |
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
+| `MeetingScribeCannotJoin` | 3 | thư ký AI không vào được phòng (> 2 lần trong 15 phút) | [MeetingScribeCannotJoin.md](MeetingScribeCannotJoin.md) |
+| `MeetingDialInRefusedCalls` | 2 | cuộc gọi điện thoại vào họp bị ngắt vì PIN cũ/rule lạ (> 10 trong 10 phút): nghi dò PIN | [MeetingDialInRefusedCalls.md](MeetingDialInRefusedCalls.md) |
+| `MeetingScribeSttErrors` | 3 | > 5% phiên STT của thư ký AI lỗi trong 10 phút | [MeetingScribeSttErrors.md](MeetingScribeSttErrors.md) |
+| `MeetingScribeRunsSilent` | 3 | ≥ 2 lần chạy thư ký ACTIVE, phòng có người, 3 phút không có lời thoại | [MeetingScribeRunsSilent.md](MeetingScribeRunsSilent.md) |
+| `MeetingScribeCapacityHigh` | 2 | mọi worker thư ký AI trên 60% tải, hoặc lần gọi không worker nào nhận, suốt 10 phút | [MeetingScribeCapacityHigh.md](MeetingScribeCapacityHigh.md) |
+| `MeetingAutoSummaryFailing` | 3 | > 20% tóm tắt tự động sau họp thất bại trong 1 giờ (≥ 5 lượt) | [MeetingAutoSummaryFailing.md](MeetingAutoSummaryFailing.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox, webhook inbox hoặc hàng đợi báo cáo UniChat suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |
@@ -57,6 +63,7 @@ Runbook vận hành (không gắn alert, mở theo bước deploy):
 | [documents-folder-name-index.md](documents-folder-name-index.md) | Index unique tên thư mục (`idx_documents_folder_name_uidx`, FD-02/UNI-1462) INVALID hoặc không dựng được sau deploy |
 | [unichat-desktop-release.md](unichat-desktop-release.md) | Cắt, kiểm, rollback bản desktop UniChat (tag `chat-desktop-v*`, feed `chat-desktop-feed`, UNI-1835) |
 | [unichat-mobile-release.md](unichat-mobile-release.md) | Thiết lập, cắt, OTA, rollback bản mobile UniChat (tag `chat-mobile-v*`, EAS, nightly Maestro, UNI-1836) |
+| [unichat-tls-pins.md](unichat-tls-pins.md) | Ghim khoá TLS của UniChat mobile: job `chat-mobile-tls-pins.yml` đỏ/vàng, đổi CA hay host đã ghim, gia hạn pin-set, sự cố app bị khoá (UNI-2141) |
 | [unichat-pilot.md](unichat-pilot.md) | Pilot nội bộ UniChat: chuẩn bị, triage mỗi sáng, đo người dùng hằng ngày và `uniwork_push_suppressed_total`, điều kiện dừng (UNI-1838) |
 
 Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).

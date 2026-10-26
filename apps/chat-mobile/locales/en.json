@@ -78,6 +78,8 @@
     "members": "Members",
     "settings": "Settings",
     "workspace_group": "Workspace navigation",
+    "collapse_sidebar": "Collapse sidebar",
+    "expand_sidebar": "Expand sidebar",
     "group_work": "Work",
     "group_communication": "Communication",
     "pinned": "Pinned",
@@ -1496,6 +1498,9 @@
       "login_browser_hint": "Sign in with your UniWork account in the browser",
       "login_sample_in": "Can we meet at 3 this afternoon?",
       "login_sample_out": "Sure, joining now",
+      "login_apple_failed": "Could not sign in with Apple. Try again.",
+      "login_apple_conflict": "Your Apple email already belongs to another UniWork account. Sign in with the browser instead.",
+      "login_apple_mfa": "This account uses two-step verification. Sign in with the browser instead.",
       "thread_reply_placeholder": "Reply in thread…",
       "back_to_conversation": "Back to the conversation",
       "cancel_reply": "Cancel reply",
@@ -1652,6 +1657,7 @@
       "deleting": "Deleting…",
       "deleted": "Your account has been deleted.",
       "no_workspace": "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
+      "no_workspace_relay": "You signed in with Apple's Hide My Email, so this account's address is {{email}}. An invitation sent to your work email can't reach this account: sign out, then sign in through the browser with the email your organization invited.",
       "signed_in_as": "Signed in as {{email}}",
       "erased_name": "Deleted user"
     },
@@ -1742,6 +1748,8 @@
       "channel_messages_hint": "Direct messages and replies in threads you follow.",
       "channel_general": "Other notifications",
       "channel_general_hint": "Tasks, documents, reminders and other updates.",
+      "channel_quiet": "Follow-up messages",
+      "channel_quiet_hint": "Messages that arrive right after one that just alerted, in the same conversation: shown quietly, without sound or vibration.",
       "full_screen_calls": "Show incoming calls full screen",
       "full_screen_calls_hint": "Android is blocking the ringing screen on a locked phone, so calls only show as a notification. Turn it back on so you don't miss calls.",
       "background_battery": "Let UniChat run in the background",
@@ -1790,7 +1798,8 @@
       "reply": "Reply",
       "reply_placeholder": "Write a reply…",
       "send": "Send",
-      "mark_read": "Mark as read"
+      "mark_read": "Mark as read",
+      "reply_locked": "Reply not sent: UniChat is locked. Open UniChat to reply."
     },
     "voice": {
       "seek_forward": "Forward {{seconds}} seconds",

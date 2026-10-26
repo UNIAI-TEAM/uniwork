@@ -19,20 +19,22 @@ type Prefs struct {
 // edit request needs a quick answer and a take-over may leave unsaved work
 // behind, so both push; the answer to a request stays in-app (UNI-1645 Q6).
 // An emergency access to a restricted document also pushes (DOC-05), and so
-// does a ringing call. A trash notice stays out of the digest too
+// does a ringing call, and a summary the system made (UNI-2026). A trash notice stays out of the digest too
 // (TRASH-NOTIFY-01, Q-R2: in-app only).
 // An access request pushes to the manager, who is the one who can answer it,
 // and an approval pushes to the requester, who is waiting to get in; a
 // decline does not (§4.4). A document change notice (UNI-2056) is in-app
-// only by default: no push, no digest line.
+// only by default: no push, no digest line. A group or channel message
+// (UNI-2141) pushes, as every chat message does, but stays out of the
+// digest: a line per busy room a day is noise, and the room shows its unread.
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
 		kind == KindDocumentAccessRequested || kind == KindDocumentAccessApproved ||
-		kind == KindTaskAssigned || kind == KindMeetingStarting ||
-		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
+		kind == KindTaskAssigned || kind == KindTasksAssigned || kind == KindMeetingStarting || kind == KindMeetingSummaryReady ||
+		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatMessage || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
-	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther && kind != KindDocumentChanged}
+	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther && kind != KindDocumentChanged && kind != KindChatMessage}
 }
 
 // Matrix is one user's full preference set, kind → Prefs, defaults filled in.

@@ -42,8 +42,9 @@ export interface FolderUploadFailedFile {
    * True for a client-side failure the server never decided on (network,
    * target_expired, http_5xx, missing_etag, missing_part_url, aborted, or a
    * complete that got no answer); false when the server failed the file
-   * (unsupported_media, size_mismatch, storage_quota_exceeded, not_found, …):
-   * the file has to be fixed and the folder uploaded again.
+   * (unsupported_media, size_mismatch, storage_quota_exceeded, not_found, …)
+   * or the browser cannot read it (file_unreadable): the file has to be fixed
+   * or moved and the folder uploaded again.
    */
   retryable: boolean;
 }

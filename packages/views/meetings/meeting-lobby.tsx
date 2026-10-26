@@ -19,6 +19,7 @@ import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import type { IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { MeetingScribeNotice } from "./meeting-scribe-notice";
 import { MeetingGateScreen } from "./meeting-gate-screen";
 
 const INVALID_LINK_CODES = new Set([
@@ -181,6 +182,7 @@ export function MeetingLobby({
   starting,
   onStart,
   startError,
+  scribeNoticeFor,
   onLeave,
 }: {
   title?: string;
@@ -201,6 +203,8 @@ export function MeetingLobby({
   onStart?: () => void;
   /** The last start attempt failed; the button stays so the host can try again. */
   startError?: unknown;
+  /** The meeting's id when the AI scribe would transcribe it: the consent notice shows while waiting. */
+  scribeNoticeFor?: string;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -251,6 +255,12 @@ export function MeetingLobby({
       busy={isWaitingScreen && !showStart}
       meetingTitle={title}
       alert={gate.tone === "destructive" || startFailed}
+      // Only while the way in is still open: a refusal has nothing to consent to.
+      notice={
+        scribeNoticeFor && (isWaitingScreen || showStart) ? (
+          <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn />
+        ) : null
+      }
       actions={
         <>
           {showStart ? (

@@ -120,9 +120,25 @@ type Config struct {
 	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
-	// MeetingSTTAgentSecret authenticates POST .../transcript/agent from a
-	// LiveKit Agents worker; empty turns server-side STT ingestion off.
-	MeetingSTTAgentSecret string
+	// MeetingScribeEnabled lets the server dispatch the scribe agent
+	// (apps/meeting-agent, ADR 0045) into meeting rooms; the meeting_scribe
+	// flag and the meeting.transcription entitlement still decide per
+	// organization. MeetingScribeAgentName is the agent_name it registers.
+	MeetingScribeEnabled   bool
+	MeetingScribeAgentName string
+	// MeetingSIPEnabled lets the server create LiveKit SIP dispatch rules for
+	// dial-in (UNI-2030 runs the SIP service); the meeting_dial_in flag still
+	// decides per organization. MeetingDialInNumber is the number people call;
+	// MeetingSIPTrunkID, when set, keeps the rules to the UniWork trunk.
+	MeetingSIPEnabled   bool
+	MeetingDialInNumber string
+	MeetingSIPTrunkID   string
+	// MeetingSummaryMaxRunes caps the transcript a summary reads (parent spec
+	// §7.8). The gateway does not expose its model's context window, so the
+	// default (240k runes, ~80k tokens at ~3 runes per Vietnamese token, about
+	// 2.5 hours of speech) fits a 128k-token model with room for the prompt;
+	// raise it only for a model known to take more.
+	MeetingSummaryMaxRunes int
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -135,9 +151,18 @@ type Config struct {
 	devVerificationCode string
 	// APIPublicURL is the origin browsers reach this API on. It builds OAuth
 	// redirect URIs, which providers match byte for byte.
-	APIPublicURL                  string
-	GoogleClientID                string
-	GoogleClientSecret            string
+	APIPublicURL       string
+	GoogleClientID     string
+	GoogleClientSecret string
+	// Sign in with Apple on the phone (ADR 0041): the bundle ids an identity
+	// token may be issued to (APPLE_SIWA_AUDIENCES), and the team, key id
+	// and .p8 key that sign the client secret Apple's token and revoke
+	// endpoints take. No audiences: the route answers 503 and
+	// /auth/providers reports apple=false.
+	AppleSignInAudiences          []string
+	AppleSignInTeamID             string
+	AppleSignInKeyID              string
+	AppleSignInPrivateKey         string
 	MicrosoftCalendarClientID     string
 	MicrosoftCalendarClientSecret string
 	// Email Hub signs in with its own OAuth clients, never the login or
@@ -173,6 +198,15 @@ type Config struct {
 	// calls Load (cmd/migrate among them) would refuse to run over a push
 	// setting it never uses.
 	ExpoAccessToken string
+	// APNs token auth for iPhone VoIP pushes (ADR 0038): the .p8 key's id, the
+	// Apple team id and the key itself (PEM; escaped newlines are accepted).
+	// All three empty turns VoIP off and iPhones keep the Expo call push; only
+	// some of them set is logged at start and also leaves VoIP off.
+	// APNSVoIPTopic, when set, replaces "<bundle id>.voip" for every token.
+	APNSKeyID      string
+	APNSTeamID     string
+	APNSPrivateKey string
+	APNSVoIPTopic  string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
 	RUMSampleRate             float64
@@ -251,6 +285,15 @@ func (c Config) DevVerificationCode() string {
 // answer 503 and the login page hides the button.
 func (c Config) GoogleEnabled() bool {
 	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
+// AppleSignInEnabled: at least one bundle id may sign in with Apple.
+func (c Config) AppleSignInEnabled() bool { return len(c.AppleSignInAudiences) > 0 }
+
+// AppleRevokeConfigured: the key that signs Apple client secrets is set, so a
+// sign-in keeps a refresh token and account deletion can revoke it.
+func (c Config) AppleRevokeConfigured() bool {
+	return c.AppleSignInTeamID != "" && c.AppleSignInKeyID != "" && c.AppleSignInPrivateKey != ""
 }
 
 func (c Config) GoogleRedirectURL() string {
@@ -445,12 +488,21 @@ func Load() (Config, error) {
 		AnthropicAPIKey:               os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:                os.Getenv("ANTHROPIC_MODEL"),
 		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
-		MeetingSTTAgentSecret:         os.Getenv("MEETING_STT_AGENT_SECRET"),
+		MeetingScribeEnabled:          strings.EqualFold(os.Getenv("MEETING_SCRIBE_ENABLED"), "true"),
+		MeetingScribeAgentName:        getenv("MEETING_SCRIBE_AGENT_NAME", "uniwork-scribe"),
+		MeetingSIPEnabled:             strings.EqualFold(os.Getenv("MEETING_SIP_ENABLED"), "true"),
+		MeetingDialInNumber:           strings.TrimSpace(os.Getenv("MEETING_DIAL_IN_NUMBER")),
+		MeetingSIPTrunkID:             strings.TrimSpace(os.Getenv("MEETING_SIP_TRUNK_ID")),
+		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 240000)),
 		AppEnv:                        getenv("APP_ENV", "development"),
 		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),
 		GoogleClientID:                os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:            os.Getenv("GOOGLE_CLIENT_SECRET"),
+		AppleSignInAudiences:          splitList(os.Getenv("APPLE_SIWA_AUDIENCES")),
+		AppleSignInTeamID:             os.Getenv("APPLE_SIWA_TEAM_ID"),
+		AppleSignInKeyID:              os.Getenv("APPLE_SIWA_KEY_ID"),
+		AppleSignInPrivateKey:         os.Getenv("APPLE_SIWA_PRIVATE_KEY"),
 		MicrosoftCalendarClientID:     os.Getenv("MICROSOFT_CALENDAR_CLIENT_ID"),
 		MicrosoftCalendarClientSecret: os.Getenv("MICROSOFT_CALENDAR_CLIENT_SECRET"),
 		EmailHubGoogleClientID:        os.Getenv("EMAIL_HUB_GOOGLE_CLIENT_ID"),
@@ -471,6 +523,10 @@ func Load() (Config, error) {
 		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
 		ExpoAccessToken:               os.Getenv("EXPO_ACCESS_TOKEN"),
+		APNSKeyID:                     os.Getenv("APNS_KEY_ID"),
+		APNSTeamID:                    os.Getenv("APNS_TEAM_ID"),
+		APNSPrivateKey:                os.Getenv("APNS_PRIVATE_KEY"),
+		APNSVoIPTopic:                 os.Getenv("APNS_VOIP_TOPIC"),
 		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),

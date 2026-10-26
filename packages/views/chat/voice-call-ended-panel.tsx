@@ -96,7 +96,7 @@ export function VoiceCallEndedPanel({
             ariaLabel={retry ? t("common.retry") : t("chat.voice_call_call_back")}
             tone="accept"
             onClick={onRetry}
-            icon={retry ? <RefreshCw aria-hidden className="size-6" /> : <Phone aria-hidden className="size-6.5" />}
+            icon={retry ? <RefreshCw aria-hidden className="size-6" /> : <Phone aria-hidden className="size-6" />}
           />
         ) : null}
         <VoiceCallLabeledAction

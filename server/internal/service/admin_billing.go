@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -14,6 +15,8 @@ type AdminBillingListInput struct {
 	Query    string
 	Provider string
 	Status   string
+	From     time.Time
+	To       time.Time
 	Limit    int32
 	Offset   int32
 }
@@ -45,7 +48,7 @@ func normalizeAdminBillingList(in AdminBillingListInput) AdminBillingListInput {
 	return in
 }
 
-func adminBillingFilters(in AdminBillingListInput) (provider, status, q pgtype.Text) {
+func adminBillingFilters(in AdminBillingListInput) (provider, status, q pgtype.Text, dateFrom, dateTo pgtype.Timestamptz) {
 	if in.Provider != "" {
 		provider = nullText(in.Provider)
 	}
@@ -55,15 +58,22 @@ func adminBillingFilters(in AdminBillingListInput) (provider, status, q pgtype.T
 	if in.Query != "" {
 		q = nullText(in.Query)
 	}
-	return provider, status, q
+	if !in.From.IsZero() {
+		dateFrom = pgtype.Timestamptz{Time: in.From, Valid: true}
+	}
+	if !in.To.IsZero() {
+		dateTo = pgtype.Timestamptz{Time: in.To, Valid: true}
+	}
+	return provider, status, q, dateFrom, dateTo
 }
 
 // ListInvoices is GET /admin/invoices — metadata across tenants.
 func (s *AdminService) ListInvoices(ctx context.Context, in AdminBillingListInput) (AdminInvoicePage, error) {
 	in = normalizeAdminBillingList(in)
-	provider, status, q := adminBillingFilters(in)
+	provider, status, q, dateFrom, dateTo := adminBillingFilters(in)
 	rows, err := s.q.AdminListInvoices(ctx, db.AdminListInvoicesParams{
 		Limit: in.Limit, Offset: in.Offset, Provider: provider, Status: status, Q: q,
+		DateFrom: dateFrom, DateTo: dateTo,
 	})
 	if err != nil {
 		return AdminInvoicePage{}, err
@@ -73,16 +83,19 @@ func (s *AdminService) ListInvoices(ctx context.Context, in AdminBillingListInpu
 		out.Total = rows[0].TotalCount
 		return out, nil
 	}
-	out.Total, err = s.q.AdminCountInvoices(ctx, db.AdminCountInvoicesParams{Provider: provider, Status: status, Q: q})
+	out.Total, err = s.q.AdminCountInvoices(ctx, db.AdminCountInvoicesParams{
+		Provider: provider, Status: status, Q: q, DateFrom: dateFrom, DateTo: dateTo,
+	})
 	return out, err
 }
 
 // ListPaymentIntents is GET /admin/billing/payment-intents — checkout rows for support.
 func (s *AdminService) ListPaymentIntents(ctx context.Context, in AdminBillingListInput) (AdminPaymentIntentPage, error) {
 	in = normalizeAdminBillingList(in)
-	provider, status, q := adminBillingFilters(in)
+	provider, status, q, dateFrom, dateTo := adminBillingFilters(in)
 	rows, err := s.q.AdminListPaymentIntents(ctx, db.AdminListPaymentIntentsParams{
 		Limit: in.Limit, Offset: in.Offset, Provider: provider, Status: status, Q: q,
+		DateFrom: dateFrom, DateTo: dateTo,
 	})
 	if err != nil {
 		return AdminPaymentIntentPage{}, err
@@ -92,7 +105,9 @@ func (s *AdminService) ListPaymentIntents(ctx context.Context, in AdminBillingLi
 		out.Total = rows[0].TotalCount
 		return out, nil
 	}
-	out.Total, err = s.q.AdminCountPaymentIntents(ctx, db.AdminCountPaymentIntentsParams{Provider: provider, Status: status, Q: q})
+	out.Total, err = s.q.AdminCountPaymentIntents(ctx, db.AdminCountPaymentIntentsParams{
+		Provider: provider, Status: status, Q: q, DateFrom: dateFrom, DateTo: dateTo,
+	})
 	return out, err
 }
 

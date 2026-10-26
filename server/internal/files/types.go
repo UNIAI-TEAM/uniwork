@@ -42,7 +42,9 @@ const (
 	ChatRoomAvatar        UploadPurpose = "chat_room_avatar"
 	ChatRoomWallpaper     UploadPurpose = "chat_room_wallpaper"
 	ChatLinkPreview       UploadPurpose = "chat_link_preview"
+	MeetingAudio          UploadPurpose = "meeting_audio"
 	DocumentDownload      UploadPurpose = "document_download"
+	AiAttachment          UploadPurpose = "ai_attachment"
 )
 
 // purposes is the enum in declaration order. The registry table is checked
@@ -65,7 +67,9 @@ var purposes = []UploadPurpose{
 	ChatRoomAvatar,
 	ChatRoomWallpaper,
 	ChatLinkPreview,
+	MeetingAudio,
 	DocumentDownload,
+	AiAttachment,
 }
 
 // Purposes returns every declared purpose in declaration order. The slice is a

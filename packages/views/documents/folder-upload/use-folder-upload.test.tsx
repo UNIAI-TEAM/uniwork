@@ -424,7 +424,7 @@ describe("useFolderUpload", () => {
       options.action.onClick();
     });
 
-    expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
+    expect(await screen.findByTitle("Mới/b.pdf")).toBeInTheDocument();
     expect(screen.getByText(t("documents.folder_upload.report.reason.upload_missing"))).toBeInTheDocument();
     expect(transport.calls.filter((c) => c.method === "status")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.report.retry") }));
@@ -444,7 +444,7 @@ describe("useFolderUpload", () => {
     act(() => {
       viewFailures();
     });
-    await screen.findByText("Mới/b.pdf");
+    await screen.findByTitle("Mới/b.pdf");
     closeReport();
     await waitFor(() => expect(cancels(transport)).toBe(1));
 
@@ -452,7 +452,7 @@ describe("useFolderUpload", () => {
     act(() => {
       viewFailures();
     });
-    await screen.findByText("Mới/b.pdf");
+    await screen.findByTitle("Mới/b.pdf");
     expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
     closeReport();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -468,7 +468,7 @@ describe("useFolderUpload", () => {
     act(() => {
       toast.warning.mock.calls[0]?.[1].action.onClick();
     });
-    await screen.findByText("Mới/b.pdf");
+    await screen.findByTitle("Mới/b.pdf");
     closeReport();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(cancels(transport)).toBe(1);
@@ -581,7 +581,7 @@ describe("useFolderUpload", () => {
       options.action.onClick();
     });
 
-    expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
+    expect(await screen.findByTitle("Mới/b.pdf")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
     expect(screen.getByText(t("documents.folder_upload.report.expired_note"))).toBeInTheDocument();
   });

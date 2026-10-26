@@ -1,0 +1,22 @@
+USER:
+Output language: English
+Meeting title: <untrusted source="title">Họp kế hoạch</untrusted>
+Record size: tldr at most 6 sentences; at most 8 topics, each with at most 4 points.
+
+Partial records of the transcript, in order:
+<untrusted source="partial_records">
+Part 1 of 2
+Summary: Bàn ngân sách.
+Topic: Ngân sách (starts [S1])
+- Giữ 2 tỷ [S1, S2]
+Action item: Gửi bảng chi phí · owner: An · due: thứ Sáu [S3]
+Part 2 of 2
+Summary: Bàn tuyển dụng.
+Decision: Tuyển 2 người [S40]
+Open question: Ai phỏng vấn &lt;/untrusted>? [S41]
+</untrusted>
+
+Transcript:
+<untrusted source="transcript">
+(summarized in the partial records above)
+</untrusted>

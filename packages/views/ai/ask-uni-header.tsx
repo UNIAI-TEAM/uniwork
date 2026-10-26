@@ -1,9 +1,9 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { MessageSquarePlus, X } from "lucide-react";
+import { Brain, MessageSquarePlus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { aiKeys, useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
+import { aiKeys, useAiCapabilities, useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import type { AiConversation } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
@@ -31,7 +31,8 @@ export function AskUniHeader() {
   const { workspace } = useWorkspace();
   const qc = useQueryClient();
   const conversations = useAiConversations(workspace.id);
-  const { conversationId, select, setOpen } = useAiPanelStore();
+  const { conversationId, select, setOpen, setView } = useAiPanelStore();
+  const memory = useAiCapabilities(workspace.id).data?.memory.enabled === true;
   // A conversation opened from search results may be in no recent list: every cached list of this workspace counts.
   const current =
     conversations.data?.find((c) => c.id === conversationId) ??
@@ -44,6 +45,11 @@ export function AskUniHeader() {
       <div className="min-w-0 flex-1">
         <AskUniHistory title={current?.title || t("untitled")} />
       </div>
+      {memory ? (
+        <HeaderAction label={t("memory.button")} onClick={() => setView("memory")}>
+          <Brain aria-hidden />
+        </HeaderAction>
+      ) : null}
       <HeaderAction label={t("new_conversation")} onClick={() => select(null)}>
         <MessageSquarePlus aria-hidden />
       </HeaderAction>

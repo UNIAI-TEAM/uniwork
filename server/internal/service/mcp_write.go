@@ -133,6 +133,10 @@ type McpWriteResult struct {
 	Revision int64       `json:"revision,omitempty"` // a comment has none
 	Changes  []McpChange `json:"changes,omitempty"`
 	Note     string      `json:"note,omitempty"`
+	// UndoVersionID is the number, as text, of the document version that holds
+	// the page as it was before update_document changed its content. Ask UNI
+	// restores it to undo the edit; the connector's JSON never shows it.
+	UndoVersionID string `json:"-"`
 }
 
 func mcpTypedTool[In any](name, title, desc string, kind ai.ToolKind, destructive bool, undo string, schema json.RawMessage, run func(context.Context, McpPrincipal, In) (any, error)) ai.Tool {

@@ -45,7 +45,11 @@ type Deps struct {
 	// 0032), independent of any id in the path, for routes whose uniform answer
 	// must not depend on whether the path's row exists (DOC-07 create, BE-SD7-3).
 	CallerOrganization func(*http.Request) string
-	DeviceStatus       func(context.Context, string, string) error
+	// MeetingOrganization names the organization of the path's meeting when
+	// the caller is a member of its workspace, so `meeting_minutes` honours
+	// organization overrides (UNI-2003); nil evaluates it per user.
+	MeetingOrganization func(*http.Request) string
+	DeviceStatus        func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
@@ -100,6 +104,10 @@ func New(d Deps, h Routes) http.Handler {
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
+		// The scribe agent's routes skip it too (isMeetingAgentPath): one agent
+		// pod sends every meeting it serves from one address; they have their
+		// own per-token budget (registerMeetingAgent).
+		global = exceptMeetingAgent(global)
 		// The folder upload content route skips it too: one folder of 500
 		// files sends 500 PUTs; it has its own per-person budget
 		// (folder-upload-content, 600/min).
@@ -205,6 +213,9 @@ func New(d Deps, h Routes) http.Handler {
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
+		registerMeetingAgent(v1, h, mw.RequireMeetingAgentToken([]byte(d.Cfg.JWTSecret)), meetingAgentLimit(
+			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent-ip", 6000, time.Minute, proxies, nil),
+			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent", 600, time.Minute, proxies, mw.MeetingAgentRateKey)))
 		v1.Group(func(desktop api) {
 			if d.DeviceStatus != nil {
 				desktop.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
@@ -280,7 +291,8 @@ func New(d Deps, h Routes) http.Handler {
 			// so a member who makes instant meetings to host cannot drain the
 			// organization's AI quota through the 300/min global budget. The
 			// service adds one run per meeting at a time (summary_in_progress).
-			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)))
+			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)),
+				mw.FlagOrganization(d.MeetingOrganization), mw.RequireFeatureFlag(d.FeatureFlags, "meeting_minutes"))
 			// Chat writes budget per signed-in person and per route: an office
 			// NAT must not pool everyone's sends, and walking message or room
 			// ids must not mint a fresh budget per id.
@@ -329,6 +341,9 @@ func New(d Deps, h Routes) http.Handler {
 				// global limiter (folderUploadContentRoute).
 				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload-content", 600, time.Minute, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
+			// Page exports (UNI-2004) hold an engine worker for seconds: 20/min
+			// per signed-in person across every page, like the frame's export.
+			registerPageExport(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucket(d.Redis, "page-export", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
 			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
@@ -401,6 +416,29 @@ func meetingCaller(guestKey []byte) mw.IdentityFunc {
 		}
 		return ""
 	}
+}
+
+// exceptMeetingAgent lets the scribe agent's routes past the global limiter.
+func exceptMeetingAgent(m func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limited := m(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The escaped path is what chi routes on: with URL.Path, a "%2F" in the
+			// meeting id would read as an agent path yet route to an ordinary one.
+			if isMeetingAgentPath(r.URL.EscapedPath()) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limited.ServeHTTP(w, r)
+		})
+	}
+}
+
+// meetingAgentLimit runs the per-address ceiling first, so a caller rotating
+// well-formed uwma_ strings (the per-token key is read before the token is
+// verified) still meets a bound; 6000 a minute is ten agent pods' worth.
+func meetingAgentLimit(ceiling, perToken func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return ceiling(perToken(next)) }
 }
 
 // folderUploadContentRoute matches the folder upload content route (UNI-2052

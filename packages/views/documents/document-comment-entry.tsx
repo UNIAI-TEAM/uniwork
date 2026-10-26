@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from "react";
-import { Copy, Ellipsis, Pencil, RotateCcwClock, Trash2 } from "lucide-react";
+import { Copy, Ellipsis, Pencil, RotateCcwClock, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import type {
@@ -236,7 +236,7 @@ export function DocumentCommentEntry({
               <DropdownMenuItem onClick={() => setEditing(true)}><Pencil aria-hidden />{t(K.collabEdit)}</DropdownMenuItem>
             ) : null}
             {permissions.canDelete ? (
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden />{t(K.collabDelete)}</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}><Trash aria-hidden />{t(K.collabDelete)}</DropdownMenuItem>
             ) : null}
             <DropdownMenuItem onClick={() => void copyText(comment.body)}><Copy aria-hidden />{t(K.collabCopyText)}</DropdownMenuItem>
             {edited ? (

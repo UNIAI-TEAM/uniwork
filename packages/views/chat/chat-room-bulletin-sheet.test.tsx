@@ -3,6 +3,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { requestMock, wrap } from "../test/api-mock";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
+import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 
 initI18n();
 
@@ -142,7 +143,8 @@ describe("ChatRoomBulletinSheet", () => {
   });
 
   it("loads older messages past the window on request, without marking the room read", async () => {
-    messagesState.rows = Array.from({ length: 80 }, (_, i) =>
+    // A full first window (CHAT_MESSAGE_INITIAL rows) is what offers "load older".
+    messagesState.rows = Array.from({ length: CHAT_MESSAGE_INITIAL }, (_, i) =>
       ({ ...note(`w${i}`, `tin ${i}`), kind: "text", note: undefined, body: `tin ${i}`, created_at: `2026-03-26T10:${String(i % 60).padStart(2, "0")}:00Z`, cursor: `c${i}` }),
     );
     requestMock.mockResolvedValue({ messages: [note("old1", "ghi chú cũ", "2026-03-01T08:00:00Z")] });

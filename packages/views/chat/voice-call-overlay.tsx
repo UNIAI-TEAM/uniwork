@@ -220,7 +220,7 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_decline")}
             tone="decline"
             onClick={onDecline}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
           <VoiceCallLabeledAction
             label={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
@@ -229,9 +229,9 @@ export function VoiceCallOverlay({
             onClick={onAccept}
             icon={
               incomingDeviceError ? (
-                <RefreshCw aria-hidden className="size-6.5" />
+                <RefreshCw aria-hidden className="size-6" />
               ) : (
-                <Phone aria-hidden className="size-6.5" />
+                <Phone aria-hidden className="size-6" />
               )
             }
           />
@@ -250,7 +250,7 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_end")}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
         </PreConnectFloatingCall>
       );
@@ -270,7 +270,7 @@ export function VoiceCallOverlay({
             ariaLabel={cancelLabel}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<VoiceCallHangupIcon className="size-6.5" />}
+            icon={<VoiceCallHangupIcon className="size-6" />}
           />
         </PreConnectFloatingCall>
       );

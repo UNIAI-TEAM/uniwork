@@ -80,6 +80,8 @@ afterEach(async () => {
 describe("people rows read their own presence", () => {
   it("new message: a presence change redraws that person's row, and the row says they are online", async () => {
     await render(<NewChatScreen />);
+    // The rows come after the workspace's queries: wait for them, not for a fixed time (slow under a loaded runner).
+    await waitFor(() => expect(screen.getByRole("button", { name: `${viText("chat.start_dm")}: Người 4` })).toBeOnTheScreen());
     await settle();
     expect(take()).toEqual({ U1: 1, U2: 1, U3: 1, U4: 1 });
 
@@ -96,6 +98,7 @@ describe("people rows read their own presence", () => {
 
   it("new group: a presence change redraws that person's row; picking someone still redraws their row", async () => {
     await render(<NewGroupScreen />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Người 4" })).toBeOnTheScreen());
     await settle();
     take();
 
@@ -111,6 +114,7 @@ describe("people rows read their own presence", () => {
   it("adding to a group: someone already in it reads as picked and cannot be unpicked", async () => {
     jest.spyOn(routerMock, "useLocalSearchParams").mockReturnValue({ org: "acme", ws: "hq", room: "g1" });
     await render(<NewGroupScreen />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: `Người 1, ${viText("chat.already_in_group")}` })).toBeOnTheScreen());
     await settle();
     const inGroup = screen.getByRole("checkbox", { name: `Người 1, ${viText("chat.already_in_group")}` });
     expect(inGroup).toBeChecked();

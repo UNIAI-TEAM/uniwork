@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -19,11 +18,7 @@ import (
 var ErrProviderUnavailable = errors.New("billing_provider_unavailable")
 
 type CheckoutInput struct {
-	OrganizationID string
-	PlanCode       string
-	CustomerEmail  string
-	SuccessURL     string
-	CancelURL      string
+	SuccessURL string
 	// Set by BillingService before CreateCheckout:
 	IntentID  string
 	Amount    int64
@@ -41,26 +36,11 @@ type CheckoutSession struct {
 	URL string
 }
 
-// InvoiceData is the invoice half of a provider event.
-type InvoiceData struct {
-	ProviderInvoiceID string
-	Status            string
-	AmountDue         int64
-	AmountPaid        int64
-	Currency          string
-	HostedURL         string
-}
-
 // Event is a provider callback normalised to what BillingService understands.
 type Event struct {
 	ProviderEventID string
 	ProviderTxnRef  string
 	Type            string // subscription.activated | subscription.updated | subscription.canceled | invoice.paid | invoice.failed
-	OrganizationID  string
-	PlanCode        string
-	PeriodStart     time.Time
-	PeriodEnd       time.Time
-	Invoice         *InvoiceData
 	Paid            bool
 	Amount          int64
 	Currency        string
@@ -99,11 +79,10 @@ func (stub) ParseWebhook(*http.Request) (Event, error) { return Event{}, ErrProv
 func FromConfig(cfg config.Config) Provider {
 	switch cfg.BillingProvider {
 	case "vnpay":
-		ipn := strings.TrimRight(cfg.APIPublicURL, "/") + "/api/v1/billing/webhooks/vnpay"
 		p, err := NewVNPay(VNPayConfig{
 			TMNCode: cfg.VNPayTMNCode, HashSecret: cfg.VNPayHashSecret,
-			PaymentURL: cfg.VNPayPaymentURL, IPNURL: ipn,
-			QueryURL: cfg.VNPayMerchantAPIURL,
+			PaymentURL: cfg.VNPayPaymentURL,
+			QueryURL:   cfg.VNPayMerchantAPIURL,
 		})
 		if err != nil {
 			return stub{name: "vnpay"}

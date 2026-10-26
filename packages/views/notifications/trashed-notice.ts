@@ -26,5 +26,5 @@ export function trashedOtherCount(params: Record<string, string>): number {
 
 /** The top item's name as the line under the sentence quotes it. */
 export function quoted(document: string): string {
-  return `“${document.trim()}”`;
+  return `"${document.trim()}"`;
 }

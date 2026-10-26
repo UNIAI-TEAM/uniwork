@@ -153,6 +153,11 @@ type CompletionRequest struct {
 	// loop's next round, a retry), since a cache write costs more than plain
 	// input and a one-shot call never reads it back. Others ignore it.
 	CacheHistory bool
+	// Thinking asks a model that can for adaptive thinking, returned as a
+	// summary; an adapter whose model cannot think that way leaves it out.
+	// OnThinking, on a streamed call, gets the summary as it is written.
+	Thinking   bool
+	OnThinking func(text string)
 }
 
 type CompletionResponse struct {

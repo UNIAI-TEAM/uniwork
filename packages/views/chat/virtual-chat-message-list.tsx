@@ -65,13 +65,14 @@ export function preserveScrollAfterPrependOverFrames(
 type TimelineLayoutSnap = { length: number; firstId: string; scrollHeight: number; scrollTop: number };
 
 function timelinePrepended(
-  messages: { id: string }[],
+  messageCount: number,
+  firstMessageId: string | undefined,
   snap: TimelineLayoutSnap,
   stickToBottomRef: RefObject<boolean>,
 ): boolean {
   return (
-    messages.length > snap.length &&
-    messages[0]?.id !== snap.firstId &&
+    messageCount > snap.length &&
+    firstMessageId !== snap.firstId &&
     snap.scrollHeight > 0 &&
     !stickToBottomRef.current
   );
@@ -84,19 +85,23 @@ function usePreserveScrollOnPrepend(
   programmaticScrollRef: RefObject<boolean>,
 ): void {
   const snapRef = useRef<TimelineLayoutSnap>({ length: 0, firstId: "", scrollHeight: 0, scrollTop: 0 });
+  // Only the count and the first id matter: a prepend changes both, while a
+  // new array with the same head (a status echo, a new bubble) must not re-snap.
+  const messageCount = messages.length;
+  const firstMessageId = messages[0]?.id;
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || messages.length === 0) return;
+    if (!el || messageCount === 0) return;
     const snap = snapRef.current;
-    if (timelinePrepended(messages, snap, stickToBottomRef)) {
+    if (timelinePrepended(messageCount, firstMessageId, snap, stickToBottomRef)) {
       preserveScrollAfterPrependOverFrames(el, snap.scrollHeight, snap.scrollTop, programmaticScrollRef);
     }
-    snap.length = messages.length;
-    snap.firstId = messages[0]?.id ?? "";
+    snap.length = messageCount;
+    snap.firstId = firstMessageId ?? "";
     snap.scrollHeight = el.scrollHeight;
     snap.scrollTop = el.scrollTop;
-  }, [messages.length, messages[0]?.id, programmaticScrollRef, scrollRef, stickToBottomRef]);
+  }, [firstMessageId, messageCount, programmaticScrollRef, scrollRef, stickToBottomRef]);
 }
 
 interface ChatMessageListProps {
@@ -341,7 +346,12 @@ function VirtualizedChatMessageList({
   renderMessage,
 }: ChatMessageListProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const resolveItemKey = getItemKey ?? ((index: number) => messages[index]?.id ?? index);
+  // The fallback reads `messages`, so it is rebuilt with them; a caller's
+  // getItemKey keeps its own identity, as before.
+  const resolveItemKey = useMemo(
+    () => getItemKey ?? ((index: number) => messages[index]?.id ?? index),
+    [getItemKey, messages],
+  );
   const measureGeneration = useMemo(
     () => messages.map((_, index) => String(resolveItemKey(index))).join("\n"),
     [messages, resolveItemKey],

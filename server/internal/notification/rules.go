@@ -139,6 +139,7 @@ type env struct {
 type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error)
 
 var rules = map[string]rule{
+	"task.created":           ruleTaskCreated,
 	"task.updated":           ruleTaskUpdated,
 	"task.comment_added":     ruleTaskCommentAdded,
 	"document.comment_added": ruleDocumentCommentAdded,
@@ -186,10 +187,20 @@ var rules = map[string]rule{
 	"chat.follow_up.created": ruleChatFollowUpCreated,
 	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
-	"meeting.ended":          ruleMeetingEnded,
+	"meeting.ended":          both(ruleMeetingEnded, ruleEndedRecap),
+	// UNI-2026: the auto summary made none, so the reminder comes after all;
+	// a summary the system made tells the host and the secretaries.
+	"meeting.auto_summary_failed": ruleMeetingEnded,
+	// follow-1: the recap for the rest of the meeting, beside the clerks' notice.
+	"summary.created":   both(ruleSummaryCreated, ruleSummaryRecap),
+	"minutes.finalized": ruleMinutesRecap,
+	// UNI-2001: the clerk who uploaded a recording hears how it went.
+	"transcription.completed": ruleTranscription(KindMeetingTranscriptReady),
+	"transcription.failed":    ruleTranscription(KindMeetingTranscriptFailed),
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
+	"chat.message.received":      chatMessageRule(KindChatMessage),
 	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
 	"chat.voice.invite_received": ruleChatVoiceInviteReceived,
 }
@@ -368,6 +379,112 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 		out = append(out, ds...)
 	}
 	return out, nil
+}
+
+// ruleTaskCreated tells the human assignee of a task created already
+// assigned (UNI-1996); agents are never told. One transaction that hands a
+// person several tasks is one notification, sent by the event of the
+// smallest task id. Group, leader and recipient come only from the immutable
+// task.created audit rows of the transaction (xact_id), so a reassignment
+// before delivery changes nothing.
+func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	assignee, ids, err := createdForSameAssignee(ctx, e.q, ev, p["task_id"])
+	if err != nil || assignee == "" || ids[0] != p["task_id"] {
+		return nil, err
+	}
+	task, err := e.q.GetTask(ctx, p["task_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	orgID, err := orgOf(ctx, e.q, ev, task.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, task.WorkspaceID)
+	r.add(assignee)
+	actor := actorName(ctx, e.q, ev)
+	if len(ids) == 1 {
+		return r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID,
+			map[string]string{"actor": actor, "task": task.Title})
+	}
+	resType, resID, err := batchResource(ctx, e.q, ids)
+	if err != nil {
+		return nil, err
+	}
+	params := map[string]string{"actor": actor, "count": strconv.Itoa(len(ids))}
+	if resType == "meeting" {
+		// The tasks' origin is the meeting; it lives in their workspace.
+		m, err := e.q.GetMeeting(ctx, resID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		if err == nil && m.WorkspaceID == task.WorkspaceID {
+			params["meeting"] = m.Title
+		}
+	}
+	return r.drafts(orgID, KindTasksAssigned, "tasks:"+task.ID+":assigned", resType, resID, params)
+}
+
+// createdForSameAssignee reads the human assignee taskID was created with and
+// the tasks its transaction created for the same person, smallest id first.
+// assignee is "" when the row names no human assignee (or there is no
+// correlation id to find it by).
+func createdForSameAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, taskID string) (string, []string, error) {
+	if !ev.CorrelationID.Valid {
+		return "", nil, nil // unreachable: audit.Recorder.Record mints one per command
+	}
+	rows, err := q.ListTaskCreatedEventsInTransaction(ctx, db.ListTaskCreatedEventsInTransactionParams{
+		CorrelationID: ev.CorrelationID.String, ResourceID: taskID,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	assignee := ""
+	byAssignee := map[string][]string{}
+	for _, row := range rows { // ordered by resource_id
+		var changes map[string]audit.Change
+		if err := json.Unmarshal([]byte(row.Changes), &changes); err != nil {
+			return "", nil, fmt.Errorf("notification: audit changes of %s: %w", row.ID, err)
+		}
+		kind, _ := changeTo(changes, "assignee_kind")
+		id, _ := changeTo(changes, "assignee_id")
+		if kind != string(audit.KindHuman) || id == "" {
+			continue
+		}
+		byAssignee[id] = append(byAssignee[id], row.ResourceID)
+		if row.ResourceID == taskID {
+			assignee = id
+		}
+	}
+	return assignee, byAssignee[assignee], nil
+}
+
+// batchResource points a batch at its meeting when every task still there
+// came out of the same one, and at the leader task (ids[0]; ids are ordered
+// by resource_id) otherwise.
+func batchResource(ctx context.Context, q *db.Queries, ids []string) (string, string, error) {
+	meetingID := ""
+	// shortcut: only the first 50 tasks are read; a larger batch from one meeting is not expected.
+	for _, id := range ids[:min(len(ids), 50)] {
+		t, err := q.GetTask(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if t.OriginType.String != "meeting" || !t.OriginID.Valid || (meetingID != "" && t.OriginID.String != meetingID) {
+			return "task", ids[0], nil
+		}
+		meetingID = t.OriginID.String
+	}
+	if meetingID == "" {
+		return "task", ids[0], nil
+	}
+	return "meeting", meetingID, nil
 }
 
 // mentionedIn finds workspace members named as @Display Name in body. There
@@ -1484,6 +1601,10 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 
 // ruleMeetingEnded nudges the host to summarize a meeting that has something
 // to summarize and no summary yet (C-11 §9.1 V1). It never calls a model.
+// While the meeting waits in the auto summary queue (UNI-2026) it stays
+// quiet: the worker settles the row and, when no summary came of it, emits
+// meeting.auto_summary_failed, which runs this rule again. Once per group,
+// so the two topics never remind twice.
 // Personal reminder: the host is the recipient even when they ended the
 // meeting themselves, so the draft is built here rather than through
 // recipients.add, which drops the actor.
@@ -1521,6 +1642,9 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	if !has {
 		return nil, nil
 	}
+	if queued, err := e.q.MeetingAutoSummaryQueued(ctx, m.ID); err != nil || queued {
+		return nil, err
+	}
 	if _, err := e.members.RequireMember(ctx, m.WorkspaceID, m.HostUserID); err != nil {
 		if refused(err) {
 			return nil, nil
@@ -1532,6 +1656,93 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 		Kind: KindMeetingSummaryReminder, GroupKey: "meeting:" + m.ID + ":summary_reminder",
 		ResourceType: "meeting", ResourceID: m.ID,
 		ActorKind: string(audit.KindSystem), ActorID: "meeting_summary_reminder",
-		Params: map[string]string{"meeting": m.Title},
+		Params: map[string]string{"meeting": m.Title}, OncePerGroup: true,
 	}}, nil
+}
+
+// ruleSummaryCreated tells the host and the secretaries that the system
+// summarized their ended meeting (UNI-2026, scribe spec §4.5, §9): review it
+// and turn its items into tasks. A summary a person made tells nobody - they
+// are looking at it. Only the meeting's newest summary counts.
+func ruleSummaryCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	m, err := e.q.GetMeeting(ctx, p["meeting_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// GetMeeting is by-id: the row must belong to the event's tenant.
+	if (ev.OrganizationID.Valid && m.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && m.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	sum, err := e.q.GetLatestMeetingSummary(ctx, m.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if sum.ID != p["summary_id"] || sum.CreatedByKind != string(audit.KindSystem) {
+		return nil, nil
+	}
+	ps, err := e.q.ListMeetingParticipants(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, m.WorkspaceID)
+	r.add(m.HostUserID)
+	for _, pt := range ps {
+		if pt.IsSecretary && pt.UserID.Valid {
+			r.add(pt.UserID.String)
+		}
+	}
+	ds, err := r.drafts(m.OrganizationID, KindMeetingSummaryReady, "meeting:"+m.ID+":summary_ready",
+		"meeting", m.ID, map[string]string{"meeting": m.Title})
+	for i := range ds {
+		ds[i].OncePerGroup = true
+	}
+	return ds, err
+}
+
+// ruleTranscription tells the person who queued an uploaded recording that
+// its transcription finished or failed for good (parent spec §8.3). The
+// actor is the worker, so nobody is excluded; a requester who left the
+// workspace hears nothing.
+func ruleTranscription(kind string) rule {
+	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+		t, err := e.q.GetMeetingTranscription(ctx, p["transcription_id"])
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		// GetMeetingTranscription is by-id: the row must belong to the event's tenant.
+		if (ev.OrganizationID.Valid && t.OrganizationID != ev.OrganizationID.String) ||
+			(ev.WorkspaceID.Valid && t.WorkspaceID != ev.WorkspaceID.String) || t.CreatedByKind != string(audit.KindHuman) {
+			return nil, nil
+		}
+		m, err := e.q.GetMeeting(ctx, t.MeetingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if _, err := e.members.RequireMember(ctx, t.WorkspaceID, t.CreatedBy); err != nil {
+			if refused(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return []Draft{{
+			UserID: t.CreatedBy, OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID,
+			Kind: kind, GroupKey: "meeting_transcription:" + t.ID + ":" + kind,
+			ResourceType: "meeting", ResourceID: m.ID,
+			ActorKind: string(audit.KindSystem), ActorID: "meeting_transcription",
+			Params: map[string]string{"meeting": m.Title},
+		}}, nil
+	}
 }

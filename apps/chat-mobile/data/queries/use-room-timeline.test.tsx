@@ -10,6 +10,7 @@ import { chatApi } from "@/data/chat-api";
 import { chatKeys } from "@/data/queries/chat-keys";
 import { useChatSendStore } from "@/data/stores/chat-send-store";
 import { usePendingOpsStore } from "@/data/stores/pending-ops-store";
+import { ROOM_TIMELINE_STALE_MS } from "@uniwork/core/chat/room-timeline-cache";
 import { useRoomTimeline } from "./use-room-timeline";
 
 const T0 = Date.UTC(2026, 9, 21, 2, 0);
@@ -66,19 +67,38 @@ describe("useRoomTimeline", () => {
     jest.mocked(chatApi.listRooms).mockReturnValue(new Promise(() => undefined));
     const { wrapper } = setup();
     const { result } = await renderHook(() => useRoomTimeline({ wsId: "w1", roomId: "r1", userId: "ME", anchorId: null }), { wrapper });
+    // The newest page answers at once while the inbox never does: wait for the page, then the snapshot must still be
+    // absent. Reading newestId before the page lands raced the mocked answer.
+    await waitFor(() => expect(result.current.newestId).toBe("m2"));
     expect(result.current.unread).toBeNull();
     expect(result.current.otherUnread).toBe(0);
-    expect(result.current.newestId).toBeNull();
   });
 
-  it("cuts a reopened room back to its newest page and refreshes it", async () => {
+  // Core's room-timeline cache refreshes a reopened room only once its newest page is older than
+  // ROOM_TIMELINE_STALE_MS (f9cdc3c68): a room left and reopened at once keeps what realtime just patched.
+  it("cuts a reopened room back to its newest page and refreshes it once its cache is past the stale window", async () => {
+    const key = chatKeys.roomMessages("w1", "r1");
+    const { qc, wrapper } = setup((client) =>
+      client.setQueryData(
+        key,
+        { pages: [[record("m1", 1)], [record("m0", 0)]], pageParams: [null, { cursor: "c" }] },
+        { updatedAt: Date.now() - ROOM_TIMELINE_STALE_MS - 1 },
+      ),
+    );
+    const invalidate = jest.spyOn(qc, "invalidateQueries");
+    await renderHook(() => useRoomTimeline({ wsId: "w1", roomId: "r1", userId: "ME", anchorId: null }), { wrapper });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
+  it("cuts a room reopened within the stale window back to its newest page without refetching it", async () => {
     const key = chatKeys.roomMessages("w1", "r1");
     const { qc, wrapper } = setup((client) =>
       client.setQueryData(key, { pages: [[record("m1", 1)], [record("m0", 0)]], pageParams: [null, { cursor: "c" }] }),
     );
     const invalidate = jest.spyOn(qc, "invalidateQueries");
     await renderHook(() => useRoomTimeline({ wsId: "w1", roomId: "r1", userId: "ME", anchorId: null }), { wrapper });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: key });
+    expect(qc.getQueryData<{ pages: unknown[] }>(key)?.pages).toHaveLength(1);
   });
 
   it("shows the page around an anchor outside the loaded window, and the local sends on the newest page", async () => {

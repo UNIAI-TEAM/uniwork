@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ExternalLink, Link2, UserPlus, Users } from "lucide-react";
+import { BuildingComplex, ExternalLink, Link2, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -270,7 +270,7 @@ function GrantGlyph({ type, name }: { type: string; name: string }) {
       </span>
     );
   }
-  const Icon = type === "organization" ? Building2 : type === "link" ? Link2 : Users;
+  const Icon = type === "organization" ? BuildingComplex : type === "link" ? Link2 : Users;
   return (
     <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
       <Icon className="size-3.5" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react";
+import { ExternalLink, Ellipsis, Pin, PinOff, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -93,7 +93,7 @@ export function ProjectRowActions({
                 variant="destructive"
                 onClick={() => setDeleteOpen(true)}
               >
-                <Trash2 className="size-3.5" />
+                <Trash className="size-3.5" />
                 {t("projects.page.delete")}
               </DropdownMenuItem>
             </>

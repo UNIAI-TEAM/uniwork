@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { TaskView } from "@uniwork/core/types/task-view";
@@ -126,7 +126,7 @@ export function ViewListPanel({
                   onClick={() => onDelete?.(item.view!)}
                   className="text-muted-foreground hover:text-destructive"
                 >
-                  <Trash2 className="size-3.5" aria-hidden />
+                  <Trash className="size-3.5" aria-hidden />
                 </Button>
               </span>
             ) : null}

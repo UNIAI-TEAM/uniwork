@@ -29,7 +29,14 @@ import (
 // error item has Kind "error", no Key, and Text "error: <code>". Body is the
 // object's own words within Text, without the field lines: what a citation quotes.
 // ID is the one object the item is (a task, a person...); empty for a note or error.
-type agentItem struct{ Kind, Key, Title, Href, Text, Body, ID string }
+// Mine and Foreign serve the taint rules (R8) and never reach the model: Mine says
+// everything the item shows is the asker's own or only a label; Foreign says the
+// item carries words somebody else wrote that the object's audit trail cannot
+// show (a comment, an AI summary).
+type agentItem struct {
+	Kind, Key, Title, Href, Text, Body, ID string
+	Mine, Foreign                          bool
+}
 
 // agentTool is a read tool the agent loop runs itself: Handle stays nil.
 type agentTool struct {
@@ -145,7 +152,7 @@ func (s *AskUNIService) agentTools() []agentTool {
 			map[string]agentProp{"query": strArg("Keywords to look for, as the user would write them; \"\" lists the latest items.")}, s.agentSearch),
 		readTool("list_tasks", "Tasks of the workspace matching every filter given, grouped by status. Overdue means due before today and not done or cancelled.",
 			map[string]agentProp{
-				"status":      strArg("A task status key such as todo, in_progress or done; \"\" for any."),
+				"status":      strArg("A task status as the tools show it, such as Cần làm, or its key such as todo; \"\" for any."),
 				"project_id":  strArg("A project id from list_projects; \"\" for any."),
 				"assignee_id": strArg("A user id from list_members, or \"me\" for the user asking; \"\" for anyone."),
 				"priority":    strArg("none, low, medium, high or urgent; \"\" for any."),
@@ -163,8 +170,9 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"hosted_by_me": boolArg("true for meetings the user asking hosts."),
 				"status":       strArg("SCHEDULED, IN_PROGRESS, ENDED, CANCELED or MISSED; \"\" for any."),
 			}, s.needsReads(s.agentListMeetings)),
-		readTool("get_meeting", "One meeting with its attendees, description and AI summary (decisions and action items). No transcript.",
+		readTool("get_meeting", "One meeting with its attendees, description and AI summary (decisions and action items). No transcript: get_meeting_transcript reads it.",
 			map[string]agentProp{"meeting_id": strArg("The meeting's id.")}, s.needsReads(s.agentGetMeeting)),
+		readTool(askToolTranscript, transcriptToolDesc, transcriptToolProps(), s.agentMeetingTranscript),
 		readTool("list_projects", "Projects of the workspace, open ones unless asked otherwise, with task counts.",
 			map[string]agentProp{
 				"query":          strArg("Words in the title or description; \"\" lists all."),
@@ -246,13 +254,16 @@ func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw 
 	if err := agentArgs(raw, &a); err != nil {
 		return nil, err
 	}
-	found, err := s.searchWorkspace(ctx, tc, a.Query)
+	found, marks, err := s.searchWorkspaceMarks(ctx, tc, a.Query)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]agentItem, 0, len(found))
 	for _, src := range found {
-		out = append(out, sourceItem(src))
+		it := sourceItem(src)
+		it.Mine = it.Kind == "chat" && marks.chatMine[src.Href]
+		it.Foreign = marks.foreign[src.Href]
+		out = append(out, it)
 	}
 	return out, nil
 }
@@ -291,7 +302,7 @@ func (s *AskUNIService) taskItem(l taskLabels, t McpTask, text string) agentItem
 		project = orNone(l.projects[t.ProjectID]) + " (" + t.ProjectID + ")"
 	}
 	fields := fmt.Sprintf("Ref: %s\nStatus: %s\nPriority: %s\nDue: %s\nAssignee: %s\nProject: %s",
-		l.ref(t), statusLine(l.statuses, t.Status), orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
+		l.ref(t), statusLabel(l.statuses, t.Status), orNone(t.Priority), orNone(t.DueDate), nameOf(l.names, t.AssigneeID), project)
 	h := s.href(t.URL)
 	return agentItem{Kind: "task", ID: t.ID, Key: h, Title: t.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -302,6 +313,10 @@ func (s *AskUNIService) agentListTasks(ctx context.Context, tc ai.ToolContext, r
 		return nil, err
 	}
 	in.WorkspaceID = tc.WorkspaceID
+	if in.Status != "" {
+		// The model reads a status by its label (statusLabel) and may pass that back.
+		in.Status = statusKey(s.taskStatusLabels(ctx, tc), in.Status)
+	}
 	list, err := s.reads.ListTasks(ctx, principalOf(tc), in)
 	if err != nil {
 		return nil, err
@@ -337,6 +352,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 		return nil, err
 	}
 	var b strings.Builder
+	foreign := false
 	if t.Description != nil {
 		b.WriteString(*t.Description)
 	}
@@ -346,14 +362,17 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 		}
 		b.WriteString("Comments:")
 		for _, c := range t.Comments {
+			foreign = foreign || c.authorID != tc.ActorID
 			fmt.Fprintf(&b, "\n- %s (%s): %s", c.Author, c.CreatedAt[:len("2006-01-02")], oneLine(c.Body))
 		}
 	}
-	return []agentItem{s.taskItem(l, t, b.String())}, nil
+	it := s.taskItem(l, t, b.String())
+	it.Foreign = foreign
+	return []agentItem{it}, nil
 }
 
 func (s *AskUNIService) meetingItem(names map[string]string, m McpMeeting, extra, text string) agentItem {
-	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, statusLine(viMeetingStatus, m.Status), orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
+	fields := fmt.Sprintf("ID: %s\nStatus: %s\nStarts: %s\nEnds: %s\nHost: %s%s", m.ID, statusLabel(viMeetingStatus, m.Status), orNone(m.StartsAt), orNone(m.EndsAt), nameOf(names, m.HostUserID), extra)
 	h := s.href(m.URL)
 	return agentItem{Kind: "meeting", ID: m.ID, Key: h, Title: m.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -423,12 +442,14 @@ func (s *AskUNIService) agentGetMeeting(ctx context.Context, tc ai.ToolContext, 
 	if m.Excerpt != "" {
 		text = withText(text, "Summary:\n"+m.Excerpt)
 	}
-	return []agentItem{s.meetingItem(s.memberNames(ctx, tc), m, "\nAttendees: "+orNone(strings.Join(who, ", ")), strings.TrimPrefix(text, "\n"))}, nil
+	it := s.meetingItem(s.memberNames(ctx, tc), m, "\nAttendees: "+orNone(strings.Join(who, ", ")), strings.TrimPrefix(text, "\n"))
+	it.Foreign = m.Excerpt != "" // the AI summary
+	return []agentItem{it}, nil
 }
 
 func (s *AskUNIService) projectItem(names map[string]string, p McpProject, text string) agentItem {
 	fields := fmt.Sprintf("ID: %s\nStatus: %s\nPriority: %s\nDue: %s\nLead: %s\nTask count: %d (%d done)",
-		p.ID, statusLine(viProjectStatus, p.Status), orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
+		p.ID, statusLabel(viProjectStatus, p.Status), orNone(p.Priority), orNone(p.DueDate), nameOf(names, p.LeadID), p.TaskCount, p.DoneCount)
 	h := s.href(p.URL)
 	return agentItem{Kind: "project", ID: p.ID, Key: h, Title: p.Title, Href: h, Text: withText(fields, text), Body: text}
 }
@@ -509,7 +530,9 @@ func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext,
 		fields += "\nNote: " + d.Note
 	}
 	h := s.href(d.URL)
-	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content}}, nil
+	// An uploaded file is somebody's document from outside, like an attachment:
+	// no audit row says who wrote its text (R8).
+	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content, Foreign: d.Filename != ""}}, nil
 }
 
 // roomTitle is what the sidebar calls a room: its name, else the dm peer's.
@@ -536,7 +559,7 @@ func (s *AskUNIService) agentListChatRooms(ctx context.Context, tc ai.ToolContex
 			last = r.LastMessageAt.UTC().Format(time.RFC3339)
 		}
 		h := base + "/chat?room=" + r.ID
-		out = append(out, agentItem{Kind: "chat", ID: r.ID, Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last})
+		out = append(out, agentItem{Kind: "chat", ID: r.ID, Key: h, Title: roomTitle(r), Href: h, Text: "ID: " + r.ID + "\nType: " + r.Kind + "\nLast activity: " + last, Mine: true}) // a label, no messages
 	}
 	return out, nil
 }
@@ -566,6 +589,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	}
 	ts := searchTerms(a.Query)
 	var b strings.Builder
+	mine := true // every message shown is the asker's (R8)
 	for _, m := range msgs {
 		if a.Query != "" && score(m.Body, ts) == 0 {
 			continue
@@ -574,6 +598,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 		if optOuts.excludes(m.SenderID) {
 			continue
 		}
+		mine = mine && askerOwnWords(m, tc.ActorID)
 		body := oneLine(m.Body)
 		if body == "" {
 			body = "[" + m.Kind + "]"
@@ -599,7 +624,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 	}
 	h := base + "/chat?room=" + a.RoomID
 	text := strings.TrimSuffix(b.String(), "\n")
-	return []agentItem{{Kind: "chat", ID: a.RoomID, Key: h, Title: title, Href: h, Text: text, Body: text}}, nil
+	return []agentItem{{Kind: "chat", ID: a.RoomID, Key: h, Title: title, Href: h, Text: text, Body: text, Mine: mine}}, nil
 }
 
 func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {

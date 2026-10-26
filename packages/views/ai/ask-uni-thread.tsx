@@ -9,6 +9,7 @@ import type { AiCitation, AiMessage, AskUniInput } from "@uniwork/core/types";
 import { AskUniFollowups } from "./ask-uni-followups";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 import { useEffectiveFocus } from "./ask-uni-page-context";
+import { useSmoothText } from "./use-smooth-text";
 
 /** What AskUniPanel owns and hands down: the live turn's state and its controls. */
 export type AskUniStream = ReturnType<typeof useAskUniStream>;
@@ -48,6 +49,7 @@ function StoredTurn({
   onRegenerate,
   conversationId,
   stream,
+  thinking,
   sources,
   wsId,
 }: {
@@ -61,6 +63,8 @@ function StoredTurn({
   onRegenerate: () => void;
   conversationId: string | null;
   stream: AskStreamState;
+  /** The live call's thinking, as the reader sees it. */
+  thinking: string;
   sources: Map<string, AiCitation>;
   wsId?: string;
 }) {
@@ -71,6 +75,7 @@ function StoredTurn({
         streaming
         steps={stream.steps}
         writing={replacement.content !== ""}
+        thinking={thinking}
         sources={sources}
         wsId={wsId}
       />
@@ -84,7 +89,8 @@ function StoredTurn({
         steps={stream.message?.id === message.id && stream.steps.length > 0 ? stream.steps : undefined}
         sources={sources}
         wsId={wsId}
-        onRegenerate={isLast ? onRegenerate : undefined}
+        // An answer with proposals (or memory proposals) is not regenerated: its rows may already have changed something.
+        onRegenerate={isLast && message.proposals.length === 0 && message.memory_proposals.length === 0 ? onRegenerate : undefined}
         regenerateDisabled={stream.status === "streaming"}
       />
       {error !== undefined ? <StreamError code={error} /> : null}
@@ -138,12 +144,12 @@ export function AskUniThread({
   // The server reuses the stored question, page chip and mentions; the question is sent only because the request requires it.
   const regenerate = () => {
     if (lastQuestion && lastAssistant) {
-      ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
+      void ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion, regenerate_message_id: lastAssistant.id });
     }
   };
   // A follow-up is sent as the composer would send it: the open page or picked object as focus.
   const askFollowup = (question: string) =>
-    ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [] });
+    void ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question, focus: focus ? { kind: focus.kind, id: focus.id } : undefined, mentions: [] });
   // The answer being regenerated keeps its place: the live cell replaces it while it streams.
   const regen = sameConversation && state.regenerateOf ? state.regenerateOf : null;
   const followups =
@@ -156,7 +162,8 @@ export function AskUniThread({
           ? state.followups
           : [];
 
-  const draft = streaming && state.draft.length < DRAFT_HOLD_CHARS ? "" : state.draft;
+  const draft = useSmoothText(streaming && state.draft.length < DRAFT_HOLD_CHARS ? "" : state.draft, streaming);
+  const thinking = useSmoothText(state.thinking, streaming);
   const liveAnswer: AskUniTurnMessage = {
     id: "live",
     role: "assistant",
@@ -164,6 +171,7 @@ export function AskUniThread({
     citations: state.message?.citations ?? state.citations,
     notice: state.message?.notice ?? (state.status === "stopped" ? "stopped" : ""),
     model: state.message?.model ?? state.model,
+    file_notes: state.message?.file_notes ?? [],
   };
   // `[S#]` numbers carry across this conversation's answers (the server seeds the book from them), so this map resolves a
   // marker an answer does not cite itself; each answer's own citations still win. Only this conversation's stream adds to it.
@@ -187,7 +195,7 @@ export function AskUniThread({
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [stored.length, state.draft, state.status, state.steps]);
+  }, [stored.length, draft, thinking, state.status, state.steps]);
 
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -204,17 +212,18 @@ export function AskUniThread({
             onRegenerate={regenerate}
             conversationId={conversationId}
             stream={state}
+            thinking={thinking}
             sources={sources}
             wsId={wsId}
           />
         ))}
         {live ? (
           <>
-            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [] }} />
+            <AskUniMessageTurn message={{ id: "live-question", role: "user", content: state.question, citations: [], attachments: state.attachments }} />
             {state.status === "error" ? (
               <StreamError code={state.errorCode} />
             ) : (
-              <AskUniMessageTurn message={liveAnswer} streaming={streaming} steps={state.steps} writing={liveAnswer.content !== ""} sources={sources} wsId={wsId} />
+              <AskUniMessageTurn message={liveAnswer} streaming={streaming} steps={state.steps} writing={liveAnswer.content !== ""} thinking={thinking} sources={sources} wsId={wsId} />
             )}
           </>
         ) : null}

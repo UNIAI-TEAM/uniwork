@@ -36,7 +36,8 @@ let motions: unknown[] = [];
 
 /** The visible label of each tab, without its badge (button > span > span). */
 function tabLabels(): (string | null | undefined)[] {
-  return screen.getAllByRole("tab").map((el) => el.firstElementChild?.firstElementChild?.textContent);
+  // The label is the first span: an icon (an svg) may lead it, a badge may follow it.
+  return screen.getAllByRole("tab").map((el) => el.firstElementChild?.querySelector("span")?.textContent);
 }
 
 beforeAll(() => {
@@ -118,7 +119,18 @@ describe("MeetingRoomSidebar", () => {
         <MeetingRoomSidebar meetingId="m1" tab="participants" onTabChange={() => {}} guestMode chatUnread={3} />,
       ),
     );
-    expect(screen.getByLabelText("3 tin nhắn chưa đọc")).toHaveTextContent("3");
+    // The count is part of the tab's own name, not a label on a bare span.
+    expect(screen.getByRole("tab", { name: /^Trò chuyện\W+3 tin nhắn chưa đọc$/ })).toBeInTheDocument();
+    expect(screen.getByRole("tablist")).toHaveAccessibleName("Bảng phụ cuộc họp");
+  });
+
+  it("badges the UNI tab with the live items the scribe wrote while it was off screen (UNI-1995 #21)", () => {
+    render(
+      wrapWithNav(
+        <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="chat" onTabChange={() => {}} liveItemsUnseen={2} />,
+      ),
+    );
+    expect(screen.getByRole("tab", { name: /^UNI\W+2 việc UNI mới ghi$/ })).toBeInTheDocument();
   });
 
   it("names the recordings tab for what it lists", async () => {
@@ -151,7 +163,7 @@ describe("MeetingRoomSidebar", () => {
     motions = [openMotion];
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     const tab = await screen.findByRole("tab", { name: /^Biểu quyết/ });
-    expect(within(tab).getByLabelText(PENDING)).toHaveTextContent("1");
+    expect(tab).toHaveAccessibleName(new RegExp(PENDING));
     expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
   });
 
@@ -168,7 +180,7 @@ describe("MeetingRoomSidebar", () => {
     ];
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     await screen.findByRole("tab", { name: "Biểu quyết" });
-    expect(screen.queryByLabelText(PENDING)).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Biểu quyết" })).not.toHaveAccessibleName(new RegExp(PENDING));
   });
 
   it("always shows the votes tab to a clerk, between people and recordings", async () => {
@@ -180,8 +192,26 @@ describe("MeetingRoomSidebar", () => {
       ),
     );
     const tab = await screen.findByRole("tab", { name: "Biểu quyết" });
-    expect(tabLabels()).toEqual(["AI Copilot", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
+    expect(tabLabels()).toEqual(["UNI", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
     fireEvent.click(tab);
     expect(onTabChange).toHaveBeenCalledWith("motions");
+  });
+
+  it("keeps the UNI tab mounted while the dock is closed, so a typed note survives", async () => {
+    setSessionUser(me);
+    const docked = (open: boolean) =>
+      wrapWithNav(
+        <MeetingSidebarDock open={open}>
+          <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} />
+        </MeetingSidebarDock>,
+      );
+    const { rerender } = render(docked(true));
+    fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Ghi chú mới" }), { target: { value: "Chốt ngân sách" } });
+
+    rerender(docked(false));
+    rerender(docked(true));
+
+    expect(screen.getByRole("textbox", { name: "Ghi chú mới" })).toHaveValue("Chốt ngân sách");
   });
 });

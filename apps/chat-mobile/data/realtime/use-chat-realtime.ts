@@ -11,7 +11,7 @@
 // beating while the app is in front.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { selectLazyChatScopeRoomIds } from "@uniwork/core/chat/lazy-chat-scopes";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
@@ -28,19 +28,26 @@ import { useWSSubscriptions } from "@/data/realtime/use-ws-subscriptions";
 import { createChatRealtime } from "./chat-realtime";
 import { useChatScopes } from "./use-chat-scopes";
 
-const HEARTBEAT_MS = 15_000;
+// Parity: CHAT_PRESENCE_HEARTBEAT_MS in packages/core/chat/presence-heartbeat-coordinator.ts
+const HEARTBEAT_MS = 30_000;
 const PRESENCE_PRUNE_MS = 2_000;
 
-/** Online heartbeat every 15 s while the app is active (the web's use-chat-presence-heartbeat). */
-function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
+type PresenceBeatFn = (wsId: string, visible: boolean) => Promise<string[] | null>;
+
+/** Online heartbeat while the app is active (the web's use-chat-presence-heartbeat). */
+function useChatPresenceHeartbeat(
+  wsId: string,
+  userId: string | null,
+  beatFnRef: RefObject<PresenceBeatFn | null>,
+) {
   useEffect(() => {
     if (!userId) return;
     let timer: ReturnType<typeof setInterval> | null = null;
     const beat = () => {
       const sentAt = Date.now();
+      const run = beatFnRef.current ?? ((id, visible) => chatApi.beatPresence(id, visible));
       // The phone in front of its user: a visible beat holds back chat pushes to it.
-      void chatApi
-        .beatPresence(wsId, true)
+      void run(wsId, true)
         .then((online) => {
           if (online) usePresenceStore.getState().reconcile(online, userId, sentAt);
         })
@@ -68,10 +75,11 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
       clearInterval(prune);
       stop();
     };
-  }, [wsId, userId]);
+  }, [wsId, userId, beatFnRef]);
 }
 
 export function useChatRealtime(wsId: string) {
+  const presenceBeatRef = useRef<PresenceBeatFn | null>(null);
   const qc = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const activeRoomId = useActiveChatRoomStore((s) => s.roomId);
@@ -81,6 +89,10 @@ export function useChatRealtime(wsId: string) {
 
   useWSSubscriptions(
     (ws) => {
+      presenceBeatRef.current = (workspaceId, visible) =>
+        ws.sendPresenceBeat(visible).then((online) =>
+          online !== null ? online : chatApi.beatPresence(workspaceId, visible),
+        );
       const realtime = createChatRealtime(qc, {
         wsId,
         viewer: () => ({ userId: useAuthStore.getState().user?.id ?? null, activeRoomId: useActiveChatRoomStore.getState().roomId }),
@@ -101,6 +113,9 @@ export function useChatRealtime(wsId: string) {
         realtime.dispose,
         () => useSidebarTypingStore.getState().clearAll(),
         () => usePresenceStore.getState().clearAll(),
+        () => {
+          presenceBeatRef.current = null;
+        },
       ];
     },
     [qc, wsId, userId],
@@ -117,5 +132,5 @@ export function useChatRealtime(wsId: string) {
     void useChatPinsStore.getState().load(wsId);
   }, [wsId]);
 
-  useChatPresenceHeartbeat(wsId, userId);
+  useChatPresenceHeartbeat(wsId, userId, presenceBeatRef);
 }

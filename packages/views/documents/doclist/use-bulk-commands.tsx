@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -227,7 +227,7 @@ export function useDocListBulkCommands({
                 void execute(confirming).finally(() => setConfirming(null));
               }}
             >
-              {busy ? <Spinner aria-hidden role="presentation" /> : <Trash2 aria-hidden className="size-3.5" />}
+              {busy ? <Spinner aria-hidden role="presentation" /> : <Trash aria-hidden className="size-3.5" />}
               {t(purge ? "documents.list.bulk.confirm.purge_action" : "documents.list.bulk.confirm.trash_action")}
             </Button>
           </AlertDialogFooter>

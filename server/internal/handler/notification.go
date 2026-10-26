@@ -9,6 +9,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/notification"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 func toNotificationDTO(it notification.Item) sdo.NotificationDTO {
@@ -172,7 +173,24 @@ func (h *handlers) subscribePush(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent(), in.Platform, in.CallUI)
+	transport := in.Transport
+	if transport == "" {
+		transport = in.Kind
+	}
+	var err error
+	switch transport {
+	case "":
+		err = h.Notifications.SubscribePush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.Keys.P256dh, in.Keys.Auth, r.UserAgent(), in.Platform,
+			notification.PushCaps{CallUI: in.CallUI, ChatQuiet: in.ChatQuiet})
+	case notification.TransportAPNsVoIP:
+		bundleID := in.APNsBundleID
+		if bundleID == "" {
+			bundleID = in.BundleID
+		}
+		err = h.Notifications.SubscribeVoIPPush(r.Context(), middleware.UserID(r.Context()), middleware.SessionID(r.Context()), in.Endpoint, in.APNsEnvironment, bundleID)
+	default:
+		err = service.Invalid("transport không hợp lệ")
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

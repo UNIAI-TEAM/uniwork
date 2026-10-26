@@ -1,6 +1,6 @@
 "use client";
 import { useId, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, CircleCheck, Eye, EyeOff, Lock, Ellipsis, Pencil, Play, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CircleCheck, Eye, EyeOff, Lock, Ellipsis, Pencil, Play, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { tallyPercent } from "@uniwork/core/meetings/motions";
@@ -196,7 +196,7 @@ export function MeetingMotionCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2 aria-hidden className="size-4" />
+                <Trash aria-hidden className="size-4" />
                 {t("meetings.governance.motionDelete")}
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { MARK_READ_ACTION } from "./chat-notification";
+import { MARK_READ_ACTION, REPLY_ACTION } from "./chat-notification";
 import { DEFAULT_NOTIFICATION_ACTION, createNotificationResponseHandler, handleLaunchResponse } from "./notification-response";
 
-function response(id: string, data: Record<string, unknown>, actionIdentifier = DEFAULT_NOTIFICATION_ACTION) {
-  return { actionIdentifier, notification: { request: { identifier: id, content: { data } } } };
+function response(id: string, data: Record<string, unknown>, actionIdentifier = DEFAULT_NOTIFICATION_ACTION, userText?: string) {
+  return { actionIdentifier, ...(userText === undefined ? {} : { userText }), notification: { request: { identifier: id, content: { data } } } };
 }
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const CHAT = { url: "https://app.test/o/w/chat?room=r1&message=m1", workspace_id: "w", room_id: "r1", message_id: "m1" };
 
@@ -27,12 +29,37 @@ describe("notification responses", () => {
     expect(deps.openUrl).toHaveBeenCalledTimes(2);
   });
 
+  it("opens a later push of a room that Android showed under the same notification id", () => {
+    // Android names a room's notification by its tag (the server's group key), so each message's push replaces it
+    // under one id: the tap on the next message is a new tap, not the one already handled.
+    const { deps, handle } = setup();
+    handle(response("chat_room:r1:dm", CHAT));
+    const later = { ...CHAT, url: "https://app.test/o/w/chat?room=r1&message=m2", message_id: "m2" };
+    handle(response("chat_room:r1:dm", later));
+    expect(deps.openUrl).toHaveBeenNthCalledWith(2, later.url);
+    handle(response("chat_room:r1:dm", later));
+    expect(deps.openUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("runs Reply or Mark as read where it was tapped and opens nothing", () => {
     const { deps, handle } = setup();
     handle(response("n1", CHAT, MARK_READ_ACTION));
     expect(deps.runChatAction).toHaveBeenCalledWith(expect.objectContaining({ action: MARK_READ_ACTION, notificationId: "n1" }));
     expect(deps.openUrl).not.toHaveBeenCalled();
     expect(deps.trackPushOpen).not.toHaveBeenCalled();
+  });
+
+  it("opens the room as a tap does when Reply was refused (the app lock), and only then", async () => {
+    const { deps, handle } = setup();
+    deps.runChatAction.mockResolvedValueOnce(true);
+    handle(response("n1", CHAT, REPLY_ACTION, "hi"));
+    await settle();
+    expect(deps.openUrl).toHaveBeenCalledWith(CHAT.url);
+    expect(deps.trackPushOpen).toHaveBeenCalledWith(CHAT);
+    deps.runChatAction.mockResolvedValueOnce(false);
+    handle(response("n2", CHAT, REPLY_ACTION, "hi"));
+    await settle();
+    expect(deps.openUrl).toHaveBeenCalledTimes(1);
   });
 
   it("counts a push with no link and opens nothing", () => {

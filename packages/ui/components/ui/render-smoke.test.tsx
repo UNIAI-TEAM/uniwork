@@ -104,4 +104,16 @@ describe("local variants", () => {
     expect(container.firstElementChild?.className).toContain("bg-warning-soft");
     expect(container.firstElementChild?.className).toContain("text-warning-soft-foreground");
   });
+
+  it("SheetContent passes overlayClassName to its backdrop", async () => {
+    const { Sheet, SheetContent, SheetTitle } = await import("./sheet");
+    render(
+      createElement(
+        Sheet,
+        { open: true },
+        createElement(SheetContent, { overlayClassName: "bg-scrim" }, createElement(SheetTitle, null, "t")),
+      ),
+    );
+    expect(document.querySelector('[data-slot="sheet-overlay"]')?.className).toContain("bg-scrim");
+  });
 });

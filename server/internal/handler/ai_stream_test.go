@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -402,11 +404,85 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 	}
 }
 
+// A reasoning delta is its own frame, and a step names the model's note.
+func TestWriteAskEventSendsReasoningAndTheStepNote(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "reasoning", Delta: "Cần xem."})
+	writeAskEvent(sw, service.AskEvent{Name: "step", Step: &service.AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Note: "Mình tìm."}})
+	sw.close()
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: reasoning\ndata: {\"text\":\"Cần xem.\"}\n\n") || !strings.Contains(body, `"note":"Mình tìm."`) {
+		t.Fatalf("frames:\n%s", body)
+	}
+}
+
+// A stored step keeps the model's note, its thought and its kind.
+func TestToAiMessageDTOStepsKeepNoteThoughtAndKind(t *testing.T) {
+	out := toAiMessageDTO(db.AiMessage{Citations: "[]", Steps: `[{"tool":"search","label":"x","counts":{},"note":"Mình tìm.","thought":"Cần xem."},{"tool":"","label":"","counts":{},"kind":"think","thought":"Đủ rồi."}]`})
+	want := []sdo.AiStepDTO{
+		{Tool: "search", Label: "x", Counts: map[string]int{}, Note: "Mình tìm.", Thought: "Cần xem."},
+		{Counts: map[string]int{}, Kind: "think", Thought: "Đủ rồi."},
+	}
+	if !reflect.DeepEqual(out.Steps, want) {
+		t.Fatalf("steps %+v, want %+v", out.Steps, want)
+	}
+}
+
 func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
-	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]"}
+	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]", FileNotes: `[{"name":5}]`}
 	out := toAiMessageDTO(m)
-	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
+	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil ||
+		out.FileNotes == nil || len(out.FileNotes) != 0 {
 		t.Fatalf("%+v", out)
+	}
+}
+
+// An answer's file notes reach the API as stored; a message without any (or a
+// row from before the column) lists none.
+func TestToAiMessageDTOFileNotes(t *testing.T) {
+	out := toAiMessageDTO(db.AiMessage{Citations: "[]", FileNotes: `[{"name":"bao-cao.pdf","unit":"page","read":15,"total":80}]`})
+	if want := []sdo.AiFileNoteDTO{{Name: "bao-cao.pdf", Unit: "page", Read: 15, Total: 80}}; !slices.Equal(out.FileNotes, want) {
+		t.Fatalf("file notes %+v, want %+v", out.FileNotes, want)
+	}
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.FileNotes == nil || len(out.FileNotes) != 0 {
+		t.Fatalf("no notes: %+v, want []", out.FileNotes)
+	}
+}
+
+// memory_ids reach the API as stored; a row from before the column lists none.
+func TestMemoryIDsInTheMessageDTOAndTheStream(t *testing.T) {
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]", MemoryIds: `["e1","e2"]`}); !slices.Equal(out.MemoryIDs, []string{"e1", "e2"}) {
+		t.Fatalf("memory ids %v", out.MemoryIDs)
+	}
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.MemoryIDs == nil || len(out.MemoryIDs) != 0 {
+		t.Fatalf("no ids: %v, want []", out.MemoryIDs)
+	}
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "memory_used", MemoryIDs: []string{"e1"}})
+	sw.close()
+	if !strings.Contains(rec.Body.String(), "event: memory_used\ndata: {\"memory_ids\":[\"e1\"]}\n\n") {
+		t.Fatalf("frames:\n%s", rec.Body.String())
+	}
+}
+
+// memory_proposals is always a list in the message DTO, and the frame carries
+// each row in the DTO's shape.
+func TestMemoryProposalsInTheMessageDTOAndTheStream(t *testing.T) {
+	if out := toAiMessageDTO(db.AiMessage{Citations: "[]"}); out.MemoryProposals == nil || len(out.MemoryProposals) != 0 {
+		t.Fatalf("memory proposals %v, want []", out.MemoryProposals)
+	}
+	rec := httptest.NewRecorder()
+	sw := newSSEWriter(rec)
+	writeAskEvent(sw, service.AskEvent{Name: "memory_proposals", MemoryProposals: []service.AskMemoryProposal{{
+		ID: "p1", MessageID: "m1", Position: 1, Action: "remember", Kind: "fact", Text: "Tôi ở Hà Nội", Status: "pending",
+		ExpiresAt: time.Date(2026, 10, 26, 8, 0, 0, 0, time.UTC),
+	}}})
+	sw.close()
+	want := `event: memory_proposals` + "\n" + `data: {"memory_proposals":[{"id":"p1","message_id":"m1","position":1,"action":"remember","memory_id":"","kind":"fact","text":"Tôi ở Hà Nội","before_kind":"","before_text":"","status":"pending","expires_at":"2026-10-26T08:00:00Z"}]}` + "\n\n"
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Fatalf("frames:\n%s", rec.Body.String())
 	}
 }
 

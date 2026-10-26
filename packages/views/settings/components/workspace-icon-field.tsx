@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImageUp, Trash2 } from "lucide-react";
+import { Camera, ImageUp, Trash } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -99,7 +99,7 @@ export function WorkspaceIconField({ workspace }: { workspace: Workspace }) {
             </Button>
             {hasIcon ? (
               <Button type="button" variant="ghost" size="sm" onClick={removeIcon}>
-                <Trash2 aria-hidden />
+                <Trash aria-hidden />
                 {t("workspace.icon_remove")}
               </Button>
             ) : null}

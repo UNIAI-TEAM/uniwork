@@ -48,12 +48,13 @@ func TestVoiceCallJournalWritesEachChangeAndReadsBackWhatThisProcessLost(t *test
 	}
 	raw := journalRaw(t, sess)
 	mock.ExpectSet(redisVoiceCallPrefix+key, raw, voiceCallUnansweredTTL-10*time.Second).SetVal("OK")
-	storeVoiceCallSession(key, sess)
+	writeVoiceCallSessionLocal(key, sess)
 
 	// A restart: the process forgot the call, the journal did not.
 	voiceCallSessions.Delete(key)
 	mock.ExpectGet(redisVoiceCallPrefix + key).SetVal(string(raw))
-	got, ok := loadVoiceCallSession(key)
+	svc := &ChatService{}
+	got, ok := svc.loadVoiceCallSession(context.Background(), "room-journal", "call-journal")
 	if !ok || got.callerID != "u-a" || got.callKind != "group" || len(got.inviteeIDs) != 1 || got.declinedIDs[0] != "u-c" {
 		t.Fatalf("read back %+v (%v), want the journaled session", got, ok)
 	}
@@ -62,10 +63,10 @@ func TestVoiceCallJournalWritesEachChangeAndReadsBackWhatThisProcessLost(t *test
 	}
 
 	mock.ExpectDel(redisVoiceCallPrefix + key).SetVal(1)
-	deleteVoiceCallSession(key)
+	svc.deleteVoiceCallSession(context.Background(), "room-journal", "call-journal")
 
 	mock.ExpectGet(redisVoiceCallPrefix + voiceCallSessionKey("room-journal", "gone")).RedisNil()
-	if _, ok := loadVoiceCallSession(voiceCallSessionKey("room-journal", "gone")); ok {
+	if _, ok := svc.loadVoiceCallSession(context.Background(), "room-journal", "gone"); ok {
 		t.Fatal("a call neither here nor in the journal is gone")
 	}
 }
@@ -78,14 +79,14 @@ func TestVoiceCallJournalKeepsTheCallWhenRedisFailsAndDropsAnExpiredOne(t *testi
 	answered := now.Add(-time.Hour)
 	sess := voiceCallSession{roomID: "room-journal-2", callID: "call", callerID: "u-a", invitedAt: now.Add(-2 * time.Hour), acceptedAt: &answered}
 	mock.ExpectSet(redisVoiceCallPrefix+key, journalRaw(t, sess), voiceCallAnsweredTTL-time.Hour).SetErr(errors.New("redis down"))
-	storeVoiceCallSession(key, sess)
+	writeVoiceCallSessionLocal(key, sess)
 	if _, held := voiceCallSessions.Load(key); !held {
 		t.Fatal("Redis failing must not lose the call in process")
 	}
 
 	stale := voiceCallSession{roomID: "room-journal-2", callID: "call", invitedAt: now.Add(-2 * voiceCallUnansweredTTL)}
 	mock.ExpectDel(redisVoiceCallPrefix + key).SetVal(0)
-	storeVoiceCallSession(key, stale)
+	writeVoiceCallSessionLocal(key, stale)
 
 	// A journal entry that does not read is no session.
 	mock.ExpectGet(redisVoiceCallPrefix + "bad").SetVal("{")

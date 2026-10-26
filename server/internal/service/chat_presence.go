@@ -11,8 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Presence is state, not a stream of heartbeats. Every shell page beats every
-// 15s; the tracker records the beat with a TTL and publishes to the workspace
+// Presence is state, not a stream of heartbeats. Every shell page beats on a
+// fixed interval (30s on web/mobile); the tracker records the beat with a TTL and publishes to the workspace
 // only when the caller's state changes: offline → online on the first beat,
 // online → offline when the entry expires. The beat
 // answers with who is online, so a page that opens late learns its peers from

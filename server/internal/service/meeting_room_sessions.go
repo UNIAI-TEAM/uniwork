@@ -79,6 +79,12 @@ func (s *MeetingService) roomParticipantJoined(ctx context.Context, q *db.Querie
 	if pid == "" {
 		return false, nil
 	}
+	return s.roomParticipantJoinedAs(ctx, q, sess, ev, pid)
+}
+
+// roomParticipantJoinedAs is roomParticipantJoined for a participant id the
+// caller resolved (a phone caller's identity carries none).
+func (s *MeetingService) roomParticipantJoinedAs(ctx context.Context, q *db.Queries, sess db.MeetingConferenceSession, ev ProviderNeutralEvent, pid string) (bool, error) {
 	// The participant's room session lock: their join and leave webhooks —
 	// processed concurrently, possibly by several workers — take turns.
 	if err := q.LockRoomSessionsOfParticipant(ctx, pid); err != nil {
@@ -153,6 +159,11 @@ func (s *MeetingService) roomParticipantLeft(ctx context.Context, q *db.Queries,
 	if pid == "" {
 		return false, nil
 	}
+	return s.roomParticipantLeftAs(ctx, q, sess, ev, pid)
+}
+
+// roomParticipantLeftAs is roomParticipantLeft for a resolved participant id.
+func (s *MeetingService) roomParticipantLeftAs(ctx context.Context, q *db.Queries, sess db.MeetingConferenceSession, ev ProviderNeutralEvent, pid string) (bool, error) {
 	reason := "left"
 	if ev.Type == "conference.participant_connection_aborted" {
 		reason = "connection_aborted"
