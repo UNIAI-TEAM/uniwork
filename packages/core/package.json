@@ -62,6 +62,7 @@
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
     "./meetings/summary": "./meetings/summary-hooks.ts",
     "./meetings/dial-in": "./meetings/dial-in-hooks.ts",
+    "./meetings/feed": "./meetings/feed.ts",
     "./meetings/settings": "./meetings/settings-hooks.ts",
     "./meetings/speaker-labels": "./meetings/speaker-label-hooks.ts",
     "./meetings/transcriptions": "./meetings/transcription-hooks.ts",
