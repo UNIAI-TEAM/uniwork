@@ -2044,6 +2044,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].Outcome != DriveFileLinkOutcomeLinked {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.linked", "drive_file_id", res[0].File.ID)
 		},
 		audit.ActionDriveFileAccessGranted: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2072,6 +2073,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.owner.ID), w.ID, fileID, conn.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", fileID)
 		},
 		audit.ActionDriveFileAccessChanged: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2100,6 +2102,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := fileSvc.ChangeReadAccount(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer2.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", fileID)
 		},
 		audit.ActionDriveFileAccessLost: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2118,6 +2121,8 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err := fileSvc.RecordFileAccessLost(f.ctx, f.owner.ID, w.ID, res[0].File.ID, conn.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopic(t, f, "drive_file.updated", "drive_file_id", res[0].File.ID)
 		},
 		audit.ActionDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2136,6 +2141,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err := fileSvc.Unlink(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.unlinked", "drive_file_id", res[0].File.ID)
 		},
 		audit.ActionDriveFileRebound: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2155,6 +2161,8 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := fileSvc.Rebind(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, conn2.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertAuditOutboxTopic(t, f, "drive_file.updated", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", res[0].File.ID)
 		},
 		audit.ActionTaskDriveFileLinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2165,13 +2173,16 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			})
 			task := f.newTask(t)
 			taskID := task.ID
-			if _, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
 				ConnectionID:    conn.ID,
 				ExternalFileIDs: []string{"ext-audit-task-link"},
 				TaskID:          &taskID,
-			}); err != nil {
-				t.Fatal(err)
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileLinked, task.ID, res[0].File.ID, "Task Link Doc", "drive-tasklink@example.com")
+			assertAuditOutboxTopic(t, f, "drive_file.task_linked", "task_id", task.ID)
 		},
 		audit.ActionTaskDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2193,6 +2204,8 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err := fileSvc.RemoveFromTask(f.ctx, Human(f.owner.ID), task.ID, res[0].File.ID); err != nil {
 				t.Fatal(err)
 			}
+			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileUnlinked, task.ID, res[0].File.ID, "Task Unlink Doc", "drive-taskunlink@example.com")
+			assertAuditOutboxTopic(t, f, "drive_file.task_linked", "task_id", task.ID)
 		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
@@ -2727,6 +2740,14 @@ func auditActions() []string {
 		audit.ActionDriveConnectionAuthFailed,
 		audit.ActionDriveConnectionDisconnected,
 		audit.ActionDriveFileRead,
+		audit.ActionDriveFileLinked,
+		audit.ActionDriveFileAccessGranted,
+		audit.ActionDriveFileAccessChanged,
+		audit.ActionDriveFileAccessLost,
+		audit.ActionDriveFileUnlinked,
+		audit.ActionDriveFileRebound,
+		audit.ActionTaskDriveFileLinked,
+		audit.ActionTaskDriveFileUnlinked,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3567,4 +3588,36 @@ func seedAuditDriveConnectionForUser(t *testing.T, f *auditFixture, svc *DriveCo
 		t.Fatal(err)
 	}
 	return row
+}
+
+func assertTaskDriveAuditMetadata(t *testing.T, f *auditFixture, action, taskID, wantFileID, wantFileName, wantEmail string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 ORDER BY created_at DESC LIMIT 1`,
+		f.orgID, action, taskID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query audit metadata for %s: %v", action, err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal audit metadata for %s: %v", action, err)
+	}
+	if meta["drive_file_id"] != wantFileID || meta["drive_file_name"] != wantFileName || meta["google_email"] != wantEmail {
+		t.Fatalf("%s metadata = %+v, want drive_file_id=%q drive_file_name=%q google_email=%q", action, meta, wantFileID, wantFileName, wantEmail)
+	}
+	if _, hasSub := meta["google_sub"]; hasSub {
+		t.Fatalf("%s metadata on task resource must not include google_sub: %+v", action, meta)
+	}
+}
+
+func assertAuditOutboxTopic(t *testing.T, f *auditFixture, topic, key, wantVal string) {
+	t.Helper()
+	var count int
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload->>$2 = $3`,
+		topic, key, wantVal,
+	).Scan(&count); err != nil || count == 0 {
+		t.Fatalf("outbox topic %s (%s=%s) count = %d, err=%v, want >= 1", topic, key, wantVal, count, err)
+	}
 }

@@ -476,12 +476,19 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 		t.Fatalf("UpdateMemberRole: %v", err)
 	}
 
+	overrideMedia := map[string][]byte{
+		"tok-a-sub-a1": []byte("body-from-tok-a1"),
+		"tok-a-sub-a2": []byte("body-from-tok-a2"),
+		"tok-a-sub-b1": []byte("body-from-tok-b1"),
+		"tok-a-sub-b2": []byte("body-from-tok-b2"),
+	}
 	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
 		Metadata: googleDriveFileJSON{
 			ID:       "ext-override-1",
 			Name:     "Tài liệu kiến trúc",
-			MimeType: DriveMimeGoogleDoc,
+			MimeType: DriveMimePlainText,
 		},
+		MediaByToken: overrideMedia,
 	})
 
 	// 1. Owner links with connA1 -> outcome "linked".
@@ -510,6 +517,10 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 	})
 	if err != nil || len(r3) != 1 || r3[0].Outcome != DriveFileLinkOutcomeAlreadyLinked || r3[0].AccountEmail != "a1@example.com" || r3[0].File.ViewerAccess != DriveViewerAccessGranted {
 		t.Fatalf("third Link diff conn = %+v, err=%v", r3, err)
+	}
+	dcDedup, err := env.contentSvc.ReadForAI(ctx, env.owner.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni)
+	if err != nil || dcDedup.Text != "body-from-tok-a1" || dcDedup.GoogleEmail != "a1@example.com" {
+		t.Fatalf("ReadForAI after same-member dedup = %+v, err=%v, want body-from-tok-a1", dcDedup, err)
 	}
 
 	// 3b (F08). When kept connA1 has auth_failed_at set and owner links with active connA2,
@@ -612,7 +623,8 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 		t.Fatalf("peer after current connB2 PUT ACL loss = %+v, err=%v, want lost", afterCurrentLoss, err)
 	}
 	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
-		Metadata: googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimeGoogleDoc},
+		Metadata:     googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimePlainText},
+		MediaByToken: overrideMedia,
 	})
 	_, err = env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID)
 	if !errors.As(err, &ce) || ce.Status != http.StatusConflict || ce.Code != "use_grant_access" {
@@ -637,6 +649,122 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 	}
 	if ownerViewAfterRebind.ViewerAccountEmail != "a1@example.com" || ownerViewAfterRebind.ViewerAccess != DriveViewerAccessGranted {
 		t.Fatalf("owner viewer access after admin Rebind = %+v, want a1@example.com granted", ownerViewAfterRebind)
+	}
+	dcOwnerAfterRebind, err := env.contentSvc.ReadForAI(ctx, env.owner.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni)
+	if err != nil || dcOwnerAfterRebind.Text != "body-from-tok-a1" || dcOwnerAfterRebind.GoogleEmail != "a1@example.com" {
+		t.Fatalf("owner ReadForAI after peer Rebind = %+v, err=%v, want body-from-tok-a1", dcOwnerAfterRebind, err)
+	}
+	dcPeerAfterRebind, err := env.contentSvc.ReadForAI(ctx, env.peer.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni)
+	if err != nil || dcPeerAfterRebind.Text != "body-from-tok-b1" || dcPeerAfterRebind.GoogleEmail != "b1@example.com" {
+		t.Fatalf("peer ReadForAI after peer Rebind = %+v, err=%v, want body-from-tok-b1", dcPeerAfterRebind, err)
+	}
+
+	// 7 (F11). Lost bound_by row re-picked with a different connection via POST GrantAccess
+	// (and via Link) updates both drive_files and drive_file_access and audits drive_file.rebound.
+	if err := env.fileSvc.RecordFileAccessLost(ctx, env.peer.ID, env.wsA.ID, fileID, connB.ID); err != nil {
+		t.Fatalf("RecordFileAccessLost peer connB: %v", err)
+	}
+	var reboundAuditBefore, updatedOutboxBefore int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.rebound' AND resource_id = $2`, env.org.ID, fileID).Scan(&reboundAuditBefore)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updatedOutboxBefore)
+	postRebound, err := env.fileSvc.GrantAccess(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID)
+	if err != nil || postRebound.ConnectionID != connB2.ID || postRebound.BoundAccountEmail != "b2@example.com" || postRebound.AccessLostAt != nil || postRebound.ViewerAccess != DriveViewerAccessGranted || postRebound.ViewerAccountEmail != "b2@example.com" {
+		t.Fatalf("GrantAccess lost bound_by diff conn = %+v, err=%v", postRebound, err)
+	}
+	var reboundAuditMid, updatedOutboxMid int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.rebound' AND resource_id = $2`, env.org.ID, fileID).Scan(&reboundAuditMid)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updatedOutboxMid)
+	if reboundAuditMid != reboundAuditBefore+1 || updatedOutboxMid != updatedOutboxBefore+1 {
+		t.Fatalf("POST access rebound audit=%d->%d outbox=%d->%d", reboundAuditBefore, reboundAuditMid, updatedOutboxBefore, updatedOutboxMid)
+	}
+	if err := env.fileSvc.RecordFileAccessLost(ctx, env.peer.ID, env.wsA.ID, fileID, connB2.ID); err != nil {
+		t.Fatalf("RecordFileAccessLost peer connB2: %v", err)
+	}
+	linkRebound, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connB.ID,
+		ExternalFileIDs: []string{"ext-override-1"},
+	})
+	if err != nil || len(linkRebound) != 1 || linkRebound[0].Outcome != DriveFileLinkOutcomeLinked || linkRebound[0].File.ViewerAccountEmail != "b1@example.com" {
+		t.Fatalf("Link lost bound_by diff conn = %+v, err=%v", linkRebound, err)
+	}
+	afterLinkRebound, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID)
+	if err != nil || afterLinkRebound.ConnectionID != connB.ID || afterLinkRebound.BoundAccountEmail != "b1@example.com" || afterLinkRebound.AccessLostAt != nil || afterLinkRebound.ViewerAccountEmail != "b1@example.com" {
+		t.Fatalf("Get after Link rebound = %+v, err=%v", afterLinkRebound, err)
+	}
+	var reboundAuditAfter, updatedOutboxAfter int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.rebound' AND resource_id = $2`, env.org.ID, fileID).Scan(&reboundAuditAfter)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updatedOutboxAfter)
+	if reboundAuditAfter != reboundAuditMid+1 || updatedOutboxAfter != updatedOutboxMid+1 {
+		t.Fatalf("Link rebound audit=%d->%d outbox=%d->%d", reboundAuditMid, reboundAuditAfter, updatedOutboxMid, updatedOutboxAfter)
+	}
+
+	// 8 (F11). Transient error control, non-bound ACL loss (only caller row lost, no access_lost_at or drive_file.updated),
+	// and bound ACL loss (sets access_lost_at + emits workspace drive_file.updated).
+	var lostAudit0, accOutbox0, updOutbox0 int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.access_lost' AND resource_id = $2`, env.org.ID, fileID).Scan(&lostAudit0)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.access_changed' AND payload->>'drive_file_id' = $1`, fileID).Scan(&accOutbox0)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updOutbox0)
+
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimePlainText},
+		MediaByToken: overrideMedia,
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-a1": {Status: http.StatusServiceUnavailable, Reason: "backendError"},
+		},
+	})
+	if _, err := env.contentSvc.ReadForAI(ctx, env.owner.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveUnavailable) {
+		t.Fatalf("transient ReadForAI = %v, want ErrDriveUnavailable", err)
+	}
+	var lostAudit1, accOutbox1, updOutbox1 int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.access_lost' AND resource_id = $2`, env.org.ID, fileID).Scan(&lostAudit1)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.access_changed' AND payload->>'drive_file_id' = $1`, fileID).Scan(&accOutbox1)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updOutbox1)
+	if lostAudit1 != lostAudit0 || accOutbox1 != accOutbox0 || updOutbox1 != updOutbox0 {
+		t.Fatalf("transient error mutated state: audit %d->%d acc %d->%d upd %d->%d", lostAudit0, lostAudit1, accOutbox0, accOutbox1, updOutbox0, updOutbox1)
+	}
+
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimePlainText},
+		MediaByToken: overrideMedia,
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-a1": {Status: http.StatusForbidden, Reason: "insufficientFilePermissions"},
+		},
+	})
+	if _, err := env.contentSvc.ReadForAI(ctx, env.owner.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("non-bound ACL loss ReadForAI = %v, want ErrDriveFileNotAccessible", err)
+	}
+	ownerAfterNonBoundLoss, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileID)
+	if err != nil || ownerAfterNonBoundLoss.ViewerAccess != DriveViewerAccessLost || ownerAfterNonBoundLoss.AccessLostAt != nil {
+		t.Fatalf("owner Get after non-bound loss = %+v, err=%v", ownerAfterNonBoundLoss, err)
+	}
+	var lostAudit2, accOutbox2, updOutbox2 int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.access_lost' AND resource_id = $2`, env.org.ID, fileID).Scan(&lostAudit2)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.access_changed' AND payload->>'drive_file_id' = $1`, fileID).Scan(&accOutbox2)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updOutbox2)
+	if lostAudit2 != lostAudit1+1 || accOutbox2 != accOutbox1+1 || updOutbox2 != updOutbox1 {
+		t.Fatalf("non-bound loss events: audit %d->%d acc %d->%d upd %d->%d (want upd unchanged)", lostAudit1, lostAudit2, accOutbox1, accOutbox2, updOutbox1, updOutbox2)
+	}
+
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimePlainText},
+		MediaByToken: overrideMedia,
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-b1": {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	if _, err := env.contentSvc.ReadForAI(ctx, env.peer.ID, env.wsA.ID, fileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("bound ACL loss ReadForAI = %v, want ErrDriveFileNotAccessible", err)
+	}
+	peerAfterBoundLoss, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID)
+	if err != nil || peerAfterBoundLoss.ViewerAccess != DriveViewerAccessLost || peerAfterBoundLoss.AccessLostAt == nil {
+		t.Fatalf("peer Get after bound loss = %+v, err=%v, want lost with AccessLostAt!=nil", peerAfterBoundLoss, err)
+	}
+	var lostAudit3, accOutbox3, updOutbox3 int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_file.access_lost' AND resource_id = $2`, env.org.ID, fileID).Scan(&lostAudit3)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.access_changed' AND payload->>'drive_file_id' = $1`, fileID).Scan(&accOutbox3)
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, fileID).Scan(&updOutbox3)
+	if lostAudit3 != lostAudit2+1 || accOutbox3 != accOutbox2+1 || updOutbox3 != updOutbox2+1 {
+		t.Fatalf("bound loss events: audit %d->%d acc %d->%d upd %d->%d (want all +1)", lostAudit2, lostAudit3, accOutbox2, accOutbox3, updOutbox2, updOutbox3)
 	}
 }
 
@@ -852,7 +980,19 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 		t.Fatalf("cleanup plainGuestTask: %v", err)
 	}
 
-	// 1. Atomic rollback when the second Drive file is not accessible on Google Drive.
+	// 1 (F13). Atomic rollback when the second Drive file is not accessible on Google Drive:
+	// counts tasks, all three Drive tables, audit_events, and outbox_events before/after and asserts no new rows.
+	snapshotCounts := func() [6]int {
+		var c [6]int
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE organization_id = $1 AND workspace_id = $2`, env.org.ID, env.wsA.ID).Scan(&c[0])
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_files WHERE organization_id = $1 AND workspace_id = $2`, env.org.ID, env.wsA.ID).Scan(&c[1])
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_access WHERE organization_id = $1 AND workspace_id = $2`, env.org.ID, env.wsA.ID).Scan(&c[2])
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE organization_id = $1 AND workspace_id = $2`, env.org.ID, env.wsA.ID).Scan(&c[3])
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND workspace_id = $2`, env.org.ID, env.wsA.ID).Scan(&c[4])
+		_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE payload->>'workspace_id' = $1`, env.wsA.ID).Scan(&c[5])
+		return c
+	}
+	beforeRollback := snapshotCounts()
 	_, err = env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
 		Title: "Task Rollback Test",
 		DriveFiles: []CreateTaskDriveFileInput{
@@ -867,8 +1007,10 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	if ce.Fields["drive_files_index"] != 1 || ce.Fields["external_file_id"] != "ext-tc-missing" {
 		t.Fatalf("error fields = %+v", ce.Fields)
 	}
-
-	// Verify neither the task nor the first drive_files row was committed.
+	afterRollback := snapshotCounts()
+	if afterRollback != beforeRollback {
+		t.Fatalf("atomic rollback left rows: before=%v after=%v (tasks, drive_files, drive_file_access, drive_file_task_links, audit_events, outbox_events)", beforeRollback, afterRollback)
+	}
 	mine, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
 	if err != nil || mine.TotalCount != 0 || len(mine.Files) != 0 {
 		t.Fatalf("ListMine after rollback = %+v, err=%v", mine, err)
@@ -937,5 +1079,178 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	_, err = env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
 	if !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
 		t.Fatalf("ListMine with flag off = %v, want 404 feature_disabled", err)
+	}
+}
+
+// TestDriveFilePrincipalIsolationGuestAndDeactivatedMember covers F12:
+// 1. Admin ListMine sees only the caller's own rows when foreign rows exist in the workspace.
+// 2. Workspace guest reads the Drive card on a readable task (default policy) and is refused Link/RemoveFromTask/Unlink/Rebind.
+// 3. Deactivated organization member is refused on all Drive read and write entry points (with before and after controls).
+func TestDriveFilePrincipalIsolationGuestAndDeactivatedMember(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	as := NewAuthService(env.pool, env.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	adminEmpty := registerVerified(t, env.q, as, "drive-admin-empty-"+util.NewID()+"@example.com", "Admin Empty")
+	addOrgMember(t, env.q, env.org.ID, adminEmpty.ID)
+	addWorkspaceMember(t, env.q, env.wsA.ID, adminEmpty.ID)
+	if _, err := env.ws.UpdateMemberRole(ctx, env.owner.ID, env.wsA.ID, env.peer.ID, "admin"); err != nil {
+		t.Fatalf("promote peer to admin: %v", err)
+	}
+	if _, err := env.ws.UpdateMemberRole(ctx, env.owner.ID, env.wsA.ID, adminEmpty.ID, "admin"); err != nil {
+		t.Fatalf("promote adminEmpty to admin: %v", err)
+	}
+
+	guest := registerVerified(t, env.q, as, "drive-guest-"+util.NewID()+"@example.com", "Guest")
+	addOrgMember(t, env.q, env.org.ID, guest.ID)
+	addWorkspaceMember(t, env.q, env.wsA.ID, guest.ID)
+	if _, err := env.ws.UpdateMemberRole(ctx, env.owner.ID, env.wsA.ID, guest.ID, "guest"); err != nil {
+		t.Fatalf("set guest role: %v", err)
+	}
+
+	deact := registerVerified(t, env.q, as, "drive-deact-"+util.NewID()+"@example.com", "Deact Member")
+	addOrgMember(t, env.q, env.org.ID, deact.ID)
+	addWorkspaceMember(t, env.q, env.wsA.ID, deact.ID)
+
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-f12-owner", "f12-owner@example.com")
+	connPeerAdmin := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-f12-peer", "f12-peer@example.com")
+	connGuest := env.connectAccount(t, guest.ID, env.wsA.ID, "sub-f12-guest", "f12-guest@example.com")
+	connDeact := env.connectAccount(t, deact.ID, env.wsA.ID, "sub-f12-deact", "f12-deact@example.com")
+
+	env.googleSrv.SetFile("ext-f12-owner-only", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-f12-owner-only", Name: "Owner Secret Doc", MimeType: DriveMimePlainText},
+		DefaultMedia: []byte("owner secret"),
+	})
+	env.googleSrv.SetFile("ext-f12-shared", FakeGoogleDriveFile{
+		Metadata:     googleDriveFileJSON{ID: "ext-f12-shared", Name: "Team Shared Doc", MimeType: DriveMimePlainText},
+		DefaultMedia: []byte("team shared body"),
+	})
+
+	taskReadable, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{Title: "Readable Task"})
+	if err != nil {
+		t.Fatalf("Create taskReadable: %v", err)
+	}
+	taskID := taskReadable.ID
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connOwner.ID, ExternalFileIDs: []string{"ext-f12-owner-only"},
+	}); err != nil {
+		t.Fatalf("owner Link owner-only: %v", err)
+	}
+	sharedLinkRes, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connOwner.ID, ExternalFileIDs: []string{"ext-f12-shared"}, TaskID: &taskID,
+	})
+	if err != nil || len(sharedLinkRes) != 1 {
+		t.Fatalf("owner Link shared: %+v, err=%v", sharedLinkRes, err)
+	}
+	sharedFileID := sharedLinkRes[0].File.ID
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connPeerAdmin.ID, ExternalFileIDs: []string{"ext-f12-shared"},
+	}); err != nil {
+		t.Fatalf("peer admin Link shared: %v", err)
+	}
+
+	// 1. Admin ListMine sees only own rows (not owner's ext-f12-owner-only).
+	peerMine, err := env.fileSvc.ListMine(ctx, Human(env.peer.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || peerMine.TotalCount != 1 || len(peerMine.Files) != 1 || peerMine.Files[0].ID != sharedFileID {
+		t.Fatalf("admin peer ListMine = %+v, err=%v, want only sharedFileID", peerMine, err)
+	}
+	emptyAdminMine, err := env.fileSvc.ListMine(ctx, Human(adminEmpty.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || emptyAdminMine.TotalCount != 0 || len(emptyAdminMine.Files) != 0 {
+		t.Fatalf("adminEmpty ListMine = %+v, err=%v, want 0 files", emptyAdminMine, err)
+	}
+
+	// 2. Guest reads the card of a readable task (default production policy) and is refused Link/RemoveFromTask/Unlink/Rebind.
+	guestCards, err := env.fileSvc.ListForTask(ctx, Human(guest.ID), taskReadable.ID)
+	if err != nil || len(guestCards) != 1 || guestCards[0].ID != sharedFileID || guestCards[0].CanRemoveFromTask || guestCards[0].CanAsk || guestCards[0].CanPropose {
+		t.Fatalf("guest ListForTask = %+v, err=%v", guestCards, err)
+	}
+	guestDetail, err := env.fileSvc.Get(ctx, Human(guest.ID), env.wsA.ID, sharedFileID)
+	if err != nil || guestDetail.CanUnlink || guestDetail.CanRebind || guestDetail.CanAsk || guestDetail.CanPropose {
+		t.Fatalf("guest Get = %+v, err=%v", guestDetail, err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(guest.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connGuest.ID, ExternalFileIDs: []string{"ext-f12-shared"},
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest Link = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.RemoveFromTask(ctx, Human(guest.ID), taskReadable.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest RemoveFromTask = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.Unlink(ctx, Human(guest.ID), env.wsA.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest Unlink = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.Rebind(ctx, Human(guest.ID), env.wsA.ID, sharedFileID, connGuest.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest Rebind = %v, want ErrForbidden", err)
+	}
+
+	// 3. Deactivated member: before control succeeds, deactivated refused on read/write entry points, after reactivation control succeeds.
+	if _, err := env.fileSvc.Link(ctx, Human(deact.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connDeact.ID, ExternalFileIDs: []string{"ext-f12-shared"},
+	}); err != nil {
+		t.Fatalf("deact before control Link: %v", err)
+	}
+	if mine, err := env.fileSvc.ListMine(ctx, Human(deact.ID), env.wsA.ID, ListDriveFilesFilter{}); err != nil || mine.TotalCount != 1 {
+		t.Fatalf("deact before control ListMine = %+v, err=%v", mine, err)
+	}
+	if _, err := env.fileSvc.Get(ctx, Human(deact.ID), env.wsA.ID, sharedFileID); err != nil {
+		t.Fatalf("deact before control Get: %v", err)
+	}
+	if _, err := env.contentSvc.ReadForAI(ctx, deact.ID, env.wsA.ID, sharedFileID, DriveContentPurposeAskUni); err != nil {
+		t.Fatalf("deact before control ReadForAI: %v", err)
+	}
+
+	if _, err := env.pool.Exec(ctx, `UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, env.org.ID, deact.ID); err != nil {
+		t.Fatalf("deactivate member: %v", err)
+	}
+	if _, err := env.fileSvc.ListMine(ctx, Human(deact.ID), env.wsA.ID, ListDriveFilesFilter{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact ListMine = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.Get(ctx, Human(deact.ID), env.wsA.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact Get = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.ListForTask(ctx, Human(deact.ID), taskReadable.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact ListForTask = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(deact.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connDeact.ID, ExternalFileIDs: []string{"ext-f12-shared"},
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact Link = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.GrantAccess(ctx, Human(deact.ID), env.wsA.ID, sharedFileID, connDeact.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact GrantAccess = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.ChangeReadAccount(ctx, Human(deact.ID), env.wsA.ID, sharedFileID, connDeact.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact ChangeReadAccount = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.Rebind(ctx, Human(deact.ID), env.wsA.ID, sharedFileID, connDeact.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact Rebind = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.Unlink(ctx, Human(deact.ID), env.wsA.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact Unlink = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.RemoveFromTask(ctx, Human(deact.ID), taskReadable.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact RemoveFromTask = %v, want ErrForbidden", err)
+	}
+	if _, err := env.fileSvc.PickerToken(ctx, Human(deact.ID), env.wsA.ID, connDeact.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact PickerToken = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.AuthorizeDriveFileHistory(ctx, deact.ID, env.wsA.ID, sharedFileID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact AuthorizeDriveFileHistory = %v, want ErrForbidden", err)
+	}
+	if err := env.fileSvc.AuthorizeDriveConnectionHistory(ctx, deact.ID, env.wsA.ID, connDeact.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("deact AuthorizeDriveConnectionHistory = %v, want ErrForbidden", err)
+	}
+	if _, err := env.contentSvc.ReadForAI(ctx, deact.ID, env.wsA.ID, sharedFileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveFileNotFound) {
+		t.Fatalf("deact ReadForAI = %v, want ErrDriveFileNotFound", err)
+	}
+
+	if _, err := env.pool.Exec(ctx, `UPDATE organization_members SET deactivated_at = NULL WHERE organization_id = $1 AND user_id = $2`, env.org.ID, deact.ID); err != nil {
+		t.Fatalf("reactivate member: %v", err)
+	}
+	if mine, err := env.fileSvc.ListMine(ctx, Human(deact.ID), env.wsA.ID, ListDriveFilesFilter{}); err != nil || mine.TotalCount != 1 {
+		t.Fatalf("deact after reactivation ListMine = %+v, err=%v", mine, err)
+	}
+	if _, err := env.fileSvc.Get(ctx, Human(deact.ID), env.wsA.ID, sharedFileID); err != nil {
+		t.Fatalf("deact after reactivation Get: %v", err)
 	}
 }
