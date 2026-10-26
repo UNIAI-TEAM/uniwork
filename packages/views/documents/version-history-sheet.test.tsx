@@ -48,7 +48,7 @@ const versionRows = [
     version: 2,
     kind: "page",
     reason: "manual",
-    label: "Mốc Q3",
+    label: "Phiên bản Q3",
     created_at: "2026-09-28T03:00:00Z",
   },
   {
@@ -148,7 +148,7 @@ describe("VersionHistorySheet", () => {
     expect(await screen.findByText(t("documents.versions.row_version", { no: 2 }))).toBeInTheDocument();
   });
 
-  it("creates a named checkpoint with one idempotency key and clears the field", async () => {
+  it("creates a named version with one idempotency key and clears the field", async () => {
     const posts: { path: string; body?: unknown; key?: string }[] = [];
     mockApi({
       onPost: (path, opts) => {
@@ -169,16 +169,16 @@ describe("VersionHistorySheet", () => {
     await waitFor(() => expect((input as HTMLInputElement).value).toBe(""));
   });
 
-  it("keeps the typed checkpoint name and the message when the write fails", async () => {
+  it("keeps the typed version name and the message when the write fails", async () => {
     mockApi({ onPost: () => Promise.reject(new ApiError("nothing changed", "document_version_unchanged", 409)) });
     renderSheet();
 
     const input = await screen.findByLabelText(t("documents.versions.name_label"));
-    fireEvent.change(input, { target: { value: "Mốc giữ nguyên" } });
+    fireEvent.change(input, { target: { value: "Phiên bản giữ nguyên" } });
     fireEvent.click(screen.getByRole("button", { name: t("documents.versions.name_submit") }));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect((input as HTMLInputElement).value).toBe("Mốc giữ nguyên");
+    expect((input as HTMLInputElement).value).toBe("Phiên bản giữ nguyên");
   });
 
   it("confirms a restore before writing and keeps the dialog open on failure", async () => {
