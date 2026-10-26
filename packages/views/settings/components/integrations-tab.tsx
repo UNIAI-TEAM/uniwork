@@ -107,6 +107,7 @@ export function IntegrationsTab({
   const [focusManageButton, setFocusManageButton] = useState(false);
   const openedInSessionRef = useRef(false);
   const prevWantsDriveViewRef = useRef(false);
+  const strippedIntegrationRef = useRef(false);
   const clearFocusViewHeading = useCallback(() => setFocusViewHeading(false), []);
   const clearFocusManageButton = useCallback(() => setFocusManageButton(false), []);
 
@@ -114,11 +115,18 @@ export function IntegrationsTab({
   const connectFromUrl = navigation.searchParams.get("connect");
   const wantsDriveView =
     activeIntegration === "drive" && !focusDriveRow && connectFromUrl !== "drive";
-  const configWaitForDrive = wantsDriveView && publicConfigQuery.isLoading;
+  const configWaitForDrive =
+    wantsDriveView && publicConfigQuery.isLoading && publicConfigQuery.errorUpdateCount === 0;
   const showDriveView = wantsDriveView && driveAvailable;
 
   useEffect(() => {
-    if (!wantsDriveView || configWaitForDrive || driveAvailable) return;
+    if (activeIntegration !== "drive") {
+      strippedIntegrationRef.current = false;
+    }
+    if (!wantsDriveView || configWaitForDrive || driveAvailable || strippedIntegrationRef.current) {
+      return;
+    }
+    strippedIntegrationRef.current = true;
     const params = new URLSearchParams(navigation.searchParams);
     params.delete(INTEGRATION_QUERY_KEY);
     if (!params.get("tab")) {
@@ -126,7 +134,7 @@ export function IntegrationsTab({
     }
     const qs = params.toString();
     navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
-  }, [wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
+  }, [activeIntegration, wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
 
   useEffect(() => {
     if (prevWantsDriveViewRef.current && !wantsDriveView) {

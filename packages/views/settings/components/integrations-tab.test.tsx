@@ -855,8 +855,13 @@ describe("IntegrationsTab", () => {
       });
 
       expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      await act(async () => {});
+      expect(screen.getByText("Email Hub")).toBeInTheDocument();
       expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
       expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      const configCalls3 = requestMock.mock.calls.filter(([path]) => path === "/api/v1/config").length;
+      expect(configCalls3).toBeLessThanOrEqual(2);
+      expect(navColdFlagOff.replace).toHaveBeenCalledTimes(1);
       expect(navColdFlagOff.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
       unmount3();
 
@@ -895,8 +900,13 @@ describe("IntegrationsTab", () => {
       });
 
       expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      await act(async () => {});
+      expect(screen.getByText("Email Hub")).toBeInTheDocument();
       expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
       expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      const configCalls4 = requestMock.mock.calls.filter(([path]) => path === "/api/v1/config").length;
+      expect(configCalls4).toBeLessThanOrEqual(2);
+      expect(navColdRejected.replace).toHaveBeenCalledTimes(1);
       expect(navColdRejected.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
       unmount4();
 
