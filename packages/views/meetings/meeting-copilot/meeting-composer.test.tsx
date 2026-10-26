@@ -368,7 +368,7 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
     await waitFor(() => expect(calls("/meetings/m1/notes")).toHaveLength(1));
   });
 
-  it("an ask refused for quota switches to note mode instead of failing", async () => {
+  it("an ask refused for quota closes Ask and keeps the private question in the Ask box, out of the note", async () => {
     requestMock.mockImplementation((path: unknown) =>
       String(path).endsWith("/ai/ask")
         ? Promise.reject(new ApiError("quota", "ai_quota_exceeded", 429))
@@ -381,11 +381,17 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
     expect(radio("Hỏi")).toHaveAccessibleDescription("Hết lượt Hỏi UNI tháng này");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    // Said when Ask closes, and the question waits in the note box rather than a hidden one.
+    // Said when Ask closes. The private question goes back to the (locked) Ask box, never to the note everyone
+    // sees: the caret stays on Ask, and Enter cannot post it to the room.
     expect(screen.getByTestId("meeting-ask-live")).toHaveTextContent("Hết lượt Hỏi UNI tháng này");
     const note = screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" });
-    expect(note).toHaveValue("Ai trình bày?");
-    await waitFor(() => expect(note).toHaveFocus());
+    expect(note).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Hỏi riêng UNI về cuộc họp", hidden: true })).toHaveTextContent("Ai trình bày?"));
+    await waitFor(() => expect(radio("Hỏi")).toHaveFocus());
+    expect(note).not.toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    fireEvent.keyDown(note, { key: "Enter" });
+    expect(calls("/meetings/m1/notes")).toHaveLength(0);
   });
 
   it("an ask refused because AI was switched off mid-meeting switches to note mode and rereads the capabilities", async () => {
@@ -400,7 +406,8 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" })).toHaveValue("Ai trình bày?");
+    expect(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Hỏi riêng UNI về cuộc họp", hidden: true })).toHaveTextContent("Ai trình bày?"));
     await waitFor(() => expect(calls("/ai/capabilities").length).toBeGreaterThan(1));
   });
 

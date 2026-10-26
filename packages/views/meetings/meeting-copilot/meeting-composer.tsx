@@ -175,16 +175,13 @@ export function MeetingComposer({
     ask.mutate(
       { question, mentions, conversation_id: conversationId, locale: i18n.language, focus, signal: abort.signal },
       {
-        // Stopped or failed, the question comes back to the box (as text: its cards are not restored). Refused
-        // for good, it moves to the note box instead of waiting in a hidden one.
+        // Stopped, failed or refused, the question comes back to the Ask box (as text: its cards are not restored).
+        // Never to the note box: a private question there is one Enter away from the whole room.
         onError: (err) => {
+          box.current?.insert(question);
           const block = REFUSALS[resolveErrorKey(err)];
-          if (!block) {
-            box.current?.insert(question);
-            return;
-          }
+          if (!block) return;
           setRefused(block);
-          setNote((n) => (n.trim() ? `${n}\n${question}` : question));
           void qc.invalidateQueries({ queryKey: aiKeys.capabilities(workspaceId) });
         },
       },
@@ -224,7 +221,9 @@ export function MeetingComposer({
   };
 
   // Focus follows the exchange: to Stop while UNI works, back to the box when it ends (the box is hidden
-  // meanwhile, and Stop leaves with the pending state). Only when focus was here or nowhere.
+  // meanwhile, and Stop leaves with the pending state). Only when focus was here or nowhere. Refused, the
+  // Ask box holding the question is locked out of sight, so focus waits on the locked Ask radio, which
+  // reads the reason; never on the note box.
   const wasPending = useRef(pending);
   useEffect(() => {
     if (wasPending.current === pending) return;
@@ -232,9 +231,10 @@ export function MeetingComposer({
     const active = document.activeElement;
     if (active && active !== document.body && !root.current?.contains(active)) return;
     if (pending) stopButton.current?.focus();
+    else if (blocked) radios.current[0]?.focus();
     else if (mode === "note") noteBox.current?.focus();
     else box.current?.focus();
-  }, [pending, mode]);
+  }, [pending, mode, blocked]);
 
   // A failure other than a stop or a refusal that closes Ask (which has its strip) is said in the frame.
   const answered = ask.data?.message;
