@@ -19,6 +19,7 @@ export * from "./hooks-pins";
 export * from "./hooks-projects";
 export * from "./hooks-collaboration";
 export * from "./hooks-attachments";
+export * from "./hooks-trash";
 
 export function useTasks(workspaceId: string) {
   return useQuery({
@@ -119,6 +120,7 @@ export function useDeleteTask(workspaceId: string) {
   return useMutation({
     mutationFn: (taskId: string) => tasks.deleteTask(taskId),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
       invalidatePagedTaskLists(qc, workspaceId);
       return qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
     },

@@ -69,7 +69,10 @@ export function useDeleteProject(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (projectId: string) => projects.deleteProject(workspaceId, projectId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
+    },
   });
 }
 

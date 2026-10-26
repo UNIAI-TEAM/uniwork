@@ -5,6 +5,8 @@ const CALENDAR_INVALIDATE_EVENTS = new Set<WSEventType>([
   "task.created",
   "task.updated",
   "task.deleted",
+  "task.trashed",
+  "task.restored",
   "meeting.created",
   "meeting.updated",
   "meeting.deleted",
