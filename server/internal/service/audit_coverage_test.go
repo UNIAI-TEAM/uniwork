@@ -2092,8 +2092,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			fileID := res[0].File.ID
 			f.addMember(t)
-			connPeer := seedAuditDriveConnectionForUser(t, f, connSvc, f.member.ID, "fake-sub-acc-peer", "peer-acc@example.com")
-			if _, err := fileSvc.ChangeReadAccount(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer.ID); err != nil {
+			connPeer1 := seedAuditDriveConnectionForUser(t, f, connSvc, f.member.ID, "fake-sub-acc-peer1", "peer1-acc@example.com")
+			connPeer2 := seedAuditDriveConnectionForUser(t, f, connSvc, f.member.ID, "fake-sub-acc-peer2", "peer2-acc@example.com")
+			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer1.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fileSvc.ChangeReadAccount(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer2.ID); err != nil {
 				t.Fatal(err)
 			}
 		},

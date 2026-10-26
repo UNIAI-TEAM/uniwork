@@ -538,7 +538,23 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 		t.Fatalf("ChangeReadAccount by bound_by = %v, want 409 use_rebind", err)
 	}
 
-	// 5. Peer links with connB -> outcome "linked"; then switches own read account to connB2 via ChangeReadAccount.
+	// 5 (F05 + F06). Attach to a task so peer sees the file with viewer_access=unknown;
+	// ChangeReadAccount when unknown -> 409 use_grant_access.
+	taskPut, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{Title: "PUT Access Task"})
+	if err != nil {
+		t.Fatalf("Create taskPut: %v", err)
+	}
+	taskPutID := taskPut.ID
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connA1.ID, ExternalFileIDs: []string{"ext-override-1"}, TaskID: &taskPutID,
+	}); err != nil {
+		t.Fatalf("Link to taskPut: %v", err)
+	}
+	_, err = env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB.ID)
+	if !errors.As(err, &ce) || ce.Status != http.StatusConflict || ce.Code != "use_grant_access" {
+		t.Fatalf("ChangeReadAccount when unknown = %v, want 409 use_grant_access", err)
+	}
+
 	rb, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
 		ConnectionID:    connB.ID,
 		ExternalFileIDs: []string{"ext-override-1"},
@@ -549,6 +565,61 @@ func TestDriveFileLinkSameMemberOverrideRuleAndRebind(t *testing.T) {
 	viewB, err := env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID)
 	if err != nil || viewB.ViewerAccountEmail != "b2@example.com" || viewB.BoundAccountEmail != "a1@example.com" {
 		t.Fatalf("peer ChangeReadAccount = %+v, err=%v", viewB, err)
+	}
+
+	// F06a: Transient error on PUT access leaves kept granted row untouched.
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimeGoogleDoc},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-b2": {Status: http.StatusServiceUnavailable, Reason: "backendError"},
+		},
+	})
+	if _, err := env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID); err == nil {
+		t.Fatal("expected error on transient 503 PUT access")
+	}
+	afterTransient, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID)
+	if err != nil || afterTransient.ViewerAccess != DriveViewerAccessGranted || afterTransient.ViewerAccountEmail != "b2@example.com" {
+		t.Fatalf("peer after transient PUT error = %+v, err=%v", afterTransient, err)
+	}
+
+	// F06b: Candidate other connection (connB) ACL failure leaves kept row on connB2 untouched.
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimeGoogleDoc},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-b1": {Status: http.StatusForbidden, Reason: "insufficientFilePermissions"},
+		},
+	})
+	if _, err := env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB.ID); err == nil {
+		t.Fatal("expected error on candidate connB ACL failure")
+	}
+	afterCandidateFail, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID)
+	if err != nil || afterCandidateFail.ViewerAccess != DriveViewerAccessGranted || afterCandidateFail.ViewerAccountEmail != "b2@example.com" {
+		t.Fatalf("peer after candidate connB PUT error = %+v, err=%v", afterCandidateFail, err)
+	}
+
+	// F06c: Current connection (connB2) ACL failure marks peer's row lost; subsequent PUT when lost -> 409 use_grant_access (F05).
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimeGoogleDoc},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-a-sub-b2": {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	if _, err := env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID); err == nil {
+		t.Fatal("expected error on current connB2 ACL loss")
+	}
+	afterCurrentLoss, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID)
+	if err != nil || afterCurrentLoss.ViewerAccess != DriveViewerAccessLost {
+		t.Fatalf("peer after current connB2 PUT ACL loss = %+v, err=%v, want lost", afterCurrentLoss, err)
+	}
+	env.googleSrv.SetFile("ext-override-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-override-1", Name: "Tài liệu kiến trúc", MimeType: DriveMimeGoogleDoc},
+	})
+	_, err = env.fileSvc.ChangeReadAccount(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID)
+	if !errors.As(err, &ce) || ce.Status != http.StatusConflict || ce.Code != "use_grant_access" {
+		t.Fatalf("ChangeReadAccount when lost = %v, want 409 use_grant_access", err)
+	}
+	if _, err := env.fileSvc.GrantAccess(ctx, Human(env.peer.ID), env.wsA.ID, fileID, connB2.ID); err != nil {
+		t.Fatalf("recover peer GrantAccess: %v", err)
 	}
 
 	// 6. Admin peer calls Rebind with connB -> bound_by becomes peer, bound_account_email becomes b1@example.com,

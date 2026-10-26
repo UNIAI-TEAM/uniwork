@@ -208,6 +208,16 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 		return DriveFileView{}, errDriveUseRebind()
 	}
 
+	existingAcc, aerr := s.q.GetDriveFileAccessByUser(ctx, db.GetDriveFileAccessByUserParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: ws.ID, DriveFileID: fileRow.ID, UserID: actor.ID,
+	})
+	if aerr != nil || existingAcc.State != "granted" {
+		if aerr == nil || errors.Is(aerr, pgx.ErrNoRows) {
+			return DriveFileView{}, errDriveUseGrantAccess()
+		}
+		return DriveFileView{}, aerr
+	}
+
 	conn, err := s.requireCallerConnection(ctx, s.q, ws.OrganizationID, actor.ID, connectionID)
 	if err != nil {
 		return DriveFileView{}, err
@@ -215,9 +225,9 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 
 	meta, err := s.api.FilesGetWithConnection(ctx, s.connections, conn, fileRow.ExternalFileID)
 	if err != nil {
+		s.maybeRecordAccessLost(ctx, actor.ID, ws.OrganizationID, ws.ID, fileRow.ID, conn.ID, err)
 		return DriveFileView{}, DriveErrToCodedError(err)
 	}
-
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DriveFileView{}, err
@@ -245,13 +255,15 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 		return DriveFileView{}, errDriveUseRebind()
 	}
 
-	prevAcc, _ := qtx.GetDriveFileAccessByUserForUpdate(ctx, db.GetDriveFileAccessByUserForUpdateParams{
-		OrganizationID: ws.OrganizationID,
-		WorkspaceID:    ws.ID,
-		DriveFileID:    lockedFile.ID,
-		UserID:         actor.ID,
+	prevAcc, perr := qtx.GetDriveFileAccessByUserForUpdate(ctx, db.GetDriveFileAccessByUserForUpdateParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: ws.ID, DriveFileID: lockedFile.ID, UserID: actor.ID,
 	})
-
+	if perr != nil || prevAcc.State != "granted" {
+		if perr == nil || errors.Is(perr, pgx.ErrNoRows) {
+			return DriveFileView{}, errDriveUseGrantAccess()
+		}
+		return DriveFileView{}, perr
+	}
 	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, s.nowUTC())
 	if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
@@ -575,9 +587,14 @@ func (s *DriveFileService) Unlink(ctx context.Context, actor Actor, workspaceID,
 
 func errDriveUseRebind() error {
 	return CodedError{
-		Status: http.StatusConflict,
-		Code:   "use_rebind",
-		Msg:    "Bạn đang giữ tài khoản gắn của tệp này; hãy dùng thao tác liên kết lại bằng tài khoản khác.",
-		Err:    ErrConflict,
+		Status: http.StatusConflict, Code: "use_rebind",
+		Msg: "Bạn đang giữ tài khoản gắn của tệp này; hãy dùng thao tác liên kết lại bằng tài khoản khác.", Err: ErrConflict,
+	}
+}
+
+func errDriveUseGrantAccess() error {
+	return CodedError{
+		Status: http.StatusConflict, Code: "use_grant_access",
+		Msg: "Bạn chưa cấp quyền đọc tệp này; hãy dùng thao tác cấp quyền đọc trước khi đổi tài khoản.", Err: ErrConflict,
 	}
 }
