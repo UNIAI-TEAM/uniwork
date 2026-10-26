@@ -255,6 +255,7 @@ export function SettingsListItem({
           className={cn(
             "flex min-w-0 items-center",
             wrapTitle ? "flex-wrap gap-x-2 gap-y-1" : "gap-2",
+            align === "start" && "min-h-8",
           )}
         >
           <span className={cn("truncate text-body font-medium", muted ? "text-muted-foreground" : "text-foreground")}>

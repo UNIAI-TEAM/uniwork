@@ -264,7 +264,10 @@ describe("IntegrationsTab", () => {
         ),
       ).toBeInTheDocument();
       expect(rowEl.querySelectorAll("p")).toHaveLength(1);
-      expect(await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
+      expect(within(rowEl).getByText("Google Drive").parentElement).toHaveClass("min-h-8");
+      expect(within(rowEl).getByText("Google Drive").closest("li")?.firstElementChild).toHaveClass("mt-0.5");
+      const connectBtn = await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" });
+      expect(connectBtn.parentElement).toHaveClass("mt-0.5");
     });
 
     it("shows 'Quản lý' on the connected row, opens the Drive view with push (focusing heading), and uses navigation.back() on close to return focus to 'Quản lý' (R4-5, R5-2)", async () => {
@@ -670,7 +673,9 @@ describe("IntegrationsTab", () => {
     });
 
     it("shows load error with retry inside the Drive view and recovers to the accounts list", async () => {
+      let loadingView = true;
       let failLoad = true;
+      const { promise: loadPromise, reject: rejectLoad } = Promise.withResolvers<unknown>();
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/config") {
           return Promise.resolve({
@@ -683,6 +688,7 @@ describe("IntegrationsTab", () => {
           return Promise.resolve({ accounts: [] });
         }
         if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          if (loadingView) return loadPromise;
           if (failLoad) return Promise.reject(new Error("network error"));
           return Promise.resolve({
             connections: [
@@ -717,6 +723,13 @@ describe("IntegrationsTab", () => {
       );
 
       const viewEl = await screen.findByTestId("drive-integration-view");
+      // F2: while loading, count tile shows "—" instead of claiming "0 tài liệu đã liên kết"
+      expect(within(viewEl).getByText("—")).toBeInTheDocument();
+      expect(within(viewEl).queryByText("0 tài liệu đã liên kết")).not.toBeInTheDocument();
+      loadingView = false;
+      await act(async () => {
+        rejectLoad(new Error("network error"));
+      });
       expect(await within(viewEl).findByText("Không tải được tài khoản Google Drive")).toBeInTheDocument();
       // F2: while failed, count tile shows "—" instead of claiming "0 tài liệu đã liên kết"
       expect(within(viewEl).getByText("—")).toBeInTheDocument();
@@ -849,9 +862,12 @@ describe("IntegrationsTab", () => {
 
       // Case 4: cold load without seeded flag; /api/v1/config rejects -> strips integration=drive and shows list (N6-3)
       requestMock.mockClear();
+      let rejectColdConfig = false;
       const { promise: configPromise4, reject: rejectConfig4 } = Promise.withResolvers<unknown>();
       requestMock.mockImplementation((path: string) => {
-        if (path === "/api/v1/config") return configPromise4;
+        if (path === "/api/v1/config") {
+          return rejectColdConfig ? Promise.reject(new Error("config failed")) : configPromise4;
+        }
         if (path === "/api/v1/workspaces/ws1/email-hub/accounts") return Promise.resolve({ accounts: [] });
         if (path === "/api/v1/workspaces/ws1/drive-connections") return Promise.resolve({ connections: [] });
         return Promise.resolve({});
@@ -872,8 +888,10 @@ describe("IntegrationsTab", () => {
       expect(container4.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
       expect(navColdRejected.replace).not.toHaveBeenCalled();
 
+      rejectColdConfig = true;
       await act(async () => {
         rejectConfig4(new Error("config failed"));
+        await configPromise4.catch(() => {});
       });
 
       expect(await screen.findByText("Email Hub")).toBeInTheDocument();

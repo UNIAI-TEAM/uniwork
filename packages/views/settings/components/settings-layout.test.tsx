@@ -64,7 +64,7 @@ describe("SettingsListItem", () => {
     expect(defaultRow).toHaveClass("items-center");
     expect(defaultRow).not.toHaveClass("items-start", "rounded-sm");
     expect(screen.getByText("Email Hub").parentElement).toHaveClass("gap-2");
-    expect(screen.getByText("Email Hub").parentElement).not.toHaveClass("flex-wrap", "gap-y-1");
+    expect(screen.getByText("Email Hub").parentElement).not.toHaveClass("flex-wrap", "gap-y-1", "min-h-8");
     expect(screen.getByText("DefaultIcon").parentElement).not.toHaveClass("mt-0.5");
     expect(screen.getByRole("button", { name: "Open" }).parentElement).not.toHaveClass("mt-0.5");
   });
@@ -96,7 +96,12 @@ describe("SettingsListItem", () => {
     );
     expect(row).not.toHaveClass("outline-none");
     expect(row).toHaveAttribute("tabindex", "-1");
-    expect(screen.getByText("Google Drive").parentElement).toHaveClass("flex-wrap", "gap-x-2", "gap-y-1");
+    expect(screen.getByText("Google Drive").parentElement).toHaveClass(
+      "flex-wrap",
+      "gap-x-2",
+      "gap-y-1",
+      "min-h-8",
+    );
     expect(screen.getByText("Icon").parentElement).toHaveClass("mt-0.5");
     expect(screen.getByRole("button", { name: "Action" }).parentElement).toHaveClass("mt-0.5");
   });
