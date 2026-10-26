@@ -1,0 +1,3 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views typecheck > /tmp/mv2-tc-views.log 2>&1; rc=$?; grep -E "error TS" /tmp/mv2-tc-views.log | head -20; echo; echo "TYPECHECK_VIEWS_EXIT=$rc"
+
+TYPECHECK_VIEWS_EXIT=0

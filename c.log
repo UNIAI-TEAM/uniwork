@@ -1,0 +1,83 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; (cd packages/core && pnpm exec vitest run api/endpoints/documents.test.ts documents/hooks-media.test.tsx documents/ i18n/ --coverage.enabled=false --reporter verbose > /tmp/mv2-vc.log 2>&1); rc=$?; grep -E "documents.test|hooks-media|Test Files|Tests |FAIL|skipped" /tmp/mv2-vc.log | head -80; echo; echo "VITEST_CORE_TARGETED_EXIT=$rc"
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument posts snake_case fields with the idempotency header 6ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument sends the base revision as a string 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile posts multipart form data, not JSON 2ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile posts the file part only 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile names a bare Blob's part from opts.filename 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile keeps a named File's own name 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile orders text fields before the file part while keeping the filename 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion sends upload_id + base_revision with the key 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion sends edit_lock_id in the body when the holder names one 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion sends chat_room_id only when the card names one 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions maps next_cursor and joins pages by key prefix 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion posts to the version-scoped route 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta requests meta=1 and keeps version 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > documentAssetPath and documentDownloadPath build the proxy routes 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > downloadDocumentFile and getDocumentAsset return blobs 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocument degrades 0 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocument degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocument degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocument degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocument degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocument degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > patchDocument degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentFile degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentFile degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentAsset degrades 0 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentAsset degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentAsset degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentAsset degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > uploadDocumentAsset degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentDownloadMeta degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions throws rather than fake-empty 0 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions throws rather than fake-empty 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions throws rather than fake-empty 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions throws rather than fake-empty 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > listDocumentVersions throws rather than fake-empty 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentVersion degrades 0 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentVersion degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentVersion degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentVersion degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > getDocumentVersion degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentVersion degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentVersion degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentVersion degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentVersion degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentVersion degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > commitDocumentVersion degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion degrades 0 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion degrades 1 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion degrades 2 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion degrades 3 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > restoreDocumentVersion degrades 4 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > a document without revision is not a verifiable write 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > a commit result without the version row is not verifiable 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > blob endpoints throw the server error, never a fake blob 1ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > keeps lenient enum parsing: unknown reason/kind still parse 0ms
+ ✓ api/endpoints/documents.test.ts > documents endpoints > createDocumentBreakGlass posts reason and parses the grant envelope 5ms
+
+VITEST_CORE_TARGETED_EXIT=0

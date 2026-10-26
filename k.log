@@ -1,0 +1,7 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views lint > /tmp/mv2-l-views.log 2>&1; rc=$?; tail -25 /tmp/mv2-l-views.log; echo; echo "LINT_VIEWS_EXIT=$rc"
+
+> @uniwork/views@0.0.0 lint /workspace/packages/views
+> eslint . --max-warnings 0
+
+
+LINT_VIEWS_EXIT=0

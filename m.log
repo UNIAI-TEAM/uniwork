@@ -1,0 +1,6 @@
+$ node --test scripts/*.test.mjs > /tmp/mv2-scripts.log 2>&1; rc=$?; grep -E "^not ok |^# (tests|pass|fail)" /tmp/mv2-scripts.log; grep -B2 -A25 "^not ok" /tmp/mv2-scripts.log | head -80; echo; echo "SCRIPTS_EXIT=$rc"
+# tests 131
+# pass 131
+# fail 0
+
+SCRIPTS_EXIT=0
