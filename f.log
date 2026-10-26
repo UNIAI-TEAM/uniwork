@@ -1,0 +1,18 @@
+$ REQUIRE_XLSX_GATEWAY=1 pnpm exec turbo test --filter=@uniwork/office-contracts --filter=@uniwork/office-engine --filter=@uniwork/office-engine-app > /tmp/de-vt.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR|threshold|Coverage" /tmp/de-vt.log | head -60; echo; echo "VITEST_OFFICE_EXIT=$rc"
+@uniwork/office-engine-app:test:       Coverage enabled with v8
+@uniwork/office-contracts:test:       Coverage enabled with v8
+@uniwork/office-engine:test:       Coverage enabled with v8
+@uniwork/office-contracts:test:  Test Files  3 passed (3)
+@uniwork/office-contracts:test:       Tests  48 passed (48)
+@uniwork/office-contracts:test:  % Coverage report from v8
+@uniwork/office-contracts:test: =============================== Coverage summary ===============================
+@uniwork/office-engine:test:  Test Files  73 passed | 1 skipped (74)
+@uniwork/office-engine:test:       Tests  959 passed | 5 skipped (964)
+@uniwork/office-engine:test:  % Coverage report from v8
+@uniwork/office-engine:test: =============================== Coverage summary ===============================
+@uniwork/office-engine-app:test:  Test Files  12 passed (12)
+@uniwork/office-engine-app:test:       Tests  149 passed | 12 skipped (164)
+@uniwork/office-engine-app:test:  % Coverage report from v8
+@uniwork/office-engine-app:test: =============================== Coverage summary ===============================
+
+VITEST_OFFICE_EXIT=0

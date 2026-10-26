@@ -1,0 +1,7 @@
+$ pnpm exec turbo lint --filter=@uniwork/office-contracts --filter=@uniwork/office-engine --filter=@uniwork/office-engine-app > /tmp/de-lint.log 2>&1; rc=$?; grep -E "error|warning|Tasks:|Failed" /tmp/de-lint.log | head -30; echo; echo "LINT_EXIT=$rc"
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+ Tasks:    3 successful, 3 total
+
+LINT_EXIT=0
