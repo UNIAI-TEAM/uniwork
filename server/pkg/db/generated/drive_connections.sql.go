@@ -442,6 +442,45 @@ func (q *Queries) GetDriveGrantRevocationForUpdate(ctx context.Context, googleSu
 	return i, err
 }
 
+const listActiveDriveSubsForUser = `-- name: ListActiveDriveSubsForUser :many
+SELECT DISTINCT google_sub
+FROM drive_connections
+WHERE user_id = $1
+  AND ($2::text IS NULL OR organization_id = $2)
+  AND disconnected_at IS NULL
+ORDER BY google_sub ASC
+`
+
+type ListActiveDriveSubsForUserParams struct {
+	UserID         string      `json:"user_id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+}
+
+// tenant: self
+// Lists distinct google_sub values for the user's active Drive connections in
+// one organization or across all organizations (when organization_id is NULL)
+// without row locks so lifecycle paths can acquire sorted global drive_grant
+// advisory locks before locking drive_connections rows (spec §5.3a, §5.3b).
+func (q *Queries) ListActiveDriveSubsForUser(ctx context.Context, arg ListActiveDriveSubsForUserParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveDriveSubsForUser, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var google_sub string
+		if err := rows.Scan(&google_sub); err != nil {
+			return nil, err
+		}
+		items = append(items, google_sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDriveConnectionsByUser = `-- name: ListDriveConnectionsByUser :many
 SELECT id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes, auth_failed_at, auth_failed_reason, created_at, updated_at, disconnected_at
 FROM drive_connections

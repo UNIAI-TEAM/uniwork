@@ -1274,3 +1274,241 @@ func TestDriveConnectionLifecycleAndMultiOrgIsolation(t *testing.T) {
 		t.Fatalf("expected revocation queued on sole-owner DeleteAccount: %+v, err=%v", revOwnerA, err)
 	}
 }
+
+// TestDriveOAuthCallbackRefusedAfterLifecycle (R1-1) holds the callback right
+// before saveDriveConnection, commits each lifecycle command (Leave, Deactivate,
+// Close, DeleteAccount), and releases the callback. It asserts that the
+// transaction-bound membership re-check refuses the save, creates/revives no
+// live credential, and retains the pending revocation request.
+func TestDriveOAuthCallbackRefusedAfterLifecycle(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
+	t.Cleanup(func() { fx.svc.testBeforeCallbackTx = nil })
+
+	runCase := func(name string, subCode string, seedExisting bool, setup func() (user db.User, org db.Organization, ws db.Workspace), triggerLifecycle func(user db.User, org db.Organization)) {
+		t.Run(name, func(t *testing.T) {
+			user, org, ws := setup()
+			if seedExisting {
+				u0, n0, err := fx.svc.StartOAuth(ctx, Human(user.ID), ws.ID, "")
+				if err != nil {
+					t.Fatalf("seed StartOAuth: %v", err)
+				}
+				st0, _ := extractStateFromAuthURL(t, u0)
+				if got := fx.svc.CompleteOAuth(ctx, st0, subCode, "", "", n0); got != DriveOAuthConnected {
+					t.Fatalf("seed CompleteOAuth = %q", got)
+				}
+			}
+
+			authURL, nonce, err := fx.svc.StartOAuth(ctx, Human(user.ID), ws.ID, "")
+			if err != nil {
+				t.Fatalf("StartOAuth: %v", err)
+			}
+			st, _ := extractStateFromAuthURL(t, authURL)
+
+			fx.svc.testBeforeCallbackTx = func(sub string) {
+				if sub == "fake-sub-"+subCode {
+					triggerLifecycle(user, org)
+				}
+			}
+			got := fx.svc.CompleteOAuth(ctx, st, subCode, "", "", nonce)
+			fx.svc.testBeforeCallbackTx = nil
+			if got == DriveOAuthConnected || got == DriveOAuthReconnected {
+				t.Fatalf("expected callback to be refused after lifecycle %s, got %q", name, got)
+			}
+
+			activeCount, err := fx.q.CountActiveDriveConnectionsBySub(ctx, "fake-sub-"+subCode)
+			if err != nil || activeCount != 0 {
+				t.Fatalf("active connections for %s = %d, err=%v, want 0", subCode, activeCount, err)
+			}
+			if seedExisting {
+				rev, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-"+subCode)
+				if err != nil || !rev.RefreshTokenEnc.Valid || rev.ResolvedAt.Valid {
+					t.Fatalf("expected pending revocation retained after refused callback for %s, got %+v, err=%v", subCode, rev, err)
+				}
+			}
+		})
+	}
+
+	setupMember := func(tag string) (db.User, db.Organization, db.Workspace) {
+		owner := registerVerified(t, fx.q, as, "r1-owner-"+tag+"-"+util.NewID()+"@example.com", "Owner")
+		org, err := fx.orgs.Create(ctx, owner.ID, "Org "+tag, "r1-org-"+tag+"-"+strings.ToLower(util.NewID()[:8]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wsView, err := fx.ws.CreateInOrg(ctx, owner.ID, org.ID, "WS "+tag, "ws-"+tag)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mem := registerVerified(t, fx.q, as, "r1-mem-"+tag+"-"+util.NewID()+"@example.com", "Member")
+		if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+			OrganizationID: org.ID, UserID: mem.ID, Role: OrgRoleMember,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+			WorkspaceID: wsView.Workspace.ID, OrganizationID: org.ID, UserID: mem.ID, Role: OrgRoleMember,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return mem, org, wsView.Workspace
+	}
+
+	runCase("leave_existing", "r1-leave", true, func() (db.User, db.Organization, db.Workspace) {
+		return setupMember("leave")
+	}, func(user db.User, org db.Organization) {
+		if err := memberSvc.Leave(ctx, user.ID, org.ID); err != nil {
+			t.Fatalf("Leave: %v", err)
+		}
+	})
+
+	runCase("deactivate_existing", "r1-deact", true, func() (db.User, db.Organization, db.Workspace) {
+		return setupMember("deact")
+	}, func(user db.User, org db.Organization) {
+		// Find owner of org to perform Deactivate.
+		var ownerID string
+		if err := fx.pool.QueryRow(ctx, `SELECT user_id FROM organization_members WHERE organization_id = $1 AND role = 'owner'`, org.ID).Scan(&ownerID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := memberSvc.Deactivate(ctx, ownerID, org.ID, user.ID); err != nil {
+			t.Fatalf("Deactivate: %v", err)
+		}
+	})
+
+	runCase("deactivate_fresh_connect", "r1-deact-fresh", false, func() (db.User, db.Organization, db.Workspace) {
+		return setupMember("deactfresh")
+	}, func(user db.User, org db.Organization) {
+		var ownerID string
+		if err := fx.pool.QueryRow(ctx, `SELECT user_id FROM organization_members WHERE organization_id = $1 AND role = 'owner'`, org.ID).Scan(&ownerID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := memberSvc.Deactivate(ctx, ownerID, org.ID, user.ID); err != nil {
+			t.Fatalf("Deactivate: %v", err)
+		}
+	})
+
+	runCase("close_sole_owner", "r1-close", true, func() (db.User, db.Organization, db.Workspace) {
+		owner := registerVerified(t, fx.q, as, "r1-close-"+util.NewID()+"@example.com", "SoleOwner")
+		org, err := fx.orgs.Create(ctx, owner.ID, "Close Org", "r1-close-"+strings.ToLower(util.NewID()[:8]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wsView, err := fx.ws.CreateInOrg(ctx, owner.ID, org.ID, "WS Close", "ws-close")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return owner, org, wsView.Workspace
+	}, func(user db.User, org db.Organization) {
+		if err := memberSvc.Close(ctx, user.ID, org.ID, org.Slug); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	})
+
+	runCase("delete_account", "r1-del", true, func() (db.User, db.Organization, db.Workspace) {
+		return setupMember("del")
+	}, func(user db.User, _ db.Organization) {
+		if err := as.DeleteAccount(ctx, user.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+			t.Fatalf("DeleteAccount: %v", err)
+		}
+	})
+}
+
+// TestDriveGrantAndRowLockOrderNoDeadlock (R1-2) holds concurrent lifecycle
+// disconnect and callback / manual disconnect at the boundary between
+// acquiring the global drive_grant:<sub> advisory lock and locking the
+// drive_connections rows, proving both settle without a 40P01 deadlock or
+// partial state.
+func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
+	t.Cleanup(func() {
+		fx.svc.testBeforeDisconnectRow = nil
+		testAfterLifecycleGrantLocks = nil
+	})
+
+	mem := registerVerified(t, fx.q, as, "r1-2-mem-"+util.NewID()+"@example.com", "Member")
+	if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: fx.org.ID, UserID: mem.ID, Role: OrgRoleMember,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: fx.work.ID, OrganizationID: fx.org.ID, UserID: mem.ID, Role: OrgRoleMember,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Connect two subs for mem so lifecycle locks them in sorted order.
+	var connIDB string
+	for _, code := range []string{"lock-b", "lock-a"} {
+		u, n, err := fx.svc.StartOAuth(ctx, Human(mem.ID), fx.work.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, _ := extractStateFromAuthURL(t, u)
+		if got := fx.svc.CompleteOAuth(ctx, st, code, "", "", n); got != DriveOAuthConnected {
+			t.Fatalf("CompleteOAuth(%s) = %q", code, got)
+		}
+	}
+	list, err := fx.svc.List(ctx, Human(mem.ID), fx.work.ID)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("List = %+v, err=%v", list, err)
+	}
+	for _, c := range list {
+		if c.GoogleEmail == "drive-lock-b@example.com" {
+			connIDB = c.ID
+		}
+	}
+
+	// Hold manual Disconnect right after it acquires drive_grant:fake-sub-lock-b
+	// (before locking the drive_connections row), then launch Leave (which
+	// discovers subs without row locks, takes drive_grant:fake-sub-lock-a and
+	// waits on drive_grant:fake-sub-lock-b). Release manual Disconnect; both
+	// complete cleanly without 40P01 deadlock.
+	discHeld := make(chan struct{})
+	releaseDisc := make(chan struct{})
+	fx.svc.testBeforeDisconnectRow = func(sub string) {
+		if sub == "fake-sub-lock-b" {
+			close(discHeld)
+			<-releaseDisc
+		}
+	}
+
+	discErrCh := make(chan error, 1)
+	go func() {
+		discErrCh <- fx.svc.Disconnect(ctx, Human(mem.ID), fx.work.ID, connIDB)
+	}()
+	<-discHeld
+
+	leaveStarted := make(chan struct{})
+	leaveErrCh := make(chan error, 1)
+	go func() {
+		close(leaveStarted)
+		leaveErrCh <- memberSvc.Leave(ctx, mem.ID, fx.org.ID)
+	}()
+	<-leaveStarted
+	// Release manual Disconnect so it finishes and releases drive_grant:fake-sub-lock-b.
+	close(releaseDisc)
+
+	if err := <-discErrCh; err != nil && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Disconnect error: %v", err)
+	}
+	if err := <-leaveErrCh; err != nil {
+		t.Fatalf("Leave error (must not deadlock): %v", err)
+	}
+	fx.svc.testBeforeDisconnectRow = nil
+
+	for _, sub := range []string{"fake-sub-lock-a", "fake-sub-lock-b"} {
+		cnt, err := fx.q.CountActiveDriveConnectionsBySub(ctx, sub)
+		if err != nil || cnt != 0 {
+			t.Fatalf("active count for %s = %d, err=%v, want 0", sub, cnt, err)
+		}
+		rev, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, sub)
+		if err != nil || !rev.RefreshTokenEnc.Valid {
+			t.Fatalf("revocation row for %s = %+v, err=%v", sub, rev, err)
+		}
+	}
+}

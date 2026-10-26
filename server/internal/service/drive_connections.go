@@ -124,6 +124,8 @@ type DriveConnectionService struct {
 
 	// Test hooks for deterministic §5.3b race tests.
 	testBeforeCallbackTx       func(sub string)
+	testAfterCallbackGrantLock func(sub string)
+	testBeforeDisconnectRow    func(sub string)
 	testAfterRevocationClaimTx func(sub string, attempt db.DriveGrantRevocation)
 	testAfterRevokeGoogle      func(sub string, attempt db.DriveGrantRevocation, revokeErr error) error
 	testBeforeResolveTx        func(sub string, generation int64, attemptID string) error
@@ -604,11 +606,27 @@ func (s *DriveConnectionService) saveDriveConnection(
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
-	// 1. Acquire global transaction-scoped advisory lock for google_sub (spec §5.3b).
+	// 1. Serialize with lifecycle transitions (Leave / Deactivate / Close /
+	// DeleteAccount) and re-check workspace membership inside this transaction
+	// before acquiring grant/row locks or modifying any state (R1-1, ADR 0032).
+	if err := lockMembership(ctx, qtx, actor.ID); err != nil {
+		return false, err
+	}
+	wsMember, err := s.ws.RequireMemberQ(ctx, qtx, wsID, actor.ID)
+	if err != nil {
+		return false, err
+	}
+	if wsMember.OrganizationID != orgID {
+		return false, ErrForbidden
+	}
+
+	// 2. Acquire global transaction-scoped advisory lock for google_sub (spec §5.3b).
 	if err := qtx.LockDriveGrantSub(ctx, claims.Sub); err != nil {
 		return false, err
 	}
-
+	if s.testAfterCallbackGrantLock != nil {
+		s.testAfterCallbackGrantLock(claims.Sub)
+	}
 	// 2. Check drive_grant_revocations state for google_sub.
 	rev, err := qtx.GetDriveGrantRevocationForUpdate(ctx, claims.Sub)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -797,6 +815,9 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 	if err := qtx.LockDriveGrantSub(ctx, conn.GoogleSub); err != nil {
 		return err
 	}
+	if s.testBeforeDisconnectRow != nil {
+		s.testBeforeDisconnectRow(conn.GoogleSub)
+	}
 
 	old, err := qtx.DisconnectDriveConnection(ctx, db.DisconnectDriveConnectionParams{
 		ID:             driveConnectionID,
@@ -845,11 +866,36 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 // their refresh tokens in drive_grant_revocations under the global per-sub lock
 // in deterministic google_sub order, and writes one drive_connection.disconnected
 // audit + drive_connection.changed outbox event per disconnected row (spec §5.3a).
+var testAfterLifecycleGrantLocks func(subs []string)
+
 func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries, actor audit.Actor, userID, orgID, reason string) ([]string, error) {
 	var orgParam pgtype.Text
 	if orgID != "" {
 		orgParam = pgtype.Text{String: orgID, Valid: true}
 	}
+	// 1. Discover relevant google_subs without taking row locks so we can acquire
+	// the global drive_grant:<sub> advisory locks in sorted order BEFORE locking
+	// drive_connections rows — matching the lock order of saveDriveConnection and
+	// Disconnect and preventing 40P01 deadlocks (R1-2).
+	discoveredSubs, err := qtx.ListActiveDriveSubsForUser(ctx, db.ListActiveDriveSubsForUserParams{
+		UserID:         userID,
+		OrganizationID: orgParam,
+	})
+	if err != nil {
+		return nil, err
+	}
+	lockedSubs := make(map[string]bool, len(discoveredSubs))
+	for _, sub := range discoveredSubs {
+		if err := qtx.LockDriveGrantSub(ctx, sub); err != nil {
+			return nil, err
+		}
+		lockedSubs[sub] = true
+	}
+	if testAfterLifecycleGrantLocks != nil && len(discoveredSubs) > 0 {
+		testAfterLifecycleGrantLocks(discoveredSubs)
+	}
+
+	// 2. Now lock and disconnect the active drive_connections rows.
 	rows, err := qtx.DisconnectDriveConnectionsForUser(ctx, db.DisconnectDriveConnectionsForUserParams{
 		UserID:         userID,
 		OrganizationID: orgParam,
@@ -860,8 +906,6 @@ func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries,
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	// Group by google_sub and lock in sorted order so concurrent lifecycle
-	// transactions never deadlock on pg_advisory_xact_lock.
 	bySub := make(map[string]string, len(rows))
 	subs := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -874,8 +918,11 @@ func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries,
 	}
 	sortStrings(subs)
 	for _, sub := range subs {
-		if err := qtx.LockDriveGrantSub(ctx, sub); err != nil {
-			return nil, err
+		if !lockedSubs[sub] {
+			if err := qtx.LockDriveGrantSub(ctx, sub); err != nil {
+				return nil, err
+			}
+			lockedSubs[sub] = true
 		}
 		if err := enqueueDriveGrantRevocationQ(ctx, qtx, sub, bySub[sub], slog.Default()); err != nil {
 			return nil, err

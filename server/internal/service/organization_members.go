@@ -238,6 +238,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := lockMembership(ctx, q, targetID); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	updated, err := q.SetOrganizationMemberDeactivated(ctx, db.SetOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: targetID,
 		DeactivatedBy: pgtype.Text{String: actorID, Valid: true},

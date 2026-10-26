@@ -71,6 +71,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	if err := lockMembership(ctx, qtx, userID); err != nil {
+		return err
+	}
 	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
 	if owned > 0 {
 		if closedMailboxes, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {

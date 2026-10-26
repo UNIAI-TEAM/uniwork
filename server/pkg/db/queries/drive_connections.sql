@@ -135,6 +135,19 @@ FROM (
 WHERE c.id = old.id
 RETURNING old.id, old.organization_id, old.user_id, old.google_sub, old.google_email, old.refresh_token_enc;
 
+-- name: ListActiveDriveSubsForUser :many
+-- tenant: self
+-- Lists distinct google_sub values for the user's active Drive connections in
+-- one organization or across all organizations (when organization_id is NULL)
+-- without row locks so lifecycle paths can acquire sorted global drive_grant
+-- advisory locks before locking drive_connections rows (spec §5.3a, §5.3b).
+SELECT DISTINCT google_sub
+FROM drive_connections
+WHERE user_id = sqlc.arg('user_id')
+  AND (sqlc.narg('organization_id')::text IS NULL OR organization_id = sqlc.narg('organization_id'))
+  AND disconnected_at IS NULL
+ORDER BY google_sub ASC;
+
 -- name: DisconnectDriveConnectionsForUser :many
 -- tenant: self
 -- Disconnects every active Drive connection of the user in one organization
