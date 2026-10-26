@@ -5146,6 +5146,47 @@
         "carried_one": "{{count}} việc còn mở",
         "carried_other": "{{count}} việc còn mở",
         "carriedFrom": "Từ lần họp trước"
+      },
+      "composer": {
+        "modeLabel": "Chế độ ô nhập",
+        "ask": "Hỏi",
+        "note": "Ghi chú",
+        "askPlaceholder": "Hỏi riêng UNI về cuộc họp…",
+        "followupPlaceholder": "Hỏi tiếp…",
+        "notePlaceholder": "Ghi chú cho cả phòng…",
+        "askLabel": "Hỏi riêng UNI về cuộc họp",
+        "noteLabel": "Ghi chú cho cả phòng",
+        "scope": "Họp này",
+        "scopeLabel": "Phạm vi: cuộc họp này",
+        "mention": "Nhắc tới việc, người, tài liệu",
+        "send": "Gửi",
+        "saveNote": "Lưu ghi chú",
+        "stop": "Dừng",
+        "reading": "Đang đọc cuộc họp…",
+        "readingNotes_one": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "readingNotes_other": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "private": "Riêng bạn",
+        "everyone": "Cả phòng",
+        "outOfCredit": "Hết lượt Hỏi UNI tháng này",
+        "askOff": "Hỏi UNI chưa bật",
+        "blockedHelp": "Vì sao và cách xử lý"
+      },
+      "suggest": {
+        "last5": "5 phút qua",
+        "last5Q": "Tóm tắt 5 phút vừa qua.",
+        "decided": "Đã chốt gì?",
+        "decidedQ": "Cuộc họp đã chốt những gì?",
+        "mine": "Việc của tôi",
+        "mineQ": "Tôi được giao những việc gì trong cuộc họp này?",
+        "lastTime": "Lần trước chốt gì?",
+        "lastTimeQ": "Lần họp trước đã chốt gì?",
+        "goal": "Mục tiêu buổi này?",
+        "goalQ": "Mục tiêu của cuộc họp này là gì?"
+      },
+      "answer": {
+        "title": "Hỏi UNI",
+        "share": "Gửi vào Chat",
+        "continue": "Tiếp"
       }
     }
   },
