@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -61,33 +62,37 @@ func TestSignalVoiceInviteRefusesALongCallID(t *testing.T) {
 func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
 	s, _, _, _, _, w := chatFixture(t)
 	ctx := context.Background()
+	// trackVoiceCallInvite persists a row in chat_voice_call_sessions that the
+	// in-memory cleanup below cannot reach; a fixed room id made every rerun on the
+	// same database collide with the previous run's "new" call (ErrConflict).
+	roomID := "room-sweep-" + util.NewID()
 	now := time.Now()
 	answeredLongAgo := now.Add(-voiceCallAnsweredTTL - time.Minute)
 	answeredRecently := now.Add(-time.Minute)
 	sessions := map[string]voiceCallSession{
-		"stale-invite":    {roomID: "room-sweep", callID: "stale-invite", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute)},
-		"stale-call":      {roomID: "room-sweep", callID: "stale-call", invitedAt: answeredLongAgo, acceptedAt: &answeredLongAgo},
-		"ringing":         {roomID: "room-sweep", callID: "ringing", invitedAt: now.Add(-time.Minute)},
-		"long-but-active": {roomID: "room-sweep", callID: "long-but-active", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute), acceptedAt: &answeredRecently},
+		"stale-invite":    {roomID: roomID, callID: "stale-invite", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute)},
+		"stale-call":      {roomID: roomID, callID: "stale-call", invitedAt: answeredLongAgo, acceptedAt: &answeredLongAgo},
+		"ringing":         {roomID: roomID, callID: "ringing", invitedAt: now.Add(-time.Minute)},
+		"long-but-active": {roomID: roomID, callID: "long-but-active", invitedAt: now.Add(-voiceCallUnansweredTTL - time.Minute), acceptedAt: &answeredRecently},
 	}
 	for callID, sess := range sessions {
-		voiceCallSessions.Store(voiceCallSessionKey("room-sweep", callID), sess)
-		t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-sweep", callID)) })
+		voiceCallSessions.Store(voiceCallSessionKey(roomID, callID), sess)
+		t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey(roomID, callID)) })
 	}
 
 	// The lazy check drops an expired session on access.
-	if _, ok := s.loadVoiceCallSession(ctx, "room-sweep", "stale-call"); ok {
+	if _, ok := s.loadVoiceCallSession(ctx, roomID, "stale-call"); ok {
 		t.Fatal("a call answered past the TTL is still live")
 	}
 
 	// A new invite sweeps the rest.
 	lastVoiceCallSweep.Store(0)
-	if err := s.trackVoiceCallInvite(ctx, db.ChatRoom{ID: "room-sweep", OrganizationID: w.OrganizationID, Kind: chatRoomKindDM}, "new", "U1", "A", false, nil); err != nil {
+	if err := s.trackVoiceCallInvite(ctx, db.ChatRoom{ID: roomID, OrganizationID: w.OrganizationID, Kind: chatRoomKindDM}, "new", "U1", "A", false, nil); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-sweep", "new")) })
+	t.Cleanup(func() { s.deleteVoiceCallSession(context.Background(), roomID, "new") })
 	for callID, wantLive := range map[string]bool{"stale-invite": false, "stale-call": false, "ringing": true, "long-but-active": true, "new": true} {
-		if _, ok := voiceCallSessions.Load(voiceCallSessionKey("room-sweep", callID)); ok != wantLive {
+		if _, ok := voiceCallSessions.Load(voiceCallSessionKey(roomID, callID)); ok != wantLive {
 			t.Errorf("%s: present=%v, want %v", callID, ok, wantLive)
 		}
 	}

@@ -205,7 +205,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
-  const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
+  const fileCommands = useLibraryRowFileCommands({ wsId, orgId, documentHref: wsPaths.document, onOpen, docById: library.docById, desktopOpen });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
@@ -253,7 +253,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     );
   };
   const handlers: LibraryRowHandlers = {
-    onOpen,
+    onOpen: fileCommands.openDocument,
     onFolder: (id) => goHome({ kind: "home" }, id),
     onGoToSource: (row) => {
       const target = context ? sourceParentPath(paths.workspace(context.workspace.organization_slug, context.workspace.slug), row.source.parent) : null;
@@ -404,7 +404,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         search.clear();
         goHome({ kind: "home" }, id);
       }}
-      onSelectDocument={onOpen}
+      onSelectDocument={fileCommands.openDocument}
     />
   );
   const toolbar = {
@@ -487,7 +487,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {homeView && canCreate && !searching ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
-                {!homeView && cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
+                {!homeView && cards.length > 0 ? <RecentContinue cards={cards} onOpen={fileCommands.openDocument} /> : null}
                 {view.kind === "shelved" ? (
                   <DocumentsShelvedView
                     library={library}

@@ -154,10 +154,10 @@ const FULL = {
 };
 
 function desktopFactory(createSession = vi.fn(async () => null)) {
-  return vi.fn(() => ({
+  return vi.fn((document: { current_version: number }) => ({
     deploymentId: "dep-1",
     channel: "stable",
-    savedVersion: 3,
+    savedVersion: document.current_version,
     createSession,
     loadInstallers: vi.fn(),
     loadPlatformHint: vi.fn(),
@@ -578,6 +578,15 @@ describe("ChatDocumentMessageRow", () => {
       await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
+
+    it("does not mint a desktop launch session for an OOXML card with no version_number (RFC-03)", async () => {
+      const createSession = vi.fn(async () => null);
+      const desktopOpen = desktopFactory(createSession);
+      renderCard(documentMessage({ ...FULL, version_number: undefined }), { ...LIVE, desktopOpen });
+      expect(desktopOpen).toHaveBeenCalledWith({ id: "doc1", organization_id: "o1", current_version: 0 });
+      await userEvent.click(within(await openMenu()).getByRole("menuitem", { name: "Chỉnh sửa trong UniWork Office" }));
+      expect(createSession).not.toHaveBeenCalled();
+    });
   });
 
   describe("Chia sẻ", () => {
@@ -755,6 +764,30 @@ describe("ChatDocumentMessageRow", () => {
       fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
       await waitFor(() => expect(upload.mutateAsync).toHaveBeenCalledTimes(2));
       expect(upload.mutateAsync.mock.calls[1]![0].idempotencyKey).toBe(upload.mutateAsync.mock.calls[0]![0].idempotencyKey);
+    });
+  });
+
+  describe("legacy Office formats (.doc, .xls, .ppt)", () => {
+    it("opens LegacyFormatDialog instead of navigating when clicking a legacy document card title, and keeps Chỉnh sửa trong UniWork Office in the menu", async () => {
+      const desktopOpen = desktopFactory();
+      const nav = renderCard(
+        documentMessage({
+          ...FULL,
+          title: "Báo cáo Q3.doc",
+          format: "doc",
+          can_open_in_app: false,
+        }),
+        { ...LIVE, desktopOpen },
+      );
+
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Chỉnh sửa trong UniWork Office");
+      expect(labels).toContain("Mở để xem và nhận xét");
+      expect(labels).not.toContain("Chỉnh sửa trên web");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mở trong Tài liệu: Báo cáo Q3.doc" }));
+      expect(nav.push).not.toHaveBeenCalled();
+      expect(await screen.findByRole("dialog", { name: "Mở tệp bằng UniWork Office" })).toBeInTheDocument();
     });
   });
 });
