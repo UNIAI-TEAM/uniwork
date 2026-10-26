@@ -56,6 +56,30 @@ describe("border-beam", () => {
   });
 });
 
+describe("AI edge and brand beam", () => {
+  it("spins the beam ring and its bloom on the shared border-beam keyframes", () => {
+    for (const part of ["before", "after"]) {
+      const rule = styles.match(new RegExp(`\\.border-beam-ai::${part}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+      expect(rule, `.border-beam-ai::${part}`).toMatch(/animation:\s*border-beam-rotate\b/);
+    }
+  });
+
+  it("strengthens the resting edge while the composer holds focus", () => {
+    expect(styles).toMatch(/\.ai-edge:focus-within\s*\{/);
+  });
+
+  it("clips the shimmer gradient to the status text", () => {
+    const rule = styles.match(/\.ai-shimmer\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/(?:^|[^-])background-clip:\s*text;/);
+  });
+
+  it("stands the beam and the shimmer still under reduced motion", () => {
+    const block = reducedMotionBlock();
+    expect(block).toMatch(/\.border-beam-ai::before,\s*\.border-beam-ai::after \{ animation: none; \}/);
+    expect(block).toMatch(/\.ai-shimmer \{ animation: none; \}/);
+  });
+});
+
 /** Body of the first `@media (prefers-reduced-motion: reduce)` block. */
 function reducedMotionBlock(): string {
   const start = styles.indexOf("@media (prefers-reduced-motion: reduce)");
