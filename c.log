@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr9r1-go-rest.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr9r1-go-rest.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr9r1-go-rest.log; grep -E "^=== RUN" /tmp/pr9r1-go-rest.log | tail -1
+DONE_FILE=yes
+2578
+=== RUN   TestEvalContextLookup/unknown_attribute
