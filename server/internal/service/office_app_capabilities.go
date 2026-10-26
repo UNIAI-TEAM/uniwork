@@ -24,7 +24,6 @@ const (
 	officeOfflineLibraryFlag    = "office_offline_library"
 	officeAIUniworkFlag         = "office_ai_uniwork"
 	officeAIUniworkFormatPrefix = "office_ai_uniwork_"
-	officeDriveConnectorFlag    = "drive_connector"
 )
 
 // officeAIUniworkFormats is the per-format AI capability set, in the fixed
@@ -116,8 +115,5 @@ func (s *OfficeCapabilitiesService) enabled(ctx context.Context, key string) boo
 }
 
 func (s *OfficeCapabilitiesService) driveConnectorEnabled(ctx context.Context) bool {
-	if s.drive == nil || !s.enabled(ctx, officeDriveConnectorFlag) {
-		return false
-	}
-	return s.drive.AvailableForContext(ctx)
+	return s.drive != nil && s.drive.AvailableForContext(ctx)
 }

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -19,6 +20,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // appCapabilityWorld is one organization with an owner and an outsider who
@@ -315,11 +317,22 @@ func TestOfficeAppCapabilitiesOpenAPI(t *testing.T) {
 // the caller (user > organization > global) AND the server's Drive OAuth
 // provider + secretbox are available; a non-member is still refused (spec
 // §17.1, plan B10).
+type trueThenFalseDriveFlagProvider struct {
+	reads atomic.Int32
+}
+
+func (*trueThenFalseDriveFlagProvider) Name() string { return "true-then-false-drive" }
+
+func (p *trueThenFalseDriveFlagProvider) Lookup(_ context.Context, key string) (featureflag.Decision, bool) {
+	if key != "drive_connector" {
+		return featureflag.Decision{}, false
+	}
+	return featureflag.Decision{Enabled: p.reads.Add(1) == 1}, true
+}
+
 func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
-	capsSvc := service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
-	d.OfficeCapabilities = capsSvc
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 
@@ -336,9 +349,9 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	getDriveCap := func(token string) bool {
+	getDriveCapFrom := func(target *httptest.Server, token string) bool {
 		t.Helper()
-		r, body := doJSON(t, srv, "GET", "/api/v1/orgs/"+orgID+"/office/capabilities", token, nil)
+		r, body := doJSON(t, target, "GET", "/api/v1/orgs/"+orgID+"/office/capabilities", token, nil)
 		if r.StatusCode != http.StatusOK {
 			t.Fatalf("capabilities: %d %v", r.StatusCode, body)
 		}
@@ -354,22 +367,26 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 		t.Fatalf("outsider = %d, want 403", r.StatusCode)
 	}
 
-	// Nil provider -> false even when flag is on.
+	// Nil provider (router fallback with OfficeCapabilities == nil and DriveConnections == nil) -> false even when flag is on.
 	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", true)
-	if getDriveCap(ownerToken) {
+	if getDriveCapFrom(srv, ownerToken) {
 		t.Fatal("nil provider: drive_connector = true, want false")
 	}
 
-	// Flag on + provider unavailable (no OAuth credentials configured) -> false.
+	// Flag on + provider unavailable (no OAuth credentials configured) via router fallback -> false.
 	box := testDriveSecretBox(t)
 	unavailDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
 	unavailDrive.SetFlags(d.FeatureFlags)
-	capsSvc.SetDrive(unavailDrive)
-	if getDriveCap(ownerToken) {
+	unavailDeps := d
+	unavailDeps.DriveConnections = unavailDrive
+	unavailSrv := httptest.NewServer(New(unavailDeps))
+	t.Cleanup(unavailSrv.Close)
+	if getDriveCapFrom(unavailSrv, ownerToken) {
 		t.Fatal("provider unavailable: drive_connector = true, want false")
 	}
 
-	// Flag off + provider available -> false.
+	// Router fallback (OfficeCapabilities left nil, available DriveConnections):
+	// flag off -> false; flag on -> 200 and drive_connector == true.
 	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
 	availDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
 	availDrive.ConfigureOAuth(config.Config{
@@ -379,34 +396,78 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 		DriveFakeProvider: true,
 	})
 	availDrive.SetFlags(d.FeatureFlags)
-	capsSvc.SetDrive(availDrive)
-	if getDriveCap(ownerToken) {
+	fallbackDeps := d
+	fallbackDeps.DriveConnections = availDrive
+	fallbackSrv := httptest.NewServer(New(fallbackDeps))
+	t.Cleanup(fallbackSrv.Close)
+	if getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("flag off: drive_connector = true, want false")
 	}
 
-	// Flag on + provider available -> true.
+	// Flag on + provider available via router.go fallback -> 200 and drive_connector == true.
 	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", true)
-	if !getDriveCap(ownerToken) {
-		t.Fatal("flag on + provider available: drive_connector = false, want true")
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("flag on + provider available (router fallback): drive_connector = false, want true")
+	}
+
+	// Explicit service SetDrive(nil) and typed-nil *DriveConnectionService -> false even when flag is on.
+	capsSvc := service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+	capsSvc.SetDrive(availDrive)
+	capsSvc.SetDrive(nil)
+	explicitDeps := d
+	explicitDeps.OfficeCapabilities = capsSvc
+	explicitSrv := httptest.NewServer(New(explicitDeps))
+	t.Cleanup(explicitSrv.Close)
+	if getDriveCapFrom(explicitSrv, ownerToken) {
+		t.Fatal("SetDrive(nil): drive_connector = true, want false")
+	}
+	var nilDrive *service.DriveConnectionService
+	capsSvc.SetDrive(nilDrive)
+	if getDriveCapFrom(explicitSrv, ownerToken) {
+		t.Fatal("typed-nil *DriveConnectionService: drive_connector = true, want false")
 	}
 
 	// Organization override: global off, org on -> true; org off -> false.
 	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
 	setFlagOverride(t, "drive_connector", featureflags.ScopeOrganization, orgID, true)
-	if !getDriveCap(ownerToken) {
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("org override on: drive_connector = false, want true")
 	}
 	setFlagOverride(t, "drive_connector", featureflags.ScopeOrganization, orgID, false)
-	if getDriveCap(ownerToken) {
+	if getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("org override off: drive_connector = true, want false")
 	}
 
 	// Per-user override on for owner only -> true for owner, false for another member of the same org.
 	setFlagOverride(t, "drive_connector", featureflags.ScopeUser, ownerID, true)
-	if !getDriveCap(ownerToken) {
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("owner with user override on: drive_connector = false, want true")
 	}
-	if getDriveCap(memberToken) {
+	if getDriveCapFrom(fallbackSrv, memberToken) {
 		t.Fatal("member without user override: drive_connector = true, want false")
+	}
+
+	// Single evaluation per capability request: a flag source that answers true
+	// then false produces drive_connector == true on the first request and false
+	// on the second.
+	oneShotFlags := featureflag.NewService(&trueThenFalseDriveFlagProvider{})
+	oneShotDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	oneShotDrive.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		FrontendOrigin:    "http://localhost:3000",
+		APIPublicURL:      srv.URL,
+		DriveFakeProvider: true,
+	})
+	oneShotDrive.SetFlags(oneShotFlags)
+	oneShotDeps := d
+	oneShotDeps.FeatureFlags = oneShotFlags
+	oneShotDeps.DriveConnections = oneShotDrive
+	oneShotSrv := httptest.NewServer(New(oneShotDeps))
+	t.Cleanup(oneShotSrv.Close)
+	if !getDriveCapFrom(oneShotSrv, ownerToken) {
+		t.Fatal("first request with true-then-false flag source: drive_connector = false, want true (single evaluation per request)")
+	}
+	if getDriveCapFrom(oneShotSrv, ownerToken) {
+		t.Fatal("second request with true-then-false flag source: drive_connector = true, want false")
 	}
 }

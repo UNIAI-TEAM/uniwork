@@ -8,6 +8,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // Every key OfficeCapabilitiesService.Get evaluates must be declared in the
@@ -35,21 +37,21 @@ func TestOfficeAppCapabilityFlagKeysAreDeclared(t *testing.T) {
 		officeSyncWriteFlag,
 		officeOfflineLibraryFlag,
 		officeAIUniworkFlag,
-		officeDriveConnectorFlag,
 	}
 	for _, format := range officeAIUniworkFormats {
 		evaluated = append(evaluated, officeAIUniworkFormatPrefix+format)
 	}
 
-	// The exact set the route reads: five capability switches plus one flag per
-	// AI format. A literal list, so a constant changed to a wrong name is a
+	// The exact set the route reads directly through enabled(): four
+	// capability switches plus one flag per AI format (drive_connector is
+	// delegated once to DriveConnectionService.AvailableForContext and pinned
+	// below). A literal list, so a constant changed to a wrong name is a
 	// failure here and not a silently-off capability.
 	want := []string{
 		"office_sync_feed",
 		"office_sync_write",
 		"office_offline_library",
 		"office_ai_uniwork",
-		"drive_connector",
 		"office_ai_uniwork_docx",
 		"office_ai_uniwork_xlsx",
 		"office_ai_uniwork_pptx",
@@ -68,6 +70,25 @@ func TestOfficeAppCapabilityFlagKeysAreDeclared(t *testing.T) {
 			t.Errorf("%s is evaluated by OfficeCapabilitiesService.Get but is not declared in the flag registry", key)
 		}
 	}
+	if f, ok := featureflags.Lookup("drive_connector"); !ok {
+		t.Error("drive_connector is delegated by OfficeCapabilitiesService.Get but is not declared in the flag registry")
+	} else if f.Default {
+		t.Errorf("drive_connector default = %v, want false", f.Default)
+	}
+}
+
+type trueThenFalseFlagProvider struct {
+	key   string
+	reads atomic.Int32
+}
+
+func (*trueThenFalseFlagProvider) Name() string { return "true-then-false" }
+
+func (p *trueThenFalseFlagProvider) Lookup(_ context.Context, key string) (featureflag.Decision, bool) {
+	if key != p.key {
+		return featureflag.Decision{}, false
+	}
+	return featureflag.Decision{Enabled: p.reads.Add(1) == 1}, true
 }
 
 // TestOfficeAppCapabilitiesDriveConnector verifies that DriveConnector is true
@@ -154,6 +175,10 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	if caps.DriveConnector {
 		t.Fatal("nil provider: DriveConnector = true, want false")
 	}
+	svc.SetDrive(nil)
+	if caps, err = svc.Get(ctx, owner.ID, org.ID); err != nil || caps.DriveConnector {
+		t.Fatalf("SetDrive(nil): %+v err=%v, want DriveConnector=false", caps, err)
+	}
 	var nilDrive *DriveConnectionService
 	svc.SetDrive(nilDrive)
 	caps, err = svc.Get(ctx, owner.ID, org.ID)
@@ -225,5 +250,28 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	}
 	if memberCaps.DriveConnector {
 		t.Fatal("other member of same org without user override: DriveConnector = true, want false")
+	}
+
+	// 8. Single evaluation per Get: a flag source that answers true on the
+	// first drive_connector lookup and false thereafter yields DriveConnector
+	// true on the first Get and false on the second.
+	oneShotFlags := featureflag.NewService(&trueThenFalseFlagProvider{key: "drive_connector"})
+	oneShotDrive := availableDrive()
+	oneShotDrive.SetFlags(oneShotFlags)
+	oneShotSvc := NewOfficeCapabilitiesService(orgs, oneShotFlags)
+	oneShotSvc.SetDrive(oneShotDrive)
+	firstCaps, err := oneShotSvc.Get(ctx, owner.ID, org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !firstCaps.DriveConnector {
+		t.Fatal("first Get with true-then-false flag source: DriveConnector = false, want true (single evaluation per request)")
+	}
+	secondCaps, err := oneShotSvc.Get(ctx, owner.ID, org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondCaps.DriveConnector {
+		t.Fatal("second Get with true-then-false flag source: DriveConnector = true, want false")
 	}
 }
