@@ -115,13 +115,14 @@
 - `server/internal/service/drive_content.go`: `ReadForAI(ctx, requester, workspaceID, driveFileID)` — duy nhất gọi `files.export`/`alt=media` (§8.3), tra kết nối qua `drive_file_access` của người yêu cầu, từ chối tệp ngoài workspace. Nhánh DOCX/XLSX/PPTX (tải ≤ 20 MiB trong bộ nhớ → engine) nằm ở B11.
 - Test: bảng định dạng, cắt 200.000 ký tự, PDF thành media part, `drive_format_unsupported`, từng `reason` của S4; `TestDriveContentReadsUseTheCallersConnection`; arch test `TestDriveContentOnlyFromDriveContent`.
 
-### B4 — Tham chiếu: migration, liên kết, danh sách của tôi, chi tiết, bỏ, rebind, quyền người xem (2.x, 4.x) — 4d
+### B4 — Tham chiếu: migration, liên kết, danh sách của tôi, chi tiết, bỏ, rebind, quyền người xem, cổng lịch sử (2.x, 4.x) — 4,5d
 - Migration `drive_files` (có `bound_by`, `drive_id`, `drive_modified_by_display`, `sharing_state`), `drive_file_access`, `drive_file_task_links` (§6.2–6.4) + index.
-- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`; người gọi đã có dòng truy cập → `already_linked` với email của chính họ; chưa có → thêm dòng `granted`, trả `linked`, không lộ người khác; luật ghi đè §6.3), `ListMine` (chỉ tệp người gọi có dòng `drive_file_access`, lọc `connection_id` theo dòng truy cập; spec §7.6, §7.6a), `Get` (cổng §7.6a: có dòng truy cập **hoặc** xem được một việc gắn tệp, không thì 404; + `can_unlink`, `can_rebind`, `viewer_account_email`, `bound_by_id`, `bound_by_name`, `created_by_name`; thẻ và 4.2 hiện tài khoản gắn theo `bound_by`), `ListForTask` (cổng đọc việc, mọi người xem được việc), `ListForTask`, `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind` (kết nối phải thuộc người gọi, chỉ đổi dòng truy cập của người gọi, đặt `bound_by`), `use_rebind` khi người giữ kết nối gắn đổi tài khoản đọc, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
+- `service/drive_files.go`: `Link` (advisory lock `(workspace_id, external_file_id)`; người gọi đã có dòng truy cập → `already_linked` với email của chính họ; chưa có → thêm dòng `granted`, trả `linked`, không lộ người khác; luật ghi đè §6.3), `ListMine` (chỉ tệp người gọi có dòng `drive_file_access`, lọc `connection_id` theo dòng truy cập; spec §7.6, §7.6a), `Get` (cổng §7.6a: có dòng truy cập **hoặc** xem được một việc gắn tệp, không thì 404; + `can_unlink`, `can_rebind`, `viewer_account_email`, `bound_by_id`, `bound_by_name`, `created_by_name`; thẻ và 4.2 hiện tài khoản gắn theo `bound_by`), `ListForTask` (cổng đọc việc, mọi người xem được việc; cờ thẻ `can_remove_from_task`, `can_propose`, `can_ask`), cổng lịch sử audit theo resource cho `drive_file` (cổng 4.2), `drive_connection` (chủ kết nối), `drive_task_proposal` (người yêu cầu) trong `AuditService.ResourceHistory` trước khi đọc dòng audit (spec §7.6a), `Unlink`, `RemoveFromTask`, `GrantAccess`, `ChangeReadAccount` (`PUT …/access`), `Rebind` (kết nối phải thuộc người gọi, chỉ đổi dòng truy cập của người gọi, đặt `bound_by`), `use_rebind` khi người giữ kết nối gắn đổi tài khoản đọc, làm mới metadata bằng kết nối của người đang xem (≤ 1 lần/10 phút), dựng `open_url` §7.8.
 - `CreateTaskSDI.drive_files` + gọi `Link` trong transaction tạo việc (`service/task.go`); một tệp lỗi → cả lệnh lỗi kèm chỉ số tệp.
 - Route §7.2–7.7: `POST|GET /workspaces/{workspaceID}/drive-files`, `GET|DELETE /workspaces/{workspaceID}/drive-files/{driveFileID}`, `POST|PUT …/{driveFileID}/access`, `POST …/{driveFileID}/rebind`, `GET /tasks/{taskID}/drive-files`, `DELETE /tasks/{taskID}/drive-files/{driveFileID}`, `POST /workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token`. SDI/SDO có `description`/`example`; `pathParamSDI` cho `driveConnectionID`, `driveFileID`.
 - Audit + outbox: `drive_file.linked|access_granted|access_changed|access_lost|unlinked|rebound` (resource `drive_file`), `task.drive_file_linked|drive_file_unlinked` (resource `task`); sự kiện `drive_file.linked|access_changed|task_linked|unlinked|updated`.
 - Isolation (spec §13): ánh xạ thật cho `{driveConnectionID}`, `{driveFileID}` trong ma trận (`isolation_matrix_test.go:503-516`, phân loại mixed-ID), seed own/foreign mỗi bảng, `isoReferences` cho mọi `*_id` trong body, miễn có lý do cho `external_file_id(s)`.
+- Test lịch sử: thành viên cùng workspace dùng id tệp lấy từ frame `drive_file.*` gọi `/resources/drive_file/{id}/history` khi không có dòng truy cập và không xem được việc nào gắn tệp → 404 không đọc dòng audit; chủ tệp gọi được (đối chứng); tương tự `drive_connection` và `drive_task_proposal`.
 - Test luật thấy §7.6a: danh sách chỉ của mình (admin không thấy tệp của người khác), thẻ trên việc cho khách/người theo dõi xem được việc, 4.2 → 404 khi không có dòng truy cập và không xem được việc nào gắn tệp, "Đang dùng ở" chỉ việc thấy được, người thứ hai liên kết cùng tệp nhận `linked` không lộ email người đầu. Quyền (sửa việc, người liên kết/`bound_by`/admin), khử trùng giữa hai tài khoản của một người (dòng truy cập không đổi, token đọc vẫn là tài khoản cũ) và giữa hai người, A liên kết rồi admin B rebind (dòng của A vẫn trỏ kết nối của A; token đọc của từng người đúng chủ), người liên kết gốc mất quyền rồi chọn lại bằng tài khoản khác, `PUT access` của `bound_by` → 409 `use_rebind`, mất quyền của kết nối gắn phát `drive_file.updated` cho workspace (người thứ hai đang mở 4.2 được làm mới), thành viên bị vô hiệu hóa, events catalogue.
 
 ### B5 — Đề xuất việc: capability, prompt, endpoint, cổng lô (3.1–3.3) — 3d
@@ -134,7 +135,7 @@
 - `setDependencyTx(ctx, q, …)` trong `service/task_graph.go`: nhận `q` của transaction và hai việc đã xác thực, dùng chung kiểm vòng và dựng sự kiện với `SetDependency` (`:236-305`), không tự mở transaction.
 - `CreateTasksFromProposal` qua `TaskService.CreateManyWith` (`service/task.go:390`): `Before` (cổng §8.2a, khóa §8.2b, nguồn còn sống, đã tạo, workspace của người/dự án/cha/nhãn, trùng theo lô như `refuseSummaryDuplicates`, phụ thuộc trong lô không vòng), `task.created` có `metadata.source = "drive_task_proposal"`, `After` (`setDependencyTx`, `drive_file_task_links`, `drive_task_proposal_links` (có `external_file_id`), lô `converted` + `items = NULL`, audit `drive_task_proposal.tasks_created`, outbox `drive_task_proposal.converted`).
 - Route `POST /workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks`.
-- "Đã tạo việc từ tài liệu" (spec §8.8): `tasks_created` trên `Get` và từng thẻ của `ListForTask`, `task_creations` (nhóm theo `proposal_id`, ≤ 10 lần) trên `Get`, `prior_creations` trên phản hồi đề xuất; đọc `drive_task_proposal_links` theo `(workspace_id, external_file_id)`, chỉ việc người xem thấy được; `drive_task_proposal.converted` vô hiệu khóa Drive của workspace.
+- "Đã tạo việc từ tài liệu" (spec §8.8): `tasks_created` trên `Get`, từng thẻ của `ListForTask` và từng dòng của `ListMine` (một truy vấn gộp mỗi trang), `task_creations` (nhóm theo `proposal_id`, ≤ 10 lần) trên `Get`, `prior_creations` trên phản hồi đề xuất; đọc `drive_task_proposal_links` theo `(workspace_id, external_file_id)`, chỉ việc người xem thấy được; `drive_task_proposal.converted` vô hiệu khóa Drive của workspace.
 - Test: 409/410, `allow_duplicate`, thứ tự khóa, phụ thuộc, **rollback toàn phần** khi bước phụ thuộc lỗi (không việc, cạnh, liên kết, audit, outbox nào còn), trích đoạn trong mô tả việc còn nguyên sau khi lô bị xóa (Q3), "đã tạo việc": đếm đúng sau khi lô bị job xóa, còn sau bỏ liên kết rồi liên kết lại, ẩn việc người xem không thấy, isolation (`items[].assignee_id`, `items[].label_ids`, `project_id`, `parent_task_id`).
 
 ### B7 — Lưu giữ đề xuất (Q3) — 0,5d
@@ -149,10 +150,10 @@
 ### B9 — ADR 0038 accepted + luật CLAUDE.md — 0,25d (cùng PR với B3)
 - Chuyển ADR ra `docs/adr/`, bảng README, mục Audit and Events của `CLAUDE.md` nêu tên test; `scripts/governance.test.mjs`.
 
-### B11 — Trích văn bản DOCX/XLSX/PPTX qua office-engine (Q8) — 4d
+### B11 — Trích văn bản DOCX/XLSX/PPTX qua office-engine (Q8) — 4,5d
 - Engine (`apps/office-engine/`): thao tác `extract_text` cho `docx`, `xlsx` (trang tính đầu → CSV), `pptx` (chữ slide + ghi chú); kết quả inline trong trạng thái job cuối (≤ 1 MiB), không đích output, thư mục job dọn như mọi job; hàng capability; hợp đồng `@uniwork/office-contracts`. Thư viện theo S6.
-- Go: hợp đồng `server/internal/office/contract.go` (thao tác, grant scope `drive_extract` mang `drive_file_id` + workspace thay `DocumentID`, không `InputObjectKey`), `drive_content.ReadForAI` nhánh Office: tải bằng kết nối của người yêu cầu, `Submit` với `InputSource` trong bộ nhớ, chờ `Status` tối đa 60 s, lỗi `drive_extract_unavailable` (503) và lớp lỗi mở của engine (mật khẩu, hỏng → 422).
-- Test: engine (vitest) ba định dạng + tệp hỏng/mật khẩu + vượt 1 MiB bị cắt; Go với engine giả: thành công, hết hạn, engine tắt, `TestDriveOfficeExtractWritesNoObject`; B5/B8 thêm một ca DOCX.
+- Go + engine: biến thể `ServiceGrant` chỉ cho trích văn bản (`server/internal/office/grant.go` và `apps/office-engine/src/grants.ts`: actor, tổ chức, workspace, `drive_file_id`, digest đầu vào, output rỗng), ca mới trong `testdata/grant-parity.json`; thao tác mới trong `contract.go`; giới hạn đọc trạng thái riêng cho `extract_text` (spec §8.3a, theo S6); `drive_content.ReadForAI` nhánh Office: tải bằng kết nối của người yêu cầu, `Submit` với `InputSource` trong bộ nhớ, chờ `Status` tối đa 60 s, lỗi `drive_extract_unavailable` (503) và lớp lỗi mở của engine (mật khẩu, hỏng → 422).
+- Test: engine (vitest) ba định dạng + tệp hỏng/mật khẩu + vượt 1 MiB bị cắt; Go với engine giả: thành công, hết hạn, engine tắt, `TestDriveOfficeExtractWritesNoObject`, văn bản sát trần ASCII và nhiều ký tự thoát qua client thật, grant trích văn bản bị từ chối cho thao tác khác và ngược lại; B5/B8 thêm một ca DOCX.
 
 ### B10 — Server cho desktop — 1d
 - Trường `drive_connector` (flag cho tổ chức/người **và** provider Drive sẵn sàng) trong `service/office_app_capabilities.go` (inject trạng thái provider vào service), SDO `handler/dto/sdo/office_capabilities.go` và ánh xạ ở `handler/office_capabilities.go:35-42`.
@@ -191,7 +192,7 @@
 - `create-task-agent-panel.tsx`: có chip Drive → hàng "Tạo bởi UNI" thay `AgentPicker`, không đòi `selectedAgent`, ẩn nút độ ưu tiên/hạn/tải tệp; dự án, "Task con của", dòng tài khoản đọc; trạng thái chờ "UNI đang đọc tài liệu…" + Hủy, câu lỗi §8.2.
 - Popover "Tạo việc từ tài liệu" (thẻ Drive, 4.2, Hỏi UNI; spec §8.1): dòng tài khoản đọc, prompt tùy chọn, **Gửi cho agent**; dùng cùng hook. `?propose=1` mở popover này.
 - Cảnh báo tạo lại (spec §8.8) ở popover và agent panel khi `tasks_created.count > 0`: câu cảnh báo, **Xem các việc đã tạo**, nút chính **Vẫn gửi cho UNI**; hộp duyệt (W7) hiện dòng `prior_creations`.
-- Test: không có chip → hành vi cũ; có chip → gửi được khi không có agent nào; có/không có việc đã tạo → có/không cảnh báo, cảnh báo không chặn gửi.
+- Test: không có chip → hành vi cũ; có chip → gửi được khi không có agent nào; có/không có việc đã tạo → có/không cảnh báo, cảnh báo không chặn gửi; cảnh báo `role="status"` + `aria-describedby` trên nút.
 
 ### W7 — Hộp duyệt + toast (3.3, 3.4) — 4d
 - `packages/views/tasks/drive-proposals/` (tách dưới 500 dòng mỗi tệp): trường cả lô + dòng phụ, từng việc (công tắc có nhãn), basis "UNI · …" (`text-warning`), trùng (Bỏ việc này / Vẫn tạo, tính lại khi đổi dự án/cha), "Bị chặn bởi", người phụ trách chưa có quyền Drive, dựng mô tả (mục tiêu + checklist + trích đoạn + liên kết; không cảnh báo, không tùy chọn bỏ trích đoạn — Q3), "Tạo N việc" / "Chọn ít nhất 1 việc", đóng hộp hỏi "Bỏ đề xuất này?".
@@ -205,7 +206,8 @@
 - Màn danh sách chỉ tệp của người xem (bảng `table`, cột §7.6 gồm "Đã tạo việc", tiêu đề/dòng phụ "Chỉ bạn thấy danh sách này", "Thêm từ Google Drive" / "Thêm từ <email>", `CollectionPageState` rỗng/lỗi).
 - Thẻ trên việc và 4.2 hiện tài khoản gắn theo `bound_by` (spec §6.2), kèm "(gắn lại bởi <tên>)" khi khác người liên kết.
 - Trang `documents/drive/[driveFileId]/page.tsx`: Tài khoản gắn (theo `bound_by`, kèm hậu tố gắn lại) + Bạn mở bằng, Đang dùng ở, Gắn vào việc, khối "Việc đã tạo từ tài liệu" (§8.8), Hoạt động (`useResourceHistory(wsId, "drive_file", id)`), Bỏ liên kết (xác nhận, `can_unlink`), Liên kết lại (`can_rebind`), `?propose=1` / `?ask=1` chỉ mở UI.
-- Test: views test từng trạng thái §7.10; 404 của 4.2 hiện như tài liệu không tồn tại.
+- Thẻ ẩn hành động theo cờ của người xem (khách/người chỉ xem); `task.deleted` vô hiệu khóa Drive, refetch khi lấy lại focus.
+- Test: views test từng trạng thái §7.10; 404 của 4.2 hiện như tài liệu không tồn tại với "Về Google Drive của tôi".
 
 ### W9 — Hỏi UNI với tệp Drive (3.2) — 3d
 - `drive_file` vào `AskUniPanelFocus.kind` (`packages/core/ai/store.ts`), khóa `ai.ask_about_drive_file`, mở bằng `useAskUniOpener`; chip ngữ cảnh, dòng tài khoản đọc, chân panel "…cuộc trò chuyện này không được lưu"; chế độ tạm thời: bản chép trong store của core (không qua `useAiMessages(conversationId)` của `ask-uni-thread.tsx`), endpoint gửi `transient` + `transcript` mỗi câu hỏi (schema + case malformed), hợp đồng stream spec §9 (`ai-stream.ts:25` nhận `conversation_id` rỗng; `use-ask-uni-stream.ts` không ghi/vô hiệu `aiKeys.messages` khi `done`, `stop()` không thăm lại 1.500 ms), ẩn phản hồi/tạo lại, cửa sổ trượt 20 lượt/32.000 ký tự, đóng panel/đổi focus/chọn lịch sử/hội thoại mới xóa bản chép; không thêm mục vào danh sách lịch sử; test hai câu hỏi, dừng giữa chừng, lượt thứ 21 trượt cửa sổ, đổi focus; trích dẫn trỏ tới trang 4.2; gợi ý "Tạo việc từ tài liệu này".
@@ -256,10 +258,10 @@
 | Pha | Ngày-người |
 | --- | --- |
 | Spike S1–S6 | 3 |
-| Server B1–B11 | 25,25 |
+| Server B1–B11 | 26,25 |
 | Web W1–W10 | 23 |
 | Desktop D1–D4 (lane fork) | 6,75 |
 | Kiểm thử/ra mắt Q1–Q3 | 3 |
-| **Tổng** | **61** |
+| **Tổng** | **62** |
 
 E1 không tính (công 0,5d + thời gian chờ Google). Với một lane `uniwork` hai người (BE + FE) và một lane fork, lịch khoảng 6 tuần (B11 chạy song song với B5–B6 nếu có người thứ ba); đường găng ở mục Phụ thuộc.
