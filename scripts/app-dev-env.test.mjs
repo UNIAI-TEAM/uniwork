@@ -133,6 +133,12 @@ test("Jenkinsfile deploys by SSH without a latest tag", () => {
   assert.equal(/docker\s+(tag|push)\b[^\n]*:latest/.test(text), false);
   assert.equal(text.includes("cfg=\\\\$(mktemp -d)"), true, "cfg=\\\\$(mktemp -d)");
   assert.equal((text.match(/sh '''#!\/bin\/bash/g) || []).length, 2);
+  assert.equal(text.includes("apps/meeting-agent"), true);
+  assert.equal(text.includes('uniwork-meeting-agent:${IMAGE_TAG}'), true);
+  assert.equal(
+    (text.match(/deploy\/app-dev\/env\/uniwork-meeting-agent\.env/g) || []).length,
+    2,
+  );
 });
 
 test("meeting agent env lists only non-secret assignments", () => {
