@@ -42,7 +42,7 @@ func TestConfigPublishesDriveAvailability(t *testing.T) {
 		hasBox    bool
 		clientID  string
 		secret    string
-		provider  string
+		fake      bool
 		appEnv    string
 		wantAvail bool
 	}{
@@ -83,18 +83,18 @@ func TestConfigPublishesDriveAvailability(t *testing.T) {
 			wantAvail: true,
 		},
 		{
-			name:      "true in non-production when DRIVE_PROVIDER=fake and box present",
+			name:      "true in non-production when DRIVE_FAKE_PROVIDER=1 and box present",
 			flagOn:    true,
 			hasBox:    true,
-			provider:  "fake",
+			fake:      true,
 			appEnv:    "development",
 			wantAvail: true,
 		},
 		{
-			name:      "false in production when DRIVE_PROVIDER=fake without real client credentials",
+			name:      "false in production when DriveFakeProvider is true without real client credentials",
 			flagOn:    true,
 			hasBox:    true,
-			provider:  "fake",
+			fake:      true,
 			appEnv:    "production",
 			wantAvail: false,
 		},
@@ -109,7 +109,7 @@ func TestConfigPublishesDriveAvailability(t *testing.T) {
 				APIPublicURL:            "https://api.example.test",
 				GoogleDriveClientID:     tc.clientID,
 				GoogleDriveClientSecret: tc.secret,
-				DriveProvider:           tc.provider,
+				DriveFakeProvider:       tc.fake,
 			}
 			var b *secretbox.Box
 			if tc.hasBox {

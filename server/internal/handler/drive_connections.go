@@ -193,7 +193,7 @@ func (h *handlers) DisconnectDriveConnection(w http.ResponseWriter, r *http.Requ
 		r.Context(),
 		service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"),
-		chi.URLParam(r, "connectionID"),
+		chi.URLParam(r, "driveConnectionID"),
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

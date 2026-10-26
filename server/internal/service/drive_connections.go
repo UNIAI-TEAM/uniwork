@@ -182,13 +182,13 @@ func (s *DriveConnectionService) Provider() DriveProvider {
 // ConfigureOAuth configures the Google Drive provider from cfg. As required by
 // spec §5.1, the provider is available only when GOOGLE_DRIVE_CLIENT_ID,
 // GOOGLE_DRIVE_CLIENT_SECRET and DRIVE_CREDENTIAL_KEY (s.box != nil) are all
-// set — except in non-production when DRIVE_PROVIDER=fake is explicitly set
+// set — except in non-production when DRIVE_FAKE_PROVIDER=1 is explicitly set
 // with a credential box.
 func (s *DriveConnectionService) ConfigureOAuth(cfg config.Config) {
 	if s == nil || s.box == nil {
 		return
 	}
-	if !strings.EqualFold(cfg.AppEnv, "production") && strings.EqualFold(cfg.DriveProvider, "fake") {
+	if !strings.EqualFold(cfg.AppEnv, "production") && cfg.DriveFakeProvider {
 		if cfg.GoogleDriveClientID == "" && cfg.GoogleDriveClientSecret == "" {
 			cfg.GoogleDriveClientID = "fake-drive-client-id"
 			cfg.GoogleDriveClientSecret = "fake-drive-client-secret"
@@ -767,7 +767,7 @@ func driveConnectionView(r db.DriveConnection) DriveConnectionView {
 // organization, moves its encrypted refresh token into drive_grant_revocations
 // under the global drive_grant:<google_sub> lock, and records the audit + outbox
 // event in the same transaction (spec §5.3, §5.3b).
-func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, workspaceID, connectionID string) error {
+func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, workspaceID, driveConnectionID string) error {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
 		return err
@@ -783,7 +783,7 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 	qtx := s.q.WithTx(tx)
 
 	conn, err := qtx.GetDriveConnection(ctx, db.GetDriveConnectionParams{
-		ID:             connectionID,
+		ID:             driveConnectionID,
 		OrganizationID: ws.OrganizationID,
 		UserID:         actor.ID,
 	})
@@ -799,7 +799,7 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 	}
 
 	old, err := qtx.DisconnectDriveConnection(ctx, db.DisconnectDriveConnectionParams{
-		ID:             connectionID,
+		ID:             driveConnectionID,
 		OrganizationID: ws.OrganizationID,
 		UserID:         actor.ID,
 	})

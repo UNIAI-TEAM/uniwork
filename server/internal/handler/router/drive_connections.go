@@ -14,7 +14,7 @@ import (
 //
 //	POST   /api/v1/workspaces/{workspaceID}/drive-connections/google/start
 //	GET    /api/v1/workspaces/{workspaceID}/drive-connections
-//	DELETE /api/v1/workspaces/{workspaceID}/drive-connections/{connectionID}
+//	DELETE /api/v1/workspaces/{workspaceID}/drive-connections/{driveConnectionID}
 //	GET    /api/v1/drive-connections/google/callback
 func registerDriveConnections(r api, h Routes, flags *featureflag.Service, connectLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "drive_connector"))
@@ -30,7 +30,7 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 			"kèm `linked_file_count` số tệp đang liên kết vào việc trong workspace hiện tại (spec §5.3).",
 		tags: []string{"drive"}, sdo: sdo.DriveConnectionListSDO{}, auth: true,
 	})
-	d.Delete("/workspaces/{workspaceID}/drive-connections/{connectionID}", h.DisconnectDriveConnection, apiOp{
+	d.Delete("/workspaces/{workspaceID}/drive-connections/{driveConnectionID}", h.DisconnectDriveConnection, apiOp{
 		summary: "Disconnect a Google Drive connection",
 		description: "Ngắt kết nối Google Drive của người gọi trong tổ chức của workspace, xóa token, chuyển refresh token sang hàng đợi thu hồi `drive_grant_revocations` " +
 			"và đánh dấu `drive_file_access` của kết nối đó là `disconnected` (spec §5.3).",

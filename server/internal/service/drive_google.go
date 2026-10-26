@@ -234,7 +234,7 @@ type FakeDriveExchangeCall struct {
 
 // FakeDriveProvider is a deterministic, concurrency-safe in-memory DriveProvider
 // for Go unit tests, handler/isolation tests, and E2E (when APP_ENV != production
-// and DRIVE_PROVIDER=fake). It makes zero network calls.
+// and DRIVE_FAKE_PROVIDER=1). It makes zero network calls.
 type FakeDriveProvider struct {
 	ClientID    string
 	RedirectURL string

@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "GOOGLE_DRIVE_PICKER_API_KEY", "GOOGLE_DRIVE_APP_ID", "DRIVE_PROVIDER", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "GOOGLE_DRIVE_PICKER_API_KEY", "GOOGLE_DRIVE_APP_ID", "DRIVE_FAKE_PROVIDER", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
 		t.Setenv(k, "")
 	}
 }
@@ -668,5 +668,60 @@ func TestLoadFolderUploadLimits(t *testing.T) {
 		if _, err := Load(); err == nil {
 			t.Fatalf("FOLDER_UPLOAD_MAX_FILES=%q loaded", bad)
 		}
+	}
+}
+
+func TestDriveFakeProviderRefusedInProduction(t *testing.T) {
+	for _, raw := range []string{"1", "true", "TRUE"} {
+		t.Run("refused_"+raw, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("APP_ENV", "production")
+			t.Setenv("DRIVE_FAKE_PROVIDER", raw)
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), "DRIVE_FAKE_PROVIDER") {
+				t.Fatalf("Load() with APP_ENV=production DRIVE_FAKE_PROVIDER=%q = %v, want error mentioning DRIVE_FAKE_PROVIDER", raw, err)
+			}
+		})
+	}
+
+	for _, raw := range []string{"", "0", "false"} {
+		t.Run("allowed_disabled_"+raw, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("APP_ENV", "production")
+			t.Setenv("DRIVE_FAKE_PROVIDER", raw)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() with APP_ENV=production DRIVE_FAKE_PROVIDER=%q failed: %v", raw, err)
+			}
+			if cfg.DriveFakeProvider {
+				t.Fatalf("DriveFakeProvider = true for %q, want false", raw)
+			}
+		})
+	}
+}
+
+func TestDriveFakeProviderSelectedInNonProduction(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want bool
+	}{
+		{"1", true},
+		{"true", true},
+		{" TRUE ", true},
+		{"", false},
+		{"0", false},
+		{"false", false},
+	} {
+		t.Run("dev_"+tc.raw, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("APP_ENV", "development")
+			t.Setenv("DRIVE_FAKE_PROVIDER", tc.raw)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() with APP_ENV=development DRIVE_FAKE_PROVIDER=%q failed: %v", tc.raw, err)
+			}
+			if cfg.DriveFakeProvider != tc.want {
+				t.Fatalf("DriveFakeProvider = %v for %q, want %v", cfg.DriveFakeProvider, tc.raw, tc.want)
+			}
+		})
 	}
 }

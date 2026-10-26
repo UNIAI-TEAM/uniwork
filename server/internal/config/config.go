@@ -180,7 +180,7 @@ type Config struct {
 	GoogleDriveClientSecret string
 	GoogleDrivePickerAPIKey string
 	GoogleDriveAppID        string
-	DriveProvider           string
+	DriveFakeProvider       bool
 	SMTPHost                string
 	SMTPPort                string
 	SMTPUsername            string
@@ -445,6 +445,8 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	driveFakeRaw := strings.TrimSpace(os.Getenv("DRIVE_FAKE_PROVIDER"))
+	driveFakeProvider := driveFakeRaw == "1" || strings.EqualFold(driveFakeRaw, "true")
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -524,7 +526,7 @@ func Load() (Config, error) {
 		GoogleDriveClientSecret:       os.Getenv("GOOGLE_DRIVE_CLIENT_SECRET"),
 		GoogleDrivePickerAPIKey:       os.Getenv("GOOGLE_DRIVE_PICKER_API_KEY"),
 		GoogleDriveAppID:              os.Getenv("GOOGLE_DRIVE_APP_ID"),
-		DriveProvider:                 strings.ToLower(strings.TrimSpace(os.Getenv("DRIVE_PROVIDER"))),
+		DriveFakeProvider:             driveFakeProvider,
 		SMTPHost:                      os.Getenv("SMTP_HOST"),
 		SMTPPort:                      getenv("SMTP_PORT", "25"),
 		SMTPUsername:                  os.Getenv("SMTP_USERNAME"),
@@ -622,6 +624,9 @@ func Load() (Config, error) {
 	c.SecureCookies = strings.EqualFold(u.Scheme, "https")
 	if a, err := url.Parse(c.APIPublicURL); err != nil || a.Scheme == "" || a.Host == "" {
 		return c, fmt.Errorf("API_PUBLIC_URL must be an absolute origin like https://api.example.com, got %q", c.APIPublicURL)
+	}
+	if strings.EqualFold(c.AppEnv, "production") && (c.DriveFakeProvider || (driveFakeRaw != "" && driveFakeRaw != "0" && !strings.EqualFold(driveFakeRaw, "false"))) {
+		return c, fmt.Errorf("DRIVE_FAKE_PROVIDER is refused when APP_ENV=production")
 	}
 	// Swagger is opt-in in production (ENABLE_SWAGGER=1). Locally it is on
 	// unless the operator sets ENABLE_SWAGGER=0: GNU Make 3.81 (macOS stock)
