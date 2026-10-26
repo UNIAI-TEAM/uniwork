@@ -6,6 +6,7 @@ import { CircleAlert, BuildingComplex } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAdminFlags,
+  useAdminMe,
   useAdminOrganization,
   useAllFlagOverrides,
   useChangeOrganizationPlan,
@@ -29,6 +30,7 @@ import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageState } from "../layout/collection-page";
 import { AppLink } from "../navigation";
 import { FlagOverrideRow } from "./flag-override-row";
+import { OrganizationDeletionBanner, OrganizationDeletionButton } from "./organization-deletion";
 import { ReasonDialog } from "./reason-dialog";
 import { formatDateTime, OrganizationStatusBadge } from "./status-badge";
 
@@ -233,6 +235,13 @@ function Detail({ detail, orgId }: { detail: AdminOrganizationDetail; orgId: str
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setAction("plan")}>
               {t("change_plan")}
             </Button>
+            <OrganizationDeletionButton
+              orgId={orgId}
+              name={org.name}
+              slug={org.slug}
+              scheduledAt={detail.deletion_scheduled_at}
+              erased={detail.erased}
+            />
           </>
         }
       />
@@ -242,6 +251,7 @@ function Detail({ detail, orgId }: { detail: AdminOrganizationDetail; orgId: str
           {detail.suspended_reason ? <span className="ml-1 text-foreground">{detail.suspended_reason}</span> : null}
         </div>
       ) : null}
+      <OrganizationDeletionBanner scheduledAt={detail.deletion_scheduled_at} erased={detail.erased} />
       <Tabs defaultValue="overview" className="gap-0">
         <TabsList variant="line" className="px-4">
           <TabsTrigger value="overview">{t("tabs.overview")}</TabsTrigger>
@@ -305,7 +315,11 @@ function Detail({ detail, orgId }: { detail: AdminOrganizationDetail; orgId: str
 export function AdminOrganizationDetailView({ orgId }: { orgId: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.detail" });
   const detail = useAdminOrganization(orgId);
-  if (detail.isPending) {
+  // The deletion button reads the platform role and renders nothing until it
+  // arrives. Start that read with the detail so the banner and the button
+  // show up in the same paint.
+  const me = useAdminMe();
+  if (detail.isPending || me.isPending) {
     return (
       <>
         <BreadcrumbHeader segments={[{ href: paths.admin.root(), label: t("crumb") }]} leaf={<Skeleton className="h-4 w-32" />} />

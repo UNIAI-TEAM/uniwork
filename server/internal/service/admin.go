@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -45,6 +46,8 @@ type AdminService struct {
 	flagChain  []string
 	// remover takes a reported message down (RemoveReportedMessage); nil until start-up wires it.
 	remover ReportedContentRemover
+	// deletion schedules or cancels the privacy deletion; nil until start-up wires it.
+	deletion OrganizationDeletionQueue
 }
 
 func NewAdminService(pool *pgxpool.Pool, q *db.Queries, billing *BillingService, ent *EntitlementService) *AdminService {
@@ -538,6 +541,70 @@ type ReportedContentRemover interface {
 // SetReportedContentRemover wires the takedown (cmd/server/main.go).
 func (s *AdminService) SetReportedContentRemover(r ReportedContentRemover) {
 	s.remover = r
+}
+
+// OrganizationDeletionQueue schedules or cancels an organization's 5-day
+// privacy deletion, running the hook inside the queue's transaction so the
+// console's audit commits with it (ADR 0046). The methods are unexported so
+// only this package implements it; the privacy service does, and the console
+// reaches nothing else of it (no export, no download).
+type OrganizationDeletionQueue interface {
+	queueDeletion(ctx context.Context, actorID, orgID, confirmSlug string, meta map[string]any, hook func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest, eraseAt time.Time) error) (db.DataSubjectRequest, error)
+	cancelDeletion(ctx context.Context, actorID, orgID string, meta map[string]any, hook func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest) error) (db.DataSubjectRequest, error)
+}
+
+// SetOrganizationDeletionQueue wires the deletion queue (cmd/server/main.go).
+func (s *AdminService) SetOrganizationDeletionQueue(d OrganizationDeletionQueue) {
+	s.deletion = d
+}
+
+func (s *AdminService) ScheduleOrganizationDeletion(ctx context.Context, adminID, orgID, confirmSlug, reason string) (time.Time, error) {
+	if err := checkReason(reason); err != nil {
+		return time.Time{}, err
+	}
+	if s.deletion == nil {
+		return time.Time{}, coded(http.StatusServiceUnavailable, "privacy_unavailable", "xuất dữ liệu chưa khả dụng")
+	}
+	ctx, traceID := ensureTrace(ctx)
+	trimmed := strings.TrimSpace(reason)
+	row, err := s.deletion.queueDeletion(ctx, adminID, orgID, confirmSlug, map[string]any{
+		"platform_admin": true,
+		"reason":         trimmed,
+	}, func(ctx context.Context, q *db.Queries, _ db.DataSubjectRequest, eraseAt time.Time) error {
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.deletion_scheduled", "organization", orgID,
+			map[string]any{"deletion_scheduled_at": nil},
+			map[string]any{"deletion_scheduled_at": eraseAt.Format(time.RFC3339)},
+			trimmed)
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	return row.EraseAt.Time, nil
+}
+
+func (s *AdminService) CancelOrganizationDeletion(ctx context.Context, adminID, orgID, reason string) error {
+	if err := checkReason(reason); err != nil {
+		return err
+	}
+	if s.deletion == nil {
+		return coded(http.StatusServiceUnavailable, "privacy_unavailable", "xuất dữ liệu chưa khả dụng")
+	}
+	ctx, traceID := ensureTrace(ctx)
+	trimmed := strings.TrimSpace(reason)
+	_, err := s.deletion.cancelDeletion(ctx, adminID, orgID, map[string]any{
+		"platform_admin": true,
+		"reason":         trimmed,
+	}, func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest) error {
+		var before any
+		if row.EraseAt.Valid {
+			before = row.EraseAt.Time.UTC().Format(time.RFC3339)
+		}
+		return s.recordAdmin(ctx, q, traceID, adminID, "organization.deletion_cancelled", "organization", orgID,
+			map[string]any{"deletion_scheduled_at": before},
+			map[string]any{"deletion_scheduled_at": nil},
+			trimmed)
+	})
+	return err
 }
 
 // errTakedownUnavailable: a process started without the chat side (the CLI).

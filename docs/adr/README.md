@@ -55,6 +55,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0043](0043-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
 | [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) | Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang kênh Hỏi UNI |
 | [0045](0045-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
+| [0046](0046-console-xep-xoa-to-chuc-qua-mot-cua.md) | Lệnh ghi content thứ hai của console: xếp hoặc hoàn tác lịch xóa tổ chức 5 ngày qua `OrganizationDeletionQueue` (`queueDeletion`, `cancelDeletion`; nối `privacySvc` ở `main.go`); `AdminService` không giữ `*PrivacyExportService` nên không xuất hay tải tệp tenant; `recordAdmin` chạy trong giao dịch của hàng đợi; bổ sung cho 0042 |
 
 ## Bản nháp
 
@@ -102,3 +103,7 @@ job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 
 [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) (Hỏi UNI ghi qua đề xuất, UNI-2148)
 được chấp nhận ngày 2026-10-23 khi chủ sản phẩm duyệt kế hoạch P3. Spec Hỏi UNI v2 gọi nó là "ADR 0034";
 số đó đã dùng cho khóa BYOK của desktop nên bản nháp lấy 0044.
+
+[0046](0046-console-xep-xoa-to-chuc-qua-mot-cua.md) (xếp xóa tổ chức từ console) được chấp nhận
+ngày 2026-10-23 với số 0044 trên nhánh gộp; khi merge develop số 0044 đã là Hỏi UNI và 0045 là agent họp,
+nên cửa hẹp này nhận số 0046.
