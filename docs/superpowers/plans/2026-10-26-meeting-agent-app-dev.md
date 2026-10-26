@@ -1,6 +1,6 @@
 # App-dev meeting-agent Implementation Plan
 
-> **Trạng thái:** in-progress — chưa triển khai.
+> **Trạng thái:** in-progress — code trên nhánh `feature/meeting-agent-app-dev`; kiểm tra host ở spec §8 còn pending.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
