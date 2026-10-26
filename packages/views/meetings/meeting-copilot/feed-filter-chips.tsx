@@ -18,21 +18,22 @@ const MARK: Record<MeetingFeedKind, { tone: string; Icon: LucideIcon | null }> =
 };
 
 /**
- * The round mark of a feed kind: 20px on a filter chip, 26px at the head of
- * a feed row. With a `label` it is an image named by its kind; without, decoration.
+ * The round mark of a feed kind: 20px on a filter chip, 24px on the empty
+ * state's sample rows, 26px at the head of a feed row. With a `label` it is an
+ * image named by its kind; without, decoration.
  */
-export function FeedKindMark({ kind, size, label }: { kind: MeetingFeedKind; size: "chip" | "row"; label?: string }) {
+export function FeedKindMark({ kind, size, label }: { kind: MeetingFeedKind; size: "chip" | "sample" | "row"; label?: string }) {
   const { tone, Icon } = MARK[kind];
   return (
     <span
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-bold leading-none",
-        size === "chip" ? "size-5 text-caption" : "size-6.5 text-label",
+        { chip: "size-5 text-caption", sample: "size-6 text-caption", row: "size-6.5 text-label" }[size],
         tone,
       )}
     >
-      {Icon ? <Icon aria-hidden className={size === "chip" ? "size-3" : "size-3.5"} /> : "?"}
+      {Icon ? <Icon aria-hidden className={size === "row" ? "size-3.5" : "size-3"} /> : "?"}
     </span>
   );
 }

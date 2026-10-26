@@ -5129,6 +5129,16 @@
         "playRecording": "Play recording",
         "addDue": "+ Due",
         "jumpToLine": "See what was said at {{time}}"
+      },
+      "empty": {
+        "title": "UNI Scribe is listening",
+        "line": "Key points show up here as soon as someone speaks.",
+        "decided": "Decided",
+        "todo": "To-do",
+        "asked": "Asked",
+        "carried_one": "{{count}} open item",
+        "carried_other": "{{count}} open items",
+        "carriedFrom": "From earlier meetings"
       }
     }
   },

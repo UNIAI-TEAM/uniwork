@@ -5128,6 +5128,16 @@
         "playRecording": "Phát bản ghi",
         "addDue": "+ Hạn",
         "jumpToLine": "Xem câu nói lúc {{time}}"
+      },
+      "empty": {
+        "title": "Thư ký UNI đang nghe",
+        "line": "Ý chính sẽ hiện ở đây ngay khi có người nói.",
+        "decided": "Chốt",
+        "todo": "Việc",
+        "asked": "Hỏi",
+        "carried_one": "{{count}} việc còn mở",
+        "carried_other": "{{count}} việc còn mở",
+        "carriedFrom": "Từ lần họp trước"
       }
     }
   },

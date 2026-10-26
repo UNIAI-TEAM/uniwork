@@ -11,7 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 
-type ScribeChipState = "on" | "paused" | "joining" | "failed" | "off";
+export type ScribeChipState = "on" | "paused" | "joining" | "failed" | "off";
 
 /**
  * What the chip says: the agent in the room wins over what the server last
