@@ -3,6 +3,7 @@
 // convertLegacySpreadsheet (index.ts). The byte streams are built here, record
 // by record, so each branch is reached with a known input.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BiffError, readBiff8Workbook } from "./biff8.ts";
 import { CfbError, readCompoundStreams } from "./cfb.ts";
@@ -107,19 +108,33 @@ describe("readBiff8Workbook cell records", () => {
 
   it("decodes the four RK encodings: integer, integer/100, IEEE and IEEE/100", () => {
     const float15 = new DataView(new Uint8Array(f64(1.5)).buffer).getUint32(4, true); // high dword of 1.5
+    // MS-XLS 2.5.122 RkNumber: bit 0 = fX100 (divide by 100), bit 1 = fInt (signed 30-bit integer rk >> 2).
     const body = [
-      ...rkCell(0, 0, ((5 << 2) | 1) >>> 0),
+      ...rkCell(0, 0, ((5 << 2) | 2) >>> 0),
       ...rkCell(1, 0, ((500 << 2) | 3) >>> 0),
       ...rkCell(2, 0, float15),
-      ...rkCell(3, 0, (float15 | 2) >>> 0),
-      ...rkCell(4, 0, ((-3 << 2) | 1) >>> 0),
+      ...rkCell(3, 0, (float15 | 1) >>> 0),
+      ...rkCell(4, 0, ((-3 << 2) | 2) >>> 0),
     ];
     expect(cellsOf(workbook([{ name: "S", body }]))).toEqual({ A1: "5", A2: "5", A3: "1.5", A4: "0.015", A5: "-3" });
   });
 
   it("expands a MULRK record into consecutive columns", () => {
-    const mulrk = rec(0x00bd, [...u16(4), ...u16(1), ...u16(0), ...u32((10 << 2) | 1), ...u16(0), ...u32((20 << 2) | 1), ...u16(2)]);
+    const mulrk = rec(0x00bd, [...u16(4), ...u16(1), ...u16(0), ...u32((10 << 2) | 2), ...u16(0), ...u32((20 << 2) | 2), ...u16(2)]);
     expect(cellsOf(workbook([{ name: "S", body: mulrk }]))).toEqual({ B5: "10", C5: "20" });
+  });
+
+  it("decodes RK cells in real Apache POI Excel workbooks (poi-FormatKM.xls and poi-44010-TwoCharts.xls)", () => {
+    const rkFixture = (name: string): Uint8Array =>
+      new Uint8Array(readFileSync(new URL(`../../../test/fixtures/biff8-rk/${name}`, import.meta.url)));
+
+    const formatKm = convertLegacySpreadsheet(rkFixture("poi-FormatKM.xls"));
+    expect(formatKm.content.cells["Sheet1!A2"]).toBe("1.02");
+    expect(formatKm.content.cells["Sheet1!A6"]).toBe("1021.02");
+
+    const twoCharts = convertLegacySpreadsheet(rkFixture("poi-44010-TwoCharts.xls"));
+    expect(twoCharts.content.cells["auto_1!D3"]).toBe("46.4");
+    expect(twoCharts.content.cells["auto_1!E3"]).toBe("0.7");
   });
 
   it("reads BOOLERR booleans and drops error values", () => {
