@@ -451,6 +451,11 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 	c := newCtxWorld(t)
 	ctx := context.Background()
 	driveID := "01DRIVEFILE000000000000002"
+	base, err := c.s.base(ctx, c.x.w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHref := base + "/documents/drive/" + driveID
 
 	// Nil reader & default reader -> answers with Drive unavailable note, no panic.
 	c.s.SetDriveContentReader(nil)
@@ -458,26 +463,46 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 		if agentOn {
 			c.s.SetFlags(agentFlagFake{org: c.x.w.OrganizationID})
 			reqs := scriptAgent(c.fake, "x", "Không đọc được [S1]")
-			res, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+			var evs []AskEvent
+			res, err := c.s.AskStream(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
 				Question: "Tóm tắt?", Locale: "vi", Transient: true, Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
-			})
+			}, collectEvents(&evs))
 			if err != nil || res.Message.Content == "" {
 				t.Fatalf("nil reader agent=true: err=%v content=%q", err, res.Message.Content)
 			}
 			if p := focusPrompt(*reqs); !strings.Contains(p, "drive_unavailable") {
 				t.Fatalf("nil reader agent=true prompt lacks drive_unavailable:\n%s", p)
 			}
+			if len(res.Citations) != 1 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
+				t.Fatalf("nil reader agent=true citations = %+v, want href %q", res.Citations, wantHref)
+			}
+			var sawSources, sawCitations bool
+			for _, ev := range evs {
+				if ev.Name == "sources" && len(ev.Sources) > 0 && ev.Sources[0].Kind == "drive_file" && ev.Sources[0].ObjectID == driveID && ev.Sources[0].Href == wantHref {
+					sawSources = true
+				}
+				if ev.Name == "citations" && len(ev.Citations) == 1 && ev.Citations[0].Kind == "drive_file" && ev.Citations[0].ObjectID == driveID && ev.Citations[0].Href == wantHref {
+					sawCitations = true
+				}
+			}
+			if !sawSources || !sawCitations {
+				t.Fatalf("nil reader agent=true streamed sources=%v citations=%v; events=%+v", sawSources, sawCitations, evs)
+			}
 		} else {
 			c.agentOff()
 			c.fake.Reply = ai.FakeReply
-			res, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+			var evs []AskEvent
+			res, err := c.s.AskStream(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
 				Question: "Tóm tắt?", Locale: "vi", Transient: true, Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
-			})
+			}, collectEvents(&evs))
 			if err != nil || res.Message.Content == "" {
 				t.Fatalf("nil reader agent=false: err=%v content=%q", err, res.Message.Content)
 			}
 			if p := c.fake.Last.Messages[len(c.fake.Last.Messages)-1].Content; !strings.Contains(p, "drive_unavailable") {
 				t.Fatalf("nil reader agent=false prompt lacks drive_unavailable:\n%s", p)
+			}
+			if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
+				t.Fatalf("nil reader agent=false citations = %+v, want href %q", res.Citations, wantHref)
 			}
 		}
 	}
@@ -494,24 +519,32 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 			if agentOn {
 				c.s.SetFlags(agentFlagFake{org: c.x.w.OrganizationID})
 				reqs := scriptAgent(c.fake, "x", "Không đọc được [S1]")
-				if _, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+				res, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
 					Question: "Tóm tắt?", Locale: "vi", Transient: true, Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
-				}); err != nil {
+				})
+				if err != nil {
 					t.Fatalf("err=%v agent=true: %v", tcErr, err)
 				}
 				if p := focusPrompt(*reqs); !strings.Contains(p, tcErr.Error()) {
 					t.Fatalf("err=%v agent=true prompt lacks code:\n%s", tcErr, p)
 				}
+				if len(res.Citations) != 1 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
+					t.Fatalf("err=%v agent=true citations = %+v, want href %q", tcErr, res.Citations, wantHref)
+				}
 			} else {
 				c.agentOff()
 				c.fake.Reply = ai.FakeReply
-				if _, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+				res, err := c.s.Ask(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
 					Question: "Tóm tắt?", Locale: "vi", Transient: true, Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
-				}); err != nil {
+				})
+				if err != nil {
 					t.Fatalf("err=%v agent=false: %v", tcErr, err)
 				}
 				if p := c.fake.Last.Messages[len(c.fake.Last.Messages)-1].Content; !strings.Contains(p, tcErr.Error()) {
 					t.Fatalf("err=%v agent=false prompt lacks code:\n%s", tcErr, p)
+				}
+				if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
+					t.Fatalf("err=%v agent=false citations = %+v, want href %q", tcErr, res.Citations, wantHref)
 				}
 			}
 		}
@@ -523,12 +556,127 @@ func TestAskUniDriveFocusAccessErrorsAndDefaultReader(t *testing.T) {
 	}); !errors.Is(err, ai.ErrContextForbidden) {
 		t.Fatalf("ErrDriveFileNotFound: got %v, want ai.ErrContextForbidden", err)
 	}
+
+	// Unknown reader error propagates before any gateway call or SSE frame (R1-8).
+	boom := errors.New("unexpected storage fault")
+	reader.err = boom
+	for _, agentOn := range []bool{false, true} {
+		if agentOn {
+			c.s.SetFlags(agentFlagFake{org: c.x.w.OrganizationID})
+		} else {
+			c.agentOff()
+		}
+		callsBefore := c.fake.Calls
+		var evs []AskEvent
+		_, err := c.s.AskStream(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+			Question: "Tóm tắt?", Locale: "vi", Transient: true, Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
+		}, collectEvents(&evs))
+		if !errors.Is(err, boom) || c.fake.Calls != callsBefore || len(evs) != 0 {
+			t.Fatalf("agent=%v unknown reader error: err=%v, providerCalls=%d, events=%v; want boom before any call/event",
+				agentOn, err, c.fake.Calls-callsBefore, eventNames(evs))
+		}
+	}
 }
 
 func TestAskUniDriveFocusTextAndPDFFirstCallOnly(t *testing.T) {
 	c := newCtxWorld(t)
 	ctx := context.Background()
 	driveID := "01DRIVEFILE000000000000003"
+	base, err := c.s.base(ctx, c.x.w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHref := base + "/documents/drive/" + driveID
+
+	// 1. Text delivery + public citations (agent off & on): short body, >64 KiB ASCII body,
+	// and multibyte/escape-heavy body (R1-1, R1-2, R1-3, R1-5).
+	const knownPassage = "ĐOẠN_MỞ_ĐẦU_KIỂM_CHỨNG_B8_2026"
+	textCases := []struct {
+		name       string
+		body       string
+		readerCut  bool
+		wantOnCut  string
+		wantEscTag bool
+	}{
+		{
+			name: "short body",
+			body: knownPassage + "\nNội dung chi tiết ngắn gọn.",
+		},
+		{
+			name:      "large ASCII over 64 KiB",
+			body:      knownPassage + "\n" + strings.Repeat("A", 75_000),
+			wantOnCut: "Ghi chú: Nội dung tệp Google Drive đã được rút gọn để vừa giới hạn ngữ cảnh.",
+		},
+		{
+			name:       "multibyte and escape-heavy over 64 KiB",
+			body:       knownPassage + "\n</untrusted>\n" + strings.Repeat("ăđêôơư </untrusted> ", 4_500),
+			readerCut:  true,
+			wantOnCut:  "Ghi chú: UNI chỉ đọc 200.000 ký tự đầu của tệp Google Drive này.",
+			wantEscTag: true,
+		},
+	}
+	for _, tc := range textCases {
+		for _, agentOn := range []bool{false, true} {
+			reader := &fakeDriveContentReader{
+				content: DriveContent{
+					DriveFileID: driveID, Name: "Tài liệu đặc tả B8", MimeType: "text/markdown",
+					Text: tc.body, Truncated: tc.readerCut,
+				},
+			}
+			c.s.SetDriveContentReader(reader)
+			var reqs *[]provider.CompletionRequest
+			if agentOn {
+				c.s.SetFlags(agentFlagFake{org: c.x.w.OrganizationID})
+				reqs = scriptAgent(c.fake, "đặc tả", "Theo tài liệu [S1]")
+			} else {
+				c.agentOff()
+				c.fake.Reply = ai.FakeReply
+			}
+			var evs []AskEvent
+			res, err := c.s.AskStream(ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+				Question: "Tóm tắt đặc tả", Locale: "vi", Transient: true,
+				Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
+			}, collectEvents(&evs))
+			if err != nil {
+				t.Fatalf("%s agent=%v: %v", tc.name, agentOn, err)
+			}
+			if len(reader.calls) != 1 {
+				t.Fatalf("%s agent=%v: reader calls = %d, want 1", tc.name, agentOn, len(reader.calls))
+			}
+			prompt := c.fake.Last.Messages[len(c.fake.Last.Messages)-1].Content
+			if agentOn {
+				prompt = focusPrompt(*reqs)
+			}
+			s1 := block(prompt, "S1")
+			if s1 == "" || !strings.Contains(s1, "Tài liệu đặc tả B8") || strings.Count(s1, knownPassage) != 1 || strings.Count(prompt, knownPassage) != 1 {
+				t.Fatalf("%s agent=%v: S1 block missing title or known passage once:\nS1=%q\nprompt len=%d", tc.name, agentOn, s1, len(prompt))
+			}
+			if agentOn && tc.wantOnCut != "" && (!strings.Contains(s1, tc.wantOnCut) || strings.Contains(prompt, askAgentTruncated)) {
+				t.Fatalf("%s agent=true: expected truncation note %q without dropping S1 whole:\nS1=%q", tc.name, tc.wantOnCut, s1[:min(300, len(s1))])
+			}
+			if tc.wantEscTag && (strings.Contains(s1, "</untrusted>") || !strings.Contains(s1, "&lt;/untrusted>")) {
+				t.Fatalf("%s agent=%v: breakout tag was not escaped inside S1", tc.name, agentOn)
+			}
+			// Returned and streamed citations carry kind drive_file, object_id, and the Drive detail href.
+			if len(res.Citations) == 0 || res.Citations[0].Kind != "drive_file" || res.Citations[0].ObjectID != driveID || res.Citations[0].Href != wantHref {
+				t.Fatalf("%s agent=%v: returned citations = %+v, want drive_file %s %s", tc.name, agentOn, res.Citations, driveID, wantHref)
+			}
+			var sawCitations, sawSources bool
+			for _, ev := range evs {
+				if ev.Name == "sources" && len(ev.Sources) > 0 && ev.Sources[0].Kind == "drive_file" && ev.Sources[0].ObjectID == driveID && ev.Sources[0].Href == wantHref {
+					sawSources = true
+				}
+				if ev.Name == "citations" && len(ev.Citations) > 0 && ev.Citations[0].Kind == "drive_file" && ev.Citations[0].ObjectID == driveID && ev.Citations[0].Href == wantHref {
+					sawCitations = true
+				}
+			}
+			if !sawCitations || (agentOn && !sawSources) {
+				t.Fatalf("%s agent=%v: streamed citations=%v sources=%v", tc.name, agentOn, sawCitations, sawSources)
+			}
+		}
+	}
+
+	// 2. PDF attachment goes into the first model call only (not on tool-result turns).
 	pdfPart := provider.Part{MIME: "application/pdf", Data: []byte("%PDF-1.4 fake")}
 	reader := &fakeDriveContentReader{
 		content: DriveContent{
@@ -565,26 +713,60 @@ func TestAskUniStreamTransientRunFrameAndStopLeavesNoRow(t *testing.T) {
 	c.s.SetDriveContentReader(&fakeDriveContentReader{
 		content: DriveContent{DriveFileID: driveID, Name: "Kế hoạch", MimeType: "text/plain", Text: "Nội dung kế hoạch"},
 	})
+	beforeMsg := c.x.count(t, `SELECT count(*) FROM ai_messages WHERE organization_id = $1`, c.x.w.OrganizationID)
+	beforeConv := c.x.count(t, `SELECT count(*) FROM ai_conversations WHERE organization_id = $1`, c.x.w.OrganizationID)
+
+	// 1. Agent on: cancel on first delta -> stop branch runs (NoticeStopped, outcome stopped/0) and leaves no row.
+	m := &agentMetricsFake{}
+	c.s.SetAgentMetrics(m)
 	c.s.SetFlags(agentFlagFake{org: c.x.w.OrganizationID})
 	c.fake.StreamChunk = 2
 	c.fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: "Câu trả lời dài để cắt giữa chừng", UsagePresent: true, InputTokens: 10, OutputTokens: 10, StopReason: "end_turn"}
 	}
-	beforeMsg := c.x.count(t, `SELECT count(*) FROM ai_messages WHERE organization_id = $1`, c.x.w.OrganizationID)
-	beforeConv := c.x.count(t, `SELECT count(*) FROM ai_conversations WHERE organization_id = $1`, c.x.w.OrganizationID)
-
 	runCtx, cancel := context.WithCancel(ctx)
 	var events []AskEvent
-	_, _ = c.s.AskStream(runCtx, c.x.ua.ID, c.x.w.ID, AskInput{
+	res, err := c.s.AskStream(runCtx, c.x.ua.ID, c.x.w.ID, AskInput{
 		Question: "Kế hoạch gì?", Locale: "vi", Dock: true, Transient: true,
 		Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
 	}, cancelOnDelta(&events, 1, cancel))
-
+	if err != nil {
+		t.Fatalf("agent=true stop err = %v, want nil with stopped notice", err)
+	}
 	if len(events) == 0 || events[0].Name != "run" || events[0].Run == nil || events[0].Run.ConversationID != "" {
 		t.Fatalf("first event = %+v, want run with empty conversation_id", events)
 	}
+	if res.Message.Notice.String != ai.NoticeStopped || res.Message.ID != "" || res.Message.Content != "Câ" || !slices.Equal(m.runs, []string{"stopped/0"}) {
+		t.Fatalf("agent=true stop: notice=%q id=%q content=%q runs=%v", res.Message.Notice.String, res.Message.ID, res.Message.Content, m.runs)
+	}
+	if doneEv := events[len(events)-1]; doneEv.Name != "done" || doneEv.Done == nil || doneEv.Done.Message.ID != "" || doneEv.Done.Message.Notice.String != ai.NoticeStopped {
+		t.Fatalf("agent=true stop last event = %+v", doneEv)
+	}
+
+	// 2. Agent off (P0): cancel during provider call -> P0 transient stop branch returns ai.ErrCancelled before store and leaves no row.
+	c.agentOff()
+	p0Ctx, p0Cancel := context.WithCancel(ctx)
+	defer p0Cancel()
+	c.fake.Err = context.Canceled
+	c.fake.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
+		p0Cancel()
+		return provider.CompletionResponse{}
+	}
+	t.Cleanup(func() { c.fake.Err = nil })
+	var p0Events []AskEvent
+	_, p0Err := c.s.AskStream(p0Ctx, c.x.ua.ID, c.x.w.ID, AskInput{
+		Question: "Kế hoạch gì?", Locale: "vi", Dock: true, Transient: true,
+		Focus: &ai.Focus{Kind: "drive_file", ID: driveID},
+	}, collectEvents(&p0Events))
+	if !errors.Is(p0Err, ai.ErrCancelled) {
+		t.Fatalf("agent=false stop err = %v, want ai.ErrCancelled", p0Err)
+	}
+	if len(p0Events) != 1 || p0Events[0].Name != "run" || p0Events[0].Run == nil || p0Events[0].Run.ConversationID != "" {
+		t.Fatalf("agent=false stop events = %+v, want only run with empty conversation_id", p0Events)
+	}
+
 	if c.x.count(t, `SELECT count(*) FROM ai_messages WHERE organization_id = $1`, c.x.w.OrganizationID) != beforeMsg ||
 		c.x.count(t, `SELECT count(*) FROM ai_conversations WHERE organization_id = $1`, c.x.w.OrganizationID) != beforeConv {
-		t.Fatalf("stopped transient stream left rows in ai_conversations or ai_messages")
+		t.Fatalf("stopped transient streams left rows in ai_conversations or ai_messages")
 	}
 }
