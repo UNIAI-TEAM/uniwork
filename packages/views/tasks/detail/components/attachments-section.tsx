@@ -7,7 +7,7 @@ import { selectStandaloneAttachments } from "@uniwork/core/attachments/image-seq
 import { capabilityState } from "@uniwork/core/capabilities";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { useDriveConnections, useTaskDriveFiles } from "@uniwork/core/drive";
-import { useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
+import { EMPTY_CONFIG, usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   useDeleteAttachment,
   useTaskAttachments,
@@ -31,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { GoogleDriveMark } from "../../../common/provider-icons";
 import {
   Attachment as AttachmentRenderer,
@@ -43,16 +44,9 @@ import {
   useDrivePicker,
   type DrivePickerAdapter,
 } from "../../../integrations/drive-picker";
-import { DRIVE_CONNECTOR_FLAG } from "../../../settings/components/drive-integration-row";
+import { useDriveAvailable } from "../../../settings/components/drive-integration-row";
 import { toastApiError } from "../../../toast-api-error";
 import { DriveTaskFileCard } from "./drive-task-file-card";
-
-const EMPTY_CONFIG = {
-  flags: {} as Record<string, boolean>,
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-  drive: { available: false },
-} as const;
 
 export interface TaskDetailAttachmentsSectionProps {
   workspaceId: string;
@@ -60,6 +54,8 @@ export interface TaskDetailAttachmentsSectionProps {
   content?: string;
   /** Test / Storybook override for the Google Picker adapter. */
   pickerAdapter?: DrivePickerAdapter;
+  /** Whether the viewer can edit the task (add/remove attachments). Defaults to true. */
+  canEdit?: boolean;
 }
 
 /**
@@ -75,17 +71,14 @@ export function TaskDetailAttachmentsSection({
   taskId,
   content = "",
   pickerAdapter,
+  canEdit = true,
 }: TaskDetailAttachmentsSectionProps) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
   const config = publicConfig ?? EMPTY_CONFIG;
   const cap = capabilityState(config, "tasks.attachments");
   const available = cap.status === "available";
-
-  const flagFromContext = useFlag(DRIVE_CONNECTOR_FLAG, false);
-  const driveFlagEnabled =
-    flagFromContext || Boolean(config.flags?.[DRIVE_CONNECTOR_FLAG]);
-  const driveAvailable = driveFlagEnabled && Boolean(config.drive?.available);
+  const driveAvailable = useDriveAvailable();
 
   const attachmentsQuery = useTaskAttachments(workspaceId, taskId);
   const items = attachmentsQuery.data ?? [];
@@ -121,7 +114,7 @@ export function TaskDetailAttachmentsSection({
 
   const { isDragOver, dropZoneProps } = useFileDropZone({
     onDrop: handleUploadFiles,
-    enabled: available && !uploading,
+    enabled: canEdit && available && !uploading,
   });
 
   const picker = useDrivePicker({
@@ -143,11 +136,21 @@ export function TaskDetailAttachmentsSection({
     }
   };
 
+  const canAddUpload = canEdit && available;
+  const canAddDrive = canEdit && driveAvailable;
+  const canAdd = canAddUpload || canAddDrive;
   const hasContent = driveFiles.length > 0 || standalone.length > 0;
+  const hasError =
+    attachmentsQuery.isError || (driveAvailable && driveFilesQuery.isError);
   const isInitialLoading =
-    attachmentsQuery.isLoading &&
-    (driveAvailable ? driveFilesQuery.isLoading : true);
+    !hasContent &&
+    !hasError &&
+    (attachmentsQuery.isLoading ||
+      (driveAvailable && driveFilesQuery.isLoading));
 
+  if (!hasContent && !canAdd && !isInitialLoading && !hasError) {
+    return null;
+  }
   return (
     <section
       aria-label={t("tasks.detail.attachments_section")}
@@ -159,24 +162,26 @@ export function TaskDetailAttachmentsSection({
           {t("tasks.detail.attachments_section")}
         </h2>
 
-        {available ? (
+        {canAdd ? (
           <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              aria-hidden="true"
-              tabIndex={-1}
-              onChange={(e) => {
-                const selected = Array.from(e.target.files ?? []);
-                if (selected.length === 0) return;
-                e.target.value = "";
-                handleUploadFiles(selected);
-              }}
-            />
+            {canAddUpload ? (
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files ?? []);
+                  if (selected.length === 0) return;
+                  e.target.value = "";
+                  handleUploadFiles(selected);
+                }}
+              />
+            ) : null}
 
-            {driveAvailable ? (
+            {canAddDrive ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -192,14 +197,16 @@ export function TaskDetailAttachmentsSection({
                   <ChevronDown data-icon="inline-end" aria-hidden="true" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    <Upload aria-hidden="true" />
-                    <span>{t("drive.attach_menu.upload_file")}</span>
-                  </DropdownMenuItem>
+                  {canAddUpload ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <Upload aria-hidden="true" />
+                      <span>{t("drive.attach_menu.upload_file")}</span>
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuItem
                     onClick={() => {
                       picker.open();
@@ -211,7 +218,7 @@ export function TaskDetailAttachmentsSection({
                     />
                     <div className="flex min-w-0 flex-col">
                       <span>{t("drive.attach_menu.from_drive")}</span>
-                      {connectedCount > 0 ? (
+                      {connectedCount > 1 ? (
                         <span className="text-caption text-muted-foreground">
                           {t("drive.attach_menu.connected_accounts", {
                             count: connectedCount,
@@ -243,7 +250,7 @@ export function TaskDetailAttachmentsSection({
       {driveAvailable && driveFilesQuery.isError ? (
         <div
           role="alert"
-          className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive"
+          className="flex items-center justify-between gap-2 rounded-lg border border-destructive-soft-foreground/20 bg-destructive-soft px-3 py-2 text-caption text-destructive-soft-foreground"
         >
           <span>{t("drive.attachments.drive_load_error")}</span>
           <Button
@@ -262,7 +269,7 @@ export function TaskDetailAttachmentsSection({
       {attachmentsQuery.isError ? (
         <div
           role="alert"
-          className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive"
+          className="flex items-center justify-between gap-2 rounded-lg border border-destructive-soft-foreground/20 bg-destructive-soft px-3 py-2 text-caption text-destructive-soft-foreground"
         >
           <span>{t("drive.attachments.uploads_load_error")}</span>
           <Button
@@ -297,9 +304,9 @@ export function TaskDetailAttachmentsSection({
                   <AttachmentRenderer
                     key={attachment.id}
                     attachment={{ kind: "record", attachment }}
-                    editable={available}
+                    editable={canAddUpload}
                     onDelete={
-                      available
+                      canAddUpload
                         ? () => setPendingDelete(attachment)
                         : undefined
                     }
@@ -309,9 +316,14 @@ export function TaskDetailAttachmentsSection({
             </AttachmentDownloadProvider>
           ) : null}
         </div>
-      ) : !isInitialLoading &&
-        !attachmentsQuery.isError &&
-        !(driveAvailable && driveFilesQuery.isError) ? (
+      ) : isInitialLoading ? (
+        <div
+          data-testid="task-attachments-loading"
+          className="flex flex-col gap-2"
+        >
+          <Skeleton className="h-12 w-full rounded-lg" />
+        </div>
+      ) : canAdd && !hasError ? (
         <div
           data-testid="task-attachments-empty"
           className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3.5 py-2.5 text-caption text-muted-foreground"

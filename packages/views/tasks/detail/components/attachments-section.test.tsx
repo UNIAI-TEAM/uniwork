@@ -2,6 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import type { DriveTaskFileCard } from "@uniwork/core/drive";
+import {
+  FeatureFlagService,
+  FeatureFlagsProvider,
+  StaticProvider,
+} from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { createFakeDrivePickerAdapter } from "../../../integrations/drive-picker";
@@ -74,11 +79,13 @@ const attachmentsState = vi.hoisted(() => ({
     created_at: string;
   }>,
   isError: false,
+  isLoading: false,
 }));
 
 const driveState = vi.hoisted(() => ({
   files: [] as DriveTaskFileCard[],
   isError: false,
+  isLoading: false,
   connections: [
     {
       id: "dc_1",
@@ -99,7 +106,7 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
     ...actual,
     useTaskAttachments: () => ({
       data: attachmentsState.isError ? undefined : attachmentsState.data,
-      isLoading: false,
+      isLoading: attachmentsState.isLoading,
       isError: attachmentsState.isError,
     }),
     useDeleteAttachment: () => ({
@@ -119,7 +126,7 @@ vi.mock("@uniwork/core/drive", async (importOriginal) => {
     ...actual,
     useTaskDriveFiles: () => ({
       data: driveState.isError ? undefined : driveState.files,
-      isLoading: false,
+      isLoading: driveState.isLoading,
       isError: driveState.isError,
     }),
     useDriveConnections: () => ({
@@ -132,9 +139,9 @@ vi.mock("@uniwork/core/drive", async (importOriginal) => {
     }),
     useDrivePickerToken: () => ({
       mutateAsync: vi.fn().mockResolvedValue({
-        access_token: "ya29.tok",
+        access_token: "picker-tok",
         expires_at: "2026-10-26T10:30:00Z",
-        developer_key: "AIzaSyTest",
+        developer_key: "dev-key",
         app_id: "123456",
         google_email: "uni-work1@gmail.com",
       }),
@@ -164,11 +171,13 @@ const publicConfigState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@uniwork/core/feature-flags", () => ({
-  usePublicConfig: () => ({ data: publicConfigState.data }),
-  useFlag: (key: string, defaultValue: boolean) =>
-    publicConfigState.data.flags[key] ?? defaultValue,
-}));
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/feature-flags")>();
+  return {
+    ...actual,
+    usePublicConfig: () => ({ data: publicConfigState.data }),
+  };
+});
 
 vi.mock("@uniwork/core/api/http", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/api/http")>();
@@ -230,11 +239,20 @@ const sampleDriveCard: DriveTaskFileCard = {
   tasks_created: { count: 0 },
 };
 
-function shell(ui: React.ReactElement) {
+function shell(ui: React.ReactElement, opts?: { driveFlag?: boolean }) {
+  const driveFlag =
+    opts?.driveFlag ?? Boolean(publicConfigState.data.flags.drive_connector);
+  const service = new FeatureFlagService(
+    new StaticProvider({
+      drive_connector: { default: driveFlag },
+    }),
+  );
   return wrapWithNav(
-    <WorkspaceProvider workspace={workspace} user={me}>
-      {ui}
-    </WorkspaceProvider>,
+    <FeatureFlagsProvider service={service}>
+      <WorkspaceProvider workspace={workspace} user={me}>
+        {ui}
+      </WorkspaceProvider>
+    </FeatureFlagsProvider>,
   );
 }
 
@@ -250,8 +268,22 @@ beforeEach(() => {
   linkDriveFilesMutateAsync.mockClear();
   attachmentsState.data = [];
   attachmentsState.isError = false;
+  attachmentsState.isLoading = false;
   driveState.files = [];
   driveState.isError = false;
+  driveState.isLoading = false;
+  driveState.connections = [
+    {
+      id: "dc_1",
+      provider: "google",
+      google_email: "uni-work1@gmail.com",
+      status: "active",
+      needs_reconnect: false,
+      linked_file_count: 1,
+      connected_at: "2026-10-26T09:00:00Z",
+      updated_at: "2026-10-26T09:00:00Z",
+    },
+  ];
   publicConfigState.data = {
     flags: {},
     rum_sample_rate: 0,
@@ -269,7 +301,7 @@ beforeEach(() => {
 });
 
 describe("TaskDetailAttachmentsSection", () => {
-  it("renders the Attachments section with empty state when there are no files", () => {
+  it("renders the Attachments section with empty state when the viewer can add files", () => {
     render(
       shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
     );
@@ -283,6 +315,51 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(screen.getByTestId("task-attachments-empty")).toHaveTextContent(
       "Chưa có tệp đính kèm. Thả tệp vào đây hoặc dùng Thêm tệp.",
     );
+  });
+
+  it("renders nothing when there are no files and the viewer cannot add (read-only or both upload and Drive unavailable)", () => {
+    const { unmount } = render(
+      shell(
+        <TaskDetailAttachmentsSection
+          workspaceId="w1"
+          taskId="t1"
+          canEdit={false}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByRole("region", { name: /đính kèm|attachments/i }),
+    ).toBeNull();
+    expect(screen.queryByTestId("task-attachments-empty")).toBeNull();
+    unmount();
+
+    publicConfigState.data.work_management_capabilities["tasks.attachments"] = {
+      status: "unavailable",
+      reason_code: "surface_not_ready",
+      explanation_key: "capabilities.surface_not_ready",
+    };
+    publicConfigState.data.drive = { available: false };
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: false,
+      }),
+    );
+    expect(
+      screen.queryByRole("region", { name: /đính kèm|attachments/i }),
+    ).toBeNull();
+    expect(screen.queryByTestId("task-attachments-empty")).toBeNull();
+  });
+
+  it("renders a row skeleton during initial load", () => {
+    attachmentsState.isLoading = true;
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
+    );
+
+    expect(screen.getByTestId("task-attachments-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-attachments-empty")).toBeNull();
   });
 
   it("renders images inline and other files as attachment cards", () => {
@@ -504,8 +581,7 @@ describe("TaskDetailAttachmentsSection", () => {
     const fromDriveItem = await screen.findByRole("menuitem", {
       name: /Từ Google Drive/,
     });
-    expect(fromDriveItem).toHaveTextContent("1 tài khoản đã kết nối");
-
+    expect(fromDriveItem).not.toHaveTextContent("tài khoản đã kết nối");
     fireEvent.click(fromDriveItem);
 
     await waitFor(() => {
@@ -515,5 +591,74 @@ describe("TaskDetailAttachmentsSection", () => {
         task_id: "t1",
       });
     });
+  });
+
+  it("shows the connected account count only when > 1 and keeps the Drive menu item when no account is connected so the viewer can connect", async () => {
+    publicConfigState.data.flags = { drive_connector: true };
+    publicConfigState.data.drive = { available: true };
+    driveState.connections = [
+      {
+        id: "dc_1",
+        provider: "google",
+        google_email: "uni-work1@gmail.com",
+        status: "active",
+        needs_reconnect: false,
+        linked_file_count: 1,
+        connected_at: "2026-10-26T09:00:00Z",
+        updated_at: "2026-10-26T09:00:00Z",
+      },
+      {
+        id: "dc_2",
+        provider: "google",
+        google_email: "work2@vietants.vn",
+        status: "active",
+        needs_reconnect: false,
+        linked_file_count: 2,
+        connected_at: "2026-10-26T09:10:00Z",
+        updated_at: "2026-10-26T09:10:00Z",
+      },
+    ];
+
+    const { unmount } = render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm tệp" }));
+    const fromDriveWithTwo = await screen.findByRole("menuitem", {
+      name: /Từ Google Drive/,
+    });
+    expect(fromDriveWithTwo).toHaveTextContent("2 tài khoản đã kết nối");
+    unmount();
+
+    // With 0 connections and tasks.attachments unavailable (Drive-only viewer),
+    // the menu still appears and clicking "Từ Google Drive" opens the connect dialog.
+    publicConfigState.data.work_management_capabilities["tasks.attachments"] = {
+      status: "unavailable",
+      reason_code: "surface_not_ready",
+      explanation_key: "capabilities.surface_not_ready",
+    };
+    driveState.connections = [];
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm tệp" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Tải tệp lên" }),
+    ).toBeNull();
+    const fromDriveNoConn = await screen.findByRole("menuitem", {
+      name: /Từ Google Drive/,
+    });
+    expect(fromDriveNoConn).not.toHaveTextContent("tài khoản đã kết nối");
+    fireEvent.click(fromDriveNoConn);
+
+    expect(
+      await screen.findByRole("button", { name: "Kết nối Google Drive" }),
+    ).toBeInTheDocument();
   });
 });

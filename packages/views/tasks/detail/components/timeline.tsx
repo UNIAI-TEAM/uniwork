@@ -38,6 +38,7 @@ import {
   AvatarGroupCount,
 } from "@uniwork/ui/components/ui/avatar";
 import { toastApiError } from "../../../toast-api-error";
+import { useDriveAvailable } from "../../../settings/components/drive-integration-row";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
 import { useTaskThreadNavOptional } from "../thread-nav-context";
@@ -100,7 +101,10 @@ export function TaskDetailTimeline({
   const threadNav = useTaskThreadNavOptional();
   const { data: comments, isLoading } = useComments(taskId);
   const attachments = useTaskAttachments(workspaceId, taskId);
-  const driveFiles = useTaskDriveFiles(workspaceId, taskId);
+  const driveAvailable = useDriveAvailable();
+  useTaskDriveFiles(workspaceId, taskId, {
+    enabled: driveAvailable,
+  });
   const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
   const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);
@@ -230,9 +234,8 @@ export function TaskDetailTimeline({
         ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
         ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
         ...(projects.data?.projects ?? []).map((p) => [p.id, p.title] as const),
-        ...(driveFiles.data ?? []).map((f) => [f.id, f.name] as const),
       ]),
-    [members.data, agents.data, projects.data?.projects, driveFiles.data],
+    [members.data, agents.data, projects.data?.projects],
   );
   const displayEntries = useMemo(() => groupTimelineEntries(entries), [entries]);
 

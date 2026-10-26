@@ -507,4 +507,147 @@ describe("DriveTaskFileCard", () => {
 
     openSpy.mockRestore();
   });
+
+  it("renders bound_connection_lost badge with warning-soft tokens and access_lost_at non-blocking notice", () => {
+    renderCard(
+      makeCard({
+        bound_connection_lost: true,
+        access_lost_at: "2026-10-26T09:15:00Z",
+        viewer_access: "granted",
+      }),
+    );
+
+    const badge = screen.getByText("Mất kết nối");
+    expect(badge).toHaveClass(
+      "bg-warning-soft",
+      "text-warning-soft-foreground",
+    );
+    expect(
+      screen.getByTestId("task-drive-card-bound-access-lost-df_1"),
+    ).toHaveTextContent("Tài khoản gắn không còn quyền với tệp này.");
+  });
+
+  it("marks grant/repick and reconnect buttons aria-disabled and aria-busy while pending", async () => {
+    const grantGate = Promise.withResolvers<{ file: Record<string, unknown> }>();
+    const adapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "gdoc_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+
+    requestMock.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url === "/api/v1/workspaces/ws1/drive-connections") {
+        return Promise.resolve({ connections: [ACTIVE_CONN] });
+      }
+      if (
+        url === "/api/v1/workspaces/ws1/drive-connections/dc_2/picker-token" &&
+        opts?.method === "POST"
+      ) {
+        return Promise.resolve({
+          access_token: "tok-mai",
+          expires_at: "2026-10-26T12:00:00Z",
+          developer_key: "dev-k",
+          app_id: "app-1",
+        });
+      }
+      if (
+        url === "/api/v1/workspaces/ws1/drive-files/df_1/access" &&
+        opts?.method === "POST"
+      ) {
+        return grantGate.promise;
+      }
+      return Promise.resolve({});
+    });
+
+    const { unmount } = renderCard(
+      makeCard({
+        viewer_access: "lost",
+        viewer_connection_id: "dc_2",
+        viewer_account_email: "mai@gmail.com",
+      }),
+      { pickerAdapter: adapter },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cho UniWork đọc tệp" }),
+    );
+
+    const busyGrantBtn = await screen.findByRole("button", {
+      name: /Đang cấp quyền/,
+    });
+    expect(busyGrantBtn).toHaveAttribute("aria-disabled", "true");
+    expect(busyGrantBtn).toHaveAttribute("aria-busy", "true");
+
+    act(() => {
+      grantGate.resolve({
+        file: {
+          id: "df_1",
+          organization_id: "o1",
+          workspace_id: "ws1",
+          external_file_id: "gdoc_1",
+          name: "Kế hoạch ra mắt Q4",
+          mime_type: "application/vnd.google-apps.document",
+          web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+          open_url:
+            "https://docs.google.com/document/d/gdoc_1/edit?authuser=mai%40gmail.com",
+          connection_id: "dc_1",
+          bound_account_email: "uni-work1@gmail.com",
+          bound_by_id: "u_minh",
+          created_by: "u_minh",
+          created_at: "2026-10-26T08:15:00Z",
+          viewer_access: "granted",
+          viewer_connection_id: "dc_2",
+          viewer_account_email: "mai@gmail.com",
+        },
+      });
+    });
+    unmount();
+
+    const fakePopup = {
+      closed: false,
+      focus: vi.fn(),
+      close: vi.fn(),
+      location: { href: "about:blank" },
+    };
+    const openSpy = vi
+      .spyOn(window, "open")
+      .mockReturnValue(fakePopup as unknown as Window);
+
+    const startGate = Promise.withResolvers<{ authorization_url: string }>();
+    requestMock.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url === "/api/v1/workspaces/ws1/drive-connections") {
+        return Promise.resolve({ connections: [LOST_CONN] });
+      }
+      if (
+        url === "/api/v1/workspaces/ws1/drive-connections/google/start" &&
+        opts?.method === "POST"
+      ) {
+        return startGate.promise;
+      }
+      return Promise.resolve({});
+    });
+
+    renderCard(
+      makeCard({
+        viewer_access: "connection_lost",
+        viewer_connection_id: "dc_lost",
+        viewer_account_email: "mai-lost@gmail.com",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kết nối lại" }));
+
+    const busyReconnectBtn = await screen.findByRole("button", {
+      name: /Đang kết nối/,
+    });
+    expect(busyReconnectBtn).toHaveAttribute("aria-disabled", "true");
+    expect(busyReconnectBtn).toHaveAttribute("aria-busy", "true");
+
+    openSpy.mockRestore();
+  });
 });

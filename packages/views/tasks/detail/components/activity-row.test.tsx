@@ -235,23 +235,60 @@ describe("TaskActivityRow", () => {
       {
         id: "drv1",
         action: "task.drive_file_linked",
-        metadata: { drive_file_id: "df_1", drive_file_name: "Kế hoạch ra mắt Q4" },
+        metadata: {
+          drive_file_id: "df_1",
+          drive_file_name: "Kế hoạch ra mắt Q4",
+          google_email: "minh@vietants.vn",
+        },
       },
       "Minh",
     );
     expect(linked).toHaveTextContent("Minh");
     expect(linked).toHaveTextContent("đã liên kết Kế hoạch ra mắt Q4 từ Google Drive");
 
+    const linkedFallback = row(
+      {
+        id: "drv1b",
+        action: "task.drive_file_linked",
+        metadata: {
+          drive_file_id: "df_1",
+          google_email: "minh@vietants.vn",
+        },
+      },
+      "Minh",
+    );
+    expect(linkedFallback).toHaveTextContent("Liên kết tệp từ Google Drive");
+
     const unlinked = row(
       {
         id: "drv2",
         action: "task.drive_file_unlinked",
-        metadata: { drive_file_id: "df_1" },
+        metadata: {
+          drive_file_id: "df_1",
+          google_email: "minh@vietants.vn",
+        },
       },
       "Minh",
     );
     expect(unlinked).toHaveTextContent("Bỏ liên kết tệp Google Drive");
 
+    const unlinkedNamed = row(
+      {
+        id: "drv2b",
+        action: "task.drive_file_unlinked",
+        metadata: {
+          drive_file_id: "df_1",
+          drive_file_name: "Kế hoạch ra mắt Q4",
+          google_email: "minh@vietants.vn",
+        },
+      },
+      "Minh",
+    );
+    expect(unlinkedNamed).toHaveTextContent(
+      "đã bỏ liên kết Kế hoạch ra mắt Q4 từ Google Drive",
+    );
+
+    // Never resolve the file name from valueNames / current task cards when drive_file_name is absent
     render(
       <TaskActivityRow
         event={{
@@ -265,8 +302,11 @@ describe("TaskActivityRow", () => {
       />,
     );
     expect(screen.getByTestId("task-timeline-activity-drv3")).toHaveTextContent(
-      "đã liên kết Ngân sách Q4 từ Google Drive",
+      "Liên kết tệp từ Google Drive",
     );
+    expect(
+      screen.getByTestId("task-timeline-activity-drv3"),
+    ).not.toHaveTextContent("Ngân sách Q4");
 
     const fromProposal = row(
       {

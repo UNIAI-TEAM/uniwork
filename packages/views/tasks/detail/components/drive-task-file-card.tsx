@@ -116,6 +116,63 @@ function buildMetadataLine(
   return parts.filter(Boolean).join(" · ");
 }
 
+function OpenOnDriveLink({
+  openUrl,
+  label,
+}: {
+  openUrl: string | undefined;
+  label: string;
+}) {
+  if (!openUrl) return null;
+  return (
+    <a
+      href={openUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+    >
+      <ExternalLink className="size-3.5" aria-hidden />
+      {label}
+    </a>
+  );
+}
+
+function CardMoreMenu({
+  canRemoveFromTask,
+  moreActionsAria,
+  unlinkLabel,
+  onRequestUnlink,
+}: {
+  canRemoveFromTask: boolean;
+  moreActionsAria: string;
+  unlinkLabel: string;
+  onRequestUnlink: () => void;
+}) {
+  if (!canRemoveFromTask) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={moreActionsAria}
+          />
+        }
+      >
+        <Ellipsis className="size-4" aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem variant="destructive" onClick={onRequestUnlink}>
+          <Trash className="size-4" aria-hidden />
+          {unlinkLabel}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function DriveTaskFileCard({
   workspaceId,
   taskId,
@@ -249,7 +306,7 @@ export function DriveTaskFileCard({
       data-testid={`task-drive-card-${card.id}`}
       className={cn(
         "flex flex-col gap-3 rounded-xl border bg-surface p-3.5",
-        needsAttention ? "border-warning/40" : "border-brand/25",
+        needsAttention ? "border-warning-soft-foreground/20" : "border-surface-border",
       )}
     >
       <div className="flex items-center gap-3">
@@ -266,7 +323,10 @@ export function DriveTaskFileCard({
           </span>
         </div>
         {card.bound_connection_lost && !isConnectionLost ? (
-          <Badge variant="outline" className="shrink-0 gap-1 border-warning-border bg-warning-surface text-warning">
+          <Badge
+            variant="outline"
+            className="shrink-0 gap-1 border-warning-soft-foreground/20 bg-warning-soft text-warning-soft-foreground"
+          >
             <TriangleAlert className="size-3" aria-hidden />
             {t("bound_connection_lost_badge")}
           </Badge>
@@ -275,6 +335,16 @@ export function DriveTaskFileCard({
           {tDriveTerms("link")}
         </Badge>
       </div>
+
+      {card.access_lost_at && !isLost ? (
+        <div
+          data-testid={`task-drive-card-bound-access-lost-${card.id}`}
+          className="flex items-start gap-2 rounded-lg border border-warning-soft-foreground/20 bg-warning-soft px-3 py-2 text-caption text-warning-soft-foreground"
+        >
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{t("bound_access_lost_notice")}</span>
+        </div>
+      ) : null}
 
       {tasksCreatedLine ? (
         <div
@@ -288,9 +358,9 @@ export function DriveTaskFileCard({
       {isUnknown ? (
         <div
           data-testid={`task-drive-card-unknown-${card.id}`}
-          className="flex flex-col gap-2.5 rounded-lg border border-warning/35 bg-warning/10 p-3"
+          className="flex flex-col gap-2.5 rounded-lg border border-warning-soft-foreground/20 bg-warning-soft p-3 text-warning-soft-foreground"
         >
-          <p className="text-caption text-pretty text-foreground">
+          <p className="text-caption text-pretty text-warning-soft-foreground">
             <strong className="font-semibold">{t("viewer_unknown.title")}</strong>{" "}
             {linkerName
               ? t("viewer_unknown.body", { name: linkerName })
@@ -311,44 +381,18 @@ export function DriveTaskFileCard({
               {grantBusy ? <Spinner data-icon="inline-start" /> : null}
               {grantBusy ? t("viewer_unknown.granting") : t("viewer_unknown.grant_button")}
             </Button>
-            {card.open_url ? (
-              <a
-                href={card.open_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-              >
-                <ExternalLink className="size-3.5" aria-hidden />
-                {t("open_on_drive")}
-              </a>
-            ) : null}
-            {card.can_remove_from_task ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label={t("more_actions_aria", { name: card.name })}
-                    />
-                  }
-                >
-                  <Ellipsis className="size-4" aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => setConfirmUnlinkOpen(true)}
-                  >
-                    <Trash className="size-4" aria-hidden />
-                    {t("unlink")}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
+            <OpenOnDriveLink
+              openUrl={card.open_url}
+              label={t("open_on_drive")}
+            />
+            <CardMoreMenu
+              canRemoveFromTask={card.can_remove_from_task}
+              moreActionsAria={t("more_actions_aria", { name: card.name })}
+              unlinkLabel={t("unlink")}
+              onRequestUnlink={() => setConfirmUnlinkOpen(true)}
+            />
           </div>
-          <p className="text-caption text-muted-foreground">
+          <p className="text-caption text-warning-soft-foreground">
             {t("viewer_unknown.share_hint")}
           </p>
         </div>
@@ -357,10 +401,10 @@ export function DriveTaskFileCard({
       {isLost ? (
         <div
           data-testid={`task-drive-card-lost-${card.id}`}
-          className="flex flex-col gap-2.5 rounded-lg border border-warning/35 bg-warning/10 p-3"
+          className="flex flex-col gap-2.5 rounded-lg border border-warning-soft-foreground/20 bg-warning-soft p-3 text-warning-soft-foreground"
         >
-          <div className="flex items-start gap-2 text-caption text-foreground">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <div className="flex items-start gap-2 text-caption text-warning-soft-foreground">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-soft-foreground" aria-hidden />
             <span>
               {viewerEmail
                 ? t("viewer_lost.notice", { email: viewerEmail })
@@ -380,7 +424,7 @@ export function DriveTaskFileCard({
               }}
             >
               {grantBusy ? <Spinner data-icon="inline-start" /> : null}
-              {grantBusy ? t("viewer_unknown.granting") : t("viewer_lost.repick_button")}
+              {grantBusy ? t("viewer_lost.repicking") : t("viewer_lost.repick_button")}
             </Button>
           </div>
         </div>
@@ -389,10 +433,10 @@ export function DriveTaskFileCard({
       {isConnectionLost ? (
         <div
           data-testid={`task-drive-card-connection-lost-${card.id}`}
-          className="flex flex-col gap-2.5 rounded-lg border border-warning/35 bg-warning/10 p-3"
+          className="flex flex-col gap-2.5 rounded-lg border border-warning-soft-foreground/20 bg-warning-soft p-3 text-warning-soft-foreground"
         >
-          <div className="flex items-start gap-2 text-caption text-foreground">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <div className="flex items-start gap-2 text-caption text-warning-soft-foreground">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-soft-foreground" aria-hidden />
             <span>
               {viewerEmail
                 ? t("viewer_connection_lost.notice", { email: viewerEmail })
@@ -453,42 +497,20 @@ export function DriveTaskFileCard({
 
       {!isUnknown || renderedActions ? (
         <div className="flex flex-wrap items-center gap-2">
-          {!isUnknown && card.open_url ? (
-            <a
-              href={card.open_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
-              <ExternalLink className="size-3.5" aria-hidden />
-              {t("open_on_drive")}
-            </a>
+          {!isUnknown ? (
+            <OpenOnDriveLink
+              openUrl={card.open_url}
+              label={t("open_on_drive")}
+            />
           ) : null}
           {renderedActions}
-          {!isUnknown && card.can_remove_from_task ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label={t("more_actions_aria", { name: card.name })}
-                  />
-                }
-              >
-                <Ellipsis className="size-4" aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setConfirmUnlinkOpen(true)}
-                >
-                  <Trash className="size-4" aria-hidden />
-                  {t("unlink")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {!isUnknown ? (
+            <CardMoreMenu
+              canRemoveFromTask={card.can_remove_from_task}
+              moreActionsAria={t("more_actions_aria", { name: card.name })}
+              unlinkLabel={t("unlink")}
+              onRequestUnlink={() => setConfirmUnlinkOpen(true)}
+            />
           ) : null}
         </div>
       ) : null}
