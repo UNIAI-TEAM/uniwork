@@ -18,6 +18,9 @@ export function meetingTaskFrameKeys(qc: QueryClient, type: string, taskId: stri
       if (data?.items.some((it) => it.task?.id === taskId)) keys.push(key);
     }
   }
+  // While its task sits in the trash an item reads as pending with no task,
+  // so no list names the restored task: every action item list refetches.
+  if (type === "task.restored") keys.push(meetingKeys.actionItemsRoot);
   // Carried-over lists read other meetings' tasks: a conversion creates one,
   // finishing or deleting one takes it off.
   if (isTaskLifecycleEvent(type)) {

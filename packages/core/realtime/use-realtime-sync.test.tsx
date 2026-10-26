@@ -1362,6 +1362,20 @@ describe("useRealtimeSync › meeting summary", () => {
     expect(keys).not.toContain(JSON.stringify(["meeting-action-items"]));
   });
 
+  it("refreshes every action item list on task.restored, since a trashed task's item names no task", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting-action-items", "m1"], {
+      items: [{ id: "a1", title: "x", status: "PENDING", evidence: [], task: null }],
+      counts: { pending: 1, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+    });
+    client.emit({ type: "task.restored", payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-action-items"]));
+  });
+
   // A conversion in another meeting creates the task; finishing or deleting
   // it takes it off the list.
   it.each(["task.created", "task.updated", "task.deleted", "task.trashed", "task.restored"])("refreshes every open carried-over list on %s", (type) => {

@@ -38,7 +38,7 @@ const deletePendingAIMeetingActionItems = `-- name: DeletePendingAIMeetingAction
 DELETE FROM meeting_action_items i
 WHERE i.organization_id = $1 AND i.meeting_id = $2
   AND i.source = 'AI' AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL)
 `
 
 type DeletePendingAIMeetingActionItemsParams struct {
@@ -47,7 +47,7 @@ type DeletePendingAIMeetingActionItemsParams struct {
 }
 
 // A regenerated summary replaces the AI items nobody has handled yet: not
-// dismissed, and no task, or a task that was deleted since.
+// dismissed, and no task, or a task that was deleted or trashed since.
 func (q *Queries) DeletePendingAIMeetingActionItems(ctx context.Context, arg DeletePendingAIMeetingActionItemsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deletePendingAIMeetingActionItems, arg.OrganizationID, arg.MeetingID)
 	if err != nil {
@@ -112,8 +112,9 @@ type InsertMeetingActionItemParams struct {
 
 // Action items of a meeting (UNI-1998, spec meeting follow-through §5.1). A
 // row's state is derived in Go (actionItemStatus) from dismissed_at and
-// whether task_id still names a task: tasks are hard-deleted, so every read
-// that needs the state joins tasks and reports task_live.
+// whether task_id still names a live task: a task that was deleted or sits in
+// the trash does not count, so every read that needs the state joins tasks
+// (trashed_at IS NULL) and reports task_live.
 func (q *Queries) InsertMeetingActionItem(ctx context.Context, arg InsertMeetingActionItemParams) (MeetingActionItem, error) {
 	row := q.db.QueryRow(ctx, insertMeetingActionItem,
 		arg.ID,
@@ -341,7 +342,7 @@ func (q *Queries) ListMeetingActionItems(ctx context.Context, arg ListMeetingAct
 const lockMeetingActionItems = `-- name: LockMeetingActionItems :many
 SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence, i.description, i.suggested_priority, (t.id IS NOT NULL)::boolean AS task_live
 FROM meeting_action_items i
-LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 WHERE i.organization_id = $1 AND i.meeting_id = $2
   AND i.id = ANY($3::text[])
 ORDER BY i.id
@@ -443,7 +444,7 @@ SET owner_text = $1, due_text = $2, suggested_priority = $3,
   description = $4, evidence = $5, updated_at = now()
 WHERE i.organization_id = $6 AND i.meeting_id = $7 AND i.id = $8
   AND i.source = 'LIVE' AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL)
 `
 
 type RefineLiveMeetingActionItemParams struct {
@@ -459,7 +460,7 @@ type RefineLiveMeetingActionItemParams struct {
 
 // A summary refines a pending live item in place (UNI-1995 benchmark #21):
 // owner, due, priority, description and evidence, never its title. Only while
-// nobody handled it: not dismissed and no task that still exists.
+// nobody handled it: not dismissed and no live task (deleted or trashed).
 func (q *Queries) RefineLiveMeetingActionItem(ctx context.Context, arg RefineLiveMeetingActionItemParams) (int64, error) {
 	result, err := q.db.Exec(ctx, refineLiveMeetingActionItem,
 		arg.OwnerText,

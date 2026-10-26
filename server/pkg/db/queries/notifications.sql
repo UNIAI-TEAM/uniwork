@@ -437,7 +437,7 @@ WHERE m.status = 'ENDED'
   AND COALESCE(m.actual_end_at, m.ends_at) >= sqlc.arg(ended_after)::timestamptz
   AND COALESCE(m.actual_end_at, m.ends_at) < sqlc.arg(ended_before)::timestamptz
   AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL)
   AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_pending_items:' || m.id)
 GROUP BY m.id
 ORDER BY m.id
