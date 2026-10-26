@@ -1,0 +1,275 @@
+$ rc=$(cat /tmp/pr9r1-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr9r1-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr9r1-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr9r1-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘   7 ask-uni.spec.ts:158:1 › docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload (59.8s)
+  ✘   8 ask-uni.spec.ts:225:1 › docked Ask UNI answers with a source, proposes a task, applies it and undoes it (1.3m)
+  ✘   9 ask-uni.spec.ts:281:1 › docked Ask UNI remembers a preference, uses it, and the memory screen edits and deletes it (1.0m)
+    Error: ask_uni_stream=false never reached /config
+    Error: ask_uni_agent=true never reached /config
+    Error: ask_uni_agent=true never reached /config
+  3 failed
+  1 skipped
+  69 passed (15.5m)
+      92 |     return body.flags?.[flag] ?? null;
+    > 93 |   }, { timeout: 45_000, intervals: [1_000], message: `${flag}=${enabled} never reached /config` }).toBe(enabled);
+         |                                                                                                    ^
+      94 | }
+      95 |
+      96 | export interface VersionRow {
+        at setFlag (/workspace/e2e/office-docs-web-fixtures.ts:93:100)
+        at /workspace/e2e/ask-uni.spec.ts:287:3
+
+    Error Context: test-results/ask-uni-docked-Ask-UNI-rem-cb60e-screen-edits-and-deletes-it/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ask-uni-docked-Ask-UNI-rem-cb60e-screen-edits-and-deletes-it/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/ask-uni-docked-Ask-UNI-rem-cb60e-screen-edits-and-deletes-it/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: documents-folders.spec.ts (5.4m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  3 failed
+    ask-uni.spec.ts:158:1 › docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload 
+    ask-uni.spec.ts:225:1 › docked Ask UNI answers with a source, proposes a task, applies it and undoes it 
+    ask-uni.spec.ts:281:1 › docked Ask UNI remembers a preference, uses it, and the memory screen edits and deletes it 
+  1 skipped
+  69 passed (15.5m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=1/8`
+Exit status 1
+===== e2e/test-results/ask-uni-docked-Ask-UNI-ans-85502-sk-applies-it-and-undoes-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: ask-uni.spec.ts >> docked Ask UNI answers with a source, proposes a task, applies it and undoes it
+- Location: ask-uni.spec.ts:225:1
+
+# Error details
+
+```
+Error: ask_uni_agent=true never reached /config
+
+ask_uni_agent=true never reached /config
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: null
+
+Call Log:
+- Timeout 45000ms exceeded while waiting on the predicate
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Tới nội dung chính" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=e4]:
+      - 'button "Hành động 1793008072961, Đội Hành động: chuyển workspace" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: Đ
+        - generic "Hành động 1793008072961 › Đội Hành động" [ref=e9]: Đội Hành động
+      - generic [ref=e10]:
+        - button "Tìm kiếm…" [ref=e11] [cursor=pointer]:
+          - generic: Ctrl+K
+        - button "Hỏi UNI" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - button "Thông báo" [ref=e16] [cursor=pointer]
+          - button "Tạo việc" [ref=e17] [cursor=pointer]
+          - button "Giao diện" [ref=e18] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=e19] [cursor=pointer]
+        - 'button "Chủ Hành Động, ch-h-nh-ng-1793008072961@example.com: tài khoản" [ref=e20] [cursor=pointer]':
+          - generic [ref=e21]: C
+    - generic [ref=e22]:
+      - generic [ref=e25]:
+        - navigation "Điều hướng workspace" [ref=e27]:
+          - list [ref=e30]:
+            - listitem [ref=e31]:
+              - link "Trang chủ" [ref=e32] [cursor=pointer]:
+                - /url: /hanh-dong-1793008072961/doi-hanh-dong
+            - listitem [ref=e38]:
+              - link "Hộp việc" [ref=e39] [cursor=pointer]:
+                - /url: /hanh-dong-1793008072961/doi-hanh-dong/inbox
+          - generic [ref=e45]:
+            - generic [ref=e46]: Làm việc
+            - list "Làm việc" [ref=e48]:
+              - listitem [ref=e49]:
+                - link "Công việc" [ref=e50] [cursor=pointer]:
+                  - /url: /hanh-dong-1793008072961/doi-hanh-dong/tasks
+              - listitem [ref=e56]:
+                - link "Việc của tôi" [ref=e57] [cursor=pointer]:
+                  - /url: /hanh-dong-1793008072961/doi-hanh-dong/my-tasks
+              - listitem [ref=e63]:
+                - link "Dự án" [ref=e64] [cursor=pointer]:
+                  - /url: /hanh-dong-1793008072961/doi-hanh-dong/projects
+              - listitem [ref=e69]:
+                - link "Lịch" [ref=e70] [cursor=pointer]:
+                  - /url: /hanh-dong-1793008072961/doi-hanh-dong/calendar
+          - generic [ref=e75]:
+            - generic===== e2e/test-results/ask-uni-docked-Ask-UNI-off-d0d0d-ps-the-steps-after-a-reload/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: ask-uni.spec.ts >> docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload
+- Location: ask-uni.spec.ts:158:1
+
+# Error details
+
+```
+Error: ask_uni_stream=false never reached /config
+
+ask_uni_stream=false never reached /config
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: true
+
+Call Log:
+- Test timeout of 60000ms exceeded
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f2e4]:
+      - 'button "Nhắc 1793007944137, Đội Nhắc: chuyển workspace" [ref=f2e6] [cursor=pointer]':
+        - generic [ref=f2e7]: Đ
+        - generic "Nhắc 1793007944137 › Đội Nhắc" [ref=f2e9]: Đội Nhắc
+      - generic [ref=f2e10]:
+        - button "Tìm kiếm…" [ref=f2e11] [cursor=pointer]:
+          - generic: Ctrl+K
+        - button "Hỏi UNI" [ref=f2e13] [cursor=pointer]
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]:
+          - button "Thông báo" [ref=f2e16] [cursor=pointer]
+          - button "Tạo việc" [ref=f2e17] [cursor=pointer]
+          - button "Giao diện" [ref=f2e18] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f2e19] [cursor=pointer]
+        - 'button "Chủ Nhắc, ch-nh-c-1793007944137@example.com: tài khoản" [ref=f2e20] [cursor=pointer]':
+          - generic [ref=f2e21]: C
+    - generic [ref=f2e22]:
+      - generic [ref=f2e25]:
+        - navigation "Điều hướng workspace" [ref=f2e27]:
+          - list [ref=f2e30]:
+            - listitem [ref=f2e31]:
+              - link "Trang chủ" [ref=f2e32] [cursor=pointer]:
+                - /url: /nhac-1793007944137/doi-nhac
+            - listitem [ref=f2e38]:
+              - link "Hộp việc" [ref=f2e39] [cursor=pointer]:
+                - /url: /nhac-1793007944137/doi-nhac/inbox
+          - generic [ref=f2e45]:
+            - generic [ref=f2e46]: Làm việc
+            - list "Làm việc" [ref=f2e48]:
+              - listitem [ref=f2e49]:
+                - link "Công việc" [ref=f2e50] [cursor=pointer]:
+                  - /url: /nhac-1793007944137/doi-nhac/tasks
+              - listitem [ref=f2e56]:
+                - link "Việc của tôi" [ref=f2e57] [cursor=pointer]:
+                  - /url: /nhac-1793007944137/doi-nhac/my-tasks
+              - listitem [ref=f2e63]:
+                - link "Dự án" [ref=f2e64] [cursor=pointer]:
+                  - /url: /nhac-1793007944137/doi-nhac/projects
+              - listitem [ref=f2e69]:
+                - link "Lịch" [ref=f2e70] [cursor=pointer]:
+                  - /url: /nhac-1793007944137/doi-nhac/calendar
+          - generic [ref=f2e75]:
+            - generic [ref=f2e76]: Trao đổi
+            - list "===== e2e/test-results/ask-uni-docked-Ask-UNI-rem-cb60e-screen-edits-and-deletes-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: ask-uni.spec.ts >> docked Ask UNI remembers a preference, uses it, and the memory screen edits and deletes it
+- Location: ask-uni.spec.ts:281:1
+
+# Error details
+
+```
+Error: ask_uni_agent=true never reached /config
+
+ask_uni_agent=true never reached /config
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: null
+
+Call Log:
+- Timeout 45000ms exceeded while waiting on the predicate
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Tới nội dung chính" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=e4]:
+      - 'button "Bộ nhớ 1793008148914, Đội Bộ nhớ: chuyển workspace" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: Đ
+        - generic "Bộ nhớ 1793008148914 › Đội Bộ nhớ" [ref=e9]: Đội Bộ nhớ
+      - generic [ref=e10]:
+        - button "Tìm kiếm…" [ref=e11] [cursor=pointer]:
+          - generic: Ctrl+K
+        - button "Hỏi UNI" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - button "Thông báo" [ref=e16] [cursor=pointer]
+          - button "Tạo việc" [ref=e17] [cursor=pointer]
+          - button "Giao diện" [ref=e18] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=e19] [cursor=pointer]
+        - 'button "Chủ Bộ Nhớ, ch-b-nh--1793008148914@example.com: tài khoản" [ref=e20] [cursor=pointer]':
+          - generic [ref=e21]: C
+    - generic [ref=e22]:
+      - generic [ref=e25]:
+        - navigation "Điều hướng workspace" [ref=e27]:
+          - list [ref=e30]:
+            - listitem [ref=e31]:
+              - link "Trang chủ" [ref=e32] [cursor=pointer]:
+                - /url: /bo-nho-1793008148914/doi-bo-nho
+            - listitem [ref=e38]:
+              - link "Hộp việc" [ref=e39] [cursor=pointer]:
+                - /url: /bo-nho-1793008148914/doi-bo-nho/inbox
+          - generic [ref=e45]:
+            - generic [ref=e46]: Làm việc
+            - list "Làm việc" [ref=e48]:
+              - listitem [ref=e49]:
+                - link "Công việc" [ref=e50] [cursor=pointer]:
+                  - /url: /bo-nho-1793008148914/doi-bo-nho/tasks
+              - listitem [ref=e56]:
+                - link "Việc của tôi" [ref=e57] [cursor=pointer]:
+                  - /url: /bo-nho-1793008148914/doi-bo-nho/my-tasks
+              - listitem [ref=e63]:
+                - link "Dự án" [ref=e64] [cursor=pointer]:
+                  - /url: /bo-nho-1793008148914/doi-bo-nho/projects
+              - listitem [ref=e69]:
+                - link "Lịch" [ref=e70] [cursor=pointer]:
+                  - /url: /bo-nho-1793008148914/doi-bo-nho/calendar
+          - generic [ref=e75]:
+            - generic [ref=e76]: Trao đổi
+            - list "T
+E2E_EXIT=1
