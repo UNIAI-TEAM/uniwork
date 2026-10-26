@@ -180,9 +180,11 @@ describe("DriveFileDetailView (4.2)", () => {
     const leafSpan = screen.getAllByTitle("Kế hoạch ra mắt Q4").find((el) => el.tagName === "SPAN");
     expect(leafSpan).toBeTruthy();
 
-    // Open in Google Drive links use open_url in a new tab with noopener noreferrer
+    // Open in Google Drive links use open_url in a new tab with noopener noreferrer; header link is icon-only below sm with aria-label
     const openLinks = screen.getAllByRole("link", { name: t("driveLibrary.detail.open_on_drive") });
     expect(openLinks.length).toBeGreaterThan(0);
+    expect(openLinks[0]).toHaveAttribute("aria-label", t("driveLibrary.detail.open_on_drive"));
+    expect(within(openLinks[0]!).getByText(t("driveLibrary.detail.open_on_drive"))).toHaveClass("hidden", "sm:inline");
     for (const link of openLinks) {
       expect(link).toHaveAttribute(
         "href",
@@ -191,7 +193,6 @@ describe("DriveFileDetailView (4.2)", () => {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
-
     // Bound account + rebound suffix when bound_by_id !== created_by
     expect(screen.getByText("admin@gmail.com")).toBeInTheDocument();
     expect(screen.getByText("(gắn lại bởi Lan Trần)")).toBeInTheDocument();

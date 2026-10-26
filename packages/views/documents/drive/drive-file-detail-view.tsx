@@ -268,7 +268,7 @@ export function DriveFileDetailView({
           },
         ]}
         leaf={<span title={file.name}>{file.name}</span>}
-        className="h-auto min-h-12 py-1.5 sm:h-12 sm:py-0"
+        className="h-auto min-h-12 flex-wrap py-1.5 sm:h-12 sm:flex-nowrap sm:py-0"
         actionsClassName="max-w-none flex-wrap justify-end gap-x-2 gap-y-1 overflow-visible"
         actions={
           <>
@@ -282,10 +282,11 @@ export function DriveFileDetailView({
               href={file.open_url}
               target="_blank"
               rel="noopener noreferrer"
-              className={cn(buttonVariants({ size: "sm" }), "gap-1.5")}
+              aria-label={t("driveLibrary.detail.open_on_drive")}
+              className={cn(buttonVariants({ size: "sm" }), "gap-1.5 px-2 sm:px-2.5")}
             >
               <ExternalLink aria-hidden className="size-4" />
-              {t("driveLibrary.detail.open_on_drive")}
+              <span className="hidden sm:inline">{t("driveLibrary.detail.open_on_drive")}</span>
             </a>
           </>
         }

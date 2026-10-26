@@ -49,12 +49,22 @@ function Chip({
   icon?: LucideIcon;
 }) {
   return (
-    <span title={label} className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
+    <span
+      title={label}
+      className={`inline-flex max-w-full items-center gap-1 bg-muted pl-2.5 text-caption text-foreground ${name && suffix ? "rounded-2xl py-1 sm:rounded-full sm:py-0" : "rounded-full"}`}
+    >
       {Icon ? <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
       {name && suffix ? (
-        <span className="flex min-w-0 items-center">
-          <span className="min-w-0 truncate">{name}</span>
-          <span className="shrink-0 whitespace-nowrap">{suffix}</span>
+        <span className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-1">
+          <span title={name} className="min-w-0 truncate">
+            {name}
+          </span>
+          <span className="shrink-0 whitespace-nowrap">
+            <span aria-hidden className="hidden sm:inline">
+              {"— "}
+            </span>
+            {suffix.replace(/^\s*—\s*/, "")}
+          </span>
         </span>
       ) : (
         <span className="truncate">{label}</span>
