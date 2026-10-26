@@ -89,11 +89,6 @@ function SaidAt({ iso, locale }: { iso?: string; locale: string }) {
   );
 }
 
-/**
- * B7: "you joined N minutes in". The brief is made only on click, never on
- * mount, so opening the room costs nothing; it is the caller's alone. Once
- * made it folds away, and the viewer can dismiss the card for the meeting.
- */
 /** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
 function CatchUpAttribution({ time, sources }: { time: string; sources: string | null }) {
   const { t } = useTranslation();
@@ -107,6 +102,11 @@ function CatchUpAttribution({ time, sources }: { time: string; sources: string |
   );
 }
 
+/**
+ * B7: "you joined N minutes in". The brief is made only on click, never on
+ * mount, so opening the room costs nothing; it is the caller's alone. Once
+ * made it folds away, and the viewer can dismiss the card for the meeting.
+ */
 export function MeetingCatchUpCard({
   meetingId,
   lateMinutes,

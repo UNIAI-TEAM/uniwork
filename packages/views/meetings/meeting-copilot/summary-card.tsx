@@ -26,21 +26,31 @@ function summaryLines(text: string): string[] {
 
 /** ↻ / Create: through requestGenerate, which asks before replacing a summary people may have read. */
 function GenerateButton({ gen, label, children }: { gen: SummaryGeneration; label?: string; children: ReactNode }) {
+  const reasonId = useId();
   const blocked = gen.blockedReason !== null;
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size={label ? "icon-sm" : "sm"}
-      className={label ? ICON_BUTTON : undefined}
-      aria-label={label}
-      aria-disabled={blocked || undefined}
-      aria-busy={gen.generating || undefined}
-      title={gen.blockedReason ?? undefined}
-      onClick={gen.requestGenerate}
-    >
-      {children}
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size={label ? "icon-sm" : "sm"}
+        className={label ? ICON_BUTTON : undefined}
+        aria-label={label}
+        aria-disabled={blocked || undefined}
+        aria-busy={gen.generating || undefined}
+        aria-describedby={blocked ? reasonId : undefined}
+        title={gen.blockedReason ?? undefined}
+        onClick={gen.requestGenerate}
+      >
+        {children}
+      </Button>
+      {/* The title is for the pointer; a screen reader hears why from here. */}
+      {blocked ? (
+        <span id={reasonId} className="sr-only">
+          {gen.blockedReason}
+        </span>
+      ) : null}
+    </>
   );
 }
 
@@ -58,8 +68,9 @@ export function MeetingSummaryCard({ gen, sourcesLabel }: { gen: SummaryGenerati
   const locale = meetingLocale(i18n.language);
 
   if (!summary && !gen.generating) {
-    // Before the first summary the card is only an offer, and only to whoever may make one.
-    if (!gen.showGenerate || !(gen.hasSource || gen.failure)) return null;
+    // Before the first summary the card is only an offer, and only to whoever may make one. A summary that
+    // failed to load is not known to be missing: Create would replace it without asking.
+    if (!gen.showGenerate || gen.summaryQuery.isError || !(gen.hasSource || gen.failure)) return null;
     return (
       <section aria-label={t("meetings.panel.summary.title")} className={CARD}>
         <div className="flex items-center gap-2 text-label text-muted-foreground">

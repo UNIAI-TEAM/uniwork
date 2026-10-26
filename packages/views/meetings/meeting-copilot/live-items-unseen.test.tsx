@@ -59,7 +59,7 @@ describe("useUnseenLiveItems (UNI-1995 #21)", () => {
     expect([...result.current.ids]).toEqual(["b"]);
   });
 
-  it("clears once the viewer has the Việc section on screen, and stays clear", async () => {
+  it("clears the count once the viewer has the items on screen, keeping that visit's news marked until it ends", async () => {
     const { result, more, rerender, ready } = setup(false);
     await ready();
     await more([item("a", "Gửi báo giá"), item("b", "Đặt phòng họp")]);
@@ -67,12 +67,18 @@ describe("useUnseenLiveItems (UNI-1995 #21)", () => {
 
     rerender({ seeing: true });
     await waitFor(() => expect(result.current.count).toBe(0));
-    expect(result.current.ids.size).toBe(0);
+    // What was news when the viewer came keeps its dot for the visit.
+    expect([...result.current.ids]).toEqual(["b"]);
+    // Written while the viewer looks: seen at once, no dot.
     await more([item("a", "Gửi báo giá"), item("b", "Đặt phòng họp"), item("d", "Chốt lịch")]);
     expect(result.current.count).toBe(0);
+    expect([...result.current.ids]).toEqual(["b"]);
 
     rerender({ seeing: false });
     expect(result.current.count).toBe(0);
+    expect(result.current.ids.size).toBe(0);
+    rerender({ seeing: true });
+    expect(result.current.ids.size).toBe(0);
   });
 
   it("does not count an item someone already handled", async () => {

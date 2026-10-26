@@ -1,6 +1,5 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
 import { countFeed, type MeetingFeedEntry } from "@uniwork/core/meetings/feed";
 import { MeetingCarriedOverSection } from "../meeting-action-items/carried-over-section";
 import { MeetingActionItemsSection } from "../meeting-action-items/meeting-action-items-section";
@@ -24,7 +23,7 @@ export function UniFeedView({
   sourcesLabel,
   entries,
   loading,
-  failed,
+  loadError,
   onRetry,
   filter,
   onFilterChange,
@@ -48,8 +47,8 @@ export function UniFeedView({
   entries: readonly MeetingFeedEntry[];
   /** The feed's sources are still on their way; nothing to show yet. */
   loading: boolean;
-  /** A source failed and nothing could be shown in its place. */
-  failed: boolean;
+  /** What could not be read, when a source failed; said with a retry. */
+  loadError: string | null;
   onRetry: () => void;
   filter: MeetingFeedFilter;
   onFilterChange: (filter: MeetingFeedFilter) => void;
@@ -68,20 +67,14 @@ export function UniFeedView({
   carriedOpen: boolean;
   onOpenCarried: () => void;
 }) {
-  const { t } = useTranslation();
   const empty = !gen.summary && !gen.generating && entries.length === 0;
   const counts = countFeed(entries);
   const shown = filter === "all" ? entries : entries.filter((e) => e.kind === filter);
-  const clerkTasks = filter === "task" && canClerk && workspaceId;
+  const tasks = filter === "task" && workspaceId;
 
   if (empty && loading) return <MeetingTextSkeleton className="mx-3 rounded-xl border border-border p-4" />;
-  if (empty && failed) {
-    return (
-      <div className="px-3">
-        <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={onRetry} />
-      </div>
-    );
-  }
+  const error = loadError ? <MeetingSectionError message={loadError} onRetry={onRetry} className="mb-3" /> : null;
+  if (empty && error) return <div className="px-3">{error}</div>;
   // A picked kind keeps the chips (and its pressed chip) even once nothing of that kind is left.
   if (empty && filter === "all") {
     return (
@@ -98,26 +91,23 @@ export function UniFeedView({
 
   return (
     <div className="px-3">
+      {error}
       <MeetingSummaryCard gen={gen} sourcesLabel={sourcesLabel} />
       <div className="mt-3.5 mb-1.5">
         <FeedFilterChips counts={counts} value={filter} onChange={onFilterChange} />
       </div>
-      {clerkTasks ? (
-        <div className="space-y-3 pb-3">
-          <MeetingActionItemsSection
-            workspaceId={workspaceId}
-            meetingId={meetingId}
-            projectId={projectId}
-            canClerk
-            variant="room"
-            selection={selection}
-            editItemId={editItemId}
-            onEditHandled={onEditHandled}
-            onSelectionChange={onSelectionChange}
-          />
-          {/* A series carries items over as a project does; the server answers none for a meeting with neither. */}
-          <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meetingId} variant="room" defaultOpen={carriedOpen} />
-        </div>
+      {tasks && canClerk ? (
+        <MeetingActionItemsSection
+          workspaceId={workspaceId}
+          meetingId={meetingId}
+          projectId={projectId}
+          canClerk
+          variant="room"
+          selection={selection}
+          editItemId={editItemId}
+          onEditHandled={onEditHandled}
+          onSelectionChange={onSelectionChange}
+        />
       ) : (
         <MeetingFeedList
           entries={shown}
@@ -129,6 +119,13 @@ export function UniFeedView({
           onEditItem={onEditItem}
         />
       )}
+      {/* Every member sees what earlier meetings left open (read-only unless a clerk); a series carries items
+          over as a project does, and the server answers none for a meeting with neither. */}
+      {tasks ? (
+        <div className="pt-3">
+          <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meetingId} variant="room" defaultOpen={carriedOpen} />
+        </div>
+      ) : null}
     </div>
   );
 }

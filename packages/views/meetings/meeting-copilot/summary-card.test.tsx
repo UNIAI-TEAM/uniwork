@@ -31,6 +31,7 @@ function gen(over: Partial<SummaryGeneration> = {}): SummaryGeneration {
     generating: false,
     blockedReason: null,
     failure: null,
+    summaryQuery: { isError: false },
     requestGenerate: vi.fn(),
     ...over,
   } as unknown as SummaryGeneration;
@@ -119,6 +120,14 @@ describe("MeetingSummaryCard", () => {
     expect(container).toBeEmptyDOMElement();
 
     rerender(<MeetingSummaryCard gen={gen({ summary: null, showGenerate: true, hasSource: false })} sourcesLabel={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers no Create while the summary could not be read: one may exist, and Create would replace it unasked", () => {
+    const failedRead = { isError: true } as unknown as SummaryGeneration["summaryQuery"];
+    const { container } = render(
+      <MeetingSummaryCard gen={gen({ summary: null, showGenerate: true, summaryQuery: failedRead })} sourcesLabel={null} />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });

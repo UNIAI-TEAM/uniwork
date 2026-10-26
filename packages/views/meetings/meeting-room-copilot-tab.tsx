@@ -100,6 +100,13 @@ export function MeetingRoomCopilotTab({
   const suggestions = useMeetingSuggestions(entries.length > 0);
   // The empty state reads every source, so it waits for all of them.
   const sources = [summaryQuery, transcriptQuery, chatQuery, notesQuery, ...(workspaceId ? [itemsQuery] : [])];
+  const failedOf = (q: (typeof sources)[number]) => q.isError && !q.data;
+  // Said even when the feed has other things: a missing summary or notes would otherwise pass for none.
+  const loadError = failedOf(notesQuery)
+    ? t("meetings.notesLoadFailed")
+    : sources.some(failedOf)
+      ? t("meetings.summaryLoadFailed")
+      : null;
   const retry = () => {
     for (const q of sources) if (q.isError) void q.refetch();
   };
@@ -127,6 +134,11 @@ export function MeetingRoomCopilotTab({
   const editItem = (itemId: string) => {
     showFilter("task");
     setEditItemId(itemId);
+  };
+  // The answer shows in the highlights: an ask from the transcript takes the reader there.
+  const onAsked = (next: MeetingAsk) => {
+    setAsk(next);
+    if (next.pending && view === "transcript") showView("feed");
   };
   const openCarried = () => {
     setFilter("task");
@@ -174,7 +186,7 @@ export function MeetingRoomCopilotTab({
             sourcesLabel={sourcesLabel}
             entries={entries}
             loading={sources.some((q) => q.isPending)}
-            failed={sources.some((q) => q.isError && !q.data)}
+            loadError={loadError}
             onRetry={retry}
             filter={filter}
             onFilterChange={showFilter}
@@ -229,7 +241,7 @@ export function MeetingRoomCopilotTab({
             notesCount={notesQuery.data?.length ?? 0}
             hasTranscript={(transcript ?? []).length > 0}
             suggestions={suggestions}
-            onAsked={setAsk}
+            onAsked={onAsked}
           />
         </div>
       ) : null}

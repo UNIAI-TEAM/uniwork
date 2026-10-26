@@ -1,10 +1,17 @@
+import { useCallback, useState } from "react";
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
+import { meetingKeys } from "@uniwork/core/meetings";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { liveItemsInView } from "./conference-layout";
+import { useUnseenLiveItems } from "./meeting-copilot/live-items-unseen";
+import type { MeetingFeedFilter } from "./meeting-copilot/feed-filter-chips";
+import type { UniView } from "./meeting-copilot/uni-status-row";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
@@ -204,6 +211,42 @@ describe("MeetingRoomCopilotTab › wiring between the views", () => {
     expect((scrollIntoView.mock.contexts[0] as HTMLElement).dataset.segmentId).toBe("t1");
   });
 
+  it("takes the reader to the same line again after they went back to the feed", async () => {
+    serve({ transcript: ok({ segments: [segment] }) });
+    renderTab();
+    fireEvent.click(await screen.findByRole("button", { name: "Xem câu nói lúc 09:05" }));
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    fireEvent.click(view("Tổng hợp"));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem câu nói lúc 09:05" }));
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+    expect((scrollIntoView.mock.contexts[1] as HTMLElement).dataset.segmentId).toBe("t1");
+  });
+
+  it("an ask from the transcript view brings the reader to the highlights, where the answer shows", async () => {
+    serve({ transcript: ok({ segments: [segment] }) });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/ask")
+        ? Promise.resolve({ conversation_id: "c1", message: { id: "x", role: "assistant", content: "Thứ Sáu.", citations: [] } })
+        : base(path, init),
+    );
+    renderTab();
+    await findFeed();
+    fireEvent.click(view("Lời thoại"));
+    fireEvent.click(await screen.findByRole("button", { name: "Đã chốt gì?" }));
+    await waitFor(() => expect(view("Tổng hợp")).toHaveAttribute("aria-checked", "true"));
+    expect(await screen.findByRole("article", { name: "Hỏi UNI" })).toBeInTheDocument();
+  });
+
+  it("the carried-over card takes a member who is not a clerk to those items too, read-only", async () => {
+    serve({ summary: ok({ summary: null }), items: ok({ items: [], counts: {} }) });
+    renderTab({ canClerk: false });
+    fireEvent.click(await screen.findByRole("button", { name: "1 việc còn mở, Từ lần họp trước" }));
+    expect(chip(/^Việc cần làm, 0$/)).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
   it("a chip under a transcript line opens the feed filtered to that kind", async () => {
     serve({ transcript: ok({ segments: [segment] }) });
     renderTab();
@@ -263,6 +306,53 @@ describe("MeetingRoomCopilotTab › wiring between the views", () => {
   });
 });
 
+describe("MeetingRoomCopilotTab › new items through the room's hook (UNI-1995 #21)", () => {
+  const live = (id: string, title: string) => ({ id, source: "LIVE", title, status: "PENDING", created_at: at(9, 20) });
+
+  /** The conference's part: the UNI panel opens and closes, and the hook hears which view and filter are shown. */
+  function Room() {
+    const [open, setOpen] = useState(false);
+    const [shown, setShown] = useState<{ view: UniView; filter: MeetingFeedFilter }>({ view: "feed", filter: "all" });
+    const onViewChange = useCallback((v: UniView, f: MeetingFeedFilter) => setShown({ view: v, filter: f }), []);
+    const items = useUnseenLiveItems("m1", liveItemsInView(open, shown.view, shown.filter));
+    return (
+      <>
+        <button type="button" onClick={() => setOpen((o) => !o)}>
+          UNI
+        </button>
+        {open ? <MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk unseenItems={items.ids} onViewChange={onViewChange} /> : null}
+      </>
+    );
+  }
+
+  it("marks an item written while the panel was away as new for that visit, and not on the next", async () => {
+    let items = [live("a0", "Viết ghi chú phát hành")];
+    serve({ items: () => Promise.resolve({ items, counts: {} }) });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(wrapWithNav(<Room />, undefined, client));
+    await waitFor(() => expect(client.getQueryData(meetingKeys.actionItems("m1"))).toBeDefined());
+    // Let the hook take its baseline before the scribe writes again.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    items = [live("a0", "Viết ghi chú phát hành"), live("a1", "Báo khách hàng")];
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: meetingKeys.actionItems("m1") });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "UNI" }));
+    const row = (title: string) => within(screen.getByRole("list", { name: "Diễn biến cuộc họp" })).getByText(title).closest("li")!;
+    await waitFor(() => expect(within(row("Báo khách hàng")).getByRole("img", { name: "Mới" })).toBeInTheDocument());
+    expect(within(row("Viết ghi chú phát hành")).queryByRole("img", { name: "Mới" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "UNI" }));
+    fireEvent.click(screen.getByRole("button", { name: "UNI" }));
+    await findFeed();
+    expect(within(row("Báo khách hàng")).queryByRole("img", { name: "Mới" })).not.toBeInTheDocument();
+  });
+});
+
 describe("MeetingRoomCopilotTab › summary", () => {
   it("labels the copy button as an action, not as its result", async () => {
     renderTab();
@@ -295,6 +385,15 @@ describe("MeetingRoomCopilotTab › summary", () => {
     expect(within(scroll).getAllByText(/Tổ chức đã dùng hết hạn mức AI của tháng/)).toHaveLength(1);
     expect(within(scroll).queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("says why it cannot update yet, keeping the button reachable", async () => {
+    renderTab();
+    const update = await screen.findByRole("button", { name: "Cập nhật tóm tắt" });
+    await waitFor(() => expect(update).toHaveAttribute("aria-disabled", "true"));
+    // Said by an element of its own, not only the hover title.
+    const reason = document.getElementById(update.getAttribute("aria-describedby") ?? "");
+    expect(reason).toHaveTextContent("Cần bản ghi lời thoại, ghi chú, tin nhắn hoặc kết quả biểu quyết");
   });
 
   it("asks before replacing the summary", async () => {
@@ -350,6 +449,25 @@ describe("MeetingRoomCopilotTab › loading and empty", () => {
     serve({ summary: ok({ summary: null }), items: ok({ items: [], counts: {} }) });
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(await screen.findByText(/Chưa có bản ghi lời thoại/)).toBeInTheDocument();
+  });
+
+  it("says the summary failed even when the feed has other things, and offers no Create over a summary it could not read", async () => {
+    serve({ summary: failed, transcript: ok({ segments: [segment] }) });
+    renderTab();
+    expect(await screen.findByText("Không tải được tóm tắt.")).toBeInTheDocument();
+    expect(await within(await findFeed()).findByText("Báo khách hàng")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo" })).not.toBeInTheDocument();
+    serve({ transcript: ok({ segments: [segment] }) });
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("heading", { name: "Tóm tắt đến giờ" })).toBeInTheDocument();
+    expect(screen.queryByText("Không tải được tóm tắt.")).not.toBeInTheDocument();
+  });
+
+  it("says the notes failed even when the feed has other things", async () => {
+    serve({ notes: failed });
+    renderTab();
+    expect(await screen.findByText("Không tải được ghi chú.")).toBeInTheDocument();
+    expect(await within(await findFeed()).findByText("Báo khách hàng")).toBeInTheDocument();
   });
 
   it("names a note's author in words, never by a raw id", async () => {
