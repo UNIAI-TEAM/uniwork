@@ -23,7 +23,10 @@ export function useOfficeReleases() {
     queryKey: officeReleasesKeys.manifest(),
     queryFn: ({ signal }) => getOfficeReleases(signal),
     staleTime: RECHECK_MS,
-    refetchOnWindowFocus: true,
+    // A first read that failed has no data, so TanStack counts it stale on every focus: left
+    // alone, each tab return would refetch and swap the page's fallback for the skeleton. Only
+    // "Retry" re-reads from there. A failed re-check after a good read still waits its 10 minutes.
+    refetchOnWindowFocus: (query) => query.state.data !== undefined || query.state.status !== "error",
     refetchOnReconnect: false,
     retry: false,
   });
