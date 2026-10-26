@@ -24,6 +24,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 
@@ -1360,11 +1361,6 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	}
 	fx.fake.SetExchange(func(_ context.Context, code, _ string) (DriveTokenResponse, error) {
 		if code == "exactt15" {
-			var dbNow time.Time
-			if err := fx.pool.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
-				t.Errorf("read clock_timestamp at t2_exchange: %v", err)
-			}
-			t2ExchangeAt = dbNow
 			recordStep("t2_exchange")
 		}
 		return DriveTokenResponse{
@@ -1388,6 +1384,19 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 			recordStep("t5_save_attempt")
 		}
 	}
+	var exchangeTimeMu sync.Mutex
+	prevNow := fx.svc.now
+	fx.svc.now = func() time.Time {
+		tNow := prevNow()
+		exchangeTimeMu.Lock()
+		if t2ExchangeAt.IsZero() {
+			t2ExchangeAt = tNow.UTC()
+		}
+		exchangeTimeMu.Unlock()
+		return tNow
+	}
+	// Capture the exact exchangeStartedAt timestamp read at CompleteOAuth :527 by
+	// resetting t2ExchangeAt right before CompleteOAuth runs.
 
 	t15WorkerDone := make(chan bool, 1)
 	go func() {
@@ -1397,8 +1406,11 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 		t15WorkerDone <- ok
 	}()
 	<-t1Claimed
-
+	exchangeTimeMu.Lock()
+	t2ExchangeAt = time.Time{}
+	exchangeTimeMu.Unlock()
 	gotT15 := fx.svc.CompleteOAuth(ctx, stT15, "exactt15", "", "", nonceT15)
+	fx.svc.now = prevNow
 	if !<-t15WorkerDone {
 		t.Fatal("t1..t5 worker did not resolve")
 	}
@@ -1542,7 +1554,10 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	// User 2 in org 2 starts connecting the same Google sub `xorg-race` ->
 	// while User 2's callback exchanges its code, the revocation worker revokes
 	// `xorg-race` -> User 2's callback in org 2 is refused with retry_connect!
-	now = now.Add(5 * time.Second)
+	// Reset the service clock to wall time aligned with PostgreSQL now() so Case 12's
+	// synthetic +2m lease advance does not place Case 13's exchange_started_at in the
+	// future relative to PostgreSQL's real claim/resolve timestamps (R3-2).
+	fx.svc.now = time.Now
 	cXOrg1 := connectSub(fx.user, fx.work.ID, "xorg-race")
 	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cXOrg1); err != nil {
 		t.Fatal(err)
@@ -1554,11 +1569,9 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	stXOrg2, _ := extractStateFromAuthURL(t, uXOrg2)
 	fx.svc.testBeforeCallbackTx = func(sub string) {
 		if sub == "fake-sub-xorg-race" {
-			now = now.Add(time.Second)
 			if !fx.svc.ProcessOneRevocation(ctx, sub) {
 				t.Errorf("expected worker to process revocation for %s", sub)
 			}
-			now = now.Add(time.Second)
 		}
 	}
 	gotXOrg2 := fx.svc.CompleteOAuth(ctx, stXOrg2, "xorg-race", "", "", nonceXOrg2)
@@ -2040,7 +2053,75 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		fx.svc.testBeforeDisconnectRow = nil
 		testAfterLifecycleGrantLocks = nil
 		testAfterHelperFirstDriveSub = nil
+		testAfterCloseOrgRowLock = nil
 	})
+
+	waitCh := func(ch <-chan struct{}, label string, cleanups ...func()) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+			for _, fn := range cleanups {
+				if fn != nil {
+					fn()
+				}
+			}
+			t.Fatalf("timed out waiting for %s", label)
+		}
+	}
+	waitErrCh := func(ch <-chan error, label string, cleanups ...func()) error {
+		t.Helper()
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(5 * time.Second):
+			for _, fn := range cleanups {
+				if fn != nil {
+					fn()
+				}
+			}
+			t.Fatalf("timed out waiting for %s", label)
+			return nil
+		}
+	}
+	waitForBackendOnAdvisoryLock := func(holderSub, waiterSub string, cleanups ...func()) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		var lastErr error
+		for time.Now().Before(deadline) {
+			var matched int
+			lastErr = fx.pool.QueryRow(ctx, `
+				SELECT count(*)
+				FROM pg_locks w
+				JOIN pg_locks h
+				  ON h.locktype = 'advisory'
+				 AND h.classid = w.classid
+				 AND h.objid = w.objid
+				 AND h.objsubid = w.objsubid
+				 AND h.granted
+				WHERE w.locktype = 'advisory'
+				  AND NOT w.granted
+				  AND w.objid = hashtext('drive_grant:' || $1)::oid
+				  AND EXISTS (
+				    SELECT 1 FROM pg_locks w_held
+				    WHERE w_held.pid = w.pid
+				      AND w_held.locktype = 'advisory'
+				      AND w_held.granted
+				      AND w_held.objid = hashtext('drive_grant:' || $2)::oid
+				  )`, holderSub, waiterSub).Scan(&matched)
+			if lastErr == nil && matched > 0 {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		for _, fn := range cleanups {
+			if fn != nil {
+				fn()
+			}
+		}
+		t.Fatalf("did not observe waiter holding drive_grant:%s blocked on drive_grant:%s within deadline (lastErr=%v)",
+			waiterSub, holderSub, lastErr)
+	}
 
 	mem := registerVerified(t, fx.q, as, "r1-2-mem-"+util.NewID()+"@example.com", "Member")
 	if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
@@ -2094,12 +2175,15 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	go func() {
 		discErrCh <- fx.svc.Disconnect(ctx, Human(mem.ID), fx.work.ID, connIDB)
 	}()
-	<-discHeld
+	var releaseDiscOnce sync.Once
+	safeReleaseDisc := func() { releaseDiscOnce.Do(func() { close(releaseDisc) }) }
+	waitCh(discHeld, "Disconnect to hold drive_grant:fake-sub-lock-b", safeReleaseDisc)
 
 	// Use testAfterHelperFirstDriveSub to prove Leave has entered SQL and acquired
 	// drive_grant:fake-sub-lock-a right before it contends on drive_grant:fake-sub-lock-b,
-	// then poll pg_stat_activity / pg_locks until Leave's backend is actively waiting
-	// on the advisory lock held by Disconnect before releasing Disconnect (R2-4).
+	// then verify via pg_locks that the exact backend holding drive_grant:fake-sub-lock-a
+	// is actively waiting on drive_grant:fake-sub-lock-b held by Disconnect before
+	// releasing Disconnect (R2-4, R3-5).
 	leaveAcquiredSubA := make(chan struct{})
 	var leaveSubAOnce atomic.Bool
 	testAfterHelperFirstDriveSub = func(userID, _ string, sub string) {
@@ -2111,26 +2195,16 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	go func() {
 		leaveErrCh <- memberSvc.Leave(ctx, mem.ID, fx.org.ID)
 	}()
-	<-leaveAcquiredSubA
-	waitDeadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(waitDeadline) {
-		var waiting int
-		_ = fx.pool.QueryRow(ctx, `
-			SELECT count(*) FROM pg_locks
-			WHERE locktype = 'advisory' AND NOT granted`).Scan(&waiting)
-		if waiting > 0 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitCh(leaveAcquiredSubA, "Leave to acquire drive_grant:fake-sub-lock-a", safeReleaseDisc)
+	waitForBackendOnAdvisoryLock("fake-sub-lock-b", "fake-sub-lock-a", safeReleaseDisc)
 	testAfterHelperFirstDriveSub = nil
 	// Release manual Disconnect so it finishes and releases drive_grant:fake-sub-lock-b.
-	close(releaseDisc)
+	safeReleaseDisc()
 
-	if err := <-discErrCh; err != nil && !errors.Is(err, ErrNotFound) {
+	if err := waitErrCh(discErrCh, "Disconnect completion"); err != nil && !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Disconnect error: %v", err)
 	}
-	if err := <-leaveErrCh; err != nil {
+	if err := waitErrCh(leaveErrCh, "Leave completion"); err != nil {
 		t.Fatalf("Leave error (must not deadlock): %v", err)
 	}
 	fx.svc.testBeforeDisconnectRow = nil
@@ -2203,15 +2277,23 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	userCycleA, orgCycleA1 := setupCloseAndLegacyMember("ua", "cycle-z", "cycle-a")
 	userCycleB, orgCycleB1 := setupCloseAndLegacyMember("ub", "cycle-a", "cycle-z")
 
-	firstLockedAll := make(chan struct{})
-	releaseFirstLockedAll := make(chan struct{})
-	var firstLockedOnce atomic.Bool
-	testAfterLifecycleGrantLocks = func(subs []string) {
-		if len(subs) == 2 && subs[0] == "fake-sub-cycle-a" && subs[1] == "fake-sub-cycle-z" {
-			if firstLockedOnce.CompareAndSwap(false, true) {
-				close(firstLockedAll)
-				<-releaseFirstLockedAll
-			}
+	// Force the exact cross-helper boundary using testAfterCloseOrgRowLock (which fires
+	// inside closeOrganizationQ whether or not lockAllDriveGrantSubsForUserInTx exists):
+	// - With the fix: both users pre-acquire ("fake-sub-cycle-a", "fake-sub-cycle-z") in
+	//   sorted order before closeSoleOrganization; User A holds both grants and pauses at
+	//   testAfterCloseOrgRowLock while User B blocks on drive_grant:fake-sub-cycle-a.
+	// - Without the fix: User A pauses at testAfterCloseOrgRowLock before taking any grant,
+	//   User B also reaches testAfterCloseOrgRowLock, then User A locks owned sub "cycle-z"
+	//   while User B locks owned sub "cycle-a", and their second helpers deadlock (40P01)!
+	aAtCloseOrg := make(chan struct{})
+	releaseACloseOrg := make(chan struct{})
+	var releaseAOnce sync.Once
+	safeReleaseA := func() { releaseAOnce.Do(func() { close(releaseACloseOrg) }) }
+	var aCloseOnce atomic.Bool
+	testAfterCloseOrgRowLock = func(userID, orgID string) {
+		if userID == userCycleA.ID && orgID == orgCycleA1.ID && aCloseOnce.CompareAndSwap(false, true) {
+			close(aAtCloseOrg)
+			<-releaseACloseOrg
 		}
 	}
 
@@ -2223,32 +2305,179 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 			CloseOrganization: orgCycleA1.Slug,
 		})
 	}()
-	<-firstLockedAll
+	waitCh(aAtCloseOrg, "userCycleA to reach closeOrganizationQ", safeReleaseA)
 	go func() {
 		errCycleB <- as.DeleteAccount(ctx, userCycleB.ID, DeleteAccountInput{
 			Password:          "password123",
 			CloseOrganization: orgCycleB1.Slug,
 		})
 	}()
-	cycleWaitDeadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(cycleWaitDeadline) {
-		var waiting int
-		_ = fx.pool.QueryRow(ctx, `
-			SELECT count(*) FROM pg_locks
-			WHERE locktype = 'advisory' AND NOT granted`).Scan(&waiting)
-		if waiting > 0 {
+	// Verify User B's backend is actively waiting on drive_grant:fake-sub-cycle-a held by User A's backend.
+	cycleDeadline := time.Now().Add(3 * time.Second)
+	var cycleWaitErr error
+	var observedCycleWait bool
+	for time.Now().Before(cycleDeadline) {
+		var matched int
+		cycleWaitErr = fx.pool.QueryRow(ctx, `
+			SELECT count(*)
+			FROM pg_locks w
+			JOIN pg_locks h
+			  ON h.locktype = 'advisory'
+			 AND h.classid = w.classid
+			 AND h.objid = w.objid
+			 AND h.objsubid = w.objsubid
+			 AND h.granted
+			WHERE w.locktype = 'advisory'
+			  AND NOT w.granted
+			  AND w.objid = hashtext('drive_grant:fake-sub-cycle-a')::oid
+			  AND EXISTS (
+			    SELECT 1 FROM pg_locks h_z
+			    WHERE h_z.pid = h.pid
+			      AND h_z.locktype = 'advisory'
+			      AND h_z.granted
+			      AND h_z.objid = hashtext('drive_grant:fake-sub-cycle-z')::oid
+			  )`).Scan(&matched)
+		if cycleWaitErr == nil && matched > 0 {
+			observedCycleWait = true
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	close(releaseFirstLockedAll)
-	if err := <-errCycleA; err != nil {
+	safeReleaseA()
+	testAfterCloseOrgRowLock = nil
+	if !observedCycleWait {
+		t.Fatalf("did not observe userCycleB waiting on drive_grant:fake-sub-cycle-a held by userCycleA (lastErr=%v)", cycleWaitErr)
+	}
+	if err := waitErrCh(errCycleA, "userCycleA DeleteAccount"); err != nil {
 		t.Fatalf("DeleteAccount userCycleA error: %v", err)
 	}
-	if err := <-errCycleB; err != nil {
+	if err := waitErrCh(errCycleB, "userCycleB DeleteAccount"); err != nil {
 		t.Fatalf("DeleteAccount userCycleB error: %v", err)
 	}
+
+	// Part 3 (R3-1): Shared Google sub between User A (sole owner of Org X executing
+	// DeleteAccount with CloseOrganization=X) and User B (member of Org Y accepting an
+	// invitation into Org X and giving up Org Y).
+	// Global order: both paths lock organization rows BEFORE drive_grant:<sub> advisory
+	// locks. Hold User B after it acquires Org X (FOR SHARE) and drive_grant:fake-sub-r31-shared,
+	// start User A's DeleteAccount, verify User A's backend is waiting on Org X's relation
+	// tuple lock (NOT holding drive_grant:fake-sub-r31-shared), release User B so it
+	// commits joining Org X, and verify User A gets a clean business refusal (never 40P01).
+	ownerX := registerVerified(t, fx.q, as, "r3-1-ox-"+util.NewID()+"@example.com", "OwnerX")
+	orgX, err := fx.orgs.Create(ctx, ownerX.ID, "Org X", "r3-1-orgx-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsX, err := fx.ws.CreateInOrg(ctx, ownerX.ID, orgX.ID, "WS X", "ws-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerY := registerVerified(t, fx.q, as, "r3-1-oy-"+util.NewID()+"@example.com", "OwnerY")
+	orgY, err := fx.orgs.Create(ctx, ownerY.ID, "Org Y", "r3-1-orgy-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsY, err := fx.ws.CreateInOrg(ctx, ownerY.ID, orgY.ID, "WS Y", "ws-y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joinerB := registerVerified(t, fx.q, as, "r3-1-jb-"+util.NewID()+"@example.com", "JoinerB")
+	if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: orgY.ID, UserID: joinerB.ID, Role: OrgRoleMember,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: wsY.Workspace.ID, OrganizationID: orgY.ID, UserID: joinerB.ID, Role: OrgRoleMember,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Both ownerX (in orgX) and joinerB (in orgY) connect the SAME Google sub "r31-shared".
+	for _, pair := range []struct {
+		uid  string
+		wsID string
+	}{
+		{ownerX.ID, wsX.Workspace.ID},
+		{joinerB.ID, wsY.Workspace.ID},
+	} {
+		u0, n0, err := fx.svc.StartOAuth(ctx, Human(pair.uid), pair.wsID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st0, _ := extractStateFromAuthURL(t, u0)
+		if got := fx.svc.CompleteOAuth(ctx, st0, "r31-shared", "", "", n0); got != DriveOAuthConnected {
+			t.Fatalf("CompleteOAuth(r31-shared) = %q", got)
+		}
+	}
+	memberSvc.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	invX, _, err := memberSvc.InviteToOrg(ctx, ownerX.ID, orgX.ID, []string{joinerB.Email}, OrgRoleMember, nil)
+	if err != nil || len(invX) != 1 {
+		t.Fatalf("InviteToOrg orgX: %v", err)
+	}
+
+	bHeldGrant := make(chan struct{})
+	releaseBGrant := make(chan struct{})
+	var releaseBOnce sync.Once
+	safeReleaseB := func() { releaseBOnce.Do(func() { close(releaseBGrant) }) }
+	var bGrantOnce atomic.Bool
+	testAfterLifecycleGrantLocks = func(subs []string) {
+		if len(subs) == 1 && subs[0] == "fake-sub-r31-shared" && bGrantOnce.CompareAndSwap(false, true) {
+			close(bHeldGrant)
+			<-releaseBGrant
+		}
+	}
+	acceptErrCh := make(chan error, 1)
+	go func() {
+		_, err := fx.ws.AcceptInvite(ctx, joinerB.ID, invX[0].Token, []SwitchResolution{
+			{OrganizationID: orgY.ID, Action: SwitchActionLeave},
+		})
+		acceptErrCh <- err
+	}()
+	waitCh(bHeldGrant, "joinerB AcceptInvite to hold Org X FOR SHARE and drive_grant:fake-sub-r31-shared", safeReleaseB)
+
+	delXErrCh := make(chan error, 1)
+	go func() {
+		delXErrCh <- as.DeleteAccount(ctx, ownerX.ID, DeleteAccountInput{
+			Password:          "password123",
+			CloseOrganization: orgX.Slug,
+		})
+	}()
+
+	// Wait until ownerX's DeleteAccount backend is actively blocked on the lock conflict
+	// (waiting on Org X's row lock BEFORE touching drive_grant:fake-sub-r31-shared).
+	r31Deadline := time.Now().Add(3 * time.Second)
+	var r31WaitErr error
+	var observedR31Wait bool
+	for time.Now().Before(r31Deadline) {
+		var waiting int
+		r31WaitErr = fx.pool.QueryRow(ctx, `
+			SELECT count(*)
+			FROM pg_stat_activity a
+			WHERE a.datname = current_database()
+			  AND a.wait_event_type = 'Lock'
+			  AND a.query LIKE '%FROM organizations WHERE id = $1 FOR UPDATE%'`).Scan(&waiting)
+		if r31WaitErr == nil && waiting > 0 {
+			observedR31Wait = true
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	safeReleaseB()
 	testAfterLifecycleGrantLocks = nil
+	if !observedR31Wait {
+		t.Fatalf("did not observe ownerX DeleteAccount waiting on LockOrganizationForUpdate before grant prelock (lastErr=%v)", r31WaitErr)
+	}
+	if err := waitErrCh(acceptErrCh, "joinerB AcceptInvite completion"); err != nil {
+		t.Fatalf("joinerB AcceptInvite error: %v", err)
+	}
+	delXErr := waitErrCh(delXErrCh, "ownerX DeleteAccount completion")
+	var pgErr *pgconn.PgError
+	if errors.As(delXErr, &pgErr) && pgErr.Code == "40P01" {
+		t.Fatalf("DeleteAccount vs AcceptInvite deadlocked with 40P01: %v", delXErr)
+	}
+	if !errors.Is(delXErr, ErrConflict) {
+		t.Fatalf("DeleteAccount after joinerB joined Org X = %v, want clean business refusal (ErrConflict)", delXErr)
+	}
 }
 
 // TestDriveRevocationUnsealRetryConfigAndBoundedResolve covers R1-5, R1-16, and R1-17:
@@ -2473,17 +2702,24 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	dispatcher.RegisterLane(outbox.LaneProvider, fx.svc.RevocationConsumer())
 
 	connLane := connectInWS(fx.user.ID, fx.work.ID, "lane-sub")
+	// Mark the setup connect event DONE so only the disconnect event is eligible
+	// when the provider-lane dispatcher starts (R3-3).
+	if _, err := fx.pool.Exec(ctx, `
+		UPDATE outbox_events
+		SET status = 'DONE', processed_at = now()
+		WHERE organization_id = $1 AND topic = 'drive_connection.changed'`, fx.org.ID); err != nil {
+		t.Fatalf("drain setup connect outbox events: %v", err)
+	}
 	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, connLane); err != nil {
 		t.Fatalf("Disconnect: %v", err)
 	}
 	var discOutboxID string
 	if err := fx.pool.QueryRow(ctx, `
 		SELECT id FROM outbox_events
-		WHERE organization_id = $1 AND topic = 'drive_connection.changed'
+		WHERE organization_id = $1 AND topic = 'drive_connection.changed' AND status = 'PENDING'
 		ORDER BY created_at DESC, id DESC LIMIT 1`, fx.org.ID).Scan(&discOutboxID); err != nil {
 		t.Fatalf("find disconnect outbox event: %v", err)
 	}
-
 	// Inject a failing revoke on the first provider-lane dispatch (R2-6): the consumer
 	// must return an error so the dispatcher keeps the outbox event PENDING with
 	// attempts >= 1, and the drive_grant_revocations row remains unresolved with its
@@ -2555,7 +2791,7 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	}
 	if _, err := fx.pool.Exec(ctx, `
 		UPDATE outbox_events
-		SET next_attempt_at = now() - interval '1 second', locked_until = NULL, locked_by = NULL
+		SET available_at = now() - interval '1 second', locked_until = NULL, locked_by = NULL
 		WHERE id = $1`, discOutboxID); err != nil {
 		t.Fatal(err)
 	}
@@ -2697,5 +2933,56 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	revBoundedClose, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-bounded-close")
 	if err != nil || revBoundedClose.ResolvedAt.Valid || revBoundedClose.AttemptID.Valid || !revBoundedClose.RefreshTokenEnc.Valid {
 		t.Fatalf("queue row after timed-out post-commit claim must stay pending for sweep: %+v, err=%v", revBoundedClose, err)
+	}
+
+	// 4. R3-6: Post-commit total cleanup deadline propagates through Google revoke HTTP call
+	// and resolve transaction, and caps the entire multi-sub loop at one total budget; any
+	// sub whose Google call or resolve times out (or any subsequent sub not reached before
+	// the total budget expires) stays retryable in drive_grant_revocations for the sweep.
+	ownerTotal := registerVerified(t, fx.q, as, "r3-6-total-"+util.NewID()+"@example.com", "OwnerTotal")
+	orgTotal, err := fx.orgs.Create(ctx, ownerTotal.ID, "Total Budget Org", "r3-6-total-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsTotalView, err := fx.ws.CreateInOrg(ctx, ownerTotal.ID, orgTotal.ID, "WS Total", "ws-total")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = connectInWS(ownerTotal.ID, wsTotalView.Workspace.ID, "total-a")
+	_ = connectInWS(ownerTotal.ID, wsTotalView.Workspace.ID, "total-b")
+	fx.svc.postCommitTimeout = 120 * time.Millisecond
+
+	var googleObservedCtxErr error
+	fx.fake.SetRevoke(func(rctx context.Context, token string) error {
+		if token == "fake-drive-refresh-total-a" {
+			<-rctx.Done()
+			googleObservedCtxErr = rctx.Err()
+			return rctx.Err()
+		}
+		return nil
+	})
+	startTotal := time.Now()
+	if err := memberSvc.Close(ctx, ownerTotal.ID, orgTotal.ID, orgTotal.Slug); err != nil {
+		t.Fatalf("Close with slow Google revoke: %v", err)
+	}
+	totalElapsed := time.Since(startTotal)
+	fx.fake.SetRevoke(nil)
+	fx.svc.postCommitTimeout = 0
+
+	if !errors.Is(googleObservedCtxErr, context.DeadlineExceeded) {
+		t.Fatalf("Google RevokeToken context error = %v, want context.DeadlineExceeded from post-commit budget", googleObservedCtxErr)
+	}
+	if totalElapsed > 5*time.Second {
+		t.Fatalf("multi-sub post-commit cleanup took %v, expected bounded return near 120ms total budget", totalElapsed)
+	}
+	// Sub A's claim succeeded before its Google call timed out -> in-flight with token intact, retryable after lease.
+	revTotalA, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-total-a")
+	if err != nil || revTotalA.ResolvedAt.Valid || !revTotalA.AttemptID.Valid || !revTotalA.RefreshTokenEnc.Valid {
+		t.Fatalf("sub A after post-commit Google timeout must stay in-flight with token for retry: %+v, err=%v", revTotalA, err)
+	}
+	// Sub B was skipped once the total cleanup budget expired -> still pending with token intact for the sweep.
+	revTotalB, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-total-b")
+	if err != nil || revTotalB.ResolvedAt.Valid || revTotalB.AttemptID.Valid || !revTotalB.RefreshTokenEnc.Valid {
+		t.Fatalf("sub B after total post-commit budget expired must stay pending with token for sweep: %+v, err=%v", revTotalB, err)
 	}
 }
