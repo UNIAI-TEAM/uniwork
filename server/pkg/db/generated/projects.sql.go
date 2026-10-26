@@ -46,6 +46,7 @@ func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProject
 const countSearchProjects = `-- name: CountSearchProjects :one
 SELECT count(*)::bigint FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || $3 || '%'
     OR description ILIKE '%' || $3 || '%'
@@ -314,6 +315,7 @@ func (q *Queries) DeleteTaskViewsByProjectScope(ctx context.Context, arg DeleteT
 const getProject = `-- name: GetProject :one
 SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+  AND trashed_at IS NULL
 `
 
 type GetProjectParams struct {
@@ -437,6 +439,7 @@ SELECT project_id,
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND project_id = ANY($3::text[])
 GROUP BY project_id
 `
@@ -522,6 +525,7 @@ const listProjectTitlesForDuplicateCheck = `-- name: ListProjectTitlesForDuplica
 SELECT id, title FROM projects
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
 ORDER BY created_at, id
 `
 
@@ -558,6 +562,7 @@ func (q *Queries) ListProjectTitlesForDuplicateCheck(ctx context.Context, arg Li
 const listProjects = `-- name: ListProjects :many
 SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR priority = $4)
 ORDER BY updated_at DESC, id
@@ -633,6 +638,7 @@ SELECT
   count(*) OVER ()::bigint AS total_count
 FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || $3 || '%'
     OR description ILIKE '%' || $3 || '%'

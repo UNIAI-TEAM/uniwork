@@ -10,12 +10,14 @@ RETURNING *;
 
 -- name: ListTaskViewsForUser :many
 SELECT * FROM task_views
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND scope_type = $3
-  AND scope_id IS NOT DISTINCT FROM sqlc.narg('scope_id')
-  AND (owner_id = $4 OR visibility = 'workspace')
-ORDER BY created_at ASC
+WHERE task_views.organization_id = $1
+  AND task_views.workspace_id = $2
+  AND task_views.scope_type = $3
+  AND task_views.scope_id IS NOT DISTINCT FROM sqlc.narg('scope_id')
+  AND (task_views.owner_id = $4 OR task_views.visibility = 'workspace')
+  AND NOT (task_views.scope_type = 'project' AND EXISTS (
+    SELECT 1 FROM projects p WHERE p.id = task_views.scope_id AND p.trashed_at IS NOT NULL))
+ORDER BY task_views.created_at ASC
 LIMIT 200;
 
 -- name: CountTaskViewsByOwner :one

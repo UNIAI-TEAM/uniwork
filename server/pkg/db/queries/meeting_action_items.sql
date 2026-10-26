@@ -27,7 +27,7 @@ SELECT sqlc.embed(i),
   t.assignee_id AS task_assignee_id,
   t.due_date AS task_due_date
 FROM meeting_action_items i
-LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
 ORDER BY (i.source <> 'AI'), i.position, i.created_at, i.id;
@@ -103,7 +103,7 @@ SELECT i.id AS action_item_id, COUNT(*) OVER ()::int AS total,
   t.assignee_id AS task_assignee_id, t.due_date AS task_due_date
 FROM meetings m
 JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
-JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE m.organization_id = sqlc.arg(organization_id) AND m.workspace_id = sqlc.arg(workspace_id)
   AND ((sqlc.narg(project_id)::text IS NOT NULL AND m.project_id = sqlc.narg(project_id)::text)

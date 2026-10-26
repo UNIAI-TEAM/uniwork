@@ -18,6 +18,7 @@ SELECT parent_task_id,
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND parent_task_id IS NOT NULL
 GROUP BY parent_task_id
 `
@@ -57,6 +58,7 @@ const countMyTasks = `-- name: CountMyTasks :one
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     (
       ($3::text IS NULL OR $3::text IN ('', 'all'))
@@ -97,6 +99,7 @@ SELECT assignee_id::text AS assignee_id,
 FROM tasks
 WHERE tasks.organization_id = $2
   AND tasks.workspace_id = $3
+  AND tasks.trashed_at IS NULL
   AND assignee_id IS NOT NULL AND assignee_id <> ''
   AND NOT EXISTS (
     SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
@@ -143,6 +146,7 @@ const countTasks = `-- name: CountTasks :one
 SELECT count(*)::bigint FROM tasks
 WHERE tasks.organization_id = $1
   AND tasks.workspace_id = $2
+  AND tasks.trashed_at IS NULL
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR project_id = $4)
   AND ($5::text IS NULL OR assignee_id = $5)
@@ -550,6 +554,7 @@ SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.ass
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
   AND t.project_id IS NOT DISTINCT FROM $3
   AND t.parent_task_id IS NOT DISTINCT FROM $4
@@ -621,7 +626,7 @@ func (q *Queries) FindActiveDuplicateTask(ctx context.Context, arg FindActiveDup
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE id = $1
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE id = $1 AND trashed_at IS NULL
 `
 
 // tenant: by-id
@@ -678,6 +683,7 @@ SELECT id, workspace_id, title, description, status, priority, assignee_id, due_
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
+  AND trashed_at IS NULL
 `
 
 type GetTaskInWorkspaceParams struct {
@@ -742,6 +748,7 @@ WHERE t.organization_id = $1
   AND t.workspace_id = $2
   AND upper(w.task_prefix) = upper($3)
   AND t.number = $4
+  AND t.trashed_at IS NULL
 `
 
 type GetTaskInWorkspaceByIdentifierParams struct {
@@ -813,6 +820,7 @@ WHERE organization_id = $1
   AND workspace_id = $2
   AND created_by = $3
   AND kind = 'welcome'
+  AND trashed_at IS NULL
 `
 
 type GetWelcomeTaskParams struct {
@@ -938,6 +946,7 @@ const listChildTasks = `-- name: ListChildTasks :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND parent_task_id = $3
 ORDER BY number ASC
 `
@@ -1013,6 +1022,7 @@ const listChildrenByParents = `-- name: ListChildrenByParents :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND parent_task_id = ANY($3::text[])
 ORDER BY parent_task_id, number ASC
 `
@@ -1088,6 +1098,7 @@ const listMyTasks = `-- name: ListMyTasks :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     (
       ($3::text IS NULL OR $3::text IN ('', 'all'))
@@ -1315,6 +1326,7 @@ WHERE (
     )
   )
   AND t.number = $2
+  AND t.trashed_at IS NULL
 `
 
 type ListTasksByIdentifierParams struct {
@@ -1396,6 +1408,7 @@ func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIden
 const listTasksByWorkspace = `-- name: ListTasksByWorkspace :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
 ORDER BY status, position, created_at
 `
 
@@ -1534,6 +1547,7 @@ const queryTasks = `-- name: QueryTasks :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
 WHERE tasks.organization_id = $1
   AND tasks.workspace_id = $2
+  AND tasks.trashed_at IS NULL
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR project_id = $4)
   AND ($5::text IS NULL OR assignee_id = $5)

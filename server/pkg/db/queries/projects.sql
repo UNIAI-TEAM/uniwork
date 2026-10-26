@@ -1,6 +1,7 @@
 -- name: ListProjects :many
 SELECT * FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('priority')::text IS NULL OR priority = sqlc.narg('priority'))
 ORDER BY updated_at DESC, id;
@@ -14,6 +15,7 @@ SELECT
   count(*) OVER ()::bigint AS total_count
 FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || sqlc.arg('q') || '%'
     OR description ILIKE '%' || sqlc.arg('q') || '%'
@@ -34,6 +36,7 @@ LIMIT sqlc.arg('limit_count') OFFSET sqlc.arg('offset_count');
 -- Empty pages have no window row to carry total_count; use this fallback.
 SELECT count(*)::bigint FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || sqlc.arg('q') || '%'
     OR description ILIKE '%' || sqlc.arg('q') || '%'
@@ -45,7 +48,8 @@ WHERE organization_id = $1 AND workspace_id = $2
 
 -- name: GetProject :one
 SELECT * FROM projects
-WHERE id = $1 AND organization_id = $2 AND workspace_id = $3;
+WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+  AND trashed_at IS NULL;
 
 -- name: CreateProject :one
 INSERT INTO projects (
@@ -64,6 +68,7 @@ SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0));
 SELECT id, title FROM projects
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
 ORDER BY created_at, id;
 
 -- name: UpdateProject :one
@@ -96,6 +101,7 @@ SELECT project_id,
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND project_id = ANY(sqlc.arg('project_ids')::text[])
 GROUP BY project_id;
 

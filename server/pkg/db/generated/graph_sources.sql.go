@@ -167,7 +167,7 @@ func (q *Queries) GraphRebuildMemberIDs(ctx context.Context, arg GraphRebuildMem
 }
 
 const graphRebuildProjectIDs = `-- name: GraphRebuildProjectIDs :many
-SELECT id FROM projects WHERE organization_id = $1 AND id > $2::text
+SELECT id FROM projects WHERE organization_id = $1 AND id > $2::text AND trashed_at IS NULL
 ORDER BY id LIMIT $3::int
 `
 
@@ -198,7 +198,7 @@ func (q *Queries) GraphRebuildProjectIDs(ctx context.Context, arg GraphRebuildPr
 }
 
 const graphRebuildTaskIDs = `-- name: GraphRebuildTaskIDs :many
-SELECT id FROM tasks WHERE organization_id = $1 AND id > $2::text
+SELECT id FROM tasks WHERE organization_id = $1 AND id > $2::text AND trashed_at IS NULL
 ORDER BY id LIMIT $3::int
 `
 
@@ -503,7 +503,7 @@ func (q *Queries) GraphSourceMember(ctx context.Context, arg GraphSourceMemberPa
 }
 
 const graphSourceProject = `-- name: GraphSourceProject :one
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects WHERE organization_id = $1 AND id = $2
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects WHERE organization_id = $1 AND id = $2 AND trashed_at IS NULL
 `
 
 type GraphSourceProjectParams struct {
@@ -541,7 +541,7 @@ func (q *Queries) GraphSourceProject(ctx context.Context, arg GraphSourceProject
 
 const graphSourceTask = `-- name: GraphSourceTask :one
 
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE organization_id = $1 AND id = $2
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE organization_id = $1 AND id = $2 AND trashed_at IS NULL
 `
 
 type GraphSourceTaskParams struct {

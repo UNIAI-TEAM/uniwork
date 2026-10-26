@@ -56,6 +56,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $2
   AND t.workspace_id = $3
+  AND t.trashed_at IS NULL
   AND t.assignee_id = $4
   AND t.assignee_kind = 'human'
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
@@ -212,6 +213,7 @@ SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.ass
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND t.assignee_id = $3
   AND t.assignee_kind = 'human'
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')

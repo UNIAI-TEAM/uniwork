@@ -27,17 +27,19 @@ RETURNING *;
 -- name: ListTasksByWorkspace :many
 SELECT * FROM tasks
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
 ORDER BY status, position, created_at;
 
 -- name: GetTask :one
 -- tenant: by-id
-SELECT * FROM tasks WHERE id = $1;
+SELECT * FROM tasks WHERE id = $1 AND trashed_at IS NULL;
 
 -- name: GetTaskInWorkspace :one
 SELECT * FROM tasks
 WHERE id = sqlc.arg('id')
   AND organization_id = sqlc.arg('organization_id')
-  AND workspace_id = sqlc.arg('workspace_id');
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL;
 
 -- name: UpdateTask :one
 UPDATE tasks SET
@@ -166,12 +168,14 @@ SELECT * FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND created_by = $3
-  AND kind = 'welcome';
+  AND kind = 'welcome'
+  AND trashed_at IS NULL;
 
 -- name: QueryTasks :many
 SELECT * FROM tasks
 WHERE tasks.organization_id = sqlc.arg('organization_id')
   AND tasks.workspace_id = sqlc.arg('workspace_id')
+  AND tasks.trashed_at IS NULL
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('assignee_id')::text IS NULL OR assignee_id = sqlc.narg('assignee_id'))
@@ -188,6 +192,7 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 SELECT count(*)::bigint FROM tasks
 WHERE tasks.organization_id = sqlc.arg('organization_id')
   AND tasks.workspace_id = sqlc.arg('workspace_id')
+  AND tasks.trashed_at IS NULL
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('assignee_id')::text IS NULL OR assignee_id = sqlc.narg('assignee_id'))
@@ -206,6 +211,7 @@ SELECT assignee_id::text AS assignee_id,
 FROM tasks
 WHERE tasks.organization_id = sqlc.arg('organization_id')
   AND tasks.workspace_id = sqlc.arg('workspace_id')
+  AND tasks.trashed_at IS NULL
   AND assignee_id IS NOT NULL AND assignee_id <> ''
   AND NOT EXISTS (
     SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
@@ -232,7 +238,8 @@ WHERE (
         AND a.kind = 'task_prefix' AND upper(a.value) = upper(sqlc.arg('prefix'))
     )
   )
-  AND t.number = sqlc.arg('number');
+  AND t.number = sqlc.arg('number')
+  AND t.trashed_at IS NULL;
 
 -- name: GetTaskInWorkspaceByIdentifier :one
 -- A PREFIX-N reference read inside one workspace. Prefixes are three letters
@@ -244,7 +251,8 @@ INNER JOIN workspaces w
 WHERE t.organization_id = sqlc.arg('organization_id')
   AND t.workspace_id = sqlc.arg('workspace_id')
   AND upper(w.task_prefix) = upper(sqlc.arg('prefix'))
-  AND t.number = sqlc.arg('number');
+  AND t.number = sqlc.arg('number')
+  AND t.trashed_at IS NULL;
 
 -- name: ListMyTasks :many
 -- Actor's tasks filtered by relation (all|assigned|created|involved).
@@ -252,6 +260,7 @@ WHERE t.organization_id = sqlc.arg('organization_id')
 SELECT * FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
   AND (
     (
       (sqlc.narg('relation')::text IS NULL OR sqlc.narg('relation')::text IN ('', 'all'))
@@ -269,6 +278,7 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
   AND (
     (
       (sqlc.narg('relation')::text IS NULL OR sqlc.narg('relation')::text IN ('', 'all'))
@@ -284,6 +294,7 @@ WHERE organization_id = sqlc.arg('organization_id')
 SELECT * FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
   AND parent_task_id = sqlc.arg('parent_task_id')
 ORDER BY number ASC;
 
@@ -291,6 +302,7 @@ ORDER BY number ASC;
 SELECT * FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
   AND parent_task_id = ANY(sqlc.arg('parent_ids')::text[])
 ORDER BY parent_task_id, number ASC;
 
@@ -301,6 +313,7 @@ SELECT parent_task_id,
 FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND trashed_at IS NULL
   AND parent_task_id IS NOT NULL
 GROUP BY parent_task_id;
 
@@ -344,6 +357,7 @@ SELECT t.* FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = sqlc.arg('organization_id')
   AND t.workspace_id = sqlc.arg('workspace_id')
+  AND t.trashed_at IS NULL
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
   AND t.project_id IS NOT DISTINCT FROM sqlc.narg('project_id')
   AND t.parent_task_id IS NOT DISTINCT FROM sqlc.narg('parent_task_id')

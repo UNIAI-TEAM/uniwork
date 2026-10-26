@@ -699,6 +699,7 @@ WITH base AS (
   LEFT JOIN task_comments c ON c.id = a.comment_id AND c.organization_id = a.organization_id
   JOIN tasks t ON t.id = COALESCE(a.task_id, c.task_id)
     AND t.organization_id = a.organization_id AND t.workspace_id = a.workspace_id
+    AND t.trashed_at IS NULL
   LEFT JOIN files f ON f.id = a.file_id
   LEFT JOIN users eu ON eu.id = a.uploader_id
   WHERE a.organization_id = $1::text
