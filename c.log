@@ -1,0 +1,3 @@
+$ cat apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256
+7ea491df874e5a78369543ebe2a75b7785a1a52a99f7e0cbb47abd35e5b253f0  xlsx-sidecar.wasm  linux-arm64
+25ab59ab57bc7ffb75e94230e54ee82aea593aebed6b1ba9ba62c3dcb6b82f06  xlsx-sidecar.wasm  linux-x64

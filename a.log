@@ -1,0 +1,4 @@
+$ git fetch -q origin main; git rev-parse HEAD origin/main; uname -m
+d439afed4af5779013777f083fbf310eae5ec05d
+c04f6f802f3720e60a942f9eb500d7eeebc3a268
+x86_64
