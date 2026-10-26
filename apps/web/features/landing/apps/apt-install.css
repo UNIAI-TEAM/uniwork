@@ -19,9 +19,13 @@
 .marketing-site .apt-copy { flex: none; min-height: 44px; border-color: var(--input); background: var(--background); }
 .apt-copy svg { width: 15px; height: 15px; }
 .apt-copy[data-copied] { color: var(--success-soft-foreground); }
-/* A command wraps only at a space or after "/" (the <wbr> the block inserts); anything longer scrolls inside its own box. */
+/* The longer label is laid out invisibly under the shown one, so the button keeps one width and the row never shifts. */
+.apt-copy-label { display: inline-flex; flex-direction: column; align-items: center; }
+.apt-copy-label::after { content: attr(data-widest); height: 0; overflow: hidden; visibility: hidden; }
+/* A command wraps only at a space or after the "/" that ends a path name (the <wbr> AptCode inserts); an .apt-tok never splits, and a stretch wider than the box scrolls inside it. */
 .apt-code { margin: 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: var(--foreground); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.65; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; }
 .apt-code code { font: inherit; }
+.apt-tok { white-space: nowrap; }
 .marketing-site .apt-status { margin: 0; font-size: var(--text-caption); color: var(--success-soft-foreground); }
 .marketing-site .apt-status.is-failed { color: var(--destructive-soft-foreground); }
 

@@ -1,21 +1,19 @@
 "use client";
 import { Check, ChevronDown, Copy } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { APT_KEY_FINGERPRINT, aptInstallCommands, aptQuickInstallCommand, aptScriptInstallCommand, selectOfficeInstallerChannel, type AptSuite } from "@uniwork/core/office";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { copyText } from "@uniwork/ui/lib/clipboard";
+import { AptCode } from "./apt-code";
 import { OsMark } from "./os-marks";
 import "./apt-install.css";
 
-/** A command may wrap only after a "/" or at a space, never inside a word; the copied text is the command itself. */
-function breakable(command: string): ReactNode[] {
-  return command.split(/(?<=\/)/).flatMap((part, index) => (index === 0 ? [part] : [<wbr key={index} />, part]));
-}
-
 function CommandBlock({ label, command }: { label: string; command: string }) {
   const { t } = useTranslation();
+  const copyLabel = t("landing.office.apt.copy");
+  const copiedLabel = t("landing.office.apt.copied");
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -29,12 +27,13 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
       <h5>{label}</h5>
       <Button type="button" variant="outline" size="sm" className="apt-copy" data-copied={state === "copied" || undefined} aria-label={t("landing.office.apt.copyStep", { step: label })} onClick={() => { void copy(); }}>
         {state === "copied" ? <Check aria-hidden /> : <Copy aria-hidden />}
-        <span>{t(state === "copied" ? "landing.office.apt.copied" : "landing.office.apt.copy")}</span>
+        {/* The button is as wide as the longer label whichever one shows, so the row never shifts. */}
+        <span className="apt-copy-label" data-widest={copiedLabel.length > copyLabel.length ? copiedLabel : copyLabel}>{state === "copied" ? copiedLabel : copyLabel}</span>
       </Button>
     </div>
-    <pre className="apt-code"><code>{breakable(command)}</code></pre>
+    <AptCode command={command} />
     {/* "Đã sao chép" is already the button's visible text; a failure needs its own visible line. */}
-    <p aria-live="polite" className={state === "failed" ? "apt-status is-failed" : "sr-only"}>{state === "copied" ? t("landing.office.apt.copied") : state === "failed" ? t("landing.office.apt.copyFailed") : ""}</p>
+    <p aria-live="polite" className={state === "failed" ? "apt-status is-failed" : "sr-only"}>{state === "copied" ? copiedLabel : state === "failed" ? t("landing.office.apt.copyFailed") : ""}</p>
   </div>;
 }
 
