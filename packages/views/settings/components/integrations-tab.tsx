@@ -76,14 +76,20 @@ function EmailHubRow() {
   );
 }
 
-export function IntegrationsTab() {
+export function IntegrationsTab({
+  focusDriveRow,
+  onDriveRowFocused,
+}: {
+  focusDriveRow?: boolean;
+  onDriveRowFocused?: () => void;
+} = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
 
   return (
     <SettingsTab title={t("page.tabs.integrations")} description={t("integrations.description")}>
       <SettingsSection title={t("integrations.available")}>
         <SettingsList aria-label={t("integrations.available")}>
-          <DriveIntegrationRow />
+          <DriveIntegrationRow focusDriveRow={focusDriveRow} onDriveRowFocused={onDriveRowFocused} />
           <EmailHubRow />
         </SettingsList>
       </SettingsSection>

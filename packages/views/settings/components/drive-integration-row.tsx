@@ -20,7 +20,6 @@ import { ConfirmDialog } from "../../common/form-dialog";
 import { GoogleDriveMark } from "../../common/provider-icons";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
-import { useNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
 import {
   SettingsBadge,
@@ -209,10 +208,15 @@ function DriveAccountCard({
  * Rendered only when both the `drive_connector` feature flag and
  * `drive.available` from `GET /api/v1/config` are true.
  */
-export function DriveIntegrationRow() {
+export function DriveIntegrationRow({
+  focusDriveRow = false,
+  onDriveRowFocused,
+}: {
+  focusDriveRow?: boolean;
+  onDriveRowFocused?: () => void;
+}) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
   const { workspace } = useWorkspace();
-  const navigation = useNavigation();
   const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
   const { data: publicConfig } = usePublicConfig();
   const config = publicConfig ?? EMPTY_CONFIG;
@@ -226,6 +230,7 @@ export function DriveIntegrationRow() {
   const lastDisconnectEmailRef = useRef("");
   const [notice, setNotice] = useState<CallbackNotice | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<DriveConnection | null>(null);
+
   const onPopupOutcome = (outcome: OAuthPopupOutcome) => {
     const targetEmail = reconnectTargetRef.current?.google_email;
     reconnectTargetRef.current = null;
@@ -267,31 +272,16 @@ export function DriveIntegrationRow() {
     onOutcome: onPopupOutcome,
   });
 
-  // Handoff param `?connect=drive` (spec §7.11): scrolls + focuses the Drive
-  // row, removes `connect` with `replace`, and never opens the popup or calls
-  // the start API.
-  const connectParam = navigation.searchParams.get("connect");
-  const focusPendingRef = useRef(connectParam === "drive");
+  // Handoff param `?connect=drive` (spec §7.11): `SettingsPage` strips `connect`
+  // on mount and passes `focusDriveRow` down so the row still scrolls + focuses
+  // even when its lazy chunk or config query settles after the URL replace.
   useEffect(() => {
-    if (connectParam === "drive") {
-      focusPendingRef.current = true;
-    }
-    if (!driveAvailable) return;
-    if (connectParam === "drive" || focusPendingRef.current) {
-      focusPendingRef.current = false;
-      rowRef.current?.scrollIntoView?.({ block: "nearest" });
-      rowRef.current?.focus();
-    }
-    if (connectParam === "drive") {
-      const nextParams = new URLSearchParams(navigation.searchParams);
-      nextParams.delete("connect");
-      if (!nextParams.get("tab")) {
-        nextParams.set("tab", "integrations");
-      }
-      const qs = nextParams.toString();
-      navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
-    }
-  }, [connectParam, driveAvailable, navigation]);
+    if (!driveAvailable || !focusDriveRow) return;
+    rowRef.current?.scrollIntoView?.({ block: "nearest" });
+    rowRef.current?.focus();
+    onDriveRowFocused?.();
+  }, [driveAvailable, focusDriveRow, onDriveRowFocused]);
+
   if (!driveAvailable) return null;
 
   const connections = connectionsQuery.data?.connections ?? [];
@@ -374,6 +364,7 @@ export function DriveIntegrationRow() {
       {busy ? t("connecting") : t("connect")}
     </Button>
   );
+
   return (
     <SettingsListItem
       leading={<DriveMarkTile />}

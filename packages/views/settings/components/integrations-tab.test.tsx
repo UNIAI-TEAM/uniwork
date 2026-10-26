@@ -114,6 +114,7 @@ beforeEach(() => {
   openSpy.mockReset();
   window.open = openSpy;
 });
+
 describe("IntegrationsTab", () => {
   it("lists Email Hub as the real connection, linked to the Email screen", async () => {
     renderTab([]);
@@ -250,6 +251,7 @@ describe("IntegrationsTab", () => {
       ).toBeInTheDocument();
       expect(await within(available).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
     });
+
     it("shows the popup blocked message when window.open returns null", async () => {
       openSpy.mockReturnValue(null);
       renderTab([], { driveFlag: true, driveAvailable: true });
@@ -582,6 +584,7 @@ describe("IntegrationsTab", () => {
       const driveRow = await screen.findByTestId("drive-integration-row");
       await waitFor(() => expect(document.activeElement).toBe(driveRow));
       expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      expect(nav.replace).toHaveBeenCalledTimes(1);
       expect(openSpy).not.toHaveBeenCalled();
       expect(requestMock).not.toHaveBeenCalledWith(
         "/api/v1/workspaces/ws1/drive-connections/google/start",
@@ -631,6 +634,7 @@ describe("IntegrationsTab", () => {
       const driveRow = await screen.findByTestId("drive-integration-row");
       await waitFor(() => expect(document.activeElement).toBe(driveRow));
       expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      expect(nav.replace).toHaveBeenCalledTimes(1);
       expect(openSpy).not.toHaveBeenCalled();
       expect(requestMock).not.toHaveBeenCalledWith(
         "/api/v1/workspaces/ws1/drive-connections/google/start",
@@ -680,6 +684,122 @@ describe("IntegrationsTab", () => {
         expect(requestMock).toHaveBeenCalledWith("/api/v1/config", expect.anything()),
       );
       await act(async () => {});
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(requestMock).not.toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/drive-connections/google/start",
+        expect.anything(),
+      );
+      expect(nav.replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("?connect=drive still focuses the Drive row when the row mounts after connect has already been stripped from the URL", async () => {
+      openSpy.mockReturnValue(null);
+      const nav = fakeNav("/acme/team/settings?connect=drive");
+      const { promise: configPromise, resolve: resolveConfig } = Promise.withResolvers<unknown>();
+
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") {
+          return configPromise;
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return Promise.resolve({ connections: [] });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        return Promise.resolve({});
+      });
+
+      const service = new FeatureFlagService(
+        new StaticProvider({ drive_connector: { default: true } }),
+      );
+
+      render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SettingsPage />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          nav,
+        ),
+      );
+
+      await waitFor(() =>
+        expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations"),
+      );
+      // Force a second navigation notification after StatefulNavigation's subscription
+      // effect has attached, so the tree re-renders with `connect` already absent
+      // before `GET /api/v1/config` resolves and the Drive row mounts.
+      act(() => {
+        nav.replace("/acme/team/settings?tab=integrations");
+      });
+      expect(nav.searchParams.get("connect")).toBeNull();
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+
+      await act(async () => {
+        resolveConfig({
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        });
+      });
+
+      const driveRow = await screen.findByTestId("drive-integration-row");
+      await waitFor(() => expect(document.activeElement).toBe(driveRow));
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(requestMock).not.toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/drive-connections/google/start",
+        expect.anything(),
+      );
+    });
+
+    it("?connect=drive&tab=profile strips connect, respects the explicit tab, and neither focuses the Drive row nor opens a popup", async () => {
+      openSpy.mockReturnValue(null);
+      const nav = fakeNav("/acme/team/settings?connect=drive&tab=profile");
+
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") {
+          return Promise.resolve({
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          });
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return Promise.resolve({ connections: [] });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        return Promise.resolve({});
+      });
+
+      const service = new FeatureFlagService(
+        new StaticProvider({ drive_connector: { default: true } }),
+      );
+
+      render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SettingsPage />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          nav,
+        ),
+      );
+
+      const profileTab = await screen.findByRole("tab", { name: "Hồ sơ" });
+      expect(profileTab).toHaveAttribute("aria-selected", "true");
+      const integrationsTab = screen.getByRole("tab", { name: "Tích hợp" });
+      expect(integrationsTab).toHaveAttribute("aria-selected", "false");
+
+      await waitFor(() =>
+        expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=profile"),
+      );
+      expect(nav.replace).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
       expect(openSpy).not.toHaveBeenCalled();
       expect(requestMock).not.toHaveBeenCalledWith(
