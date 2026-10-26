@@ -89,3 +89,98 @@ export async function disconnectDriveConnection(workspaceId: string, connectionI
     endpoint: "DELETE /api/v1/workspaces/{ws}/drive-connections/{driveConnectionID}",
   });
 }
+
+const DrivePickerTokenSchema = z.object({
+  access_token: z.string().trim().min(1),
+  expires_at: z.string(),
+  developer_key: z.string(),
+  app_id: z.string(),
+});
+
+export type DrivePickerToken = z.infer<typeof DrivePickerTokenSchema>;
+
+/**
+ * Privacy-safe link receipt returned on `POST /workspaces/{ws}/drive-files`
+ * (`sdo.DriveFileLinkReceiptDTO`, contract-2 2ad591108). Optional fields are
+ * omitted by `omitempty` on the server; enums are parsed as `z.string()` so
+ * unknown future states degrade without failing the response.
+ */
+const DriveFileLinkReceiptSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  external_file_id: z.string(),
+  drive_id: z.string().optional().catch(undefined),
+  name: z.string(),
+  mime_type: z.string(),
+  icon_kind: z.string().optional().default("generic"),
+  sharing_state: z.string().optional().default("unknown"),
+  web_view_link: z.string(),
+  open_url: z.string(),
+  viewer_access: z.string().optional().default("granted"),
+  viewer_connection_id: z.string().optional().catch(undefined),
+  viewer_account_email: z.string().optional().catch(undefined),
+});
+
+export type DriveFileLinkReceipt = z.infer<typeof DriveFileLinkReceiptSchema>;
+
+const DriveFileLinkItemSchema = z.object({
+  external_file_id: z.string(),
+  outcome: z.string(),
+  file: DriveFileLinkReceiptSchema.optional().catch(undefined),
+  account_email: z.string().optional().catch(undefined),
+  error_code: z.string().optional().catch(undefined),
+  error_message: z.string().optional().catch(undefined),
+});
+
+export type DriveFileLinkItem = z.infer<typeof DriveFileLinkItemSchema>;
+
+const DriveFileLinkResultsSchema = z.object({
+  results: z.array(DriveFileLinkItemSchema),
+});
+
+export type DriveFileLinkResults = z.infer<typeof DriveFileLinkResultsSchema>;
+
+export interface LinkDriveFilesBody {
+  connection_id: string;
+  external_file_ids: string[];
+  task_id?: string | null;
+}
+
+const EMPTY_LINK_RESULTS: DriveFileLinkResults = { results: [] };
+
+export async function getDrivePickerToken(
+  workspaceId: string,
+  connectionId: string,
+): Promise<DrivePickerToken | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/drive-connections/${enc(connectionId)}/picker-token`,
+    { method: "POST", body: {} },
+  );
+  return parseWithFallback<DrivePickerToken | null>(raw, DrivePickerTokenSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/drive-connections/{driveConnectionID}/picker-token",
+  });
+}
+
+export async function linkDriveFiles(
+  workspaceId: string,
+  body: LinkDriveFilesBody,
+): Promise<DriveFileLinkResults> {
+  const payload: {
+    connection_id: string;
+    external_file_ids: string[];
+    task_id?: string;
+  } = {
+    connection_id: body.connection_id,
+    external_file_ids: body.external_file_ids,
+  };
+  if (body.task_id) {
+    payload.task_id = body.task_id;
+  }
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/drive-files`, {
+    method: "POST",
+    body: payload,
+  });
+  return parseWithFallback(raw, DriveFileLinkResultsSchema, EMPTY_LINK_RESULTS, {
+    endpoint: "POST /api/v1/workspaces/{ws}/drive-files",
+  });
+}

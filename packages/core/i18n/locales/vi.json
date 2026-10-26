@@ -14277,6 +14277,47 @@
       "disconnected_reconnect": "Mất kết nối · kết nối lại",
       "tasks_created": "Việc đã tạo từ tài liệu",
       "grant_read": "Cho UniWork đọc tệp"
+    },
+    "picker": {
+      "title": "Chọn tệp từ Google Drive",
+      "disclosure": "UniWork chỉ được quyền với tệp bạn chọn. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
+      "account_step": {
+        "title": "Chọn tài khoản Google Drive",
+        "description": "Chọn tài khoản để mở Google Picker. UniWork sẽ gắn tệp bạn chọn với tài khoản này.",
+        "status_active": "Đang hoạt động",
+        "status_lost": "Mất kết nối",
+        "reconnect": "Kết nối lại",
+        "reconnect_aria": "Kết nối lại {{email}}",
+        "continue": "Mở Google Picker",
+        "opening": "Đang mở…",
+        "cancel": "Hủy"
+      },
+      "confirm_dialog": {
+        "title_one": "Liên kết {{count}} tệp",
+        "title_other": "Liên kết {{count}} tệp",
+        "description": "Tên tệp sẽ hiện cho người xem được việc này. Nội dung vẫn chỉ mở trên Google Drive.",
+        "confirm_one": "Liên kết {{count}} tệp",
+        "confirm_other": "Liên kết {{count}} tệp",
+        "confirming": "Đang liên kết…",
+        "cancel": "Hủy"
+      },
+      "outcomes": {
+        "linked_one": "Đã liên kết {{count}} tệp từ Google Drive.",
+        "linked_other": "Đã liên kết {{count}} tệp từ Google Drive.",
+        "already_linked": "Đã có trong Drive: {{email}}",
+        "already_linked_named": "{{name}} — Đã có trong Drive: {{email}}"
+      },
+      "errors": {
+        "script_load_failed": "Không mở được Google Picker. Kiểm tra kết nối mạng rồi thử lại.",
+        "retry": "Thử lại",
+        "token_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
+        "drive_grant_required": "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
+        "drive_file_not_accessible": "Tài khoản Google Drive này không có quyền truy cập tệp hoặc tệp không còn tồn tại.",
+        "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive. Hãy nhờ quản trị viên Google Workspace cho phép ứng dụng UniWork.",
+        "drive_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+        "link_failed": "Không liên kết được tệp từ Google Drive. Thử lại.",
+        "file_error_named": "{{name}}: {{reason}}"
+      }
     }
   }
 }

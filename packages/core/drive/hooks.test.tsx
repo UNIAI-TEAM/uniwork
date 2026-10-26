@@ -5,9 +5,12 @@ import {
   driveKeys,
   useDisconnectDriveConnection,
   useDriveConnections,
+  useDrivePickerToken,
+  useLinkDriveFiles,
   useStartDriveConnect,
+  type DriveFileLinkResults,
+  type DrivePickerToken,
 } from "./hooks";
-
 const requestMock = vi.fn();
 vi.mock("../api/http", () => ({ request: (...args: unknown[]) => requestMock(...args) }));
 
@@ -96,6 +99,82 @@ describe("drive hooks", () => {
       "/api/v1/workspaces/ws1/drive-connections/dc_1",
       { method: "DELETE" },
     );
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
+  });
+
+  it("useDrivePickerToken fetches a short-lived picker token imperatively without caching", async () => {
+    const qc = new QueryClient();
+    const tokenPayload = {
+      access_token: "ya29.short-lived",
+      expires_at: "2026-10-26T11:00:00Z",
+      developer_key: "dev_key",
+      app_id: "123456",
+    };
+    requestMock.mockResolvedValueOnce(tokenPayload);
+
+    const { result } = renderHook(() => useDrivePickerToken("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    let token: DrivePickerToken | null = null;
+    await act(async () => {
+      token = await result.current.mutateAsync("dc_1");
+    });
+
+    expect(token).toEqual(tokenPayload);
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-connections/dc_1/picker-token",
+      { method: "POST", body: {} },
+    );
+    expect(qc.getQueryCache().getAll()).toHaveLength(0);
+  });
+
+  it("useLinkDriveFiles awaits the server and invalidates driveKeys.workspace(wsId)", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({
+      results: [
+        {
+          external_file_id: "gdoc_1",
+          outcome: "linked",
+          file: {
+            id: "df_1",
+            workspace_id: "ws1",
+            external_file_id: "gdoc_1",
+            name: "Kế hoạch ra mắt Q4",
+            mime_type: "application/vnd.google-apps.document",
+            icon_kind: "google_doc",
+            sharing_state: "private",
+            web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+            open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=uni-work1%40gmail.com",
+            viewer_access: "granted",
+          },
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useLinkDriveFiles("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    let response: DriveFileLinkResults | undefined;
+    await act(async () => {
+      response = await result.current.mutateAsync({
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1"],
+        task_id: "task_1",
+      });
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/drive-files", {
+      method: "POST",
+      body: {
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1"],
+        task_id: "task_1",
+      },
+    });
+    expect(response?.results).toHaveLength(1);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
   });
 });

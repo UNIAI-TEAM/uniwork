@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   disconnectDriveConnection,
+  getDrivePickerToken,
   isDriveConnectionLost,
+  linkDriveFiles,
   listDriveConnections,
   startDriveConnect,
 } from "./drive";
@@ -119,5 +121,113 @@ describe("drive endpoints", () => {
 
     requestMock.mockResolvedValueOnce("not-an-object");
     await expect(disconnectDriveConnection("ws1", "dc_1")).resolves.toBeUndefined();
+  });
+
+  it("getDrivePickerToken posts an empty body and parses the picker token SDO", async () => {
+    const tokenPayload = {
+      access_token: "ya29.fake-picker-token",
+      expires_at: "2026-10-26T11:00:00Z",
+      developer_key: "dev_key_1",
+      app_id: "123456789",
+    };
+    requestMock.mockResolvedValueOnce(tokenPayload);
+    const res = await getDrivePickerToken("ws 1", "dc/1");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws%201/drive-connections/dc%2F1/picker-token",
+      { method: "POST", body: {} },
+    );
+    expect(res).toEqual(tokenPayload);
+  });
+
+  it("getDrivePickerToken degrades a malformed response to null", async () => {
+    requestMock.mockResolvedValueOnce({ access_token: "" });
+    await expect(getDrivePickerToken("ws1", "dc_1")).resolves.toBeNull();
+
+    requestMock.mockResolvedValueOnce({ access_token: 42 });
+    await expect(getDrivePickerToken("ws1", "dc_1")).resolves.toBeNull();
+
+    requestMock.mockResolvedValueOnce("bad-json");
+    await expect(getDrivePickerToken("ws1", "dc_1")).resolves.toBeNull();
+  });
+
+  it("linkDriveFiles posts connection_id, external_file_ids, and optional task_id and parses receipts", async () => {
+    const receipt = {
+      id: "df_1",
+      workspace_id: "ws1",
+      external_file_id: "gdoc_1",
+      name: "Kế hoạch ra mắt Q4",
+      mime_type: "application/vnd.google-apps.document",
+      icon_kind: "google_doc",
+      sharing_state: "private",
+      web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+      open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=uni-work1%40gmail.com",
+      viewer_access: "granted",
+      viewer_connection_id: "dc_1",
+      viewer_account_email: "uni-work1@gmail.com",
+    };
+    requestMock.mockResolvedValueOnce({
+      results: [
+        { external_file_id: "gdoc_1", outcome: "linked", file: receipt },
+        {
+          external_file_id: "gdoc_2",
+          outcome: "already_linked",
+          file: { ...receipt, id: "df_2", external_file_id: "gdoc_2", drive_id: "sd_1" },
+          account_email: "uni-work1@gmail.com",
+        },
+        {
+          external_file_id: "gdoc_3",
+          outcome: "error",
+          error_code: "drive_grant_required",
+          error_message: "User has not authorized file",
+        },
+      ],
+    });
+
+    const res = await linkDriveFiles("ws 1", {
+      connection_id: "dc_1",
+      external_file_ids: ["gdoc_1", "gdoc_2", "gdoc_3"],
+      task_id: "task_1",
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws%201/drive-files", {
+      method: "POST",
+      body: {
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1", "gdoc_2", "gdoc_3"],
+        task_id: "task_1",
+      },
+    });
+    expect(res.results).toHaveLength(3);
+    expect(res.results[0]?.outcome).toBe("linked");
+    expect(res.results[0]?.file?.sharing_state).toBe("private");
+    expect(res.results[1]?.account_email).toBe("uni-work1@gmail.com");
+    expect(res.results[1]?.file?.drive_id).toBe("sd_1");
+    expect(res.results[2]?.error_code).toBe("drive_grant_required");
+
+    requestMock.mockResolvedValueOnce({ results: [] });
+    await linkDriveFiles("ws1", {
+      connection_id: "dc_1",
+      external_file_ids: ["gdoc_1"],
+      task_id: null,
+    });
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/workspaces/ws1/drive-files", {
+      method: "POST",
+      body: {
+        connection_id: "dc_1",
+        external_file_ids: ["gdoc_1"],
+      },
+    });
+  });
+
+  it("linkDriveFiles degrades a malformed response to an empty results list", async () => {
+    requestMock.mockResolvedValueOnce({ results: [{ external_file_id: 99 }] });
+    await expect(
+      linkDriveFiles("ws1", { connection_id: "dc_1", external_file_ids: ["gdoc_1"] }),
+    ).resolves.toEqual({ results: [] });
+
+    requestMock.mockResolvedValueOnce(null);
+    await expect(
+      linkDriveFiles("ws1", { connection_id: "dc_1", external_file_ids: ["gdoc_1"] }),
+    ).resolves.toEqual({ results: [] });
   });
 });
