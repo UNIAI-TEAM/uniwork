@@ -6,6 +6,17 @@
 -- here are the only ones that see them. Every row write bumps revision, so a
 -- client holding the pre-trash revision conflicts instead of overwriting.
 
+-- A task trash's lock: the rows it is about to stamp, in one id-ordered
+-- statement like the batch, subtree and project-task locks, so a subtree trash
+-- and a project trash or restore sharing rows queue instead of deadlocking.
+-- name: LockTasksForTrash :many
+SELECT id FROM tasks
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
+ORDER BY id
+FOR UPDATE;
+
 -- One batch stamp for every live id of a task subtree. Rows already in the
 -- trash keep their own batch.
 -- name: TrashTasks :many
@@ -21,15 +32,6 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND id = ANY(sqlc.arg(ids)::text[])
   AND trashed_at IS NULL
 RETURNING id;
-
--- One trash batch's rows (restore reads this for the events and the audit).
--- name: ListTaskTrashBatch :many
-SELECT *
-FROM tasks
-WHERE organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND trash_batch_id = sqlc.arg(trash_batch_id)
-ORDER BY id;
 
 -- Run BEFORE RestoreTaskBatch, while the rows still carry the batch. A member
 -- whose parent is not coming back with it (parent still trashed in another
@@ -132,8 +134,9 @@ WHERE trashed_at IS NOT NULL
 ORDER BY purge_after, id
 LIMIT sqlc.arg(max_rows);
 
--- Row lock for restore-versus-purge: whoever locks second re-reads the row
--- and skips when it is no longer valid.
+-- The purge worker's row lock: a person's restore or purge of the same row
+-- locks it too (LockTaskTrashBatch / LockTaskTrashSubtree), and whoever comes
+-- second re-reads the row and skips when it is no longer in the trash.
 -- name: LockTaskForPurge :one
 SELECT * FROM tasks
 WHERE id = sqlc.arg(id)

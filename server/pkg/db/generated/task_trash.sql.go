@@ -359,83 +359,6 @@ func (q *Queries) ListProjectsForPurge(ctx context.Context, arg ListProjectsForP
 	return items, nil
 }
 
-const listTaskTrashBatch = `-- name: ListTaskTrashBatch :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
-FROM tasks
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND trash_batch_id = $3
-ORDER BY id
-`
-
-type ListTaskTrashBatchParams struct {
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-	TrashBatchID   pgtype.Text `json:"trash_batch_id"`
-}
-
-// One trash batch's rows (restore reads this for the events and the audit).
-func (q *Queries) ListTaskTrashBatch(ctx context.Context, arg ListTaskTrashBatchParams) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTaskTrashBatch, arg.OrganizationID, arg.WorkspaceID, arg.TrashBatchID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Task{}
-	for rows.Next() {
-		var i Task
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Description,
-			&i.Status,
-			&i.Priority,
-			&i.AssigneeID,
-			&i.DueDate,
-			&i.Position,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Kind,
-			&i.CreatedByKind,
-			&i.AssigneeKind,
-			&i.OrganizationID,
-			&i.Number,
-			&i.ProjectID,
-			&i.ParentTaskID,
-			&i.AssigneeType,
-			&i.CreatorType,
-			&i.CreatorID,
-			&i.AcceptanceCriteria,
-			&i.ContextRefs,
-			&i.Metadata,
-			&i.Properties,
-			&i.StartDate,
-			&i.Stage,
-			&i.OriginType,
-			&i.OriginID,
-			&i.FirstExecutedAt,
-			&i.Revision,
-			&i.LastActivityAt,
-			&i.StartAt,
-			&i.DueAt,
-			&i.TrashedAt,
-			&i.TrashedBy,
-			&i.PurgeAfter,
-			&i.TrashBatchID,
-			&i.TrashedProjectID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskTrashPage = `-- name: ListTaskTrashPage :many
 WITH RECURSIVE page AS (
   SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id
@@ -754,8 +677,9 @@ type LockTaskForPurgeParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-// Row lock for restore-versus-purge: whoever locks second re-reads the row
-// and skips when it is no longer valid.
+// The purge worker's row lock: a person's restore or purge of the same row
+// locks it too (LockTaskTrashBatch / LockTaskTrashSubtree), and whoever comes
+// second re-reads the row and skips when it is no longer in the trash.
 func (q *Queries) LockTaskForPurge(ctx context.Context, arg LockTaskForPurgeParams) (Task, error) {
 	row := q.db.QueryRow(ctx, lockTaskForPurge, arg.ID, arg.OrganizationID, arg.WorkspaceID)
 	var i Task
@@ -980,6 +904,52 @@ func (q *Queries) LockTaskTrashSubtree(ctx context.Context, arg LockTaskTrashSub
 	return items, nil
 }
 
+const lockTasksForTrash = `-- name: LockTasksForTrash :many
+
+SELECT id FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND id = ANY($3::text[])
+ORDER BY id
+FOR UPDATE
+`
+
+type LockTasksForTrashParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+// Task and project trash (UNI-2171). A deleted task or project keeps its row
+// for 30 days: trashed_at / trashed_by / purge_after mark it, trash_batch_id
+// groups one task subtree so a restore brings back exactly one batch, and
+// trashed_project_id remembers the project a task was unlinked from while that
+// project sits in the trash. Readers skip trashed rows (Task 2); the queries
+// here are the only ones that see them. Every row write bumps revision, so a
+// client holding the pre-trash revision conflicts instead of overwriting.
+// A task trash's lock: the rows it is about to stamp, in one id-ordered
+// statement like the batch, subtree and project-task locks, so a subtree trash
+// and a project trash or restore sharing rows queue instead of deadlocking.
+func (q *Queries) LockTasksForTrash(ctx context.Context, arg LockTasksForTrashParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, lockTasksForTrash, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const relinkTasksForProjectRestore = `-- name: RelinkTasksForProjectRestore :many
 UPDATE tasks
 SET project_id = trashed_project_id,
@@ -1167,7 +1137,6 @@ func (q *Queries) TrashProject(ctx context.Context, arg TrashProjectParams) (Pro
 }
 
 const trashTasks = `-- name: TrashTasks :many
-
 UPDATE tasks
 SET trashed_at = now(),
     trashed_by = $1,
@@ -1191,13 +1160,6 @@ type TrashTasksParams struct {
 	Ids            []string           `json:"ids"`
 }
 
-// Task and project trash (UNI-2171). A deleted task or project keeps its row
-// for 30 days: trashed_at / trashed_by / purge_after mark it, trash_batch_id
-// groups one task subtree so a restore brings back exactly one batch, and
-// trashed_project_id remembers the project a task was unlinked from while that
-// project sits in the trash. Readers skip trashed rows (Task 2); the queries
-// here are the only ones that see them. Every row write bumps revision, so a
-// client holding the pre-trash revision conflicts instead of overwriting.
 // One batch stamp for every live id of a task subtree. Rows already in the
 // trash keep their own batch.
 func (q *Queries) TrashTasks(ctx context.Context, arg TrashTasksParams) ([]string, error) {

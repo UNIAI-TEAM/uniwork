@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -333,6 +335,67 @@ func TestTrashTooLargeIsRefused(t *testing.T) {
 	}
 	if _, err := s.Get(ctx, ua.ID, root.ID); err != nil {
 		t.Fatalf("refused trash moved the root: %v", err)
+	}
+}
+
+// A trash waits, in id order, for rows another trash holds, then reads the
+// subtree again under the lock. When the other side trashed the root
+// meanwhile, a single trash and a batch left with nothing are not found, never
+// a 200 carrying a fresh empty batch that an undo would restore (Review M1, M2).
+func TestTrashLosingARaceToAnotherTrashIsNotFound(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	root := trashTestTask(t, s, ua, w, "", "Gốc tranh chấp")
+	child := trashTestTask(t, s, ua, w, root.ID, "Con")
+	ids := []string{root.ID, child.ID}
+	for _, call := range []struct {
+		name string
+		run  func() (TrashResult, error)
+	}{
+		{"single", func() (TrashResult, error) { return s.Trash(ctx, Human(ua.ID), root.ID) }},
+		{"batch", func() (TrashResult, error) { return s.TrashMany(ctx, Human(ua.ID), w.ID, []string{root.ID}) }},
+	} {
+		other, err := s.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = other.Rollback(ctx) }()
+		oq := s.q.WithTx(other)
+		if _, err := oq.LockTasksForTrash(ctx, db.LockTasksForTrashParams{
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Ids: ids,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var otherPID int
+		if err := other.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&otherPID); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() {
+			res, err := call.run()
+			if err == nil {
+				err = fmt.Errorf("trashed %+v", res)
+			}
+			done <- err
+		}()
+		waitBlockedBy(t, s.pool, otherPID, done)
+		if _, err := oq.TrashTasks(ctx, db.TrashTasksParams{
+			TrashedBy:      pgtype.Text{String: ua.ID, Valid: true},
+			PurgeAfter:     pgtype.Timestamptz{Time: time.Now().Add(trashRetention), Valid: true},
+			TrashBatchID:   pgtype.Text{String: util.NewID(), Valid: true},
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Ids: ids,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := other.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s trash after losing the race = %v, want ErrNotFound", call.name, err)
+		}
+		if _, err := s.Restore(ctx, Human(ua.ID), root.ID); err != nil {
+			t.Fatalf("%s: restore of the winner's batch = %v", call.name, err)
+		}
 	}
 }
 

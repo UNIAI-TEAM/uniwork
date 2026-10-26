@@ -25,7 +25,8 @@ func (s *TaskService) Trash(ctx context.Context, actor Actor, taskID string) (Tr
 	if err != nil {
 		return TrashResult{}, err
 	}
-	return s.trashTasks(ctx, actor, task.OrganizationID, task.WorkspaceID, []string{task.ID})
+	// A task trashed by someone else since authorize is simply not found.
+	return s.trashTasks(ctx, actor, task.OrganizationID, task.WorkspaceID, []string{task.ID}, ErrNotFound)
 }
 
 // TrashMany is the batch delete: at most maxBatchTaskIDs ids, one unknown or
@@ -45,13 +46,16 @@ func (s *TaskService) TrashMany(ctx context.Context, actor Actor, workspaceID st
 	if err != nil {
 		return TrashResult{}, err
 	}
-	return s.trashTasks(ctx, actor, ws.OrganizationID, workspaceID, ids)
+	return s.trashTasks(ctx, actor, ws.OrganizationID, workspaceID, ids, Invalid("task_ids chứa id không thuộc workspace"))
 }
 
 // trashTasks stamps the live subtrees of roots with one batch, in one
 // transaction. Empty ids are skipped; a root that is not a live task of the
-// workspace refuses the whole call before anything is written.
-func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationID, workspaceID string, roots []string) (TrashResult, error) {
+// workspace refuses the whole call with missing before anything is written.
+// The rows are then locked in id order and the subtrees read again under the
+// lock: a root someone else trashed meanwhile is dropped, and a call that ends
+// up trashing nothing is not found, never a 200 with an empty batch.
+func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationID, workspaceID string, roots []string, missing error) (TrashResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return TrashResult{}, err
@@ -59,42 +63,23 @@ func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationI
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	seen := map[string]bool{}
-	var ids []string
-	for _, root := range roots {
-		root = strings.TrimSpace(root)
-		if root == "" || seen[root] {
-			continue
-		}
-		if _, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
-			ID: root, OrganizationID: organizationID, WorkspaceID: workspaceID,
-		}); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return TrashResult{}, Invalid("task_ids chứa id không thuộc workspace")
-			}
-			return TrashResult{}, err
-		}
-		subtree, err := q.ListDescendantTaskIDs(ctx, db.ListDescendantTaskIDsParams{
-			RootID: root, OrganizationID: organizationID, WorkspaceID: workspaceID,
-		})
-		if err != nil {
-			return TrashResult{}, err
-		}
-		for _, id := range subtree {
-			if !seen[id] {
-				seen[id] = true
-				ids = append(ids, id)
-			}
-		}
-		if len(ids) > taskTrashMaxNodes {
-			return TrashResult{}, CodedError{
-				Code: "trash_too_large", Status: http.StatusUnprocessableEntity,
-				Msg: fmt.Sprintf("không thể chuyển quá %d task vào thùng rác một lần", taskTrashMaxNodes),
-			}
-		}
+	ids, err := trashSubtreeIDs(ctx, q, organizationID, workspaceID, roots, missing)
+	if err != nil {
+		return TrashResult{}, err
 	}
 	if len(ids) == 0 {
-		return TrashResult{}, nil
+		return TrashResult{}, Invalid("task_ids không được để trống")
+	}
+	if _, err := q.LockTasksForTrash(ctx, db.LockTasksForTrashParams{
+		OrganizationID: organizationID, WorkspaceID: workspaceID, Ids: ids,
+	}); err != nil {
+		return TrashResult{}, err
+	}
+	if ids, err = trashSubtreeIDs(ctx, q, organizationID, workspaceID, roots, nil); err != nil {
+		return TrashResult{}, err
+	}
+	if len(ids) == 0 {
+		return TrashResult{}, ErrNotFound
 	}
 	batch := util.NewID()
 	trashed, err := q.TrashTasks(ctx, db.TrashTasksParams{
@@ -106,6 +91,9 @@ func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationI
 	if err != nil {
 		return TrashResult{}, err
 	}
+	if len(trashed) == 0 {
+		return TrashResult{}, ErrNotFound
+	}
 	if err := recordTaskBatch(ctx, q, actor, organizationID, workspaceID, audit.ActionTaskTrashed, batch, trashed); err != nil {
 		return TrashResult{}, err
 	}
@@ -113,6 +101,51 @@ func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationI
 		return TrashResult{}, err
 	}
 	return TrashResult{BatchID: batch, IDs: trashed}, nil
+}
+
+// trashSubtreeIDs reads the live subtree of every root, roots first, without
+// repeats. A root that is not a live task of the workspace fails with missing,
+// or is dropped when missing is nil. More than taskTrashMaxNodes rows refuse
+// the call.
+func trashSubtreeIDs(ctx context.Context, q *db.Queries, organizationID, workspaceID string, roots []string, missing error) ([]string, error) {
+	seen := map[string]bool{}
+	var ids []string
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" || seen[root] {
+			continue
+		}
+		if _, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
+			ID: root, OrganizationID: organizationID, WorkspaceID: workspaceID,
+		}); err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return nil, err
+			}
+			if missing != nil {
+				return nil, missing
+			}
+			continue
+		}
+		subtree, err := q.ListDescendantTaskIDs(ctx, db.ListDescendantTaskIDsParams{
+			RootID: root, OrganizationID: organizationID, WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range subtree {
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > taskTrashMaxNodes {
+			return nil, CodedError{
+				Code: "trash_too_large", Status: http.StatusUnprocessableEntity,
+				Msg: fmt.Sprintf("không thể chuyển quá %d task vào thùng rác một lần", taskTrashMaxNodes),
+			}
+		}
+	}
+	return ids, nil
 }
 
 // Restore brings back the whole batch taskID left in. A member whose parent
