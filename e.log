@@ -1,0 +1,5 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; pnpm --filter @uniwork/core test > /tmp/dw1-core.log 2>&1; rc=$?; grep -E "FAIL|Test Files|Tests |ERROR: Coverage|threshold" /tmp/dw1-core.log | head -60; echo; echo "CORE_TEST_EXIT=$rc"
+ Test Files  318 passed (318)
+      Tests  3605 passed (3605)
+
+CORE_TEST_EXIT=0

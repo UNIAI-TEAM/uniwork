@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/core --filter @uniwork/views --filter @uniwork/web lint > /tmp/dw1-lint.log 2>&1; rc=$?; grep -E "error|warning" /tmp/dw1-lint.log | head -60; tail -5 /tmp/dw1-lint.log; echo; echo "LINT_EXIT=$rc"
+packages/core lint$ eslint . --max-warnings 0
+packages/views lint$ eslint . --max-warnings 0
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 lint: `eslint . --max-warnings 0`
+packages/views lint: Aborted
+packages/views lint: Failed
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 lint: `eslint . --max-warnings 0`
+Exit status 134
+
+LINT_EXIT=134

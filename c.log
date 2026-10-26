@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/core --filter @uniwork/views --filter @uniwork/web typecheck > /tmp/dw1-tsc.log 2>&1; rc=$?; grep -E "error TS" /tmp/dw1-tsc.log | head -40; tail -5 /tmp/dw1-tsc.log; echo; echo "TYPECHECK_EXIT=$rc"
+packages/views typecheck: Aborted
+packages/views typecheck: Failed
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 typecheck: `tsc --noEmit`
+Exit status 134
+
+TYPECHECK_EXIT=134

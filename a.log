@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^30f360134" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=30f3601340c08bfec97cd1f81a6f295a6302ea9f
+30f360134 feat(drive): add Google Drive integration row in Settings and glossary rows
+237f51b76 feat(drive): add Drive connection endpoints, hooks, config flag and realtime invalidation
+9d603acd7 Merge branch 'feature/UNI-2172-drive-connector-spec' into feature/UNI-923-office-g5-g6-g7
