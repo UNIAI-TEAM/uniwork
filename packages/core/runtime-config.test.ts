@@ -13,6 +13,7 @@ describe("runtime config", () => {
       appUrl: "http://localhost:3000",
       chatScopeSubscriptionLimit: 25,
       clientPlatform: "web",
+      allowFakeDrivePicker: false,
     });
   });
 
