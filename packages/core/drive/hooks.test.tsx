@@ -6,8 +6,11 @@ import {
   useDisconnectDriveConnection,
   useDriveConnections,
   useDrivePickerToken,
+  useGrantDriveFileAccess,
   useLinkDriveFiles,
+  useRemoveTaskDriveFile,
   useStartDriveConnect,
+  useTaskDriveFiles,
   type DriveFileLinkResults,
   type DrivePickerToken,
 } from "./hooks";
@@ -25,10 +28,11 @@ describe("drive hooks", () => {
     requestMock.mockReset();
   });
 
-  it("nests connections under driveKeys.workspace(wsId) and driveKeys.all", () => {
+  it("nests connections and task keys under driveKeys.workspace(wsId) and driveKeys.all", () => {
     expect(driveKeys.all).toEqual(["drive"]);
     expect(driveKeys.workspace("ws1")).toEqual(["drive", "ws1"]);
     expect(driveKeys.connections("ws1")).toEqual(["drive", "ws1", "connections"]);
+    expect(driveKeys.task("ws1", "t1")).toEqual(["drive", "ws1", "tasks", "t1"]);
   });
 
   it("useDriveConnections fetches connections for the workspace and skips when disabled", async () => {
@@ -175,6 +179,114 @@ describe("drive hooks", () => {
       },
     });
     expect(response?.results).toHaveLength(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
+  });
+
+  it("useTaskDriveFiles fetches task Drive cards under driveKeys.task(wsId, taskId)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    requestMock.mockResolvedValueOnce({
+      files: [
+        {
+          id: "df_1",
+          task_id: "t1",
+          workspace_id: "ws1",
+          external_file_id: "gdoc_1",
+          name: "Kế hoạch ra mắt Q4",
+          mime_type: "application/vnd.google-apps.document",
+          icon_kind: "google_doc",
+          sharing_state: "private",
+          owner_display: "Lan",
+          connection_id: "dc_1",
+          bound_account_email: "uni-work1@gmail.com",
+          bound_by_id: "u_1",
+          created_by: "u_1",
+          linked_at: "2026-10-26T08:20:00Z",
+          viewer_access: "granted",
+          open_url: "https://docs.google.com/document/d/gdoc_1/edit",
+          can_remove_from_task: true,
+          can_propose: true,
+          can_ask: true,
+          tasks_created: { count: 2 },
+        },
+      ],
+    });
+
+    const disabled = renderHook(() => useTaskDriveFiles("ws1", "t1", { enabled: false }), {
+      wrapper: createWrapper(qc),
+    });
+    expect(disabled.result.current.fetchStatus).toBe("idle");
+    expect(requestMock).not.toHaveBeenCalled();
+
+    const enabled = renderHook(() => useTaskDriveFiles("ws1", "t1"), {
+      wrapper: createWrapper(qc),
+    });
+    await waitFor(() => expect(enabled.result.current.isSuccess).toBe(true));
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1/drive-files");
+    expect(enabled.result.current.data).toHaveLength(1);
+    expect(enabled.result.current.data?.[0]?.name).toBe("Kế hoạch ra mắt Q4");
+  });
+
+  it("useRemoveTaskDriveFile awaits the server and invalidates driveKeys.task and driveKeys.workspace", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({ status: "ok" });
+
+    const { result } = renderHook(() => useRemoveTaskDriveFile("ws1", "t1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync("df_1");
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1/drive-files/df_1", {
+      method: "DELETE",
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.task("ws1", "t1") });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
+  });
+
+  it("useGrantDriveFileAccess awaits the server and invalidates driveKeys.task and driveKeys.workspace", async () => {
+    const qc = new QueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({
+      file: {
+        id: "df_1",
+        organization_id: "org1",
+        workspace_id: "ws1",
+        external_file_id: "gdoc_1",
+        name: "Kế hoạch ra mắt Q4",
+        mime_type: "application/vnd.google-apps.document",
+        web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+        open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=mai%40gmail.com",
+        connection_id: "dc_1",
+        bound_account_email: "uni-work1@gmail.com",
+        bound_by_id: "u_1",
+        created_by: "u_1",
+        created_at: "2026-10-26T08:15:00Z",
+        viewer_access: "granted",
+        viewer_connection_id: "dc_2",
+        viewer_account_email: "mai@gmail.com",
+      },
+    });
+
+    const { result } = renderHook(() => useGrantDriveFileAccess("ws1", "t1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const file = await result.current.mutateAsync({
+        driveFileId: "df_1",
+        connectionId: "dc_2",
+      });
+      expect(file.viewer_access).toBe("granted");
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/drive-files/df_1/access", {
+      method: "POST",
+      body: { connection_id: "dc_2" },
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.task("ws1", "t1") });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
   });
 });

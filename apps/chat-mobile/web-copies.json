@@ -40,7 +40,7 @@
     "apps/chat-mobile/data/chat-api.ts": {
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "f5873a68d8c42fbcbf45a3f2056f2bc6332d63f15d4dc8ee2c9fd58d3b4568d9",
-      "packages/core/api/endpoints/tasks.ts": "22da34793d4599aef6323d57e5bee4fa3be33b84038fe0af60dd67e1447350ec",
+      "packages/core/api/endpoints/tasks.ts": "f5ad2d07e94eb961bc0e114efd306d5ecd2ce570d63eb9fa7622f5fa9878b6d0",
       "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
     "apps/chat-mobile/data/chat-send.ts": {

@@ -3,6 +3,7 @@ import {
   DocumentVersionListEnvelopeSchema,
   DocumentVersionResultEnvelopeSchema,
   type DocumentVersion,
+  type DocumentVersionConversion,
   type DocumentVersionResult,
 } from "../../types/document";
 import { request } from "../http";
@@ -110,6 +111,12 @@ export interface CommitDocumentVersionBody {
    * set by the document page or the Office frame.
    */
   chat_room_id?: string;
+  /**
+   * UNI-2213 (C5): declares that this commit converts the document's live
+   * legacy version (.doc/.xls/.ppt) into its target OOXML counterpart
+   * (.docx/.xlsx/.pptx) on the same document id.
+   */
+  conversion?: DocumentVersionConversion;
 }
 
 /**

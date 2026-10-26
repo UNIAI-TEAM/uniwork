@@ -37,7 +37,7 @@ export type CreateTaskDialogProps = {
   initialMode?: CreateTaskMode;
   /** Where focus goes on close (Base UI `finalFocus`): the title's autoFocus hides the opener from it. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
-} & Pick<CreateTaskManualPanelProps, "submitter" | "heading">;
+} & Pick<CreateTaskManualPanelProps, "submitter" | "heading" | "pickerAdapter">;
 
 /**
  * Shell that owns the single Dialog + DialogContent for create-task.
@@ -53,6 +53,7 @@ export function CreateTaskDialog({
   initialMode,
   submitter,
   heading,
+  pickerAdapter,
   finalFocus,
 }: CreateTaskDialogProps) {
   const { t } = useTranslation();
@@ -127,6 +128,7 @@ export function CreateTaskDialog({
               setCreateAnother={setCreateAnother}
               submitter={submitter}
               heading={heading}
+              pickerAdapter={pickerAdapter}
             />
           ) : (
             <CreateTaskAgentPanel

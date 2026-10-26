@@ -30,13 +30,19 @@ export function driveFrameKeys(
     return [driveKeys.connections(wsId), driveKeys.all];
   }
 
-  if (
-    type.startsWith("drive_file.") ||
-    type === "drive_task_proposal.converted" ||
-    type === "task.deleted"
-  ) {
-    return ownWorkspace ? [driveKeys.workspace(wsId)] : [];
+  if (type.startsWith("drive_file.")) {
+    if (!ownWorkspace) return [];
+    const keys: (readonly unknown[])[] = [driveKeys.workspace(wsId)];
+    // Include the explicit task key alongside the workspace prefix so callers
+    // inspecting exact task-scoped invalidations see both immediately.
+    if (payload.task_id) {
+      keys.push(driveKeys.task(wsId, payload.task_id));
+    }
+    return keys;
   }
 
+  if (type === "drive_task_proposal.converted" || type === "task.deleted") {
+    return ownWorkspace ? [driveKeys.workspace(wsId)] : [];
+  }
   return null;
 }

@@ -1349,6 +1349,8 @@
         "task.updated": "Task updated",
         "task.deleted": "Task deleted",
         "task.comment_added": "Comment added",
+        "task.drive_file_linked": "Linked file from Google Drive",
+        "task.drive_file_unlinked": "Unlinked Google Drive file",
         "subscription.changed": "Subscription changed",
         "audit.retention_set": "Retention changed",
         "audit.export_requested": "Export requested",
@@ -3004,12 +3006,16 @@
       "more_followers_short": "+{{count}}",
       "attachments_section": "Attachments",
       "attachments_placeholder": "Files attached to this task will appear here.",
-      "attachments_empty": "No attachments yet. Drop files here or use Upload.",
-      "attachments_upload": "Upload",
+      "attachments_empty": "No attachments yet. Drop files here or use Add file.",
+      "attachments_upload": "Add file",
       "attachments_uploading": "Uploading {{filename}}…",
       "attachments_delete_title": "Delete attachment?",
       "attachments_delete_description": "Remove \"{{filename}}\" from this task. This cannot be undone.",
-      "revision_conflict": "Someone else updated this task. Reloaded the latest version."
+      "revision_conflict": "Someone else updated this task. Reloaded the latest version.",
+      "activity_drive_file_linked": "linked {{name}} from Google Drive",
+      "activity_drive_file_unlinked": "unlinked {{name}} from Google Drive",
+      "activity_created_from_drive_proposal": "created this task from a UNI proposal ({{name}})",
+      "activity_created_from_drive_proposal_unnamed": "created this task from a UNI proposal"
     }
   },
   "myTasks": {
@@ -14445,6 +14451,79 @@
         "link_failed": "Couldn't link files from Google Drive. Try again.",
         "file_error_named": "{{name}}: {{reason}}"
       }
+    },
+    "attach_menu": {
+      "upload_file": "Upload file",
+      "from_drive": "From Google Drive",
+      "connected_accounts_one": "{{count}} account connected",
+      "connected_accounts_other": "{{count}} accounts connected",
+      "paste_url_hint": "Or paste a Google Drive link in the description and UniWork will suggest linking the file"
+    },
+    "draft_chip": {
+      "source_badge": "Google Drive",
+      "remove_aria": "Remove {{name}}"
+    },
+    "paste_chip": {
+      "link_prompt": "Link this Google Drive file to the task?",
+      "connect_prompt": "Connect Google Drive to link",
+      "dismiss_aria": "Dismiss Google Drive link suggestion",
+      "group_aria": "Google Drive file link suggestion",
+      "file_kinds": {
+        "google_doc": "Google Docs",
+        "google_sheet": "Google Sheets",
+        "google_slide": "Google Slides",
+        "drive_file": "Google Drive file"
+      }
+    },
+    "attachments": {
+      "drive_load_error": "Couldn't load Google Drive files linked to this task.",
+      "uploads_load_error": "Couldn't load uploaded attachments.",
+      "retry": "Retry"
+    },
+    "card": {
+      "open_on_drive": "Open on Google Drive",
+      "more_actions_aria": "More actions for {{name}}",
+      "view_in_documents": "View in Documents",
+      "unlink": "Unlink",
+      "unlink_confirm_title": "Unlink file from this task?",
+      "unlink_confirm_description": "Only removes the link from this task; \"{{name}}\" on Google Drive stays untouched.",
+      "unlink_confirm_action": "Unlink",
+      "unlinking": "Unlinking…",
+      "cancel": "Cancel",
+      "meta_drive_account": "Drive: {{email}}",
+      "meta_linked_by": "{{name}} linked from Google Drive",
+      "meta_rebound_by": "(rebound by {{name}})",
+      "meta_modified_by": "{{name}} edited {{time}}",
+      "meta_modified": "Edited {{time}}",
+      "meta_owner": "Owner: {{owner}}",
+      "tasks_created_one": "Created {{count}} task from this document",
+      "tasks_created_other": "Created {{count}} tasks from this document",
+      "tasks_created_with_date_one": "Created {{count}} task from this document · {{date}}",
+      "tasks_created_with_date_other": "Created {{count}} tasks from this document · {{date}}",
+      "viewer_unknown": {
+        "title": "You haven't let UniWork read this file yet.",
+        "body": "Linked by {{name}} from their Google Drive. UNI reads files with your own Google Drive account, so it needs your permission once.",
+        "body_unnamed": "UNI reads files with your own Google Drive account, so it needs your permission once.",
+        "grant_button": "Let UniWork read this file",
+        "granting": "Granting access…",
+        "share_hint": "If Google says you don't have access, ask the owner to share it on Google Drive. UniWork never shares files on your behalf.",
+        "denied_notice": "Google reported that your account doesn't have access to this file. Ask the owner to share it on Google Drive and try again."
+      },
+      "viewer_lost": {
+        "notice": "Account {{email}} no longer has access to this file.",
+        "notice_no_email": "Your account no longer has access to this file.",
+        "repick_button": "Let UniWork read this file",
+        "repicking": "Granting access…"
+      },
+      "viewer_connection_lost": {
+        "notice": "Google Drive connection {{email}} has expired.",
+        "notice_no_email": "Your Google Drive connection has expired.",
+        "reconnect_button": "Reconnect",
+        "reconnecting": "Reconnecting…"
+      },
+      "bound_connection_lost_badge": "Disconnected",
+      "bound_access_lost_notice": "The bound account no longer has access to this file.",
+      "blocked_action_hint": "Let UniWork read this file first"
     }
   },
   "driveLibrary": {

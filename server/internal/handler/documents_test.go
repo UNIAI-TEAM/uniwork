@@ -9,16 +9,18 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -936,5 +938,131 @@ func TestDocumentMultipartCap(t *testing.T) {
 	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
 	if res.StatusCode != 413 {
 		t.Fatalf("asset over cap: %d, want 413", res.StatusCode)
+	}
+}
+
+func handlerCFBDoc(marker string) []byte {
+	b := make([]byte, 1024)
+	copy(b, []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})
+	binary.LittleEndian.PutUint16(b[24:], 0x003e)
+	binary.LittleEndian.PutUint16(b[26:], 0x0003)
+	binary.LittleEndian.PutUint16(b[28:], 0xfffe)
+	binary.LittleEndian.PutUint16(b[30:], 9)
+	binary.LittleEndian.PutUint16(b[32:], 6)
+	copy(b[512:], marker)
+	return b
+}
+
+// TestDocumentCommitLegacyConversionRoute exercises POST /api/v1/documents/{id}/versions/commit
+// with the optional conversion object (UNI-2213, C5) through the HTTP router.
+func TestDocumentCommitLegacyConversionRoute(t *testing.T) {
+	w := newDocsWorld(t)
+
+	v1Bytes := handlerCFBDoc("legacy-v1")
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "legacy-brief.doc"}, "legacy-brief.doc", v1Bytes, map[string]string{"Idempotency-Key": "c5-create-1"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create .doc: %d %s", res.StatusCode, raw)
+	}
+	var created map[string]any
+	_ = json.Unmarshal(raw, &created)
+	doc := created["document"].(map[string]any)
+	docID := doc["id"].(string)
+	rev := doc["revision"].(string)
+
+	v2Bytes := frameDocx(t, "converted-v2")
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", w.token, nil, "converted.docx", v2Bytes, map[string]string{"Idempotency-Key": "c5-up-1"})
+	if res.StatusCode != 201 {
+		t.Fatalf("upload .docx: %d %s", res.StatusCode, raw)
+	}
+	var up map[string]any
+	_ = json.Unmarshal(raw, &up)
+	uploadID := up["upload_id"].(string)
+
+	// Undeclared format change -> 415 unsupported_media_type (reason=format_changed).
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-no-conv"},
+		map[string]any{"upload_id": uploadID, "base_revision": rev})
+	if code, _ := errCodeClass(out); res.StatusCode != 415 || code != "unsupported_media_type" {
+		t.Fatalf("without conversion: %d %v, want 415 unsupported_media_type", res.StatusCode, out)
+	}
+
+	// Malformed conversion.from_format -> 400 invalid_request.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-bad-enum"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "pdf", "to_format": "docx"},
+		})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("bad enum: %d %v, want 400 invalid_request", res.StatusCode, out)
+	}
+
+	// Cross-family conversion pair -> 422 legacy_conversion_invalid (target_mismatch), unclassified.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-mismatch"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "doc", "to_format": "xlsx"},
+		})
+	if code, class := errCodeClass(out); res.StatusCode != 422 || code != "legacy_conversion_invalid" || class != "" {
+		t.Fatalf("target_mismatch: %d code=%q class=%q out=%v", res.StatusCode, code, class, out)
+	}
+	if fields, _ := out["error"].(map[string]any)["fields"].(map[string]any); fields["reason"] != "target_mismatch" {
+		t.Fatalf("fields = %v, want reason=target_mismatch", fields)
+	}
+
+	// Valid conversion doc->docx -> 200 OK with v2 reason=converted_version and provenance fields.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-conv-ok"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "doc", "to_format": "docx"},
+		})
+	if res.StatusCode != 200 {
+		t.Fatalf("valid conversion: %d %v", res.StatusCode, out)
+	}
+	ver := out["version"].(map[string]any)
+	docAfter := out["document"].(map[string]any)
+	fileAfter := docAfter["file"].(map[string]any)
+	wantV1SHA := sha256.Sum256(v1Bytes)
+	wantV1Hex := hex.EncodeToString(wantV1SHA[:])
+	gotChecksum, hasChecksum := ver["converted_from_checksum"].(string)
+	if ver["version"].(float64) != 2 || ver["reason"] != "converted_version" || ver["converted_from_version"].(float64) != 1 || !hasChecksum || gotChecksum != wantV1Hex {
+		t.Fatalf("version SDO = %v, want converted_from_checksum=%q", ver, wantV1Hex)
+	}
+	if docAfter["title"] != "legacy-brief.docx" {
+		t.Fatalf("document.title = %v, want legacy-brief.docx", docAfter["title"])
+	}
+	if fileAfter["filename"] != "legacy-brief.docx" || fileAfter["mime_type"] != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
+		t.Fatalf("file SDO = %v", fileAfter)
+	}
+
+	// Version list returns both v2 (converted_version) and v1 (upload, original .doc).
+	res, listOut := doJSON(t, w.srv, "GET", "/api/v1/documents/"+docID+"/versions", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list versions: %d %v", res.StatusCode, listOut)
+	}
+	versions := listOut["versions"].([]any)
+	if len(versions) != 2 {
+		t.Fatalf("versions count = %d, want 2", len(versions))
+	}
+	v2Row := versions[0].(map[string]any)
+	v2ListChecksum, hasListChecksum := v2Row["converted_from_checksum"].(string)
+	if v2Row["reason"] != "converted_version" || v2Row["converted_from_version"].(float64) != 1 || !hasListChecksum || v2ListChecksum != wantV1Hex {
+		t.Fatalf("versions[0] = %v, want converted_from_checksum=%q", v2Row, wantV1Hex)
+	}
+
+	// Download ?version=1 returns the original .doc bytes and filename; default download returns v2 .docx.
+	res, dlV1 := doBytes(t, w.srv, "GET", "/api/v1/documents/"+docID+"/download?version=1", w.token)
+	if res.StatusCode != 200 || !bytes.Equal(dlV1, v1Bytes) || !strings.Contains(res.Header.Get("Content-Disposition"), "legacy-brief.doc") {
+		t.Fatalf("download v1: %d disp=%q", res.StatusCode, res.Header.Get("Content-Disposition"))
+	}
+	res, dlV2 := doBytes(t, w.srv, "GET", "/api/v1/documents/"+docID+"/download", w.token)
+	if res.StatusCode != 200 || !bytes.Equal(dlV2, v2Bytes) || !strings.Contains(res.Header.Get("Content-Disposition"), "legacy-brief.docx") {
+		t.Fatalf("download v2: %d disp=%q", res.StatusCode, res.Header.Get("Content-Disposition"))
 	}
 }

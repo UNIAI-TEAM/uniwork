@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
+import { driveKeys } from "@uniwork/core/drive";
+import { useQueryClient } from "@tanstack/react-query";
 import { paths } from "@uniwork/core/paths";
 import { useBillingPermissions } from "@uniwork/core/permissions";
 import {
@@ -26,6 +28,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastCreateTaskError } from "./create-task-error-toast";
+import { resolveCreateTaskDriveError } from "./create-task-drive-errors";
 import { propertyFieldKey, type OverflowFieldKey } from "./create-task-manual-overflow";
 import { useWorkspaceAssigneeOptions } from "./pickers/member-options";
 
@@ -146,6 +149,7 @@ export function useCreateTaskManualState({
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const create = useCreateTask(workspaceId);
+  const queryClient = useQueryClient();
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
@@ -267,6 +271,12 @@ export function useCreateTaskManualState({
           contentReferencesAttachment(currentDraft.description ?? "", attachment),
         )
         .map((attachment) => attachment.id),
+      drive_files: currentDraft.driveFiles?.length
+        ? currentDraft.driveFiles.map((df) => ({
+            connection_id: df.connectionId,
+            external_file_id: df.externalFileId,
+          }))
+        : undefined,
       properties: currentDraft.properties,
     };
     if (submitter) {
@@ -281,6 +291,11 @@ export function useCreateTaskManualState({
     void create
       .mutateAsync({ ...body, idempotencyKey: currentDraft.idempotencyKey })
       .then((task) => {
+        if (submitted.driveFiles?.length) {
+          void queryClient.invalidateQueries({
+            queryKey: driveKeys.workspace(workspaceId),
+          });
+        }
         const latest = draftRef.current;
         const submittedIsStillCurrent =
           latest.idempotencyKey === submitted.idempotencyKey &&
@@ -324,6 +339,17 @@ export function useCreateTaskManualState({
   };
 
   const reportCreateError = (error: unknown) => {
+    const driveResolution = resolveCreateTaskDriveError(
+      error,
+      draftRef.current.driveFiles,
+      t,
+    );
+    if (driveResolution) {
+      updateDraft({ driveFiles: driveResolution.updatedDriveFiles });
+      toast.error(driveResolution.toastMessage);
+      return;
+    }
+
     toastCreateTaskError(
       error,
       {

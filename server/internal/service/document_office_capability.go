@@ -186,6 +186,8 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 		if prev := s.documents.versionFilename(ctx, doc, *ver, f.Filename); path.Ext(prev) != "" {
 			f.Filename = prev
 		}
+	} else {
+		f.Filename = s.documents.versionFilename(ctx, doc, *ver, f.Filename)
 	}
 	format, ok := officeFormatForFile(f)
 	if !ok {

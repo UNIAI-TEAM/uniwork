@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   disconnectDriveConnection,
   getDrivePickerToken,
+  grantDriveFileAccess,
   isDriveConnectionLost,
   linkDriveFiles,
   listDriveConnections,
+  listTaskDriveFiles,
+  removeTaskDriveFile,
   startDriveConnect,
 } from "./drive";
 
@@ -253,5 +256,165 @@ describe("drive endpoints", () => {
         error_message: undefined,
       },
     ]);
+  });
+
+  it("listTaskDriveFiles parses task Drive cards, fills defaults, and preserves tasks_created", async () => {
+    requestMock.mockResolvedValueOnce({
+      files: [
+        {
+          id: "df_1",
+          task_id: "t_1",
+          workspace_id: "ws_1",
+          external_file_id: "gdoc_1",
+          name: "Kế hoạch ra mắt Q4",
+          mime_type: "application/vnd.google-apps.document",
+          icon_kind: "google_doc",
+          sharing_state: "private",
+          owner_display: "Lan",
+          drive_modified_at: "2026-10-26T07:30:00Z",
+          drive_modified_by_display: "Lan",
+          connection_id: "dc_1",
+          bound_account_email: "uni-work1@gmail.com",
+          bound_connection_lost: false,
+          bound_by_id: "u_1",
+          bound_by_name: "Minh Nguyễn",
+          created_by: "u_1",
+          created_by_name: "Minh Nguyễn",
+          linked_at: "2026-10-26T08:20:00Z",
+          viewer_access: "granted",
+          viewer_connection_id: "dc_1",
+          viewer_account_email: "uni-work1@gmail.com",
+          open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=uni-work1%40gmail.com",
+          can_remove_from_task: true,
+          can_propose: true,
+          can_ask: true,
+          tasks_created: {
+            count: 4,
+            last_created_at: "2026-10-26T09:58:00Z",
+            last_created_by_name: "Minh Nguyễn",
+          },
+        },
+      ],
+    });
+
+    const cards = await listTaskDriveFiles("t 1");
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t%201/drive-files");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      id: "df_1",
+      name: "Kế hoạch ra mắt Q4",
+      icon_kind: "google_doc",
+      viewer_access: "granted",
+      can_remove_from_task: true,
+      tasks_created: {
+        count: 4,
+        last_created_at: "2026-10-26T09:58:00Z",
+        last_created_by_name: "Minh Nguyễn",
+      },
+    });
+  });
+
+  it("listTaskDriveFiles degrades a malformed response to an empty list and drops only malformed items", async () => {
+    requestMock.mockResolvedValueOnce({ files: "not-an-array" });
+    await expect(listTaskDriveFiles("t1")).resolves.toEqual([]);
+
+    requestMock.mockResolvedValueOnce(null);
+    await expect(listTaskDriveFiles("t1")).resolves.toEqual([]);
+
+    requestMock.mockResolvedValueOnce({
+      files: [
+        { id: 123 },
+        {
+          id: "df_2",
+          task_id: "t1",
+          workspace_id: "ws1",
+          external_file_id: "gdoc_2",
+          name: "Slide pitch",
+          mime_type: "application/vnd.google-apps.presentation",
+          connection_id: "dc_1",
+          bound_account_email: "uni-work1@gmail.com",
+          bound_by_id: "u_1",
+          created_by: "u_1",
+          linked_at: "2026-10-26T08:20:00Z",
+          open_url: "https://docs.google.com/presentation/d/gdoc_2/edit",
+        },
+      ],
+    });
+    const partial = await listTaskDriveFiles("t1");
+    expect(partial).toHaveLength(1);
+    expect(partial[0]?.id).toBe("df_2");
+    expect(partial[0]?.icon_kind).toBe("generic");
+    expect(partial[0]?.viewer_access).toBe("unknown");
+    expect(partial[0]?.tasks_created).toEqual({ count: 0 });
+  });
+
+  it("removeTaskDriveFile deletes by encoded task and drive file ids and degrades a malformed body without throwing", async () => {
+    requestMock.mockResolvedValueOnce({ status: "ok" });
+    await expect(removeTaskDriveFile("t 1", "df 1")).resolves.toBeUndefined();
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t%201/drive-files/df%201", {
+      method: "DELETE",
+    });
+
+    requestMock.mockResolvedValueOnce(null);
+    await expect(removeTaskDriveFile("t1", "df1")).resolves.toBeUndefined();
+  });
+
+  it("grantDriveFileAccess posts connection_id and parses the DriveFileSDO response", async () => {
+    requestMock.mockResolvedValueOnce({
+      file: {
+        id: "df_1",
+        organization_id: "org_1",
+        workspace_id: "ws_1",
+        external_file_id: "gdoc_1",
+        name: "Kế hoạch ra mắt Q4",
+        mime_type: "application/vnd.google-apps.document",
+        icon_kind: "google_doc",
+        web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+        open_url: "https://docs.google.com/document/d/gdoc_1/edit?authuser=mai%40gmail.com",
+        owner_display: "Lan",
+        sharing_state: "shared",
+        connection_id: "dc_1",
+        bound_account_email: "uni-work1@gmail.com",
+        bound_connection_lost: false,
+        bound_by_id: "u_1",
+        bound_by_name: "Minh Nguyễn",
+        created_by: "u_1",
+        created_by_kind: "human",
+        created_by_name: "Minh Nguyễn",
+        created_at: "2026-10-26T08:15:00Z",
+        updated_at: "2026-10-26T08:25:00Z",
+        viewer_access: "granted",
+        viewer_connection_id: "dc_2",
+        viewer_account_email: "mai@gmail.com",
+        can_unlink: false,
+        can_rebind: false,
+        can_propose: true,
+        can_ask: true,
+        used_in_count: 1,
+        used_in_tasks: [
+          {
+            task_id: "t_1",
+            identifier: "UNI-1042",
+            title: "Chuẩn bị kế hoạch ra mắt Q4",
+            status: "todo",
+          },
+        ],
+        tasks_created: { count: 0 },
+      },
+    });
+
+    const file = await grantDriveFileAccess("ws 1", "df 1", "dc_2");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws%201/drive-files/df%201/access",
+      { method: "POST", body: { connection_id: "dc_2" } },
+    );
+    expect(file?.id).toBe("df_1");
+    expect(file?.viewer_access).toBe("granted");
+    expect(file?.viewer_account_email).toBe("mai@gmail.com");
+  });
+
+  it("grantDriveFileAccess degrades a malformed response to null", async () => {
+    requestMock.mockResolvedValueOnce({ file: { id: 42 } });
+    await expect(grantDriveFileAccess("ws1", "df1", "dc2")).resolves.toBeNull();
   });
 });
