@@ -9477,7 +9477,9 @@
           "deb": "Linux .deb",
           "appimage": "Linux .AppImage"
         },
-        "autoUpdate": "Install once and UniOffice keeps itself up to date.",
+        "picker": {
+          "recommended": "Recommended"
+        },
         "notes": {
           "title": "What's new in {{version}}",
           "empty": "This version has no release notes.",
@@ -9514,7 +9516,7 @@
         },
         "apt": {
           "title": "Install with apt",
-          "line": "Install on Ubuntu or Debian either way. After that UniOffice keeps itself updated through apt upgrade.",
+          "line": "Install on Ubuntu or Debian either way.",
           "copy": "Copy",
           "or": "or",
           "script": {

@@ -9467,7 +9467,9 @@
           "deb": "Linux .deb",
           "appimage": "Linux .AppImage"
         },
-        "autoUpdate": "Cài một lần, UniOffice tự cập nhật khi có bản mới.",
+        "picker": {
+          "recommended": "Đề xuất"
+        },
         "notes": {
           "title": "Có gì mới ở {{version}}",
           "empty": "Phiên bản này chưa có ghi chú.",
@@ -9504,7 +9506,7 @@
         },
         "apt": {
           "title": "Cài qua apt",
-          "line": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách. Sau đó UniOffice tự cập nhật qua apt upgrade.",
+          "line": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách.",
           "copy": "Sao chép",
           "or": "hoặc",
           "script": {

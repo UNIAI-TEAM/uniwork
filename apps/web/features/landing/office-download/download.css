@@ -1,5 +1,5 @@
 /*
- * The Download section of /apps/office (UNI-2098 r4). Tokens only; selectors carry
+ * The Download section of /apps/office (UNI-2098 r5). Tokens only; selectors carry
  * .office-site .office-dl so they outrank marketing-pages.css's page-wide heading,
  * paragraph and list rules. It extends office.css / apps.css (.app-dl-*), it adds no new look.
  */
@@ -19,9 +19,8 @@
 .office-site .office-dl-channels-skeleton { display: flex; gap: 6px; }
 .office-site .office-dl-channel-skeleton { width: 104px; height: 52px; border-radius: 12px; }
 
-/* OS cards: the other systems (or all three when the visitor's is unknown), fixed order. */
+/* OS cards: all three systems when the visitor's is unknown, fixed order; the picker below is the other case. */
 .office-site .office-dl-others { display: flex; flex-direction: column; gap: 14px; }
-.office-site .office-dl-others-title { margin: 8px 0 0; font-size: var(--text-title-sm); font-weight: 700; color: var(--muted-foreground); }
 .office-site .office-dl-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .office-site .office-dl-others.is-secondary .office-dl-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .office-site .office-dl-group, .office-site .office-dl-group-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
@@ -39,8 +38,6 @@
 .office-site .office-dl-build-text small { font-size: var(--text-caption); font-weight: 400; opacity: .85; }
 .office-site .office-dl-phone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 18px 22px; border: 1px solid var(--input); border-radius: 18px; background: var(--surface-raised); }
 .office-site .office-dl-phone p { margin: 0; font-size: var(--text-body); line-height: 1.5; }
-.office-site .office-dl-quiet { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
-.office-site .office-dl-quiet svg { width: 16px; height: 16px; flex: none; }
 
 /* Spotlight: the visitor's own system as the hero; copy left, the real editor bleeding off the right edge. */
 .office-site .office-dl-spot { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); column-gap: 40px; overflow: hidden; border: 1px solid var(--border); border-radius: 32px;
@@ -59,8 +56,6 @@
 .office-site .office-dl-build.is-hero { padding-inline: 28px; font-size: var(--text-title-sm); box-shadow: 0 14px 30px -14px color-mix(in srgb, var(--brand) 75%, transparent); }
 .office-site .office-dl-build.is-hero svg { width: 20px; height: 20px; }
 .office-site .office-dl-spot .app-dl-help { margin: -6px 0 0; }
-.office-site .office-dl-spot-auto { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: var(--text-body); color: var(--muted-foreground); }
-.office-site .office-dl-spot-auto svg { width: 16px; height: 16px; flex: none; color: var(--success-soft-foreground); }
 .office-site .office-dl-spot-media { align-self: end; min-width: 0; padding-top: 48px; }
 .office-site .office-dl-window { width: 118%; overflow: hidden; border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 0 0 0; background: var(--surface-raised); box-shadow: 0 30px 70px -30px color-mix(in srgb, var(--foreground) 40%, transparent); animation: office-dl-rise .6s cubic-bezier(.2,.7,.2,1) both; }
 .office-site .office-dl-window-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--muted); }
@@ -73,6 +68,37 @@
 .office-site .office-dl-spot.has-extra .office-dl-window { border-bottom: 1px solid var(--border); border-radius: 16px 0 0 16px; }
 .office-site .office-dl-spot > .office-dl-apt { grid-column: 1 / -1; margin: 0 28px 28px; }
 @keyframes office-dl-rise { from { opacity: 0; transform: translateY(18px); } }
+
+/* Other systems: one closed row; opened, the OS picker (tiles, chips, one info box, one outline button). */
+.office-site .office-dl-others-title { margin: 0; font-size: inherit; }
+.office-site .office-dl-others-trigger { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 24px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface-raised); color: var(--foreground); font-size: var(--text-title-sm); font-weight: 700; text-align: left; cursor: pointer; }
+.office-site .office-dl-others-trigger:hover { background: var(--surface-hover); }
+.office-site .office-dl-others-marks { display: inline-flex; align-items: center; gap: 12px; margin-right: auto; color: var(--muted-foreground); }
+.office-site .office-dl-others-marks svg { width: 18px; height: 18px; }
+.office-site .office-dl-others-trigger > svg { width: 20px; height: 20px; flex: none; color: var(--muted-foreground); transition: transform .2s; }
+.office-site .office-dl-others-trigger[data-panel-open] > svg { transform: rotate(180deg); }
+.office-site .office-dl-picker { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px 44px; padding: 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
+.office-site .office-dl-picker-pick { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.office-site .office-dl-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 10px; }
+.office-site .office-dl-tile { position: relative; min-height: 112px; min-width: 0; cursor: pointer; }
+.office-site .office-dl-tile-body { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; padding: 16px 8px; pointer-events: none; font-size: var(--text-body-lg); font-weight: 600; }
+.office-site .office-dl-tile-body svg { width: 28px; height: 28px; }
+.office-site .office-dl-tile-tag { position: absolute; z-index: 1; top: -10px; left: 50%; translate: -50% 0; padding: 1px 12px; border-radius: 999px; background: var(--brand); color: var(--brand-foreground); font-size: var(--text-caption); font-weight: 600; white-space: nowrap; pointer-events: none; }
+.office-site .office-dl-picker-label { margin: 12px 0 0; font-size: var(--text-label); font-weight: 600; }
+.office-site .office-dl-chip-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.office-site .office-dl-chip-pick { position: relative; min-width: 168px; min-height: 60px; cursor: pointer; }
+.office-site .office-dl-chip-body { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; height: 100%; padding: 10px 18px; pointer-events: none; }
+.office-site .office-dl-chip-body strong { font-size: var(--text-body); font-weight: 600; }
+.office-site .office-dl-chip-body small { font-size: var(--text-caption); color: var(--muted-foreground); }
+.office-site .office-dl-picker .app-dl-help { margin: 0; }
+.office-site .office-dl-picker-act { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-top: 10px; }
+.office-site .office-dl-picker-info { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--muted) 55%, var(--surface-raised)); }
+.office-site .office-dl-picker-info p { margin: 0; font-size: var(--text-body); line-height: 1.5; }
+.office-site .office-dl-picker-info .office-dl-picker-version { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.office-site .office-dl-picker-button { width: 100%; min-height: 60px; padding-inline: 22px; border-radius: 14px; border-width: 2px; border-color: var(--foreground); font-size: var(--text-title-sm); font-weight: 600; }
+.office-site .office-dl-picker-button svg { width: 20px; height: 20px; }
+.office-site .office-dl-picker > .office-dl-apt { grid-column: 1 / -1; padding: 20px 24px; }
+.office-site .office-dl-others > .office-dl-apt { padding: 20px 24px; }
 
 /* What's new: short, folded when long. */
 .office-site .office-dl-whatsnew { margin-top: 24px; padding: 28px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
@@ -154,16 +180,13 @@
 .office-site .office-dl-state-icon svg { width: 26px; height: 26px; }
 
 /* Loading: same boxes as the loaded section. */
-.office-site .office-dl-group.is-skeleton, .office-site .office-dl-group.is-skeleton .office-dl-group-body { border-color: var(--border); background: var(--muted); }
+.office-site .office-dl-row-skeleton { height: 64px; border-radius: 20px; }
 .office-site .office-dl-spot.is-skeleton { background: var(--surface-raised); box-shadow: none; }
 .office-site .office-dl-pill-skeleton { width: 140px; height: 38px; border-radius: 999px; }
 .office-site .office-dl-title-skeleton { width: 80%; height: 44px; }
 .office-site .office-dl-hero-skeleton { width: 260px; height: 60px; border-radius: 14px; }
 .office-site .office-dl-media-skeleton { width: 118%; height: 440px; border-radius: 16px 0 0 0; }
-.office-site .office-dl-tile-skeleton { width: 52px; height: 52px; flex: none; border-radius: 15px; }
-.office-site .office-dl-line-skeleton { width: 70%; height: 18px; }
 .office-site .office-dl-line-skeleton.is-short { width: 50%; height: 14px; margin-top: 8px; }
-.office-site .office-dl-build-skeleton { height: 60px; border-radius: 12px; }
 .office-site .office-dl-skeleton { display: flex; flex-direction: column; gap: 16px; }
 .office-site .office-dl-loading { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
 
@@ -174,11 +197,6 @@
 .office-site .office-dl-notice button { flex: none; }
 
 @media (min-width: 1100px) {
-  .office-site .office-dl-groups { align-items: stretch; }
-  /* A Linux card keeps its column; its apt block (same <section>) spans the row under the cards. */
-  .office-site .office-dl-groups .office-dl-group.has-extra { display: contents; }
-  .office-site .office-dl-groups .office-dl-group.has-extra > .office-dl-group-body { padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
-  .office-site .office-dl-groups .office-dl-apt { grid-column: 1 / -1; padding: 20px 24px; }
   .office-site .office-dl-apt-ways { flex-direction: row; align-items: stretch; gap: 20px; }
   .office-site .office-dl-apt-way { flex: 1; min-width: 0; }
   .office-site .office-dl-apt-or { flex-direction: column; }
@@ -186,6 +204,7 @@
 }
 @media (max-width: 1099px) {
   .office-site .office-dl-spot { grid-template-columns: minmax(0, 1fr); }
+  .office-site .office-dl-picker { grid-template-columns: minmax(0, 1fr); padding: 24px; }
   .office-site .office-dl-spot-copy { padding: 32px 28px 0; }
   .office-site .office-dl-spot-media { padding: 28px 0 0 28px; }
   .office-site .office-dl-others.is-secondary .office-dl-groups { grid-template-columns: minmax(0, 1fr); }
@@ -217,6 +236,6 @@
   .office-site .office-dl-notice > button:nth-of-type(1) { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-manual-trigger svg { transition: none; }
+  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-manual-trigger svg, .office-site .office-dl-others-trigger > svg { transition: none; }
   .office-site .office-dl-window { animation: none; }
 }

@@ -1,5 +1,4 @@
 "use client";
-import { Download, RefreshCw } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DesktopOS } from "@uniwork/core/office";
@@ -9,44 +8,10 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MarketingLink as Link } from "../../../platform/marketing-link";
 import { OsMark } from "../apps/os-marks";
 import type { VisitorDevice } from "../apps/visitor-device";
-import { megabytes, OS_ORDER, type DlFile, type FileId, type ReleaseChannel } from "./manifest";
+import { BuildButton, ordered, provenChip } from "./build-meta";
+import { OS_ORDER, type DlFile, type FileId, type ReleaseChannel } from "./manifest";
+import { OsPicker } from "./os-picker";
 import { ProductShot } from "./product-shot";
-
-/** A size only where the visitor must choose between two files (Linux); never for the rest. */
-function useSize(): (file: DlFile) => string | null {
-  const { t, i18n } = useTranslation();
-  const format = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-  return (file) => (file.os === "linux" && file.size ? t("office.desktop.install.size_mb", { value: format.format(Number(megabytes(file.size))) }) : null);
-}
-
-/** A small format hint only where an OS has two builds the visitor must tell apart (macOS chips, Linux formats). */
-const HINT: Partial<Record<FileId, string>> = {
-  mac_arm: "office.desktop.install.fmt.mac_arm_hint",
-  mac_intel: "office.desktop.install.fmt.mac_intel_hint",
-  deb: "office.desktop.install.fmt.deb_hint",
-  appimage: "office.desktop.install.fmt.appimage_hint",
-};
-
-/** The Mac chip a certain browser proves; an unproven Mac keeps the published order and gets the help line. */
-function provenChip(device: VisitorDevice): FileId | null {
-  if (device.guess.confidence !== "certain") return null;
-  return device.guess.platform === "darwin-arm64" ? "mac_arm" : device.guess.platform === "darwin-x64" ? "mac_intel" : null;
-}
-
-/** The proven Mac chip leads; otherwise the published order stands. */
-const ordered = (files: readonly DlFile[], chip: FileId | null): DlFile[] => [...files].sort((a, b) => Number(b.id === chip) - Number(a.id === chip));
-
-/** One build as one button: "Tải cho macOS chip Apple", with its hint (and on Linux its size) under the label. */
-function BuildButton({ file, primary, hero = false }: { file: DlFile; primary: boolean; hero?: boolean }) {
-  const { t } = useTranslation();
-  const size = useSize();
-  const hint = HINT[file.id];
-  const caption = [hint ? t(hint) : null, size(file)].filter(Boolean).join(" · ");
-  return <a className={cn(buttonVariants({ variant: primary ? "brand" : "outline", size: "lg" }), "app-dl-button office-dl-build", caption && "has-caption", hero && "is-hero")} href={file.url} download data-file={file.id}>
-    <Download aria-hidden />
-    <span className="office-dl-build-text"><span>{t("landing.office.download.cta", { label: t(`landing.office.download.chip.${file.id}`) })}</span>{caption && <small>{caption}</small>}</span>
-  </a>;
-}
 
 export interface GroupMeta { version?: string; date?: string; channel?: ReleaseChannel }
 
@@ -57,16 +22,17 @@ function useSub(meta: GroupMeta): string | null {
 }
 
 /**
- * One operating system as a card: its logo and name, the version and date once,
- * one outline button per build and, on Linux, the apt block (`extra`). The
- * visitor's own system is never a card: it is the spotlight.
+ * One operating system as a card: its logo and name, the version and date once
+ * and one outline button per build. Only drawn when the visitor's system is
+ * unknown (all three side by side); a known system is the spotlight and the
+ * others sit in the picker.
  */
-function OsGroup({ os, files, chip, meta, extra }: { os: DesktopOS; files: readonly DlFile[]; chip: FileId | null; meta: GroupMeta; extra?: ReactNode }) {
+function OsGroup({ os, files, chip, meta }: { os: DesktopOS; files: readonly DlFile[]; chip: FileId | null; meta: GroupMeta }) {
   const { t } = useTranslation();
   const titleId = useId();
   const builds = ordered(files, chip);
   const sub = useSub(meta);
-  return <section className={cn("office-dl-group", extra && "has-extra")} aria-labelledby={titleId} data-os={os}>
+  return <section className="office-dl-group" aria-labelledby={titleId} data-os={os}>
     <div className="office-dl-group-body">
       <header className="office-dl-group-head">
         <span className="office-dl-os" aria-hidden><OsMark os={os} /></span>
@@ -77,7 +43,6 @@ function OsGroup({ os, files, chip, meta, extra }: { os: DesktopOS; files: reado
       </header>
       <div className="office-dl-builds">{builds.map((file) => <BuildButton key={file.id} file={file} primary={false} />)}</div>
     </div>
-    {extra}
   </section>;
 }
 
@@ -100,7 +65,6 @@ function Spotlight({ os, files, chip, meta, extra }: { os: DesktopOS; files: rea
       {sub && <p className="office-dl-spot-meta">{sub}{meta.channel && <span className="office-dl-spot-channel">{t(`landing.office.download.channel.${meta.channel}`)}</span>}</p>}
       <div className="office-dl-spot-builds">{builds.map((file, index) => <BuildButton key={file.id} file={file} primary={index === 0} hero={index === 0} />)}</div>
       {macHelp && <p className="app-dl-help">{t("landing.apps.download.macHelp")}</p>}
-      <p className="office-dl-spot-auto"><RefreshCw aria-hidden /><span>{t("landing.office.download.autoUpdate")}</span></p>
     </div>
     <ProductShot className="office-dl-spot-media" />
     {extra}
@@ -119,10 +83,11 @@ function PhoneNote({ device }: { device: VisitorDevice }) {
 }
 
 /**
- * The Download section's builds, grouped by operating system (UNI-2098 r4). When
- * the visitor's system is known it leads as the spotlight and the other systems
- * follow as two cards; otherwise the three systems sit side by side in a fixed
- * order. `apt` is the Linux install block, always placed with Linux.
+ * The Download section's builds (UNI-2098 r5). When the visitor's system is
+ * known it leads as the spotlight and "Nền tảng khác" is one closed row that
+ * opens an OS picker; otherwise the three systems sit side by side in a fixed
+ * order. `apt` is the Linux install block: inside the Linux spotlight, or inside
+ * the picker when Linux is the picked "other" system.
  */
 export function OsGroups({ files, meta, device, apt }: { files: readonly DlFile[]; meta: GroupMeta; device: VisitorDevice; apt?: ReactNode }) {
   const { t } = useTranslation();
@@ -130,17 +95,15 @@ export function OsGroups({ files, meta, device, apt }: { files: readonly DlFile[
   const present = OS_ORDER.filter((os) => files.some((file) => file.os === os));
   const own = !device.phone && device.desktop && present.includes(device.desktop) ? device.desktop : null;
   const of = (os: DesktopOS) => files.filter((file) => file.os === os);
-  const extraFor = (os: DesktopOS) => (os === "linux" ? apt : undefined);
-  const others = own ? present.filter((os) => os !== own) : present;
   return <>
     {device.phone && <PhoneNote device={device} />}
-    {own && <Spotlight os={own} files={of(own)} chip={chip} meta={meta} extra={extraFor(own)} />}
-    {others.length > 0 && <div className={cn("office-dl-others", own && "is-secondary")}>
-      {own && <h3 className="office-dl-others-title">{t("landing.apps.download.others")}</h3>}
-      <div className="office-dl-groups" role="group" aria-label={t("office.desktop.install.os_group")} data-count={others.length}>
-        {others.map((os) => <OsGroup key={os} os={os} files={of(os)} chip={chip} meta={meta} extra={extraFor(os)} />)}
+    {own && <Spotlight os={own} files={of(own)} chip={chip} meta={meta} extra={own === "linux" ? apt : undefined} />}
+    {own && present.length > 1 && <OsPicker files={files} meta={{ version: meta.version, channel: meta.channel }} own={own} chip={chip} apt={apt} />}
+    {!own && present.length > 0 && <div className="office-dl-others">
+      <div className="office-dl-groups" role="group" aria-label={t("office.desktop.install.os_group")} data-count={present.length}>
+        {present.map((os) => <OsGroup key={os} os={os} files={of(os)} chip={chip} meta={meta} />)}
       </div>
+      {apt}
     </div>}
-    {!own && <p className="office-dl-quiet"><RefreshCw aria-hidden /><span>{t("landing.office.download.autoUpdate")}</span></p>}
   </>;
 }
