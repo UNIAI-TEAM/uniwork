@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^19c09428f" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=19c09428ffdc76044213c7ae21ac958b70510a03
+19c09428f fix(drive): address review-fe-2 findings for W3 Google Picker
+8ed989036 fix(drive): address W3 Google Picker review-fe-1 findings and gitleaks test tokens
+d8e8de11c feat(drive): add Google Picker adapter, account step, and task confirm dialog
