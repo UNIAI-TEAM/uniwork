@@ -1,0 +1,43 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm typecheck 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "TYPECHECK_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/office-engine:typecheck: cache miss, executing 98ea791e9791e9de
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine-app:typecheck: cache miss, executing 227ff69dae3f571e
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/views:typecheck: cache miss, executing 9b62ca89ce934cde
+@uniwork/chat-desktop:typecheck: cache miss, executing d91b9edfbd0c5bc6
+@uniwork/chat-desktop:typecheck: 
+@uniwork/chat-desktop:typecheck: > @uniwork/chat-desktop@0.0.0 typecheck /workspace/apps/chat-desktop
+@uniwork/chat-desktop:typecheck: > tsc --noEmit
+@uniwork/chat-desktop:typecheck: 
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:typecheck: cache miss, executing 732fdfcfcd4b75a8
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+
+ Tasks:    8 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m36.72s 
+
+
+TYPECHECK_EXIT=0
