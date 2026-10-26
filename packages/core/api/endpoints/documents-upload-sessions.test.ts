@@ -9,6 +9,7 @@ import {
   completeUploadSession,
   createDocumentUploadSession,
   createFrameUploadSession,
+  createMeetingAudioUploadSession,
   createWorkspaceUploadSession,
   getFrameUploadSession,
   getUploadSession,
@@ -177,6 +178,25 @@ describe("documents upload sessions endpoints", () => {
       size_bytes: 25165824,
       probe,
     });
+  });
+
+  it("createMeetingAudioUploadSession posts to the meeting route with Idempotency-Key", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(sessionWire, 201));
+    const out = await createMeetingAudioUploadSession(
+      "mtg-1",
+      { filename: "hop.m4a", size_bytes: 3_000_000, probe },
+      { idempotencyKey: "idem-mtg-1" },
+    );
+    expect(out).toEqual(sessionWire);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/meetings/mtg-1/audio-upload-sessions");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("idem-mtg-1");
+    for (const bad of malformedBodies) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(bad, 201));
+      await expect(
+        createMeetingAudioUploadSession("mtg-1", { filename: "a.mp3", size_bytes: 1, probe }, { idempotencyKey: "k" }),
+      ).resolves.toBeNull();
+    }
   });
 
   it("createFrameUploadSession posts to office-frame route with frame token only and credentials omit", async () => {

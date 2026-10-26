@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CircleCheck, ChevronRight, Copy, Ellipsis, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CircleCheck, ChevronRight, Copy, Ellipsis, Pencil, RotateCcw, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
@@ -164,7 +164,7 @@ function CommentEntry<T extends CommentLike>({
               ) : null}
               {canEdit || canDelete ? <DropdownMenuSeparator /> : null}
               {canEdit ? <DropdownMenuItem onClick={() => setEditing(true)}><Pencil aria-hidden />{t(`${tPrefix}.comment_edit`)}</DropdownMenuItem> : null}
-              {canDelete ? <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden />{t("common.delete")}</DropdownMenuItem> : null}
+              {canDelete ? <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}><Trash aria-hidden />{t("common.delete")}</DropdownMenuItem> : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div> : null}

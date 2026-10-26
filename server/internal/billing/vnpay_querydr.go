@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,10 +105,8 @@ func (v *VNPay) QueryTransaction(ctx context.Context, in QueryTransactionInput) 
 		eventID = in.TxnRef + ":querydr:" + resp["vnp_ResponseCode"]
 	}
 	var amount int64
-	if amt := resp["vnp_Amount"]; amt != "" {
-		if n, err := parseVnpayAmountMinor(amt); err == nil {
-			amount = n
-		}
+	if n, err := strconv.ParseInt(resp["vnp_Amount"], 10, 64); err == nil {
+		amount = n / 100
 	}
 	return Event{
 		ProviderEventID: eventID,
@@ -212,16 +211,4 @@ func vnpQueryDRResponseSign(resp map[string]string, secret string) string {
 		resp["vnp_PromotionAmount"],
 	}, "|")
 	return vnpSignString(data, secret)
-}
-
-func parseVnpayAmountMinor(raw string) (int64, error) {
-	// shared with service layer; duplicate minimal parse to avoid import cycle
-	var minor int64
-	for _, ch := range raw {
-		if ch < '0' || ch > '9' {
-			return 0, errVNPayBadRequest
-		}
-		minor = minor*10 + int64(ch-'0')
-	}
-	return minor / 100, nil
 }

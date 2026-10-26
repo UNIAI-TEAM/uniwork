@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Building2, FolderKanban, User, X } from "lucide-react";
+import { BuildingComplex, FolderKanban, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   DocumentAccessOnExisting,
@@ -48,7 +48,7 @@ export function SharePrincipalIcon({
   principalType: string;
   className?: string;
 }) {
-  const Icon = principalType === "user" ? User : principalType === "workspace" ? FolderKanban : Building2;
+  const Icon = principalType === "user" ? User : principalType === "workspace" ? FolderKanban : BuildingComplex;
   return <Icon aria-hidden className={className} />;
 }
 

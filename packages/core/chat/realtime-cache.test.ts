@@ -6,23 +6,19 @@ import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import { chatKeys } from "./hooks";
 import {
   bumpThreadRootReplyCount,
-  fetchAndPatchChatMessage,
-  insertCreatedRoomMessage,
   isChatThreadReply,
   mergeMessageIntoList,
+  patchRoomSidebarFromMessage,
+  removeMessageFromList,
+} from "./chat-cache-records";
+import {
+  fetchAndPatchChatMessage,
+  insertCreatedRoomMessage,
   patchChatMessageDeleted,
   patchChatMessageLinked,
   patchChatThreadLinked,
-  patchRoomSidebarFromMessage,
-  removeMessageFromList,
 } from "./realtime-cache";
-import {
-  CHAT_MESSAGE_CACHE_MAX,
-  compareMessages,
-  flattenRoomTimeline,
-  type RoomMessagesPageParam,
-  type RoomTimeline,
-} from "./room-timeline";
+import { CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "./room-timeline-pages";
 
 const sampleMessage = (id: string, createdAt: string): ChatMessageRecord => ({
   id,
@@ -423,6 +419,17 @@ describe("fetchAndPatchChatMessage timeline", () => {
     await fetchAndPatchChatMessage(qc, "ws1", "room1", "m4", true);
 
     expect(timelineIds(qc, "room1")).toEqual(["m1", "m3", "m4"]);
+  });
+
+  it("skips a GET when a created message is already in the loaded timeline", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
+    const qc = new QueryClient();
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), twoPages());
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m3", true);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(timelineIds(qc, "room1")).toEqual(["m1", "m3"]);
   });
 
   // H4: an edit, reaction or vote on a message outside the loaded window used

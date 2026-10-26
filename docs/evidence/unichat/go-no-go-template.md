@@ -18,7 +18,7 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Push ≤ 10 s p95, preview đúng, không log (K4, K6, Maestro) | ☐ | p95 = … s trên … mẫu |
 | Không push khi đang hoạt động (K5) | ☐ | … |
 | Ổn định: crash-free ≥ 99,5 % 7 ngày cuối; desktop tự phục hồi | ☐ | iOS …%, Android …% |
-| Bảo mật (`security-review-2026-10-17.md`, CI, UNI-1877 đã quyết) | ☐ | … |
+| Bảo mật (`security-review-2026-10-17.md`, CI, UNI-1877 đã quyết; lượt kiểm bảo mật trên máy Android và iOS ở runbook `unichat-mobile-release` › Kiểm tra bảo mật trên máy) | ☐ | … |
 | Trợ năng / i18n (K8, K9) | ☐ | … |
 | Desktop: bản cài 3 hệ điều hành, tự cập nhật, smoke ký tên | ☐ | … |
 | Mobile: TestFlight + Play internal; Maestro 5 đêm xanh | ☐ | … |
@@ -31,7 +31,7 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Số | Mục tiêu | Thực tế |
 | --- | --- | --- |
 | Ngày làm việc liên tục | ≥ 10 | … |
-| Người dùng hằng ngày / người trong danh sách (thấp nhất, trung bình) | ≥ 80 % | … % / … % |
+| Người dùng hằng ngày / người trong danh sách (thấp nhất, trung bình) — người riêng biệt có request đã xác thực từ app mỗi ngày, query Loki ở `docs/runbooks/unichat-mobile-release.md` › Thống kê sản phẩm theo bản | ≥ 80 % | … % / … % |
 | Sự cố mất tin / trùng tin | 0 | … |
 | Sự cố bảo mật | 0 | … |
 | P1 mở / đóng trong 2 ngày làm việc | tất cả | … / … |
@@ -39,6 +39,20 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Push bị bỏ (`uniwork_push_suppressed_total`) / push gửi, theo ngày | — | … |
 | Phàn nàn "không nhận push khi desktop mở" | — | … (dự phòng idle timer: bật / không) |
 | Phản hồi trong `#unichat-feedback` | — | … tin, … chủ đề chính |
+
+**Hiệu năng** (Android; iOS khi có bản build). Emulator và simulator: step summary của `android-smoke`, `ios-release`,
+nightly và chặng 2 GB của matrix (`apps/chat-mobile/perf-budget.json`, theo profile; ghi profile nào còn
+`provisional`); máy thật: Sentry › Performance của release đang rollout, p75, kèm profile của transaction chậm.
+
+| Số | Trần / mục tiêu | Thực tế |
+| --- | --- | --- |
+| Mở lạnh tới màn đầu, emulator (trung vị 10 lần) | `perf-budget.json` | … ms |
+| Mở lạnh tới inbox đã đăng nhập, emulator | `perf-budget.json` | … ms |
+| Mở lạnh tới màn đầu, emulator 2 GB / simulator iOS | `perf-budget.json` › `android-2gb` / `ios-simulator` | … ms / … ms |
+| Khung giật / khung p90 khi cuộn phòng 500+ tin, emulator | `perf-budget.json` | … % / … ms |
+| `app.start.cold` p75, production | ≤ 3 s | … s |
+| TTFD tab Chat / phòng p75, production | ≤ 2,5 s / ≤ 2 s | … s / … s |
+| Khung đơ, production | ≤ 1 % | … % |
 
 ## 3. Rủi ro còn lại
 

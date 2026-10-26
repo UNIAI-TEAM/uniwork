@@ -56,7 +56,11 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
         : "documents.folder_upload.report.reupload_hint";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")}>
+      <DialogContent
+        // One shrinkable column, as in the pre-flight dialog: a long name truncates inside it and never widens the card.
+        className="grid-cols-[minmax(0,1fr)] sm:max-w-lg"
+        closeLabel={t("common.close")}
+      >
         <DialogHeader>
           <DialogTitle>{t("documents.folder_upload.report.title")}</DialogTitle>
           <DialogDescription>{t("documents.folder_upload.report.description", { name, count: failures.length })}</DialogDescription>
@@ -65,21 +69,26 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
           aria-label={t("documents.folder_upload.report.list_label")}
           className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-md border border-border p-2"
         >
-          {failures.map((failure, index) => (
-            // Files mode keeps same-named files (FD-D10): the path alone is not a key.
-            <li key={`${index}:${failure.path}`} className="flex flex-col gap-0.5">
-              <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
-                {failure.path}
-              </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
-            </li>
-          ))}
+          {failures.map((failure, index) => {
+            // The name leads: a long root folder would otherwise truncate every row to the same prefix.
+            const slash = failure.path.lastIndexOf("/");
+            const folder = slash < 0 ? "" : failure.path.slice(0, slash);
+            return (
+              // Files mode keeps same-named files (FD-D10): the path alone is not a key.
+              <li key={`${index}:${failure.path}`} className="flex min-w-0 flex-col gap-0.5" title={failure.path}>
+                <span className="truncate text-body font-medium text-foreground">{failure.path.slice(slash + 1)}</span>
+                {folder ? <span className="truncate text-caption text-muted-foreground">{folder}</span> : null}
+                <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
+              </li>
+            );
+          })}
         </ul>
         {expired ? (
           <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note", ctx)}</p>
         ) : null}
         {footerHint ? <p className="text-caption text-muted-foreground">{t(footerHint, ctx)}</p> : null}
-        <DialogFooter className="px-0 pb-0">
+        {/* -mx-4 / -mb-4: the band runs to the dialog's edges, past the content padding. */}
+        <DialogFooter className="-mx-4 -mb-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("documents.folder_upload.report.close")}
           </Button>

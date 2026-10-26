@@ -15,6 +15,13 @@ import (
 const maxChatRoomAvatarBytes = 2 << 20
 
 func (h *handlers) uploadChatRoomAvatar(w http.ResponseWriter, r *http.Request) {
+	roomID := chi.URLParam(r, "roomID")
+	wsID := chi.URLParam(r, "workspaceID")
+	actorID := middleware.UserID(r.Context())
+	if _, err := h.Chat.GetRoomMemberPermissions(r.Context(), actorID, wsID, roomID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxChatRoomAvatarBytes+64<<10)
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -34,8 +41,7 @@ func (h *handlers) uploadChatRoomAvatar(w http.ResponseWriter, r *http.Request) 
 			filename = base
 		}
 	}
-	room, err := h.Chat.UploadRoomAvatar(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), filename, file)
+	room, err := h.Chat.UploadRoomAvatar(r.Context(), actorID, wsID, roomID, filename, file)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

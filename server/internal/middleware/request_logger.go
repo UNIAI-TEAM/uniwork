@@ -112,12 +112,32 @@ var softNotFoundMarkers = []string{
 	"task not found",
 }
 
+// skipRoutineSuccessLog drops high-frequency success lines from the access log.
+// Presence beats every ~15s per open shell and typing events are similarly
+// chatty; OPTIONS preflight adds a second line per cross-origin POST. Errors
+// and non-2xx responses are still logged for debugging and SLO.
+func skipRoutineSuccessLog(method, path string, status int) bool {
+	if status >= 400 {
+		return false
+	}
+	if method == http.MethodOptions {
+		return true
+	}
+	if method == http.MethodPost && strings.HasSuffix(path, "/chat/presence") {
+		return true
+	}
+	if method == http.MethodPost && strings.HasSuffix(path, "/typing") {
+		return true
+	}
+	return false
+}
+
 // RequestLogger is a structured HTTP request logger using slog.
 // It replaces Chi's built-in chimw.Logger with colored, structured output.
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip the hot liveness endpoint to keep logs readable.
-		if r.URL.Path == "/health" || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+		if r.URL.Path == "/health" || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/api/v1/healthz" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -135,6 +155,9 @@ func RequestLogger(next http.Handler) http.Handler {
 
 		duration := time.Since(start)
 		status := ww.Status()
+		if skipRoutineSuccessLog(r.Method, r.URL.Path, status) {
+			return
+		}
 
 		attrs := []any{
 			"method", r.Method,
@@ -166,6 +189,9 @@ func RequestLogger(next http.Handler) http.Handler {
 			if os != "" {
 				attrs = append(attrs, "client_os", os)
 			}
+		}
+		if update := ClientUpdateIDFromContext(r.Context()); update != "" {
+			attrs = append(attrs, "client_update_id", update)
 		}
 
 		switch {

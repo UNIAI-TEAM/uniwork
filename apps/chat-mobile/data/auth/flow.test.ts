@@ -13,8 +13,24 @@ vi.mock("expo-constants", () => ({
   default: { expoConfig: { scheme: "uniworkchat-dev", extra: { authClientId: "uniwork-chat-mobile", deploymentId: "eu" } } },
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
+const apple = vi.hoisted(() => ({ isAvailableAsync: vi.fn(async () => true), signInAsync: vi.fn(), AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 } }));
+vi.mock("expo-apple-authentication", () => apple);
+const strict = vi.hoisted(() => ({ strictFetch: vi.fn() }));
+vi.mock("./strict-fetch", () => strict);
+const transportSpy = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+vi.mock("./transport", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./transport")>();
+  return {
+    ...actual,
+    createTransport: (...args: Parameters<typeof actual.createTransport>) => {
+      transportSpy.calls.push(args);
+      return actual.createTransport(...args);
+    },
+  };
+});
 
-import { authConfig, openAuthBrowser, resolveAuthConfig, session } from "./flow";
+import { systemUiOpen } from "../system-ui";
+import { appleSignInOffered, authConfig, loginWithApple, openAuthBrowser, resolveAuthConfig, session } from "./flow";
 import { MobileSession } from "./session";
 
 describe("auth flow composition", () => {
@@ -29,6 +45,10 @@ describe("auth flow composition", () => {
     });
     expect(session).toBeInstanceOf(MobileSession);
     expect(session.status()).toBe("signed-out");
+  });
+
+  it("sends the sign-in routes through the fetch that refuses a redirect natively", () => {
+    expect(transportSpy.calls).toEqual([[{ deploymentId: "eu" }, { fetch: strict.strictFetch }]]);
   });
 
   it("falls back to the production scheme and default ids; the first of several schemes wins", () => {
@@ -46,7 +66,11 @@ describe("auth flow composition", () => {
   });
 
   it("hands the authorization URL and redirect to the system auth session and returns the callback URL or null", async () => {
-    browser.openAuthSessionAsync.mockResolvedValueOnce({ type: "success", url: "uniworkchat-dev://auth/callback?code=c&state=s" });
+    browser.openAuthSessionAsync.mockImplementationOnce(async () => {
+      // The sheet is a system screen the app waits on: no critical update reloads under it.
+      expect(systemUiOpen()).toBe(true);
+      return { type: "success", url: "uniworkchat-dev://auth/callback?code=c&state=s" };
+    });
     expect(await openAuthBrowser("https://uniwork.example/authorize", "uniworkchat-dev://auth/callback")).toBe(
       "uniworkchat-dev://auth/callback?code=c&state=s",
     );
@@ -56,5 +80,14 @@ describe("auth flow composition", () => {
     );
     browser.openAuthSessionAsync.mockResolvedValueOnce({ type: "dismiss" });
     expect(await openAuthBrowser("https://uniwork.example/authorize", "uniworkchat-dev://auth/callback")).toBeNull();
+    expect(systemUiOpen()).toBe(false);
+  });
+
+  it("offers no Sign in with Apple off the iPhone, and asks neither Apple nor the server", async () => {
+    expect(await appleSignInOffered()).toBe(false);
+    expect(apple.isAvailableAsync).not.toHaveBeenCalled();
+    await loginWithApple();
+    expect(apple.signInAsync).not.toHaveBeenCalled();
+    expect(session.status()).toBe("signed-out");
   });
 });

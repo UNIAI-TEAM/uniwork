@@ -24,8 +24,9 @@ import (
 // The Ask UNI tool registry (spec F-09 §3.4) and the permission-aware source
 // reader behind it (§3.5). Every handler runs as the asker: it calls the
 // same service methods a screen would, so RequireMember decides what comes
-// back and there is no system-privilege read path. Phase F registers read
-// tools only — TestAskUniToolsAreReadOnly pins MutationCount() == 0.
+// back and there is no system-privilege read path. This registry is read-only
+// (TestAskAgentToolsAreReadOnly pins MutationCount() == 0); the write tools
+// that only propose live in askuni_actions.go.
 
 const (
 	askToolSearch  = "search_workspace"
@@ -92,6 +93,13 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 				return nil, err
 			}
 			out = append(out, focus...)
+			if in.Focus.Kind == "meeting" {
+				said, err := s.focusTranscript(ctx, tc, in.Focus.ID, in.Question)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, said...)
+			}
 		}
 	}
 	found, err := s.searchWorkspace(ctx, tc, in.Question)
@@ -102,11 +110,33 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 	for _, src := range out {
 		seen[src.Href] = true
 	}
+	scoped := len(out)
 	for _, src := range found {
 		if !seen[src.Href] {
 			out = append(out, src)
 			seen[src.Href] = true
 		}
+	}
+	return withFoundMeetingRecord(out, scoped, func(id string) ([]ai.Source, error) { return s.meetingContext(ctx, tc, id) })
+}
+
+// withFoundMeetingRecord swaps the best meeting hit from out[from:] for its
+// record (UNI-1995 #17): the hit quotes the summary alone, so "which items,
+// who owns them?" had no answer. One meeting only, through the scoped reader,
+// so its gates apply unchanged; a gate that refuses the record keeps the hit.
+func withFoundMeetingRecord(out []ai.Source, from int, read func(meetingID string) ([]ai.Source, error)) ([]ai.Source, error) {
+	for i := from; i < len(out); i++ {
+		if out[i].Kind != "meeting" {
+			continue
+		}
+		rec, err := read(out[i].Href[strings.LastIndex(out[i].Href, "/")+1:])
+		if err != nil && !isGateRefusal(err) { // meeting_ai_restricted wraps ErrForbidden
+			return nil, err
+		}
+		if len(rec) == 1 {
+			out[i] = rec[0]
+		}
+		break
 	}
 	return out, nil
 }
@@ -285,6 +315,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	overdue := asksOverdue(query)
 	today := s.now().UTC().Truncate(24 * time.Hour)
 	names := s.memberNames(ctx, tc)
+	statuses := s.taskStatusLabels(ctx, tc)
 	var items []scored
 
 	tasks, err := s.tasks.List(ctx, tc.ActorID, tc.WorkspaceID)
@@ -303,38 +334,61 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 		if sc == 0 && !(overdue && isOverdue) && len(ts) > 0 {
 			continue
 		}
-		items = append(items, scored{src: taskSource(base, t, names), score: sc, when: t.UpdatedAt.Time})
+		items = append(items, scored{src: taskSource(base, t, names, statuses), score: sc, when: t.UpdatedAt.Time})
 	}
 
 	meetings, err := s.meetings.List(ctx, tc.ActorID, tc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
+	// A meeting is found by what it said too (benchmark #14): its latest
+	// summary, decisions, topics and open action items' titles.
+	said, err := s.meetingSearchTexts(ctx, tc.ActorID, meetings)
+	if err != nil {
+		return nil, err
+	}
 	for _, m := range meetings {
-		sc := score(m.Title+" "+m.Description, ts)
+		rec := said[m.ID]
+		sc := score(m.Title+" "+m.Description+"\n"+rec.content, ts)
 		if sc == 0 && len(ts) > 0 {
 			continue
 		}
+		excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339), m.Description)
+		if rec.summary != "" {
+			excerpt += "\nTóm tắt: " + rec.summary
+		}
 		items = append(items, scored{src: ai.Source{
-			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID,
-			Excerpt: fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description),
+			Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt,
 		}, score: sc, when: m.StartsAt.Time})
 	}
 	return items, nil
 }
 
 func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+	found, _, err := s.searchWorkspaceMarks(ctx, tc, query)
+	return found, err
+}
+
+// searchMarks are the taint facts of a search's hits, by href (R8): the chat
+// hits whose messages are all the asker's, and the task hits carrying a
+// comment somebody else wrote.
+type searchMarks struct{ chatMine, foreign map[string]bool }
+
+// searchWorkspaceMarks is searchWorkspace plus the marks the taint rules need.
+func (s *AskUNIService) searchWorkspaceMarks(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, searchMarks, error) {
 	items, err := s.searchWorkItems(ctx, tc, query)
 	if err != nil {
-		return nil, err
+		return nil, searchMarks{}, err
 	}
-	if items, err = s.addIdentifierHits(ctx, tc, query, items); err != nil {
-		return nil, err
+	marks := searchMarks{foreign: map[string]bool{}}
+	if items, err = s.addIdentifierHits(ctx, tc, query, items, marks.foreign); err != nil {
+		return nil, searchMarks{}, err
 	}
-	chat, err := s.chatContext(ctx, tc, query)
+	chat, chatMine, err := s.chatSources(ctx, tc, query)
 	if err != nil {
-		return nil, err
+		return nil, searchMarks{}, err
 	}
+	marks.chatMine = chatMine
 	for _, c := range chat {
 		items = append(items, scored{src: c, score: 1, when: s.now()})
 	}
@@ -342,13 +396,13 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	if asksMembers(query) {
 		members, err := s.memberContext(ctx, tc, query)
 		if err != nil {
-			return nil, err
+			return nil, searchMarks{}, err
 		}
 		for _, m := range members {
 			items = append(items, scored{src: m, score: 1})
 		}
 	}
-	return topSources(items, ai.MaxSources), nil
+	return topSources(items, ai.MaxSources), marks, nil
 }
 
 // documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
@@ -452,7 +506,8 @@ var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\
 // addIdentifierHits boosts (or adds) the task a PREFIX-N reference in the
 // question names. Ask-only: searchWorkItems is shared with MCP search.
 // shortcut: GetByRefIn ignores retired prefixes (workspace_aliases); old-prefix questions fall back to keyword search until the lookup learns aliases.
-func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored) ([]scored, error) {
+// foreign collects, by href, the added tasks whose comments are not all the asker's (R8).
+func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored, foreign map[string]bool) ([]scored, error) {
 	for _, ref := range taskIdentifierRe.FindAllString(query, 5) {
 		t, err := s.tasks.GetByRefIn(ctx, Human(tc.ActorID), tc.WorkspaceID, ref)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
@@ -472,21 +527,22 @@ func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext
 		if found {
 			continue
 		}
-		srcs, err := s.taskContext(ctx, tc, t.ID)
+		src, hasForeign, err := s.taskSourceWithComments(ctx, tc, t.ID)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
 			continue // gone or out of reach since GetByRefIn read it: skip the hit, keep the turn
 		}
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, scored{src: srcs[0], score: 10, when: t.UpdatedAt.Time})
+		foreign[src.Href] = hasForeign
+		items = append(items, scored{src: src, score: 10, when: t.UpdatedAt.Time})
 	}
 	return items, nil
 }
 
-func taskSource(base string, t taskRow, names map[string]string) ai.Source {
+func taskSource(base string, t taskRow, names, statuses map[string]string) ai.Source {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", t.Status, t.Priority)
+	fmt.Fprintf(&b, "Trạng thái: %s · Ưu tiên: %s", statusLabel(statuses, t.Status), t.Priority)
 	if t.DueDate.Valid {
 		fmt.Fprintf(&b, " · Hạn: %s", t.DueDate.Time.Format("2006-01-02"))
 	}
@@ -500,50 +556,88 @@ func taskSource(base string, t taskRow, names map[string]string) ai.Source {
 }
 
 func (s *AskUNIService) taskContext(ctx context.Context, tc ai.ToolContext, taskID string) ([]ai.Source, error) {
-	t, err := s.tasks.Get(ctx, tc.ActorID, taskID)
+	src, _, err := s.taskSourceWithComments(ctx, tc, taskID)
 	if err != nil {
 		return nil, err
 	}
+	return []ai.Source{src}, nil
+}
+
+// taskSourceWithComments is taskContext's source; foreign says a comment in it
+// was written by someone other than the asker (R8).
+func (s *AskUNIService) taskSourceWithComments(ctx context.Context, tc ai.ToolContext, taskID string) (src ai.Source, foreign bool, err error) {
+	t, err := s.tasks.Get(ctx, tc.ActorID, taskID)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
 	if t.WorkspaceID != tc.WorkspaceID {
-		return nil, ErrNotFound
+		return ai.Source{}, false, ErrNotFound
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
-	src := taskSource(base, t, s.memberNames(ctx, tc))
+	src = taskSource(base, t, s.memberNames(ctx, tc), s.taskStatusLabels(ctx, tc))
 	comments, err := s.tasks.Comments(ctx, tc.ActorID, taskID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
 	if len(comments) > 0 {
 		var b strings.Builder
 		b.WriteString(src.Excerpt + "\nBình luận:")
 		for _, c := range comments {
+			foreign = foreign || c.AuthorID != tc.ActorID
 			fmt.Fprintf(&b, "\n- %s: %s", c.DisplayName, c.Body)
 		}
 		src.Excerpt = b.String()
 	}
-	return []ai.Source{src}, nil
+	return src, foreign, nil
 }
 
 func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, meetingID string) ([]ai.Source, error) {
-	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
+	src, _, err := s.meetingSourceWithSummary(ctx, tc, meetingID)
 	if err != nil {
 		return nil, err
 	}
+	return []ai.Source{src}, nil
+}
+
+// meetingSourceWithSummary is meetingContext's source; summarised says it
+// carries an AI summary or the meeting's record (R8).
+func (s *AskUNIService) meetingSourceWithSummary(ctx context.Context, tc ai.ToolContext, meetingID string) (src ai.Source, summarised bool, err error) {
+	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
 	if m.WorkspaceID != tc.WorkspaceID {
-		return nil, ErrNotFound
+		return ai.Source{}, false, ErrNotFound
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return ai.Source{}, false, err
 	}
-	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
-	if sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID); err == nil && sum != nil {
-		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + sum.Decisions + "\nViệc cần làm: " + sum.ActionItems
+	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s", statusLabel(viMeetingStatus, m.Status), m.StartsAt.Time.Format(time.RFC3339))
+	sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID)
+	if codedIs(err, "meeting_ai_restricted") {
+		sum, err = nil, nil // the meeting's items stay; its summary is for the people of the meeting
 	}
-	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}}, nil
+	if err != nil {
+		return ai.Source{}, false, err
+	}
+	record, err := s.meetingRecordExcerpt(ctx, tc, meetingID, sum)
+	if err != nil {
+		return ai.Source{}, false, err
+	}
+	if record != "" {
+		excerpt += "\n" + record
+	}
+	// The description goes last: a long one must not push the record out.
+	if d := strings.TrimSpace(m.Description); d != "" {
+		excerpt += "\nMô tả: " + d
+	}
+	// The record carries the AI summary and items heard from other people's speech: both count as foreign (R8).
+	summarised = sum != nil || record != ""
+	return ai.Source{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt, MaxRunes: ai.MaxRecordExcerpt}, summarised, nil
 }
 
 // memberContext lists names and roles only. Email and phone never enter a
@@ -567,15 +661,23 @@ func (s *AskUNIService) memberContext(ctx context.Context, tc ai.ToolContext, _ 
 // chatContext: rooms the asker is a member of, newest 20 messages each, one
 // source per room that has a keyword hit.
 func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, error) {
+	out, _, err := s.chatSources(ctx, tc, query)
+	return out, err
+}
+
+// chatSources is chatContext plus, by href, the rooms whose messages shown are
+// all the asker's own (R8).
+func (s *AskUNIService) chatSources(ctx context.Context, tc ai.ToolContext, query string) ([]ai.Source, map[string]bool, error) {
 	rooms, err := s.chat.ListChatRooms(ctx, tc.ActorID, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ts := terms(query)
+	mine := map[string]bool{}
 	var out []ai.Source
 	for i, room := range rooms {
 		if i == 5 {
@@ -583,11 +685,18 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		}
 		msgs, err := s.chat.ListRoomMessages(ctx, tc.ActorID, tc.WorkspaceID, room.ID, ListChatMessagesInput{Limit: 20, SkipMarkRead: true})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		optOuts, err := loadAIOptOuts(ctx, s.q, chatSenderIDs(msgs))
+		if err != nil {
+			return nil, nil, err
 		}
 		var b strings.Builder
+		allMine := true
 		for _, m := range msgs {
-			if score(m.Body, ts) > 0 {
+			// A member who declined AI processing never reaches the model (Apple 5.1.2(i)).
+			if score(m.Body, ts) > 0 && !optOuts.excludes(m.SenderID) {
+				allMine = allMine && askerOwnWords(m, tc.ActorID)
 				fmt.Fprintf(&b, "- %s (%s): %s\n", m.SenderDisplayName, m.CreatedAt.Format("2006-01-02 15:04"), m.Body)
 			}
 		}
@@ -598,7 +707,9 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		if title == "" {
 			title = room.PeerDisplayName
 		}
-		out = append(out, ai.Source{Kind: "chat", Title: "Chat: " + title, Href: base + "/chat?room=" + room.ID, Excerpt: b.String()})
+		href := base + "/chat?room=" + room.ID
+		mine[href] = allMine
+		out = append(out, ai.Source{Kind: "chat", Title: "Chat: " + title, Href: href, Excerpt: b.String()})
 	}
-	return out, nil
+	return out, mine, nil
 }

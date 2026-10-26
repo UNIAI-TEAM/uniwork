@@ -10,10 +10,12 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CameraPreviewFrame, CameraPreviewPlaceholder } from "./meeting-camera-placeholder";
 import type { CameraPreviewStatus } from "./meeting-camera-preview";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 import type { PreJoinChoice } from "./meeting-prejoin";
+import { MeetingScribeNotice } from "./meeting-scribe-notice";
 
 // Camera preview pulls livekit-client (~130 KB gzip). Lazy-load it so the public
 // invite entry chunk stays under the route budget (scripts/bundle-budget.mjs).
@@ -47,6 +49,7 @@ export function MeetingPublicInviteForm({
   displayName,
   onDisplayNameChange,
   joinPending,
+  scribeNoticeFor,
   onJoin,
   onLogin,
 }: {
@@ -56,6 +59,8 @@ export function MeetingPublicInviteForm({
   displayName: string;
   onDisplayNameChange: (value: string) => void;
   joinPending: boolean;
+  /** The meeting's id when the AI scribe would transcribe it: the consent notice shows before joining. */
+  scribeNoticeFor?: string;
   onJoin: (choice: PreJoinChoice) => void;
   onLogin: () => void;
 }) {
@@ -103,7 +108,7 @@ export function MeetingPublicInviteForm({
       videoDeviceId: video && videoDeviceId ? videoDeviceId : undefined,
     });
   };
-  const formattedStart = formatMeetingStart(startsAt, meetingLocale(i18n.language));
+  const formattedStart = formatMeetingDayTime(startsAt, meetingLocale(i18n.language));
 
   return (
     <MeetingInviteShell>
@@ -227,6 +232,8 @@ export function MeetingPublicInviteForm({
             />
             {nameError ? <FieldError id={nameErrorId}>{t("meetings.publicInviteNameRequired")}</FieldError> : null}
           </Field>
+
+          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn /> : null}
 
           <Button
             type="submit"

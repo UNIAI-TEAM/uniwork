@@ -1,18 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { contactLabel, contactSections, foldVi, foldedIncludes, resolveChatNicknameForUser } from "./contacts-display";
+import { contactLabel, contactListItems, contactSections, pickerPeople } from "./contacts-display";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 const member = (user_id: string, display_name: string, email = `${user_id}@example.com`) => ({ user_id, display_name, email });
-
-// Cases copied from packages/views/chat/chat-search-fold.test.ts.
-describe("foldVi / foldedIncludes (parity with chat-search-fold.ts)", () => {
-  it("strips Vietnamese marks and đ, matches decomposed input, needs every word", () => {
-    expect(foldVi("Nguyễn Văn Đức")).toBe("nguyen van duc");
-    expect(foldedIncludes("Tuấn", "Tuấn")).toBe(true);
-    expect(foldedIncludes("Trần Minh Tuấn", "tuan tran")).toBe(true);
-    expect(foldedIncludes("Trần Minh Tuấn", "tuan hoa")).toBe(false);
-    expect(foldedIncludes("Anything", "  ")).toBe(true);
-  });
-});
 
 // Cases copied from packages/core/chat/contacts-store.test.ts (displayLabelForChatContact).
 describe("contactLabel (parity with displayLabelForChatContact + memberToChatContact)", () => {
@@ -71,5 +61,32 @@ describe("contactSections", () => {
     expect(shape(contactSections(members, { ...base, query: "long@" }))).toEqual([["T", ["Trần Hoang Long"]]]);
     expect(shape(contactSections(members, { ...base, nicknames: { u1: "Bé Long" }, query: "tran" }))).toEqual([["B", ["Bé Long"]]]);
     expect(contactSections(members, { ...base, query: "nghi" })).toEqual([]);
+  });
+});
+
+describe("contactListItems", () => {
+  const row = (id: string) => ({ user_id: id, email: `${id}@uni.vn`, display_name: id, label: id });
+
+  it("flattens each letter into its header then its people, the last of a letter marked, headers indexed", () => {
+    const list = contactListItems([
+      { title: "A", data: [row("a1"), row("a2")] },
+      { title: "B", data: [row("b1")] },
+    ]);
+    expect(list.items.map((item) => (item.kind === "header" ? item.title : `${item.row.user_id}${item.last ? "." : ""}`))).toEqual(["A", "a1", "a2.", "B", "b1."]);
+    expect(list.items.map((item) => item.key)).toEqual(["header:A", "a1", "a2", "header:B", "b1"]);
+    expect(list.headerIndices).toEqual([0, 3]);
+  });
+
+  it("has nothing for no one", () => {
+    expect(contactListItems([])).toEqual({ items: [], headerIndices: [] });
+  });
+});
+
+describe("pickerPeople", () => {
+  it("leaves the reader out, labels and finds people as the chat names them, A–Z", () => {
+    const people = [member("ME", "Tôi"), member("u2", "Trần Bình"), member("u3", "An Nguyễn", "an@x.vn"), member("u4", "Cường")];
+    expect(pickerPeople(people, { currentUserId: "me", nicknames: { U4: "Anh Cả" }, query: "" }).map((p) => p.label)).toEqual(["An Nguyễn", "Anh Cả", "Trần Bình"]);
+    expect(pickerPeople(people, { currentUserId: "me", query: "binh" }).map((p) => p.user_id)).toEqual(["u2"]);
+    expect(pickerPeople(people, { currentUserId: "me", query: "an@x" }).map((p) => p.user_id)).toEqual(["u3"]);
   });
 });

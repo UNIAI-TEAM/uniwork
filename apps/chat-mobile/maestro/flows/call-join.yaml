@@ -15,7 +15,8 @@ tags:
 ---
 - launchApp
 - runFlow: ../subflows/sign-in.yaml
-- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
 - extendedWaitUntil:
     visible:
       id: room-call-voice

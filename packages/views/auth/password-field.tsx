@@ -81,7 +81,7 @@ export function PasswordField({
         // holding a mouse. e2e/auth-layout.spec.ts presses it with a real one.
         className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
       >
-        {shown ? <EyeOff aria-hidden strokeWidth={1.75} /> : <Eye aria-hidden strokeWidth={1.75} />}
+        {shown ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
       </Button>
     </div>
   );

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { fetchMeetingCalendar } from "@uniwork/core/api/endpoints/meetings";
 import { wrapWithNav } from "../test/api-mock";
 import { MeetingCalendarButton, meetingIcsFileName } from "./meeting-calendar-button";
 
@@ -44,5 +45,17 @@ describe("MeetingCalendarButton", () => {
 
     await waitFor(() => expect(anchors.at(-1)?.download).toBe("hop-giao-ban.ics"));
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("holds still while the file is fetched, in the tab order and busy, never natively disabled", async () => {
+    vi.mocked(fetchMeetingCalendar).mockClear().mockReturnValueOnce(new Promise(() => {}));
+    render(wrapWithNav(<MeetingCalendarButton meetingId="m1" title="Họp giao ban" />));
+    const button = screen.getByRole("button", { name: "Thêm vào lịch" });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+    expect(fetchMeetingCalendar).toHaveBeenCalledTimes(1);
   });
 });

@@ -24,7 +24,12 @@ grep -q 'name: uniwork-be' "${OUT}"
 grep -q 'name: uniwork-fe' "${OUT}"
 grep -q 'name: uniwork-office-engine' "${OUT}"
 grep -q 'replicas: 1' "${OUT}"
-grep -q 'workload: app' "${OUT}"
+# Scheduling is a nodeAffinity over the app and exam pools plus the exam taint's
+# toleration (helpers: uniwork.nodeAffinity / uniwork.tolerations).
+grep -q 'key: workload' "${OUT}"
+grep -q -- '- "app"' "${OUT}"
+grep -q -- '- "exam"' "${OUT}"
+grep -q 'key: dedicated' "${OUT}"
 grep -q 'type: ClusterIP' "${OUT}"
 grep -q 'path: /healthz' "${OUT}"
 grep -q 'path: /readyz' "${OUT}"
@@ -48,6 +53,12 @@ grep -q 'value: "http://uniwork-office-engine:8090"' "${OUT}"
 grep -q 'OFFICE_ENGINE_OUTPUT_ORIGINS' "${OUT}"
 grep -q 's3.hn-2.cloud.cmctelecom.vn' "${OUT}"
 grep -q '113.20.100.19/32' "${OUT}"
+# Apple keys of UniChat on the iPhone: one optional Secret, the team id in the ConfigMap.
+grep -q 'name: uniwork-apple' "${OUT}"
+grep -q 'key: APPLE_SIWA_PRIVATE_KEY' "${OUT}"
+grep -q 'key: APNS_PRIVATE_KEY' "${OUT}"
+grep -q 'APPLE_SIWA_AUDIENCES: "com.uniworkos.chat' "${OUT}"
+grep -q 'APNS_TEAM_ID: "XJAM488A6D"' "${OUT}"
 for forbidden in LoadBalancer NodePort; do
   if grep -q "${forbidden}" "${OUT}"; then
     echo "FAIL: ${forbidden} must not appear" >&2

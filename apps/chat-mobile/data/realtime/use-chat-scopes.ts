@@ -2,6 +2,7 @@
 // hooks are not on the mobile allowlist, ADR 0011); keep the two in parity.
 import { useEffect, useRef } from "react";
 import { useWSClient } from "./realtime-provider";
+import { isKnownFrame } from "./frames";
 
 /** Realtime scope type the server accepts on subscribe frames for chat rooms. */
 const WS_SCOPE_CHAT = "chat" as const;
@@ -53,15 +54,14 @@ export function useChatScopes(roomIds: readonly string[]): void {
     // A new connection replays every scope: its lookup failures get the full backoff again.
     const stopReconnect = client.onReconnect(clearRetries);
     const stopListening = client.onAny((msg) => {
-      if (msg.type !== "subscribe_ack" && msg.type !== "subscribe_error") return;
-      const payload = msg.payload as Record<string, unknown> | null | undefined;
-      if (payload?.scope !== WS_SCOPE_CHAT || typeof payload.id !== "string") return;
-      const roomId = payload.id;
+      if (!isKnownFrame(msg) || (msg.type !== "subscribe_ack" && msg.type !== "subscribe_error")) return;
+      if (msg.payload.scope !== WS_SCOPE_CHAT) return;
+      const roomId = msg.payload.id;
       if (msg.type === "subscribe_ack") {
         retries.delete(roomId);
         return;
       }
-      if (payload.error !== "lookup_failed" || !activeRef.current.has(roomId)) return;
+      if (msg.payload.error !== "lookup_failed" || !activeRef.current.has(roomId)) return;
       const retry = retries.get(roomId) ?? { attempt: 0, timer: null };
       if (retry.timer !== null || retry.attempt >= LOOKUP_RETRY_DELAYS_MS.length) return;
       // The effect below clears this timer when the room leaves the set.

@@ -55,6 +55,11 @@ describe("CreateTaskManualOverflow", () => {
     expect(onStageChange).toHaveBeenCalledWith("2");
   });
 
+  it("makes the icon-only more-fields pill a 44px-wide target on a coarse pointer", () => {
+    render(<CreateTaskManualOverflow {...baseProps} revealed={new Set()} onReveal={vi.fn()} onStageChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Thêm trường" })).toHaveClass("pointer-coarse:min-w-11");
+  });
+
   it("opens a picker immediately when revealing it from more fields", async () => {
     const onReveal = vi.fn();
     const { rerender } = render(

@@ -144,7 +144,7 @@ test("DOC6-W01 the owner hands the document over, the new owner hears it and can
   expect(await levelOf(request, s.member.token, doc.id)).toBe("manage");
 
   // The new owner: the notice is born on the outbox, so poll the API, then read it in the inbox.
-  const sentence = `${s.owner.name} đã chuyển cho bạn quyền sở hữu tài liệu “${doc.title}”.`;
+  const sentence = `${s.owner.name} đã chuyển cho bạn quyền sở hữu tài liệu "${doc.title}".`;
   await expect.poll(async () => (await ownerNotices(request, s.member.token, doc.id)).length, { timeout: 60_000 }).toBe(1);
   const [notice] = await ownerNotices(request, s.member.token, doc.id);
   expect(notice?.params.actor).toBe(s.owner.name);

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
 // chatNotifyRecipients is every user_id the durable chat notification topic
@@ -435,5 +436,139 @@ func TestRoomMuteIsPersonal(t *testing.T) {
 	}
 	if muted(ua.ID, group.ID) || !muted(ua.ID, ch.ID) {
 		t.Fatal("unmuting the group changed the wrong room")
+	}
+}
+
+// Every message of a group, a channel or the workspace room notifies each
+// other member, as a messenger does (UNI-2141): one chat.message.received row
+// per member in the send transaction. A member the message names hears it as
+// the mention instead, a thread reply reaches the thread's followers only, and
+// past chatSmallRoomMembers a room notifies only its mentions: a row per
+// member of a 1,000-person channel for every line is spam. A muted member is
+// left out at delivery (the rule reads the mute), as for a DM.
+func TestEveryGroupMessageNotifiesTheOtherMembers(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "group-notify-c@example.com")
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "every-message", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	others := []string{ub.ID, uc.ID}
+	slices.Sort(others)
+	for _, roomID := range []string{group.ID, ch.ID} {
+		plain, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "chào cả nhà"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := chatNotifyRecipients(t, s, "chat.message.received", plain.ID)
+		slices.Sort(got)
+		if !slices.Equal(got, others) {
+			t.Fatalf("room %s: plain message notified %v, want every other member %v", roomID, got, others)
+		}
+		named, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "[@B](mention://member/" + ub.ID + ") xem nhé"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chatNotifyRecipients(t, s, "chat.message.received", named.ID); !slices.Equal(got, []string{uc.ID}) {
+			t.Fatalf("room %s: a mention also notified %v as a plain message, want only the one it does not name", roomID, got)
+		}
+		reply, err := s.SendThreadReply(ctx, ub.ID, w.ID, roomID, plain.ID, SendChatMessageInput{Body: "ok"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chatNotifyRecipients(t, s, "chat.message.received", reply.ID); len(got) != 0 {
+			t.Fatalf("room %s: a thread reply notified %v as a room message", roomID, got)
+		}
+	}
+	// A DM keeps its own row.
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "riêng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.received", direct.ID); len(got) != 0 {
+		t.Fatalf("a DM also notified %v as a room message", got)
+	}
+
+	smallChatRoom(t, 2)
+	loud, err := s.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{Body: "phòng lớn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chatNotifyRecipients(t, s, "chat.message.received", loud.ID); len(got) != 0 {
+		t.Fatalf("a room past the small-room bound notified %v for a plain message", got)
+	}
+}
+
+// A room message reuses the member list mention resolution already read for
+// the same request, instead of reading it again inside the send transaction
+// (UNI-2141): the rows follow the list the mentions carry, so an unnamed
+// member of a mentioned group message still hears it as a room message.
+func TestRoomMessageReusesTheMemberListMentionsRead(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "group-reuse-c@example.com")
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Reuse", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, err := q.GetChatRoomByID(ctx, group.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.resolveMentionRecipients(ctx, ua.ID, room, mentionOf(ub)+"xem nhé")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.membersRead {
+		t.Fatal("mention resolution read the room's members but did not keep them")
+	}
+	// A list only the mentions carry: a re-read would not name this person.
+	const onlyInTheMentions = "01ONLYINTHEMENTIONSLIST00"
+	m.roomMembers = append(m.roomMembers, onlyInTheMentions)
+	msgID := util.NewID()
+	if err := emitChatMessageNotifications(ctx, q, room, ua.ID, msgID, "", "", m); err != nil {
+		t.Fatal(err)
+	}
+	got := chatNotifyRecipients(t, s, "chat.message.received", msgID)
+	slices.Sort(got)
+	want := []string{onlyInTheMentions, uc.ID}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("room message notified %v, want the unnamed members of the list the mentions read %v", got, want)
+	}
+
+	// Without a mention nothing was read, and the send reads the list itself.
+	plain, err := s.resolveMentionRecipients(ctx, ua.ID, room, "chào cả nhà")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.membersRead {
+		t.Fatal("a message with no mention read the room's members")
+	}
+	plainID := util.NewID()
+	if err := emitChatMessageNotifications(ctx, q, room, ua.ID, plainID, "", "", plain); err != nil {
+		t.Fatal(err)
+	}
+	got = chatNotifyRecipients(t, s, "chat.message.received", plainID)
+	slices.Sort(got)
+	others := []string{ub.ID, uc.ID}
+	slices.Sort(others)
+	if !slices.Equal(got, others) {
+		t.Fatalf("plain message notified %v, want %v", got, others)
 	}
 }

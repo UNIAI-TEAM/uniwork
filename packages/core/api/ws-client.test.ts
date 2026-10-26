@@ -180,6 +180,24 @@ describe("WSClient scoped subscribe", () => {
     vi.useRealTimers();
   });
 
+  it("sendPresenceBeat sends a frame and resolves from presence.ack", async () => {
+    const ws = new WSClient("ws://example.test/ws");
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    FakeWebSocket.lastInstance!.onmessage?.({ data: JSON.stringify({ type: "auth_ack" }) });
+
+    const pending = ws.sendPresenceBeat(true);
+    expect(JSON.parse(FakeWebSocket.sent.at(-1)!)).toEqual({
+      type: "presence.beat",
+      payload: { state: "online", visible: true },
+    });
+
+    FakeWebSocket.lastInstance!.onmessage?.({
+      data: JSON.stringify({ type: "presence.ack", payload: { online_user_ids: ["u2"] } }),
+    });
+    await expect(pending).resolves.toEqual(["u2"]);
+  });
+
   it("token mode sends the token as the first frame and the identity as query params", () => {
     const ws = new WSClient("ws://example.test/ws", { identity: { platform: "desktop" } });
     ws.setAuth("tok", "acme/ws");

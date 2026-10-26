@@ -82,7 +82,7 @@ export function RequiredMark() {
 export function renderChatDateTrigger(label: string) {
   return (
     <>
-      <CalendarDays aria-hidden className="size-4.5 shrink-0 text-muted-foreground" />
+      <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
     </>

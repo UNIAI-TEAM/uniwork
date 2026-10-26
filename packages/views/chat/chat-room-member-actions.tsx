@@ -76,7 +76,7 @@ export function ChatRoomMemberActions({
           />
         }
       >
-        <Ellipsis className="size-4.5" aria-hidden />
+        <Ellipsis className="size-4" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-58 rounded-[14px] p-1.5">
         {canPromote ? (

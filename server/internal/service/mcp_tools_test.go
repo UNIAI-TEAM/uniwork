@@ -365,9 +365,17 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 		t.Fatalf("get task = %+v, %v", task, err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: meeting.ID, Summary: "Đã chốt OKR quý", Decisions: "Giữ ngân sách", ActionItems: "Gửi biên bản",
-		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
+		ID: util.NewID(), MeetingID: meeting.ID, Summary: "Đã chốt OKR quý", Decisions: `["Giữ ngân sách"]`, ActionItems: `[{"title":"Gửi biên bản"}]`,
+		Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human", OrganizationID: x.w.OrganizationID,
 	}); err != nil {
+		t.Fatal(err)
+	}
+	// The excerpt quotes the meeting's own items, not the raw proposal (benchmark #17);
+	// an ended meeting takes them.
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE meetings SET status = $2 WHERE id = $1`, meeting.ID, MeetingEnded); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.meetings.AddActionItem(ctx, x.ua.ID, meeting.ID, AddActionItemInput{Title: "Gửi biên bản"}); err != nil {
 		t.Fatal(err)
 	}
 	mt, err := x.tools.GetMeeting(ctx, x.p, x.w.ID, meeting.ID)

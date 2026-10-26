@@ -10,7 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { describeChatMediaBody } from "./chat-expression-utils";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { formatResultTime, highlightSnippet } from "./chat-search-highlight";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -138,7 +138,7 @@ export function ChatMessageSearchBar({
         <div className="relative mr-1.5 min-w-0 flex-1">
           <Search
             aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             ref={inputRef}
@@ -293,7 +293,7 @@ export function ChatMessageSearchBar({
                         </div>
                         {media ? (
                           <p className="flex items-center gap-1.5 text-label text-muted-foreground">
-                            <ImageIcon aria-hidden className="size-3.75 shrink-0 text-brand" />
+                            <ImageIcon aria-hidden className="size-3.5 shrink-0 text-brand" />
                             {media}
                           </p>
                         ) : (

@@ -7,6 +7,12 @@ type ReasonSDI struct {
 	Reason string `json:"reason" minLength:"10" description:"Lý do thao tác (≥ 10 ký tự), ghi vào admin_actions" example:"Khách hàng chưa thanh toán hóa đơn 2026-08"`
 }
 
+// AdminScheduleOrganizationDeletionSDI is POST /api/v1/admin/organizations/{orgID}/deletion.
+type AdminScheduleOrganizationDeletionSDI struct {
+	Reason      string `json:"reason" minLength:"10" description:"Lý do xóa (≥ 10 ký tự), ghi vào admin_actions" example:"Khách yêu cầu xóa tổ chức sau khi xuất dữ liệu"`
+	ConfirmSlug string `json:"confirm_slug" description:"Định danh tổ chức, gõ lại để xác nhận" example:"truong-tieu-hoc" required:"true"`
+}
+
 // AdminChangePlanSDI is POST /api/v1/admin/organizations/{orgID}/plan.
 type AdminChangePlanSDI struct {
 	PlanCode string `json:"plan_code" minLength:"1" description:"Mã gói đích (plans.code)" example:"team"`

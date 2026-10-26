@@ -2,7 +2,8 @@
 // what the phone adds: a start that fails, the hang-up button, a disconnect,
 // and answering from a push.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@/lib/voice-call";
+import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@uniwork/core/chat/voice-call-types";
+import { installReportSink, type ReportSink } from "../report";
 import { createCallEngine, type CallEngineDeps } from "./call-engine";
 
 let pendingInvites: Awaited<ReturnType<CallEngineDeps["pending"]>> = [];
@@ -13,6 +14,7 @@ function setup(overrides: Partial<CallEngineDeps> = {}) {
     accept: vi.fn<CallEngineDeps["accept"]>().mockResolvedValue(true),
     hangup: vi.fn<CallEngineDeps["hangup"]>().mockResolvedValue(true),
     pending: vi.fn<CallEngineDeps["pending"]>(async () => pendingInvites),
+    outgoing: vi.fn<CallEngineDeps["outgoing"]>(async () => []),
     mintToken: vi.fn<CallEngineDeps["mintToken"]>().mockResolvedValue({ token: "tok", url: "wss://lk" }),
     createCallId: vi.fn(() => "new-call"),
     ...overrides,
@@ -158,10 +160,41 @@ describe("call engine on the phone", () => {
     expect(call()).toMatchObject({ status: "active", outgoing: false });
   });
 
+  it("answers only the call the person tapped Answer on, never one that rang in meanwhile", async () => {
+    const { engine, deps, call } = setup();
+    engine.onInvite(invite());
+    // c1 ends (its caller hung up) while the microphone primer is open, and c2 rings.
+    engine.onHangup({ room_id: "room-dm", call_id: "c1", user_id: "peer", target_user_id: "me", call_kind: "dm" });
+    engine.dismissEnded();
+    engine.onInvite(invite({ call_id: "c2" }));
+    expect(await engine.acceptCall("c1")).toBe(false);
+    expect(deps.accept).not.toHaveBeenCalled();
+    expect(call()).toMatchObject({ status: "incoming", callId: "c2" });
+    expect(await engine.acceptCall("c2")).toBe(true);
+  });
+
   it("shows why a call could not start instead of ringing", async () => {
     const { engine, call } = setup({ invite: vi.fn().mockRejectedValue(new Error("403")) });
     expect(await engine.startCall("room-dm", "Long", "dm")).toBe(false);
     expect(call()).toMatchObject({ status: "ended", reason: "start_failed", peerName: "Long" });
+  });
+
+  it("tells its listeners once per call when the media room connects", async () => {
+    const { engine } = setup();
+    const heard: string[] = [];
+    const stop = engine.onMediaConnected((callId) => heard.push(callId));
+    engine.markConnected();
+    engine.onInvite(invite());
+    await engine.acceptCall();
+    engine.markConnected();
+    engine.markConnected();
+    expect(heard).toEqual(["c1"]);
+    await engine.hangUp();
+    stop();
+    engine.onInvite(invite({ call_id: "c2" }));
+    await engine.acceptCall();
+    engine.markConnected();
+    expect(heard).toEqual(["c1"]);
   });
 
   it("the hang-up button ends a 1-1 call for both and only leaves someone else's group call", async () => {
@@ -231,6 +264,46 @@ describe("call engine on the phone", () => {
     expect(moved.deps.hangup).not.toHaveBeenCalled();
   });
 
+  it("a tap on a ringing notification shows the ringing screen, without answering", async () => {
+    pendingInvites = [{ ...invite(), invited_at: new Date(Date.now() - 5_000).toISOString() } as never];
+    const ringing = setup();
+    expect(await ringing.engine.ringFromPush("room-dm", "c1")).toBe(true);
+    expect(ringing.call()).toMatchObject({ status: "incoming", callId: "c1" });
+    expect(ringing.deps.accept).not.toHaveBeenCalled();
+    // A second tap (the full-screen intent, then the notification) changes nothing.
+    expect(await ringing.engine.ringFromPush("room-dm", "c1")).toBe(true);
+    expect(ringing.deps.pending).toHaveBeenCalledTimes(1);
+
+    pendingInvites = [];
+    const gone = setup();
+    expect(await gone.engine.ringFromPush("room-dm", "c1")).toBe(false);
+    expect(gone.call().status).toBe("idle");
+
+    // Another call under way: this one is not shown over it.
+    const busy = setup();
+    busy.engine.onInvite(invite({ call_id: "other" }));
+    expect(await busy.engine.ringFromPush("room-dm", "c1")).toBe(false);
+    expect(busy.deps.pending).not.toHaveBeenCalled();
+
+    // Answer on a call already being answered here: nothing more to do, and not the room either.
+    const answering = setup();
+    answering.engine.onInvite(invite());
+    await answering.engine.acceptCall();
+    expect(await answering.engine.joinFromPush("room-dm", "c1")).toBe(true);
+    expect(answering.deps.accept).toHaveBeenCalledTimes(1);
+
+    const detached = setup();
+    detached.detach();
+    expect(await detached.engine.ringFromPush("room-dm", "c1")).toBe(false);
+  });
+
+  it("names the workspace it rings in, none once the last one closes", () => {
+    const { engine, detach } = setup();
+    expect(engine.contextWorkspaceId()).toBe("ws1");
+    detach();
+    expect(engine.contextWorkspaceId()).toBeNull();
+  });
+
   it("a push tap answers a call that still rings, and opens the room otherwise", async () => {
     pendingInvites = [{ ...invite(), invited_at: new Date(Date.now() - 5_000).toISOString() } as never];
     const ringing = setup();
@@ -291,6 +364,93 @@ describe("call engine on the phone", () => {
     expect(call().status).toBe("idle");
     expect(deps.pending).not.toHaveBeenCalled();
     expect(deps.invite).not.toHaveBeenCalled();
+  });
+});
+
+describe("call engine reconcile (audit C1)", () => {
+  it("stops ringing a call the server no longer lists; keeps one it still does", async () => {
+    const { engine, call } = setup();
+    engine.onInvite(invite());
+    pendingInvites = [{ ...invite(), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "incoming", callId: "c1" });
+    pendingInvites = [{ ...invite({ call_id: "other" }), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "ended", reason: "missed" });
+  });
+
+  it("a list that does not come keeps the ring; one that lands after the call moved on changes nothing", async () => {
+    const { engine, deps, call } = setup();
+    engine.onInvite(invite());
+    vi.mocked(deps.pending).mockRejectedValueOnce(new TypeError("offline"));
+    await engine.reconcile({ ring: true });
+    expect(call().status).toBe("incoming");
+
+    let answer: (invites: never[]) => void = () => undefined;
+    vi.mocked(deps.pending).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const reconciling = engine.reconcile({ ring: true });
+    await engine.hangUp();
+    answer([]);
+    await reconciling;
+    expect(call().status).toBe("idle");
+  });
+
+  // Review of S3: a caller whose socket missed chat.voice.accept rang out and hung up on a callee who answered.
+  it("a call this person is ringing connects when the server says it was answered meanwhile", async () => {
+    const { engine, deps, call } = setup();
+    await engine.startCall("room-dm", "Long", "dm");
+    expect(call()).toMatchObject({ status: "ringing", callId: "new-call" });
+
+    // No answer, someone else's call, the same id in another room, not answered yet: still ringing, and on the ring clock.
+    vi.mocked(deps.outgoing).mockRejectedValueOnce(new TypeError("offline"));
+    await engine.reconcile({ ring: true });
+    for (const listed of [
+      [{ room_id: "room-dm", call_id: "other", accepted: true }],
+      [{ room_id: "room-other", call_id: "new-call", accepted: true }],
+      [{ room_id: "room-dm", call_id: "new-call", accepted: false }],
+    ]) {
+      vi.mocked(deps.outgoing).mockResolvedValueOnce(listed);
+      await engine.reconcile({ ring: true });
+    }
+    expect(call().status).toBe("ringing");
+    expect(deps.pending).not.toHaveBeenCalled();
+
+    vi.mocked(deps.outgoing).mockResolvedValueOnce([{ room_id: "room-dm", call_id: "new-call", accepted: true }]);
+    await engine.reconcile({ ring: true });
+    expect(deps.mintToken).toHaveBeenCalledWith("room-dm", "new-call");
+    expect(call()).toMatchObject({ status: "active", callId: "new-call", outgoing: true });
+    expect(deps.hangup).not.toHaveBeenCalled();
+  });
+
+  it("an answer that lands after the ringing call ended connects nothing", async () => {
+    const { engine, deps, call } = setup();
+    await engine.startCall("room-dm", "Long", "dm");
+    let answer: (calls: Awaited<ReturnType<CallEngineDeps["outgoing"]>>) => void = () => undefined;
+    vi.mocked(deps.outgoing).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const reconciling = engine.reconcile({ ring: true });
+    await engine.hangUp();
+    answer([{ room_id: "room-dm", call_id: "new-call", accepted: true }]);
+    await reconciling;
+    expect(deps.mintToken).not.toHaveBeenCalled();
+    expect(call().status).not.toBe("active");
+  });
+
+  it("with nothing live picks up a call ringing now, only with the switch on; a live call is left to its clocks", async () => {
+    const { engine, deps, call, detach } = setup();
+    pendingInvites = [{ ...invite(), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: false });
+    expect(deps.pending).not.toHaveBeenCalled();
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "incoming", callId: "c1" });
+    await engine.acceptCall();
+    expect(call().status).toBe("active");
+    vi.mocked(deps.pending).mockClear();
+    await engine.reconcile({ ring: true });
+    expect(deps.pending).not.toHaveBeenCalled();
+    expect(call().status).toBe("active");
+    detach();
+    await engine.reconcile({ ring: true });
+    expect(deps.pending).not.toHaveBeenCalled();
   });
 });
 
@@ -418,5 +578,41 @@ describe("call engine edges", () => {
     give({ token: "t", url: "u" });
     expect(await start).toBe(false);
     expect(late.call().status).toBe("idle");
+  });
+});
+
+// Audit "observability holes": a call that cannot start or connect, or a signal that is lost, leaves a trace.
+describe("call failures reach crash reporting", () => {
+  const apiError = (status: number, code?: string) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status, body: { error: { code } } });
+  const sink = { captureException: vi.fn<ReportSink["captureException"]>(), addBreadcrumb: vi.fn<ReportSink["addBreadcrumb"]>(), setUser: vi.fn(), setTag: vi.fn() };
+  beforeEach(() => {
+    sink.captureException.mockReset();
+    sink.addBreadcrumb.mockReset();
+    installReportSink(sink);
+  });
+  afterEach(() => installReportSink(null));
+
+  it("reports a start or a connect the server failed, but not a refusal the panel explains", async () => {
+    const failing = setup({ invite: vi.fn<CallEngineDeps["invite"]>().mockRejectedValue(apiError(500)) });
+    await failing.engine.startCall("room-dm", "Long", "dm");
+    expect(sink.captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ tags: expect.objectContaining({ source: "calls", reason: "start_failed" }) }));
+
+    const blocked = setup({ invite: vi.fn<CallEngineDeps["invite"]>().mockRejectedValue(apiError(409, "chat_user_blocked")) });
+    await blocked.engine.startCall("room-dm", "Long", "dm");
+    expect(sink.captureException).toHaveBeenCalledTimes(1);
+    expect(sink.addBreadcrumb.mock.calls.map(([crumb]) => crumb.message)).toEqual(["call start_failed", "call start_failed"]);
+
+    const token = setup({ mintToken: vi.fn<CallEngineDeps["mintToken"]>().mockRejectedValue(apiError(502)) });
+    token.engine.onInvite(invite());
+    await token.engine.acceptCall();
+    expect(sink.captureException).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ tags: expect.objectContaining({ reason: "connect_failed" }) }));
+  });
+
+  it("leaves a breadcrumb, and a report, for a hangup that never reached the server", async () => {
+    const { engine } = setup({ hangup: vi.fn<CallEngineDeps["hangup"]>().mockRejectedValue(apiError(503)) });
+    await engine.startCall("room-dm", "Long", "dm");
+    await engine.hangUp();
+    expect(sink.addBreadcrumb).toHaveBeenCalledWith(expect.objectContaining({ category: "calls", message: "hangup not sent" }));
+    expect(sink.captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ extra: { what: "hangup not sent" } }));
   });
 });

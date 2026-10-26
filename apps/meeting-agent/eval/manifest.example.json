@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "giaoban-hn-01",
+      "audio": "data/giaoban-hn-01.wav",
+      "reference": "data/giaoban-hn-01.txt",
+      "accent": "north",
+      "mic": "room",
+      "entities": ["Nguyễn Văn An", "UniWork", "báo cáo quý ba", "Jira"],
+      "keyterms": ["Giao ban sáng thứ Hai", "Dự án Ra mắt", "Nguyễn Văn An", "Trần Thị Bình"]
+    },
+    {
+      "id": "khachhang-sg-02",
+      "audio": "data/khachhang-sg-02.wav",
+      "reference": "data/khachhang-sg-02.txt",
+      "accent": "south",
+      "mic": "phone",
+      "entities": ["Lê Minh Châu", "hợp đồng khung", "deadline"],
+      "keyterms": ["Họp khách hàng", "Lê Minh Châu"]
+    }
+  ]
+}

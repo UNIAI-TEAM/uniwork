@@ -77,7 +77,7 @@ export function ChatPostMessageRow({
           onClick={() => setExpanded((open) => !open)}
         >
           {expanded ? t("chat.post_read_less") : t("chat.post_read_more")}
-          <ChevronDown aria-hidden className={cn("size-3.75", expanded && "rotate-180")} />
+          <ChevronDown aria-hidden className={cn("size-4", expanded && "rotate-180")} />
         </button>
       ) : null}
     </ChatCard>

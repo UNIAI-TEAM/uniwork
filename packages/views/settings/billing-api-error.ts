@@ -10,6 +10,7 @@ const BILLING_ERROR_KEYS: Readonly<Record<string, string>> = {
   quota_exceeded: "settings.billing.errors.quota_exceeded",
   billing_provider_unavailable: "settings.billing.errors.billing_provider_unavailable",
   version_conflict: "settings.billing.errors.version_conflict",
+  cancel_not_available: "settings.billing.errors.cancel_not_available",
 };
 
 /** Localized billing tab copy for known API codes, then generic apiErrorCopy. */

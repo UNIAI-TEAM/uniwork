@@ -2,44 +2,60 @@
 
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { AiCitation, AiMessage } from "@uniwork/core/types";
+import { useAiCapabilities, useAiConversations } from "@uniwork/core/ai";
+import type { AiCitation, AiMessage, AiStep } from "@uniwork/core/types";
 import { SafeMarkdown } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
-import { CitationMarker, SourceChips } from "./ask-uni-citation";
-import { AskUniSteps } from "./ask-uni-steps";
+import { dropEchoedNames } from "./ask-uni-text";
+import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
+import { AskUniContextChips } from "./ask-uni-context-chips";
+import { AskUniFileNotes, AskUniQuestionFiles } from "./ask-uni-files";
+import { AskUniMemoryCard } from "./ask-uni-memory-card";
+import { AskUniMemoryUsed } from "./ask-uni-memory-used";
+import { AskUniProposalCard } from "./ask-uni-proposal-card";
+import { AskUniMessageMeta } from "./ask-uni-meta";
+import { useAskModelLook } from "./ask-uni-provider";
+import { AskUniProgress } from "./ask-uni-steps";
 
 const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused", "stopped", "interrupted"]);
 // A partial answer that ended early keeps its text and gets a notice line; any other notice stands in for an empty answer.
 const PARTIAL = new Set(["stopped", "interrupted"]);
 const CITE_TOKEN = /\[S(\d+)\]/g;
 
-export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice">>;
+export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice" | "steps" | "focus" | "mentions" | "model" | "created_at" | "attachments" | "file_notes" | "proposals" | "memory_ids" | "memory_proposals">>;
 
-/** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as hoverable sources. */
-function AnswerBody({ content, citations }: { content: string; citations: AiCitation[] }) {
-  const byId = useMemo(() => new Map(citations.map((c) => [c.source_id, c])), [citations]);
+// How an answer or a question shows a link that isInAppHref lets through.
+const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
+  <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
+    <InLinkContext.Provider value>{children}</InLinkContext.Provider>
+  </AppLink>
+);
+
+/** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as entity chips. */
+function AnswerBody({ content, byId, wsId, streaming }: { content: string; byId: Map<string, AiCitation>; wsId: string; streaming: boolean }) {
   // A cited href is held to the same rule as any other: only in-app paths become links.
   const isLinkAllowed = isInAppHref;
+  // Copy (answerPlainText) drops the same echoes, so both read the name once; a draft keeps them, or a name would
+  // show and vanish as its words arrive.
+  const text = useMemo(() => (streaming ? content : dropEchoedNames(content, byId)), [content, byId, streaming]);
   return (
     <SafeMarkdown
       isLinkAllowed={isLinkAllowed}
-      renderLink={({ href, children }: { href: string; children: ReactNode }) => (
-        <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
-          {children}
-        </AppLink>
-      )}
+      renderLink={inAppLink}
       inlineToken={{
         pattern: CITE_TOKEN,
         render: (m, key) => {
           const c = byId.get(`S${m[1]}`);
-          return c ? <CitationMarker key={key} citation={c} /> : m[0];
+          // A marker the source book does not know renders nothing.
+          return c ? <AskUniEntityChip key={key} source={c} wsId={wsId} /> : null;
         },
       }}
     >
-      {content}
+      {text}
     </SafeMarkdown>
   );
 }
@@ -53,46 +69,104 @@ export function AskUniMessageTurn({
   message,
   streaming = false,
   conversationId,
-  counts,
+  steps,
+  writing = false,
+  thinking = "",
+  sources,
+  wsId = "",
   onRegenerate,
   regenerateDisabled,
 }: {
   message: AskUniTurnMessage;
   streaming?: boolean;
   conversationId?: string | null;
-  /** Summed step counts, for the live turn and the one just finished. */
-  counts?: Record<string, number>;
+  /** The live turn's steps; a stored turn reads its own from `message.steps`. */
+  steps?: AiStep[];
+  /** True once the live answer's first text has arrived. */
+  writing?: boolean;
+  /** The live call's thinking, still being written. */
+  thinking?: string;
+  /** The conversation's source book by `S#`, for markers this message does not cite itself; its own citations win. */
+  sources?: Map<string, AiCitation>;
+  wsId?: string;
   onRegenerate?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  // An earlier P0 turn numbered from S1 again, so a number the conversation shares may name another object here.
+  const byId = useMemo(
+    () => new Map([...(sources ?? []), ...message.citations.map((c): [string, AiCitation] => [c.source_id, c])]),
+    [sources, message.citations],
+  );
+  const look = useAskModelLook(wsId, message.role === "assistant" ? (message.model ?? "") : "");
+  // With actions off, the ceiling off (the server refuses every decision then) or not read yet, the card is history: its rows, no button.
+  const hasProposals = (message.proposals?.length ?? 0) > 0;
+  const memoryProposals = message.memory_proposals ?? [];
+  const memoryIds = message.memory_ids ?? [];
+  const hasMemory = memoryProposals.length > 0 || memoryIds.length > 0;
+  const caps = useAiCapabilities(wsId, wsId !== "" && (hasProposals || hasMemory)).data;
+  const actions = caps?.actions;
+  const actionsOn = actions?.enabled === true && actions.ceiling !== "off";
+  // The streaming bubble and the cache's echo of a question carry upload ids until the refetch swaps in the stored turn.
+  const settled = !message.id.startsWith("pending-") && message.id !== "live" && message.id !== "live-question";
+  const stored = !streaming && settled;
+  // Memory proposals do not depend on P3 actions; with the memory flag off (or not read yet) an old answer shows no
+  // memory card or used line, so it reads no memory. The organization routes take the slug, never the id.
+  const orgSlug = useOptionalWorkspace()?.workspace.organization_slug ?? "";
+  const memoryOn = stored && !!conversationId && orgSlug !== "" && caps?.memory.enabled === true;
+  const tainted = useAiConversations(wsId, memoryOn && memoryProposals.length > 0).data?.find((c) => c.id === conversationId)?.tainted ?? false;
   if (message.role === "user") {
     return (
-      <li className="flex justify-end">
-        <div className="max-w-[94%] whitespace-pre-wrap rounded-lg bg-surface-selected px-3.5 py-2.5 text-body leading-6 text-surface-selected-foreground">
+      <li className="flex flex-col items-end gap-1">
+        <AskUniMessageMeta from="user" createdAt={message.created_at ?? ""} />
+        {/* The question is the composer's markdown; a block's outer margins would pad the bubble. */}
+        <SafeMarkdown
+          isLinkAllowed={isInAppHref}
+          renderLink={inAppLink}
+          className="max-w-[94%] min-w-0 rounded-lg bg-surface-selected px-3.5 py-2.5 leading-6 text-surface-selected-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+        >
           {message.content}
-        </div>
+        </SafeMarkdown>
+        <AskUniQuestionFiles files={message.attachments ?? []} wsId={settled ? wsId : undefined} />
+        <AskUniContextChips refs={[...(message.focus ? [message.focus] : []), ...(message.mentions ?? [])]} />
       </li>
     );
   }
   const notice = message.notice ?? "";
   const noticeKey = NOTICES.has(notice) ? notice : notice ? "unavailable" : "";
   const showNotice = noticeKey !== "" && (message.content === "" || PARTIAL.has(notice));
-  const stored = !streaming && !message.id.startsWith("pending-") && message.id !== "live";
   return (
     <li className="flex flex-col items-start">
       <div className="w-full min-w-0">
-        {counts ? <AskUniSteps counts={counts} /> : null}
-        {message.content ? <AnswerBody content={message.content} citations={message.citations} /> : null}
+        <div className="mb-1">
+          <AskUniMessageMeta from="assistant" createdAt={message.created_at ?? ""} model={message.model ?? ""} look={look} />
+        </div>
+        <AskUniProgress steps={steps ?? message.steps ?? []} running={streaming} writing={writing} thinking={thinking} />
+        {message.content ? <AnswerBody content={message.content} byId={byId} wsId={wsId} streaming={streaming} /> : null}
         {showNotice ? (
           <p className={cn("text-caption text-muted-foreground", message.content ? "mt-2" : "")}>{t(`notice.${noticeKey}`)}</p>
         ) : null}
-        <SourceChips citations={message.citations} />
+        <AskUniFileNotes notes={message.file_notes ?? []} />
+        <AskUniSources citations={message.citations} />
+        {stored && conversationId && hasProposals ? (
+          <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} readOnly={!actionsOn} />
+        ) : null}
+        {memoryOn && memoryProposals.length > 0 ? (
+          <AskUniMemoryCard message={{ id: message.id, memory_proposals: memoryProposals }} conversationId={conversationId} orgSlug={orgSlug} tainted={tainted} />
+        ) : null}
+        {memoryOn && memoryIds.length > 0 ? (
+          <div className="mt-2">
+            <AskUniMemoryUsed memoryIds={memoryIds} orgSlug={orgSlug} />
+          </div>
+        ) : null}
         {stored && conversationId ? (
           <AskUniActions
             conversationId={conversationId}
             messageId={message.id}
+            wsId={wsId}
             content={message.content}
+            proposals={message.proposals}
+            sources={byId}
             onRegenerate={onRegenerate}
             regenerateDisabled={regenerateDisabled}
           />

@@ -104,7 +104,8 @@ describe("MeetingRoomChatTab (persisted)", () => {
     fireEvent.change(box, { target: { value: "Xin chào" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không gửi được tin nhắn"));
+    // An internal error reads as the localized copy, not the server's own sentence.
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("UniWork đang gặp sự cố. Thử lại sau vài phút."));
     expect(box).toHaveValue("Xin chào");
   });
 

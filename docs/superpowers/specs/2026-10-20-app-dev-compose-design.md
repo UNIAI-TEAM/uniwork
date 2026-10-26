@@ -83,11 +83,11 @@ APP_ENV=development
 LOG_LEVEL=info
 ENABLE_SWAGGER=true
 REALTIME_RELAY=false
-TRUSTED_PROXIES=172.30.19.0/24
+TRUSTED_PROXIES=10.230.19.0/24
 DEV_VERIFICATION_CODE=123456
 FRONTEND_ORIGIN=https://uniwork.unicomhub.com
 API_PUBLIC_URL=https://uniwork.unicomhub.com
-PREVIEW_ORIGIN=https://preview.uniwork.unicomhub.com
+PREVIEW_ORIGIN=https://preview.unicomhub.com
 ALLOWED_ORIGINS=
 PREVIEW_ASSET_TTL=10m
 PREVIEW_ASSET_MAX_BYTES=10485760
@@ -169,12 +169,12 @@ Có thì bật thêm tính năng: `SMTP_PASSWORD`, `ANTHROPIC_API_KEY`, `GOOGLE_
 
 ## 4. Compose lúc chạy
 
-`docker-compose.yml` có `name: uniwork-app-dev` để không dùng chung project `uniwork` của compose ở gốc repo. Network `172.30.19.0/24` (gateway `172.30.19.1`). Không `network_mode: host`. Không service Postgres, Redis, MinIO, LiveKit. Không khóa `build`. Host cần Docker Compose 2.24 trở lên vì `env_file.required`.
+`docker-compose.yml` có `name: uniwork-app-dev` để không dùng chung project `uniwork` của compose ở gốc repo. Network `10.230.19.0/24` (gateway `10.230.19.1`). Không `network_mode: host`. Không service Postgres, Redis, MinIO, LiveKit. Không khóa `build`. Host cần Docker Compose 2.24 trở lên vì `env_file.required`.
 
 | Service | Ảnh | Cổng trên host |
 |---|---|---|
-| `uniwork-be` | `registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG}` | `8080:8080` |
-| `uniwork-fe` | `registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG}` | `3000:3000` |
+| `uniwork-be` | `registry-harbor.ubos.vn/uniwork/uniwork-be:${UNIWORK_IMAGE_TAG}` | `8086:8080` |
+| `uniwork-fe` | `registry-harbor.ubos.vn/uniwork/uniwork-fe:${UNIWORK_IMAGE_TAG}` | `3008:3000` |
 | `uniwork-office-engine` | `registry-harbor.ubos.vn/uniwork/uniwork-office-engine:${UNIWORK_IMAGE_TAG}` | `127.0.0.1:8090:8090` |
 
 `UNIWORK_IMAGE_TAG` dùng cú pháp `${UNIWORK_IMAGE_TAG:?}`. Thiếu tag thì Compose dừng trước khi gọi Docker.
@@ -188,7 +188,7 @@ Office-engine giữ sandbox của `docker-compose.yml` ở gốc repo: `init`, `
 - Backend: `env_file` đường dẫn `.env`, `required: true`.
 - Office-engine: `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` bằng `${…:?}`. Process engine không nhận `DATABASE_URL`.
 
-Proxy TLS nằm ngoài Compose. Nó đã có trên host: `https://uniwork.unicomhub.com` vào cổng 3000 và 8080, `https://preview.uniwork.unicomhub.com` vào cổng 8080.
+Proxy TLS nằm ngoài Compose, hai file nginx trong `deploy/app-dev/` theo `deploy/edge/route.yaml`. `https://uniwork.unicomhub.com` gửi `/api` và `/mcp`, `/oauth/`, `/.well-known/oauth-*` vào cổng 8086, còn lại vào cổng 3008. `https://preview.unicomhub.com` chỉ gửi `/api/v1/preview/assets/` vào cổng 8086.
 
 ## 5. Pipeline
 
@@ -250,7 +250,7 @@ docker compose \
 `scripts/app-dev-env.test.mjs`, gọi trong dòng `node --test` của `scripts/check.sh`. Test đọc file đã commit, không chạy container, không SSH.
 
 - Dòng gán (bỏ qua comment) trong file nghiệp vụ không có giá trị khác rỗng cho `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, mọi key chứa `PASSWORD`, `SECRET`, `ACCESS_KEY` hoặc `API_KEY`, và hai token office.
-- `uniwork-be.env` có `STORAGE_BACKEND=minio`, `MINIO_ENDPOINT=https://minio.ubos.vn`, `MINIO_BUCKET=uniwork-development`, `MINIO_REGION=us-east-1`, `S3_KEY_PREFIX=develop/`, `APP_ENV=development`, `TRUSTED_PROXIES=172.30.19.0/24`, và `OFFICE_ENGINE_URL` trống.
+- `uniwork-be.env` có `STORAGE_BACKEND=minio`, `MINIO_ENDPOINT=https://minio.ubos.vn`, `MINIO_BUCKET=uniwork-development`, `MINIO_REGION=us-east-1`, `S3_KEY_PREFIX=develop/`, `APP_ENV=development`, `TRUSTED_PROXIES=10.230.19.0/24`, và `OFFICE_ENGINE_URL` trống.
 - `uniwork-office-engine.env` có `OFFICE_ENGINE_OUTPUT_ORIGINS=https://minio.ubos.vn` và không chứa host CMC `s3.hn-2.cloud.cmctelecom.vn`.
 - `uniwork-fe.build.env` có đúng ba URL `https://uniwork.unicomhub.com` và `wss://uniwork.unicomhub.com`.
 - `docker-compose.yml` không có `build:`, không có service `postgres`, `redis`, `minio`, và có `name: uniwork-app-dev`.

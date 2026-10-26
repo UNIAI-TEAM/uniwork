@@ -22,10 +22,10 @@ function respond(flag: boolean, neighbors: () => Promise<unknown>) {
   });
 }
 
-function shell() {
+function shell(originShown = false) {
   return wrapWithNav(
     <WorkspaceProvider workspace={workspace} user={me}>
-      <RelatedSection workspaceId="w1" nodeType="TASK" nodeId="t1" />
+      <RelatedSection workspaceId="w1" nodeType="TASK" nodeId="t1" originShown={originShown} />
     </WorkspaceProvider>,
   );
 }
@@ -43,6 +43,13 @@ describe("RelatedSection", () => {
     render(shell());
     expect(await screen.findByText("Xuất phát từ")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Giao ban thứ hai" })).toHaveAttribute("href", "/org/team/meetings/m1");
+  });
+
+  it("does not repeat the origin the screen already names", async () => {
+    respond(true, () => Promise.resolve({ node: null, items: [{ edge_type: "ORIGINATED_FROM", direction: "out", origin: "SYSTEM", valid_from: "2026-10-07T00:00:00Z", backfilled: false, node: meeting }] }));
+    render(shell(true));
+    expect(await screen.findByText(/Chưa có gì liên quan/)).toBeInTheDocument();
+    expect(screen.queryByText("Xuất phát từ")).toBeNull();
   });
 
   it("renders nothing while the organization has the graph off", async () => {

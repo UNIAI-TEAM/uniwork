@@ -72,6 +72,7 @@ func TestRedactTenantRowDropsSecretsAndStorageLocators(t *testing.T) {
 
 var (
 	tenantCreateTable = regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(`)
+	tenantDropTable   = regexp.MustCompile(`(?i)\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)`)
 	tenantAddOrg      = regexp.MustCompile(`(?is)\bALTER\s+TABLE\s+(\w+)\b[^;]*?\bADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?organization_id\b`)
 	tenantOrgColumn   = regexp.MustCompile(`(?i)\borganization_id\b`)
 	tenantSQLComment  = regexp.MustCompile(`--[^\n]*`)
@@ -107,6 +108,10 @@ func tenantTablesFromMigrations(t *testing.T) map[string]bool {
 		}
 		for _, m := range tenantAddOrg.FindAllStringSubmatch(sql, -1) {
 			has[strings.ToLower(m[1])] = true
+		}
+		// Migrations sort in the order they run, so a later drop wins.
+		for _, m := range tenantDropTable.FindAllStringSubmatch(sql, -1) {
+			delete(has, strings.ToLower(m[1]))
 		}
 	}
 	return has

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
-import { RoomEvent, type Participant } from "livekit-client";
+import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
@@ -25,20 +25,21 @@ import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { MeetingSharedMicMenuItem } from "./meeting-shared-mic-menu-item";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
-import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
+import {
+  guestIdentities,
+  humanParticipants,
+  PARTICIPANT_IDENTITY_PREFIX,
+  participantRole,
+  ROSTER_EVENTS,
+} from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 import { useWindowedList } from "./use-windowed-list";
 
 /** The pressed view lifts out of the track: the meeting list's filter chip, stretched to half the track. */
 const SEGMENT = `${MEETING_TOGGLE_CHIP} w-full rounded-lg hover:bg-transparent`;
-
-/**
- * Joins and leaves are always followed; a rename is the one other change the
- * list shows. Each row follows its own mic, speaking and lock state.
- */
-const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -89,7 +90,10 @@ export function MeetingRoomPeopleTab({
   guestMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const liveParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const roomParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const liveParticipants = useMemo(() => humanParticipants(roomParticipants), [roomParticipants]);
+  // The shared-mic entry matters only while the AI scribe listens.
+  const scribeInRoom = roomParticipants.some((p) => p.isAgent);
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
@@ -147,10 +151,15 @@ export function MeetingRoomPeopleTab({
 
   function rowSubtitle(participant: Participant): string | undefined {
     const meta = participantMeta.get(participant.identity);
-    if (meta?.isHost) return t("meetings.meetingHost");
-    if (participant.isLocal && canHost) return t("meetings.meetingHost");
-    if (hands.includes(participant.identity)) return t("meetings.handRaised");
-    return undefined;
+    const role =
+      meta?.isHost || (participant.isLocal && canHost)
+        ? t("meetings.meetingHost")
+        : hands.includes(participant.identity)
+          ? t("meetings.handRaised")
+          : undefined;
+    // Whose mic the AI scribe splits into speakers: the clerk set it, everyone should see it.
+    const sharedMic = meta?.api.shared_mic ? t("meetings.scribe.sharedMicBadge") : undefined;
+    return [role, sharedMic].filter(Boolean).join(" · ") || undefined;
   }
 
   return (
@@ -223,9 +232,7 @@ export function MeetingRoomPeopleTab({
             </p>
           ) : null}
 
-          <p className="mb-2 shrink-0 text-overline text-muted-foreground">
-            {t("meetings.inTheMeeting")}
-          </p>
+          <p className="mb-2 shrink-0 text-label font-medium text-muted-foreground">{t("meetings.inTheMeeting")}</p>
 
           <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
             <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
@@ -271,15 +278,28 @@ export function MeetingRoomPeopleTab({
                           removable={!meta?.isHost}
                           pinned={pinnedIdentity === participant.identity}
                           menuExtra={
-                            canHost && !guestMode && meetingId && meta ? (
-                              <MeetingDutyMenuItems
-                                meetingId={meetingId}
-                                participant={meta.api}
-                                name={displayName(participant)}
-                                separatorBefore
-                                rollFinalized={rollFinalized}
-                                standingOnly={meta.isHost}
-                              />
+                            !guestMode && meetingId && meta ? (
+                              <>
+                                {canHost ? (
+                                  <MeetingDutyMenuItems
+                                    meetingId={meetingId}
+                                    participant={meta.api}
+                                    name={displayName(participant)}
+                                    separatorBefore
+                                    rollFinalized={rollFinalized}
+                                    standingOnly={meta.isHost}
+                                  />
+                                ) : null}
+                                {/* Never a phone line: the scribe would diarize it under the caller's id. */}
+                                {isClerk && scribeInRoom && participantRole(participant, guests) !== "phone" ? (
+                                  <MeetingSharedMicMenuItem
+                                    meetingId={meetingId}
+                                    participant={meta.api}
+                                    name={displayName(participant)}
+                                    separatorBefore={!canHost}
+                                  />
+                                ) : null}
+                              </>
                             ) : null
                           }
                         />

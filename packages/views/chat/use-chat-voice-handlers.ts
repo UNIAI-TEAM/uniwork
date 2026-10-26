@@ -18,8 +18,6 @@ export function useChatVoiceHandlers({
   activeGroup,
   activeChannel = null,
   startCall,
-  acceptCall,
-  declineCall,
 }: {
   targetKind: "workspace" | "dm" | "group" | "channel";
   activeRoomId: string | null;
@@ -32,8 +30,6 @@ export function useChatVoiceHandlers({
     callKind: VoiceCallKind,
     options?: { withCamera?: boolean },
   ) => Promise<boolean>;
-  acceptCall: () => Promise<boolean>;
-  declineCall: () => void | Promise<void>;
 }) {
   const handleStartCall = useCallback(
     async (withCamera: boolean) => {
@@ -67,15 +63,5 @@ export function useChatVoiceHandlers({
     await handleStartCall(true);
   }, [handleStartCall]);
 
-  const handleAcceptVoiceCall = useCallback(async () => {
-    try {
-      await acceptCall();
-    } catch {
-      // The host reports accept failures on the panel; an unexpected throw
-      // must still not leave the caller ringing.
-      await declineCall();
-    }
-  }, [acceptCall, declineCall]);
-
-  return { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall };
+  return { handleStartVoiceCall, handleStartVideoCall };
 }

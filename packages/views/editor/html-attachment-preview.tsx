@@ -26,7 +26,7 @@
  * 80px placeholder and the toolbar pins itself open with all actions enabled.
  */
 
-import { Download, ExternalLink, Maximize2, Trash2 } from "lucide-react";
+import { Download, ExternalLink, Maximize2, Trash } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useTranslation } from "react-i18next";
@@ -154,7 +154,7 @@ export function HtmlAttachmentPreview({
               onDelete();
             }}
           >
-            <Trash2 className="size-3.5" />
+            <Trash className="size-3.5" />
           </button>
         )}
       </div>

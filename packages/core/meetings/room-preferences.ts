@@ -19,6 +19,16 @@ export const MIN_MEETING_TILES = 4;
 export const MAX_MEETING_TILES = 16;
 export const DEFAULT_MEETING_TILES = 6;
 
+/** Where the scribe's captions sit: docked above the control bar, or floating where the viewer put them. */
+export type CaptionPlacement = "docked" | "floating";
+
+/** A floating caption box, in px from the room's top-left corner. */
+export type CaptionFloatRect = { x: number; y: number; width: number; height: number };
+
+/** The full lines a docked caption box shows (it shows a fading part-line above them too). */
+export const MIN_CAPTION_LINES = 2;
+export const MAX_CAPTION_LINES = 6;
+
 /** Past this many people on the roster, a newcomer joins with the mic off unless they chose otherwise. */
 export const CROWDED_MEETING_SIZE = 10;
 
@@ -45,6 +55,10 @@ export interface MeetingRoomPreferencesState {
   hideTilesWithoutVideo: boolean;
   /** The mic choice last made in prejoin; null until the person makes one. */
   joinWithMic: boolean | null;
+  captionPlacement: CaptionPlacement;
+  captionLines: number;
+  /** Null until the viewer floats the captions once. */
+  captionFloat: CaptionFloatRect | null;
   setMirrorCamera: (value: boolean) => void;
   setShowExpandedLabels: (value: boolean) => void;
   setControlBarAutoHide: (value: boolean) => void;
@@ -54,6 +68,9 @@ export interface MeetingRoomPreferencesState {
   setMaxTiles: (value: number) => void;
   setHideTilesWithoutVideo: (value: boolean) => void;
   setJoinWithMic: (value: boolean) => void;
+  setCaptionPlacement: (value: CaptionPlacement) => void;
+  setCaptionLines: (value: number) => void;
+  setCaptionFloat: (value: CaptionFloatRect) => void;
 }
 
 export const MEETING_BACKGROUND_PRESETS: readonly MeetingBackgroundPreset[] = [
@@ -98,6 +115,9 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
       maxTiles: DEFAULT_MEETING_TILES,
       hideTilesWithoutVideo: false,
       joinWithMic: null,
+      captionPlacement: "docked",
+      captionLines: MIN_CAPTION_LINES,
+      captionFloat: null,
       setMirrorCamera: (mirrorCamera) => set({ mirrorCamera }),
       setShowExpandedLabels: (showExpandedLabels) => set({ showExpandedLabels }),
       setControlBarAutoHide: (controlBarAutoHide) => set({ controlBarAutoHide }),
@@ -109,6 +129,10 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
         set({ maxTiles: Math.min(MAX_MEETING_TILES, Math.max(MIN_MEETING_TILES, maxTiles)) }),
       setHideTilesWithoutVideo: (hideTilesWithoutVideo) => set({ hideTilesWithoutVideo }),
       setJoinWithMic: (joinWithMic) => set({ joinWithMic }),
+      setCaptionPlacement: (captionPlacement) => set({ captionPlacement }),
+      setCaptionLines: (lines) =>
+        set({ captionLines: Math.min(MAX_CAPTION_LINES, Math.max(MIN_CAPTION_LINES, Math.round(lines))) }),
+      setCaptionFloat: (captionFloat) => set({ captionFloat }),
     }),
     {
       name: "uniwork-meeting-room-preferences",
@@ -123,6 +147,9 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
         maxTiles: state.maxTiles,
         hideTilesWithoutVideo: state.hideTilesWithoutVideo,
         joinWithMic: state.joinWithMic,
+        captionPlacement: state.captionPlacement,
+        captionLines: state.captionLines,
+        captionFloat: state.captionFloat,
       }),
     },
   ),

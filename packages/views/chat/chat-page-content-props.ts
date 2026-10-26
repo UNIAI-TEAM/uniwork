@@ -10,7 +10,7 @@ import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import type { ChatScope } from "./chat-scope";
 
 export type ChatPageContentProps = {

@@ -6,6 +6,7 @@ import { infiniteQueryOptions } from "@tanstack/react-query";
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import { z } from "zod";
 import { api } from "../api";
+import { chatKeys } from "./chat-keys";
 
 const CallLogSchema = z.object({
   message_id: z.string(),
@@ -47,7 +48,7 @@ export async function fetchCallLogs(wsId: string, cursor: string | null, signal?
 
 export const callLogsOptions = (wsId: string) =>
   infiniteQueryOptions({
-    queryKey: ["chat-call-logs", wsId] as const,
+    queryKey: chatKeys.callLogs(wsId),
     queryFn: ({ pageParam, signal }) => fetchCallLogs(wsId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page: CallLogPage) => page.next_cursor ?? undefined,

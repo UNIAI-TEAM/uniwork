@@ -134,6 +134,31 @@ WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
 ORDER BY occurred_at DESC
 LIMIT 1;
 
+-- name: ListTaskCreatedEventsInTransaction :many
+-- tenant: system
+-- The notification consumer groups what one command did: the task.created
+-- rows under this correlation id written by the transaction (xact_id) that
+-- wrote this task's row. One correlation id may span several transactions (an
+-- MCP call) and one transaction several commands, and a client can reuse one
+-- correlation id for every request, so the outer read goes by xact_id first
+-- through idx_audit_events_task_created_xact; the action is a literal so the
+-- partial index matches the prepared (generic) plan. The transaction's rows are
+-- read in a MATERIALIZED CTE that names no correlation id: a generic plan
+-- cannot tell a reused correlation id from a fresh one, and with the filter
+-- beside xact_id it could take idx_audit_events_correlation_action_resource
+-- (its resource_id order spares a sort) and read every row under that id.
+WITH in_transaction AS MATERIALIZED (
+  SELECT t.* FROM audit_events t
+  WHERE t.action = 'task.created'
+    AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                     WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = 'task.created'
+                       AND a.resource_id = sqlc.arg(resource_id)
+                     ORDER BY a.occurred_at LIMIT 1)
+)
+SELECT * FROM in_transaction
+WHERE in_transaction.correlation_id = sqlc.arg(correlation_id)::text
+ORDER BY in_transaction.resource_id;
+
 -- name: InsertAuditEventsBatch :exec
 -- tenant: system
 -- Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật): the
@@ -154,3 +179,17 @@ FROM jsonb_to_recordset(sqlc.arg(rows)::jsonb) AS t(
   resource_type text, resource_id text, changes text, metadata text, correlation_id text,
   request_id text, ip_address text, user_agent text
 );
+
+-- name: AuditResourcesOnlyBy :many
+-- Resources of one type that have exactly one created_action row and whose
+-- every audit row was written by this human actor, directly: a row made
+-- through an AI client (metadata.via, the MCP connector or Ask UNI's executor)
+-- is not the person's own work. Read-only.
+SELECT resource_id FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND resource_type = sqlc.arg(resource_type)
+  AND resource_id = ANY(sqlc.arg(resource_ids)::text[])
+GROUP BY resource_id
+HAVING count(*) FILTER (WHERE action = sqlc.arg(created_action)) = 1
+   AND bool_and(actor_kind = 'human' AND actor_id = sqlc.arg(actor_id)
+                AND metadata NOT LIKE '%"via":%');

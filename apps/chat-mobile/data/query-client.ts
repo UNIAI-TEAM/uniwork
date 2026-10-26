@@ -4,7 +4,8 @@
  *
  * Bridges TanStack Query's two cross-cutting managers to native signals:
  *   - focusManager ← AppState ('active' = focused)
- *   - onlineManager ← NetInfo (isConnected)
+ *   - onlineManager ← NetInfo (a link, and the internet not known to be
+ *     out of reach: lib/reachability.ts; a captive portal is offline)
  *
  * After this wiring is in place, queries with `refetchOnWindowFocus: true`
  * (the default) refetch on foreground, and queries are automatically paused
@@ -15,11 +16,18 @@
  * Web/desktop use a different QueryClient (packages/core/query-client.ts).
  * Mobile maintains its own to keep React Native deps out of shared code.
  */
-import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
+import { focusManager, MutationCache, onlineManager, QueryCache, QueryClient } from "@tanstack/react-query";
 import { AppState, type AppStateStatus } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
+import Constants from "expo-constants";
+import { isOnlineState, reachabilityConfig } from "@/lib/reachability";
+import { apiUrlFromExtra } from "@/lib/runtime-extra";
+import { reportMutationError, reportQueryError } from "./query-errors";
 
 export const queryClient = new QueryClient({
+  // Every failed query and mutation reaches crash reporting once (data/query-errors.ts).
+  queryCache: new QueryCache({ onError: reportQueryError }),
+  mutationCache: new MutationCache({ onError: reportMutationError }),
   defaultOptions: {
     queries: {
       staleTime: 60 * 1000, // 1 minute
@@ -44,12 +52,16 @@ focusManager.setEventListener((handleFocus) => {
 });
 
 // ── onlineManager ← NetInfo ──────────────────────────────────────────
-// While offline, TanStack Query pauses queries; when isConnected flips
-// back to true it replays paused fetches. RealtimeProvider also listens
+// NetInfo probes UniChat's own /api/v1/healthz (iOS; Android asks the OS whether the
+// network is validated). Configured before any listener is added: configure()
+// stops the listeners added before it.
+NetInfo.configure(reachabilityConfig(apiUrlFromExtra(Constants.expoConfig?.extra)));
+// While offline, TanStack Query pauses queries; when the app is online
+// again (lib/reachability.ts) it replays paused fetches. RealtimeProvider also listens
 // to NetInfo to force-reconnect the WS — both flows are driven by the
 // same signal so client state and server state catch up together.
 onlineManager.setEventListener((setOnline) => {
   return NetInfo.addEventListener((state) => {
-    setOnline(state.isConnected === true);
+    setOnline(isOnlineState(state));
   });
 });

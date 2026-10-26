@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkHref, parseDeepLink, setPendingDeepLink, systemPathToRoute, takePendingDeepLink } from "./deep-link";
+import { deepLinkHref, inAppDmHref, incomingUrlAction, parseDeepLink, setPendingDeepLink, systemPathToRoute, takeInAppDm, takePendingDeepLink } from "./deep-link";
 
 const APP_URL = "https://app.uniworkos.com";
 const SCHEME = "uniworkchat";
@@ -28,6 +28,18 @@ describe("parseDeepLink", () => {
       callId: "c-1",
     });
     expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" })).toBe("/acme/hq/chat?room=r1&call=c-1");
+  });
+
+  // Audit (Security & privacy, deeplink-auto-answer): a link from a web page, a message or another app on the
+  // phone must never pick up a ringing call. A URL can only make it ring; Answer reaches the app from the
+  // notification's own PendingIntent (modules/unichat-calls › CallLaunchTokens), which no URL carries.
+  it("never answers a call from a URL: answer=1, on a universal link or the scheme wrapper, only rings", () => {
+    const ring = { orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" };
+    const answer = `${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=1`;
+    expect(parseDeepLink(answer, APP_URL, SCHEME)).toEqual(ring);
+    expect(parseDeepLink(`${SCHEME}://open?url=${encodeURIComponent(answer)}`, APP_URL, SCHEME)).toEqual(ring);
+    expect(systemPathToRoute(answer, APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1&call=c-1");
+    expect(incomingUrlAction(answer, { appUrl: APP_URL, scheme: SCHEME, signedIn: true, navigate: true })).toEqual({ kind: "open", href: "/acme/hq/chat?room=r1&call=c-1" });
   });
 
   it("unwraps <scheme>://open?url=<percent-encoded path>, scheme case-insensitively", () => {
@@ -79,19 +91,103 @@ describe("pending deep link", () => {
   });
 });
 
+describe("in-app DM (Contacts, room info)", () => {
+  it("vouches for the one DM the app asked for, once and for a few seconds; a link's dm= is never vouched for", () => {
+    expect(takeInAppDm("u2", 0)).toBe(false);
+    expect(inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000)).toBe("/acme/hq/chat?dm=u2");
+    expect(takeInAppDm("u2", 2_000)).toBe(true);
+    expect(takeInAppDm("u2", 2_000)).toBe(false);
+    // Another person's DM (an outside link landing meanwhile) spends the vouch without using it.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000);
+    expect(takeInAppDm("u9", 1_500)).toBe(false);
+    expect(takeInAppDm("u2", 1_500)).toBe(false);
+    // Stale: the tab never took it in time.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000);
+    expect(takeInAppDm("u2", 11_001)).toBe(false);
+    // The real clock by default.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u3");
+    expect(takeInAppDm("u3")).toBe(true);
+  });
+});
+
 describe("systemPathToRoute (+native-intent)", () => {
   it("maps a chat link, wrapped or universal, onto its route", () => {
     expect(systemPathToRoute(`${APP_URL}/acme/hq/chat?room=r1`, APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
     const wrapped = `${SCHEME}://open?url=${encodeURIComponent("/acme/hq/chat?dm=u2")}`;
     expect(systemPathToRoute(wrapped, APP_URL, SCHEME)).toBe("/acme/hq/chat?dm=u2");
+    expect(systemPathToRoute("/acme/hq/chat?room=r1", APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
   });
 
   it("sends the PKCE callback to the login screen, which the Linking listener completes", () => {
     expect(systemPathToRoute(`${SCHEME}://auth/callback?code=c&state=s`, APP_URL, SCHEME)).toBe("/login");
   });
 
-  it("leaves any other URL to expo-router", () => {
-    expect(systemPathToRoute(`${APP_URL}/settings`, APP_URL, SCHEME)).toBe(`${APP_URL}/settings`);
-    expect(systemPathToRoute("/select-workspace", APP_URL, SCHEME)).toBe("/select-workspace");
+  // Audit "Security & privacy", deep-link-catch-all: any app or web page can fire a URL at the phone, so only the
+  // two shapes above route; every other URL lands on the start screen (app/index.tsx sends it home), never on an
+  // inner screen it names: account deletion, a room's info, a group picker preloaded with ?room=.
+  const INTERNAL_ROUTES = [
+    "/account",
+    "/licenses",
+    "/select-workspace",
+    "/login",
+    "/acme/hq/settings",
+    "/acme/hq/contacts",
+    "/acme/hq/calls",
+    "/acme/hq/channels",
+    "/acme/hq/new-chat",
+    "/acme/hq/new-group?room=r1",
+    "/acme/hq/room/r1",
+    "/acme/hq/room/r1/info",
+    "/acme/hq/room/r1/members",
+    "/acme/hq/room/r1/thread/m1",
+    "/acme/hq/chat/extra",
+  ];
+
+  it.each(INTERNAL_ROUTES)("never opens %s from outside the app", (route) => {
+    const shapes = [
+      `${SCHEME}://${route.slice(1)}`,
+      `${SCHEME}:///${route.slice(1)}`,
+      `${SCHEME}://open?url=${encodeURIComponent(route)}`,
+      `${APP_URL}${route}`,
+      route,
+    ];
+    for (const url of shapes) expect(systemPathToRoute(url, APP_URL, SCHEME)).toBe("/");
+  });
+
+  it("sends a foreign origin, another scheme, the dev client's own URL and garbage to the start screen", () => {
+    for (const url of [
+      `https://evil.example/acme/hq/chat?room=r1`,
+      `${SCHEME}://open?url=${encodeURIComponent("https://evil.example/acme/hq/chat")}`,
+      "otherapp://acme/hq/chat",
+      `${SCHEME}-dev://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081`,
+      `${SCHEME}://`,
+      "",
+      "::not a url::",
+    ]) {
+      expect(systemPathToRoute(url, APP_URL, SCHEME)).toBe("/");
+    }
+  });
+});
+
+describe("incomingUrlAction", () => {
+  const options = { appUrl: APP_URL, scheme: SCHEME, signedIn: true, navigate: true };
+  const chatUrl = `${APP_URL}/acme/hq/chat?room=r1`;
+
+  it("completes the sign-in on the PKCE callback, whoever is signed in", () => {
+    const callback = `${SCHEME}://auth/callback?code=c&state=s`;
+    expect(incomingUrlAction(callback, { ...options, signedIn: false })).toEqual({ kind: "callback" });
+  });
+
+  it("keeps a chat link until someone is signed in", () => {
+    expect(incomingUrlAction(chatUrl, { ...options, signedIn: false })).toEqual({ kind: "keep", link: { orgSlug: "acme", wsSlug: "hq", roomId: "r1" } });
+  });
+
+  it("opens a notification's link, and leaves a Linking URL to +native-intent", () => {
+    expect(incomingUrlAction(chatUrl, options)).toEqual({ kind: "open", href: "/acme/hq/chat?room=r1" });
+    expect(incomingUrlAction(chatUrl, { ...options, navigate: false })).toEqual({ kind: "ignore" });
+  });
+
+  it("ignores a URL that is no chat link", () => {
+    expect(incomingUrlAction("https://elsewhere.example/x", options)).toEqual({ kind: "ignore" });
   });
 });

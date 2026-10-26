@@ -8,6 +8,13 @@ describe("lenient response schemas", () => {
     expect(parsed.data?.user).toMatchObject({ id: "u1", email: "", display_name: "", locale: "en", onboarded_at: null });
   });
 
+  it("/me reads the AI consent, and a drifted one as not agreed", () => {
+    const agreed = MeResponseSchema.safeParse({ user: { id: "u1", ai_consent_version: "v1", ai_consent_at: "2026-10-21T08:00:00Z" } });
+    expect(agreed.data?.user).toMatchObject({ ai_consent_version: "v1", ai_consent_at: "2026-10-21T08:00:00Z" });
+    const drifted = MeResponseSchema.safeParse({ user: { id: "u1", ai_consent_version: 7, ai_consent_at: false } });
+    expect(drifted.data?.user).toMatchObject({ ai_consent_version: null, ai_consent_at: null });
+  });
+
   it.each([null, [], { user: null }, { user: { id: 7 } }, { user: {} }])("/me rejects %j so the caller falls back", (raw) => {
     expect(MeResponseSchema.safeParse(raw).success).toBe(false);
   });

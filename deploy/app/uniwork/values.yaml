@@ -3,9 +3,15 @@ namespace: uniwork
 imagePullSecrets:
   - name: harbor-registry
 
-nodeSelector:
-  workload: app
-tolerations: []
+# pool-app (workload=app, no taint) or pool-exam (workload=exam,
+# dedicated=exam:NoSchedule). nodeSelector cannot express that OR.
+scheduling:
+  workloads: [app, exam]
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: exam
+      effect: NoSchedule
 
 # Non-secret KEY=value files from deploy/app/env/*.env (helm --set-file).
 env:
@@ -57,6 +63,19 @@ be:
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
     anthropicAPIKey: { name: uniwork-anthropic-api-key, key: ANTHROPIC_API_KEY }
+    # Expo access token for UniChat mobile push (enhanced push security). Optional:
+    # create the Secret before turning enhanced push security on in the Expo project.
+    expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
+    # Apple keys of UniChat on the iPhone, one Secret (deploy/app/env/README.md › Apple).
+    # Optional: without the Secret the pod still starts with VoIP and Apple revoke off.
+    # The team id is not secret and lives in uniwork-be.env (APNS_TEAM_ID, APPLE_SIWA_TEAM_ID).
+    # apns: the APNs token-auth key for iPhone VoIP call pushes (ADR 0038); without it
+    # iPhones keep the Expo call push. privateKey is the .p8 file's PEM.
+    apns: { name: uniwork-apple, keyID: APNS_KEY_ID, privateKey: APNS_PRIVATE_KEY }
+    # siwa: the Sign in with Apple key (ADR 0041) that signs the client secret of Apple's
+    # token and revoke endpoints; without it sign-in works and account deletion cannot
+    # revoke the Apple grant. Sign-in itself turns on with APPLE_SIWA_AUDIENCES.
+    siwa: { name: uniwork-apple, keyID: APPLE_SIWA_KEY_ID, privateKey: APPLE_SIWA_PRIVATE_KEY }
     # Office engine credentials (same Secret as officeEngine.secrets). Optional:
     # without them the BE has no engine and refuses office jobs.
     officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
@@ -142,3 +161,97 @@ officeEngine:
     serviceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
     # Grant signing key; >= 32 chars and DIFFERENT from the service token.
     grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
+
+# AI scribe agent (apps/meeting-agent, ADR 0045; spec 2026-10-20-meeting-scribe-agent-design
+# §4.6). Off until the STT vendor's data-processing agreement is signed (parent
+# spec §7.5) and ops confirm the shared LiveKit is >= v1.9.12 (S0 results §1).
+# Turn on together with MEETING_SCRIBE_ENABLED=true in uniwork-be.env.
+# LiveKit keys reuse uniwork-livekit (same Secret as the BE). STT key is
+# uniwork-assemblyai-api-key / ASSEMBLYAI_API_KEY.
+meetingAgent:
+  enabled: false
+  agentName: uniwork-scribe
+  sttProvider: assemblyai
+  # Live STT host (SCRIBE_STT_BASE_URL). Empty follows batch transcription:
+  # the EU streaming host when env.beContent sets AI_MEETING_TRANSCRIBE_BASE_URL
+  # to AssemblyAI's EU API, else the US one (spec parent §7.5: one region).
+  sttBaseUrl: ""
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-meeting-agent
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  healthPort: 8081
+  # Prometheus endpoint of the worker (scribe_* metrics, multiprocess mode).
+  metricsPort: 9100
+  # Same public URL the BE hands to clients (public.livekitUrl). Signaling
+  # resolves to the shared ELB; ICE host candidates are the livekit node's
+  # private address because useExternalIp is false. Both are in egress.livekit.cidrs.
+  livekitUrl: wss://livekit.vn247.info:7880
+  # Sized for the two nodes this chart may land on. pool-exam is 4 vCPU / 8 GiB
+  # (allocatable 3720m / ~7 GiB) and already runs the exam workload, so a
+  # 4 CPU / 8 GiB request cannot schedule there. One pod requests 500m / 1 GiB
+  # and is capped at 1 CPU / 2 GiB. maxReplicas 3 is the ceiling across both
+  # nodes; measure a real meeting before raising either number (benchmark #13).
+  minReplicas: 1
+  maxReplicas: 3
+  # Scale on meetings per pod instead of CPU (benchmark #13): KEDA reads
+  # scribe_jobs_running from Prometheus and keeps about jobsPerPod meetings on
+  # each pod; prescale holds prescale.replicas from a few minutes before each
+  # hour, when meetings start together. Needs KEDA in the cluster; with it on,
+  # the chart's CPU HPA is not rendered (KEDA owns its own HPA). Off by default.
+  keda:
+    enabled: false
+    # Release reap-kube-prometheus-stack in reap-observability.
+    prometheusUrl: http://reap-kube-prometheus-stack-prometheus.reap-observability.svc:9090
+    # About two meetings on a 1 CPU / 2 GiB pod (LiveKit's 10–25 jobs was for 4 CPU / 8 GiB).
+    jobsPerPod: 2
+    prescale:
+      enabled: true
+      timezone: Asia/Ho_Chi_Minh
+      # Working hours, 5 minutes before each hour until 5 minutes past it.
+      start: "55 7-17 * * 1-5"
+      end: "5 8-18 * * 1-5"
+      replicas: 2
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: "1", memory: 2Gi }
+  # The worker's drain_timeout is this minus 120 s (SCRIBE_DRAIN_TIMEOUT_S, set
+  # by the template; 14280 s default in apps/meeting-agent/scribe/config.py): a
+  # draining pod takes no new job and lets every meeting it serves end, and a
+  # job the drain cuts off still has two minutes to post /agent/finished.
+  terminationGracePeriodSeconds: 14400
+  otlpEndpoint: ""
+  secrets:
+    livekitApiKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
+    livekitApiSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
+    sttApiKey: { name: uniwork-assemblyai-api-key, key: ASSEMBLYAI_API_KEY }
+  # Egress besides uniwork-be and DNS (NetworkPolicy matches IPs, not names).
+  # livekit: every address the agent's LiveKit URL resolves to, plus the
+  # livekit node's private IP (ICE host candidate). Ports follow this cluster's
+  # LiveKit: signalling 7880, ICE TCP 7881, UDP mux 7882, TURN UDP 3478, and
+  # rtc 50000–60000.
+  # stt: AssemblyAI publishes no fixed range, so 443 stays open to any
+  # address until ops pin one.
+  egress:
+    livekit:
+      # 101.99.38.253: public ELB VIP livekit.vn247.info resolves to
+      # (evidence/phase-7, 2026-09-10). 10.60.10.168: pool-livekit node
+      # reap-prod-livekit-01, the ICE host candidate while useExternalIp is false.
+      cidrs:
+        - 101.99.38.253/32
+        - 10.60.10.168/32
+      ports:
+        - { port: 443, protocol: TCP }
+        - { port: 7880, protocol: TCP }
+        - { port: 7881, protocol: TCP }
+        - { port: 7882, protocol: UDP }
+        - { port: 3478, protocol: UDP }
+        - { port: 50000, endPort: 60000, protocol: UDP }
+    stt:
+      - { cidr: "0.0.0.0/0", port: 443, protocol: TCP }
+    # Anything else the agent must reach, e.g. the OTLP collector when
+    # otlpEndpoint is set: { cidr, port, protocol }.
+    extra: []

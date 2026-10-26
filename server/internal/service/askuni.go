@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -32,6 +35,8 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	memory   *AiMemoryService
+	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
@@ -41,6 +46,13 @@ type AskUNIService struct {
 	// agent's run and tool surface, nil reporting nothing.
 	agentRuns    *uniworkConcurrency
 	agentMetrics AskAgentMetrics
+	// catchUps shares a meeting's catch-up brief (meeting_catch_up.go).
+	catchUps *briefCache
+	// askMem holds askCount's hits when there is no Redis (askMemIncrement).
+	askMem sync.Map // key -> *askMemRateEntry
+	// fileTurns holds a slot per turn running with files (askFileTurns), and
+	// fileReads the one slot reading and fitting them (turnFilePlan).
+	fileTurns, fileReads chan struct{}
 	// life ends when Shutdown runs; every agent run is cancelled with it.
 	life     context.Context
 	shutdown context.CancelCauseFunc
@@ -58,6 +70,9 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
 
+// SetMemory wires the memory service whose flag and switch capabilities report.
+func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
+
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
 func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
@@ -71,6 +86,9 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
 		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		catchUps:  newBriefCache(rdb, meetingCatchUpTTL, gw.CallTimeout()),
+		fileTurns: make(chan struct{}, askFileTurns),
+		fileReads: make(chan struct{}, 1),
 		life:      life, shutdown: shutdown,
 	}
 }
@@ -87,7 +105,18 @@ type AICapabilities struct {
 	// organization; AutoModel is the key Auto resolves to ("" when none).
 	Models    []AskModelOption
 	AutoModel string
+	// Attachments is whether the asker may send files with a question: the
+	// attachments flag is on and their turn would run the agent (agentOn).
+	Attachments bool
+	// Actions is Ask UNI's write state: the flag, the ceiling, the asker's mode.
+	Actions AskActions
+	// Memory is the memory flag with the agent on (R9) and the asker's switch.
+	Memory AskMemoryCaps
 }
+
+// AskMemoryCaps is what capabilities say about memory: Enabled is the flag with
+// the agent on, On is the person's own switch.
+type AskMemoryCaps struct{ Enabled, On bool }
 
 type AskInput struct {
 	ConversationID string
@@ -100,7 +129,24 @@ type AskInput struct {
 	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
 	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
 	Model, Effort string
+	// Dock is the docked panel asking (the stream route, R1): the agent runs
+	// copilot_answer@4 and splits off its follow-up questions. P0 ignores it.
+	Dock bool
+	// Regenerate is the id of the conversation's last answer to answer again
+	// in place with the stored question and context; Dock only, and Question
+	// is ignored.
+	Regenerate string
+	// AttachmentIDs are the files the asker uploaded for this question, in the
+	// order they were attached: at most five, each an unsent upload of theirs.
+	AttachmentIDs []string
+	// Mode is the permission mode the asker runs this turn in (ask, plan,
+	// auto); "" is their saved one. The organization's ceiling clamps it (R9).
+	Mode string
 }
+
+// errRegenerateTarget is the one refusal for a message id that is not the
+// conversation's last live answer, whatever the reason, so it reveals nothing.
+const errRegenerateTarget = "regenerate: not the last answer"
 
 // AskCitation is a validated citation enriched with what the client needs to
 // render a link; it is what ai_messages.citations stores.
@@ -110,6 +156,8 @@ type AskCitation struct {
 	Kind     string `json:"kind"`
 	Title    string `json:"title"`
 	Href     string `json:"href"`
+	// ObjectID is the one object the source is; empty for a source that is none.
+	ObjectID string `json:"object_id,omitempty"`
 }
 
 type AskResult struct {
@@ -123,6 +171,13 @@ type AskResult struct {
 	RunID string
 	// Usage sums the turn's model calls.
 	Usage AskUsage
+	// Proposals are the rows the turn proposed, as they stand after any
+	// auto-applied ones ran; none when the agent proposed nothing.
+	Proposals []AskProposal
+	// MemoryIDs are the memory entries the answer used (P4).
+	MemoryIDs []string
+	// MemoryProposals are the memory rows the turn proposed (P4, R11).
+	MemoryProposals []AskMemoryProposal
 }
 
 const (
@@ -144,10 +199,12 @@ return count
 
 // askCount counts one hit on key in its askRateWindow; ok is false when
 // Redis did not answer within the limiters' 100 ms, which callers read as
-// "not limited" (fail open, ruling P22). Without Redis nothing is counted.
+// "not limited" (fail open, ruling P22). Without Redis it counts in this
+// service's memory.
 func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
-		return 0, false
+		userID := strings.TrimPrefix(key, "uw:ai:ask:")
+		return s.askMemIncrement(userID, s.now(), askRateWindow), true
 	}
 	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
@@ -186,6 +243,20 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 		return out, nil
 	}
 	out.AskUni = true
+	out.Attachments = s.attachmentsEnabled(ctx, userID, w)
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	out.Actions = s.askActions(ctx, tc, "")
+	// Write tools reach only an agent turn (agentOn), as files do.
+	agent := s.agentOn(ctx, tc)
+	out.Actions.Enabled = out.Actions.Enabled && agent
+	if s.memory != nil {
+		out.Memory.Enabled = agent && s.memory.AskMemoryEnabled(ctx, userID, w.OrganizationID)
+		// A failed read reports on, deliberately: the turn path re-reads the switch, so this never feeds memory into a turn by itself.
+		out.Memory.On = true
+		if off, err := s.q.GetUserAskUniMemoryOff(ctx, userID); err == nil {
+			out.Memory.On = !off
+		}
+	}
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
@@ -201,20 +272,39 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 }
 
 // AskStream is one turn: membership → rate limit → conversation → permitted
-// sources → gateway → validated citations → two message rows. Every refusal
-// comes before emit is first called; the events then run, delta, citations,
-// done (R5).
+// sources → gateway → validated citations → the question and answer rows (a
+// regenerate writes only the answer). Every refusal comes before emit is first
+// called; the events then run, step, sources, delta, citations, followups,
+// done and title (R5). An error after run is returned for the handler to send
+// as an error event.
 func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
+	regen := in.Regenerate != ""
 	question := strings.TrimSpace(in.Question)
-	if question == "" {
-		return AskResult{}, Invalid("câu hỏi không được để trống")
-	}
-	if len([]rune(question)) > 2000 {
-		return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
-	}
-	mentions, err := askMentions(in.Focus, in.Mentions)
-	if err != nil {
-		return AskResult{}, err
+	var mentions []ai.Focus
+	if regen {
+		// Only the dock regenerates, and only inside a conversation: an empty
+		// id would otherwise open a new one.
+		if !in.Dock {
+			return AskResult{}, Invalid("regenerate: dock only")
+		}
+		if in.ConversationID == "" {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+		// The answer is read again from the stored question's own files.
+		if len(in.AttachmentIDs) > 0 {
+			return AskResult{}, ai.ErrAttachmentsInvalid
+		}
+	} else {
+		if question == "" {
+			return AskResult{}, Invalid("câu hỏi không được để trống")
+		}
+		if len([]rune(question)) > 2000 {
+			return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
+		}
+		var err error
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
 	}
 	w, err := s.requireMember(ctx, userID, workspaceID)
 	if err != nil {
@@ -233,21 +323,68 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			return AskResult{}, err
 		}
 	}
+	// The files are checked before the conversation exists, so a refused
+	// question leaves nothing behind; the claim is store's.
+	attached, err := s.askAttachments(ctx, userID, w, in.AttachmentIDs)
+	if err != nil {
+		return AskResult{}, err
+	}
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
 	if err != nil {
 		return AskResult{}, err
 	}
+	base := askTurn{Question: question, Files: attached, UserID: userID, WorkspaceID: workspaceID}
+	if regen {
+		// The conversation is the asker's (above); the target must be its last
+		// live answer, right after a question, or nothing runs.
+		rows, err := s.q.AiListMessages(ctx, conv.ID)
+		if err != nil {
+			return AskResult{}, err
+		}
+		q, ok := regenerateQuestion(rows, in.Regenerate)
+		if ok { // an answer with proposals or memory proposals, in any state, is kept (R15, P4 R11)
+			n, err := s.q.AiCountMessageProposals(ctx, db.AiCountMessageProposalsParams{OrganizationID: w.OrganizationID, MessageID: strText(in.Regenerate)})
+			if err != nil {
+				return AskResult{}, err
+			}
+			m, err := s.q.AiCountMessageMemoryProposals(ctx, db.AiCountMessageMemoryProposalsParams{OrganizationID: w.OrganizationID, MessageID: in.Regenerate})
+			if err != nil {
+				return AskResult{}, err
+			}
+			ok = n == 0 && m == 0
+		}
+		if !ok {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+		base.Question, base.Regenerates = q.Content, in.Regenerate
+		in.Focus, in.Mentions = storedContext(q)
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
+		question = base.Question
+	}
 	// The focus and mentions must be readable by the asker on both paths,
-	// before anything streams (R9).
+	// before anything streams (R9); a regenerate reads the stored ones again.
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
-	ctxItems, err := s.askContext(ctx, tc, in.Focus, mentions)
+	agent := s.agentOn(ctx, tc) // read once: a flag flip between reads would send a regenerate down P0
+	if regen && !agent {
+		return AskResult{}, Invalid("regenerate: needs the agent")
+	}
+	// P0 reads no file; the check above passed on a read of the same flags.
+	if len(attached) > 0 && !agent {
+		return AskResult{}, ai.ErrAttachmentsUnavailable
+	}
+	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
 	if err != nil {
 		return AskResult{}, err
 	}
+	if in.Dock {
+		base.Focus, base.Mentions = refs.Focus, refs.Mentions
+	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
-	if s.agentOn(ctx, tc) {
-		return s.askAgent(ctx, userID, w, conv, question, in, ctxItems, emit)
+	if agent {
+		return s.askAgent(ctx, userID, w, conv, base, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {
@@ -266,6 +403,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	if len(pack) > 0 { // P0 does not tell who wrote what, so any source taints (R8)
+		p0 := askTaint{conv: convTainted(conv)}
+		s.taintNow(ctx, w.OrganizationID, conv.ID, &p0)
+	}
 	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{ConversationID: conv.ID}})
 
 	answer := ai.Answer{Citations: []ai.Citation{}}
@@ -282,7 +423,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: history(rows, false), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
 		stopped := ""
 		if err != nil {
@@ -317,11 +458,11 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	for _, c := range answer.Citations {
 		for _, src := range pack {
 			if src.ID == c.SourceID {
-				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href})
+				citations = append(citations, AskCitation{SourceID: c.SourceID, Quote: c.Quote, Kind: src.Kind, Title: src.Title, Href: src.Href, ObjectID: sourceObjectID(src.Kind, src.Href)})
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, notice, citations, resp.UsageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID, Focus: base.Focus, Mentions: base.Mentions})
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -329,6 +470,39 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
 	emit.emitAnswer(res)
 	return res, nil
+}
+
+// regenerateQuestion is the question behind the answer id when that answer is
+// the last of the rows, still live, and follows a question.
+func regenerateQuestion(rows []db.AiMessage, id string) (db.AiMessage, bool) {
+	n := len(rows)
+	if n < 2 || rows[n-1].ID != id || rows[n-1].Role != "assistant" || rows[n-2].Role != "user" {
+		return db.AiMessage{}, false
+	}
+	return rows[n-2], true
+}
+
+// storedContext decodes the focus and mentions a question row kept; what does
+// not decode was never kept.
+func storedContext(q db.AiMessage) (*ai.Focus, []ai.Focus) {
+	var focus *ai.Focus
+	var ref AskContextRef
+	if q.Focus.Valid {
+		if json.Unmarshal([]byte(q.Focus.String), &ref) != nil {
+			slog.Warn("ask uni: stored focus does not decode", "message_id", q.ID)
+		} else if ref.ID != "" {
+			focus = &ai.Focus{Kind: ref.Kind, ID: ref.ID}
+		}
+	}
+	var refs []AskContextRef
+	if json.Unmarshal([]byte(q.Mentions), &refs) != nil {
+		slog.Warn("ask uni: stored mentions do not decode", "message_id", q.ID)
+	}
+	mentions := make([]ai.Focus, 0, len(refs))
+	for _, r := range refs {
+		mentions = append(mentions, ai.Focus{Kind: r.Kind, ID: r.ID})
+	}
+	return focus, mentions
 }
 
 func (s *AskUNIService) conversation(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (db.AiConversation, error) {
@@ -581,10 +755,29 @@ func citedID(c AskCitation) (string, bool) {
 	return id, id != "" && !strings.ContainsAny(id, "/?#")
 }
 
-// history replays the conversation's last turns, wrapped as untrusted.
-func history(rows []db.AiMessage) []provider.Message {
-	// Drop notice replies (no sources, empty answer, or the fixed text older
-	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
+// history replays the conversation's last turns, wrapped as untrusted; with
+// cited (the agent), each answer is followed by the sources it cited.
+func history(rows []db.AiMessage, cited bool) []provider.Message {
+	kept := historyWindow(rows)
+	out := make([]provider.Message, 0, len(kept))
+	for _, r := range kept {
+		src := "question"
+		if r.Role == "assistant" {
+			src = "prior_answer"
+		}
+		content := ai.WrapUntrusted(src, r.Content)
+		if cited {
+			content += priorSources(r)
+		}
+		out = append(out, provider.Message{Role: r.Role, Content: content})
+	}
+	return out
+}
+
+// historyWindow is the rows history replays: notice replies (no sources, empty
+// answer, or the fixed text older rows stored) are dropped before windowing, so
+// they neither mislead the model nor eat a turn; then the last askHistory.
+func historyWindow(rows []db.AiMessage) []db.AiMessage {
 	var kept []db.AiMessage
 	for _, r := range rows {
 		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
@@ -595,40 +788,138 @@ func history(rows []db.AiMessage) []provider.Message {
 	if len(kept) > askHistory {
 		kept = kept[len(kept)-askHistory:]
 	}
-	out := make([]provider.Message, 0, len(kept))
-	for _, r := range kept {
-		src := "question"
-		if r.Role == "assistant" {
-			src = "prior_answer"
-		}
-		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
-	}
-	return out
+	return kept
 }
 
-func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
+// priorSources lists what an earlier answer cited, so a follow-up trusts those
+// sources instead of calling its own answer unverified. Rows whose citations
+// do not decode get no block.
+func priorSources(r db.AiMessage) string {
+	if r.Role != "assistant" {
+		return ""
+	}
+	var cites []AskCitation
+	if json.Unmarshal([]byte(r.Citations), &cites) != nil || len(cites) == 0 {
+		return ""
+	}
+	lines := make([]string, len(cites))
+	for i, c := range cites {
+		lines[i] = c.SourceID + " " + c.Kind + " " + oneLine(c.Title)
+	}
+	return "\nSources cited in that answer, read with tools in that turn:\n" + ai.WrapUntrusted("prior_sources", strings.Join(lines, "\n"))
+}
+
+// AskContextRef names a task, document or meeting a question was asked about.
+type AskContextRef struct {
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// AskStep is one tool the agent ran, as the panel shows it. The first step of
+// a round carries the round's Note (what the model said before calling) and
+// Thought (its thinking summary, ask_uni_thinking). Kind "think" is the
+// thinking before the answer, with no tool.
+type AskStep struct {
+	Tool    string         `json:"tool"`
+	Label   string         `json:"label"`
+	Counts  map[string]int `json:"counts"`
+	Note    string         `json:"note,omitempty"`
+	Thought string         `json:"thought,omitempty"`
+	Kind    string         `json:"kind,omitempty"`
+}
+
+// askTurn is one question and its answer, as store writes them. A non-empty
+// Regenerates names the answer this one replaces, and writes no question row.
+type askTurn struct {
+	Question, Answer, Notice string
+	Citations                []AskCitation
+	UsageEventID             string
+	Focus                    *AskContextRef
+	Mentions                 []AskContextRef
+	Steps                    []AskStep
+	Followups                []string
+	MemoryIDs                []string
+	Regenerates              string
+	// Model is the catalogue key of the model the person chose; "" for Auto.
+	Model string
+	// Files are the question's checked files, in attach order. store claims
+	// them and writes their rows with the question; UserID and WorkspaceID are
+	// the asker and the workspace they asked from, which those rows record.
+	Files               []AskAttachment
+	UserID, WorkspaceID string
+	// FileNotes are the files of the turn read only in part, stored on the answer.
+	FileNotes []askFileNote
+	// Proposals are the rows the turn's write calls recorded, stored with the
+	// answer from position 1 under the turn's Mode, Tainted mark and RunID.
+	Proposals []askDraftRow
+	Mode      string
+	Tainted   bool
+	RunID     string
+	// MemoryProposals are the turn's propose_memory rows, stored with the
+	// answer from position 1 (R11).
+	MemoryProposals []askMemoryDraft
+}
+
+// jsonOrEmptyList marshals v, writing "[]" for a nil slice.
+func jsonOrEmptyList[T any](v []T) string {
+	if len(v) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTurn) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.AiMessage{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "user", Content: question, Citations: "[]",
-	}); err != nil {
+	if t.Regenerates == "" {
+		var focus pgtype.Text
+		if t.Focus != nil {
+			fj, _ := json.Marshal(t.Focus)
+			focus = strText(string(fj))
+		}
+		questionID := util.NewID()
+		if len(t.Files) > 0 {
+			if err := s.attachAskFiles(ctx, q, orgID, convID, questionID, t); err != nil {
+				return db.AiMessage{}, err
+			}
+		}
+		if _, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
+			ID: questionID, OrganizationID: orgID, ConversationID: convID, Role: "user", Content: t.Question, Citations: "[]",
+			Steps: "[]", Followups: "[]", Focus: focus, Mentions: jsonOrEmptyList(t.Mentions), FileNotes: "[]",
+		}); err != nil {
+			return db.AiMessage{}, err
+		}
+	} else if n, err := q.AiSupersedeMessage(ctx, db.AiSupersedeMessageParams{ID: t.Regenerates, ConversationID: convID}); err != nil {
 		return db.AiMessage{}, err
+	} else if n == 0 {
+		// Another regenerate got there first; the rollback keeps one live answer.
+		return db.AiMessage{}, Invalid(errRegenerateTarget)
 	}
-	cj, _ := json.Marshal(citations)
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
-		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: answer,
-		Citations: string(cj), UsageEventID: strText(usageEventID), Notice: strText(notice),
+		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
+		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
+		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
+		FileNotes: jsonOrEmptyList(t.FileNotes), MemoryIds: jsonOrEmptyList(t.MemoryIDs),
 	})
 	if err != nil {
 		return db.AiMessage{}, err
 	}
-	title := question
-	if r := []rune(title); len(r) > 80 {
-		title = string(r[:80]) + "…"
+	if err := s.insertTurnProposals(ctx, q, orgID, convID, msg.ID, t); err != nil {
+		return db.AiMessage{}, err
+	}
+	if err := s.insertTurnMemoryProposals(ctx, q, orgID, t.WorkspaceID, convID, msg.ID, t.UserID, t.MemoryProposals); err != nil {
+		return db.AiMessage{}, err
+	}
+	// A regenerate has no question of its own: an empty title leaves the stored one.
+	title := ""
+	if t.Regenerates == "" {
+		title = questionTitle(t.Question)
 	}
 	if err := q.AiTouchConversation(ctx, db.AiTouchConversationParams{ID: convID, Title: title}); err != nil {
 		return db.AiMessage{}, err
@@ -636,22 +927,70 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answ
 	return msg, tx.Commit(ctx)
 }
 
-func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID string) ([]db.AiConversation, error) {
+// ListConversations is the asker's recent conversations, or, for a non-blank
+// q, the ones whose title matches it, accents folded.
+func (s *AskUNIService) ListConversations(ctx context.Context, userID, workspaceID, q string) ([]db.AiConversation, error) {
 	if _, err := s.requireMember(ctx, userID, workspaceID); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(q) != "" {
+		pattern, err := foldSearchPattern(q)
+		if err != nil {
+			return nil, err
+		}
+		return s.q.AiSearchConversations(ctx, db.AiSearchConversationsParams{WorkspaceID: workspaceID, UserID: userID, SearchPattern: pattern})
 	}
 	return s.q.AiListConversations(ctx, db.AiListConversationsParams{WorkspaceID: workspaceID, UserID: userID})
 }
 
-func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID string) ([]db.AiMessage, error) {
-	if _, err := s.ownConversation(ctx, userID, conversationID, ""); err != nil {
-		return nil, err
-	}
-	return s.q.AiListMessages(ctx, conversationID)
+// AskMessage is a stored message and, on a question, the files it carried.
+type AskMessage struct {
+	db.AiMessage
+	Attachments []AskAttachment
 }
 
+// Messages is the conversation's messages, each question with its files in the
+// order they were attached; one read for all of them.
+func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID string) ([]AskMessage, error) {
+	conv, err := s.ownConversation(ctx, userID, conversationID, "")
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.AiListMessages(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	var questions []string
+	for _, r := range rows {
+		if r.Role == "user" {
+			questions = append(questions, r.ID)
+		}
+	}
+	byQuestion := map[string][]AskAttachment{}
+	if len(questions) > 0 {
+		atts, err := s.q.AiListAttachmentsForMessages(ctx, db.AiListAttachmentsForMessagesParams{OrganizationID: conv.OrganizationID, MessageIds: questions})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range atts {
+			byQuestion[a.MessageID] = append(byQuestion[a.MessageID], askAttachmentRow(a))
+		}
+	}
+	out := make([]AskMessage, len(rows))
+	for i, r := range rows {
+		out[i] = AskMessage{AiMessage: r, Attachments: byQuestion[r.ID]}
+	}
+	return out, nil
+}
+
+// DeleteConversation drops a conversation with its messages, feedback,
+// proposals and files: a file lives as long as the conversation holds it, so
+// the rows go and the file store is told to release them in the same
+// transaction (the bytes are its collector's to remove). Deleting is not
+// audited, like the rest of the asker's private history.
 func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversationID string) error {
-	if _, err := s.ownConversation(ctx, userID, conversationID, ""); err != nil {
+	conv, err := s.ownConversation(ctx, userID, conversationID, "")
+	if err != nil {
 		return err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -664,6 +1003,21 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 		return err
 	}
 	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
+		return err
+	}
+	// Its proposals go with it; what they changed and its audit stay (R20).
+	// So do its memory proposals; the memory they changed stays (P4 R11).
+	if err := q.AiDeleteConversationProposals(ctx, db.AiDeleteConversationProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: strText(conversationID)}); err != nil {
+		return err
+	}
+	if err := q.AiDeleteConversationMemoryProposals(ctx, db.AiDeleteConversationMemoryProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID}); err != nil {
+		return err
+	}
+	fileIDs, err := q.AiDeleteConversationAttachments(ctx, db.AiDeleteConversationAttachmentsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID})
+	if err != nil {
+		return err
+	}
+	if err := s.releaseAskFiles(ctx, q, fileIDs); err != nil {
 		return err
 	}
 	if err := q.AiDeleteConversation(ctx, conversationID); err != nil {

@@ -1,10 +1,12 @@
 // Ported from packages/views/chat/voice-call-log-row.tsx (voiceCallLogLabel and
-// the `missed` rule) and packages/views/chat/voice-call-duration.ts: a row of
+// the `missed` rule), with core's formatVoiceCallDuration: a row of
 // the calls tab says what the web's call-log row says in the room. The title
 // and the time are the tab's own.
 import type { CallLog } from "@/data/queries/call-logs";
-import { resolveChatNicknameForUser } from "./contacts-display";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { formatMessageDay } from "./timeline-display";
+import { dateTimeFormat } from "./locale-format";
 
 export interface CallLogView {
   /** the web row's i18n key, with its params */
@@ -15,20 +17,7 @@ export interface CallLogView {
   missed: boolean;
 }
 
-/** Elapsed seconds as M:SS, or H:MM:SS from an hour. */
-export function formatVoiceCallDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-export function callLogView(
-  log: Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">,
-  currentUserId: string,
-): CallLogView {
+export function callLogView(log: Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">, currentUserId: string): CallLogView {
   const outgoing = log.caller_id === currentUserId;
   const kind = log.video ? "video_call_log" : "voice_call_log";
   const view = (labelKey: string, labelParams?: { duration: string }): CallLogView => ({
@@ -62,16 +51,16 @@ export function callLogTitle(
 export function formatCallTime(iso: string, locale: string, now: Date = new Date()): string {
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return "";
-  if (at.toDateString() === now.toDateString()) return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (at.toDateString() === now.toDateString()) return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(at);
   const sameYear = at.getFullYear() === now.getFullYear();
-  return at.toLocaleDateString(locale, sameYear ? { day: "2-digit", month: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" });
+  return dateTimeFormat(locale, sameYear ? { day: "2-digit", month: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" }).format(at);
 }
 
 /** The clock time of a log; the day header above the row carries the date. Blank when unreadable. */
 export function formatCallClock(iso: string, locale: string): string {
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return "";
-  return at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return dateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(at);
 }
 
 export type CallLogFilter = "all" | "missed";
@@ -97,4 +86,12 @@ export function callLogSections<T extends SectionedLog>(
     else sections.push({ title, data: [log] });
   }
   return sections;
+}
+
+/** MobCalls board: how many of the loaded calls rang for the reader and went unanswered (the "Cuộc gọi nhỡ" chip). */
+export function missedCallCount(
+  logs: readonly Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">[],
+  currentUserId: string,
+): number {
+  return logs.filter((log) => callLogView(log, currentUserId).missed).length;
 }

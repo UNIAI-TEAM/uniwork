@@ -16,6 +16,33 @@ describe("Toggle", () => {
     );
   });
 
+  it("leaves focus to the global outline instead of a faint ring", () => {
+    render(<Toggle>Lọc</Toggle>);
+    const toggle = screen.getByRole("button", { name: "Lọc" });
+    expect(toggle.className).not.toMatch(/outline-none|focus-visible:ring/);
+  });
+
+  it("draws pressed apart from hover, in every variant", () => {
+    render(
+      <>
+        <Toggle defaultPressed>Mặc định</Toggle>
+        <Toggle variant="toolbar" defaultPressed>
+          Thanh công cụ
+        </Toggle>
+      </>,
+    );
+    for (const name of ["Mặc định", "Thanh công cụ"]) {
+      const toggle = screen.getByRole("button", { name });
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(toggle).toHaveClass(
+        "aria-pressed:bg-brand-subtle",
+        "aria-pressed:text-brand-subtle-foreground",
+        "aria-pressed:font-semibold",
+      );
+      expect(toggle.className).not.toContain("aria-pressed:bg-muted");
+    }
+  });
+
   it("propagates the toolbar variant through a toggle group", () => {
     render(
       <ToggleGroup variant="toolbar">

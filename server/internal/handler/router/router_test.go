@@ -67,7 +67,7 @@ func TestEveryRouteFieldIsBound(t *testing.T) {
 			t.Errorf("Routes.%s is not bound to any route", rt.Field(i).Name)
 		}
 	}
-	for _, want := range []string{"GET /healthz", "GET /api/v1/admin/me", "GET /swagger/doc.json", "POST /api/v1/rum"} {
+	for _, want := range []string{"GET /healthz", "GET /api/v1/healthz", "GET /api/v1/admin/me", "GET /swagger/doc.json", "POST /api/v1/rum"} {
 		if _, ok := bound[want]; !ok {
 			t.Errorf("missing route %s", want)
 		}
@@ -250,10 +250,12 @@ func TestRouterShedsLoadPastTheInFlightBound(t *testing.T) {
 	if rec.Header().Get("Access-Control-Allow-Origin") == "" {
 		t.Fatal("a shed response without CORS headers is unreadable to the browser")
 	}
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-	if rec.Code == http.StatusServiceUnavailable {
-		t.Fatal("/healthz was shed")
+	for _, probe := range []string{"/healthz", "/api/v1/healthz"} {
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, probe, nil))
+		if rec.Code == http.StatusServiceUnavailable {
+			t.Fatalf("%s was shed", probe)
+		}
 	}
 }
 
@@ -313,6 +315,29 @@ func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
 	for _, header := range []string{"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At"} {
 		if !exposed[strings.ToLower(header)] {
 			t.Errorf("Access-Control-Expose-Headers lacks %s (got %q)", header, rec.Header().Get("Access-Control-Expose-Headers"))
+		}
+	}
+}
+
+func TestOnlyRealMeetingAgentPathsSkipTheGlobalLimiter(t *testing.T) {
+	var limited bool
+	h := exceptMeetingAgent(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limited = true
+			next.ServeHTTP(w, r)
+		})
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	for path, want := range map[string]bool{
+		"/api/v1/meetings/01HMEETING/agent/segments": false,
+		"/api/v1/meetings/01HMEETING/recordings":     true,
+		// Decodes to an agent path, but chi routes it to /meetings/{meetingID}/recordings.
+		"/api/v1/meetings/x%2Fagent%2Fy/recordings": true,
+	} {
+		limited = false
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+		if limited != want {
+			t.Errorf("%s: limited = %v, want %v", path, limited, want)
 		}
 	}
 }

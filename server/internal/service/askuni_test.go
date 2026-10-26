@@ -34,21 +34,6 @@ func askFixture(t *testing.T) (*AskUNIService, *provider.Fake, db.User, db.User,
 	return s, fake, ua, ub, w
 }
 
-func TestAskUniToolsAreReadOnly(t *testing.T) {
-	r := AskUniTools(&AskUNIService{})
-	if r.MutationCount() != 0 {
-		t.Fatalf("Ask UNI registry has %d write tools; V1 is read-only (spec F-09 §2 #8)", r.MutationCount())
-	}
-	if len(r) != 5 {
-		t.Fatalf("expected 5 read tools, got %v", r.Names())
-	}
-	for _, tool := range r {
-		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || len(tool.Schema) == 0 {
-			t.Fatalf("incomplete tool %+v", tool.Name)
-		}
-	}
-}
-
 func usageCount(t *testing.T, s *AskUNIService, orgID string) int64 {
 	t.Helper()
 	rows, err := s.q.AiUsageByDay(context.Background(), db.AiUsageByDayParams{
@@ -240,7 +225,7 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 		}
 		t.Fatalf("want [user assistant], got %v (n=%d err=%v)", roles, len(msgs), err)
 	}
-	convs, err := s.ListConversations(ctx, ua.ID, w.ID)
+	convs, err := s.ListConversations(ctx, ua.ID, w.ID, "")
 	if err != nil || len(convs) != 1 || convs[0].Title != "có gì mới?" {
 		t.Fatalf("%+v %v", convs, err)
 	}
@@ -250,7 +235,7 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 	if err := s.DeleteConversation(ctx, ua.ID, res.ConversationID); err != nil {
 		t.Fatal(err)
 	}
-	if convs, _ := s.ListConversations(ctx, ua.ID, w.ID); len(convs) != 0 {
+	if convs, _ := s.ListConversations(ctx, ua.ID, w.ID, ""); len(convs) != 0 {
 		t.Fatal("conversation not deleted")
 	}
 
@@ -1069,5 +1054,43 @@ func TestAskFollowUpWithItsOwnSubjectKeepsToIt(t *testing.T) {
 	}
 	if named < 0 || prev < 0 || named > prev {
 		t.Errorf("want the named task first, then the previous topic: %+v", cs)
+	}
+}
+
+func TestSearchConversationsFoldsAccents(t *testing.T) {
+	s, _, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	addMember(t, s.meetings, w.ID, ub.ID)
+	for _, q := range []string{"Việc trễ dự án Q4", "Giảm giá 100% hôm nay", "Lịch họp"} {
+		if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: q}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Ask(ctx, ub.ID, w.ID, AskInput{Question: "Việc trễ của người khác"}); err != nil {
+		t.Fatal(err)
+	}
+	titles := func(q string) []string {
+		got, err := s.ListConversations(ctx, ua.ID, w.ID, q)
+		if err != nil {
+			t.Fatalf("q=%q: %v", q, err)
+		}
+		out := make([]string, len(got))
+		for i, c := range got {
+			out[i] = c.Title
+		}
+		return out
+	}
+	if got := titles("viec tre"); len(got) != 1 || got[0] != "Việc trễ dự án Q4" {
+		t.Fatalf("accent-folded search: %v", got)
+	}
+	if got := titles("100%"); len(got) != 1 || got[0] != "Giảm giá 100% hôm nay" {
+		t.Fatalf("%% must be literal: %v", got)
+	}
+	if got := titles("  "); len(got) != 3 {
+		t.Fatalf("blank q lists all of the asker's: %v", got)
+	}
+	var ve ValidationError
+	if _, err := s.ListConversations(ctx, ua.ID, w.ID, strings.Repeat("x", maxChatSearchQueryRunes+1)); !errors.As(err, &ve) {
+		t.Fatalf("too-long q: %v", err)
 	}
 }

@@ -5,8 +5,16 @@
 // use-chat-dm-deep-link.ts read) and the custom scheme wrapper
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
 // universal links. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
+//
+// A URL can be fired by anyone: a web page, a message, any app on the phone
+// (an implicit VIEW intent). So no link acts on its own: `call=` only shows the
+// ringing screen, never answers (the notification's Answer reaches the app
+// through its own PendingIntent, modules/unichat-calls › CallLaunchTokens), and
+// `dm=` asks before it opens a conversation (components/chat/use-deep-link-target.ts)
+// — unless the app itself asked for that DM a moment ago (inAppDmHref: a
+// contact's row, a member's Message), which no URL can claim.
 
-import { isAuthCallbackUrl } from "@/data/auth/callback";
+import { isAuthCallbackUrl } from "./auth-callback-url";
 
 export interface DeepLink {
   orgSlug: string;
@@ -62,14 +70,36 @@ export function deepLinkHref(link: DeepLink): string {
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
 }
 
+/** What the app does with a URL the OS hands it (app/_layout.tsx): complete the sign-in, keep a chat link until
+ *  someone is signed in, or open it — only when asked to navigate (a notification tap), since app/+native-intent.ts
+ *  already routes a Linking URL; anything else is ignored. */
+export type IncomingUrlAction = { kind: "callback" } | { kind: "keep"; link: DeepLink } | { kind: "open"; href: string } | { kind: "ignore" };
+
+export function incomingUrlAction(url: string, options: { appUrl: string; scheme: string; signedIn: boolean; navigate: boolean }): IncomingUrlAction {
+  if (isAuthCallbackUrl(url, options.scheme)) return { kind: "callback" };
+  const link = parseDeepLink(url, options.appUrl, options.scheme);
+  if (!link) return { kind: "ignore" };
+  if (!options.signedIn) return { kind: "keep", link };
+  return options.navigate ? { kind: "open", href: deepLinkHref(link) } : { kind: "ignore" };
+}
+
+/** Where a URL from outside the app may land when it is not a chat link: the start screen, which sends a
+ *  signed-in person home and anyone else to sign in (app/index.tsx). */
+const START_ROUTE = "/";
+
 /** For app/+native-intent.ts: the route expo-router opens for an OS URL. A
- *  chat link becomes its href, the PKCE callback lands on the login screen
- *  (the Linking listener in app/_layout completes the sign-in), anything else
- *  is left to expo-router untouched. */
+ *  chat link becomes its href (a bare path is read on the app's origin), the
+ *  PKCE callback lands on the login screen (the Linking listener in app/_layout
+ *  completes the sign-in), and anything else lands on the start screen. An
+ *  allowlist, not a pass-through: any app or web page can fire a URL at the
+ *  phone, and no URL may open an inner screen it names (account deletion, a
+ *  room's info, a group picker preloaded with ?room=) — audit "Security &
+ *  privacy", deep-link-catch-all. */
 export function systemPathToRoute(url: string, appUrl: string, scheme: string): string {
+  const absolute = url.startsWith("/") ? `${appUrl}${url}` : url;
   if (isAuthCallbackUrl(url, scheme)) return "/login";
-  const link = parseDeepLink(url, appUrl, scheme);
-  return link ? deepLinkHref(link) : url;
+  const link = parseDeepLink(absolute, appUrl, scheme);
+  return link ? deepLinkHref(link) : START_ROUTE;
 }
 
 // A link that arrives before sign-in waits here; app/index.tsx takes it once
@@ -84,4 +114,24 @@ export function takePendingDeepLink(): DeepLink | null {
   const link = pending;
   pending = null;
   return link;
+}
+
+// "Message this person" inside the app (Contacts, room info) goes through the Chat tab's `dm=` too, so the back
+// button lands on the inbox; it is the person's own tap, so the tab opens it without the outside link's confirm.
+// The vouch is held here in memory, never in the URL: a param could be forged by any link (a chat link names any
+// dm= it likes). One DM, used once, for a few seconds.
+const IN_APP_DM_TTL_MS = 10_000;
+let inAppDm: { userId: string; at: number } | null = null;
+
+/** The Chat tab's href for a DM the person asked for in the app, vouched for once. */
+export function inAppDmHref(slugs: Pick<DeepLink, "orgSlug" | "wsSlug">, userId: string, now = Date.now()): string {
+  inAppDm = { userId, at: now };
+  return deepLinkHref({ orgSlug: slugs.orgSlug, wsSlug: slugs.wsSlug, dmUserId: userId });
+}
+
+/** Whether the app itself just asked to open this DM; the vouch is spent either way. */
+export function takeInAppDm(userId: string, now = Date.now()): boolean {
+  const vouched = inAppDm;
+  inAppDm = null;
+  return vouched !== null && vouched.userId === userId && now - vouched.at <= IN_APP_DM_TTL_MS;
 }

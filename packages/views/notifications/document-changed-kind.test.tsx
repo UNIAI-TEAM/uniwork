@@ -96,20 +96,20 @@ describe("document_changed kind registry (item 5)", () => {
 
 // [verb, vi one-document sentence, vi several, en one-document, en several]
 const VERBS: [string, string, string, string, string][] = [
-  ["renamed", "An đã đổi tên tài liệu “Kế hoạch Q4”", "An đã đổi tên 5 tài liệu", "An renamed “Kế hoạch Q4”", "An renamed 5 documents"],
-  ["moved", "An đã di chuyển tài liệu “Kế hoạch Q4”", "An đã di chuyển 5 tài liệu", "An moved “Kế hoạch Q4”", "An moved 5 documents"],
-  ["trashed", "An đã chuyển tài liệu “Kế hoạch Q4” vào thùng rác", "An đã chuyển 5 tài liệu vào thùng rác", "An moved “Kế hoạch Q4” to trash", "An moved 5 documents to trash"],
-  ["restored", "An đã khôi phục tài liệu “Kế hoạch Q4”", "An đã khôi phục 5 tài liệu", "An restored “Kế hoạch Q4”", "An restored 5 documents"],
-  ["deleted", "An đã xóa vĩnh viễn tài liệu “Kế hoạch Q4”", "An đã xóa vĩnh viễn 5 tài liệu", "An permanently deleted “Kế hoạch Q4”", "An permanently deleted 5 documents"],
-  ["shelved", "An đã lưu trữ tài liệu “Kế hoạch Q4”", "An đã lưu trữ 5 tài liệu", "An archived “Kế hoạch Q4”", "An archived 5 documents"],
-  ["unshelved", "An đã bỏ lưu trữ tài liệu “Kế hoạch Q4”", "An đã bỏ lưu trữ 5 tài liệu", "An unarchived “Kế hoạch Q4”", "An unarchived 5 documents"],
-  ["access_changed", "An đã đổi quyền truy cập của tài liệu “Kế hoạch Q4”", "An đã đổi quyền truy cập của 5 tài liệu", "An changed access to “Kế hoạch Q4”", "An changed access to 5 documents"],
-  ["version_created", "An đã tạo phiên bản mới cho tài liệu “Kế hoạch Q4”", "An đã tạo phiên bản mới cho 5 tài liệu", "An added a new version to “Kế hoạch Q4”", "An added a new version to 5 documents"],
+  ["renamed", "An đã đổi tên tài liệu \"Kế hoạch Q4\"", "An đã đổi tên 5 tài liệu", "An renamed \"Kế hoạch Q4\"", "An renamed 5 documents"],
+  ["moved", "An đã di chuyển tài liệu \"Kế hoạch Q4\"", "An đã di chuyển 5 tài liệu", "An moved \"Kế hoạch Q4\"", "An moved 5 documents"],
+  ["trashed", "An đã chuyển tài liệu \"Kế hoạch Q4\" vào thùng rác", "An đã chuyển 5 tài liệu vào thùng rác", "An moved \"Kế hoạch Q4\" to trash", "An moved 5 documents to trash"],
+  ["restored", "An đã khôi phục tài liệu \"Kế hoạch Q4\"", "An đã khôi phục 5 tài liệu", "An restored \"Kế hoạch Q4\"", "An restored 5 documents"],
+  ["deleted", "An đã xóa vĩnh viễn tài liệu \"Kế hoạch Q4\"", "An đã xóa vĩnh viễn 5 tài liệu", "An permanently deleted \"Kế hoạch Q4\"", "An permanently deleted 5 documents"],
+  ["shelved", "An đã lưu trữ tài liệu \"Kế hoạch Q4\"", "An đã lưu trữ 5 tài liệu", "An archived \"Kế hoạch Q4\"", "An archived 5 documents"],
+  ["unshelved", "An đã bỏ lưu trữ tài liệu \"Kế hoạch Q4\"", "An đã bỏ lưu trữ 5 tài liệu", "An unarchived \"Kế hoạch Q4\"", "An unarchived 5 documents"],
+  ["access_changed", "An đã đổi quyền truy cập của tài liệu \"Kế hoạch Q4\"", "An đã đổi quyền truy cập của 5 tài liệu", "An changed access to \"Kế hoạch Q4\"", "An changed access to 5 documents"],
+  ["version_created", "An đã tạo phiên bản mới cho tài liệu \"Kế hoạch Q4\"", "An đã tạo phiên bản mới cho 5 tài liệu", "An added a new version to \"Kế hoạch Q4\"", "An added a new version to 5 documents"],
   [
     "relocated",
-    "An đã chuyển thư mục chứa tài liệu “Kế hoạch Q4” của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+    "An đã chuyển thư mục chứa tài liệu \"Kế hoạch Q4\" của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
     "An đã chuyển thư mục chứa 5 tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
-    "An moved the folder holding “Kế hoạch Q4” to trash; the document is now at the workspace root",
+    "An moved the folder holding \"Kế hoạch Q4\" to trash; the document is now at the workspace root",
     "An moved the folder holding 5 of your documents to trash; the documents are now at the workspace root",
   ],
 ];
@@ -153,7 +153,7 @@ describe("document_changed sentence per verb (item 1)", () => {
   it("falls back to the generic sentence for a verb it does not know or one that is missing", async () => {
     for (const params of [{ verb: "teleported" }, { verb: "" }]) {
       expect(sentence(changed({ ...params, document_count: "7" }, { count: 7 }))).toBe("An đã thay đổi 7 tài liệu");
-      expect(sentence(changed(params))).toBe("An đã thay đổi tài liệu “Kế hoạch Q4”");
+      expect(sentence(changed(params))).toBe("An đã thay đổi tài liệu \"Kế hoạch Q4\"");
     }
     const noVerb = changed({ document_count: "7" }, { count: 7 });
     delete noVerb.params.verb;
@@ -241,13 +241,13 @@ describe("document_changed snippet (item 2)", () => {
     const n = changed({ verb: "trashed", document_count: "50", sample_title_2: "B", sample_title_3: "C" }, { count: 50 });
     const { container } = row(n);
     const line = container.querySelector("[data-notification-snippet]");
-    expect(line).toHaveTextContent("“Kế hoạch Q4”, “B”, “C” và 47 tài liệu khác");
+    expect(line).toHaveTextContent("\"Kế hoạch Q4\", \"B\", \"C\" và 47 tài liệu khác");
     const [titles, more] = Array.from(line?.children ?? []);
     expect(titles?.className).toContain("truncate");
     expect(more?.className).toContain("shrink-0");
     cleanup();
     await setLocale("en");
-    expect(row(n).container.querySelector("[data-notification-snippet]")).toHaveTextContent("“Kế hoạch Q4”, “B”, “C” and 47 other documents");
+    expect(row(n).container.querySelector("[data-notification-snippet]")).toHaveTextContent("\"Kế hoạch Q4\", \"B\", \"C\" and 47 other documents");
   });
 });
 
@@ -275,7 +275,7 @@ describe("document_changed row folds in place (item 3)", () => {
       ),
     );
     expect(view.container).toHaveTextContent("An đã di chuyển 3 tài liệu");
-    expect(view.container).toHaveTextContent("“Kế hoạch Q4”, “B”, “C”");
+    expect(view.container).toHaveTextContent("\"Kế hoạch Q4\", \"B\", \"C\"");
     expect(view.container.querySelectorAll("li")).toHaveLength(1);
   });
 });
@@ -294,7 +294,7 @@ describe("document_changed click target (item 4)", () => {
     const { container, nav } = row(n, { onOpenList });
     expect(screen.queryByRole("link")).toBeNull();
     expect(container.querySelector("[data-row-focus]")).toBeNull();
-    expect(container).toHaveTextContent("An đã chuyển tài liệu “Kế hoạch Q4” vào thùng rác");
+    expect(container).toHaveTextContent("An đã chuyển tài liệu \"Kế hoạch Q4\" vào thùng rác");
     // The document is in the trash, restorable: the row stays dimmed but never says "deleted" (RFW-11).
     expect(container).not.toHaveTextContent("đã xóa");
     expect(container.querySelector("em, .italic")).toBeNull();
@@ -333,7 +333,7 @@ describe("document_changed click target (item 4)", () => {
     const { container } = row(changed({ verb: "renamed" }, { resource_deleted: true }));
     expect(screen.queryByRole("link")).toBeNull();
     expect(container.querySelector("[data-row-focus]")).toBeNull();
-    expect(container).toHaveTextContent("An đã đổi tên tài liệu “Kế hoạch Q4”");
+    expect(container).toHaveTextContent("An đã đổi tên tài liệu \"Kế hoạch Q4\"");
     expect(container.querySelector("em, .italic")).toHaveTextContent("đã xóa");
   });
 
@@ -359,7 +359,7 @@ describe("document_changed click target (item 4)", () => {
   it("is no link at all for one permanently deleted document", () => {
     const { container } = row(changed({ verb: "deleted" }));
     expect(screen.queryByRole("link")).toBeNull();
-    expect(container).toHaveTextContent("An đã xóa vĩnh viễn tài liệu “Kế hoạch Q4”");
+    expect(container).toHaveTextContent("An đã xóa vĩnh viễn tài liệu \"Kế hoạch Q4\"");
     expect(container.querySelector("[data-row-focus]")).toBeNull();
   });
 
@@ -374,10 +374,10 @@ describe("document_changed click target (item 4)", () => {
     const tail = (rest: number) =>
       row(changed({ document_count: String(rest + 1) }, { count: rest + 1 }), { onOpenList: vi.fn() }).container.querySelector("[data-notification-snippet]");
     const one = tail(1);
-    expect(one).toHaveTextContent("“Kế hoạch Q4” and 1 other document");
+    expect(one).toHaveTextContent("\"Kế hoạch Q4\" and 1 other document");
     expect(one).not.toHaveTextContent("documents");
     cleanup();
-    expect(tail(2)).toHaveTextContent("“Kế hoạch Q4” and 2 other documents");
+    expect(tail(2)).toHaveTextContent("\"Kế hoạch Q4\" and 2 other documents");
   });
 
   describe("a several-document row the reader can read none of (TV2-01)", () => {

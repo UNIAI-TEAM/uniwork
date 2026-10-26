@@ -84,6 +84,13 @@ type ScopeRevoker interface {
 	RevokeScope(userID, scopeType, scopeID string)
 }
 
+// PresenceSignaler records chat presence for an authenticated workspace socket.
+// Implemented by the chat service; kept as an interface so the hub never imports
+// service code.
+type PresenceSignaler interface {
+	SignalPresence(ctx context.Context, userID, workspaceID, state string, visible bool) ([]string, error)
+}
+
 // ScopeAuthorizers routes each scope type to its own authorizer. A scope type
 // without one is refused.
 type ScopeAuthorizers map[string]ScopeAuthorizer
@@ -392,6 +399,8 @@ type Hub struct {
 	// revokes bumps on every RevokeScope so a subscribe in flight can detect
 	// a kick that landed while authorize was still asking the gate.
 	revokes atomic.Uint64
+
+	presence PresenceSignaler
 }
 
 // NewHub creates a new Hub instance.
@@ -419,6 +428,19 @@ func (h *Hub) SetOrganizationResolver(f OrganizationResolver) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.orgOf = f
+}
+
+// SetPresenceSignaler wires chat presence beats from inbound WS frames.
+func (h *Hub) SetPresenceSignaler(p PresenceSignaler) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.presence = p
+}
+
+func (h *Hub) presenceSignaler() PresenceSignaler {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.presence
 }
 
 func (h *Hub) scopeAuthorizer() ScopeAuthorizer {
@@ -1298,10 +1320,59 @@ func (c *Client) handleFrame(raw []byte) {
 		}
 	case "ping":
 		c.sendJSON(map[string]string{"type": "pong"})
+	case "presence.beat":
+		c.handlePresenceBeat(f.Payload)
 	default:
 		// Unknown frame — ignore silently for forward compat.
 		slog.Debug("ws inbound: unknown frame", "type", f.Type, "user_id", c.userID)
 	}
+}
+
+func (c *Client) handlePresenceBeat(payload json.RawMessage) {
+	if c.userID == "" || c.workspaceID == "" {
+		return
+	}
+	sig := c.hub.presenceSignaler()
+	if sig == nil {
+		c.sendJSON(map[string]any{
+			"type":    "presence.ack",
+			"payload": map[string]any{"online_user_ids": nil},
+		})
+		return
+	}
+	var in struct {
+		State   string `json:"state"`
+		Visible *bool  `json:"visible"`
+	}
+	if err := json.Unmarshal(payload, &in); err != nil {
+		c.sendJSON(map[string]any{
+			"type":    "presence.ack",
+			"payload": map[string]any{"online_user_ids": nil},
+		})
+		return
+	}
+	state := strings.ToLower(strings.TrimSpace(in.State))
+	if state == "" {
+		state = "online"
+	}
+	visible := true
+	if in.Visible != nil {
+		visible = *in.Visible
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), scopeAuthorizeTimeout)
+	defer cancel()
+	online, err := sig.SignalPresence(ctx, c.userID, c.workspaceID, state, visible)
+	if err != nil {
+		c.sendJSON(map[string]any{
+			"type":    "presence.ack",
+			"payload": map[string]any{"online_user_ids": nil},
+		})
+		return
+	}
+	c.sendJSON(map[string]any{
+		"type":    "presence.ack",
+		"payload": map[string]any{"online_user_ids": online},
+	})
 }
 
 func (c *Client) handleSubscribe(scope, id string) {

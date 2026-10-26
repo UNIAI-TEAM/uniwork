@@ -141,7 +141,7 @@ describe("bảng: lỗi, thử lại, rỗng khi tìm", () => {
 
     const input = screen.getByRole("textbox", { name: "Tìm công việc…" });
     fireEvent.change(input, { target: { value: "zzz" } });
-    const empty = await screen.findByText("Không có việc khớp “zzz”", {}, LONG);
+    const empty = await screen.findByText('Không có việc khớp "zzz"', {}, LONG);
     const cell = empty.closest("td") as HTMLElement;
     fireEvent.click(within(cell).getByRole("button", { name: "Xóa tìm kiếm" }));
 

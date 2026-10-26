@@ -50,7 +50,7 @@ export function useResumeSubscription(orgId: string) {
 
 export function useCreateCheckout(orgId: string) {
   return useMutation({
-    mutationFn: (body: { plan_code: string; success_path: string; cancel_path: string }) =>
+    mutationFn: (body: { plan_code: string; success_path: string }) =>
       billing.createCheckout(orgId, body),
   });
 }

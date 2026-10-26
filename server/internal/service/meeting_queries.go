@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -30,6 +31,12 @@ type ProviderNeutralEvent struct {
 	// OccurredAt is when the provider says the event happened; zero when it
 	// did not say. Room sessions use it so a retried delivery keeps its time.
 	OccurredAt time.Time
+	// ParticipantKind is "sip" for a phone caller; ParticipantName is the
+	// provider's display name and SIPRuleID the dispatch rule that routed
+	// the call (UNI-2029 dial-in).
+	ParticipantKind string
+	ParticipantName string
+	SIPRuleID       string
 	// Recording fields are set for conference.recording_ended.
 	RecordingID     string
 	RecordingURL    string
@@ -61,6 +68,11 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	}
 	sess, err := s.sessionByRoom(ctx, ev.RoomName)
 	if errors.Is(err, pgx.ErrNoRows) {
+		if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
+			// A stale rule dialled a caller into a meeting that is over.
+			s.count("dial_in_call_refused")
+			s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
+		}
 		return nil // no open conference for this room: nothing to apply
 	}
 	if err != nil {
@@ -96,6 +108,12 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	if changed {
 		s.publishAttendanceChanged(ctx, sess.MeetingID)
 	}
+	if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
+		s.settleDialInCaller(ctx, sess, ev, nil)
+	}
+	if (ev.Type == "conference.participant_left" || ev.Type == "conference.participant_connection_aborted") && ev.Identity == meetings.ScribeIdentity {
+		s.scribeLeft(ctx, sess.MeetingID, ev.ParticipantSID)
+	}
 	if ev.Type == "conference.room_finished" {
 		// Best effort: RunAutoEnd ends an overdue meeting on its next tick
 		// anyway; this only spares an empty overtime room the wait.
@@ -126,8 +144,14 @@ func (s *MeetingService) applyRoomEvent(ctx context.Context, q *db.Queries, sess
 		})
 		return closed > 0, err
 	case "conference.participant_joined":
+		if ev.ParticipantKind == ParticipantKindSIP {
+			return false, s.dialInCallerJoined(ctx, q, sess, ev)
+		}
 		return s.roomParticipantJoined(ctx, q, sess, ev)
 	case "conference.participant_left", "conference.participant_connection_aborted":
+		if ev.ParticipantKind == ParticipantKindSIP {
+			return s.dialInCallerLeft(ctx, q, sess, ev)
+		}
 		return s.roomParticipantLeft(ctx, q, sess, ev)
 	}
 	return false, nil
@@ -162,6 +186,10 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 		}
 		return err
 	case "provider.remove_participant":
+		if p["identity"] == "" {
+			s.hangUpConnection(ctx, p["room_name"], p["participant_sid"])
+			return nil
+		}
 		return s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{
 			RoomName: p["room_name"], Identity: p["identity"],
 		})
@@ -338,4 +366,22 @@ func (s *MeetingService) publishAttendanceChanged(ctx context.Context, meetingID
 		return
 	}
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "attendance.updated", Payload: map[string]string{"meeting_id": meetingID}})
+}
+
+// SeriesNeighbors returns the ids of the uncanceled meetings right before and
+// after m in its series, "" where there is none (UNI-2153). m was already
+// authorized by the caller; the query stays in m's workspace.
+func (s *MeetingService) SeriesNeighbors(ctx context.Context, m db.Meeting) (previous, next string) {
+	key := m.ID
+	if m.SeriesID.Valid && m.SeriesID.String != "" {
+		key = m.SeriesID.String
+	}
+	r, err := s.q.GetMeetingSeriesNeighbors(ctx, db.GetMeetingSeriesNeighborsParams{
+		WorkspaceID: m.WorkspaceID, SeriesKey: pgtype.Text{String: key, Valid: true}, StartsAt: m.StartsAt, ID: m.ID,
+	})
+	if err != nil {
+		slog.Warn("meetings: series neighbours not read", "meeting", m.ID, "err", err)
+		return "", ""
+	}
+	return r.PreviousID, r.NextID
 }

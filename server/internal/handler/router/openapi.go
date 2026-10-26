@@ -133,6 +133,11 @@ func pathParamSDI(path string) any {
 			Org     string `path:"org" description:"Slug tổ chức" example:"acme"`
 			GrantID string `path:"grantID" description:"ULID quyền truy cập của ứng dụng AI" example:"01J8X4GRT0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "org,memoryID":
+		return struct {
+			Org      string `path:"org" description:"Slug tổ chức" example:"acme"`
+			MemoryID string `path:"memoryID" description:"ULID mục bộ nhớ của Hỏi UNI" example:"01K4AIMEM0000000000000001"`
+		}{}
 	case "org,wsSlug":
 		return struct {
 			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
@@ -159,6 +164,14 @@ func pathParamSDI(path string) any {
 	case "conversationID":
 		return struct {
 			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`
+		}{}
+	case "memoryProposalID":
+		return struct {
+			MemoryProposalID string `path:"memoryProposalID" description:"ULID đề xuất bộ nhớ của Hỏi UNI" example:"01K4AIMPR0000000000000001"`
+		}{}
+	case "proposalID":
+		return struct {
+			ProposalID string `path:"proposalID" description:"ULID dòng đề xuất của Hỏi UNI" example:"01K4AIPRP000000000000001"`
 		}{}
 	case "conversationID,messageID":
 		return struct {
@@ -240,6 +253,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			DemoRequestID string `path:"demoRequestID" description:"ULID yêu cầu demo"`
 		}{}
+	case "chatReportID":
+		return struct {
+			ChatReportID string `path:"chatReportID" description:"ULID báo cáo tin nhắn hoặc người" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+		}{}
 	case "taskID":
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`
@@ -267,6 +284,21 @@ func pathParamSDI(path string) any {
 			MeetingID     string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
 			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
 		}{}
+	case "meetingID,speakerLabelID":
+		return struct {
+			MeetingID      string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			SpeakerLabelID string `path:"speakerLabelID" description:"ULID nhãn người nói" example:"01J8X4SPKL0N1P2Q3R4S5T6U7"`
+		}{}
+	case "meetingID,segmentID":
+		return struct {
+			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			SegmentID string `path:"segmentID" description:"ULID dòng lời thoại" example:"01K7SEG00000000000000000001"`
+		}{}
+	case "meetingID,transcriptionID":
+		return struct {
+			MeetingID       string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			TranscriptionID string `path:"transcriptionID" description:"ULID lần ghi lời file tải lên" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "meetingID,invitationID":
 		return struct {
 			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
@@ -276,6 +308,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
 			MotionID  string `path:"motionID" description:"ULID nội dung biểu quyết" example:"01J8X4MOTN1P2Q3R4S5T6U7V"`
+		}{}
+	case "meetingID,actionItemID":
+		return struct {
+			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			ActionItemID string `path:"actionItemID" description:"ULID việc sau họp" example:"01J8X4ACTN1P2Q3R4S5T6U7V"`
 		}{}
 	case "meetingID,linkId":
 		return struct {
@@ -456,6 +493,16 @@ func pathParamSDI(path string) any {
 		return struct {
 			Token   string `path:"token" description:"Token liên kết công khai tài liệu" example:"pU7c9jIcDtOFv3S9yKtRsQdLYh1vWnJm2Xk4aB6eZ0g"`
 			AssetID string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,fileID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			FileID      string `path:"fileID" description:"ULID tệp đã tải lên, lấy từ file_id của POST …/ai/attachments" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,attachmentID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			AttachmentID string `path:"attachmentID" description:"Id của file trên câu hỏi: attachments[].id của GET …/ai/conversations/{conversationID}/messages (không phải file_id lúc tải lên)" example:"01K4AIATT0000000000000001"`
 		}{}
 	case "workspaceID,sourceFileID":
 		return struct {

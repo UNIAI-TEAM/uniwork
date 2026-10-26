@@ -18,7 +18,7 @@ import (
 )
 
 var agentToolOrder = []string{
-	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects",
+	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
 	"get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
@@ -113,21 +113,29 @@ func TestAskAgentToolSchemasAreStrict(t *testing.T) {
 // vendor (gateway.go builds provider.ToolSpec from each tool) is the same
 // bytes on every build. ai.Tool itself cannot be marshalled (Handle is a func).
 func TestAskAgentToolBytesAreStable(t *testing.T) {
-	wire := func() []byte {
-		var specs []provider.ToolSpec
-		for _, tool := range agentRegistry((&AskUNIService{}).agentTools()) {
-			specs = append(specs, provider.ToolSpec{Name: tool.Name, Description: tool.Description, Schema: tool.Schema, Strict: tool.Strict})
+	// The read-only registry, and the one a turn that may propose writes is sent.
+	for _, writes := range []bool{false, true} {
+		wire := func() []byte {
+			s := &AskUNIService{}
+			var w []askWriteTool
+			if writes {
+				w = s.askWriteTools()
+			}
+			var specs []provider.ToolSpec
+			for _, tool := range agentToolRegistry(s.agentTools(), w) {
+				specs = append(specs, provider.ToolSpec{Name: tool.Name, Description: tool.Description, Schema: tool.Schema, Strict: tool.Strict})
+			}
+			b, err := json.Marshal(specs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return b
 		}
-		b, err := json.Marshal(specs)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return b
-	}
-	first := wire()
-	for range 20 {
-		if again := wire(); !bytes.Equal(first, again) {
-			t.Fatalf("tool bytes changed between builds:\n%s\n%s", first, again)
+		first := wire()
+		for range 20 {
+			if again := wire(); !bytes.Equal(first, again) {
+				t.Fatalf("writes %v: tool bytes changed between builds:\n%s\n%s", writes, first, again)
+			}
 		}
 	}
 }
@@ -349,12 +357,13 @@ func TestAskAgentMemberWorkload(t *testing.T) {
 		}
 	}
 	items := runAgentTool(t, s, tc, "member_workload", `{}`)
-	if len(items) != 1 {
+	want := map[string]string{"A": "Open tasks: 2\nOverdue: 1", "B": "Open tasks: 1\nOverdue: 0"}
+	if len(items) != len(want) {
 		t.Fatalf("member_workload = %+v", items)
 	}
-	for _, want := range []string{"- A: 2 open, 1 overdue", "- B: 1 open, 0 overdue"} {
-		if !strings.Contains(items[0].Text, want) {
-			t.Errorf("workload lacks %q:\n%s", want, items[0].Text)
+	for _, it := range items {
+		if w := "ID: " + it.ID + "\n" + want[it.Title]; it.Text != w {
+			t.Errorf("workload of %s = %q, want %q", it.Title, it.Text, w)
 		}
 	}
 	for _, it := range append(items, runAgentTool(t, s, tc, "list_members", `{"query":""}`)...) {
@@ -392,14 +401,28 @@ func TestAskAgentToolsReadEveryKind(t *testing.T) {
 	if items := runAgentTool(t, s, tc, "list_projects", `{"query":"","include_closed":false}`); len(items) != 1 || items[0].Title != pr.Title || !strings.Contains(items[0].Text, "ID: "+pr.ID) {
 		t.Errorf("list_projects = %+v", items)
 	}
-	if items := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+pr.ID+`"}`); len(items) != 1 || !strings.Contains(items[0].Text, "Dựng trang chủ") || !strings.Contains(items[0].Text, "Task count: 1") {
-		t.Errorf("get_project = %+v", items)
+	gp := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+pr.ID+`"}`)
+	if len(gp) != 2 || gp[0].Kind != "project" || !strings.Contains(gp[0].Text, "Task count: 1") || strings.Contains(gp[0].Text, "Dựng trang chủ") || !strings.Contains(gp[0].Text, "Its first 1 tasks follow as their own sources.") {
+		t.Fatalf("get_project = %+v", gp)
+	}
+	if strings.Contains(gp[0].Body, "follow") {
+		t.Errorf("project Body carries the model note: %q", gp[0].Body)
+	}
+	if gp[1].Kind != "task" || gp[1].Title != "Dựng trang chủ" || gp[1].Key != gp[1].Href || gp[1].Key == "" || !strings.Contains(gp[1].Text, "Project: Website mới ("+pr.ID+")") {
+		t.Errorf("get_project task item = %+v", gp[1])
+	}
+	empty, err := s.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Dự án trống"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "get_project", `{"project_id":"`+empty.ID+`"}`); len(items) != 1 || strings.Contains(items[0].Text, "follow") {
+		t.Errorf("get_project without tasks = %+v", items)
 	}
 	tasks := runAgentTool(t, s, tc, "list_tasks", `{"status":"","project_id":"`+pr.ID+`","assignee_id":"","priority":"","due_from":"","due_to":"","overdue":false,"limit":0}`)
 	if len(tasks) != 1 || !strings.Contains(tasks[0].Text, "Project: Website mới ("+pr.ID+")") {
 		t.Errorf("list_tasks by project = %+v", tasks)
 	}
-	if items := runAgentTool(t, s, tc, "list_members", `{"query":""}`); len(items) != 1 || !strings.Contains(items[0].Text, "- A (") || !strings.Contains(items[0].Text, x.ua.ID) {
+	if items := runAgentTool(t, s, tc, "list_members", `{"query":""}`); len(items) != 1 || items[0].Title != "A" || items[0].Text != "ID: "+x.ua.ID+"\nRole: owner" || items[0].ID != x.ua.ID {
 		t.Errorf("list_members = %+v", items)
 	}
 
@@ -488,5 +511,76 @@ func TestSourceItemNamesTheObjectID(t *testing.T) {
 		if it.Text != c.text || it.Key != c.href || it.Href != c.href || it.Kind != c.kind {
 			t.Errorf("sourceItem(%s %s) = %+v, want text %q", c.kind, c.href, it, c.text)
 		}
+	}
+}
+
+func TestListMembersGivesEachPersonASource(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	x.member(t)
+	items := runAgentTool(t, s, tc, "list_members", `{"query":""}`)
+	if len(items) < 2 {
+		t.Fatalf("list_members = %+v, want one item per person", items)
+	}
+	for _, it := range items {
+		if it.Kind != "member" || it.ID == "" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || it.Key != it.Href || !strings.HasPrefix(it.Text, "ID: "+it.ID+"\nRole: ") {
+			t.Errorf("member item = %+v", it)
+		}
+	}
+}
+
+func TestMemberWorkloadGivesEachPersonASource(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	x.member(t)
+	if _, err := s.tasks.Create(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của B", AssigneeID: &x.ub.ID}); err != nil {
+		t.Fatal(err)
+	}
+	ghost, err := s.tasks.Create(context.Background(), Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Việc của người đã rời"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(context.Background(), `UPDATE tasks SET assignee_id = 'not-a-member' WHERE id = $1`, ghost.ID); err != nil {
+		t.Fatal(err)
+	}
+	work := runAgentTool(t, s, tc, "member_workload", `{}`)
+	people := runAgentTool(t, s, tc, "list_members", `{"query":""}`)
+	book := newSourceBook(nil)
+	book.render(people, 100000)
+	book.render(work, 100000)
+	if len(work) == 0 {
+		t.Fatal("member_workload gave no item")
+	}
+	if !slices.ContainsFunc(work, func(it agentItem) bool {
+		return it.ID == x.ub.ID && it.Text == "ID: "+x.ub.ID+"\nOpen tasks: 1\nOverdue: 0"
+	}) {
+		t.Errorf("no item with B's counts: %+v", work)
+	}
+	for _, it := range work {
+		if it.ID == "not-a-member" || it.Title == "unknown" {
+			t.Errorf("a non-member row became an item: %+v", it)
+		}
+		if it.Kind != "member" || !strings.HasSuffix(it.Href, "/people/"+it.ID) || !strings.HasPrefix(it.Text, "ID: "+it.ID+"\nOpen tasks: ") || !strings.Contains(it.Text, "\nOverdue: ") {
+			t.Errorf("workload item = %+v", it)
+		}
+		id, known := book.number(it.Key)
+		if !known || book.byID[id].ObjectID != it.ID {
+			t.Errorf("%s has no shared source number: %s known=%v", it.Title, id, known)
+		}
+	}
+	if len(book.byID) != len(people) {
+		t.Errorf("sources = %d, want %d: a person is numbered twice", len(book.byID), len(people))
+	}
+}
+
+func TestCitationsCarryTheObjectID(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	task := x.task(t, x.ua.ID, x.w.ID, "Kế hoạch ra mắt")
+	book := newSourceBook(nil)
+	book.render(runAgentTool(t, s, tc, "get_task", `{"task":"`+task.ID+`"}`), 100000)
+	if got := book.byID["S1"]; got.ObjectID != task.ID || got.Kind != "task" {
+		t.Errorf("citation = %+v, want object id %s", got, task.ID)
+	}
+	book.render([]agentItem{moreNote("more")}, 100000)
+	if len(book.byID) != 1 {
+		t.Errorf("a note became a source: %+v", book.byID)
 	}
 }

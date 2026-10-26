@@ -29,11 +29,11 @@ function TaskCard({ ctx, taskId }: { ctx: MessageCardContext; taskId: string }) 
       className="min-h-[52px] flex-row items-center gap-2.5 rounded-xl border border-border bg-card px-2.5 py-1.5 active:bg-secondary"
     >
       <TintTile tint="green" icon="checkmark-circle-outline" size={28} iconSize={16} />
-      <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
-        <Text className="text-sm font-normal text-muted-foreground">{identifier} · </Text>
+      <Text className="flex-1 text-callout font-medium text-foreground" numberOfLines={1}>
+        <Text className="text-callout font-normal text-muted-foreground">{identifier} · </Text>
         {title}
       </Text>
-      {status ? <Text className="text-xs font-semibold text-tint-blue-foreground">{status}</Text> : null}
+      {status ? <Text className="text-caption font-semibold text-tint-blue-foreground">{status}</Text> : null}
     </Pressable>
   );
 }

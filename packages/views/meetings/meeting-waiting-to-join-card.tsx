@@ -72,7 +72,7 @@ export function MeetingWaitingToJoinCard({
             type="button"
             variant="outline"
             className="rounded-full"
-            disabled={rejecting}
+            aria-disabled={rejecting}
             aria-label={t("meetings.rejectName", { name: requestDisplayName(first) })}
             onClick={() => rejectOne(first.id)}
           >
@@ -87,7 +87,7 @@ export function MeetingWaitingToJoinCard({
           type="button"
           variant="successSolid"
           className="rounded-full"
-          disabled={approving}
+          aria-disabled={approving}
           aria-label={count === 1 ? t("meetings.approveName", { name: requestDisplayName(first) }) : undefined}
           onClick={() => (count === 1 ? approveOne(first.id) : void admitAll(pending))}
         >

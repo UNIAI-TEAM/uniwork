@@ -84,6 +84,42 @@ describe("askUniStream", () => {
     expect(events[2]).toMatchObject({ usage: { cache_write_tokens: 4 } });
   });
 
+  it("skips malformed sources, followups and title frames and reads on", async () => {
+    const events = await collect(
+      sse([
+        frame("sources", { sources: [{ source_id: "S1", title: 3 }] }),
+        frame("followups", { followups: "nope" }),
+        frame("title", { title: "x" }),
+        frame("step", { round: 1, phase: "tool", tool: "search", label: "viec tre", counts: { task: 1 } }),
+        frame("sources", { sources: [{ source_id: "S1", kind: "task", title: "A", href: "/a", object_id: "t1" }] }),
+        frame("followups", { followups: ["a?"] }),
+        frame("done", { message, usage: {} }),
+        frame("title", { conversation_id: "c1", title: "Việc trễ" }),
+      ]),
+    );
+    expect(events.map((e) => e.type)).toEqual(["step", "sources", "followups", "done", "title"]);
+    expect(events[0]).toMatchObject({ label: "viec tre" });
+    expect(events[1]).toMatchObject({ sources: [{ source_id: "S1", object_id: "t1" }] });
+    expect(events[4]).toEqual({ type: "title", conversationId: "c1", title: "Việc trễ" });
+    expect(events[3]).toMatchObject({ message: { steps: [], followups: [], focus: null, mentions: [] } });
+  });
+
+  it("reads reasoning frames and a step's note, an absent note as empty, and skips a malformed reasoning frame", async () => {
+    const events = await collect(
+      sse([
+        frame("reasoning", { text: 5 }),
+        frame("reasoning", { text: "Cần xem." }),
+        frame("step", { round: 1, phase: "tool", tool: "search", label: "x", counts: {}, note: "Mình tìm." }),
+        frame("step", { round: 1, phase: "tool", tool: "get_task", label: "A", counts: {} }),
+      ]),
+    );
+    expect(events).toEqual([
+      { type: "reasoning", text: "Cần xem." },
+      { type: "step", round: 1, phase: "tool", tool: "search", label: "x", counts: {}, note: "Mình tìm." },
+      { type: "step", round: 1, phase: "tool", tool: "get_task", label: "A", counts: {}, note: "" },
+    ]);
+  });
+
   it("ignores comment lines", async () => {
     const events = await collect(sse([": ping\n\n", frame("delta", { text: "a" }), ": ping\n\n"]));
     expect(events).toEqual([{ type: "delta", text: "a" }]);
@@ -151,5 +187,50 @@ describe("askUniStream", () => {
     const err = await settled;
     expect((err as DOMException).name).toBe("AbortError");
     expect(events).toHaveLength(1);
+  });
+
+  it("a valid proposal frame becomes an event; a malformed one is dropped and the stream goes on", async () => {
+    const row = { id: "p1", message_id: "m1", position: 1, tool: "update_task", status: "applied" };
+    const events = await collect(
+      sse([
+        frame("proposal", { proposals: [row] }),
+        frame("proposal", { proposals: "nope" }),
+        "event: proposal\ndata: {oops\n\n",
+        frame("delta", { text: "x" }),
+      ]),
+    );
+    expect(events).toHaveLength(2);
+    const noId = await collect(sse([frame("proposal", { proposals: [row, { tool: "x" }] })]));
+    expect(noId).toMatchObject([{ type: "proposal", proposals: [{ id: "p1" }] }]);
+    expect(events[0]).toMatchObject({ type: "proposal", proposals: [{ id: "p1", status: "applied", preview: { body: "", fields: [] } }] });
+    expect(events[1]).toEqual({ type: "delta", text: "x" });
+  });
+
+  it("memory_proposals and memory_used frames become events; malformed ones are dropped", async () => {
+    const row = { id: "mp1", message_id: "m1", position: 1, action: "remember", kind: "fact", text: "x", status: "pending" };
+    const events = await collect(
+      sse([
+        frame("memory_proposals", { memory_proposals: [row, { text: "no id" }] }),
+        frame("memory_proposals", { memory_proposals: "nope" }),
+        frame("memory_used", { memory_ids: ["e1", "e2"] }),
+        frame("memory_used", { memory_ids: 5 }),
+        "event: memory_used\ndata: {oops\n\n",
+        frame("delta", { text: "x" }),
+      ]),
+    );
+    expect(events).toMatchObject([
+      { type: "memory_proposals", proposals: [{ id: "mp1", action: "remember", status: "pending" }] },
+      { type: "memory_used", memoryIds: ["e1", "e2"] },
+      { type: "delta", text: "x" },
+    ]);
+    expect(events).toHaveLength(3);
+  });
+
+  it("sends mode only when set", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(sse([])).mockResolvedValueOnce(sse([]));
+    await askUniStream("ws1", { question: "q", mode: "plan" }, { onEvent: () => undefined });
+    await askUniStream("ws1", { question: "q" }, { onEvent: () => undefined });
+    expect(JSON.parse((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).body as string)).toEqual({ question: "q", mode: "plan" });
+    expect(JSON.parse((vi.mocked(fetch).mock.calls[1]![1] as RequestInit).body as string)).toEqual({ question: "q" });
   });
 });

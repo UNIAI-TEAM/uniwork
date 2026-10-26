@@ -1,0 +1,38 @@
+// What keeps UniChat's outbox going off screen on Android: one WorkManager job that runs the outbox's
+// JavaScript drain task (OutboxDrainWorker.kt). Built by the app's Gradle like any Expo module.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.unichatbackground'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.unichatbackground"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  // src/test: JVM tests on Robolectric (WorkManager needs a Context).
+  testOptions {
+    unitTests.includeAndroidResources = true
+  }
+}
+
+dependencies {
+  // The version expo-background-task (the iOS scheduled drain, linked on Android too) brings, so one resolution
+  // serves both; its manifest entries are in scripts/android-manifest.mjs › MAVEN_MANIFESTS, keyed by this version.
+  implementation 'androidx.work:work-runtime-ktx:2.9.1'
+  // HeadlessJsTaskContext and the ReactHost that runs the drain task; the app links React Native itself.
+  compileOnly 'com.facebook.react:react-android'
+
+  // The job's request, its answers and its result (src/test), run by mobile-verify › android-release. The
+  // versions the calls module tests with, so one resolution serves both.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.robolectric:robolectric:4.16.1'
+  testImplementation 'androidx.test:core:1.7.0'
+  testImplementation 'androidx.work:work-testing:2.9.1'
+  // OutboxDrainWorker names HeadlessDrainRunner, which the JVM tests load (and replace).
+  testImplementation 'com.facebook.react:react-android'
+}

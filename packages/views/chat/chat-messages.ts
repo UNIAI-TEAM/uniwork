@@ -120,4 +120,5 @@ export interface ChatMessage {
   clientMsgId?: string;
   deliveryStatus?: "sending" | "queued" | "failed";
 }
-export const CHAT_MESSAGE_INITIAL = 80;
+/** First paint window — larger than one older page to delay edge prefetch (Telegram-style). */
+export const CHAT_MESSAGE_INITIAL = 100;

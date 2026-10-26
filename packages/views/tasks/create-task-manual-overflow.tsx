@@ -170,7 +170,10 @@ export function CreateTaskManualOverflow({
       ) : null}
       {menuItems.length > 0 ? (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<PillButton aria-label={moreFieldsLabel} />}>
+          {/* Icon only: as wide as it is tall on a coarse pointer. */}
+          <DropdownMenuTrigger
+            render={<PillButton aria-label={moreFieldsLabel} className="pointer-coarse:min-w-11 pointer-coarse:justify-center" />}
+          >
             <Ellipsis className="size-3.5" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">

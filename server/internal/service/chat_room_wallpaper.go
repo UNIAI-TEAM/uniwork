@@ -72,7 +72,12 @@ func (s *ChatService) UploadRoomWallpaper(ctx context.Context, userID, workspace
 		_ = s.files.CancelUpload(ctx, files.CancelInput{Actor: actor, Scope: scope, FileID: newID})
 		return ChatRoomSummary{}, err
 	}
-	return s.roomSummaryWithWallpaper(ctx, userID, room.ID)
+	switch room.Kind {
+	case chatRoomKindGroup, chatRoomKindDM:
+		return s.groupSummary(ctx, userID, room.ID)
+	default:
+		return s.roomSummaryWithWallpaper(ctx, userID, room.ID)
+	}
 }
 
 func (s *ChatService) authorizeRoomWallpaperChange(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
@@ -160,9 +165,7 @@ func (s *ChatService) setRoomWallpaperFile(ctx context.Context, userID string, r
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 
-	prev, err := q.GetChatRoomWallpaperForUpdate(ctx, db.GetChatRoomWallpaperForUpdateParams{
-		ID: room.ID, OrganizationID: room.OrganizationID,
-	})
+	prev, err := q.GetChatRoomByID(ctx, room.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}

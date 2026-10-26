@@ -72,6 +72,7 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 		RoomName: sess.ProviderRoomName, Identity: meetings.IdentityForParticipant(dec.Participant.ID),
 		DisplayName: dec.Participant.DisplayNameSnapshot, TTL: s.rt.TokenTTL,
 		CanSubscribe: perms.CanSubscribe, CanPublish: perms.CanPublish, CanPublishData: perms.CanPublishData,
+		Attributes: sharedMicAttributes(dec.Participant),
 	})
 	if err != nil {
 		return AdmissionDecision{}, coded(http.StatusServiceUnavailable, "provider_unavailable", "không cấp được thông tin vào phòng")
@@ -586,6 +587,9 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	if isDialInGuest(decided.RequesterGuestID.String) {
+		s.admitDialInCaller(ctx, m, p, decided.ProviderParticipantSid.String)
+	}
 	return nil
 }
 
@@ -614,6 +618,9 @@ func (s *MeetingService) RejectJoinRequest(ctx context.Context, actorID, request
 	s.record(ctx, s.q, m, audit.User(actorID), "join_request.rejected",
 		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
 		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinRejected}))
+	if isDialInGuest(jr.RequesterGuestID.String) {
+		s.dropRefusedDialInCaller(ctx, m, jr)
+	}
 	return nil
 }
 

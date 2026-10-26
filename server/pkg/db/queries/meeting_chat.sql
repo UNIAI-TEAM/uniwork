@@ -26,3 +26,10 @@ SELECT * FROM meeting_chat_messages
 WHERE meeting_id = sqlc.arg('meeting_id') AND sent_at >= sqlc.arg('since')::timestamptz
 ORDER BY sent_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
+
+-- name: ListMeetingChatMessagesByIDs :many
+-- The cited chat messages of one meeting (UNI-2002 evidence); an id of
+-- another meeting or tenant is simply absent.
+SELECT * FROM meeting_chat_messages
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);

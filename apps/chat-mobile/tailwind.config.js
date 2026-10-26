@@ -3,6 +3,12 @@
 // them for inline styles — change all three together (CLAUDE.md › Theme).
 const { hairlineWidth } = require("nativewind/theme");
 const radiusTokens = require("./lib/radius-tokens.json");
+// The text roles (lib/type-scale.ts): `text-meta` … `text-display-xl`, each [size, line height?] in points.
+const typeScale = require("./lib/type-scale.json");
+
+const fontSize = Object.fromEntries(
+  Object.entries(typeScale).map(([role, [size, lineHeight]]) => [role, lineHeight ? [`${size}px`, `${lineHeight}px`] : `${size}px`]),
+);
 
 const borderRadius = Object.fromEntries(
   Object.entries(radiusTokens).map(([name, value]) => [name, `${value}px`]),
@@ -73,6 +79,7 @@ module.exports = {
       // React Native cannot read the web package's CSS custom properties, so
       // one mobile JSON feeds both NativeWind classes and inline styles.
       borderRadius,
+      fontSize,
       borderWidth: { hairline: hairlineWidth() },
       // The canvas's two faces (app.config.ts embeds them): Inter for body, Plus Jakarta Sans for titles and names.
       fontFamily: { sans: ["Inter"], display: ["Plus Jakarta Sans"] },

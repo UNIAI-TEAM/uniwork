@@ -1,0 +1,27 @@
+{
+  "query-cache": {
+    "version": 1,
+    "file": "data/persisted-cache.ts",
+    "sha256": "70fd3da6c4babe4abe12fbb002bf8e5b987e7abe8fbe386743b03eeb75113cfb"
+  },
+  "chat-send-outbox": {
+    "version": 1,
+    "file": "lib/persisted-records.ts",
+    "sha256": "49ca8668ab8e81e3b1e2dbf7e450d112988a418746268cfaf38a83c6be0a8c70"
+  },
+  "chat-pending-ops": {
+    "version": 1,
+    "file": "lib/persisted-records.ts",
+    "sha256": "49ca8668ab8e81e3b1e2dbf7e450d112988a418746268cfaf38a83c6be0a8c70"
+  },
+  "chat-drafts": {
+    "version": 1,
+    "file": "lib/drafts.ts",
+    "sha256": "b69631caf0770a87b8e0c8d9dedc6c443b2b93de80adbe4204c79df0cd0a1659"
+  },
+  "chat-reported-messages": {
+    "version": 1,
+    "file": "lib/reported-messages.ts",
+    "sha256": "e3274683bdb77c16ccef8fc3fc4d5ecff9bad5e78d5c2ed44857cc26a7c0b5bb"
+  }
+}

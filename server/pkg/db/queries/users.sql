@@ -64,6 +64,31 @@ RETURNING *;
 -- name: GetUserByGoogleID :one
 SELECT * FROM users WHERE google_id = $1;
 
+-- name: CreateAppleUser :one
+-- Sign in with Apple (ADR 0041): Apple vouches for the address, so it starts
+-- verified; no password, onboarding still ahead (onboarded_at stays NULL).
+INSERT INTO users (id, email, display_name, apple_id, email_verified_at, locale)
+VALUES ($1, $2, $3, $4, now(), $5)
+RETURNING *;
+
+-- name: GetUserByAppleID :one
+SELECT * FROM users WHERE apple_id = $1;
+
+-- name: LinkAppleAccount :one
+-- Only an account not linked to another Apple subject takes the link.
+UPDATE users SET
+  apple_id = sqlc.arg('apple_id'),
+  email_verified_at = COALESCE(email_verified_at, now()),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND (apple_id IS NULL OR apple_id = sqlc.arg('apple_id'))
+RETURNING *;
+
+-- name: SetAppleRefreshToken :exec
+-- The sealed refresh token of the account's Apple consent and the bundle id it
+-- was issued to: account deletion revokes it with that client id.
+UPDATE users SET apple_client_id = $2, apple_refresh_token_enc = $3, updated_at = now()
+WHERE id = $1 AND apple_id IS NOT NULL;
+
 -- name: LinkGoogleAccount :one
 UPDATE users SET
   google_id = $2,
@@ -87,6 +112,32 @@ UPDATE users SET
   timezone     = COALESCE(sqlc.narg('timezone'), timezone),
   updated_at   = now()
 WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- The person's answer to the AI processing notice (Apple 5.1.2(i)). A NULL
+-- version withdraws consent (or declines it) and clears the time with it;
+-- declining also keeps the person's messages out of every AI request
+-- (ai_opt_out_at), which agreeing again lifts.
+-- name: SetUserAIConsent :one
+UPDATE users SET
+  ai_consent_version = sqlc.narg('version'),
+  ai_consent_at      = CASE WHEN sqlc.narg('version')::text IS NULL THEN NULL ELSE now() END,
+  ai_opt_out_at      = CASE WHEN sqlc.narg('version')::text IS NULL THEN now() ELSE NULL END,
+  updated_at         = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ListAIOptedOutUserIDs :many
+-- Of these people, the ones who declined AI processing: what they wrote stays
+-- out of every AI request, whoever makes it (service/ai_opt_out.go).
+SELECT id FROM users WHERE id = ANY(sqlc.arg('ids')::text[]) AND ai_opt_out_at IS NOT NULL;
+
+-- name: SetUserPushPreviewsHidden :one
+-- Keeps the first time it was hidden, so turning it on twice changes nothing.
+UPDATE users SET
+  push_previews_hidden_at = CASE WHEN sqlc.arg('hidden')::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  updated_at              = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;
 
 -- name: UpdateUserPassword :one
@@ -136,9 +187,10 @@ WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
 -- Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
 UPDATE users SET
   email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
-  google_id = NULL,
+  google_id = NULL, apple_id = NULL, apple_client_id = NULL, apple_refresh_token_enc = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
+  ai_consent_version = NULL, ai_consent_at = NULL,
   deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
@@ -159,3 +211,15 @@ WHERE user_id = $1;
 
 -- name: RevokeAllPushSubscriptionsForUser :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
+
+-- name: GetUserAskUniMode :one
+SELECT ask_uni_mode FROM users WHERE id = $1;
+
+-- name: SetUserAskUniMode :exec
+UPDATE users SET ask_uni_mode = sqlc.narg(mode)::text, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: GetUserAskUniMemoryOff :one
+SELECT ask_uni_memory_off FROM users WHERE id = $1;
+
+-- name: SetUserAskUniMemoryOff :exec
+UPDATE users SET ask_uni_memory_off = sqlc.arg(off), updated_at = now() WHERE id = sqlc.arg(id);

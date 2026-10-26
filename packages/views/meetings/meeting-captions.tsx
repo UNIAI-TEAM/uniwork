@@ -170,16 +170,18 @@ export function MeetingCaptionsOverlay({
   const { t } = useTranslation();
   const text = paused ? t("meetings.captionsPausedMicOff") : interim || lastFinal;
   return (
-    <div className={cn("pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-captions">
+    // A set width, as the scribe's captions: the footer's stack fits its content.
+    <div className={cn("pointer-events-none w-180 max-w-full", className)} data-testid="meeting-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
       <p role="status" aria-live="polite" className="sr-only">
         {paused ? t("meetings.captionsPausedMicOff") : lastFinal}
       </p>
-      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 text-center ring-1 ring-meeting-bar-border">
+      {/* Left-aligned and capped like the AI scribe's captions, so switching between them does not jump. */}
+      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
         <p className="text-caption text-meeting-bar-muted-foreground">{t("meetings.captionsAutoLabel")}</p>
-        <p aria-hidden className="text-body text-meeting-bar-foreground">
-          {text || t("meetings.captionsListening")}
-        </p>
+        <div aria-hidden className="flex max-h-[3lh] flex-col justify-end overflow-hidden text-body">
+          <p className="text-meeting-bar-foreground">{text || t("meetings.captionsListening")}</p>
+        </div>
       </div>
     </div>
   );

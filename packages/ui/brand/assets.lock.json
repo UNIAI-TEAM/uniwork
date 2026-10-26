@@ -11,10 +11,13 @@
     "mark-flat.svg": "62f229eef39c3ee7",
     "mark-mono.svg": "120377f077f3935f",
     "mark.svg": "608373b157f0a237",
+    "unichat-feature-graphic.svg": "dbd07585fba388c6",
     "unichat-icon-background.svg": "e4782fe897f70c20",
     "unichat-icon-desktop.svg": "2cb4e549b630aee2",
     "unichat-icon-foreground.svg": "25a82540e4a75b4f",
+    "unichat-icon-monochrome.svg": "e06faee0f86c307b",
     "unichat-icon.svg": "057824edbbf129c6",
+    "unichat-notification-icon.svg": "a97283c2c4ca59af",
     "wordmark.svg": "0b0ed0acce0c3968"
   },
   "assets": {
@@ -57,6 +60,26 @@
       "source": "unichat-icon-background.svg",
       "size": 1024,
       "sha": "e4782fe897f70c20"
+    },
+    "apps/chat-mobile/assets/adaptive-icon-monochrome.png": {
+      "source": "unichat-icon-monochrome.svg",
+      "size": 1024,
+      "sha": "e06faee0f86c307b"
+    },
+    "apps/chat-mobile/assets/notification-icon.png": {
+      "source": "unichat-notification-icon.svg",
+      "size": 96,
+      "sha": "a97283c2c4ca59af"
+    },
+    "apps/chat-mobile/store/play/feature-graphic.png": {
+      "source": "unichat-feature-graphic.svg",
+      "size": "1024x500",
+      "sha": "dbd07585fba388c6"
+    },
+    "apps/chat-mobile/store/play/icon-512.png": {
+      "source": "unichat-icon.svg",
+      "size": 512,
+      "sha": "057824edbbf129c6"
     },
     "apps/chat-desktop/resources/icon.png": {
       "source": "unichat-icon-desktop.svg",

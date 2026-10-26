@@ -73,7 +73,7 @@ export function MeetingMediaToggle({
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="top">{tooltip}</TooltipContent>
+      <TooltipContent side="top" className="dark">{tooltip}</TooltipContent>
     </Tooltip>
   );
 }

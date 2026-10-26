@@ -6,6 +6,8 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
 import { AiSummaryTasksDialog, type AiSummaryTaskSeed, type AiSummaryTasksDialogCopy } from "./ai-summary-tasks-dialog";
 
+const { t } = initI18n();
+
 beforeAll(() => {
   initI18n();
 });
@@ -111,6 +113,85 @@ describe("AiSummaryTasksDialog", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ projectId: undefined }));
+  });
+
+  it("labels the editable title and refuses a blank one on the field, not by reverting it", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      wrap(
+        <AiSummaryTasksDialog
+          open
+          onOpenChange={vi.fn()}
+          wsId="w1"
+          idPrefix="t"
+          seeds={[seed]}
+          copy={{ ...copyFor(1), titleLabel: "Tên việc" }}
+          pending={false}
+          onConfirm={onConfirm}
+        />,
+      ),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Tên việc", { selector: "label" })).toBeInTheDocument();
+    const title = within(dialog).getByRole("textbox", { name: "Tên việc" });
+    expect(title).not.toHaveAttribute("aria-invalid");
+
+    await user.clear(title);
+    expect(title).toHaveValue("");
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    const error = within(dialog).getByText(t("tasks.summary_title_required"));
+    expect(title.getAttribute("aria-describedby")).toContain(error.closest("[id]")?.id);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.type(title, "Gửi biên bản đã sửa");
+    expect(title).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ drafts: { 0: expect.objectContaining({ title: "Gửi biên bản đã sửa" }) } }),
+    );
+  });
+
+  it("names the said owner only when it is not who is picked, in a neutral chip", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).endsWith("/members")
+        ? Promise.resolve({ members: [{ workspace_id: "w1", user_id: "u-mai", role: "member", email: "m@x.com", display_name: "Mai Anh" }] })
+        : Promise.resolve({}),
+    );
+    const picked = { ...seed, owner: "mai anh", draft: { ...seed.draft, assigneeId: "u-mai" } };
+    const other = { ...seed, index: 1, title: "Đặt phòng", owner: "Bảo", draft: { ...seed.draft, assigneeId: "u-mai" } };
+    render(wrap(<Harness open seeds={[picked, other]} />));
+    const dialog = await screen.findByRole("dialog");
+    const chip = await within(dialog).findByText("AI ghi: Bảo");
+    await waitFor(() => expect(within(dialog).queryByText("AI ghi: mai anh")).not.toBeInTheDocument());
+    // Muted, not the brand fill of a selection.
+    expect(chip).toHaveClass("bg-muted");
+    expect(chip).not.toHaveClass("bg-brand-subtle");
+    expect(within(dialog).getAllByRole("combobox", { name: "Người phụ trách" })).toHaveLength(2);
+  });
+
+  it("cannot be closed while the tasks are being created", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <AiSummaryTasksDialog
+          open
+          onOpenChange={onOpenChange}
+          wsId="w1"
+          idPrefix="t"
+          seeds={[seed]}
+          copy={copyFor(1)}
+          pending
+          onConfirm={vi.fn()}
+        />,
+      ),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(within(dialog).queryByRole("button", { name: "Đóng" })).not.toBeInTheDocument();
   });
 
   it("marks the item a refusal named on its card", () => {
