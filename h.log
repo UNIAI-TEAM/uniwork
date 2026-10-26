@@ -1,0 +1,7 @@
+$ bash scripts/turbo-cache-check.sh 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "TURBO_CACHE_EXIT=$rc"; [ $rc -eq 0 ]
+Updated 1 path from the index
+before=3fd9e8e4c32fd75e
+after=bbe7be4a6611c13a
+PASS: hash tracks dependency sources
+
+TURBO_CACHE_EXIT=0

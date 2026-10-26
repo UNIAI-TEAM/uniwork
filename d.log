@@ -1,0 +1,31 @@
+$ pnpm lint > /tmp/pr8r2-lint.log 2>&1; rc=$?; grep -E "error|warning|✖" /tmp/pr8r2-lint.log | head -60; tail -20 /tmp/pr8r2-lint.log; echo; echo "LINT_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/chat-desktop:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+
+ Tasks:    8 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m55.866s 
+
+
+LINT_EXIT=0
