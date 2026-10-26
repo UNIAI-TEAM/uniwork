@@ -16,6 +16,7 @@ import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "../.
 import { noticeText, resolveErrorKey } from "../../ai/ask-uni-legacy-panel";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { toastApiError } from "../../toast-api-error";
+import { INPUT_TYPE, ROUND } from "../composer-classes";
 import { tablistKeyTarget } from "../tablist-keys";
 import { forChat } from "./ask-answer-card";
 import { ComposerSuggestions, type ComposerSuggestion } from "./composer-suggestions";
@@ -47,12 +48,6 @@ const isAbort = (err: unknown) => (err as { name?: unknown } | null)?.name === "
 
 /** The refusals that close Ask for this meeting rather than fail one question. */
 const REFUSALS: Record<string, Blocked> = { ai_quota_exceeded: "outOfCredit", ai_disabled: "askOff" };
-
-// 15/22 as the plan pins it; 16px on touch, where iOS zooms into a smaller field.
-export const INPUT_TYPE = "text-body-lg md:text-body-lg pointer-coarse:text-title-sm";
-
-// The disabled look is drawn by the colours, not the primitive's half opacity.
-export const ROUND = "size-8 rounded-full p-0 pointer-coarse:size-11 aria-disabled:opacity-100 [&_svg]:size-4";
 
 function ModeRadio({ ref, checked, tone, disabled, describedBy, onPick, onKeyDown, icon, label }: {
   ref: Ref<HTMLButtonElement>;

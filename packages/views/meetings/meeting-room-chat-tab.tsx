@@ -11,7 +11,7 @@ import { toastApiError } from "../toast-api-error";
 import { CHAT_BUBBLE_OWN } from "../chat/chat-message-row";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
 import { senderNameClass } from "../chat/sender-colors";
-import { INPUT_TYPE, ROUND } from "./meeting-copilot/meeting-composer";
+import { INPUT_TYPE, ROUND } from "./composer-classes";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
@@ -197,7 +197,10 @@ function MeetingRoomChatView({
                   )}
                 >
                   <div className="flex max-w-full items-baseline gap-1.5">
-                    {group.isLocal ? null : (
+                    {group.isLocal ? (
+                      // The board shows no name on own messages; a screen reader still hears who sent them.
+                      <span className="sr-only">{t("meetings.you")}</span>
+                    ) : (
                       <span
                         className={cn(
                           "min-w-0 truncate text-caption font-semibold",

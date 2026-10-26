@@ -110,6 +110,27 @@ describe("MeetingRoomChatTab (persisted)", () => {
     expect(box).toHaveValue("Xin chào");
   });
 
+  it("does not send from the inactive button: empty draft, or while a message is on its way", async () => {
+    const post = vi.fn(() => new Promise<unknown>(() => {}));
+    chatRespond(() => Promise.resolve({ messages: [] }), post);
+    render(wrapWithNav(<MeetingRoomChatTab meetingId="m1" />));
+    await screen.findByText(EMPTY);
+
+    const button = screen.getByRole("button", { name: "Gửi" });
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(post).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Trò chuyện" }), { target: { value: "Xin chào" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(post).toHaveBeenCalledOnce());
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(post).toHaveBeenCalledOnce();
+  });
+
   it("does not send on the Enter that ends an IME composition", async () => {
     const post = vi.fn(() => Promise.resolve({}));
     chatRespond(() => Promise.resolve({ messages: [] }), post);
@@ -199,6 +220,16 @@ describe("MeetingRoomChatTab bubbles", () => {
     expect(mine).not.toHaveClass("text-foreground");
     expect(theirs).toHaveClass("bg-surface-hover", "text-foreground", "rounded-tl-[4px]");
     expect(mine).toHaveClass("rounded-tr-[4px]");
+  });
+
+  it("names the sender of my own messages for screen readers, with no visible name", () => {
+    liveMessages = [
+      { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const own = screen.getByText("Chào Lan").closest("li")!;
+    const name = within(own).getByText("Bạn");
+    expect(name).toHaveClass("sr-only");
   });
 });
 
