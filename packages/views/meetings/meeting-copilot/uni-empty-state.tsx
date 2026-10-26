@@ -10,6 +10,16 @@ import type { ScribeChipState } from "../meeting-scribe-chip";
 import { useMemberIndex } from "../use-member-index";
 import { FeedKindMark } from "./feed-filter-chips";
 
+// What the heading says per scribe state: only a scribe that is on is listening. Off, or failed to join,
+// there is no transcript coming, so the line says how to get one.
+const HEADING: Record<ScribeChipState, string> = {
+  on: "meetings.panel.empty.title",
+  joining: "meetings.scribe.chipJoining",
+  paused: "meetings.scribe.chipPaused",
+  failed: "meetings.scribe.chipFailed",
+  off: "meetings.transcriptEmpty",
+};
+
 // The sample rows hint at what will appear; each bar is a different length so they read as text.
 const SAMPLES: readonly { kind: MeetingFeedKind; label: string; bar: string }[] = [
   { kind: "decision", label: "meetings.panel.empty.decided", bar: "flex-1" },
@@ -55,10 +65,10 @@ export function UniEmptyState({
             <ScribeMark size={52} state={off ? "off" : "idle"} />
           </div>
         </div>
-        <h2 className="mb-1.5 mt-4.5 font-display text-title-sm font-bold text-foreground">
-          {off ? t("meetings.transcriptEmpty") : t("meetings.panel.empty.title")}
-        </h2>
-        <p className="max-w-70 text-label text-muted-foreground">{t("meetings.panel.empty.line")}</p>
+        <h2 className="mb-1.5 mt-4.5 font-display text-title-sm font-bold text-foreground">{t(HEADING[scribeState])}</h2>
+        <p className="max-w-70 text-label text-muted-foreground">
+          {t(scribeState === "failed" ? "meetings.transcriptEmpty" : "meetings.panel.empty.line")}
+        </p>
         <ul aria-hidden className="mt-6 flex w-66 flex-col gap-2.5">
           {SAMPLES.map(({ kind, label, bar }) => (
             <li key={kind} className="flex items-center gap-2.5">

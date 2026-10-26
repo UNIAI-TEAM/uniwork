@@ -95,4 +95,18 @@ describe("UniEmptyState", () => {
     expect(screen.queryByRole("heading", { name: "Thư ký UNI đang nghe" })).toBeNull();
     expect(screen.getByText("Ý chính sẽ hiện ở đây ngay khi có người nói.")).toBeInTheDocument();
   });
+
+  // Only a scribe that is on is listening; every other state says what it is.
+  it.each([
+    ["joining", "Thư ký UNI đang vào phòng", "Ý chính sẽ hiện ở đây ngay khi có người nói."],
+    ["paused", "Thư ký UNI tạm dừng, đang thử lại", "Ý chính sẽ hiện ở đây ngay khi có người nói."],
+    ["failed", "Thư ký UNI chưa vào được phòng", "Chưa có bản ghi lời thoại. Bật phụ đề trong phòng họp để ghi lại."],
+  ] as const)("says the scribe is %s rather than listening", (state, heading, line) => {
+    serve(carried(0));
+    render(wrap(<UniEmptyState meetingId="m1" workspaceId="w1" scribeState={state} onOpenCarried={() => {}} />));
+
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Thư ký UNI đang nghe" })).toBeNull();
+    expect(screen.getByText(line)).toBeInTheDocument();
+  });
 });
