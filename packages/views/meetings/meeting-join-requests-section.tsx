@@ -47,15 +47,13 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
               />
             ))}
           </span>
-          {/* Who waits first, then how many more: the name truncates, never the count (the space is for the name, gap-1 draws it). */}
+          {/* Who waits first, then how many more; two lines before anything is cut, so the name always shows. */}
           <h3
             id="waiting-admission-heading"
-            className="flex min-w-0 flex-1 gap-1 text-label font-semibold text-warning-soft-foreground"
+            className="line-clamp-2 min-w-0 flex-1 text-label font-semibold break-words text-warning-soft-foreground"
           >
-            <span className="truncate">{first ? requestDisplayName(first) : ""}</span>{" "}
-            <span className="shrink-0">
-              {count > 1 ? t("meetings.panel.people.waitingOthers", { count: count - 1 }) : t("meetings.panel.people.waitingAlone")}
-            </span>
+            {first ? requestDisplayName(first) : ""}{" "}
+            {count > 1 ? t("meetings.panel.people.waitingOthers", { count: count - 1 }) : t("meetings.panel.people.waitingAlone")}
           </h3>
           <Button
             type="button"

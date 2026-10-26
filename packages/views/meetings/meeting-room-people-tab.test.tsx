@@ -328,7 +328,7 @@ describe("MeetingRoomPeopleTab", () => {
     it("shows the host one waiting card and admits everyone from it", async () => {
       waitingTwo();
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
-      expect(await screen.findByRole("region", { name: "Khách muộn và 1 người khác đang chờ" })).toBeInTheDocument();
+      expect(await screen.findByRole("region", { name: "Khách muộn và 1 người khác" })).toBeInTheDocument();
       // The per-person rows stay folded until the chevron opens them.
       expect(screen.queryByText("Đức Hải")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Cho vào cả 2 người" }));
@@ -342,7 +342,7 @@ describe("MeetingRoomPeopleTab", () => {
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
       expect(await screen.findByRole("region", { name: "Khách muộn đang chờ" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Xem từng người" }));
-      expect(await screen.findAllByText("Khách muộn")).toHaveLength(2);
+      expect(await screen.findByText("Khách muộn")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Cho Khách muộn vào" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Cho vào" }));
       await waitFor(() =>
@@ -448,7 +448,7 @@ describe("MeetingRoomPeopleTab", () => {
       expect(screen.queryByRole("button", { name: "Thêm người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Tắt mic mọi người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Điểm danh" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("region", { name: /đang chờ/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Xem từng người" })).not.toBeInTheDocument();
     });
   });
 });

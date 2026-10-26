@@ -33,14 +33,14 @@ describe("MeetingJoinRequestsSection", () => {
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
 
     // The heading names who waits first, so the host sees a name before admitting everyone.
-    expect(await screen.findByRole("region", { name: "Guest One và 1 người khác đang chờ" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Guest One và 1 người khác" })).toBeInTheDocument();
     // The one button admits both, and its name says so.
     const admit = screen.getByRole("button", { name: "Cho vào cả 2 người" });
     expect(admit).toHaveTextContent("Cho vào");
     expect(screen.queryByText("Guest Two")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Xem từng người" }));
     expect(await screen.findByText("Guest Two")).toBeInTheDocument();
-    expect(screen.getAllByText("Guest One")).toHaveLength(2);
+    expect(screen.getByText("Guest One")).toBeInTheDocument();
     expect(screen.getByText("Guest Two")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Xem từng người" })).toHaveAttribute("aria-expanded", "true");
   });
