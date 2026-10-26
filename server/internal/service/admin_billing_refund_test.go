@@ -84,7 +84,7 @@ func TestAdminRefundInvoiceAuditRecordsAmount(t *testing.T) {
 	}
 	var metaRaw []byte
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 ORDER BY created_at DESC LIMIT 1`,
+		`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 ORDER BY occurred_at DESC LIMIT 1`,
 		audit.ActionBillingInvoiceRefunded, invID,
 	).Scan(&metaRaw); err != nil {
 		t.Fatal(err)
