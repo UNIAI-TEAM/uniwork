@@ -28,7 +28,7 @@ const (
 	eocdLen                  = 22
 	zip64LocatorLen          = 20
 	zip64EOCDLen             = 56
-	maxEOCDSearchBytes       = eocdLen + 0xffff // 65,557 bytes
+	maxEOCDSearchBytes       = 65 * 1024 // matches archive/zip readDirectoryEnd (1024, then 65*1024)
 	minCentralDirHeaderBytes = 46
 )
 
@@ -62,20 +62,22 @@ func (d *dirReader) ReadAt(p []byte, off int64) (int, error) {
 // directories larger than MaxDirectoryBytes (or more than MaxDirectoryBytes/46
 // records) before archive/zip preallocates its File slice, and bounding total
 // bytes read during central-directory parsing to MaxDirectoryBytes +
-// EndRecordWindowBytes. Once NewReader succeeds, the read cap is lifted so
-// reading individual entries from the returned *zip.Reader is unrestricted by
-// the directory budget.
+// EndRecordWindowBytes (the pre-check's own tail reads, <= 66,560 + 76 B,
+// fixed, are separate from dirReader's budget). When archive/zip returns a
+// non-nil *zip.Reader (including alongside zip.ErrInsecurePath), the read cap
+// is lifted so reading individual entries is unrestricted by the directory
+// budget.
 func NewReader(r io.ReaderAt, size int64) (*zip.Reader, error) {
 	if err := checkDirectoryEnd(r, size); err != nil {
 		return nil, err
 	}
 	dr := &dirReader{ReaderAt: r, left: MaxDirectoryBytes + EndRecordWindowBytes}
 	zr, err := zip.NewReader(dr, size)
-	if err != nil {
+	if zr == nil {
 		return nil, err
 	}
 	dr.lifted = true
-	return zr, nil
+	return zr, err
 }
 
 // checkDirectoryEnd inspects the end-of-central-directory record (and the ZIP64
