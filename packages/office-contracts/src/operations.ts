@@ -9,6 +9,7 @@ export const engineOperations = [
   "serialize",
   "convert",
   "export",
+  "extract_text",
   "cancel",
 ] as const;
 export const engineOperationSchema = z.enum(engineOperations);
@@ -26,6 +27,7 @@ export const grantableOperations = [
   "serialize",
   "convert",
   "export",
+  "extract_text",
 ] as const;
 export const grantableOperationSchema = z.enum(grantableOperations);
 export type GrantableOperation = (typeof grantableOperations)[number];

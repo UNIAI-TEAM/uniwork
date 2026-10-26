@@ -46,6 +46,7 @@ type ServiceGrant struct {
 	OrganizationID string       `json:"organization_id"`
 	WorkspaceID    string       `json:"workspace_id"`
 	DocumentID     string       `json:"document_id"`
+	DriveFileID    string       `json:"drive_file_id,omitempty"`
 	Operation      Operation    `json:"operation"`
 	Format         Format       `json:"format"`
 	BaseRevision   int64        `json:"base_revision"`
@@ -98,5 +99,21 @@ func VerifyGrant(token string, key []byte) (ServiceGrant, error) {
 	if err := json.Unmarshal(raw, &g); err != nil {
 		return ServiceGrant{}, ErrGrantInvalid
 	}
+	if err := validateServiceGrant(g); err != nil {
+		return ServiceGrant{}, err
+	}
 	return g, nil
+}
+
+func validateServiceGrant(g ServiceGrant) error {
+	if g.Operation == OperationExtractText {
+		if g.DocumentID != "" || g.DriveFileID == "" || g.BaseRevision != 0 || g.BaseVersionID != "" || g.Input == nil || g.Output != nil {
+			return ErrGrantInvalid
+		}
+		return nil
+	}
+	if g.DriveFileID != "" {
+		return ErrGrantInvalid
+	}
+	return nil
 }
