@@ -3,16 +3,19 @@ import { useState } from "react";
 import { Clock, PencilLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingFeedEntry } from "@uniwork/core/meetings/feed";
+import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { formatMessageTime } from "../../chat/chat-message-time";
 import { formatDueDate } from "../meeting-action-items/action-item-rows";
 import { meetingLocale } from "../meeting-datetime";
 import { MeetingPersonAvatar } from "../meeting-person";
 import { MeetingRecordingDialog } from "../meeting-recording-dialog";
 import { TOUCH_TARGET } from "../touch-target";
+import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
 import { useMemberIndex } from "../use-member-index";
 import { FeedKindMark } from "./feed-filter-chips";
 
 type MemberOf = ReturnType<typeof useMemberIndex>["memberOf"];
+type TintOf = (userId: string | null | undefined) => Tint;
 
 /**
  * What the meeting produced, as the UNI tab's feed: one row per entry in the
@@ -38,7 +41,9 @@ export function MeetingFeedList({
   onEditItem: (itemId: string) => void;
 }) {
   const { t } = useTranslation();
-  const { memberOf } = useMemberIndex(workspaceId);
+  const { memberOf, members } = useMemberIndex(workspaceId);
+  // Faces in the UNI tab take the same tint as on the empty state and the detail page.
+  const tintOf: TintOf = (userId) => meetingAvatarTint(userId, members);
   const [playing, setPlaying] = useState<string | null>(null);
   return (
     <>
@@ -50,6 +55,7 @@ export function MeetingFeedList({
             isNew={entry.actionItem ? unseen.has(entry.actionItem.id) : false}
             canClerk={canClerk}
             memberOf={memberOf}
+            tintOf={tintOf}
             onJumpToSegment={onJumpToSegment}
             onEditItem={onEditItem}
             onPlay={setPlaying}
@@ -75,6 +81,7 @@ function FeedRow({
   isNew,
   canClerk,
   memberOf,
+  tintOf,
   onJumpToSegment,
   onEditItem,
   onPlay,
@@ -83,6 +90,7 @@ function FeedRow({
   isNew: boolean;
   canClerk: boolean;
   memberOf: MemberOf;
+  tintOf: TintOf;
   onJumpToSegment: (segmentId: string) => void;
   onEditItem: (itemId: string) => void;
   onPlay: (recordingId: string) => void;
@@ -97,7 +105,7 @@ function FeedRow({
     <li className="flex gap-2.5 px-0.5 py-2.5">
       {note ? (
         <span role="img" aria-label={kindLabel} className="shrink-0">
-          <MeetingPersonAvatar name={note.display_name ?? ""} avatarUrl={note.avatar_url} size={26} />
+          <MeetingPersonAvatar name={note.display_name ?? ""} avatarUrl={note.avatar_url} tint={tintOf(note.author_id)} size={26} />
         </span>
       ) : (
         <FeedKindMark kind={entry.kind} size="row" label={kindLabel} />
@@ -115,7 +123,7 @@ function FeedRow({
           <p className={note ? "text-body text-pretty text-foreground" : "text-body font-medium text-pretty text-foreground"}>{entry.text}</p>
         )}
         {entry.actionItem ? (
-          <TaskMeta item={entry.actionItem} canClerk={canClerk} memberOf={memberOf} onEditItem={onEditItem} />
+          <TaskMeta item={entry.actionItem} canClerk={canClerk} memberOf={memberOf} tintOf={tintOf} onEditItem={onEditItem} />
         ) : entry.kind === "question" ? (
           <span className="mt-1.5 inline-flex h-5 items-center rounded-md bg-warning-soft px-1.75 text-micro font-medium text-warning-soft-foreground">
             {t("meetings.panel.feed.open")}
@@ -151,11 +159,13 @@ function TaskMeta({
   item,
   canClerk,
   memberOf,
+  tintOf,
   onEditItem,
 }: {
   item: NonNullable<MeetingFeedEntry["actionItem"]>;
   canClerk: boolean;
   memberOf: MemberOf;
+  tintOf: TintOf;
   onEditItem: (itemId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -171,7 +181,7 @@ function TaskMeta({
   if (!name && !due && !addDue) return null;
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-      {member ? <MeetingPersonAvatar name={member.display_name ?? ""} avatarUrl={member.avatar_url} size={18} /> : null}
+      {member ? <MeetingPersonAvatar name={member.display_name ?? ""} avatarUrl={member.avatar_url} tint={tintOf(member.user_id)} size={18} /> : null}
       {name ? <span className="text-caption text-muted-foreground">{name}</span> : null}
       {due ? (
         <span className="inline-flex h-5 items-center gap-1 rounded-md bg-surface-hover px-1.75 text-micro font-medium text-muted-foreground">

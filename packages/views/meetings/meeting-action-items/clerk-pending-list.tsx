@@ -10,6 +10,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { CreateTaskDialog } from "../../tasks/create-task-dialog";
 import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingEvidenceChip } from "../meeting-evidence-chip";
+import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
 import { useMemberIndex } from "../use-member-index";
 import { DismissActionItemButton, LIST_CLASS, PendingRow, type ActionItemsVariant } from "./action-item-rows";
 import { RoomPendingRow } from "./room-rows";
@@ -63,7 +64,12 @@ export function ClerkPendingList({
 }) {
   const { t } = useTranslation();
   const reasonId = useId();
-  const { memberOf } = useMemberIndex(workspaceId);
+  const { memberOf, members } = useMemberIndex(workspaceId);
+  // A face with its tint, as on the UNI empty state.
+  const person = (userId?: string | null) => {
+    const m = memberOf(userId);
+    return m && { ...m, tint: meetingAvatarTint(m.user_id, members) };
+  };
   const dismiss = useDismissMeetingActionItem(meetingId);
   const [dismissError, setDismissError] = useState<{ id: string; text: string } | null>(null);
   const room = variant === "room";
@@ -131,7 +137,7 @@ export function ClerkPendingList({
               <RoomPendingRow
                 key={item.id}
                 {...row}
-                assignee={memberOf(item.suggested_assignee_id)}
+                assignee={person(item.suggested_assignee_id)}
                 onEdit={edit}
                 actions={
                   <>

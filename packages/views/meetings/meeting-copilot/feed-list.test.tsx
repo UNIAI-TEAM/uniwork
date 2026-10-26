@@ -94,6 +94,8 @@ describe("MeetingFeedList", () => {
   it("names who has a task and when it is due, else what was said of the owner", async () => {
     const { rows } = setup();
     expect(await within(rows[0]!).findByText("Mai Anh")).toBeInTheDocument();
+    // The face takes the member's tint (first to join: blue), as on the empty state.
+    expect(within(rows[0]!).getByText("MA")).toHaveClass("bg-tint-blue");
     expect(rows[0]).toHaveTextContent("Thứ Sáu");
     expect(rows[4]).toHaveTextContent("chị Hà");
   });

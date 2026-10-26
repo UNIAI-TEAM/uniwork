@@ -20,6 +20,7 @@ import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingSectionError, MeetingSectionLoading } from "../meeting-section-state";
 import { SummaryLiveRegion, useAnnouncement } from "../meeting-summary/summary-generate-controls";
+import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
 import { useMemberIndex } from "../use-member-index";
 import { ConvertedRow, DismissedRow, LIST_CLASS, PendingRow, type ActionItemsVariant } from "./action-item-rows";
 import { MeetingEvidenceChip } from "../meeting-evidence-chip";
@@ -112,7 +113,12 @@ export function MeetingActionItemsSection({
   const { t } = useTranslation();
   const query = useMeetingActionItems(meetingId);
   const restore = useRestoreMeetingActionItem(meetingId);
-  const { memberOf } = useMemberIndex(workspaceId);
+  const { memberOf, members } = useMemberIndex(workspaceId);
+  // A face with its tint, as on the UNI empty state.
+  const person = (userId?: string | null) => {
+    const m = memberOf(userId);
+    return m && { ...m, tint: meetingAvatarTint(m.user_id, members) };
+  };
   // A project deleted after the meeting was linked stays on the meeting row (no FK).
   const { data: project } = useProject(workspaceId, projectId || "");
   const workspace = useOptionalWorkspace()?.workspace;
@@ -226,7 +232,7 @@ export function MeetingActionItemsSection({
               {pending.map((item) => {
                 const evidence = aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />;
                 return room ? (
-                  <RoomPendingRow key={item.id} item={item} assignee={memberOf(item.suggested_assignee_id)} evidence={evidence} />
+                  <RoomPendingRow key={item.id} item={item} assignee={person(item.suggested_assignee_id)} evidence={evidence} />
                 ) : (
                   <PendingRow key={item.id} item={item} variant={variant} evidence={evidence} />
                 );
@@ -249,7 +255,7 @@ export function MeetingActionItemsSection({
                   key={item.id}
                   item={item}
                   taskHref={item.task && wsPaths ? wsPaths.task(item.task.id) : null}
-                  assignee={memberOf(item.task?.assignee_id)}
+                  assignee={person(item.task?.assignee_id)}
                 />
               ) : (
               <ConvertedRow

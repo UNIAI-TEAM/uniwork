@@ -7,6 +7,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { formatMeetingClock, meetingLocale } from "../meeting-datetime";
+import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { MeetingPersonAvatar } from "../meeting-person";
 import { ScribeSign } from "../scribe-sign";
 import { TOUCH_TARGET } from "../touch-target";
@@ -16,6 +17,8 @@ import { formatDueDate } from "./action-item-rows";
 interface RoomPerson {
   display_name: string;
   avatar_url?: unknown;
+  /** The face's tint in the UNI tab (`meetingAvatarTint`). */
+  tint?: Tint;
 }
 
 const CHIP = "inline-flex h-6 items-center rounded-full text-caption font-medium";
@@ -110,7 +113,7 @@ export function RoomPendingRow({
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {assignee ? (
             <Chip {...chipProps(assignee.display_name)} className={cn(SOLID_CHIP, onEdit && TOUCH_TARGET, "gap-1.25 pr-2 pl-0.75")}>
-              <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} size={18} />
+              <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} tint={assignee.tint} size={18} />
               {assignee.display_name}
             </Chip>
           ) : onEdit ? (
@@ -167,7 +170,7 @@ export function RoomConvertedRow({
       {assignee ? (
         // The face is aria-hidden: the name is said beside it and shown on hover.
         <span title={assignee.display_name} className="inline-flex shrink-0">
-          <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} size={20} />
+          <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} tint={assignee.tint} size={20} />
           <span className="sr-only">{assignee.display_name}</span>
         </span>
       ) : null}
