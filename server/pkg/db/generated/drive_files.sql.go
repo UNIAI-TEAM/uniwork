@@ -488,6 +488,49 @@ func (q *Queries) DeleteDriveFileTaskLinksByFile(ctx context.Context, arg Delete
 	return items, nil
 }
 
+const deleteDriveFileTaskLinksByTask = `-- name: DeleteDriveFileTaskLinksByTask :many
+DELETE FROM drive_file_task_links
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND task_id = $3
+RETURNING id, organization_id, workspace_id, drive_file_id, task_id, created_by, created_by_kind, created_at
+`
+
+type DeleteDriveFileTaskLinksByTaskParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+}
+
+func (q *Queries) DeleteDriveFileTaskLinksByTask(ctx context.Context, arg DeleteDriveFileTaskLinksByTaskParams) ([]DriveFileTaskLink, error) {
+	rows, err := q.db.Query(ctx, deleteDriveFileTaskLinksByTask, arg.OrganizationID, arg.WorkspaceID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DriveFileTaskLink{}
+	for rows.Next() {
+		var i DriveFileTaskLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DriveFileID,
+			&i.TaskID,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveDriveFileByExternalIDForUpdate = `-- name: GetActiveDriveFileByExternalIDForUpdate :one
 SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
 FROM drive_files

@@ -888,6 +888,49 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	if err != nil || len(cards) != 1 || cards[0].ExternalFileID != "ext-tc-ok" {
 		t.Fatalf("ListForTask on created task = %+v, err=%v", cards, err)
 	}
+	// 3 (F09). Single task deletion and batch task deletion both remove the task's
+	// drive_file_task_links rows in the same transaction, retain drive_files and
+	// drive_file_access rows, and emit drive_file.updated for affected files.
+	driveFileID := cards[0].ID
+	batchTask1, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
+		Title:      "Batch Delete Drive 1",
+		DriveFiles: []CreateTaskDriveFileInput{{ConnectionID: connA.ID, ExternalFileID: "ext-tc-ok"}},
+	})
+	if err != nil {
+		t.Fatalf("Create batchTask1: %v", err)
+	}
+	batchTask2, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
+		Title:      "Batch Delete Drive 2",
+		DriveFiles: []CreateTaskDriveFileInput{{ConnectionID: connA.ID, ExternalFileID: "ext-tc-ok"}},
+	})
+	if err != nil {
+		t.Fatalf("Create batchTask2: %v", err)
+	}
+	var updatedOutboxBefore int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, driveFileID).Scan(&updatedOutboxBefore)
+	if err := env.taskSvc.Delete(ctx, env.owner.ID, createdTask.ID); err != nil {
+		t.Fatalf("Delete createdTask: %v", err)
+	}
+	var singleLinkCount int
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE task_id = $1`, createdTask.ID).Scan(&singleLinkCount); err != nil || singleLinkCount != 0 {
+		t.Fatalf("singleLinkCount after Delete = %d, err=%v, want 0", singleLinkCount, err)
+	}
+	if n, err := env.taskSvc.BatchDeleteTasks(ctx, Human(env.owner.ID), env.wsA.ID, []string{batchTask1.ID, batchTask2.ID}); err != nil || n != 2 {
+		t.Fatalf("BatchDeleteTasks = %d, err=%v, want 2", n, err)
+	}
+	var totalLinkCount int
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1`, driveFileID).Scan(&totalLinkCount); err != nil || totalLinkCount != 0 {
+		t.Fatalf("totalLinkCount after single+batch delete = %d, err=%v, want 0", totalLinkCount, err)
+	}
+	var updatedOutboxAfter int
+	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`, driveFileID).Scan(&updatedOutboxAfter)
+	if updatedOutboxAfter-updatedOutboxBefore < 3 {
+		t.Fatalf("drive_file.updated outbox events = %d->%d, want +3", updatedOutboxBefore, updatedOutboxAfter)
+	}
+	retainedDetail, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, driveFileID)
+	if err != nil || retainedDetail.UsedInCount != 0 || retainedDetail.ViewerAccess != DriveViewerAccessGranted {
+		t.Fatalf("retainedDetail after task deletes = %+v, err=%v", retainedDetail, err)
+	}
 
 	// Verify flag off returns 404 feature_disabled.
 	env.fileSvc.SetFlags(driveConnectorFlags(t, false))

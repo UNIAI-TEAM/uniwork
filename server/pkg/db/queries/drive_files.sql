@@ -406,6 +406,12 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND drive_file_id = sqlc.arg('drive_file_id')
 RETURNING *;
+-- name: DeleteDriveFileTaskLinksByTask :many
+DELETE FROM drive_file_task_links
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND task_id = sqlc.arg('task_id')
+RETURNING *;
 
 -- name: ListLinkedTasksByDriveFileIDs :many
 SELECT l.drive_file_id,

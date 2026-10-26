@@ -997,6 +997,24 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 			"room_id": l.RoomID, "message_id": l.MessageID, "target_id": task.ID,
 		}})
 	}
+	driveLinks, err := q.DeleteDriveFileTaskLinksByTask(ctx, db.DeleteDriveFileTaskLinksByTaskParams{
+		OrganizationID: task.OrganizationID,
+		WorkspaceID:    task.WorkspaceID,
+		TaskID:         task.ID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, l := range driveLinks {
+		events = append(events, audit.Event{
+			Topic:   "drive_file.updated",
+			Version: 1,
+			Payload: map[string]string{
+				"drive_file_id": l.DriveFileID,
+				"workspace_id":  task.WorkspaceID,
+			},
+		})
+	}
 	// The row is gone, so the audit entry is the only remaining record of what
 	// it held: keep the title, which is what a person searching the log reads.
 	return auditRecorder.Record(ctx, q, audit.Entry{
