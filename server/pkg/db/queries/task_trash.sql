@@ -175,6 +175,18 @@ WHERE t.organization_id = sqlc.arg(organization_id)
 ORDER BY t.id
 FOR UPDATE;
 
+-- A restore's lock: every row of the batch, in id order like the purge's
+-- subtree lock, so a restore and a purge of one batch queue instead of
+-- deadlocking. A row the purge worker deleted, or a restore already brought
+-- back, while this waited is not returned.
+-- name: LockTaskTrashBatch :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND trash_batch_id = sqlc.arg(trash_batch_id)
+ORDER BY id
+FOR UPDATE;
+
 -- name: LockProjectForPurge :one
 SELECT * FROM projects
 WHERE id = sqlc.arg(id)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,25 +129,34 @@ func (s *TaskService) Restore(ctx context.Context, actor Actor, taskID string) (
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	locked, err := lockTrashedTask(ctx, q, task)
-	if err != nil {
-		return TrashResult{}, err
-	}
-	batch := locked.TrashBatchID
-	// The orphan check reads trash_batch_id, so it runs before the restore
-	// clears it.
-	if _, err := q.UnparentRestoredOrphans(ctx, db.UnparentRestoredOrphansParams{
-		OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID, TrashBatchID: batch,
-	}); err != nil {
-		return TrashResult{}, err
-	}
-	restored, err := q.RestoreTaskBatch(ctx, db.RestoreTaskBatchParams{
-		OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID, TrashBatchID: batch,
+	batch := task.TrashBatchID
+	// The whole batch is locked first, in id order: a purge of one of its
+	// rows (worker or person) either finished before (the row is gone) or
+	// waits for this restore. Whoever comes second finds the row no longer
+	// trashed and answers not found.
+	rows, err := q.LockTaskTrashBatch(ctx, db.LockTaskTrashBatchParams{
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, TrashBatchID: batch,
 	})
 	if err != nil {
 		return TrashResult{}, err
 	}
-	if err := recordTaskBatch(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, audit.ActionTaskRestored, batch.String, restored); err != nil {
+	if !slices.ContainsFunc(rows, func(r db.Task) bool { return r.ID == task.ID && r.TrashedAt.Valid }) {
+		return TrashResult{}, ErrNotFound
+	}
+	// The orphan check reads trash_batch_id, so it runs before the restore
+	// clears it, and after the lock, so it sees a parent purged meanwhile.
+	if _, err := q.UnparentRestoredOrphans(ctx, db.UnparentRestoredOrphansParams{
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, TrashBatchID: batch,
+	}); err != nil {
+		return TrashResult{}, err
+	}
+	restored, err := q.RestoreTaskBatch(ctx, db.RestoreTaskBatchParams{
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, TrashBatchID: batch,
+	})
+	if err != nil {
+		return TrashResult{}, err
+	}
+	if err := recordTaskBatch(ctx, q, actor, task.OrganizationID, task.WorkspaceID, audit.ActionTaskRestored, batch.String, restored); err != nil {
 		return TrashResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -169,16 +179,19 @@ func (s *TaskService) Purge(ctx context.Context, actor Actor, taskID string) err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	root, err := lockTrashedTask(ctx, q, task)
-	if err != nil {
-		return err
-	}
+	// One lock statement in id order, the order a restore locks its batch in,
+	// so the two queue instead of deadlocking.
 	rows, err := q.LockTaskTrashSubtree(ctx, db.LockTaskTrashSubtreeParams{
-		OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, RootID: root.ID,
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, RootID: task.ID,
 	})
 	if err != nil {
 		return err
 	}
+	i := slices.IndexFunc(rows, func(r db.Task) bool { return r.ID == task.ID })
+	if i < 0 || !rows[i].TrashedAt.Valid {
+		return ErrNotFound // purged or restored while this waited
+	}
+	root := rows[i]
 	for _, row := range rows {
 		// A row restored while this purge waited for its lock left the batch.
 		if !row.TrashedAt.Valid || row.TrashBatchID != root.TrashBatchID {
@@ -252,19 +265,6 @@ func (s *TaskService) authorizeTrashed(ctx context.Context, actor Actor, taskID 
 		return db.Task{}, ErrNotFound
 	}
 	return task, nil
-}
-
-// lockTrashedTask takes the row lock restore and purge share with the purge
-// worker, then re-reads: whoever locks second finds the row gone or restored
-// and answers not found.
-func lockTrashedTask(ctx context.Context, q *db.Queries, task db.Task) (db.Task, error) {
-	locked, err := q.LockTaskForPurge(ctx, db.LockTaskForPurgeParams{
-		ID: task.ID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !locked.TrashedAt.Valid) {
-		return db.Task{}, ErrNotFound
-	}
-	return locked, err
 }
 
 // recordTaskBatch writes one audit row and one event per task of a trash or

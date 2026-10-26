@@ -721,6 +721,86 @@ func (q *Queries) LockTaskForPurge(ctx context.Context, arg LockTaskForPurgePara
 	return i, err
 }
 
+const lockTaskTrashBatch = `-- name: LockTaskTrashBatch :many
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND trash_batch_id = $3
+ORDER BY id
+FOR UPDATE
+`
+
+type LockTaskTrashBatchParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	TrashBatchID   pgtype.Text `json:"trash_batch_id"`
+}
+
+// A restore's lock: every row of the batch, in id order like the purge's
+// subtree lock, so a restore and a purge of one batch queue instead of
+// deadlocking. A row the purge worker deleted, or a restore already brought
+// back, while this waited is not returned.
+func (q *Queries) LockTaskTrashBatch(ctx context.Context, arg LockTaskTrashBatchParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, lockTaskTrashBatch, arg.OrganizationID, arg.WorkspaceID, arg.TrashBatchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+			&i.StartAt,
+			&i.DueAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
+			&i.TrashBatchID,
+			&i.TrashedProjectID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockTaskTrashSubtree = `-- name: LockTaskTrashSubtree :many
 WITH RECURSIVE sub AS (
   SELECT r.id, r.trash_batch_id

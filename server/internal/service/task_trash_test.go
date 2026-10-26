@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -199,6 +201,79 @@ func TestRestoreChildWhoseParentStaysTrashedBecomesRoot(t *testing.T) {
 	}
 	if _, err := s.Get(ctx, ua.ID, parent.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("parent = %v, want still trashed", err)
+	}
+}
+
+// waitBlockedBy returns once some backend waits on a lock pid holds, or fails
+// when done answers first (the command never waited).
+func waitBlockedBy(t *testing.T, pool *pgxpool.Pool, pid int, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-done:
+			t.Fatalf("command finished without waiting for the lock: %v", err)
+		default:
+		}
+		var n int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))`, pid).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no backend waited on the lock")
+}
+
+// The purge worker (one row per transaction) removes the parent while a
+// restore of the batch waits for it: the child comes back as a root, never
+// pointing at the purged row (Review Focus 1 and 3).
+func TestRestoreRacingAPurgeOfTheParentMakesTheChildARoot(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc")
+	child := trashTestTask(t, s, ua, w, parent.ID, "Con")
+	if _, err := s.Trash(ctx, Human(ua.ID), parent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	worker, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Rollback(ctx)
+	wq := s.q.WithTx(worker)
+	row, err := wq.LockTaskForPurge(ctx, db.LockTaskForPurgeParams{
+		ID: parent.ID, OrganizationID: parent.OrganizationID, WorkspaceID: parent.WorkspaceID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workerPID int
+	if err := worker.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&workerPID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Restore(ctx, Human(ua.ID), child.ID)
+		done <- err
+	}()
+	waitBlockedBy(t, s.pool, workerPID, done)
+	if err := s.purgeTaskInTx(ctx, wq, row, audit.System("tasks.purge")); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("restore = %v", err)
+	}
+	got, err := s.Get(ctx, ua.ID, child.ID)
+	if err != nil || got.ParentTaskID.Valid {
+		t.Fatalf("restored child = parent %+v err %v, want a root", got.ParentTaskID, err)
 	}
 }
 
