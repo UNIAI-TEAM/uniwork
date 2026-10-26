@@ -17,6 +17,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ConfirmDialog } from "../../common/form-dialog";
+import { GoogleDriveMark } from "../../common/provider-icons";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
@@ -71,19 +72,10 @@ function driveCallbackKey(code: string, hasEmail: boolean): string {
   }
 }
 
-/**
- * Google Drive's three-colour triangle mark inside a 32px surface tile.
- * Product marks keep their owners' geometry and colours inline so every host
- * renders the same mark (see `common/provider-icons.tsx`).
- */
 function DriveMarkTile() {
   return (
     <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-tint-blue">
-      <svg aria-hidden viewBox="0 0 24 24" className="size-4">
-        <path fill="#0F9D58" d="M8.2 3 2 13.7l3.8 6.6L12 9.6z" />
-        <path fill="#F4B400" d="M15.8 3H8.2L12 9.6l2.1 3.6H22z" />
-        <path fill="#4285F4" d="M22 13.2H9.9l-4.1 7.1h12.4z" />
-      </svg>
+      <GoogleDriveMark className="size-4" />
     </span>
   );
 }
@@ -231,9 +223,9 @@ export function DriveIntegrationRow() {
 
   const rowRef = useRef<HTMLDivElement>(null);
   const reconnectTargetRef = useRef<DriveConnection | null>(null);
+  const lastDisconnectEmailRef = useRef("");
   const [notice, setNotice] = useState<CallbackNotice | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<DriveConnection | null>(null);
-
   const onPopupOutcome = (outcome: OAuthPopupOutcome) => {
     const targetEmail = reconnectTargetRef.current?.google_email;
     reconnectTargetRef.current = null;
@@ -279,19 +271,27 @@ export function DriveIntegrationRow() {
   // row, removes `connect` with `replace`, and never opens the popup or calls
   // the start API.
   const connectParam = navigation.searchParams.get("connect");
+  const focusPendingRef = useRef(connectParam === "drive");
   useEffect(() => {
-    if (connectParam !== "drive" || !driveAvailable) return;
-    rowRef.current?.scrollIntoView?.({ block: "nearest" });
-    rowRef.current?.focus();
-    const nextParams = new URLSearchParams(navigation.searchParams);
-    nextParams.delete("connect");
-    if (!nextParams.get("tab")) {
-      nextParams.set("tab", "integrations");
+    if (connectParam === "drive") {
+      focusPendingRef.current = true;
     }
-    const qs = nextParams.toString();
-    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+    if (!driveAvailable) return;
+    if (connectParam === "drive" || focusPendingRef.current) {
+      focusPendingRef.current = false;
+      rowRef.current?.scrollIntoView?.({ block: "nearest" });
+      rowRef.current?.focus();
+    }
+    if (connectParam === "drive") {
+      const nextParams = new URLSearchParams(navigation.searchParams);
+      nextParams.delete("connect");
+      if (!nextParams.get("tab")) {
+        nextParams.set("tab", "integrations");
+      }
+      const qs = nextParams.toString();
+      navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+    }
   }, [connectParam, driveAvailable, navigation]);
-
   if (!driveAvailable) return null;
 
   const connections = connectionsQuery.data?.connections ?? [];
@@ -319,6 +319,8 @@ export function DriveIntegrationRow() {
     );
   };
 
+  // Until the list arrives (or when it fails) nothing is known about the
+  // reader's connections, so neither the badge nor the action claims "none".
   const badge = connectionsQuery.isLoading ? (
     <Skeleton className="h-5 w-24" />
   ) : connectionsQuery.isError ? (
@@ -337,7 +339,7 @@ export function DriveIntegrationRow() {
     </span>
   );
 
-  const actions = connectionsQuery.isError ? (
+  const actions = connectionsQuery.isLoading ? null : connectionsQuery.isError ? (
     <Button
       type="button"
       variant="outline"
@@ -372,7 +374,6 @@ export function DriveIntegrationRow() {
       {busy ? t("connecting") : t("connect")}
     </Button>
   );
-
   return (
     <SettingsListItem
       leading={<DriveMarkTile />}
@@ -445,7 +446,10 @@ export function DriveIntegrationRow() {
                     formattedDate={formatConnectedAt(conn.connected_at)}
                     busy={busy || disconnect.isPending}
                     onReconnect={(target) => handleConnect(target)}
-                    onDisconnect={(target) => setPendingDisconnect(target)}
+                    onDisconnect={(target) => {
+                      lastDisconnectEmailRef.current = target.google_email;
+                      setPendingDisconnect(target);
+                    }}
                   />
                 ))}
               </div>
@@ -459,7 +463,7 @@ export function DriveIntegrationRow() {
               if (!open) setPendingDisconnect(null);
             }}
             title={t("disconnect_dialog.title", {
-              email: pendingDisconnect?.google_email ?? "",
+              email: pendingDisconnect?.google_email ?? lastDisconnectEmailRef.current,
             })}
             description={t("disconnect_dialog.description")}
             confirmLabel={t("disconnect_dialog.confirm")}
@@ -471,6 +475,7 @@ export function DriveIntegrationRow() {
               disconnect.mutate(target.id, {
                 onSuccess: () => {
                   setPendingDisconnect(null);
+                  setNotice(null);
                   toast.success(t("disconnect_dialog.success", { email: target.google_email }));
                 },
                 onError: (err) => toastApiError(err, t("disconnect_dialog.error")),

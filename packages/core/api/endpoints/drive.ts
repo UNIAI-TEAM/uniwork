@@ -15,7 +15,7 @@ const DriveConnectionSchema = z.object({
   google_email: z.string(),
   status: z.string().optional().default("active"),
   needs_reconnect: z.boolean().optional().catch(false).default(false),
-  auth_failed_at: z.string().nullable().optional().catch(null).default(null),
+  auth_failed_at: z.string().optional().catch(undefined),
   auth_failed_reason: z.string().optional().catch("").default(""),
   linked_file_count: z.number().int().nonnegative().optional().catch(0).default(0),
   connected_at: z.string(),

@@ -32,6 +32,17 @@ export function GoogleMark({ className }: { className?: string }) {
   );
 }
 
+/** Google Drive's three-colour triangle mark. */
+export function GoogleDriveMark({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={className}>
+      <path fill="#0F9D58" d="M8.2 3 2 13.7l3.8 6.6L12 9.6z" />
+      <path fill="#F4B400" d="M15.8 3H8.2L12 9.6l2.1 3.6H22z" />
+      <path fill="#4285F4" d="M22 13.2H9.9l-4.1 7.1h12.4z" />
+    </svg>
+  );
+}
+
 function MicrosoftMark({ className }: { className?: string }) {
   return (
     <svg aria-hidden viewBox="0 0 23 23" className={className}>

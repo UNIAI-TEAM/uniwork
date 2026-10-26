@@ -22,7 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Suspense, lazy, type ComponentType } from "react";
+import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useMyConnectedApps } from "@uniwork/core/connect";
 import { useFlag } from "@uniwork/core/feature-flags";
@@ -191,12 +191,23 @@ export function SettingsPage() {
         ? "integrations"
         : DEFAULT_TAB;
 
+  useEffect(() => {
+    if (!connectFromUrl) return;
+    const nextParams = new URLSearchParams(navigation.searchParams);
+    nextParams.delete(CONNECT_QUERY_KEY);
+    if (connectFromUrl === "drive" && !nextParams.get(TAB_QUERY_KEY)) {
+      nextParams.set(TAB_QUERY_KEY, "integrations");
+    }
+    const qs = nextParams.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  }, [connectFromUrl, navigation]);
+
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
+    params.delete(CONNECT_QUERY_KEY);
     params.set(TAB_QUERY_KEY, next);
     navigation.replace(`${navigation.pathname}?${params.toString()}`);
   };
-
   // The open tab is always listed, even when its gate would hide it: the
   // reader came here by URL and the nav should say where they are.
   const groups = GROUPS.map((group) => ({

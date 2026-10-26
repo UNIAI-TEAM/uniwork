@@ -256,7 +256,6 @@ export const EMPTY_CONFIG: PublicConfig = {
   unichat_installers: { dev: [], beta: [], stable: [] },
   unichat_stores: NO_STORES,
 };
-const EMPTY = EMPTY_CONFIG;
 type WireConfig = Omit<PublicConfig, "office_installers" | "unichat_installers"> & {
   office_installer_urls?: z.infer<typeof OfficeInstallerURLsSchema>;
   office_installers?: z.infer<typeof InstallerChannelsSchema>;
@@ -267,7 +266,7 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
   const qs = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
   const raw = await request(`/api/v1/config${qs}`, { skipRefresh: true });
   const parsed = parseWithFallback<WireConfig | null>(raw, ConfigSchema, null, { endpoint: "GET /api/v1/config" });
-  if (!parsed) return EMPTY;
+  if (!parsed) return EMPTY_CONFIG;
   const installer = parsed.office_installer_urls ?? { dev: "", beta: "", stable: "" };
   // Singular channel URLs are supported only at this rollout boundary,
   // removed with server legacy env support on 2026-11-02.

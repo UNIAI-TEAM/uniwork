@@ -910,7 +910,6 @@
         "account": {
           "connected_at": "Connected {{when}}",
           "status_active": "Active",
-          "status_lost": "Disconnected",
           "lost_reconnect": "Disconnected · Reconnect",
           "reconnect": "Reconnect",
           "reconnect_aria": "Reconnect {{email}}",

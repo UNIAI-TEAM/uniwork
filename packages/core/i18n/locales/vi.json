@@ -909,7 +909,6 @@
         "account": {
           "connected_at": "Kết nối {{when}}",
           "status_active": "Đang hoạt động",
-          "status_lost": "Mất kết nối",
           "lost_reconnect": "Mất kết nối · kết nối lại",
           "reconnect": "Kết nối lại",
           "reconnect_aria": "Kết nối lại {{email}}",

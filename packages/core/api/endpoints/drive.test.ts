@@ -31,7 +31,6 @@ describe("drive endpoints", () => {
       connections: [
         {
           ...connection,
-          auth_failed_at: null,
           auth_failed_reason: "",
         },
       ],
@@ -59,6 +58,12 @@ describe("drive endpoints", () => {
     expect(isDriveConnectionLost(res.connections[0]!)).toBe(false);
     expect(isDriveConnectionLost(res.connections[1]!)).toBe(true);
     expect(isDriveConnectionLost(res.connections[2]!)).toBe(true);
+    expect(res.connections[2]!.auth_failed_at).toBe("2026-10-26T10:00:00Z");
+
+    const driftedAuthFailedAt = { ...connection, id: "dc_5", auth_failed_at: null };
+    requestMock.mockResolvedValueOnce({ connections: [driftedAuthFailedAt] });
+    const driftedRes = await listDriveConnections("ws1");
+    expect(driftedRes.connections[0]!.auth_failed_at).toBeUndefined();
   });
 
   it("listDriveConnections degrades a malformed response to an empty list", async () => {
