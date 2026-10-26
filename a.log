@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^d8e8de11c" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=d8e8de11c391b3fc3a6a621cc7f2b10b919abb43
+d8e8de11c feat(drive): add Google Picker adapter, account step, and task confirm dialog
+ca0d7b4e7 feat(drive): add picker token and link files endpoints, hooks, and i18n
+cc676e30f chore(mobile): record the reviewed use-realtime-sync hash after the Drive frame keys
