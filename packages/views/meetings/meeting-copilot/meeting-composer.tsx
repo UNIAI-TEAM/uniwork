@@ -238,7 +238,8 @@ export function MeetingComposer({
   const failKey = ask.isError && !isAbort(ask.error) ? resolveErrorKey(ask.error) : null;
   const failure = failKey && !REFUSALS[failKey] ? failKey : null;
   const canAsk = draft.question !== "";
-  const showSuggestions = mode === "ask" && !pending && !canAsk && suggestions.length > 0;
+  // Once an exchange is on screen the composer is a follow-up box ("Hỏi tiếp…"), with no openers (UniAsk board).
+  const showSuggestions = mode === "ask" && !pending && !exchange && !canAsk && suggestions.length > 0;
 
   return (
     <div ref={root} className="flex flex-col gap-2.5" data-testid="meeting-composer">

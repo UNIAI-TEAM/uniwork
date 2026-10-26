@@ -247,6 +247,10 @@ describe("MeetingComposer — asking UNI", () => {
     await waitFor(() => expect(calls("/ai/ask")).toHaveLength(1));
     expect(askBody()).toMatchObject({ question: "Cuộc họp đã chốt những gì?", focus: { kind: "meeting", id: "m1" } });
     expect(await screen.findByText("Demo vào thứ Sáu.")).toBeInTheDocument();
+    // With the answer on screen the box asks a follow-up and offers no openers.
+    expect(screen.queryByRole("button", { name: "5 phút qua" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Hỏi riêng UNI về cuộc họp" })).toHaveTextContent("");
+    expect(document.querySelector('[data-placeholder="Hỏi tiếp…"], [placeholder="Hỏi tiếp…"]')).not.toBeNull();
   });
 
   it("hides the suggestions once something is typed and in note mode", async () => {
