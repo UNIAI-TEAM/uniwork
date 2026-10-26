@@ -1,0 +1,113 @@
+# Golden flow 4 (Android: Maestro toggles airplane mode there only): what is
+# written offline survives the app being killed, and lands once and in order.
+#
+# Signed in with the room's newest page on screen, the network goes; three
+# messages are written and wait; the app is killed and opened again still
+# offline: the inbox and the room open from the disk cache (no spinner, no
+# sign-in), with the three messages still waiting. The network comes back:
+# the outbox delivers them, the list's preview is the last one (the server's
+# echo, not the local bubble), and after one more cold start, online, the room
+# reads them in the order written, each exactly once (client_msg_id).
+#
+# scripts/maestro-retry.sh reruns a failed flow from its first command, so the
+# flow starts by turning airplane mode off (an attempt that failed while
+# offline would otherwise leave the retry's sign-in with no network), and
+# onFlowComplete turns it off again, passed or failed, for the flow after it.
+appId: com.uniworkos.chat.staging
+name: Offline sends survive a kill, and land once and in order
+tags:
+  - golden
+  - offline
+onFlowComplete:
+  - setAirplaneMode: disabled
+---
+- setAirplaneMode: disabled
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/sign-in.yaml
+- runScript: ../scripts/app-scheme.js
+- openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat')}
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+- evalScript: ${output.stamp = 'Offline ' + Date.now()}
+- setAirplaneMode: enabled
+- extendedWaitUntil:
+    visible:
+      id: connection-banner-offline
+    timeout: 15000
+- repeat:
+    times: 3
+    commands:
+      - evalScript: ${output.n = (output.n || 0) + 1}
+      - tapOn:
+          id: composer-input
+      - inputText: ${output.stamp + '#' + output.n}
+      - tapOn:
+          id: composer-send
+      - extendedWaitUntil:
+          visible: .*${output.stamp}#${output.n}.*
+          timeout: 10000
+# Killed with three messages in the outbox, opened again with no network.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible: .*${output.stamp}#3.*
+    timeout: 15000
+- assertVisible: .*${output.stamp}#1.*
+- assertVisible: .*${output.stamp}#2.*
+- setAirplaneMode: disabled
+# Delivered: the list's preview is the last one, as the server has it.
+# With unread elsewhere the back button reads "Back, 1 unread message" (chat-header.tsx › backBadge).
+- tapOn: "(Back|Quay lại)(, .+)?"
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+      text: .*${output.stamp}#3.*
+    timeout: 60000
+# One more cold start, online: what the room shows now is the server's.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible: .*${output.stamp}#3.*
+    timeout: 30000
+- assertNotVisible:
+    id: connection-banner-offline
+# In the order written…
+- assertVisible:
+    text: .*${output.stamp}#2.*
+    below:
+      text: .*${output.stamp}#1.*
+- assertVisible:
+    text: .*${output.stamp}#3.*
+    below:
+      text: .*${output.stamp}#2.*
+# …and each exactly once.
+- assertNotVisible:
+    text: .*${output.stamp}#1.*
+    index: 1
+- assertNotVisible:
+    text: .*${output.stamp}#2.*
+    index: 1
+- assertNotVisible:
+    text: .*${output.stamp}#3.*
+    index: 1

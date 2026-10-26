@@ -23,5 +23,6 @@ export function senderColorIndex(userId: string): number {
 }
 
 export function senderNameClass(userId: string): string {
-  return SENDER_NAME_CLASSES[senderColorIndex(userId)] ?? SENDER_NAME_CLASSES[0];
+  // senderColorIndex is taken modulo the list's length, so the slot always exists.
+  return SENDER_NAME_CLASSES[senderColorIndex(userId)]!;
 }

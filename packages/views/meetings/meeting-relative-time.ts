@@ -23,13 +23,16 @@ const RELATIVE_UNITS: { unit: Intl.RelativeTimeFormatUnit; ms: number }[] = [
 
 /**
  * "in 2 hours" / "sau 2 giờ" / "45 minutes ago" in the largest unit that
- * fits; anything under a minute reads as "now". Empty for an unusable stamp.
+ * fits; anything under a minute reads as "now", or as `justNow` when given
+ * (Intl's "bây giờ" after a verb reads as an order: "Kết thúc bây giờ").
+ * Empty for an unusable stamp.
  */
-export function formatRelativeTime(iso: string, locale = "vi-VN", nowMs = Date.now()): string {
+export function formatRelativeTime(iso: string, locale = "vi-VN", nowMs = Date.now(), justNow?: string): string {
   const at = Date.parse(iso);
   if (!Number.isFinite(at)) return "";
   const delta = at - nowMs;
   const abs = Math.abs(delta);
+  if (justNow && abs < 60_000) return justNow;
   try {
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     for (const { unit, ms } of RELATIVE_UNITS) {

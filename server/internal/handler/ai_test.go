@@ -88,6 +88,21 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
 		t.Fatalf("conversations: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=QUA+HAN", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
+		t.Fatalf("conversations?q match: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=khong+co+gi", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 0 {
+		t.Fatalf("conversations?q miss: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=%20", member, nil)
+	if res.StatusCode != 200 || len(out["conversations"].([]any)) != 1 {
+		t.Fatalf("conversations?q blank: %d %v", res.StatusCode, out)
+	}
+	if res, _ = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/ai/conversations?q=x", member, nil); res.StatusCode != 400 {
+		t.Fatalf("conversations?q too short: %d", res.StatusCode)
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", member, nil)
 	if res.StatusCode != 200 || len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages: %d %v", res.StatusCode, out)

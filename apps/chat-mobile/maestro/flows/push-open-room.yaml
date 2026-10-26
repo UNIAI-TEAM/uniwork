@@ -4,17 +4,25 @@
 # the server's Expo push to the simulator (xcrun simctl push, iOS only) with
 # the app in the background, so this taps it in Notification Center and goes
 # through the app's notification listener.
-# Otherwise (Android, local runs): open the URL the server puts in the push's
-# data.url, wrapped in the custom scheme; it takes the same parseDeepLink →
-# deepLinkHref route but not the listener. A real push from staging replaces
-# this on Android once the EAS project and FCM exist (UNI-1838).
+# PUSH_FROM_PEER=true (Android, the nightly once the peer account and the
+# build's google-services.json are set): the real thing end to end. With the
+# app in the background, the second account writes in its DM with the test
+# account (scripts/peer-session.js, scripts/post-as-peer.js); the staging
+# server's push goes through Expo and FCM to the emulator; the flow pulls the
+# shade down and taps the notification, which opens the DM.
+# Otherwise (local runs, or the peer is not set): open the URL the server puts
+# in the push's data.url, wrapped in the custom scheme; it takes the same
+# parseDeepLink → deepLinkHref route but not the listener.
 appId: com.uniworkos.chat.staging
 name: Push opens the room
 tags:
   - golden
 env:
   PUSH_DELIVERED: "false"
+  PUSH_FROM_PEER: "false"
 ---
+# The room the notification names: the DM the peer wrote in, or the seeded group.
+- evalScript: "${output.room = PUSH_FROM_PEER == 'true' ? MAESTRO_DM_ROOM_ID : MAESTRO_ROOM_ID}"
 - runFlow:
     when:
       true: ${PUSH_DELIVERED == 'true'}
@@ -25,15 +33,32 @@ env:
       - tapOn: "UniChat Maestro"
 - runFlow:
     when:
-      true: ${PUSH_DELIVERED != 'true'}
+      true: ${PUSH_FROM_PEER == 'true'}
     commands:
       - launchApp
       - runFlow: ../subflows/sign-in.yaml
-      - openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+      - runScript: ../scripts/peer-session.js
+      - pressKey: Home
+      - runScript: ../scripts/post-as-peer.js
+      - swipe:
+          start: 50%, 1%
+          end: 50%, 70%
+      - extendedWaitUntil:
+          visible: .*${output.peerBody}.*
+          timeout: 60000
+      - tapOn: .*${output.peerBody}.*
+- runFlow:
+    when:
+      true: ${PUSH_DELIVERED != 'true' && PUSH_FROM_PEER != 'true'}
+    commands:
+      - launchApp
+      - runFlow: ../subflows/sign-in.yaml
+      - runScript: ../scripts/app-scheme.js
+      - openLink: ${output.scheme}://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
 # The room the push named, not just the app: its conversation and composer.
 - extendedWaitUntil:
     visible:
-      id: conversation-${MAESTRO_ROOM_ID}
+      id: conversation-${output.room}
     timeout: 30000
 - assertVisible:
     id: composer-input

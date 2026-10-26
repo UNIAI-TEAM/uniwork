@@ -188,6 +188,7 @@ fails on drift. One flat namespace, keys nested by section:
 | link (attach project) | **gắn** | Link | `chat.channel.project_label = "Gắn project"` |
 | inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
 | Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
+| the meeting scribe (the agent that transcribes and summarizes a meeting) | **Thư ký UNI** | UNI Scribe | `meetings.scribe.name`; its disclosures say once that it is an AI assistant; the person who takes the minutes stays **Thư ký** |
 | channel (chat work hub) | **kênh** | channel | `chat.channel.*`; first-class chat room kind attached to a Project |
 | thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng" |
 | link (message ↔ work item) | **gắn** | link | `chat.message.linked` / message↔task attachment |
@@ -374,19 +375,30 @@ meeting's participants panel, a date field's `CalendarDays`) keeps its own.
 
 | Size | Class | Role |
 | --- | --- | --- |
-| 12px | `size-3` | inside a chip or badge, `IconTile size="xs"` |
-| 14px | `size-3.5` | metadata beside caption text, `IconTile size="sm"` |
+| 12px | `size-3` | inside a chip or badge |
+| 14px | `size-3.5` | metadata beside caption text, `IconTile size="xs"` and `size="sm"` |
 | 16px | `size-4` | buttons, menu items, inputs, page-header glyph (`Button` sizes a bare svg to this) |
 | 20px | `size-5` | header tiles, `IconTile size="md"` |
 | 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
 
+No size between the rows (`size-4.5`, `size-5.5`, `size-2`); `scripts/lucide-aliases.test.mjs`
+fails on one on a Lucide icon.
+
 ### Stroke
 
-Lucide's default 2. Do not set `strokeWidth` on an icon to make it look lighter
-or heavier; pick the role's size instead. The one exception is the brand
-surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
-`auth-controls.tsx`), whose raised cards use a hairline 1.5–1.75 on tiles of
-`size="sm"` and up.
+One line weight on screen: every Lucide icon strokes 1.5px at every size.
+Lucide scales its stroke with the 24px viewBox, so its default 2 drew 1px at
+12px and 1.67px at 20px, and one screen showed four weights.
+`packages/ui/styles/base.css` makes the stroke non-scaling at 1.5, measured in
+CSS pixels, and it outranks any `strokeWidth` an icon is given.
+
+Do not set `strokeWidth` or `absoluteStrokeWidth` on a Lucide icon; pick the
+role's size instead. There is no exception, including the auth and onboarding
+cards, which used to draw a lighter hairline. `scripts/lucide-aliases.test.mjs`
+holds the rule in `base.css` and fails on a stroke prop on any Lucide icon.
+Hand-drawn marks (`packages/ui/brand`, the task status and priority icons, the
+file-type marks) are not Lucide and draw their own weight. Beside line icons
+they match 1.5px at the size they render.
 
 ### Meaning
 
@@ -401,6 +413,7 @@ surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
 | Settings and configuration | `Settings` | `Settings2`, `Cog` |
 | The system as an actor (audit, avatars) | `Cog` | `Settings` |
 | AI: Ask UNI, copilots, AI summaries and insights | `Sparkles` | anything else — not "auto", animations or decoration |
+| Thư ký UNI, the meeting scribe: what it wrote, its chip, its notices | `ScribeMark` (the tile; its `state` moves only while it works); among line icons `ScribeGlyph` — both `@uniwork/ui/brand/scribe-mark` | `Sparkles` |
 | Loading | `<Spinner />` | a raw `LoaderCircle animate-spin` |
 
 `Spinner` (`packages/ui/components/ui/spinner.tsx`) is decorative unless it is

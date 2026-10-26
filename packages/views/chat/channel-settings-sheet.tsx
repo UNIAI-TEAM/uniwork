@@ -26,7 +26,7 @@ import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsHeader, ChatSettingsMenuRow, ChatSettingsSection } from "./chat-settings-ui";
 import { CHAT_FIELD_CLASS, CHAT_FIELD_TEXTAREA_CLASS, CHAT_SELECT_TRIGGER_CLASS, CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatRoomMark } from "./chat-room-mark";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { ConfirmDialog } from "../common/form-dialog";
 import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
@@ -326,7 +326,7 @@ export function ChannelSettingsSheet({
                     className={`${CHAT_SELECT_TRIGGER_CLASS} pr-3 [&>svg:last-child]:size-4.5`}
                     aria-labelledby="channel-settings-project-label"
                   >
-                    <Folder className="size-4.5 text-muted-foreground" aria-hidden />
+                    <Folder className="size-4 text-muted-foreground" aria-hidden />
                     <SelectValue placeholder={t("chat.channel.project_none")} />
                   </SelectTrigger>
                   <SelectContent>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, CircleAlert, Trash2 } from "lucide-react";
+import { Check, CircleAlert, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePrivacyDeletion, useCancelPrivacyDeletion, usePrivacyExports } from "@uniwork/core/privacy";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -97,7 +97,7 @@ export function PrivacyDelete({ orgId, slug }: { orgId: string; slug: string }) 
           }}
         >
           <DialogTrigger render={<Button variant="destructive" disabled={running || scheduled || remove.isPending} />}>
-            <Trash2 data-icon="inline-start" aria-hidden />
+            <Trash data-icon="inline-start" aria-hidden />
             {t("open")}
           </DialogTrigger>
           <DialogContent>
@@ -141,7 +141,7 @@ export function PrivacyDelete({ orgId, slug }: { orgId: string; slug: string }) 
                   {remove.isPending ? (
                     <Spinner data-icon="inline-start" aria-label={t("confirm")} />
                   ) : (
-                    <Trash2 data-icon="inline-start" aria-hidden />
+                    <Trash data-icon="inline-start" aria-hidden />
                   )}
                   {t("confirm")}
                 </Button>

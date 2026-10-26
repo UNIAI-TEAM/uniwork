@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Pin, Trash2 } from "lucide-react";
+import { Pin, Trash } from "lucide-react";
 import { useChatRooms, useDeleteChatMessage, useToggleChatMessagePin, useToggleChatReaction } from "@uniwork/core/chat";
 import { CHAT_PINNED_MESSAGES_MAX } from "@uniwork/core/chat/pin-utils";
 import { mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
@@ -279,7 +279,7 @@ export function useNativeChatMessageActions({
       >
         <AlertDialogContent className={cn(CHAT_CONFIRM_CLASS, "sm:max-w-100")}>
           <AlertDialogHeader>
-            <IconTile icon={Trash2} tone="destructive" className="mb-2.5" />
+            <IconTile icon={Trash} tone="destructive" className="mb-2.5" />
             <AlertDialogTitle>{t("chat.message_list.delete_confirm_title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting?.kind === "document" ? (

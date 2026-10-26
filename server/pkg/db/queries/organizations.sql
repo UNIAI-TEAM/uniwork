@@ -190,3 +190,63 @@ UPDATE organizations SET
   suspended_reason = 'organization_closed',
   updated_at = now()
 WHERE id = $1 AND status = 'active';
+
+-- name: GetOrganizationPushPreviewPolicy :one
+-- Read by every member (Settings shows why previews are off) and by the push
+-- lane for the notification's organization.
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1;
+
+-- name: GetOrganizationPushPreviewPolicyForUpdate :one
+-- SetPushPreviewPolicy reads the value it is about to change under the row
+-- lock, so the audit row's before/after is true and a repeat writes no row.
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR UPDATE;
+
+-- name: SetOrganizationPushPreviewPolicy :one
+UPDATE organizations SET
+  push_previews_hidden_at = CASE WHEN sqlc.arg(hidden)::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  push_previews_hidden_by = CASE WHEN sqlc.arg(hidden)::bool THEN sqlc.arg(actor_id)::text ELSE NULL END,
+  updated_at = now()
+WHERE id = sqlc.arg(id)
+RETURNING id, push_previews_hidden_at, push_previews_hidden_by;
+
+-- name: GetOrganizationMobileSecurityPolicy :one
+-- Read by every member: the phone holds the organization's requirements as a
+-- floor under the person's own app lock and screen-capture choices.
+SELECT id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at FROM organizations WHERE id = $1;
+
+-- name: GetOrganizationMobileSecurityPolicyForUpdate :one
+-- SetMobileSecurityPolicy reads what it is about to change under the row
+-- lock, so the audit row's before/after is true and a repeat writes no row.
+SELECT id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at FROM organizations WHERE id = $1 FOR UPDATE;
+
+-- name: SetOrganizationMobileSecurityPolicy :one
+-- A requirement keeps the time and the person that first set it; lifting it
+-- clears both.
+UPDATE organizations SET
+  mobile_app_lock_required_at = CASE WHEN sqlc.arg(require_app_lock)::bool THEN COALESCE(mobile_app_lock_required_at, now()) ELSE NULL END,
+  mobile_app_lock_required_by = CASE
+    WHEN NOT sqlc.arg(require_app_lock)::bool THEN NULL
+    WHEN mobile_app_lock_required_at IS NULL THEN sqlc.arg(actor_id)::text
+    ELSE mobile_app_lock_required_by END,
+  mobile_screen_capture_blocked_at = CASE WHEN sqlc.arg(block_screen_capture)::bool THEN COALESCE(mobile_screen_capture_blocked_at, now()) ELSE NULL END,
+  mobile_screen_capture_blocked_by = CASE
+    WHEN NOT sqlc.arg(block_screen_capture)::bool THEN NULL
+    WHEN mobile_screen_capture_blocked_at IS NULL THEN sqlc.arg(actor_id)::text
+    ELSE mobile_screen_capture_blocked_by END,
+  updated_at = now()
+WHERE id = sqlc.arg(id)
+RETURNING id, mobile_app_lock_required_at, mobile_screen_capture_blocked_at;
+
+-- name: GetOrganizationAskWriteCeiling :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1;
+
+-- name: GetOrganizationAskWriteCeilingForUpdate :one
+SELECT ask_uni_write_ceiling FROM organizations WHERE id = $1 FOR UPDATE;
+
+-- name: SetOrganizationAskWriteCeiling :exec
+UPDATE organizations SET
+  ask_uni_write_ceiling = sqlc.arg(ceiling)::text,
+  ask_uni_write_ceiling_updated_by = sqlc.arg(actor_id)::text,
+  ask_uni_write_ceiling_updated_at = now(),
+  updated_at = now()
+WHERE id = sqlc.arg(id);

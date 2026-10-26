@@ -1,0 +1,18 @@
+<!-- The instrumented test APK (src/androidTest) posts the incoming call itself:
+     it needs the app's notification permissions and an icon for the
+     notification (CallNotifications.smallIcon falls back to the app's).
+     The label is the shipped app's name (app.config.ts, production): a
+     CallStyle ring's heads-up header is "caller • app name • time", and
+     Android shortens only the caller to fit it (ConversationHeaderLinearLayout
+     gives the title alone a weight). Without a label System UI shows the
+     package name, expo.modules.unichatcalls.test, which on android-smoke's
+     320 dp emulator takes the whole header and squeezes the caller to zero
+     width, so the shade drew the ring with no caller and UI Automator found
+     no caller to match. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <application
+    android:icon="@android:drawable/sym_call_incoming"
+    android:label="UniChat" />
+</manifest>

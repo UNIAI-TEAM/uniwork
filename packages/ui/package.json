@@ -13,6 +13,7 @@
     "./lib/utils": "./lib/utils.ts",
     "./brand": "./brand/logo.tsx",
     "./brand/unichat-icon": "./brand/unichat-icon.tsx",
+    "./brand/scribe-mark": "./brand/scribe-mark.tsx",
     "./brand/*": "./brand/*.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/base.css": "./styles/base.css",

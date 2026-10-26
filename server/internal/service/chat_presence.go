@@ -11,8 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Presence is state, not a stream of heartbeats. Every shell page beats every
-// 15s; the tracker records the beat with a TTL and publishes to the workspace
+// Presence is state, not a stream of heartbeats. Every shell page beats on a
+// fixed interval (30s on web/mobile); the tracker records the beat with a TTL and publishes to the workspace
 // only when the caller's state changes: offline → online on the first beat,
 // online → offline when the entry expires. The beat
 // answers with who is online, so a page that opens late learns its peers from
@@ -54,16 +54,23 @@ type presenceStore interface {
 	beat(ctx context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error)
 	// leave brings an existing entry's expiry forward to until (never later,
 	// never creating one): presence is per person, so one tab closing must
-	// not end what another tab of theirs keeps alive.
+	// not end what another tab of theirs keeps alive. It does clear the
+	// person's last visible beat in the workspace: the page that left was in
+	// front of them, and a push held back for it would be lost (audit
+	// "Calls, push & background": a phone put away stayed "at the keyboard"
+	// for two minutes). Another visible page of theirs beats again within
+	// 15s and holds pushes back from then on.
 	leave(ctx context.Context, workspaceID, userID string, until time.Time) error
 	// online lists the users whose entry outlives now.
 	online(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
 	// expire removes and returns the entries that lapsed by now.
 	expire(ctx context.Context, now time.Time) ([]presenceEntry, error)
-	// lastBeat is the user's latest visible beat in any workspace; false when
-	// they never beat visibly (or, in Redis, not within presenceLastBeatTTL).
-	// A hidden tab keeps beating, so it keeps presence but not this.
-	lastBeat(ctx context.Context, userID string) (time.Time, bool, error)
+	// lastBeat is the user's latest visible beat in the workspace; false when
+	// they never beat visibly there, left it since (leave), or, in Redis, not
+	// within presenceLastBeatTTL. A hidden tab keeps beating, so it keeps
+	// presence but not this. Per workspace: someone reading workspace A does
+	// not see workspace B's messages, so B's pushes still go to them.
+	lastBeat(ctx context.Context, workspaceID, userID string) (time.Time, bool, error)
 }
 
 type presenceTracker struct {
@@ -88,11 +95,12 @@ func (s *ChatService) SetPresenceStore(rdb *redis.Client) {
 	s.presenceTracker.Store(newPresenceTracker(store, s.pub))
 }
 
-// LastPresenceBeat is when the user last beat from a visible page in any
-// workspace; the push consumer skips a chat push to someone who is at a
-// keyboard already. A tab left open in the background does not count.
-func (s *ChatService) LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error) {
-	return s.presence().store.lastBeat(ctx, userID)
+// LastPresenceBeat is when the user last beat from a visible page in the
+// workspace, unless a page of theirs left it since; the push consumer skips a
+// chat push of that workspace to someone who is reading it already. A tab
+// left open in the background does not count.
+func (s *ChatService) LastPresenceBeat(ctx context.Context, userID, workspaceID string) (time.Time, bool, error) {
+	return s.presence().store.lastBeat(ctx, workspaceID, userID)
 }
 
 // presence returns the tracker SetPresenceStore installed, or an in-process
@@ -178,11 +186,11 @@ func (t *presenceTracker) publish(ctx context.Context, topic string, e presenceE
 type memoryPresenceStore struct {
 	mu      sync.Mutex
 	entries map[presenceEntry]time.Time // → expires
-	beats   map[string]time.Time        // user → last visible beat, any workspace
+	beats   map[presenceEntry]time.Time // (workspace, user) → last visible beat
 }
 
 func newMemoryPresenceStore() *memoryPresenceStore {
-	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}, beats: map[string]time.Time{}}
+	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}, beats: map[presenceEntry]time.Time{}}
 }
 
 func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error) {
@@ -192,15 +200,15 @@ func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string
 	prev, ok := m.entries[key]
 	m.entries[key] = now.Add(presenceTTL)
 	if visible {
-		m.beats[userID] = now
+		m.beats[key] = now
 	}
 	return !ok || !prev.After(now), nil
 }
 
-func (m *memoryPresenceStore) lastBeat(_ context.Context, userID string) (time.Time, bool, error) {
+func (m *memoryPresenceStore) lastBeat(_ context.Context, workspaceID, userID string) (time.Time, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	t, ok := m.beats[userID]
+	t, ok := m.beats[presenceEntry{workspaceID: workspaceID, userID: userID}]
 	return t, ok, nil
 }
 
@@ -211,6 +219,7 @@ func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID strin
 	if exp, ok := m.entries[key]; ok && exp.After(until) {
 		m.entries[key] = until
 	}
+	delete(m.beats, key)
 	return nil
 }
 

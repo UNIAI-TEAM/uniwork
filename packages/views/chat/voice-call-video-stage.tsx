@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { VoiceCallFace, useVoiceCallFaceIsSquare } from "./voice-call-face";
 import { VOICE_CALL_STAGE, VoiceCallGroupVideoStage, VoiceCallNamePlate } from "./voice-call-group-video-stage";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
-import type { VoiceCallKind } from "./voice-call-overlay-types";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
+import type { VoiceCallKind } from "@uniwork/core/chat/voice-call-types";
 import { useVoiceCallMedia, useVoiceCallStatus } from "./voice-call-room-context";
 
 /* Two staggered rings on a slow 1.8s swell while the other person talks. */

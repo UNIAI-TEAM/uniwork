@@ -26,7 +26,7 @@ import { ChatMemberProfileTrigger } from "./chat-member-profile";
 import { ChatRoomPhoto } from "./chat-room-mark";
 import { usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
 
@@ -224,7 +224,7 @@ export function ChatSettingsCollapsibleSection({
         </span>
         <ChevronDown
           className={cn(
-            "size-4.5 shrink-0 text-muted-foreground transition-transform duration-(--duration-fast) motion-reduce:transition-none",
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-(--duration-fast) motion-reduce:transition-none",
             open && "rotate-180",
           )}
           aria-hidden
@@ -290,7 +290,7 @@ export function ChatSettingsMenuRow({
         ) : null}
       </span>
       {hint ? <span className="shrink-0 text-label text-muted-foreground">{hint}</span> : null}
-      {action ? null : <ChevronRight className="size-4.5 shrink-0 text-faint-foreground" aria-hidden />}
+      {action ? null : <ChevronRight className="size-4 shrink-0 text-faint-foreground" aria-hidden />}
     </button>
   );
 }

@@ -3,7 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { tintSolidClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
-import { roomInitialsOf } from "./chat-initials";
+import { roomInitialsOf } from "@uniwork/core/chat/initials";
 import { ChatRoomPhoto } from "./chat-room-mark";
 
 const FACE_SIZE = {

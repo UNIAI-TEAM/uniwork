@@ -20,6 +20,7 @@ import (
 //	GET  /api/v1/auth/providers
 //	GET  /api/v1/auth/google/start     (credential rate limit)
 //	GET  /api/v1/auth/google/callback  (credential rate limit)
+//	POST /api/v1/auth/apple/native     (credential rate limit)
 func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Handler) http.Handler) {
 	v1.With(credentialLimit).Post("/auth/register", h.Register, apiOp{
 		summary:     "Register",
@@ -87,6 +88,13 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleCallbackSDI{},
 		status:      302,
+	})
+	v1.With(credentialLimit).Post("/auth/apple/native", h.AppleSignIn, apiOp{
+		summary:     "Sign in with Apple (native)",
+		description: "App iPhone gửi identity token của Sign in with Apple (kèm nonce gốc, authorization code và tên ở lần đầu); server kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce) rồi trả phiên thiết bị native như exchange (ADR 0041). Tài khoản bật MFA nhận 403 mfa_required; email thuộc tài khoản khác không được gộp nhận 409 apple_account_conflict.",
+		tags:        []string{"auth"},
+		sdi:         sdi.AppleSignInSDI{},
+		sdo:         sdo.DesktopSessionSDO{},
 	})
 	v1.With(credentialLimit).Get("/auth/desktop/start", h.DesktopStart, apiOp{
 		summary: "Start desktop authorization", description: "Khởi tạo pending attempt PKCE; không phát code hoặc phê duyệt thiết bị.", tags: []string{"auth"}, sdi: sdi.DesktopStartSDI{}, sdo: sdo.DesktopStartSDO{},

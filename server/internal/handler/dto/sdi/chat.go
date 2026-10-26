@@ -19,6 +19,11 @@ type ListChatThreadMessagesSDI struct {
 	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
 }
 
+// ChatSyncSDI documents GET .../chat/sync query params.
+type ChatSyncSDI struct {
+	Since string `query:"since" description:"head của lần đồng bộ trước; bỏ trống để chỉ lấy vị trí hiện tại của nhật ký (sau khi vừa tải xong những gì đang hiện)" example:"1042"`
+}
+
 // ListChatCallLogsSDI documents GET .../chat/call-logs query params.
 type ListChatCallLogsSDI struct {
 	Cursor string `query:"cursor" description:"next_cursor của trang trước, gửi lại nguyên văn; bỏ trống để lấy trang mới nhất" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
@@ -242,6 +247,14 @@ type ChatRoomMemberPermissionsSDI struct {
 type ForwardChatMessageSDI struct {
 	TargetRoomIDs []string `json:"target_room_ids" description:"1–10 rooms the caller may send in" example:"[\"01J8X4ROOM0N1P2Q3R4S5T6U7V8\"]"`
 	Comment       string   `json:"comment,omitempty" description:"Optional text sent by the caller just before the forwarded copy in each room" example:"Mọi người xem giúp"`
+}
+
+// ReportChatSDI is POST .../chat/reports: exactly one of message_id or user_id.
+type ReportChatSDI struct {
+	MessageID string `json:"message_id,omitempty" description:"Tin nhắn bị báo cáo; người gửi là người bị báo cáo" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UserID    string `json:"user_id,omitempty" description:"Người bị báo cáo khi không gắn với một tin nhắn" example:"01J8X4K2M0N1P2Q3R4S5T6U7V9"`
+	Reason    string `json:"reason" description:"spam, harassment, hate, sexual, violence, self_harm hoặc other" example:"harassment"`
+	Details   string `json:"details,omitempty" description:"Mô tả thêm của người báo cáo, tối đa 1000 ký tự" example:"Nhắn tin quấy rối nhiều lần"`
 }
 
 // SetChatNicknameSDI is PUT .../users/{userID}/nickname.

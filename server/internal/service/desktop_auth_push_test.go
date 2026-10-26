@@ -69,6 +69,63 @@ func TestRevokingADeviceClosesThePushItRegistered(t *testing.T) {
 	}
 }
 
+// The push lane sends only where a phone can still be reached legitimately: a
+// device whose session ran out (refresh_expired, so the app could not
+// unsubscribe) or was closed without the push following stops getting
+// previews, while live devices, browsers and pre-session rows keep theirs.
+func TestPushIsNotDeliveredToAnEndedDeviceSession(t *testing.T) {
+	ctx := context.Background()
+	svc, authSvc := newDesktopTestServices(t)
+	userID, expired := desktopTestSession(t, svc, authSvc, "push-expired@example.com")
+	revoked := desktopTestExtraDevice(t, svc, userID)
+	live := desktopTestExtraDevice(t, svc, userID)
+
+	for endpoint, sessionID := range map[string]string{
+		"ExponentPushToken[expired]": expired.SessionID,
+		"ExponentPushToken[revoked]": revoked.SessionID,
+		"ExponentPushToken[live]":    live.SessionID,
+		"https://push.example/web":   "web-session",
+		"ExponentPushToken[legacy]":  "",
+	} {
+		if _, err := svc.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
+			ID: util.NewID(), UserID: userID, Endpoint: endpoint,
+			SessionID: pgtype.Text{String: sessionID, Valid: sessionID != ""},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Raw SQL: the service would close the push itself; this is the case where nothing did.
+	if _, err := svc.pool.Exec(ctx, `UPDATE device_sessions SET expires_at = now() - interval '1 minute' WHERE id = $1`, expired.DeviceSessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.pool.Exec(ctx, `UPDATE device_sessions SET revoked_at = now() WHERE id = $1`, revoked.DeviceSessionID); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := svc.q.ListDeliverablePushSubscriptions(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, r := range rows {
+		got[r.Endpoint] = true
+	}
+	want := map[string]bool{"ExponentPushToken[live]": true, "https://push.example/web": true, "ExponentPushToken[legacy]": true}
+	if len(got) != len(want) {
+		t.Fatalf("deliverable pushes = %v, want exactly %v", got, want)
+	}
+	for endpoint := range want {
+		if !got[endpoint] {
+			t.Fatalf("deliverable pushes = %v, want %s kept", got, endpoint)
+		}
+	}
+	// The subscriptions themselves are untouched: a session that comes back
+	// (a fresh sign-in re-registers the token) needs no repair.
+	if active, _ := svc.q.ListActivePushSubscriptions(ctx, userID); len(active) != 5 {
+		t.Fatalf("active subscriptions = %d, want 5 (the filter only skips)", len(active))
+	}
+}
+
 // desktopTestExtraDevice signs userID in on one more native device.
 func desktopTestExtraDevice(t *testing.T, svc *DesktopAuthService, userID string) DesktopSession {
 	t.Helper()

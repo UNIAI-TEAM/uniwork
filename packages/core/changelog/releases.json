@@ -1,5 +1,82 @@
 [
   {
+    "id": "release-1-9-0",
+    "version": "1.9.0",
+    "date": "2026-10-25",
+    "sourceRef": "42a543eee4c12d2612f4619acd5b0a02bac821e3",
+    "contentKey": "v1_9_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c42a543eee4c12d2612f4619acd5b0a02bac821e3"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c5a748062298e681c7f210d9fe482b678f356dad1",
+          "c9f738cbd0e4831e41a30592743d62b28efe410b1"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cd8bb3a1eea6ee3af8238a78e16cb906057a38ca1",
+          "cc1def6d37a298966b36f85f4dbaaac952240b6ab",
+          "cc8f02e00827170d00e7198c4e86696d603f9e452"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-8-0",
+    "version": "1.8.0",
+    "date": "2026-10-23",
+    "sourceRef": "5cf0f16ee952a903e7d10fd98356580534c58c66",
+    "contentKey": "v1_8_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c65f3f63676c33fb8ffa3973af36f699c95167a06",
+          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6",
+          "ce13f89971f752f4cd450ac462dc44dfdeddfde3b",
+          "c866159078a243ad74975a6cc520072a720e73321",
+          "c746cbd4249c4eb107c7fbf9afc44a378382b04d8"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c831c0910ee27de6a508932005979a31836ebc7b0",
+          "c70c6965823b95e78087da436b7f1f37d2d6220a1",
+          "c0f496005d5c93547c653dd036fbe607549ea163f",
+          "cd27f9296f7bf1434f4e6d55e221088886f3e8eec",
+          "c4892d5b67cc9442004c304b002790e52ab95603f",
+          "c9dc4cbdc366fe6b777ab57010b575160c9c6b1d4",
+          "c29525a88ddb8c9b912b044b0a8bcd3b7f613a7df",
+          "c886caab063dd9967f8098c1a6a9121bcab357ea2",
+          "cf9cdc3c6868c4a578845c50fa159696378144c29"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c00442921bb805d62e2acd4ca821b9961afa5d2b8",
+          "c012ad1c97b8e1fe0bdb6476e3db9fda8e288eb7c",
+          "c95903b75040d1eeb842587f70e0f88954ca44f9f",
+          "cd4ace5438fda5aaa1dd4d0a9e2b1f3cf05d4f23c",
+          "c97190ef880cb0becddefbac601fc868bfd3fe383",
+          "cf26deea1665f84bf6164e04ca55f138363170372",
+          "cbd62328c1ab8482fcaec239e846678bdd723c6db",
+          "c59253aa471b10dfba393387e89f84323c95f6590",
+          "cff18730616d298ece7119b09d7576642209166ce"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-7-0",
     "version": "1.7.0",
     "date": "2026-10-20",

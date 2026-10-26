@@ -55,4 +55,23 @@ describe("EntitlementGateToastHost", () => {
     emitEntitlementGateError({ code: "quota_exceeded" });
     expect(toastError).toHaveBeenCalled();
   });
+
+  it("names the missing feature with its translated label", () => {
+    resetEntitlementGateErrorBusForTests();
+    toastError.mockClear();
+    render(<EntitlementGateToastHost />);
+    emitEntitlementGateError({ code: "entitlement_required", fields: { feature: "meeting.recording" } });
+    const msg = String(toastError.mock.calls[0]?.[0] ?? "");
+    expect(msg).toContain("Ghi hình cuộc họp");
+    expect(msg).not.toContain("meeting.recording");
+  });
+
+  it("falls back to the raw feature key when no label exists", () => {
+    resetEntitlementGateErrorBusForTests();
+    toastError.mockClear();
+    render(<EntitlementGateToastHost />);
+    emitEntitlementGateError({ code: "entitlement_required", fields: { feature: "foo.bar" } });
+    const msg = String(toastError.mock.calls[0]?.[0] ?? "");
+    expect(msg).toContain("foo.bar");
+  });
 });

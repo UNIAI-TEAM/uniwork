@@ -380,11 +380,11 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
           />
         ) : (
           <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-            <FaceSlightlySmilingPlus className="size-4.5" aria-hidden />
+            <FaceSlightlySmilingPlus className="size-4" aria-hidden />
           </MessageActionButton>
         )}
         <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)} className={extra}>
-          <Reply className="size-4.5" aria-hidden />
+          <Reply className="size-4" aria-hidden />
         </MessageActionButton>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger
@@ -396,7 +396,7 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
                 className={cn(BAR_BUTTON, moreExtra)}
                 aria-label={t("chat.action_more")}
               >
-                <Ellipsis className="size-4.5" aria-hidden />
+                <Ellipsis className="size-4" aria-hidden />
               </Button>
             }
           />
@@ -439,7 +439,7 @@ export function ChatMessageTouchMore({ className }: { className?: string }) {
             className={cn("hidden size-8 shrink-0 rounded-full pointer-coarse:inline-flex", className)}
             aria-label={t("chat.action_more")}
           >
-            <Ellipsis className="size-4.5" aria-hidden />
+            <Ellipsis className="size-4" aria-hidden />
           </Button>
         }
       />

@@ -2,6 +2,8 @@ package meetings
 
 import (
 	"context"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -39,6 +41,36 @@ type FakeProvider struct {
 	GetPermissionsDelay time.Duration
 	// permMu guards the participant fields above for concurrent moderators.
 	permMu sync.Mutex
+	// Scribe dispatches, guarded by scribeMu: the sweep and Start may race.
+	scribeMu          sync.Mutex
+	ScribeDispatches  []DispatchScribeRequest
+	ScribeRemovals    []RemoveScribeRequest
+	ScribeDispatchErr error
+	// ScribeUnassigned: no worker takes a dispatch (no capacity).
+	ScribeUnassigned bool
+	// LastJoin is the last join credential request (attributes included).
+	LastJoin IssueJoinCredentialRequest
+	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
+	AttributeUpdates []SetParticipantAttributesRequest
+	// Dial-in rules, guarded by scribeMu like the dispatches: DialInRules
+	// holds the live ones by id, DialInRuleErr fails the next creates.
+	DialInRules   map[string]DialInRuleRequest
+	DialInCreates int
+	DialInDeletes []string
+	DialInRuleErr error
+	// Updates keeps every UpdateParticipant call in order.
+	Updates []UpdateProviderParticipantRequest
+	// Removed keeps every RemoveParticipant call in order.
+	Removed []RemoveProviderParticipantRequest
+	// RoomParticipants is who ListParticipants reports per room; a
+	// RemoveParticipant drops the identity from it.
+	RoomParticipants map[string][]ProviderParticipant
+	// ListedRules is what ListDialInRules reports besides the live rules
+	// (age unknown for those), filtered by trunk like LiveKit.
+	ListedRules    []DialInRule
+	ListRulesCalls int
+	// ListParticipantsCalls counts room listings (guarded by permMu).
+	ListParticipantsCalls int
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -59,6 +91,7 @@ func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest
 }
 
 func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCredentialRequest) (JoinCredential, error) {
+	f.LastJoin = req
 	if f.JoinErr != nil {
 		return JoinCredential{}, f.JoinErr
 	}
@@ -78,8 +111,22 @@ func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCrede
 }
 
 func (f *FakeProvider) RemoveParticipant(_ context.Context, req RemoveProviderParticipantRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
 	f.RemoveCalls++
 	f.LastRemove = req
+	f.Removed = append(f.Removed, req)
+	if f.RemoveErr == nil {
+		left := f.RoomParticipants[req.RoomName][:0:0]
+		for _, p := range f.RoomParticipants[req.RoomName] {
+			if p.Identity != req.Identity {
+				left = append(left, p)
+			}
+		}
+		if f.RoomParticipants != nil {
+			f.RoomParticipants[req.RoomName] = left
+		}
+	}
 	return f.RemoveErr
 }
 
@@ -88,10 +135,29 @@ func (f *FakeProvider) UpdateParticipant(_ context.Context, req UpdateProviderPa
 	defer f.permMu.Unlock()
 	f.UpdateCalls++
 	f.LastUpdate = req
+	f.Updates = append(f.Updates, req)
 	if f.Permissions == nil {
 		f.Permissions = map[string]MediaPermissions{}
 	}
 	f.Permissions[req.RoomName+"/"+req.Identity] = req.Permissions
+	for i, p := range f.RoomParticipants[req.RoomName] {
+		if p.Identity != req.Identity {
+			continue
+		}
+		p.Permissions = req.Permissions
+		if req.Name != "" {
+			p.Name = req.Name
+		}
+		attrs := map[string]string{}
+		for k, v := range p.Attributes {
+			attrs[k] = v
+		}
+		for k, v := range req.Attributes {
+			attrs[k] = v
+		}
+		p.Attributes = attrs
+		f.RoomParticipants[req.RoomName][i] = p
+	}
 	return nil
 }
 
@@ -132,4 +198,147 @@ func (f *FakeProvider) StartRecording(_ context.Context, req StartRecordingReque
 func (f *FakeProvider) StopRecording(context.Context, StopRecordingRequest) error {
 	f.StopRecordCalls++
 	return nil
+}
+
+func (f *FakeProvider) DispatchScribe(_ context.Context, req DispatchScribeRequest) (string, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if f.ScribeDispatchErr != nil {
+		return "", f.ScribeDispatchErr
+	}
+	f.ScribeDispatches = append(f.ScribeDispatches, req)
+	return "fake-dispatch-" + strconv.Itoa(len(f.ScribeDispatches)), nil
+}
+
+func (f *FakeProvider) RemoveScribe(_ context.Context, req RemoveScribeRequest) error {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	f.ScribeRemovals = append(f.ScribeRemovals, req)
+	return nil
+}
+
+func (f *FakeProvider) ScribeDispatchAssigned(context.Context, RemoveScribeRequest) (bool, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	return !f.ScribeUnassigned, nil
+}
+
+func (f *FakeProvider) SetParticipantAttributes(_ context.Context, req SetParticipantAttributesRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	f.AttributeUpdates = append(f.AttributeUpdates, req)
+	return nil
+}
+
+// AttributeCalls returns a copy of the attribute writes the fake saw.
+func (f *FakeProvider) AttributeCalls() []SetParticipantAttributesRequest {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return slices.Clone(f.AttributeUpdates)
+}
+
+// ScribeCalls reports how many dispatches and removals the fake saw.
+func (f *FakeProvider) ScribeCalls() (dispatches, removals int) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	return len(f.ScribeDispatches), len(f.ScribeRemovals)
+}
+
+// LastScribeDispatch is the latest dispatch request, zero when none.
+func (f *FakeProvider) LastScribeDispatch() DispatchScribeRequest {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if len(f.ScribeDispatches) == 0 {
+		return DispatchScribeRequest{}
+	}
+	return f.ScribeDispatches[len(f.ScribeDispatches)-1]
+}
+
+func (f *FakeProvider) CreateDialInRule(_ context.Context, req DialInRuleRequest) (string, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if f.DialInRuleErr != nil {
+		return "", f.DialInRuleErr
+	}
+	// Like LiveKit: one trunk routes a PIN to one rule.
+	for _, r := range f.DialInRules {
+		if r.Pin == req.Pin && r.TrunkID == req.TrunkID {
+			return "", ErrDialInRuleConflict
+		}
+	}
+	f.DialInCreates++
+	if f.DialInRules == nil {
+		f.DialInRules = map[string]DialInRuleRequest{}
+	}
+	id := "SDR_fake_" + strconv.Itoa(f.DialInCreates)
+	f.DialInRules[id] = req
+	return id, nil
+}
+
+func (f *FakeProvider) DeleteDialInRule(_ context.Context, ruleID string) error {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	f.DialInDeletes = append(f.DialInDeletes, ruleID)
+	delete(f.DialInRules, ruleID)
+	return nil
+}
+
+// LiveDialInRules is a copy of the rules created and not deleted.
+func (f *FakeProvider) LiveDialInRules() map[string]DialInRuleRequest {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	out := make(map[string]DialInRuleRequest, len(f.DialInRules))
+	for k, v := range f.DialInRules {
+		out[k] = v
+	}
+	return out
+}
+
+// Snapshot copies the participant calls, safe against a concurrent caller.
+func (f *FakeProvider) Snapshot() (updates []UpdateProviderParticipantRequest, removed []RemoveProviderParticipantRequest) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return append([]UpdateProviderParticipantRequest(nil), f.Updates...), append([]RemoveProviderParticipantRequest(nil), f.Removed...)
+}
+
+func (f *FakeProvider) ListDialInRules(_ context.Context, trunkID string) ([]DialInRule, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	var out []DialInRule
+	for _, r := range f.ListedRules {
+		if slices.Contains(r.TrunkIDs, trunkID) {
+			out = append(out, r)
+		}
+	}
+	for id, r := range f.DialInRules {
+		if r.TrunkID == trunkID {
+			out = append(out, DialInRule{ID: id, Name: r.Name, TrunkIDs: []string{r.TrunkID}})
+		}
+	}
+	f.ListRulesCalls++
+	return out, nil
+}
+
+func (f *FakeProvider) ListParticipants(_ context.Context, roomName string) ([]ProviderParticipant, error) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	f.ListParticipantsCalls++
+	return append([]ProviderParticipant(nil), f.RoomParticipants[roomName]...), nil
+}
+
+// Join puts a live connection into a room, as LiveKit would list it.
+func (f *FakeProvider) Join(roomName string, p ProviderParticipant) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	if f.RoomParticipants == nil {
+		f.RoomParticipants = map[string][]ProviderParticipant{}
+	}
+	f.RoomParticipants[roomName] = append(f.RoomParticipants[roomName], p)
+}
+
+// ListParticipantsCount is how many room listings the fake answered.
+func (f *FakeProvider) ListParticipantsCount() int {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return f.ListParticipantsCalls
 }

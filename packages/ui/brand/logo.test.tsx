@@ -27,6 +27,12 @@ describe("Logo", () => {
     }
   });
 
+  it("names each drawn part of the mark, so a screen can move them one by one", () => {
+    const { container } = render(<Logo variant="mark" size={48} />);
+    const parts = (name: string) => svgOf(container).querySelectorAll(`[data-part="${name}"]`).length;
+    expect([parts("head"), parts("body"), parts("ribbon"), parts("shade")]).toEqual([2, 2, 1, 1]);
+  });
+
   it("mono inherits currentColor so it works inside buttons and dark rails", () => {
     const { container } = render(<Logo tone="mono" />);
     const fills = [...svgOf(container).querySelectorAll("[fill]")].map((n) =>

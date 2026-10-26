@@ -39,6 +39,7 @@ describe("meeting feed endpoints", () => {
       olderCursor: "1.a",
       afterCursor: "2.c1",
       hasMoreAfter: false,
+      newerCursor: "",
     });
     expect(url(0)).toBe("http://api.test/api/v1/meetings/m1/chat");
   });
@@ -51,6 +52,17 @@ describe("meeting feed endpoints", () => {
     expect(url(1)).toBe("http://api.test/api/v1/meetings/m%201/transcript?after=2.b");
   });
 
+  it("reads the transcript forward with from, around and order (UNI-1995 #9)", async () => {
+    vi.mocked(fetch).mockImplementation(async () => json({ segments: [seg], newer_cursor: "3.s1" }));
+    const page = await listTranscriptPage("m1", { order: "asc", limit: 500 });
+    await listTranscriptPage("m1", { from: "3.s1" });
+    await listTranscriptPage("m1", { around: "s9" });
+    expect(page.newerCursor).toBe("3.s1");
+    expect(url(0)).toBe("http://api.test/api/v1/meetings/m1/transcript?order=asc&limit=500");
+    expect(url(1)).toBe("http://api.test/api/v1/meetings/m1/transcript?from=3.s1");
+    expect(url(2)).toBe("http://api.test/api/v1/meetings/m1/transcript?around=s9");
+  });
+
   it("reads an old server's bare list as a page without cursors", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ segments: [seg] }));
     expect(await listTranscriptPage("m1")).toEqual({
@@ -58,6 +70,7 @@ describe("meeting feed endpoints", () => {
       olderCursor: "",
       afterCursor: "",
       hasMoreAfter: false,
+      newerCursor: "",
     });
   });
 
@@ -69,6 +82,7 @@ describe("meeting feed endpoints", () => {
       olderCursor: "",
       afterCursor: "",
       hasMoreAfter: false,
+      newerCursor: "",
     });
     vi.mocked(fetch).mockResolvedValueOnce(json({ segments: "nope" }));
     expect((await listTranscriptPage("m1")).items).toEqual([]);
@@ -78,6 +92,7 @@ describe("meeting feed endpoints", () => {
       olderCursor: "",
       afterCursor: "",
       hasMoreAfter: false,
+      newerCursor: "",
     });
   });
 });

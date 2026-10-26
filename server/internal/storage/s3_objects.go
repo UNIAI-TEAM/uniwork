@@ -236,16 +236,36 @@ func (s *s3ObjectStore) SignRead(ctx context.Context, loc ObjectLocator, opts Si
 		input.ResponseContentDisposition = aws.String(opts.Disposition)
 	}
 	ttl := clampPresignTTL(opts.TTL)
+	signedAt := time.Now()
 	out, err := s3.NewPresignClient(s.presignClient).PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
 		o.Expires = ttl
+		if !opts.SignedAt.IsZero() {
+			// The SDK's own presigner (its S3 signing options kept), as of the given instant.
+			o.Presigner = presignAsOf{inner: o.Presigner, at: opts.SignedAt}
+			signedAt = opts.SignedAt
+		}
 	})
 	if err != nil {
 		return SignedURL{}, fmt.Errorf("s3 SignRead: %w", err)
 	}
 	return SignedURL{
 		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
-		ExpiresAt: time.Now().Add(ttl),
+		ExpiresAt: signedAt.Add(ttl),
 	}, nil
+}
+
+// presignAsOf signs as of a fixed instant instead of the clock's (SignOptions.SignedAt).
+type presignAsOf struct {
+	inner s3.HTTPPresignerV4
+	at    time.Time
+}
+
+func (p presignAsOf) PresignHTTP(
+	ctx context.Context, credentials aws.Credentials, r *http.Request,
+	payloadHash string, service string, region string, _ time.Time,
+	optFns ...func(*v4.SignerOptions),
+) (string, http.Header, error) {
+	return p.inner.PresignHTTP(ctx, credentials, r, payloadHash, service, region, p.at, optFns...)
 }
 
 // SignWrite implements ObjectStore: a presigned PUT for the provider-upload

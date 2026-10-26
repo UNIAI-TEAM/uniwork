@@ -415,18 +415,18 @@ describe("ChatComposer document share picker", () => {
     const onSendDocument = vi.fn();
     const { unmount } = renderComposer({ canSendDocument: true, onSendDocument });
     fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
-      clipboardData: { files: [new File(["x"], "ghi-chu.md", { type: "text/markdown" })] },
+      clipboardData: { files: [new File(["x"], "trinh-bay.pptx", { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })] },
     });
-    // .md is not chat-attachable, but the document allowlist takes it.
-    expect(screen.getByText("ghi-chu.md")).toBeInTheDocument();
+    // .pptx is not chat-attachable (.md and .csv are since UNI-1741), but the document allowlist takes it.
+    expect(screen.getByText("trinh-bay.pptx")).toBeInTheDocument();
     expect(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).toBeInTheDocument();
     unmount();
 
     renderComposer({ canSendDocument: false, onSendDocument });
     fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
-      clipboardData: { files: [new File(["x"], "ghi-chu.md", { type: "text/markdown" })] },
+      clipboardData: { files: [new File(["x"], "trinh-bay.pptx", { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })] },
     });
-    expect(screen.queryByText("ghi-chu.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("trinh-bay.pptx")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).not.toBeInTheDocument();
     expect(toast.error).toHaveBeenCalled();
   });

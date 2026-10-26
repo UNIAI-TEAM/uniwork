@@ -73,7 +73,7 @@ export function VoiceCallRecordControl({
         disabled={disabled}
         onClick={toggle}
       >
-        {recording ? <Square aria-hidden className="size-4.5 fill-current" /> : <VoiceCallRecordGlyph hollow={unavailable} />}
+        {recording ? <Square aria-hidden className="size-4 fill-current" /> : <VoiceCallRecordGlyph hollow={unavailable} />}
       </VoiceCallControl>
       {unavailable ? (
         <span id={hintId} className="sr-only">

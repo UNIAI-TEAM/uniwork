@@ -14,6 +14,7 @@ import (
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/twitchtv/twirp"
 )
 
 func MintToken(apiKey, apiSecret, room, identity, name string, ttl time.Duration) (string, error) {
@@ -43,6 +44,9 @@ func mintToken(apiKey, apiSecret string, req IssueJoinCredentialRequest) (string
 		ttl = 2 * time.Minute
 	}
 	at.SetVideoGrant(grant).SetIdentity(req.Identity).SetName(req.DisplayName).SetValidFor(ttl)
+	if len(req.Attributes) > 0 {
+		at.SetAttributes(req.Attributes)
+	}
 	return at.ToJWT()
 }
 
@@ -78,6 +82,10 @@ type LiveKitAdapter struct {
 	roomClient *lksdk.RoomServiceClient
 	egressOnce sync.Once
 	egressCl   *lksdk.EgressClient
+	agentOnce  sync.Once
+	agentCl    *lksdk.AgentDispatchClient
+	sipOnce    sync.Once
+	sipCl      *lksdk.SIPClient
 }
 
 // RecordingS3 is where LiveKit Egress uploads room composite recordings.
@@ -180,6 +188,18 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 	defer cancel()
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
 		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
+		Name: req.Name, Attributes: req.Attributes,
+	})
+	return err
+}
+
+// SetParticipantAttributes sends only attributes: with Permission nil,
+// LiveKit leaves the participant's grants as they are.
+func (a *LiveKitAdapter) SetParticipantAttributes(ctx context.Context, req SetParticipantAttributesRequest) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
+		Room: req.RoomName, Identity: req.Identity, Attributes: req.Attributes,
 	})
 	return err
 }
@@ -343,4 +363,173 @@ func (a *LiveKitAdapter) StopRecording(ctx context.Context, req StopRecordingReq
 	defer cancel()
 	_, err := a.egress().StopEgress(ctx, &livekit.StopEgressRequest{EgressId: req.RecordingID})
 	return err
+}
+
+func (a *LiveKitAdapter) agents() *lksdk.AgentDispatchClient {
+	a.agentOnce.Do(func() { a.agentCl = lksdk.NewAgentDispatchServiceClient(a.URL, a.APIKey, a.APISecret) })
+	return a.agentCl
+}
+
+// DispatchScribe sends an explicit dispatch: the agent registers with an
+// agent_name, so LiveKit never sends it into a room nobody asked for (the
+// server is shared with lms-core, spec D3).
+func (a *LiveKitAdapter) DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	d, err := a.agents().CreateDispatch(ctx, &livekit.CreateAgentDispatchRequest{
+		AgentName: req.AgentName, Room: req.RoomName, Metadata: req.Metadata,
+	})
+	if err != nil {
+		return "", fmt.Errorf("livekit dispatch scribe: %w", err)
+	}
+	return d.GetId(), nil
+}
+
+// RemoveScribe deletes the dispatch, then removes the agent from the room:
+// deleting a dispatch does not end a job already running. Either may find
+// nothing left to remove; only a failure of both is reported.
+func (a *LiveKitAdapter) RemoveScribe(ctx context.Context, req RemoveScribeRequest) error {
+	var dispatchErr error
+	if req.DispatchID != "" {
+		dctx, cancel := a.roomCtx(ctx)
+		_, dispatchErr = a.agents().DeleteDispatch(dctx, &livekit.DeleteAgentDispatchRequest{DispatchId: req.DispatchID, Room: req.RoomName})
+		cancel()
+	}
+	rctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, removeErr := a.client().RemoveParticipant(rctx, &livekit.RoomParticipantIdentity{Room: req.RoomName, Identity: ScribeIdentity})
+	if dispatchErr != nil && removeErr != nil {
+		return fmt.Errorf("livekit remove scribe: %w", errors.Join(dispatchErr, removeErr))
+	}
+	return nil
+}
+
+// ScribeDispatchAssigned lists the dispatch: a job with a worker id means a
+// worker took it. A worker at its load_threshold is not offered the job, so a
+// dispatch at a capacity peak lists no assigned job.
+func (a *LiveKitAdapter) ScribeDispatchAssigned(ctx context.Context, req RemoveScribeRequest) (bool, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.agents().ListDispatch(ctx, &livekit.ListAgentDispatchRequest{DispatchId: req.DispatchID, Room: req.RoomName})
+	if err != nil {
+		return false, fmt.Errorf("livekit list dispatch: %w", err)
+	}
+	for _, d := range res.GetAgentDispatches() {
+		for _, j := range d.GetState().GetJobs() {
+			if j.GetState().GetWorkerId() != "" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (a *LiveKitAdapter) sip() *lksdk.SIPClient {
+	a.sipOnce.Do(func() { a.sipCl = lksdk.NewSIPClient(a.URL, a.APIKey, a.APISecret) })
+	return a.sipCl
+}
+
+// CreateDialInRule creates a direct dispatch rule: a caller who enters the
+// PIN joins the room. The rule hides the caller's number, so the room (and
+// UniWork) only ever sees a hashed identity and the last four digits. The
+// rule travels in dispatch_rule, which the top-level fields were deprecated
+// for; a LiveKit server too old to read it refuses the rule (runbook
+// livekit-sip.md).
+func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error) {
+	var trunks []string
+	if req.TrunkID != "" {
+		trunks = []string{req.TrunkID}
+	}
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	info, err := a.sip().CreateSIPDispatchRule(ctx, &livekit.CreateSIPDispatchRuleRequest{
+		DispatchRule: &livekit.SIPDispatchRuleInfo{
+			Rule: &livekit.SIPDispatchRule{Rule: &livekit.SIPDispatchRule_DispatchRuleDirect{
+				DispatchRuleDirect: &livekit.SIPDispatchRuleDirect{RoomName: req.RoomName, Pin: req.Pin},
+			}},
+			TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
+		},
+	})
+	if dialInRuleConflict(err) {
+		return "", fmt.Errorf("livekit create dial-in rule: %w: %v", ErrDialInRuleConflict, err)
+	}
+	if err != nil {
+		return "", fmt.Errorf("livekit create dial-in rule: %w", err)
+	}
+	return info.GetSipDispatchRuleId(), nil
+}
+
+// DeleteDialInRule deletes the rule; one LiveKit no longer has is gone
+// already, so the sweep that retries a failed delete does not loop on it.
+func (a *LiveKitAdapter) DeleteDialInRule(ctx context.Context, ruleID string) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.sip().DeleteSIPDispatchRule(ctx, &livekit.DeleteSIPDispatchRuleRequest{SipDispatchRuleId: ruleID})
+	var terr twirp.Error
+	if errors.As(err, &terr) && terr.Code() == twirp.NotFound {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("livekit delete dial-in rule: %w", err)
+	}
+	return nil
+}
+
+// dialInRuleConflict: LiveKit refused the rule because another rule already
+// routes the same trunk and PIN. Its validator answers invalid_argument for
+// many mistakes (a bad trunk id, a bad room name), so only the message tells
+// the clash apart: "… already exists in dispatch rule …" (protocol
+// sip.ValidateDispatchRules) or, on older servers, "Conflicting SIP Dispatch
+// Rules".
+func dialInRuleConflict(err error) bool {
+	var terr twirp.Error
+	if !errors.As(err, &terr) || (terr.Code() != twirp.InvalidArgument && terr.Code() != twirp.AlreadyExists) {
+		return false
+	}
+	msg := strings.ToLower(terr.Msg())
+	return strings.Contains(msg, "already exists in dispatch rule") || strings.Contains(msg, "conflicting sip dispatch rule")
+}
+
+// ListDialInRules lists the dispatch rules on trunkID. LiveKit filters by
+// trunk; the result is checked again, since a rule with no trunk (or a server
+// that ignores the filter) is no proof the rule is this deployment's.
+//
+// shortcut: one page (LiveKit's default page size); paginate with Page if a
+// trunk ever holds more rules than that.
+func (a *LiveKitAdapter) ListDialInRules(ctx context.Context, trunkID string) ([]DialInRule, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.sip().ListSIPDispatchRule(ctx, &livekit.ListSIPDispatchRuleRequest{TrunkIds: []string{trunkID}})
+	if err != nil {
+		return nil, fmt.Errorf("livekit list dial-in rules: %w", err)
+	}
+	out := make([]DialInRule, 0, len(res.GetItems()))
+	for _, r := range res.GetItems() {
+		if !slices.Contains(r.GetTrunkIds(), trunkID) {
+			continue
+		}
+		rule := DialInRule{ID: r.GetSipDispatchRuleId(), Name: r.GetName(), TrunkIDs: r.GetTrunkIds()}
+		if r.GetCreatedAt() != nil {
+			rule.CreatedAt = r.GetCreatedAt().AsTime()
+		}
+		out = append(out, rule)
+	}
+	return out, nil
+}
+
+func (a *LiveKitAdapter) ListParticipants(ctx context.Context, roomName string) ([]ProviderParticipant, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.client().ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: roomName})
+	if err != nil {
+		return nil, fmt.Errorf("livekit list participants: %w", err)
+	}
+	out := make([]ProviderParticipant, 0, len(res.GetParticipants()))
+	for _, p := range res.GetParticipants() {
+		out = append(out, ProviderParticipant{
+			Identity: p.GetIdentity(), SID: p.GetSid(), Name: p.GetName(), SIP: p.GetKind() == livekit.ParticipantInfo_SIP,
+			Attributes: p.GetAttributes(), Permissions: mediaPermissions(p.GetPermission()),
+		})
+	}
+	return out, nil
 }

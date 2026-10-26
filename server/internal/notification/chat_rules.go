@@ -17,7 +17,8 @@ import (
 // delivery: a message deleted, or a recipient who left the room, since the
 // send gets nothing, and no message text is stored (titles name the sender
 // and the room only). The group key is the room - the thread for replies -
-// so unread messages merge into one row and one push.
+// so unread messages merge into one row; each still pushes, and the phone
+// groups the pushes by that key (Consumer.write, UNI-2141).
 func chatMessageRule(kind string) rule {
 	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 		userID, roomID, msgID := p["user_id"], p["room_id"], p["message_id"]
@@ -67,6 +68,8 @@ func chatMessageRule(kind string) rule {
 		switch kind {
 		case KindChatDM:
 			groupKey = service.ChatDMNotifyGroup(room.ID)
+		case KindChatMessage:
+			groupKey = service.ChatRoomNotifyGroup(room.ID)
 		case KindChatThreadReplied:
 			groupKey = service.ChatThreadNotifyGroup(p["thread_root_id"])
 		default:
@@ -127,7 +130,11 @@ func ruleChatVoiceInviteReceived(ctx context.Context, e env, ev outbox.Row, p ma
 	}
 	r := newRecipients(ctx, e, ev, wsID)
 	r.add(userID)
-	params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name, "call_id": callID}
+	// The phone's ringing screen says what kind of call it is (push_consumer.go › CallPush).
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name, "call_id": callID, "call_kind": room.Kind}
+	if v, ok := e.calls.(CallVideoChecker); ok && v.VoiceCallVideo(roomID, callID) {
+		params["video"] = "1"
+	}
 	return r.drafts(room.OrganizationID, KindChatCallIncoming, service.ChatCallNotifyGroup(room.ID), "chat_room", room.ID, params)
 }
 

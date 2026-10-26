@@ -2,11 +2,11 @@
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
   status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
-  organization_id
+  organization_id, series_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
   $9, $10, $11, $12, $13, 1, $8, $14, $15,
-  $17
+  $17, sqlc.narg(series_id)
 )
 RETURNING *;
 
@@ -181,3 +181,27 @@ SELECT
   count(*) FILTER (WHERE meeting_type = 'INSTANT')::bigint AS instant
 FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id');
+
+-- name: GetMeetingSeriesNeighbors :one
+-- The uncanceled meetings right before and after one in its series (UNI-2153).
+-- series_key is COALESCE(series_id, id): the root keeps series_id NULL and its
+-- followers carry the root's id. Ties on starts_at break on id.
+SELECT
+  COALESCE((
+    SELECT p.id FROM meetings p
+    WHERE p.workspace_id = sqlc.arg('workspace_id')
+      AND (p.series_id = sqlc.arg('series_key') OR p.id = sqlc.arg('series_key'))
+      AND p.status <> 'CANCELED'
+      AND (p.starts_at, p.id) < (sqlc.arg('starts_at')::timestamptz, sqlc.arg('id')::text)
+    ORDER BY p.starts_at DESC, p.id DESC
+    LIMIT 1
+  ), '')::text AS previous_id,
+  COALESCE((
+    SELECT n.id FROM meetings n
+    WHERE n.workspace_id = sqlc.arg('workspace_id')
+      AND (n.series_id = sqlc.arg('series_key') OR n.id = sqlc.arg('series_key'))
+      AND n.status <> 'CANCELED'
+      AND (n.starts_at, n.id) > (sqlc.arg('starts_at')::timestamptz, sqlc.arg('id')::text)
+    ORDER BY n.starts_at ASC, n.id ASC
+    LIMIT 1
+  ), '')::text AS next_id;

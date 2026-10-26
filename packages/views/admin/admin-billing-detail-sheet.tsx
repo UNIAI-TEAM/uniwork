@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Building2, CreditCard, Receipt } from "lucide-react";
+import { BuildingComplex, CreditCard, Receipt } from "lucide-react";
 import type { AdminInvoice, AdminPaymentIntent } from "@uniwork/core/types";
 import { vnpayBankLabel } from "@uniwork/core/billing/vnpay-bank-label";
 import { paths } from "@uniwork/core/paths";
@@ -416,7 +416,7 @@ export function AdminBillingDetailSheet({
                     label={t("col.organization")}
                     value={
                       <span className="inline-flex items-center gap-1.5">
-                        <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                        <BuildingComplex aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
                         <AppLink
                           href={paths.admin.organization(detail.row.organization_id)}
                           className="font-medium text-primary hover:underline"

@@ -57,7 +57,7 @@ const subscription = {
   ],
 };
 
-function serve(over: { role?: string; settingsFails?: boolean; settings?: unknown } = {}) {
+function serve(over: { role?: string; settingsFails?: boolean; settingsHang?: boolean; settings?: unknown } = {}) {
   requestMock.mockReset();
   requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role: over.role ?? "owner" });
@@ -70,6 +70,7 @@ function serve(over: { role?: string; settingsFails?: boolean; settings?: unknow
         });
       }
       if (over.settingsFails) return Promise.reject(new Error("offline"));
+      if (over.settingsHang) return new Promise(() => {});
       return Promise.resolve(
         over.settings ?? { organization_id: ORG, public_links_enabled: true },
       );
@@ -176,15 +177,28 @@ describe("DocumentsSettings", () => {
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
-  it("shows the unknown state instead of a fabricated switch when the read fails", async () => {
+  it("shows only the failure, never a fabricated switch, when the read fails", async () => {
     serve({ settingsFails: true });
     renderTab();
 
-    expect(await screen.findByText(t("settings.documents.links_state_unknown"))).toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeInTheDocument();
-    // The failure is named, not swallowed.
-    await waitFor(() =>
-      expect(screen.getByText(t("settings.documents.links_read_failed"))).toBeInTheDocument(),
-    );
+    // The failure is named, not swallowed, and can be read again.
+    expect(await screen.findByText(t("settings.documents.links_read_failed"), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByRole("button", { name: t("settings.state.retry") })).toBeInTheDocument();
+  });
+
+  it("treats an answer it cannot read like a failed read, never a guessed off switch", async () => {
+    serve({ settings: { public_links_enabled: "yes" } });
+    renderTab();
+
+    expect(await screen.findByText(t("settings.documents.links_read_failed"), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("holds the links row's shape while the read runs, never a guessed off switch", async () => {
+    serve({ settingsHang: true });
+    renderTab();
+    expect(await screen.findByText(t("settings.documents.entitlement_enabled"))).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 });

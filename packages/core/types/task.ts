@@ -61,6 +61,10 @@ export const TaskSchema = z.object({
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
   stage: z.number().nullable().optional(),
+  // Where the task came from (`meeting`, `chat_message`, `email_thread`, …).
+  // A malformed value costs only the origin line, never the task.
+  origin_type: z.string().nullish().catch(undefined),
+  origin_id: z.string().nullish().catch(undefined),
   properties: z.record(z.string(), z.unknown()).optional().default({}),
   position: z.number(),
   kind: z.string().optional().default("normal"),

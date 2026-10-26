@@ -942,6 +942,9 @@ func (s *DocumentService) mintFolderUploadTarget(ctx context.Context, actor Acto
 		Actor: actor, Purpose: files.DocumentFile,
 		Scope:       documentScope(batch.OrganizationID, batch.WorkspaceID),
 		OperationID: folderUploadOperationID(f), Deadline: batch.ExpiresAt.Time,
+		// The browser writes the person's file: its extension is what names a
+		// .doc/.xls/.ppt compound file (and .md/.csv text) at COMPLETE.
+		Filename: f.Filename,
 	})
 	if errors.Is(err, storage.ErrCapabilityUnsupported) {
 		// The store cannot presign (local, CI): the bytes go through the
@@ -1006,7 +1009,7 @@ func (s *DocumentService) mintFolderUploadMultipart(ctx context.Context, actor A
 func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *FileService, actor Actor, batch db.DocumentFolderUpload, f db.DocumentFolderUploadFile) (string, error) {
 	mime, _ := document.ExpectedMIMEForExtension(f.Filename)
 	filename := files.SanitizeFilename(f.Filename)
-	prep, err := fs.prepareMultipartUpload(ctx, actor, documentScope(batch.OrganizationID, batch.WorkspaceID), filename, mime, f.SizeBytes, s.entitlements)
+	prep, err := fs.prepareMultipartUpload(ctx, actor, files.DocumentFile, documentScope(batch.OrganizationID, batch.WorkspaceID), filename, mime, f.SizeBytes, s.entitlements)
 	if err != nil {
 		return "", documentFileError(err)
 	}

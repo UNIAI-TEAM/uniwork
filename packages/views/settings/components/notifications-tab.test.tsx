@@ -138,13 +138,14 @@ describe("NotificationsTab", () => {
     const sentOf = (call: RequestCall | undefined) => call?.[1]?.body?.preferences ?? [];
 
     // Mixed turns everything on: only the kinds that were off are written, all of
-    // them switched on - "mentioned" and the omitted document change notice,
-    // whose email starts off but may be on (UNI-2056). The omitted trash kind
+    // them switched on - "mentioned", the omitted document change notice
+    // (UNI-2056) and the omitted group/channel message kind (UNI-2141), whose
+    // email starts off but may be on. The omitted trash kind
     // defaults email off (Q-R2) but can never hold it, so the bulk control does
     // not claim it (BE-TN-11).
     fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(1));
-    expect(sentOf(puts()[0]).map((p) => p.kind).sort()).toEqual(["document_changed", "mentioned"]);
+    expect(sentOf(puts()[0]).map((p) => p.kind).sort()).toEqual(["chat_message", "document_changed", "mentioned"]);
     expect(sentOf(puts()[0]).every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "true");
 
@@ -194,12 +195,33 @@ describe("NotificationsTab", () => {
     render(wrap(<NotificationsTab />));
     const push = (kind: string) => screen.findByRole("switch", { name: `${kind} · Đẩy` });
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Được giao nhiều việc một lúc")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
     // The root's edit-lock kinds push by default too, except the answer.
     expect(await push("Yêu cầu quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Bị lấy quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Trả lời yêu cầu quyền sửa")).toHaveAttribute("aria-checked", "false");
+    // prefs.go pushes a system summary, a share and both access-request sides; a decline stays in-app.
+    expect(await push(t("settings.notifications.kinds.meeting_summary_ready"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_shared"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_requested"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_approved"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_declined"))).toHaveAttribute("aria-checked", "false");
+  });
+
+  // Members see the host/secretary and uploader kinds too; each says when it applies.
+  it("says when the meeting kinds that follow a role apply", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    await screen.findByRole("switch", { name: `${t("settings.notifications.kinds.meeting_summary_ready")} · ${t("settings.notifications.channel_in_app")}` });
+    // The auto summary and the items still to assign after a meeting (follow-2).
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_role"))).toHaveLength(2);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_participant"))).toHaveLength(1);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_task"))).toHaveLength(1);
+    // The reminder says its condition: only when the organization turned the automatic summary off.
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_reminder"))).toHaveLength(1);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_upload"))).toHaveLength(2);
   });
 
   // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.
@@ -276,6 +298,37 @@ describe("NotificationsTab", () => {
         expect.objectContaining({
           method: "PUT",
           body: { preferences: [{ kind: "document_changed", in_app: true, push: false, email: true }] },
+        }),
+      ),
+    );
+  });
+
+  // UNI-2141: a group or channel message pushes by default but stays out of the
+  // daily digest unless the person switches its email on (DefaultPrefs).
+  it("fills the group/channel message kind with push on and email off and lets email be switched on", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.chat_message");
+    expect(label).not.toBe("settings.notifications.kinds.chat_message");
+    expect(await screen.findByRole("switch", { name: `${label} · Hộp việc` })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: `${label} · Đẩy` })).toHaveAttribute("aria-checked", "true");
+    const email = screen.getByRole("switch", { name: `${label} · Email` });
+    expect(email).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(email);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "chat_message", in_app: true, push: true, email: true }] },
         }),
       ),
     );

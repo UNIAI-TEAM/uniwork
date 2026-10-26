@@ -12,7 +12,7 @@ import { TintTile } from "@/components/ui/tint-tile";
 import { messagePreviewText } from "@/lib/message-display";
 import { THEME } from "@/lib/theme";
 import type { TimelineMessage } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMessage[]; onJump: (messageId: string) => void }) {
   const { t } = useTranslation();
@@ -21,14 +21,9 @@ export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMes
   const pinned = useMemo(
     () =>
       messages
-        .filter((m) => m.record?.pinned)
-        .sort((a, b) =>
-          comparePinnedMessages(
-            { pinned_at: a.record?.pinned_at, created_at: a.record?.created_at ?? "" },
-            { pinned_at: b.record?.pinned_at, created_at: b.record?.created_at ?? "" },
-          ),
-        )
-        .map((m) => ({ id: m.id, preview: m.record ? messagePreviewText(m.record, t) : m.body })),
+        .flatMap((m) => (m.record?.pinned ? [{ id: m.id, record: m.record }] : []))
+        .sort((a, b) => comparePinnedMessages(a.record, b.record))
+        .map(({ id, record }) => ({ id, preview: messagePreviewText(record, t) })),
     [messages, t],
   );
   const pinnedKey = pinned.map((row) => row.id).join(",");
@@ -50,8 +45,8 @@ export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMes
     >
       <TintTile tint="blue" icon="pin" size={30} iconSize={15} />
       <View className="flex-1">
-        <Text className="text-xs font-semibold text-primary">{t("chat.mobile.pinned_bar", { index: position + 1, total: pinned.length })}</Text>
-        <Text className="text-[13px] text-foreground" numberOfLines={1}>
+        <Text className="text-caption font-semibold text-primary">{t("chat.mobile.pinned_bar", { index: position + 1, total: pinned.length })}</Text>
+        <Text className="text-footnote text-foreground" numberOfLines={1}>
           {item.preview}
         </Text>
       </View>

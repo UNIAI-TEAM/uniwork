@@ -1,31 +1,42 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, Square, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiPanelStore } from "@uniwork/core/ai";
-import type { AskUniInput } from "@uniwork/core/types";
+import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
+import { askDisplayAttachments, type StagedAskFile } from "@uniwork/core/ai/attachments";
+import type { AskOutcome } from "@uniwork/core/ai/stream";
+import type { AiAttachment, AskUniInput } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { useWorkspace } from "../layout/workspace-context";
-import { AskUniMentionPicker, type MentionPick } from "./ask-uni-mention-picker";
+import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
+import { entityKindIcon } from "./ask-uni-entity";
+import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
+import { AskUniComposerNotes, AskUniComposerNotesSign } from "./ask-uni-composer-notes";
+import { AskUniModeButton, useAskUniMode } from "./ask-uni-mode-button";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
+import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
+import type { AskUniAttachments } from "./use-ask-uni-attachments";
 
 const MAX_MENTIONS = 5;
-const TRIGGER = /(^|\s)@([^\s@]*)$/;
+const EMPTY: AskUniQuestion = { question: "", mentions: [] };
 
-type Focus = NonNullable<AskUniInput["focus"]> & { label: string };
-
-/** The `@query` the caret sits in, if any; `start` is the index of its `@`. */
-function findTrigger(text: string, caret: number) {
-  const m = TRIGGER.exec(text.slice(0, caret));
-  return m ? { start: m.index + (m[1]?.length ?? 0), query: m[2] ?? "" } : null;
+/** The file a refusal names: the server ends `ai_attachment_unreadable`'s message with it, quoted. */
+function namedFile(message: string): string | null {
+  const quoted = /("(?:[^"\\]|\\.)*")\s*$/.exec(message)?.[1];
+  if (!quoted) return null;
+  try {
+    return JSON.parse(quoted) as string;
+  } catch {
+    return quoted.slice(1, -1);
+  }
 }
 
-function Chip({ label, remove, onRemove }: { label: string; remove: string; onRemove: () => void }) {
+function Chip({ label, remove, onRemove, icon: Icon }: { label: string; remove: string; onRemove: () => void; icon?: LucideIcon }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
+      {Icon ? <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
       <span className="truncate">{label}</span>
       {/* The primitive carries the 44px coarse-pointer target. */}
       <Button type="button" variant="ghost" size="icon-xs" aria-label={remove} className="rounded-full text-muted-foreground" onClick={onRemove}>
@@ -35,37 +46,45 @@ function Chip({ label, remove, onRemove }: { label: string; remove: string; onRe
   );
 }
 
-/** The docked panel's composer: question box, `@` mentions, "+" scope, model choice, send or stop. */
+/**
+ * The docked panel's composer: one frame with the focus chip, the files, the question box (`@` cards in the text) and
+ * the buttons. `attachments` turns on file attaching (the "+" menu's upload row, pasted images and the chip row);
+ * without it the composer takes no files.
+ */
 export function AskUniComposer({
   onSend,
   onStop,
   streaming,
+  attachments,
 }: {
-  onSend: (input: AskUniInput) => void;
+  /** Resolves with whether the server took the question; until then, and after a refusal, the composer keeps it. */
+  onSend: (input: AskUniInput, display?: { attachments: AiAttachment[] }) => Promise<AskOutcome> | void;
   onStop: () => void;
   streaming: boolean;
+  attachments?: AskUniAttachments;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "ai" });
   const { workspace } = useWorkspace();
+  const focus = useAiPanelStore((s) => s.focus);
+  const setFocus = useAiPanelStore((s) => s.setFocus);
   const conversationId = useAiPanelStore((s) => s.conversationId);
   const pendingFocus = useAiPanelStore((s) => s.pendingFocus);
   const clearPendingFocus = useAiPanelStore((s) => s.clearPendingFocus);
+  const page = useShownPage();
+  const sent = useEffectiveFocus();
+  const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
+  const askMode = useAskUniMode(workspace.id)?.mode;
+  const tainted = useAiConversations(workspace.id).data?.find((c) => c.id === conversationId)?.tainted ?? false;
 
-  const box = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<AskUniEditorHandle>(null);
   const root = useRef<HTMLDivElement>(null);
-  const listId = useId();
   const wasStreaming = useRef(streaming);
-  const nextCaret = useRef<number | null>(null);
-  const [value, setValue] = useState("");
-  const [caret, setCaret] = useState(0);
-  const [dismissedAt, setDismissedAt] = useState<number | null>(null);
-  const [mentions, setMentions] = useState<MentionPick[]>([]);
-  const [focus, setFocus] = useState<Focus | null>(null);
-  const [notice, setNotice] = useState("");
-
-  const trigger = findTrigger(value, caret);
-  const pickerOpen = trigger !== null && trigger.start !== dismissedAt;
+  const [draft, setDraft] = useState<AskUniQuestion>(EMPTY);
+  // The box as of now, read when a send resolves; draft is the render's copy.
+  const typed = useRef<AskUniQuestion>(EMPTY);
+  // Why the server refused the last question before taking it, as an `ai.errors` code.
+  const [refusal, setRefusal] = useState<string | null>(null);
   const kindLabel = (kind: string) => t(`scope.kind.${kind}`, { defaultValue: kind });
 
   // Typing starts at once when the panel opens and when a conversation is chosen.
@@ -87,148 +106,152 @@ export function AskUniComposer({
   // An entry point's focus becomes the chip once.
   useEffect(() => {
     if (!pendingFocus) return;
-    const kind = kindLabel(pendingFocus.kind);
-    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label ? `${kind}: ${pendingFocus.label}` : kind });
+    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label });
     clearPendingFocus();
     box.current?.focus();
-    // kindLabel only reads the language, which a pending focus does not outlive.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFocus, clearPendingFocus]);
+  }, [pendingFocus, clearPendingFocus, setFocus]);
 
-  // After a pick the caret belongs after the inserted name.
-  useLayoutEffect(() => {
-    if (nextCaret.current === null || !box.current) return;
-    box.current.setSelectionRange(nextCaret.current, nextCaret.current);
-    nextCaret.current = null;
-  });
+  // The memory screen's "edit by chat" leaves a line to continue from: take it once.
+  const prefill = useAiPanelStore((s) => s.composerPrefill);
+  const setPrefill = useAiPanelStore((s) => s.setComposerPrefill);
+  useEffect(() => {
+    if (prefill === null) return;
+    box.current?.insert(prefill);
+    setPrefill(null);
+  }, [prefill, setPrefill]);
 
-  const pick = (p: MentionPick) => {
-    if (!trigger) return;
-    if (!mentions.some((m) => m.kind === p.kind && m.id === p.id)) {
-      if (mentions.length >= MAX_MENTIONS) {
-        setNotice(t("mention.limit", { max: MAX_MENTIONS }));
-        setDismissedAt(trigger.start);
-        return;
-      }
-      setMentions([...mentions, p]);
+  // A hand-picked focus wins over the page; a removed page chip stays off until another page.
+  const shownPage = focus ? null : page;
+  const focusLabel = focus ? (focus.label ? `${kindLabel(focus.kind)}: ${focus.label}` : kindLabel(focus.kind)) : "";
+  const placeholderKind = sent?.kind;
+  const pageLabel = shownPage ? t("page_chip", { label: shownPage.label || kindLabel(shownPage.kind) }) : "";
+
+  // A file still uploading is not yet a file, and a failed one would silently drop out: the question waits for both.
+  const filesWait = !!attachments && (attachments.busy || attachments.blocked);
+  // Marks the staged chip a refusal names, and says whether one was found.
+  const markUnreadable = (sentFiles: StagedAskFile[], message: string) => {
+    const name = namedFile(message);
+    const named = sentFiles.filter((x) => (x.uploaded?.name ?? x.file.name) === name);
+    for (const x of named) attachments?.fail(x.key, "ai_attachment_unreadable");
+    return named.length > 0;
+  };
+
+  const send = ({ question, mentions }: AskUniQuestion) => {
+    if (!question || streaming || filesWait) return;
+    const ids = attachments?.ids ?? [];
+    const sentFiles = attachments?.files.filter((x) => x.status === "ready") ?? [];
+    setRefusal(null);
+    const outcome = onSend(
+      {
+        question,
+        conversation_id: conversationId ?? undefined,
+        focus: sent ? { kind: sent.kind, id: sent.id } : undefined,
+        mentions,
+        attachment_ids: ids.length > 0 ? ids : undefined,
+        model,
+        effort,
+        ...(askMode ? { mode: askMode } : {}),
+        locale: i18n.language,
+      },
+      ids.length > 0 ? { attachments: askDisplayAttachments(attachments?.files ?? []) } : undefined,
+    );
+    // The question leaves the box once the server took it; anything typed meanwhile stays.
+    const taken = () => {
+      if (typed.current.question === question) box.current?.clear();
+      attachments?.clear(sentFiles.map((x) => x.key));
+    };
+    if (!outcome) {
+      taken();
+      return;
     }
-    setNotice("");
-    const insert = `@${p.label} `;
-    setValue(value.slice(0, trigger.start) + insert + value.slice(caret));
-    nextCaret.current = trigger.start + insert.length;
-    setCaret(nextCaret.current);
-    box.current?.focus();
-  };
-
-  const send = () => {
-    const question = value.trim();
-    if (!question || streaming) return;
-    onSend({
-      question,
-      conversation_id: conversationId ?? undefined,
-      focus: focus ? { kind: focus.kind, id: focus.id } : undefined,
-      mentions: mentions.map(({ kind, id }) => ({ kind, id })),
-      model,
-      effort,
-      locale: i18n.language,
+    void outcome.then((o) => {
+      if (o.accepted) taken();
+      // A turn stopped or replaced before it was taken has nothing to report.
+      else if (o.code && !(o.code === "ai_attachment_unreadable" && markUnreadable(sentFiles, o.message))) setRefusal(o.code);
     });
-    setValue("");
-    setCaret(0);
-    // The next question may start with an @ again.
-    setDismissedAt(null);
-    setMentions([]);
-    setNotice("");
   };
 
-  const canSend = value.trim() !== "";
+  const canSend = draft.question !== "" && !filesWait;
   return (
-    <div ref={root} className="relative flex flex-col gap-2 border-t border-border bg-background p-3" data-slot="ask-uni-composer">
-      {pickerOpen && trigger ? (
-        <AskUniMentionPicker
-          wsId={workspace.id}
-          query={trigger.query}
-          listId={listId}
-          inputRef={box}
-          onPick={pick}
-          onDismiss={() => setDismissedAt(trigger.start)}
-        />
-      ) : null}
-      {focus || mentions.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {focus ? (
+    <div ref={root} className="bg-background p-3" data-slot="ask-uni-composer">
+      <AskUniComposerNotes wsId={workspace.id} tainted={tainted} />
+      <div
+        data-slot="ask-uni-composer-frame"
+        // While the folded notes' sign sits in the top-right corner, the question's lines stop short of it.
+        className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30 has-data-[slot=ask-uni-composer-notes-sign]:[&_.ProseMirror]:pe-7"
+      >
+        <AskUniComposerNotesSign wsId={workspace.id} tainted={tainted} />
+        {focus ? (
+          <div className="flex flex-wrap gap-1.5">
             <Chip
-              label={focus.label}
-              remove={t("scope.remove", { name: focus.label })}
+              label={focusLabel}
+              remove={t("scope.remove", { name: focusLabel })}
               onRemove={() => {
                 setFocus(null);
                 box.current?.focus();
               }}
             />
-          ) : null}
-          {mentions.map((m) => (
+          </div>
+        ) : null}
+        {shownPage ? (
+          <div className="flex flex-wrap gap-1.5">
             <Chip
-              key={`${m.kind}:${m.id}`}
-              label={m.label}
-              remove={t("mention.remove", { name: m.label })}
+              icon={entityKindIcon(shownPage.kind === "room" ? "chat" : shownPage.kind)}
+              label={pageLabel}
+              remove={t("scope.remove", { name: pageLabel })}
               onRemove={() => {
-                setMentions((all) => all.filter((x) => x !== m));
+                dismissPage();
                 box.current?.focus();
               }}
             />
-          ))}
-        </div>
-      ) : null}
-      {notice ? (
-        <p role="status" className="text-caption text-destructive">
-          {notice}
-        </p>
-      ) : null}
-      <Textarea
-        ref={box}
-        rows={1}
-        value={value}
-        aria-label={t("composer_label")}
-        {...(pickerOpen
-          ? { role: "combobox", "aria-expanded": true, "aria-haspopup": "listbox", "aria-controls": listId, "aria-autocomplete": "list" }
-          : {})}
-        placeholder={t("placeholder")}
-        className="max-h-[8lh] min-h-0 resize-none overflow-y-auto"
-        onChange={(e) => {
-          const next = findTrigger(e.target.value, e.target.selectionStart);
-          if (next?.start !== dismissedAt) setDismissedAt(null);
-          setValue(e.target.value);
-          setCaret(e.target.selectionStart);
-        }}
-        onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
-        onKeyDown={(e) => {
-          // Telex/VNI confirm a syllable with Enter; that must never send.
-          if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229) return;
-          e.preventDefault();
-          send();
-        }}
-      />
-      <div className="flex flex-wrap items-center gap-1">
-        <AskUniScopePicker
-          finalFocus={box}
-          onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: `${kindLabel(p.kind)}: ${p.title}` })}
+          </div>
+        ) : null}
+        {attachments ? <AskUniAttachmentRow attachments={attachments} /> : null}
+        {refusal ? (
+          <p role="alert" className="text-caption text-destructive">
+            {t(`errors.${refusal}`, { defaultValue: t("errors.default") })}
+          </p>
+        ) : null}
+        <AskUniEditor
+          ref={box}
+          wsId={workspace.id}
+          placeholder={placeholderKind ? t(`placeholder_${placeholderKind}`, { defaultValue: t("placeholder") }) : t("placeholder")}
+          maxMentions={MAX_MENTIONS}
+          onSubmit={send}
+          onChange={(q) => {
+            typed.current = q;
+            setDraft(q);
+          }}
+          onPasteFiles={attachments?.attach}
         />
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-          <AskUniModelPicker />
-          {streaming ? (
-            <Button type="button" size="icon-sm" aria-label={t("stop")} onClick={onStop}>
-              <Square aria-hidden />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon-sm"
-              aria-label={t("ask")}
-              aria-disabled={!canSend || undefined}
-              onClick={canSend ? send : undefined}
-            >
-              <ArrowUp aria-hidden />
-            </Button>
-          )}
+        <div className="flex flex-wrap items-center gap-1">
+          <AskUniScopePicker
+            finalFocus={() => {
+              box.current?.focus();
+              return false;
+            }}
+            onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: p.title })}
+            onFiles={attachments?.attach}
+          />
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <AskUniModeButton wsId={workspace.id} />
+            <AskUniModelPicker />
+            {streaming ? (
+              <Button type="button" size="icon-sm" aria-label={t("stop")} onClick={onStop}>
+                <Square aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon-sm"
+                aria-label={t("ask")}
+                aria-disabled={!canSend || undefined}
+                onClick={canSend ? () => send(draft) : undefined}
+              >
+                <ArrowUp aria-hidden />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

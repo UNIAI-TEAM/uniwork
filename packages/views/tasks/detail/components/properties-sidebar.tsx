@@ -194,7 +194,8 @@ export function TaskDetailPropertiesSidebar({
 
       <TaskParentSection workspaceId={workspaceId} task={task} />
 
-      <RelatedSection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} />
+      {/* The context line names the meeting a task came from; "Liên quan" does not repeat it. */}
+      <RelatedSection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} originShown={task.origin_type === "meeting"} />
 
       <TaskDetailMetadata
         creatorId={task.created_by}

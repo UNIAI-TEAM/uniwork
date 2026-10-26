@@ -9,7 +9,7 @@ import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
 import { emailHubKeys } from "../email-hub/hooks";
-import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline-pages";
 import { graphKeys } from "../graph/keys";
 import { setSessionUser } from "../auth/hooks";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
@@ -1288,20 +1288,215 @@ describe("useRealtimeSync › meeting summary", () => {
     vi.useRealTimers();
   });
 
-  it.each(["summary.created", "summary.tasks_linked"])(
-    "refreshes the meeting's summary and activity on %s",
+  it("refreshes the meeting's summary, activity and action items on summary.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "summary.created", payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-summary", "m1"]),
+        JSON.stringify(["meeting-activity", "m1"]),
+        JSON.stringify(["meeting-action-items", "m1"]),
+        // The minutes count the pending items before finalizing.
+        JSON.stringify(["meeting-minutes", "m1"]),
+      ]),
+    );
+  });
+
+  it.each(["action_item.created", "action_item.dismissed", "action_item.restored", "action_item.converted"])(
+    "refreshes the meeting's action items and the minutes' pending count on %s",
     (type) => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();
-      client.emit({ type, payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+      client.emit({ type, payload: { meeting_id: "m1", action_item_id: "a1", workspace_id: "ws1" } } as WSMessage);
       act(() => {
         vi.advanceTimersByTime(250);
       });
       expect(keysCalled(invalidate)).toEqual(
-        expect.arrayContaining([JSON.stringify(["meeting-summary", "m1"]), JSON.stringify(["meeting-activity", "m1"])]),
+        expect.arrayContaining([JSON.stringify(["meeting-action-items", "m1"]), JSON.stringify(["meeting-minutes", "m1"])]),
       );
     },
   );
+
+  it("reads the summary run again on meeting.ended, when the auto summary is queued", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "meeting.ended", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-summary", "m1"]));
+  });
+
+  it.each(["minutes.created", "minutes.finalized", "minutes.reopened"])("refreshes the meeting's minutes on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-minutes", "m1"])]));
+  });
+
+  it.each(["task.updated", "task.deleted"])("refreshes only the action item lists that hold the task on %s", (type) => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    const list = (taskId: string) => ({
+      items: [{ id: "a1", title: "x", status: "CONVERTED", evidence: [], task: { id: taskId } }],
+      counts: { pending: 0, converted: 1, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+    });
+    qc.setQueryData(["meeting-action-items", "m1"], list("t1"));
+    qc.setQueryData(["meeting-action-items", "m2"], list("t2"));
+    client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting-action-items", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-action-items", "m2"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-action-items"]));
+  });
+
+  // A conversion in another meeting creates the task; finishing or deleting
+  // it takes it off the list.
+  it.each(["task.created", "task.updated", "task.deleted"])("refreshes every open carried-over list on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-carried-over"])]));
+  });
+});
+
+describe("useRealtimeSync › meeting scribe", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("refreshes the notes on note.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "note.created", payload: { meeting_id: "m1", version: "3", note_id: "n1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
+  });
+
+  it("refreshes only the open series details on meeting.created, so a series learns its next meeting", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 1 });
+    qc.setQueryData(["meeting", "solo"], { id: "solo", version: 1 });
+    client.emit({ type: "meeting.created", payload: { meeting_id: "m2", version: "1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "solo"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-participants", "m1"]));
+  });
+
+  it("refreshes the other members of a series on meeting.canceled, and only that series", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 1 });
+    qc.setQueryData(["meeting", "m2"], { id: "m2", series_id: "s1", version: 5 });
+    qc.setQueryData(["meeting", "x1"], { id: "x1", series_id: "s2", version: 1 });
+    client.emit({ type: "meeting.canceled", payload: { meeting_id: "m2", version: "6" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).toContain(JSON.stringify(["meeting", "m2"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "x1"]));
+  });
+
+  it("keeps the version filter for the changed meeting while its series siblings still refresh", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting", "m1"], { id: "m1", series_id: "s1", version: 9 });
+    qc.setQueryData(["meeting", "m2"], { id: "m2", series_id: "s1", version: 5 });
+    client.emit({ type: "meeting.updated", payload: { meeting_id: "m2", version: "5" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting", "m2"]));
+  });
+
+  it("refreshes the meeting detail on scribe.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "scribe.updated", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting", "m1"])]));
+  });
+
+  it("refreshes the speaker labels and the transcript's names on speaker_label.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "speaker_label.updated", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      // The transcript rides the longer transcript debounce.
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-speaker-labels", "m1"]),
+        JSON.stringify(["meeting-transcript", "m1"]),
+      ]),
+    );
+  });
+
+  it("refreshes a meeting's transcriptions, transcript and labels on transcription.*", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type: "transcription.completed",
+      payload: { meeting_id: "m1", transcription_id: "t1", workspace_id: "ws1" },
+    } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-transcriptions", "m1"]),
+        JSON.stringify(["meeting-transcript", "m1"]),
+        JSON.stringify(["meeting-speaker-labels", "m1"]),
+        JSON.stringify(["meeting-transcript-read", "m1"]),
+        JSON.stringify(["meeting-summary", "m1"]),
+      ]),
+    );
+  });
+
+  it("refreshes every read of the transcript and the summary on transcript.changed (UNI-1995 #5)", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "transcript.changed", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-transcript", "m1"]),
+        JSON.stringify(["meeting-transcript-read", "m1"]),
+        JSON.stringify(["meeting-transcriptions", "m1"]),
+        JSON.stringify(["meeting-summary", "m1"]),
+      ]),
+    );
+  });
 });
 
 describe("useRealtimeSync › home summary", () => {

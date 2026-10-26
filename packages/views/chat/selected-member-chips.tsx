@@ -7,7 +7,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 
 /**
@@ -102,7 +102,7 @@ export function SelectedMemberChips({
                   data-chip-remove=""
                   onClick={() => remove(member.user_id, index)}
                 >
-                  <X aria-hidden className="size-3.75" strokeWidth={2.4} />
+                  <X aria-hidden className="size-3.5" />
                 </Button>
               </li>
             );

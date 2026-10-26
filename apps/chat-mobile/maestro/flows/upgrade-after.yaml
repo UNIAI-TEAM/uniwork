@@ -1,0 +1,31 @@
+# The upgrade path, second half: tonight's APK was installed over last night's
+# (adb install -r). Opened with the network back, the person is still signed
+# in (the session in the Keystore), the workspace and its rooms come up from
+# the kept cache without the sign-in screen, and the message left in the
+# outbox before the upgrade is delivered, once.
+appId: com.uniworkos.chat.staging
+name: After the upgrade, the session, the cache and the outbox survived
+tags:
+  - upgrade
+---
+- setAirplaneMode: disabled
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- assertNotVisible: "Sign in|Đăng nhập"
+# Delivered: the list's preview is the waiting message, as the server has it.
+- extendedWaitUntil:
+    visible:
+      id: room-row-${MAESTRO_ROOM_ID}
+      text: .*${UPGRADE_STAMP}.*
+    timeout: 60000
+- tapOn:
+    id: room-row-${MAESTRO_ROOM_ID}
+- extendedWaitUntil:
+    visible: .*${UPGRADE_STAMP}.*
+    timeout: 30000
+- assertNotVisible:
+    text: .*${UPGRADE_STAMP}.*
+    index: 1

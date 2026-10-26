@@ -137,10 +137,10 @@ describe("WorkspaceTopBar", () => {
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
     expect(create).toHaveClass("size-8");
+    expect(create.querySelector("svg.lucide-briefcase-plus")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Giao diện" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ngôn ngữ" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
 
   it("draws every top-bar action at one size and tone, in one tight cluster", () => {
@@ -148,10 +148,7 @@ describe("WorkspaceTopBar", () => {
     const create = screen.getByRole("button", { name: /tạo việc/i });
     const cluster = create.parentElement;
     expect(cluster).toHaveClass("gap-0.5");
-    const actions = [
-      screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i }),
-      ...within(cluster as HTMLElement).getAllByRole("button"),
-    ];
+    const actions = within(cluster as HTMLElement).getAllByRole("button");
     expect(actions.length).toBeGreaterThanOrEqual(5);
     for (const action of actions) {
       expect(action).toHaveClass("size-8", "text-muted-foreground");
@@ -208,15 +205,79 @@ describe("WorkspaceTopBar", () => {
     await setLocale("vi");
   });
 
-  it("puts the search trigger right after the sidebar toggle and opens the palette", () => {
+  it("on a desktop bar, holds the workspace switcher, search and account, and leaves the sidebar toggle to the sidebar", async () => {
     useSearchStore.setState({ open: false });
-    renderTopBar();
-    const toggle = screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i });
+    const { container } = renderTopBar();
+    // The bar sits on the app plane, outside every card (ClickUp-style shell).
+    expect(container.querySelector("header")).toHaveClass("lg:bg-transparent", "lg:border-b-0");
+    expect(screen.queryByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeNull();
+    const switcher = await screen.findByRole("button", { name: "Acme, Team: chuyển workspace" });
+    // One line at a nav row's size: the organization stays in the name and the menu, not a second line.
+    expect(within(switcher).queryByText("Acme")).toBeNull();
+    expect(within(switcher).getByText("Team")).toHaveClass("text-body", "font-medium");
     const search = screen.getByRole("button", { name: /tìm kiếm/i });
-    expect(toggle.nextElementSibling).toBe(search);
+    const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
+    expect(switcher.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(search);
     expect(useSearchStore.getState().open).toBe(true);
     useSearchStore.setState({ open: false });
+  });
+
+  it("on a desktop bar, puts Ask UNI inside the search field as a pill with a brand gradient ring, as ClickUp's AI entry", async () => {
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/workspaces/ws1/ai/capabilities"
+          ? { enabled: true, ask_uni: true, meeting_summary: true, quota: { used_tokens: 0, limit_tokens: 500000 } }
+          : {},
+      ),
+    );
+    renderTopBar();
+    const ask = await screen.findByRole("button", { name: "Hỏi UNI" });
+    expect(ask).toHaveTextContent("Hỏi UNI");
+    expect(ask).toHaveClass("rounded-full", "isolate");
+    expect(ask.querySelector("svg")).not.toBeNull();
+    // The ring is drawn from the brand tokens and only turns on hover or focus, never under reduced motion.
+    const ring = ask.querySelector('[data-slot="ask-uni-ring"]');
+    expect(ring?.className).toContain("var(--brand)");
+    expect(ring?.className).toContain("var(--brand-accent)");
+    expect(ring).toHaveClass("motion-safe:group-hover/ai:animate-[spin_1.5s_linear_infinite]");
+    // One field: the search trigger and the pill share it, search first.
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    const field = search.parentElement as HTMLElement;
+    // A pill field, so the pill inside is concentric with it; hovering lifts the whole field, pill included.
+    expect(field).toHaveClass(
+      "group/field",
+      "w-96",
+      "rounded-full",
+      "border-border",
+      "bg-page-canvas",
+      "hover:shadow-sm",
+      "dark:hover:bg-surface-hover",
+    );
+    expect(search).toHaveClass("hover:bg-transparent", "rounded-s-full");
+    expect(field.querySelector('[data-slot="ask-uni-cover"]')).toHaveClass("dark:group-hover/field:bg-surface-hover");
+    expect(field).toContainElement(ask);
+    expect(search.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const account = screen.getByRole("button", { name: "An, a@b.c: tài khoản" });
+    // A 32px avatar with a chevron: the control reads as a menu, not a lone picture.
+    expect(account.querySelector('[data-slot="account-chevron"]')).not.toBeNull();
+    expect(account.querySelector('[data-slot="avatar"][style*="width: 32px"]')).not.toBeNull();
+  });
+
+  it("on a compact bar, puts the search trigger right after the sidebar toggle, and keeps switcher and account in the sheet", async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 800;
+    try {
+      renderTopBar();
+      const toggle = await screen.findByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i });
+      expect(toggle.nextElementSibling).toBe(screen.getByRole("button", { name: /tìm kiếm/i }));
+      expect(screen.queryByRole("button", { name: /chuyển workspace/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /tài khoản$/ })).toBeNull();
+    } finally {
+      window.innerWidth = width;
+    }
   });
 });
 
@@ -246,7 +307,7 @@ describe("WorkspaceChrome Ask UNI", () => {
           : {},
       ),
     );
-    useAiPanelStore.setState({ open: true, conversationId: null, workspaceId: null, fullPage: false });
+    useAiPanelStore.setState({ open: true, conversationId: null, workspaceId: null });
     const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: flagOn } }));
     return render(
       wrapWithNav(

@@ -148,8 +148,9 @@ describe("AppSidebar pinned items", () => {
     const nav = renderSidebar();
     await pinnedList();
     fireEvent.click(screen.getByRole("button", { name: "Đã ghim: 2 mục" }));
-    const project = await screen.findByRole("menuitem", { name: "Ra mắt" });
-    const task = await screen.findByRole("menuitem", { name: "Viết báo cáo" });
+    // The menu opens through a portal; under a loaded CI shard that took past the default 1s (run 40170270817).
+    const project = await screen.findByRole("menuitem", { name: "Ra mắt" }, { timeout: 5000 });
+    const task = await screen.findByRole("menuitem", { name: "Viết báo cáo" }, { timeout: 5000 });
     expect(screen.getAllByRole("menuitem")).toEqual([project, task]);
     expect(task).toHaveAttribute("href", "/acme/team/tasks/t1");
     fireEvent.click(task);

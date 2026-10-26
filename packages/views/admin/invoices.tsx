@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
 import { useAdminInvoices, useAdminMe, useAdminPaymentIntents } from "@uniwork/core/admin";
@@ -35,23 +35,6 @@ function intentStatusLabel(t: (key: string) => string, status: string): string {
   return out === key ? status : out;
 }
 
-function filterByDateRange<T extends { paid_at?: string; created_at?: string; refund_requested_at?: string; refunded_at?: string }>(
-  rows: T[],
-  from: string,
-  to: string,
-  pickTime: (row: T) => string,
-): T[] {
-  if (!from && !to) return rows;
-  const fromMs = from ? Date.parse(`${from}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
-  const toMs = to ? Date.parse(`${to}T23:59:59.999Z`) : Number.POSITIVE_INFINITY;
-  return rows.filter((row) => {
-    const raw = pickTime(row);
-    if (!raw) return false;
-    const ms = Date.parse(raw);
-    return !Number.isNaN(ms) && ms >= fromMs && ms <= toMs;
-  });
-}
-
 /** /admin/invoices — hóa đơn và giao dịch checkout trên toàn nền tảng. */
 export function AdminInvoicesView() {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "admin.invoices" });
@@ -77,6 +60,8 @@ export function AdminInvoicesView() {
     q: search || undefined,
     provider: provider === ALL ? undefined : provider,
     status: status === ALL ? undefined : status,
+    dateFrom: !rangeInvalid && dateFrom ? dateFrom : undefined,
+    dateTo: !rangeInvalid && dateTo ? dateTo : undefined,
     limit: PAGE_SIZE,
     offset,
   };
@@ -85,21 +70,8 @@ export function AdminInvoicesView() {
   const intents = useAdminPaymentIntents(query, tab === "intents");
   const active = tab === "invoices" ? invoices : intents;
 
-  const invoiceRows = useMemo(() => {
-    const base = invoices.data?.invoices ?? [];
-    if (rangeInvalid) return base;
-    return filterByDateRange(base, dateFrom, dateTo, (inv) =>
-      inv.refund_requested_at || inv.refunded_at || inv.paid_at || inv.created_at,
-    );
-  }, [invoices.data?.invoices, dateFrom, dateTo, rangeInvalid]);
-
-  const intentRows = useMemo(() => {
-    const base = intents.data?.intents ?? [];
-    if (rangeInvalid) return base;
-    return filterByDateRange(base, dateFrom, dateTo, (pi) => pi.created_at);
-  }, [intents.data?.intents, dateFrom, dateTo, rangeInvalid]);
-
-  const rows = tab === "invoices" ? invoiceRows : intentRows;
+  const rows =
+    tab === "invoices" ? (invoices.data?.invoices ?? []) : (intents.data?.intents ?? []);
   const total = tab === "invoices" ? (invoices.data?.total ?? 0) : (intents.data?.total ?? 0);
 
   const pager =
@@ -254,7 +226,7 @@ export function AdminInvoicesView() {
       ) : tab === "invoices" ? (
         <>
           <AdminInvoicesTable
-            rows={invoiceRows}
+            rows={invoices.data?.invoices ?? []}
             emptyLabel={t("empty")}
             canRefund={canRefund}
             locale={i18n.language}
@@ -264,6 +236,7 @@ export function AdminInvoicesView() {
                 id: inv.id,
                 number: inv.number,
                 amount_paid: inv.amount_paid,
+                amount_refunded: inv.amount_refunded,
                 currency: inv.currency,
               })
             }
@@ -274,7 +247,7 @@ export function AdminInvoicesView() {
       ) : (
         <>
           <AdminPaymentIntentsTable
-            rows={intentRows}
+            rows={intents.data?.intents ?? []}
             emptyLabel={t("empty")}
             locale={i18n.language}
             onDetail={(pi: AdminPaymentIntent) => setDetail({ kind: "intent", row: pi })}

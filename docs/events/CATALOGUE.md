@@ -70,6 +70,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 
 | Topic | v | Payload | Patch | Phạm vi | Cách gửi |
 | --- | --- | --- | --- | --- | --- |
+| `action_item.converted` | 1 | `meeting_id`, `workspace_id` | — | workspace | outbox |
+| `action_item.created` | 1 | `meeting_id`, `action_item_id`, `workspace_id` | — | workspace | outbox |
+| `action_item.dismissed` | 1 | `meeting_id`, `action_item_id`, `workspace_id` | — | workspace | outbox |
+| `action_item.restored` | 1 | `meeting_id`, `action_item_id`, `workspace_id` | — | workspace | outbox |
 | `agent.archived` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
 | `agent.created` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
 | `agent.updated` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
@@ -98,8 +102,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.follow_up.deleted` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
 | `chat.message.mentioned` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.dm.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
+| `chat.message.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_received` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
+| `chat.voice.ring_closed` | 1 | `room_id`, `call_id`, `user_id`, `session_id`, `reason` | — | - | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
 | `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
 | `chat.room.activity` | 1 | `room_id` | — | room | ephemeral |
@@ -107,6 +113,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.members_added` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
+| `chat.room.notifications_cleared` | 1 | `room_id`, `user_id` | — | - | outbox |
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.member_read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.room.member_delivered` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
@@ -127,6 +134,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `join_request.canceled` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
 | `join_request.created` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
 | `join_request.rejected` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
+| `minutes.created` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `minutes.finalized` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `minutes.reopened` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `meeting.auto_summary_failed` | 1 | `meeting_id`, `workspace_id` | — | - | outbox |
 | `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |
@@ -142,7 +153,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `notification.created` | 1 | `notification_id`, `user_id` | — | user | outbox |
-| `notification.push` | 1 | `notification_id`, `user_id` | — | - | outbox |
+| `notification.push` | 1 | `notification_id`, `user_id`, `message_id` | — | - | outbox |
 | `organization.created` | 1 | `organization_id` | — | user | outbox |
 | `organization.updated` | 1 | `organization_id` | — | user | outbox |
 | `organization.suspended` | 1 | `organization_id`, `user_id` | — | user | outbox |
@@ -217,6 +228,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `motion.opened` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
+| `note.created` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |
@@ -227,7 +239,6 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `session.revoked` | 1 | `user_id`, `session_id` | — | - | outbox |
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
 | `summary.created` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
-| `summary.tasks_linked` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
@@ -269,6 +280,12 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `privacy.export_requested` | 1 | `request_id`, `organization_id` | — | - | outbox |
 | `privacy.deletion_requested` | 1 | `request_id`, `organization_id` | — | - | outbox |
 | `transcript.appended` | 1 | `meeting_id` | — | meeting | ephemeral |
+| `scribe.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
+| `speaker_label.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
+| `transcription.requested` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
+| `transcription.completed` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
+| `transcription.failed` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
+| `transcript.changed` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
 | `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
 | `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | — | - | outbox |

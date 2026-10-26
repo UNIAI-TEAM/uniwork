@@ -1,0 +1,163 @@
+# Nightly end-to-end run of the AI scribe (UNI-1995, ADR 0045; spec
+# 2026-10-20-meeting-scribe-agent-design §12.1): e2e/meeting-scribe.spec.ts
+# against a real LiveKit server (the same livekit-server image and config as
+# local development, scripts/ensure-livekit.sh), the server binary with the
+# scribe on, a production web build, and apps/meeting-agent with the fake STT
+# (no vendor key exists in CI; the fake turns voiced audio into "từ1 từ2 …").
+# Chromium's microphone plays a generated Vietnamese WAV, because Silero VAD
+# does not take the default fake beep for speech.
+#
+# Too slow and too stateful for every PR (LiveKit, an agent worker, a 15 s
+# dispatch sweep); a red night means the agent wiring (agent.py, dispatch,
+# /agent/* routes, captions) broke. The schedule tests `develop`; GitHub reads
+# a scheduled workflow from the default branch, so this file must reach `main`
+# for the schedule to take effect. workflow_dispatch runs it on any branch.
+name: Meeting Scribe Nightly
+
+on:
+  schedule:
+    - cron: "30 19 * * *" # 02:30 Asia/Ho_Chi_Minh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  GO_VERSION: "1.27.0"
+
+jobs:
+  scribe-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: uniwork
+          POSTGRES_USER: uniwork
+          POSTGRES_PASSWORD: uniwork
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uniwork -d uniwork"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        # LiveKit uses it too (livekit.dev.yaml: host.docker.internal:6379).
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-scribe-secret
+      PORT: "8080"
+      FRONTEND_ORIGIN: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:8080
+      PREVIEW_ORIGIN: http://localhost:3001
+      PREVIEW_CAPABILITY_SECRET: ci-scribe-preview-capability-secret-00000000
+      APP_ENV: development
+      DEV_VERIFICATION_CODE: "123456"
+      STORAGE_BACKEND: local
+      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
+      LOCAL_UPLOAD_BASE_URL: http://localhost:8080
+      AI_PROVIDER: fake
+      # LiveKit dev keys (livekit.dev.yaml); the webhook reaches this PORT.
+      MEETING_PROVIDER: livekit
+      LIVEKIT_URL: ws://localhost:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret_must_be_at_least_32_chars
+      MEETING_SCRIBE_ENABLED: "true"
+      MEETING_SCRIBE_AGENT_NAME: uniwork-scribe
+      FF_MEETING_SCRIBE: "true"
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      E2E_BASE_URL: http://localhost:3000
+      E2E_LIVEKIT: "1"
+      E2E_SCRIBE: "1"
+      E2E_SCRIBE_AUDIO: /tmp/scribe-speech.wav
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/meeting-agent/requirements.txt
+      - name: Speech for the fake microphone
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q espeak-ng sox
+          espeak-ng -v vi -s 150 -w /tmp/speech-raw.wav \
+            "Chào cả nhóm. Hôm nay chúng ta rà soát kế hoạch quý ba. Anh An gửi báo giá trước thứ Sáu nhé. Chị Bình chốt ngân sách với khách hàng."
+          # 48 kHz, 16-bit mono, with pauses so the VAD ends each turn.
+          sox /tmp/speech-raw.wav -r 48000 -b 16 -c 1 "$E2E_SCRIBE_AUDIO" pad 0.5 2
+          test -s "$E2E_SCRIBE_AUDIO"
+      - run: pnpm install --frozen-lockfile
+      - name: LiveKit
+        run: |
+          printf 'PORT=%s\nLIVEKIT_URL=%s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\n' \
+            "$PORT" "$LIVEKIT_URL" "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > .env.ci
+          bash scripts/ensure-livekit.sh .env.ci
+      - name: Migrate and start the server
+        run: |
+          cd server
+          go run ./cmd/migrate up
+          go build -o bin/server ./cmd/server
+          nohup bin/server > /tmp/server.log 2>&1 &
+      - name: Start the agent (fake STT)
+        working-directory: apps/meeting-agent
+        env:
+          UNIWORK_API_URL: http://localhost:8080
+          SCRIBE_STT_PROVIDER: fake
+          PROMETHEUS_MULTIPROC_DIR: /tmp/scribe-metrics
+        run: |
+          pip install -r requirements.txt
+          mkdir -p "$PROMETHEUS_MULTIPROC_DIR"
+          nohup python agent.py start > /tmp/agent.log 2>&1 &
+      - name: Build and start the web app
+        run: |
+          pnpm --filter @uniwork/web build
+          PORT=3000 nohup pnpm --filter @uniwork/web start > /tmp/web.log 2>&1 &
+      - name: Wait for the server, the web app and the agent's registration
+        run: |
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
+          for i in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:8080/readyz
+          # The health port answers before LiveKit accepts the worker; the log line does not.
+          for i in $(seq 1 90); do grep -q "registered worker" /tmp/agent.log && break; sleep 1; done
+          grep -q "registered worker" /tmp/agent.log
+      - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
+      - name: Scribe e2e
+        run: pnpm --filter @uniwork/e2e exec playwright test meeting-scribe.spec.ts
+      - if: failure()
+        run: |
+          tail -n 100 /tmp/server.log /tmp/agent.log /tmp/web.log
+          docker compose -f docker-compose.livekit.yml logs --tail=100 livekit || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scribe-e2e
+          path: |
+            e2e/test-results/
+            /tmp/server.log
+            /tmp/agent.log
+            /tmp/web.log
+          if-no-files-found: ignore

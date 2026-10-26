@@ -24,9 +24,12 @@ import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
+import type { Meeting } from "../types/meeting";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
+import { transcriptFrameKeys } from "./meeting-transcript-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
@@ -66,6 +69,19 @@ function calendarKeyForFrame(
   const frameWs = payload.workspace_id;
   if (frameWs && frameWs !== wsId) return null;
   return calendarKeys.all(frameWs ?? wsId);
+}
+
+/**
+ * Open details of the changed meeting's series (every series when its own
+ * detail is not cached): the server derives previous/next links from the
+ * series' uncanceled members ordered by starts_at.
+ */
+function seriesDetailKeys(qc: QueryClient, meetingId: string | undefined): readonly unknown[][] {
+  const own = meetingId ? qc.getQueryData<Meeting>(meetingKeys.detail(meetingId)) : undefined;
+  return qc.getQueriesData<Meeting>({ queryKey: meetingKeys.detail("").slice(0, 1) })
+    .filter(([key, data]) => key.length === 2 && key[1] !== meetingId && !!data?.series_id)
+    .filter(([, data]) => !own || own.series_id === data?.series_id)
+    .map(([key]) => [...key]);
 }
 
 function keysFor(
@@ -113,6 +129,7 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
+    meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
     pushCalendar();
     return keys;
   }
@@ -120,6 +137,12 @@ function keysFor(
   const documentFrame = documentFrameKeys(wsId, type, payload);
   if (documentFrame) {
     for (const k of documentFrame) push(k);
+    return keys;
+  }
+
+  const followThrough = followThroughFrameKeys(type, payload) ?? transcriptFrameKeys(type, payload);
+  if (followThrough) {
+    followThrough.forEach(push);
     return keys;
   }
 
@@ -237,7 +260,12 @@ function keysFor(
         push(meetingKeys.attendance(payload.meeting_id));
         // Ending the meeting closes and counts every open motion.
         if (type === "meeting.ended") push(meetingKeys.motions(payload.meeting_id));
+        // The auto summary is queued with the end: an open panel reads the run and starts polling it.
+        if (type === "meeting.ended") push(meetingKeys.summary(payload.meeting_id));
       }
+      // Creating, moving, canceling or deleting a member changes its series neighbours' links.
+      const seriesMoves = type !== "meeting.started" && type !== "meeting.ended" && type !== "host.transferred";
+      if (seriesMoves) seriesDetailKeys(qc, payload.meeting_id).forEach(push);
       pushCalendar();
       break;
     }
@@ -320,22 +348,21 @@ function keysFor(
       }
       break;
     }
+    // The AI scribe was switched, or its run changed state.
+    case "scribe.updated": {
+      if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      break;
+    }
+    case "note.created": {
+      if (payload.meeting_id) push(meetingKeys.notes(payload.meeting_id));
+      break;
+    }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;
     }
     case "chat.message": {
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
-      break;
-    }
-    // A new summary, or items of the current one that just became tasks
-    // (their task_id, so no host converts them twice).
-    case "summary.created":
-    case "summary.tasks_linked": {
-      if (payload.meeting_id) {
-        push(meetingKeys.summary(payload.meeting_id));
-        push(meetingKeys.activity(payload.meeting_id));
-      }
       break;
     }
     case "profile.updated":
@@ -529,6 +556,8 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&
+          // The frame's version is its own meeting's; a series sibling always refetches.
+          queryKey[1] === payload.meeting_id &&
           !shouldInvalidateMeetingDetail(qc, payload.meeting_id, payload.version)
         ) {
           continue;

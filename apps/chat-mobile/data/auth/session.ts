@@ -4,7 +4,8 @@
 // auth session that returns the callback URL; results that land after logout
 // are dropped by the shared session epoch instead of a private generation
 // counter, so the Keychain's conditional write and this class agree; no
-// proactive refresh timer (M2a), a token is refreshed when asked for.
+// proactive refresh timer, a token is refreshed when asked for.
+import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
 import { validateCallback } from "./callback";
 import { LoginAttemptStore, type PendingLoginAttempt } from "./pkce";
@@ -65,6 +66,8 @@ export function deviceLabel(os: string): string {
   return `UniChat (${os === "ios" ? "iOS" : os === "android" ? "Android" : os})`;
 }
 
+const log = createLogger("auth");
+
 const codeOf = (error: unknown): string => (error instanceof TransportError ? error.code : "unknown");
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -106,28 +109,36 @@ export class MobileSession {
     return () => this.listeners.delete(cb);
   }
 
-  /** Startup: the stored session of this deployment is adopted; a token near expiry is refreshed first. */
-  async restore(): Promise<void> {
+  /**
+   * Startup: the stored session of this deployment is adopted; a token near
+   * expiry is refreshed. Resolves to whether a credential is held. A cold
+   * start passes `awaitRefresh: false`: it routes on the stored credential at
+   * once (offline, a 5xx) and lets the refresh land in the background; the
+   * credential goes only on a server verdict (onChange(null)).
+   */
+  async restore(options: { awaitRefresh?: boolean } = {}): Promise<boolean> {
     let stored: StoredSession | null;
     try {
       stored = await this.deps.storage.load();
     } catch {
-      console.warn("[auth] stored session unreadable");
-      return;
+      log.warn("stored session unreadable");
+      return false;
     }
-    if (!stored) return;
+    if (!stored) return false;
     if (stored.deployment_id !== this.deps.config.deploymentId) {
       // a session issued by another deployment is never sent to this one
-      console.warn("[auth] stored session belongs to another deployment");
-      return;
+      log.warn("stored session belongs to another deployment");
+      return false;
     }
     this.live = stored;
     if (this.isFresh(stored)) {
       this.adopt(stored);
-      return;
+      return true;
     }
     this.state = "refreshing";
-    await this.refresh();
+    const refreshing = this.refresh();
+    if (options.awaitRefresh !== false) await refreshing;
+    return this.live !== null;
   }
 
   /**
@@ -198,7 +209,7 @@ export class MobileSession {
     if (!validation.ok) {
       if (validation.reason === "expired") this.cancelLogin("login_timeout");
       // a forged, stale or foreign callback is discarded; the live attempt stays (anything can open a URL)
-      else console.warn(`[auth] callback discarded: ${validation.reason}`);
+      else log.warn("callback discarded", { reason: validation.reason });
       return;
     }
     // single use: the attempt leaves the store before the exchange call
@@ -222,6 +233,36 @@ export class MobileSession {
       return;
     }
     if (sessionEpochChanged(epoch)) return;
+    await this.adoptIssued(session, epoch);
+  }
+
+  /**
+   * A sign-in that issues the session without the browser (Sign in with Apple, apple-transport.ts › appleIssuer):
+   * `issue` answers null when the person closed it, and is told when a sign-out moved on meanwhile. A failure rejects,
+   * a server verdict with its TransportError, for the screen to explain.
+   */
+  async loginWith(issue: (stale: () => boolean) => Promise<DesktopSession | null>): Promise<void> {
+    if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return;
+    if (this.live) {
+      await this.refresh();
+      return;
+    }
+    const epoch = currentSessionEpoch();
+    this.state = "signing-in";
+    let session: DesktopSession | null;
+    try {
+      session = await issue(() => sessionEpochChanged(epoch));
+    } catch (error) {
+      if (!sessionEpochChanged(epoch)) this.failLogin(codeOf(error));
+      throw error;
+    }
+    if (sessionEpochChanged(epoch)) return;
+    if (session) await this.adoptIssued(session, epoch);
+    else this.failLogin("dismissed");
+  }
+
+  /** A session the server just issued: into the Keychain, then live. */
+  private async adoptIssued(session: DesktopSession, epoch: number): Promise<void> {
     const next = this.storedOf(session);
     const persisted = await this.persist(next, { epoch });
     if (!persisted.ok) {
@@ -265,8 +306,30 @@ export class MobileSession {
     try {
       await this.deps.storage.clear();
     } catch {
-      console.warn("[auth] stored session not cleared");
+      log.warn("stored session not cleared");
     }
+  }
+
+  /**
+   * The first launch of a fresh install (data/install-marker.ts): iOS keeps Keychain items after the app is
+   * deleted, so a session stored by the previous install is still there. It is never adopted: storage is cleared
+   * and its device revoked in the background, so deleting the app also signs it out. Nothing is emitted, since no
+   * one was signed in on this install.
+   */
+  async discardStored(): Promise<void> {
+    invalidateSessionEpoch();
+    let previous: StoredSession | null = null;
+    try {
+      previous = await this.deps.storage.load();
+    } catch {
+      // unreadable: cleared below all the same
+    }
+    try {
+      await this.deps.storage.clear();
+    } catch {
+      log.warn("stored session not cleared");
+    }
+    if (previous) void this.revoke(previous);
   }
 
   private async runRefresh(): Promise<string | null> {
@@ -287,7 +350,7 @@ export class MobileSession {
         await this.endSession(error.code);
         return null;
       }
-      console.warn(`[auth] refresh failed: ${codeOf(error)}`);
+      log.warn("refresh failed", { code: codeOf(error) });
       this.state = "server-unreachable";
       this.scheduleRecovery();
       return null;
@@ -367,20 +430,20 @@ export class MobileSession {
 
   /** the credential is gone (server verdict or unstorable): move the epoch, sign out, tell the app, clear */
   private async endSession(reason: string): Promise<void> {
-    console.warn(`[auth] session ended: ${reason}`);
+    log.warn("session ended", { reason });
     invalidateSessionEpoch();
     this.reset();
     this.emit(null);
     try {
       await this.deps.storage.clear();
     } catch {
-      console.warn("[auth] stored session not cleared");
+      log.warn("stored session not cleared");
     }
   }
 
   /** only ever reached from `signing-in` */
   private failLogin(reason: string): void {
-    console.warn(`[auth] sign-in failed: ${reason}`);
+    log.warn("sign-in failed", { reason });
     this.state = "signed-out";
   }
 

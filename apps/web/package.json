@@ -20,7 +20,7 @@
     "@uniwork/views": "workspace:*",
     "gsap": "catalog:",
     "lucide-react": "catalog:",
-    "next": "^16.3.8",
+    "next": "^16.4.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
@@ -28,11 +28,11 @@
     "web-vitals": "^6.2.1"
   },
   "devDependencies": {
-    "@types/three": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/three": "catalog:",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",

@@ -242,6 +242,16 @@ export async function seedMeetingSummary(meetingId: string, actionItems: { title
       [id, meetingId, JSON.stringify(actionItems)],
     );
     if (result.rowCount !== 1) throw new Error(`seedMeetingSummary: no meeting ${meetingId}`);
+    // The meeting's action items, as storing a summary writes them (UNI-1998).
+    for (const [position, item] of actionItems.entries()) {
+      await c.query(
+        `INSERT INTO meeting_action_items (id, organization_id, workspace_id, meeting_id, source, summary_id, position,
+           title, owner_text, due_text, created_by, created_by_kind)
+         SELECT $1, m.organization_id, m.workspace_id, m.id, 'AI', $2, $3, $4, $5, $6, 'meeting_summary', 'system'
+           FROM meetings m WHERE m.id = $7`,
+        [e2eUlid(), id, position, item.title, item.owner ?? "", item.due ?? "", meetingId],
+      );
+    }
     return result.rows[0].id;
   });
 }

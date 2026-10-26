@@ -15,17 +15,29 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 )
 
+// /api/v1/healthz is the same liveness answer under /api: the production edge
+// sends only /api (and the MCP paths) to the server, so the phone's
+// reachability probe (apps/chat-mobile lib/reachability.ts) asks there and
+// accepts exactly 200 {"status":"ok"}.
 func TestHealth(t *testing.T) {
 	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}, Log: slog.Default()})
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 
-	res, err := srv.Client().Get(srv.URL + "/healthz")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", res.StatusCode)
+	for _, path := range []string{"/healthz", "/api/v1/healthz"} {
+		res, err := srv.Client().Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body map[string]any
+		err = json.NewDecoder(res.Body).Decode(&body)
+		_ = res.Body.Close()
+		if err != nil {
+			t.Fatalf("%s body: %v", path, err)
+		}
+		if res.StatusCode != 200 || body["status"] != "ok" {
+			t.Fatalf("%s = %d %v, want 200 {status: ok}", path, res.StatusCode, body)
+		}
 	}
 }
 

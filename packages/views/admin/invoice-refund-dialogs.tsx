@@ -15,6 +15,7 @@ export type InvoiceRefundTarget = {
   id: string;
   number: string;
   amount_paid: number;
+  amount_refunded: number;
   currency: string;
 };
 
@@ -77,7 +78,8 @@ export function AdminInvoiceRefundDialogs({
           if (refundMode === "partial") {
             const raw = partialAmount.trim().replace(/\s/g, "").replace(/\./g, "");
             const n = Number(raw);
-            if (!Number.isFinite(n) || n <= 0 || n > refundTarget.amount_paid) {
+            const refundable = refundTarget.amount_paid - refundTarget.amount_refunded;
+            if (!Number.isFinite(n) || n <= 0 || n > refundable) {
               toast.error(t("refund_partial_invalid"));
               return;
             }
@@ -111,9 +113,7 @@ export function AdminInvoiceRefundDialogs({
                 }
                 if (err instanceof ApiError && err.code === "invoice_not_refundable") {
                   void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
-                  toast.success(t("refund_requested_success"));
-                  onRefundTargetChange(null);
-                  resetRefundForm();
+                  toast.error(t("refund_not_allowed"));
                   return;
                 }
                 let msg = t("refund_failed");
@@ -148,6 +148,18 @@ export function AdminInvoiceRefundDialogs({
                 {formatMoney(refundTarget.amount_paid, refundTarget.currency, i18n.language)}
               </span>
             </p>
+            {refundTarget.amount_refunded > 0 ? (
+              <p className="text-body">
+                {t("refund_remaining_label")}{" "}
+                <span className="font-medium tabular-nums">
+                  {formatMoney(
+                    refundTarget.amount_paid - refundTarget.amount_refunded,
+                    refundTarget.currency,
+                    i18n.language,
+                  )}
+                </span>
+              </p>
+            ) : null}
             <RadioGroup
               value={refundMode}
               onValueChange={(v) => {

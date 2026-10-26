@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ChatRoomComposer, type ChatComposerHandle } from "./chat-composer";
 import type { ComposerReadOnlyReason } from "./chat-composer-parts";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
 import type { ChatMessage } from "./chat-messages";
 import { senderLabelFor, type NameContextEntry } from "./native-chat-message-mapping";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";

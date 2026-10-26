@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -254,11 +255,6 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	}); err != nil {
 		return db.OrganizationMember{}, err
 	}
-	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
-		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
-	}); err != nil {
-		return db.OrganizationMember{}, err
-	}
 	// Sessions are per user, not per organization: revoking them while the
 	// person still belongs somewhere else would sign them out of a tenant that
 	// never asked for it.
@@ -447,11 +443,16 @@ func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, a
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
-		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
-	}); err != nil {
+	// Ask UNI memory is private to the person and this organization (P4, R18).
+	deleted, err := q.AiDeleteMemoriesForUserInOrg(ctx, db.AiDeleteMemoriesForUserInOrgParams{OrganizationID: orgID, UserID: actorID})
+	if err != nil {
 		return nil, err
 	}
+	meta = maps.Clone(meta)
+	if meta == nil {
+		meta = map[string]any{}
+	}
+	meta["ask_uni_memories_deleted"] = deleted
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		Actor:          audit.User(actorID),

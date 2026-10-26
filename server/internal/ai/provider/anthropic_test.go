@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -144,6 +146,37 @@ func TestAnthropicSendsEffortOnlyToModelsThatTakeIt(t *testing.T) {
 	}
 }
 
+// TestAnthropicAsksForAdaptiveThinkingOnlyWhereItCan: a thinking call to a
+// model that thinks adaptively asks for a summarized thought and sends no
+// temperature; an older model, or a call without Thinking, is unchanged.
+func TestAnthropicAsksForAdaptiveThinkingOnlyWhereItCan(t *testing.T) {
+	a, bodies := anthropicStub(t, endTurnReply)
+	for _, c := range []struct {
+		model    string
+		thinking bool
+	}{{"claude-opus-4-6", true}, {"claude-haiku-4-5-20251001", true}, {"claude-opus-4-6", false}} {
+		req := CompletionRequest{Model: c.model, Thinking: c.thinking, MaxTokens: 64, Messages: []Message{{Role: "user", Content: "q"}}}
+		if _, err := a.Complete(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	thinking, _ := (*bodies)[0]["thinking"].(map[string]any)
+	if thinking["type"] != "adaptive" || thinking["display"] != "summarized" {
+		t.Fatalf("opus-4-6 thinking = %v", (*bodies)[0]["thinking"])
+	}
+	if _, ok := (*bodies)[0]["temperature"]; ok {
+		t.Fatalf("a thinking call sent a temperature: %v", (*bodies)[0]["temperature"])
+	}
+	for i, name := range map[int]string{1: "haiku-4-5", 2: "no Thinking"} {
+		if _, ok := (*bodies)[i]["thinking"]; ok {
+			t.Fatalf("%s: thinking was sent: %v", name, (*bodies)[i]["thinking"])
+		}
+	}
+	if _, ok := (*bodies)[2]["temperature"]; !ok {
+		t.Fatalf("opus-4-6 without thinking lost its temperature")
+	}
+}
+
 func TestAnthropicStrictToolCarriesAdditionalPropertiesFalse(t *testing.T) {
 	a, bodies := anthropicStub(t, endTurnReply)
 	schema := json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`)
@@ -249,5 +282,36 @@ func TestAnthropicRefusalKeepsUsage(t *testing.T) {
 	resp, err := a.Complete(context.Background(), CompletionRequest{Model: "claude-x", MaxTokens: 64, Messages: []Message{{Role: "user", Content: "q"}}})
 	if !errors.Is(err, ErrRefused) || resp.InputTokens != 12 || !resp.UsagePresent {
 		t.Fatalf("resp %+v err %v", resp, err)
+	}
+}
+
+// TestAnthropicKeepsSchemaPropertyOrder: structured outputs write an object's
+// keys in the order the schema lists them. Re-encoding the schema through a Go
+// map sorted them, so meeting_summary@7 had to open with "action_items",
+// before the tldr and topics it is written from, and often closed it empty.
+func TestAnthropicKeepsSchemaPropertyOrder(t *testing.T) {
+	var raw []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(endTurnReply))
+	}))
+	t.Cleanup(srv.Close)
+	a := &Anthropic{client: anthropic.NewClient(option.WithAPIKey("k"), option.WithBaseURL(srv.URL), option.WithMaxRetries(0))}
+	schema := `{"type":"object","properties":{"tldr":{"type":"string"},"topics":{"type":"object","properties":{"zeta":{"type":"string"},"alpha":{"type":"string"}},"required":["zeta","alpha"],"additionalProperties":false},"action_items":{"type":"string"}},"required":["tldr","topics","action_items"],"additionalProperties":false}`
+	if _, err := a.Complete(context.Background(), CompletionRequest{
+		Model: "claude-opus-5", MaxTokens: 64, JSONSchema: json.RawMessage(schema), Messages: []Message{{Role: "user", Content: "q"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	order := []string{`"tldr"`, `"topics"`, `"zeta"`, `"alpha"`, `"action_items"`}
+	last := -1
+	for _, key := range order {
+		i := strings.Index(body, key)
+		if i < last {
+			t.Fatalf("schema keys reordered: %s comes before an earlier key in %s", key, body)
+		}
+		last = i
 	}
 }

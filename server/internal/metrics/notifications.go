@@ -9,8 +9,13 @@ type Notifications struct {
 	Merged  prometheus.Counter
 	Push    *prometheus.CounterVec
 	Digest  prometheus.Counter
-	// PushSuppressed counts chat pushes dropped because the recipient was active.
+	// PushSuppressed counts pushes dropped on purpose: a chat push to an active
+	// recipient, a call push with the mobile calls switch off.
 	PushSuppressed *prometheus.CounterVec
+	// PushReceipts counts Expo push receipts read back after delivery.
+	PushReceipts *prometheus.CounterVec
+	// APNsVoIP counts what APNs answered to iPhone VoIP pushes (ADR 0038).
+	APNsVoIP *prometheus.CounterVec
 }
 
 func NewNotifications() *Notifications {
@@ -33,13 +38,21 @@ func NewNotifications() *Notifications {
 		}),
 		PushSuppressed: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_suppressed_total",
-			Help: "Chat pushes dropped because the recipient had a presence beat within two minutes, by kind.",
+			Help: "Pushes dropped before sending, by kind: a chat push to a recipient reading where it shows (a visible presence beat within 45s that no leave cleared, in its workspace or, for a DM or group, in any workspace of its organization), or an incoming-call push while the unichat_mobile_calls switch is off for them.",
 		}, []string{"kind"}),
+		PushReceipts: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_push_receipts_total",
+			Help: "Expo push receipts by result: ok, device_not_registered (subscription revoked), message_too_big, message_rate_exceeded, mismatch_sender_id, invalid_credentials, error, expired (no receipt within a day), dropped (pending list full).",
+		}, []string{"result"}),
+		APNsVoIP: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_push_apns_voip_total",
+			Help: "iPhone VoIP pushes sent straight to APNs, by result (sent, gone: token revoked, refused: a 4xx a resend would repeat, such as a wrong topic or key, failed: throttled, an APNs outage or a network error) and Apple's reason code (\"\" when sent, transport for a network error, unknown for a body that is not one).",
+		}, []string{"result", "reason"}),
 	}
 }
 
 func (n *Notifications) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest, n.PushSuppressed}
+	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest, n.PushSuppressed, n.PushReceipts, n.APNsVoIP}
 }
 
 func (n *Notifications) IncNotificationCreated(kind string) { n.Created.WithLabelValues(kind).Inc() }
@@ -51,3 +64,9 @@ func (n *Notifications) IncPushSent(result string) { n.Push.WithLabelValues(resu
 func (n *Notifications) IncDigestSent() { n.Digest.Inc() }
 
 func (n *Notifications) IncPushSuppressed(kind string) { n.PushSuppressed.WithLabelValues(kind).Inc() }
+
+func (n *Notifications) IncPushReceipt(result string) { n.PushReceipts.WithLabelValues(result).Inc() }
+
+func (n *Notifications) IncAPNsVoIP(result, reason string) {
+	n.APNsVoIP.WithLabelValues(result, reason).Inc()
+}

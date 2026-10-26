@@ -8,7 +8,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { formatMessageTime } from "./chat-message-time";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { formatVoiceCallParticipantLabels } from "./voice-call-participant-labels";
 import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
 import { useChatVoiceRecordings } from "@uniwork/core/chat";
@@ -143,7 +143,7 @@ export function VoiceCallLogRow({
             </span>
           ) : message.voiceCall?.recording_status === "FAILED" ? (
             <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-destructive">
-              <CircleAlert aria-hidden className="size-3.25" />
+              <CircleAlert aria-hidden className="size-3.5" />
               {t("chat.voice_call_log_recording_failed")}
             </span>
           ) : null}

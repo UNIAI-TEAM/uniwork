@@ -1,0 +1,77 @@
+{
+  "_": "UniChat mobile's Sentry alert rules as code (audit 'alerting-not-as-code'). scripts/mobile-sentry-alerts.mjs renders each into Sentry's API shape, adds the team (SENTRY_ALERT_TEAM) and any pager actions (SENTRY_ALERT_EXTRA_ACTIONS), and checks or applies them by name; .github/workflows/chat-mobile-release-health.yml checks them every hour and applies them when dispatched with sync_alerts. Edit a rule here, never in Sentry's UI: the next check reports the drift. Runbook: docs/runbooks/unichat-mobile-release.md › Sức khoẻ bản phát hành.",
+  "metric": [
+    {
+      "name": "UniChat mobile: crash-free sessions under 99.5 % (production)",
+      "runbook": "docs/runbooks/UniChatMobileCrashes.md",
+      "environment": "production",
+      "dataset": "metrics",
+      "aggregate": "percentage(sessions_crashed, sessions) AS _crash_rate_alert_aggregate",
+      "timeWindow": 60,
+      "thresholdType": 1,
+      "critical": 99.5,
+      "warning": 99.8
+    },
+    {
+      "name": "UniChat mobile: cold start p75 over 3 s (production)",
+      "runbook": "docs/runbooks/unichat-mobile-release.md",
+      "environment": "production",
+      "dataset": "transactions",
+      "aggregate": "p75(measurements.app_start_cold)",
+      "timeWindow": 60,
+      "thresholdType": 0,
+      "critical": 3000
+    }
+  ],
+  "issue": [
+    {
+      "name": "UniChat mobile: a new or returning crash (production)",
+      "runbook": "docs/runbooks/UniChatMobileCrashes.md",
+      "environment": "production",
+      "actionMatch": "any",
+      "filterMatch": "all",
+      "frequency": 30,
+      "conditions": [
+        {
+          "id": "sentry.rules.conditions.first_seen_event.FirstSeenEventCondition"
+        },
+        {
+          "id": "sentry.rules.conditions.regression_event.RegressionEventCondition"
+        }
+      ],
+      "filters": [
+        {
+          "id": "sentry.rules.filters.event_attribute.EventAttributeFilter",
+          "attribute": "error.unhandled",
+          "match": "eq",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "name": "UniChat mobile: phones cannot launch an OTA update",
+      "runbook": "docs/runbooks/UniChatMobileUpdateLaunchFailures.md",
+      "environment": "production",
+      "actionMatch": "any",
+      "filterMatch": "all",
+      "frequency": 60,
+      "conditions": [
+        {
+          "id": "sentry.rules.conditions.first_seen_event.FirstSeenEventCondition"
+        },
+        {
+          "id": "sentry.rules.conditions.event_frequency.EventUniqueUserFrequencyCondition",
+          "value": 2,
+          "interval": "1h"
+        }
+      ],
+      "filters": [
+        {
+          "id": "sentry.rules.filters.tagged_event.TaggedEventFilter",
+          "key": "ota_failure",
+          "match": "is"
+        }
+      ]
+    }
+  ]
+}

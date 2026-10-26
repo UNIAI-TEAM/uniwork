@@ -1,0 +1,196 @@
+# UniChat mobile — Offline-first
+
+> **Trạng thái:** shipped · tách từ `apps/chat-mobile/CLAUDE.md` ngày 2026-10-22; bản đồ ở `apps/chat-mobile/CLAUDE.md`.
+
+Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch khi reconnect. Đường dẫn trong file này tương đối với `apps/chat-mobile/` trừ khi bắt đầu bằng `docs/`, `server/`, `packages/`,
+`scripts/` hay `.github/`.
+
+- Offline-first (UNI-2053 S3; audit P0-3, R1–R5, C1). **Mở lạnh**: `useAuthStore.initialize()`
+  đọc cùng lúc phiên (`session.restore({ awaitRefresh: false })`: có credential là đủ, refresh chạy nền), người
+  dùng cuối (`data/auth/last-user.ts`, Keychain cạnh phiên, ghi sau mỗi `/me`/`setUser`, bỏ qua khi epoch đổi),
+  workspace và các hàng đợi; có credential + người dùng đã lưu thì vào inbox ngay và `/me` revalidate phía sau.
+  Chỉ phán quyết của server (onChange(null), `onUnauthorized`) mới đăng xuất; offline/5xx/timeout giữ người dùng.
+  Lần mở đầu của một bản cài mới (`data/install-marker.ts`: chưa có dấu `install/marker` trong kho MMKV — tệp của
+  container, mất khi gỡ app — và kho chưa có key nào; bản nâng cấp từ trước dấu đã có key nên không bị nhầm, kho chỉ
+  trong bộ nhớ thì không kết luận gì) bỏ phiên và người dùng cuối mà bản cài trước để lại trong Keychain (iOS giữ
+  Keychain khi xoá app) qua `session.discardStored()` — xoá, không adopt, thu hồi thiết bị ở nền — trước khi đọc chúng:
+  xoá app là đăng xuất.
+  Server đã kết thúc phiên trước khi ai được vào (refresh hết hạn, thiết bị bị thu hồi) mà máy còn người dùng đã lưu
+  hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace), kể cả khi phán quyết tới lúc
+  `initialize()` còn đọc cache phòng của người đã lưu (khi đó không cho ai vào); màn chat chỉ hiện và thử lại
+  tin chờ của chính người đang đăng nhập (`selectRoomSends` lọc theo người gửi). `login()` và `adoptSession()`
+  dùng chung một lần nhận người dùng. Lần nhận đó cũng chạy lúc mở lạnh (phiên phát token còn hạn ngay trong
+  `restore`, `app/_layout.tsx` gọi `adoptSession()`), song song `initialize()`: `/me` không trả lời (offline, 5xx,
+  timeout) thì không đổi gì, trả lời về người khác người đang vào thì bỏ qua — nếu không nó ghi `null` đè người dùng
+  đã lưu và lần mở lại khi offline rơi về màn đăng nhập (`maestro/flows/offline-send-relaunch.yaml`).
+  **Máy trạng thái** (UNI-2141 B6): mọi thay đổi `user`/`isLoading`/`status` của auth store là một bước của reducer
+  thuần `data/auth/machine.ts` (trạng thái `booting` → `restoring` → `signedInOffline`/`signedIn`, `signingOut`,
+  `signedOut`; sự kiện `bootStarted`, `storedPersonRead`, `cacheRestored`, `meAnswered`, `sessionEmitted`,
+  `loginStarted`/`loginCompleted`, `logout`, `accountDeleted`, `wiped`, `profileUpdated`); `data/auth/store.ts` chỉ
+  chạy hiệu ứng (mạng, Keychain, kho máy) rồi đưa kết quả về làm sự kiện. Một `/me` duy nhất trên đường dây cho cả
+  boot, revalidate và lần nhận người dùng. `onChange(null)` đi qua `sessionEnded()`: store ghi nhận phán quyết, nên
+  boot hay lần đăng nhập đang chạy không cho ai vào, và trả `true` khi có người trong để `app/_layout.tsx` đăng xuất.
+  `data/auth/machine.test.ts` duyệt mọi thứ tự của một lần mở lạnh (có/không credential, người đã lưu, mạng, token
+  phát lúc restore, phán quyết) và giữ bất biến: offline không rơi về màn đăng nhập khi còn phiên và người đã lưu;
+  phán quyết luôn đăng xuất; không ai được vào khi store đã biết phiên kết thúc; chỉ đăng xuất (của người dùng, của
+  server, hay mở lạnh không credential) hoặc xoá tài khoản mới xoá outbox. Hai lỗ mô hình tìm ra đã đóng: `/me` của
+  lần đăng nhập trả lời sau phán quyết, hay sau `logout()`, không còn cho người vào. Mỗi `/me` và mỗi lần khôi phục
+  cache mang `sessionsEnded` (số phiên đã kết thúc lúc nó bắt đầu): phiên kết thúc (phán quyết, `logout`, xoá tài
+  khoản) bỏ `/me` đang chạy và lần nhận người dùng, nên lần đăng nhập sau hỏi `/me` mới và câu trả lời muộn của phiên
+  cũ bị bỏ qua. Bộ nhớ chỉ giữ phòng của người đang trong: lần khôi phục mà người của nó không được vào kéo theo xoá
+  sạch (`wipeAccount`), và lần khôi phục của lần đăng nhập chờ lần xoá đang chạy xong (`awaitingWipe`), vì
+  `clearAccountCache` chỉ dọn bộ nhớ khi xoá xong và lần khôi phục ghi những gì bộ nhớ đang giữ vào bản của người mới.
+  Mô hình duyệt thêm mọi thứ tự của một lần đăng nhập (sau khi người cũ, đang revalidate, đăng xuất; phiên mới phát
+  token; phán quyết) và giữ: ai vào cũng là người của phiên đang sống, bản cache của một người không nhận phòng của
+  người khác.
+  `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
+  được ghi đĩa (một lần dừng — đăng xuất, cài lại — làm lần khôi phục đang chạy không hydrate, không ghi).
+  Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
+  (`app/_layout.tsx`). **Kho trên máy**: `data/storage/device-store.ts` (thuần, mặc định bộ nhớ — test node không
+  cần mock) ← `native-device-store.ts` cài lúc boot: MMKV (`react-native-mmkv` + `react-native-nitro-modules`)
+  mã hoá AES-256, khoá ngẫu nhiên trong Keychain/Keystore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`). Không mất dữ liệu
+  im lặng: đọc khoá lỗi (máy chưa mở khoá lần đầu từ lúc bật) thì thử lại 3 lần (0.5 s, 1 s) trước khi bỏ đĩa; khoá mất
+  mà tệp còn (khôi phục sang máy khác, Keystore bị xoá) thì xoá tệp có chủ ý và báo Sentry (`device_store_key_lost`),
+  không mở khoá mới trên dữ liệu không đọc được; không mở được thì chạy bằng bộ nhớ (`durable: false`) và báo Sentry
+  (tag `outcome: memory`), không chỉ log. Store zustand persist trên đó dùng `skipHydration` + hydrate trong `initialize()` và bỏ mọi
+  lần ghi trước khi hydrate (không ghi đè hàng đợi trên đĩa bằng mảng rỗng). **Outbox**: `data/chat-send.ts` —
+  mọi lần gửi (chữ, ảnh/tệp, tin thoại, nhắc hẹn) vào `stores/chat-send-store.ts` (persist; `sending` → `queued`
+  khi đọc lại, `client_msg_id` làm replay an toàn), tệp chép vào `documents/outbox/<clientMsgId>/`
+  (`data/outbox-files.ts`) trước khi xếp hàng, xoá khi server nhận, khi bỏ hoặc khi đăng xuất; lúc giao tìm lại bản
+  chép theo `<clientMsgId>/<tên>` dưới thư mục documents hiện tại (iOS có thể dời container khi cập nhật), tệp đã mất
+  thì tin thành `failed` ngay (không tải lên, hàng của phòng đi tiếp); mỗi (workspace, phòng, người gửi) có hai hàng
+  FIFO nghiêm ngặt, một lần gửi một tin: chữ (chữ, trả lời chủ đề, nhắc hẹn) và media (ảnh, tệp, tin thoại). Chữ viết
+  sau một media chờ nó (phòng đọc đúng thứ tự viết), trừ khi lần tải lên đó đã ở trên dây `MEDIA_OVERTAKE_MS` (4 s)
+  hay đang chờ backoff: khi đó chữ đi trước, ảnh tới khi tới (như Telegram/WhatsApp) — tải lên chậm không giữ chữ của
+  cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff của riêng hàng đó (chữ gửi được không huỷ lượt thử lại của ảnh, phòng lỗi không kéo dài lượt chờ của phòng khác); lỗi của riêng
+  tin (server trả 500/408 cho đúng tin đó mỗi lần, hay một lỗi không phải câu trả lời HTTP) được đếm
+  (`failures`, sống qua kill app) và sau `MAX_SEND_ITEM_FAILURES` (5 vòng, khoảng 2 phút) tin thành `failed` kèm
+  "Thử lại" để hàng của phòng đi tiếp; lỗi của mạng, phiên hay cả server (TypeError, status 0, 401, 429, 502, 503 —
+  kể cả 503 của LoadShed —, 504, và mọi câu trả lời có `Retry-After`) không bao giờ tính cho tin
+  (`lib/delivery-failure.ts`): server sập lâu bao nhiêu thì tin vẫn chờ, không thành `failed`. Tin bị từ chối
+  hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
+  khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
+  đó, khi phiên sẵn sàng, NetInfo online, mỗi lần về foreground và lúc rời foreground (tin viết ngay trước khi chuyển
+  app đi trong lúc JS còn chạy) (`data/use-account-sync.ts`, gắn ở
+  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Gửi tiếp ở
+  nền** (UNI-2141, `data/outbox-drain/`, module native `modules/unichat-background`): rời foreground mà người đó còn nợ
+  (`owed.ts › owesServer`: tin `queued`/`sending` của họ, hay một lượt chờ; tin `failed` chờ người, không chờ mạng) thì
+  outbox đi tiếp khi app đã khuất, như các app nhắn tin lớn. iOS: xin hệ thống thêm thời gian (`beginBackgroundTask`,
+  khoảng 30 s; drain trả lại sau `GRACE_BUDGET_MS` = 25 s hay sớm hơn), xả bằng `owed.ts › deliverOwed` (flush rồi chờ
+  tới khi không còn tin nào trên dây, `chat-send.ts › sendsSettled`; còn nợ sau một vòng — mạng chập chờn lúc rời app,
+  server trả 5xx — thì `drain.ts` xả lại sau 2 s, 5 s, 15 s, độ trễ đầu của chính hàng, chừng nào ngân sách còn chỗ,
+  vì hẹn giờ thử lại của hàng sẽ nổ trong app đã bị treo; job Android và task theo lịch cũng vậy), và giữ một task
+  theo lịch (`expo-background-task`: `BGProcessingTask` cần mạng, sớm nhất 15 phút) trong khi còn nợ, bỏ khi hết nợ
+  (`outbox-drain/scheduled-drain.ts`:
+  một lần chạy của task không bao giờ tự bỏ đăng ký — `expo-task-manager` chỉ báo xong `BGProcessingTask` qua đăng ký
+  đó, bỏ giữa chừng thì task treo tới khi iOS cho hết hạn và lần sau iOS lên lịch app ít hơn; lần chạy thấy hết nợ chỉ
+  ghi lại, task bị bỏ khi app về foreground hay lần rời foreground sau) — **best effort**: iOS quyết khi nào
+  chạy (thường lúc máy rảnh, có Wi-Fi hay đang sạc; app ít dùng có thể không bao giờ), vuốt tắt app là hết, và app
+  iPhone đã bị treo không chạy gì khác, nên tin viết offline trên iPhone chủ yếu đi khi mở lại app. Android: một job
+  WorkManager (`OutboxDrain.kt`, tên duy nhất `unichat-outbox-drain`, lên lịch lại thì thay job cũ) cần mạng
+  (`NetworkType.CONNECTED`): có mạng thì chạy ngay (expedited từ Android 12, hết hạn mức thì chạy như job thường; dưới 12
+  là job thường — expedited ở đó là foreground service có thông báo riêng, và tiến trình ở nền không bị đóng băng), không
+  có thì chạy lúc mạng có lại, kể cả sau khi khởi động lại máy. Job chạy task JavaScript `UniChatOutboxDrain` trong
+  runtime đang chạy hay một runtime headless (`HeadlessDrainRunner.kt`: như `HeadlessJsTaskService` mà không cần Service,
+  vì app ở nền không được khởi Service); task khởi runtime, mở kho mã hoá, đọc lại công tắc server đã giữ, khôi phục
+  phiên, đọc hàng đợi và hỏi lại NetInfo (`outbox-drain/task-env.ts`) rồi xả trong `DRAIN_BUDGET_MS` (120 s; phía native
+  chờ 150 s) và trả lời job (`drainFinished(token, owed)`, token là id của lần chạy): còn nợ (mạng rớt, server bận, hết
+  hạn, lỗi, hay task kết thúc mà không trả lời) thì job quay lại theo backoff mũ từ 30 s, tối đa `MAX_ATTEMPTS` = 8 lần
+  (khoảng một giờ; thời gian không có mạng không tính), hết nợ, đã đăng xuất hay công tắc tắt thì xong. Về foreground
+  thì job đang chờ bị huỷ (màn hình gửi). Reply / Đánh dấu đã đọc trên thông báo khi app khuất cũng giao phần còn nợ cho
+  đường này (`chat-notification-actions.ts › offScreen`): trả lời viết lúc offline đi khi mạng có lại. Không gửi trùng:
+  lần xả nền và lần flush của màn hình chạy trong cùng một runtime nên dùng chung hàng (`lines`/`flushes` của
+  `chat-send.ts`, `pending-ops.ts`: lời gọi thứ hai chờ lần đang chạy), và server khử trùng theo `client_msg_id` khi hai
+  lần POST cùng tới (câu trả lời mất, tiến trình chết giữa chừng). Công tắc `unichat_mobile_background_send` (và
+  `unichat_mobile_outbox_flush`) tắt cả đường nền: không xin thời gian, huỷ job, bỏ task theo lịch; job đang chờ chạy
+  thì thấy công tắc tắt và xong ngay. Khai báo: manifest của WorkManager (bốn service không chạy foreground, quyền đều
+  đã có) nằm ở `scripts/android-manifest.mjs › MAVEN_MANIFESTS` theo phiên bản `build.gradle` khai (phiên bản lạ làm
+  script dừng, `android-manifest.test.ts`); iOS khai `UIBackgroundModes: processing` và định danh
+  `com.expo.modules.backgroundtask.processing` (`app.config.test.ts`). Kotlin có test JVM
+  (`modules/unichat-background/android/src/test`, `mobile-verify › android-release`); hành vi trên máy thật (đóng băng
+  tiến trình, hạn mức expedited, task theo lịch của iOS) chỉ kiểm được bằng bản build. **Bản offline
+  luôn mới** (`data/timeline-refresh.ts`, cùng hook): frame của phòng không ai xem chỉ đánh dấu stale (UNI-1078), nên lúc
+  app rời foreground (còn mạng) các phòng trong 24 phòng gần nhất có timeline đứng sau — bị đánh dấu stale, cũ hơn
+  preview của danh sách, hay chưa tải mà còn chưa đọc — được đọc trang mới nhất một lần (cắt về trang đầu trước: một
+  request; tối đa `REFRESH_CONCURRENCY` = 4 request cùng lúc). `last_message_at` của danh sách tính cả trả lời chủ đề
+  còn timeline thì không, nên timeline đã đọc theo một giá trị `last_message_at` không được đọc lại tới khi giá trị đó
+  đổi (không thì phòng có tin mới nhất là trả lời chủ đề bị đọc lại mỗi lần rời app); push về một phòng, nhận lúc đang mở app hay khi chạm, đọc trang mới nhất của phòng đó và danh sách phòng
+  của workspace (workspace đó có thể không có socket trên máy). Timeline đang hiện là của socket, không đụng. Push tin
+  chat tới app Android đã đóng (hay ở nền) cũng nạp cache: mọi push Expo trên Android đi qua task nền
+  (`calls/call-wiring.ts › runCallPushTask`), và với một tin chat (`chatPushTarget`) task khởi runtime, mở kho mã hoá,
+  khôi phục phiên và bản cache của người đó (chỉ khi chưa có màn nào làm), đọc trang mới nhất của phòng và danh sách
+  phòng (`timeline-refresh.ts › hydrateRoom`) rồi ghi đĩa ngay (`query-persister.ts › saveAccountCacheNow`), nên chạm
+  thông báo lúc offline mở đúng tin (`data/chat-sync/push-prefetch.ts`). Có hạn `PUSH_PREFETCH_BUDGET_MS` (15 s, hết
+  hạn vẫn ghi phần đã về), lỗi chỉ là breadcrumb, máy đã đăng xuất không đọc gì, app đang mở để listener lo. iOS chưa
+  có: push hiển thị không chạy task khi app đóng (cần `content-available` từ server và background task riêng). **Đọc, biểu
+  cảm, bình chọn offline**: `data/pending-ops.ts` + `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
+  mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
+  khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
+  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Một mục lỗi vì lý do của riêng nó (5xx/408) bị
+  để sang bên (`retryAt`) theo backoff riêng 5 s → 1 giờ (`OP_ITEM_RETRY_MS`) trong khi hàng giao các mục khác, rồi
+  bị bỏ như một lần từ chối sau `MAX_OP_ITEM_FAILURES` (8, khoảng 2,5 giờ; tag `gave_up`): một mục "độc" không chặn
+  lượt đọc và biểu cảm của cả workspace. Lỗi mạng hay phiên vẫn dừng cả hàng. Cache chỉ được ghi một lần, nên
+  mong muốn còn chờ được **đặt lên** mọi bản server trả về lúc vẽ (`lib/pending-ops-overlay.ts`, dùng ở
+  `data/queries/use-room-timeline.ts` cho trang mới nhất và trang quanh tin neo, và ở màn chủ đề): refetch lúc mạng
+  quay lại, tới trước khi hàng giao xong, không làm tin đã xoá hiện lại hay bản sửa về body cũ; tin không có mong
+  muốn nào giữ nguyên object (hàng không vẽ lại). **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
+  của từng (người, workspace, phòng, chủ đề) sống qua rời phòng và kill app — composer ghi sau 400 ms ngừng gõ, ngay khi
+  composer đóng hay app rời foreground, gửi thì xoá; sửa tin mượn ô nhập rồi trả lại nháp; danh sách phòng hiện
+  "Nháp: …" (trừ khi có người đang gõ). Persist như outbox (đọc qua `DraftSchema`, quá 30 ngày thì bỏ, có trong
+  `persisted-schema.lock.json`), hydrate lúc boot, xoá khi đăng xuất. **Tin đã báo cáo** (`lib/reported-messages.ts`,
+  `stores/reported-messages-store.ts`): mã tin người dùng đã báo cáo (tối đa 500, mới nhất giữ lại), persist cùng cách
+  (có trong lock), để tin đó vẫn ẩn với họ sau khi mở lại app. **Sửa và xoá tin cũng offline** (cùng hàng đợi,
+  key `edit/<ws>/<msg>`, `delete/<ws>/<msg>`): sửa hiện ngay (`withEdit`: body mới + `edited_at`), lần sửa cuối thắng,
+  giao bằng PATCH cả body (idempotent, không đọc trước); xoá gỡ tin khỏi timeline ngay và bỏ mọi mong muốn còn chờ cho
+  tin đó (sửa, biểu cảm, phiếu); 404 khi giao là đã xong (tin đã mất), từ chối hẳn thì refetch phòng (tin quay lại) và
+  reject cho màn hình báo. **Cache đĩa**:
+  `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members,
+  trang mới nhất của 24 phòng hoạt động gần nhất và trang đầu (tin gốc cùng các trả lời mới nhất) của 12 chủ đề đọc
+  gần nhất trong các phòng đó (`PERSISTED_THREAD_TIMELINES`; frame tới phòng mà bộ nhớ không còn giữ chủ đề thì bỏ
+  bản chủ đề trên đĩa như bỏ timeline); chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
+  — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi query được giữ một key MMKV
+  (`query-cache/timeline/<queryHash>` cho timeline, `query-cache/query/<queryHash>` cho phần còn lại), chỉ ghi lại khi
+  data đổi — data cùng object và cùng `dataUpdatedAt` với lần ghi trước thì không cả `JSON.stringify` (structural
+  sharing giữ object; trang mới nhất cắt từ timeline được nhớ theo object data), nên một frame tuần tự hoá phòng đó và
+  vỏ nhỏ ở `query-cache`, không phải danh sách 1.000 thành viên (test đếm `JSON.stringify`). Mở lạnh đọc hai bước: vỏ
+  liệt kê `first` (workspaces, rooms, unread-summary, nicknames — màn đầu) và `later` (thành viên, thành viên phòng,
+  timeline); splash chỉ chờ `first`, `later` đọc và hydrate `RESTORE_LATER_MS` (100 ms) sau (hydrate không ghi đè data
+  mới hơn bộ nhớ đã fetch), và lần lưu trước đó không xoá key nào chưa đọc lại; vỏ cũ (query nằm trong vỏ, `timelines`)
+  vẫn đọc được; buster
+  `<CACHE_SCHEMA_VERSION>:<userId>` (bản store mới và OTA đều giữ cache, đọc qua schema). Đĩa không phải gương của bộ
+  nhớ: `gcTime` 10 phút bỏ query không ai xem, nên query được giữ mà bộ nhớ đã bỏ được mang từ bản trước
+  (`withEvicted`) tới khi quá 7 ngày hay phòng rời nhóm gần nhất / danh sách. Frame chỉ patch bộ nhớ nên không tới được
+  bản mang theo: sửa, biểu cảm, xoá tin của phòng mà bộ nhớ không còn timeline thì bỏ bản đó khỏi đĩa
+  (`dropCarriedTimeline`, gọi từ `chat-cache.ts`) — thiếu còn hơn sai. Query khôi phục từ đĩa sống trong bộ nhớ
+  bằng tuổi của bản đĩa (`hydrateOptions` `gcTime` = 7 ngày; TanStack giữ `gcTime` lớn nhất nên observer 10 phút
+  không rút ngắn): không gì đọc lại đĩa khi bộ nhớ thiếu, nên mở offline một giờ sau mở lạnh vẫn có trang. Khôi phục trước màn đầu
+  (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`, cả các key của từng query). Bản trên
+  đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
+  kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,
+  `data/schemas.ts`, schema của core như `ChatUnreadSummarySchema`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và
+  lượt chờ cũng vậy: mỗi mục qua schema zod của `lib/persisted-records.ts` (cả trường lồng: tệp, tin thoại, nhắc
+  hẹn), mục hỏng bị bỏ riêng; `migrate` của hai store chạy các bước theo version (`migratePersisted`) và giữ state của
+  bản mới hơn (OTA bị rollback) thay vì để zustand xoá cả hàng đợi. `data/persisted-schema.lock.json` ghim hash của
+  module schema với version của nó (`persisted-schema-lock.test.ts`): sửa schema thì quyết định có bump version không
+  (bản ghi giữ shape mà đổi nghĩa → bump `CACHE_SCHEMA_VERSION`, hay version store + bước migrate), rồi
+  `UPDATE_PERSISTED_LOCK=1`. Thêm query vào cache đĩa thì sửa `shouldPersistQuery`, reader trong `persisted-cache.ts`
+  và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
+  catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
+  một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
+  Frame `chat.message.created` của chính tin máy này vừa gửi (cùng người gửi, câu trả lời POST đã đặt tin vào
+  timeline hay chủ đề) không GET lại. Tin chưa gửi luôn nằm sau tin mới nhất của server, theo thứ tự viết
+  (`lib/send-pipeline.ts`): đồng hồ máy lệch không đặt chúng lẫn vào tin cũ của người khác.
+  **Nhật ký thay đổi** (`data/chat-sync/`, ADR 0039 nháp giai đoạn 1, công tắc `unichat_mobile_chat_sync`): mở
+  workspace, mỗi lần reconnect và sau mỗi `LIVE_CHECK_MS` (60 s) yên lặng — không frame tin nào; frame chảy liên tục
+  thì chậm nhất mỗi `LIVE_CHECK_MAX_MS` (5 phút) — khi socket sống và app ở trước, điện thoại hỏi
+  `GET …/chat/sync?since=<head>` và vá cache như frame (timeline đang hiện được chèn/thay/gỡ tin; phòng
+  không ai xem bị đánh dấu stale và bỏ bản trên đĩa khi sửa/xoá; trả lời chủ đề refetch chủ đề đang hiện và đọc lại
+  tin gốc để có số trả lời), rồi mới ghi `head` mới (theo người + workspace trên kho máy, xoá khi đăng xuất) — chết
+  giữa chừng thì phát lại, vô hại vì server gửi tin như hiện tại. Server chỉ đếm phòng người gọi đọc được và chia
+  trang 200 thay đổi (`more`); điện thoại đi tiếp tối đa `MAX_SYNC_PAGES` (5) trang, mỗi trang ghi `head` của nó.
+  Tick là thứ tìm lại frame relay làm rơi khi socket vẫn sống. Chỉ khi nhật ký không trả lời được (tắt công tắc, lỗi,
+  câu trả lời không parse, chưa có head, `reset` vì nhật ký đã cắt qua `head`, hay còn trang sau 5 trang) thì đi
+  đường cũ: reconnect giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối
+  lại từ trang mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; tick đọc catch-up sau tin mới nhất của phòng
+  đang hiện. Reconnect đồng bộ được vẫn có catch-up đó cho phòng đang mở (socket phát lại scope chat sau auth,
+  `subscribe_ack` gọi catch-up), nên một dòng nhật ký server ghi hỏng không giấu tin mới của phòng đang mở. Chỉ mở lại phòng mới cắt về trang mới nhất.

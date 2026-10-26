@@ -66,6 +66,8 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   onToggleCaptions,
   onToggleCopilot,
   copilotActive = false,
+  copilotBadge = false,
+  copilotLiveItems = 0,
 }: {
   className?: string;
   onLeave: () => void;
@@ -79,6 +81,10 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   /** Opens the AI Copilot panel, or closes it when it is the one on screen. */
   onToggleCopilot?: () => void;
   copilotActive?: boolean;
+  /** Something waits in the UNI panel for this viewer (a late joiner's catch-up). */
+  copilotBadge?: boolean;
+  /** Live items the scribe wrote that this viewer has not seen in the UNI panel. */
+  copilotLiveItems?: number;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -146,7 +152,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
 
   const shareControl = (inMenu: boolean) =>
     !screen.supported ? null : inMenu ? (
-      <MenuControl caption={screen.label} pressed={screen.enabled} disabled={screen.pending} onClick={screen.toggle}>
+      <MenuControl caption={screen.label} pressed={screen.enabled} busy={screen.pending} onClick={screen.toggle}>
         {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
       </MenuControl>
     ) : (
@@ -156,7 +162,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
         tooltip={screen.locked ? t("meetings.shareLockedYou") : undefined}
         pressed={screen.enabled}
         tone={screen.enabled ? "active" : undefined}
-        disabled={screen.pending}
+        busy={screen.pending}
         onClick={screen.toggle}
       >
         {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
@@ -200,14 +206,14 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   const recordControl = (inMenu: boolean) =>
     showRecord ? (
       inMenu ? (
-        <MenuControl caption={recordLabel} disabled={recPending} onClick={toggleRecording}>
+        <MenuControl caption={recordLabel} busy={recPending} onClick={toggleRecording}>
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
         </MenuControl>
       ) : (
         <IconControl
           label={recordLabel}
           tone={recording ? "off" : undefined}
-          disabled={recPending}
+          busy={recPending}
           onClick={toggleRecording}
         >
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
@@ -255,7 +261,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 tooltip={micTooltip}
                 pressed={mic.enabled}
                 tone={mic.enabled ? "active" : "off"}
-                disabled={mic.pending}
+                busy={mic.pending}
                 onClick={() => {
                   // Locked: say why instead of a toggle LiveKit refuses.
                   if (micLock.locked) micLock.explain();
@@ -269,7 +275,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 tooltip={cameraTooltip}
                 pressed={camera.enabled}
                 tone={camera.enabled ? "active" : "off"}
-                disabled={camera.pending}
+                busy={camera.pending}
                 onClick={() => {
                   void camera.toggle();
                 }}
@@ -284,15 +290,30 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 </>
               ) : null}
               {onToggleCopilot ? (
-                <IconControl
-                  label={t("meetings.aiCopilot")}
-                  tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
-                  pressed={copilotActive}
-                  tone={copilotActive ? "active" : undefined}
-                  onClick={onToggleCopilot}
-                >
-                  <Sparkles aria-hidden />
-                </IconControl>
+                <span className="relative inline-flex">
+                  <IconControl
+                    label={
+                      copilotBadge
+                        ? t("meetings.aiCopilotCatchUp")
+                        : copilotLiveItems > 0
+                          ? t("meetings.aiCopilotLiveItems", { count: copilotLiveItems })
+                          : t("meetings.aiCopilot")
+                    }
+                    tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
+                    pressed={copilotActive}
+                    tone={copilotActive ? "active" : undefined}
+                    onClick={onToggleCopilot}
+                  >
+                    <Sparkles aria-hidden />
+                  </IconControl>
+                  {copilotBadge || copilotLiveItems > 0 ? (
+                    <span
+                      aria-hidden
+                      data-slot="copilot-badge"
+                      className="pointer-events-none absolute top-1 right-1 size-2.5 rounded-full bg-brand ring-2 ring-meeting-bar-bg"
+                    />
+                  ) : null}
+                </span>
               ) : null}
               {!secondaryInMenu ? (
                 <>
@@ -319,7 +340,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                   >
                     <Ellipsis aria-hidden />
                   </TooltipTrigger>
-                  <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
+                  <TooltipContent side="top" className="dark">{t("meetings.more")}</TooltipContent>
                 </Tooltip>
                 {/* `dark`, like the admit-guests card: the popup portals out of the dark stage. */}
                 <PopoverContent side="top" className="dark flex w-56 flex-col gap-0.5 p-1.5">
@@ -345,7 +366,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
               >
                 <PhoneOff aria-hidden />
               </TooltipTrigger>
-              <TooltipContent side="top">{t("meetings.leave")}</TooltipContent>
+              <TooltipContent side="top" className="dark">{t("meetings.leave")}</TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>

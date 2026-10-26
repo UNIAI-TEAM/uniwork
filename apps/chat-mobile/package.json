@@ -1,22 +1,38 @@
 {
   "name": "@uniwork/chat-mobile",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "private": true,
   "description": "UniChat mobile app: Expo (iOS + Android) client of the UniWork chat",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "dev": "expo start",
     "ios": "bash scripts/native-run.sh ios",
     "android": "bash scripts/native-run.sh android",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests=false --coverage && bash scripts/native-run.test.sh"
+    "test": "pnpm run test:unit && pnpm run test:components && bash scripts/native-run.test.sh",
+    "test:unit": "vitest run --passWithNoTests=false --coverage",
+    "test:components": "jest --ci --coverage"
   },
   "expo": {
     "install": {
       "exclude": [
         "typescript"
       ]
+    },
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-notifications"
+        ]
+      },
+      "ios": {
+        "exclude": [
+          "@expo/ui",
+          "@expo/dom-webview",
+          "expo-symbols"
+        ]
+      }
     }
   },
   "dependencies": {
@@ -28,19 +44,23 @@
     "@livekit/react-native-expo-plugin": "1.0.3",
     "@livekit/react-native-webrtc": "144.2.0",
     "@react-native-community/netinfo": "12.0.1",
-    "@rn-primitives/avatar": "^1.4.0",
     "@rn-primitives/portal": "^1.4.0",
     "@rn-primitives/separator": "^1.4.0",
     "@rn-primitives/slot": "^1.4.0",
-    "@rn-primitives/switch": "^1.4.0",
+    "@sentry/react-native": "~7.11.0",
+    "@shopify/flash-list": "2.0.2",
+    "@tanstack/query-persist-client-core": "5.102.3",
     "@tanstack/react-query": "catalog:",
     "@uniwork/core": "workspace:*",
     "babel-preset-expo": "~57.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "expo": "catalog:",
+    "expo": "~57.0.31",
+    "expo-apple-authentication": "~57.0.2",
+    "expo-application": "~57.0.3",
     "expo-asset": "~57.0.20",
     "expo-audio": "~57.0.5",
+    "expo-background-task": "~57.0.21",
     "expo-blur": "~57.0.3",
     "expo-build-properties": "~57.0.22",
     "expo-clipboard": "~57.0.2",
@@ -48,16 +68,23 @@
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
     "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
+    "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.21",
     "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.12",
+    "expo-local-authentication": "~57.0.3",
     "expo-localization": "~57.0.2",
-    "expo-notifications": "~57.0.22",
-    "expo-router": "~57.0.25",
+    "expo-notifications": "~57.0.24",
+    "expo-router": "~57.0.29",
+    "expo-screen-capture": "~57.0.4",
     "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-task-manager": "~57.0.21",
     "expo-updates": "~57.0.26",
     "expo-web-browser": "~57.0.3",
     "i18next": "catalog:",
@@ -68,6 +95,9 @@
     "react-i18next": "catalog:",
     "react-native": "catalog:",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-keyboard-controller": "1.21.9",
+    "react-native-mmkv": "^4.3.2",
+    "react-native-nitro-modules": "^0.37.1",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.2",
@@ -82,12 +112,20 @@
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@babel/plugin-transform-react-jsx": "^7.29.7",
+    "@sentry/cli": "2.58.4",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "29.5.14",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.32.0",
+    "eslint-plugin-i18next": "catalog:",
+    "eslint-plugin-react-native-a11y": "3.5.1",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.6",
+    "test-renderer": "^1.2.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

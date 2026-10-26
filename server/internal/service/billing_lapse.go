@@ -119,7 +119,6 @@ func (s *BillingService) lapseCancelToDefault(ctx context.Context, sub db.Subscr
 }
 
 func (s *BillingService) markPastDue(ctx context.Context, sub db.Subscription) error {
-	now := time.Now().UTC()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -133,9 +132,7 @@ func (s *BillingService) markPastDue(ctx context.Context, sub db.Subscription) e
 	if locked.ID != sub.ID || locked.Status != "active" || locked.CancelAt.Valid {
 		return nil
 	}
-	if !locked.CurrentPeriodEnd.Valid || !locked.CurrentPeriodEnd.Time.Before(now) {
-		return nil
-	}
+	// Period eligibility matches ListSubscriptionsDueForPastDue and MarkSubscriptionPastDue (PostgreSQL now()).
 	plan, err := q.GetPlanByID(ctx, locked.PlanID)
 	if err != nil {
 		return err

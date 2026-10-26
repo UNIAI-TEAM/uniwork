@@ -110,6 +110,13 @@ const (
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
+	// The person's answer to the AI processing notice UniChat mobile shows
+	// before its first AI request (Apple 5.1.2(i)); withdrawing asks again.
+	ActionUserAIConsentGranted   = "user.ai_consent_granted"
+	ActionUserAIConsentWithdrawn = "user.ai_consent_withdrawn"
+	// The person chose whether a chat push shows the message's words on their
+	// phones (audit "Security & privacy", push-preview-plaintext).
+	ActionUserPushPreviewsChanged = "user.push_previews_changed"
 
 	ActionChatRoomCreated         = "chat.room.created"
 	ActionChatRoomMemberAdded     = "chat.room.member_added"
@@ -130,6 +137,15 @@ const (
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
 	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
 	ActionChatMessageForwarded    = "chat.message.forwarded"
+	// A member reported a message or a person (store UGC policy); the
+	// organization's owners and admins read it in the audit trail.
+	ActionChatReportCreated = "chat.report.created"
+	// The platform operator closed a report from the console's queue (store UGC policy: every report
+	// is acted on within 24 hours); the organization's owners and admins see that it was handled.
+	ActionChatReportResolved = "chat.report.resolved"
+	// The platform operator took a reported message down from the console (store UGC policy, Apple 1.2): the
+	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
+	ActionChatMessageRemoved = "chat.message.removed"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -321,23 +337,122 @@ const (
 	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+	// An owner or admin hid (or showed again) the message's words in every
+	// chat push of the organization (OrganizationService.SetPushPreviewPolicy).
+	ActionOrganizationPushPreviewPolicyChanged = "organization.push_preview_policy_changed"
+	// An owner or admin required (or stopped requiring) the UniChat app lock or
+	// screen-capture blocking on members' phones
+	// (OrganizationService.SetMobileSecurityPolicy).
+	ActionOrganizationMobileSecurityPolicyChanged = "organization.mobile_security_policy_changed"
 
 	// An organization owner/admin chose which Claude models Ask UNI offers
 	// (AskUNIService.SetAskModels).
 	ActionOrganizationAskModelsChanged = "organization.ask_models_changed"
 
+	// An organization owner/admin set the highest permission mode Ask UNI may use
+	// (AskUNIService.SetAskWritePolicy).
+	ActionOrganizationAskWritePolicyChanged = "organization.ask_uni_write_policy_changed"
+
+	// An Ask UNI proposal (agent_action_proposals, ADR 0044) was applied,
+	// rejected or undone by the person who asked (AskUNIService). The business
+	// command's own row carries metadata.via with the proposal id.
+	ActionAIProposalApplied  = "ai_proposal.applied"
+	ActionAIProposalRejected = "ai_proposal.rejected"
+	ActionAIProposalUndone   = "ai_proposal.undone"
+
+	// Ask UNI memory (P4, AiMemoryService): entries the person keeps. Metadata
+	// carries kind, source and length, never the text.
+	ActionAIMemoryCreated          = "ai_memory.created"
+	ActionAIMemoryUpdated          = "ai_memory.updated"
+	ActionAIMemoryDeleted          = "ai_memory.deleted"
+	ActionAIMemoryCleared          = "ai_memory.cleared"
+	ActionAIMemoryProposalRejected = "ai_memory_proposal.rejected"
+
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 
-	// A host turned action items of a meeting summary into tasks: one row
-	// for the batch, beside the task.created row of each task
-	// (MeetingService.CreateTasksFromSummary, UNI-1853).
-	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+	// The action items of a meeting (UNI-1998). A clerk turned pending items
+	// into tasks: one row for the batch, beside the task.created row of each
+	// task, metadata action_item_ids and task_ids
+	// (MeetingService.ConvertActionItems; replaces meeting_summary.tasks_created).
+	// A clerk added an item by hand, dismissed one (changes.reason) or
+	// restored a dismissed one.
+	ActionMeetingActionItemsConverted = "meeting.action_items_converted"
+	ActionMeetingActionItemCreated    = "meeting.action_item_created"
+	ActionMeetingActionItemDismissed  = "meeting.action_item_dismissed"
+	ActionMeetingActionItemRestored   = "meeting.action_item_restored"
+	// A clerk linked a pending item to a task that already exists, instead
+	// of creating one (follow-5, MeetingService.LinkActionItem, metadata
+	// task_id).
+	ActionMeetingActionItemLinked = "meeting.action_item_linked"
 
-	// A host or admin generated the meeting's AI summary
-	// (MeetingService.Summarize); metadata names the summary and the usage
-	// row that paid for it.
+	// The minutes of a meeting (UNI-2003): a clerk made the minutes page
+	// (MeetingService.CreateMinutes, metadata document_id), finalized it as a
+	// document version (FinalizeMinutes, metadata version_id) or reopened it
+	// (ReopenMinutes; the version stays in the page's history).
+	ActionMeetingMinutesCreated   = "meeting.minutes_created"
+	ActionMeetingMinutesFinalized = "meeting.minutes_finalized"
+	ActionMeetingMinutesReopened  = "meeting.minutes_reopened"
+
+	// A clerk generated the meeting's AI summary (MeetingService.Summarize),
+	// or the system did when the meeting ended (SummarizeAuto, actor
+	// system:meeting_auto_summary);
+	// metadata names the summary, the usage row that paid for it, and what
+	// became of the meeting's action items: replaced_pending, kept,
+	// skipped_duplicates.
 	ActionMeetingSummaryCreated = "meeting.summary_created"
+
+	// An organization owner/admin switched the summary the system makes when a
+	// meeting ends off or back on, or changed the AI scribe policy (MeetingService.SetMeetingSettings,
+	// UNI-2026, UNI-1995); changes carry auto_summary_enabled and/or scribe_policy.
+	ActionMeetingSettingsChanged = "meeting.settings_changed"
+
+	// A host or admin switched the AI scribe off or back on for one meeting
+	// (MeetingService.SetScribe, UNI-2023).
+	ActionMeetingScribeToggled = "meeting.scribe_toggled"
+
+	// The host or a clerk shared the meeting's AI content (transcript,
+	// summary, evidence, catch-up) with the whole workspace, or took it back
+	// to the people of the meeting (MeetingService.SetAIContentShared,
+	// UNI-1995 access); changes carry ai_content_shared.
+	ActionMeetingAISharingChanged = "meeting.ai_sharing_changed"
+
+	// A clerk marked a participant as the room's shared microphone, or
+	// lifted it (MeetingService.SetSharedMic, UNI-2024).
+	ActionMeetingSharedMicToggled = "meeting.shared_mic_toggled"
+
+	// A clerk assigned a speaker label to a member or a free name, or
+	// cleared it (MeetingService.AssignSpeakerLabel, UNI-2024).
+	ActionMeetingSpeakerLabelAssigned = "meeting.speaker_label_assigned"
+
+	// A workspace member added a shared note to a meeting (MeetingService.AddNote,
+	// UNI-2153); the body stays out of the row, which names the note by id.
+	ActionMeetingNoteAdded = "meeting.note_added"
+
+	// A host or admin recorded that a meeting was held without a room:
+	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,
+	// UNI-2001).
+	ActionMeetingHeldRecorded = "meeting.held_recorded"
+
+	// An uploaded meeting recording was queued for transcription (metadata
+	// consent_confirmed: the clerk confirmed attendees were told it was
+	// recorded), and the job finished or failed for good (UNI-2001).
+	ActionMeetingTranscriptionRequested = "meeting.transcription_requested"
+	ActionMeetingTranscriptionCompleted = "meeting.transcription_completed"
+	ActionMeetingTranscriptionFailed    = "meeting.transcription_failed"
+	// A clerk corrected or removed transcript lines, or deleted an uploaded
+	// transcription with its recording; the retention sweep removed lines
+	// past the organization's window (UNI-1995 #5). Rows say how many lines
+	// changed, never what they said.
+	ActionMeetingTranscriptSegmentEdited  = "meeting.transcript_segment_edited"
+	ActionMeetingTranscriptSegmentDeleted = "meeting.transcript_segment_deleted"
+	ActionMeetingTranscriptRangeDeleted   = "meeting.transcript_range_deleted"
+	ActionMeetingTranscriptDeleted        = "meeting.transcript_deleted"
+	ActionMeetingTranscriptionDeleted     = "meeting.transcription_deleted"
+	ActionMeetingTranscriptExpired        = "meeting.transcript_expired"
+	// A host or admin, or the server when another meeting holds the PIN,
+	// drew a new dial-in PIN (MeetingService.RotateDialInPin, UNI-2029).
+	ActionMeetingDialInPinRotated = "meeting.dial_in_pin_rotated"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

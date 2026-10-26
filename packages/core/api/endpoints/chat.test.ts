@@ -8,6 +8,7 @@ import {
   addChatPollOptionMessage,
   getChatPollVoters,
   uploadChatRoomAvatar,
+  uploadChatRoomWallpaper,
   removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
   getWorkspaceChatRoom,
@@ -218,6 +219,16 @@ describe("chat endpoints", () => {
     expect(await uploadChatRoomAvatar("ws1", "room1", file)).toBeNull();
     const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(url).toBe("http://api.test/api/v1/workspaces/ws1/chat/rooms/room1/avatar");
+    expect(init?.method).toBe("POST");
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("uploadChatRoomWallpaper posts the file and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new File(["jpg"], "nen.jpg", { type: "image/jpeg" });
+    expect(await uploadChatRoomWallpaper("ws1", "room1", file)).toBeNull();
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(url).toBe("http://api.test/api/v1/workspaces/ws1/chat/rooms/room1/wallpaper");
     expect(init?.method).toBe("POST");
     expect((init?.body as FormData).get("file")).toBeInstanceOf(Blob);
   });
@@ -887,6 +898,27 @@ describe("chat endpoints", () => {
     expect(unsigned?.file).toMatchObject({ url: "", download_url: "", thumb_url: "", url_expires_at: "" });
   });
 
+  it("listChatRoomMessages keeps a photo's size and drops a size that drifts, not the photo", async () => {
+    const photo = (id: string, size: Record<string, unknown>) => ({
+      id,
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "An",
+      kind: "file",
+      body: "anh.jpg",
+      created_at: "2026-09-05T00:00:00Z",
+      file: { filename: "anh.jpg", content_type: "image/jpeg", size_bytes: 10, ...size },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ messages: [photo("p1", { width: 1280, height: 960 }), photo("p2", { width: "wide", height: -3 }), photo("p3", {})] }),
+    );
+    const [sized, drifted, unsized] = await listChatRoomMessages("ws1", "room1");
+    expect(sized?.file).toMatchObject({ width: 1280, height: 960 });
+    expect(drifted?.file).toMatchObject({ filename: "anh.jpg", width: undefined, height: undefined });
+    expect(unsized?.file?.width).toBeUndefined();
+  });
+
   it("leaveChatRoom degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await leaveChatRoom("ws1", "room1")).toBe(false);
@@ -1063,10 +1095,12 @@ describe("chat endpoints", () => {
     expect(await listChatNicknames("ws1")).toEqual({ U1: "Long" });
   });
 
-  it("listChatNicknames degrades on non-string nicknames", async () => {
+  it("listChatNicknames drops a non-string nickname alone, and reads a drifted map as none", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ nicknames: { U1: 123, U2: "Ok" } }),
     );
+    expect(await listChatNicknames("ws1")).toEqual({ U2: "Ok" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nicknames: "nope" }));
     expect(await listChatNicknames("ws1")).toEqual({});
   });
 

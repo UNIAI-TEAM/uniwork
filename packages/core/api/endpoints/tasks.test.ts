@@ -52,6 +52,19 @@ describe("tasks endpoints", () => {
     await expect(getTask("t1")).resolves.toBeNull();
   });
 
+  it("getTask keeps the task's origin and drops a malformed one without losing the task", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ task: { ...validTask, origin_type: "meeting", origin_id: "m1" } }),
+    );
+    expect(await getTask("t1")).toMatchObject({ origin_type: "meeting", origin_id: "m1" });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: { ...validTask, origin_type: 7, origin_id: {} } }));
+    const drifted = await getTask("t1");
+    expect(drifted?.id).toBe("t1");
+    expect(drifted?.origin_type).toBeUndefined();
+    expect(drifted?.origin_id).toBeUndefined();
+  });
+
   it("getTask keeps task reactions and defaults an absent list", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(

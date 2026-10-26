@@ -19,7 +19,34 @@ const (
 	audioBytesPerSecMP4Audio      = 12000 // 96 kbit/s AAC
 	audioBytesPerSecVideo         = 125000
 	audioBytesPerSecCompressedOth = 6000 // opus/ogg/webm/flac-ish, 48 kbit/s
+
+	// Ceilings: the fastest a type may play, so a claimed length or a header
+	// can never shrink an estimate below size ÷ ceiling. 320 kbit/s is the
+	// top MP3/AAC rate; 20 Mbit/s is a 1080p phone video (4K is over-counted
+	// about 2.5×, which only matters near the plan limit).
+	audioBytesPerSecAudioCeiling = 40_000
+	audioBytesPerSecVideoCeiling = 2_500_000
 )
+
+// AudioByteRateCeiling is the highest byte rate a recording of this type may
+// claim: a WAV's own PCM rate when its head is known, else the type's
+// ceiling above.
+func AudioByteRateCeiling(mime string, head []byte) int {
+	mime = strings.ToLower(mime)
+	switch {
+	case strings.HasPrefix(mime, "video/"):
+		return audioBytesPerSecVideoCeiling
+	case isWAV(mime):
+		if r := wavByteRate(head); r > 0 {
+			return r
+		}
+	}
+	return audioBytesPerSecAudioCeiling
+}
+
+func isWAV(mime string) bool {
+	return mime == "audio/wav" || mime == "audio/x-wav" || mime == "audio/wave"
+}
 
 // BilledAudioSeconds is the duration a transcription is charged for:
 // the vendor's reported seconds when it gave any, else the size estimate.
@@ -35,19 +62,33 @@ func EstimateAudioSeconds(audio provider.Part) float64 {
 	if len(audio.Data) == 0 {
 		return 0
 	}
-	rate := audioByteRate(audio)
+	rate := audioByteRate(audio.MIME, audio.Data)
 	return float64(len(audio.Data)) / float64(rate)
 }
 
-func audioByteRate(audio provider.Part) int {
-	mime := strings.ToLower(audio.MIME)
+// EstimateAudioSecondsFromHead is EstimateAudioSeconds for a stored upload
+// known by its size, its verified type and its first bytes (nil when they
+// could not be read): a WAV header's byte rate or an MP3 frame header's
+// bitrate wins over the per-container table.
+func EstimateAudioSecondsFromHead(size int64, mime string, head []byte) float64 {
+	if size <= 0 {
+		return 0
+	}
+	return float64(size) / float64(audioByteRate(mime, head))
+}
+
+func audioByteRate(mime string, data []byte) int {
+	mime = strings.ToLower(mime)
 	switch {
-	case mime == "audio/wav" || mime == "audio/x-wav" || mime == "audio/wave":
-		if r := wavByteRate(audio.Data); r > 0 {
+	case isWAV(mime):
+		if r := wavByteRate(data); r > 0 {
 			return r
 		}
 		return audioBytesPerSecWAVFallback
 	case mime == "audio/mpeg" || mime == "audio/mp3":
+		if r := mp3ByteRate(data); r > 0 {
+			return r
+		}
 		return audioBytesPerSecMP3
 	case mime == "audio/mp4" || mime == "audio/m4a" || mime == "audio/x-m4a":
 		return audioBytesPerSecMP4Audio
@@ -57,15 +98,68 @@ func audioByteRate(audio provider.Part) int {
 	return audioBytesPerSecCompressedOth
 }
 
-// wavByteRate reads the byte rate a RIFF/WAVE header declares; 0 when the
-// header is not one or the value is implausible.
+// wavByteRate reads the byte rate of a RIFF/WAVE header's "fmt " chunk,
+// wherever it sits (field recorders put bext or JUNK before it); 0 when the
+// head holds none or the value is implausible. The declared byte rate is not
+// trusted on its own (decoders play PCM by its sample rate, channels and
+// sample size): PCM counts at most at that product, any other codec at most
+// at the audio ceiling.
 func wavByteRate(b []byte) int {
-	if len(b) < 44 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
+	if len(b) < 12 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
 		return 0
 	}
-	r := int(binary.LittleEndian.Uint32(b[28:32]))
+	i := 12
+	for i+8+16 <= len(b) && string(b[i:i+4]) != "fmt " {
+		size := int(binary.LittleEndian.Uint32(b[i+4 : i+8]))
+		i += 8 + size + size&1 // chunks are padded to an even length
+	}
+	if i+8+16 > len(b) {
+		return 0
+	}
+	f := b[i+8:]
+	r := int(binary.LittleEndian.Uint32(f[8:12]))
+	switch binary.LittleEndian.Uint16(f[0:2]) {
+	case 1, 0xfffe: // PCM, WAVE_FORMAT_EXTENSIBLE
+		pcm := int(binary.LittleEndian.Uint32(f[4:8])) * int(binary.LittleEndian.Uint16(f[2:4])) * int(binary.LittleEndian.Uint16(f[14:16])) / 8
+		r = min(r, pcm)
+	default:
+		r = min(r, audioBytesPerSecAudioCeiling)
+	}
 	if r < 1000 || r > 4_000_000 {
 		return 0
 	}
 	return r
+}
+
+// Layer III bitrates (kbit/s) by bitrate index: MPEG-1, then MPEG-2/2.5.
+var (
+	mp3Bitrates1 = [15]int{0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320}
+	mp3Bitrates2 = [15]int{0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160}
+)
+
+// mp3ByteRate reads the bitrate of the first MPEG Layer III frame after any
+// ID3v2 tag; 0 when b holds none. A VBR file counts at its first frame's rate.
+func mp3ByteRate(b []byte) int {
+	i := 0
+	if len(b) >= 10 && string(b[:3]) == "ID3" {
+		i = 10 + (int(b[6]&0x7f)<<21 | int(b[7]&0x7f)<<14 | int(b[8]&0x7f)<<7 | int(b[9]&0x7f))
+		if b[5]&0x10 != 0 {
+			i += 10 // footer
+		}
+	}
+	for ; i+2 < len(b); i++ {
+		if b[i] != 0xff || b[i+1]&0xe0 != 0xe0 || (b[i+1]>>1)&3 != 1 {
+			continue
+		}
+		idx := int(b[i+2] >> 4)
+		if idx == 0 || idx == 15 {
+			continue
+		}
+		kbps := mp3Bitrates2[idx]
+		if (b[i+1]>>3)&3 == 3 {
+			kbps = mp3Bitrates1[idx]
+		}
+		return kbps * 1000 / 8
+	}
+	return 0
 }

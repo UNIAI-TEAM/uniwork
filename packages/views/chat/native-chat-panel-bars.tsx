@@ -77,7 +77,7 @@ export function ChatAnchorBar({ onBackToLatest }: { onBackToLatest: () => void }
   const { t } = useTranslation();
   return (
     <div className="flex min-h-13 shrink-0 items-center gap-2.5 border-b border-border bg-info-soft py-1.5 pr-2.5 pl-4 text-info-soft-foreground">
-      <Search aria-hidden className="size-4.5 shrink-0" />
+      <Search aria-hidden className="size-4 shrink-0" />
       <p className="min-w-0 flex-1 truncate text-body font-semibold">{t("chat.search_jump_banner")}</p>
       <Button
         type="button"
@@ -111,7 +111,7 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
       )}
       onClick={onClick}
     >
-      <ArrowDown className="size-4.5" aria-hidden />
+      <ArrowDown className="size-4" aria-hidden />
       <span aria-hidden>{t("chat.search_back_to_latest")}</span>
       {newCount > 0 ? (
         <span
@@ -129,10 +129,19 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
  * Asks for older history without scrolling to the top — for a keyboard, a
  * switch or a screen reader, where "scroll up to load" never fires.
  */
+/** Reserved height while older pages prefetch — no visible loading chrome (Telegram-style). */
+export function ChatLoadOlderHeaderSpacer({ busyLabel }: { busyLabel?: string }) {
+  return (
+    <div className="min-h-14 shrink-0 pb-2" aria-hidden={busyLabel ? undefined : true}>
+      {busyLabel ? <span className="sr-only">{busyLabel}</span> : null}
+    </div>
+  );
+}
+
 export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex justify-center pb-2">
+    <div className="flex min-h-14 justify-center pb-2">
       {/* A chip on the chat wall, like the day separators. */}
       <Button
         type="button"
@@ -151,7 +160,7 @@ export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
 /** Older history arrives in the message's own shape. */
 export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
   return (
-    <div className="pb-3" role="status" aria-busy>
+    <div className="min-h-14 pb-2" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
         <Skeleton className="size-8.5 shrink-0 rounded-full" />

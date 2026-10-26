@@ -49,8 +49,8 @@ type ChatService struct {
 	// resolves each message's block against it. nil until SetDocuments.
 	docs        *DocumentService
 	TenorAPIKey string
-	// featuredCache holds Tenor "featured" responses (UNI-1750); zero value is fine.
-	featuredCache sync.Map // key string -> tenorCacheEntry
+	// featuredCache holds Tenor /v2/featured responses per pod (UNI-1750).
+	featuredCache sync.Map
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
 }
@@ -282,17 +282,6 @@ func demoteDefaultChatRoomAdmin(ctx context.Context, q *db.Queries, workspaceID,
 	})
 }
 
-func (s *ChatService) ensureRoomMember(ctx context.Context, room db.ChatRoom, workspaceID, userID, role string) error {
-	return s.ensureRoomMemberTx(ctx, s.q, room, workspaceID, userID, role)
-}
-
-// ensureRoomMemberTx adds the member inside the caller's transaction; it drops
-// the added flag for callers that have nothing to audit.
-func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, room db.ChatRoom, workspaceID, userID, role string) error {
-	_, err := s.addRoomMember(ctx, q, room, workspaceID, userID, role)
-	return err
-}
-
 // addRoomMember reports whether it added the row, so a caller inside a
 // transaction can audit exactly the members it actually added. The member
 // row takes the room's organization (ADR 0008), never the caller's.
@@ -374,7 +363,7 @@ func (s *ChatService) SendRoomMessage(
 	if err := validateChatMessageBody(in.Body); err != nil {
 		return ChatMessageRow{}, err
 	}
-	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -814,5 +803,5 @@ func (s *ChatService) MintVoiceTokenRoom(ctx context.Context, userID, chatRoomID
 	if err := s.requireVoiceTokenAccess(ctx, room, userID, wsID); err != nil {
 		return "", err
 	}
-	return liveKitRoomForActiveVoiceCall(room, callID)
+	return s.liveKitRoomForActiveVoiceCall(ctx, room, callID)
 }

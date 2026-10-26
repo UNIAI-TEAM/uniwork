@@ -119,14 +119,16 @@ export function errorClassOf(err: unknown): ApiErrorClass | undefined {
 /**
  * Human-readable message from a failed API call. Prefers the server's sentence
  * when the transport wrapped it in ApiError; otherwise falls back to a generic
- * Error's message.
+ * Error's message. A TypeError is fetch()'s own English ("Failed to fetch",
+ * "Load failed") or a code bug, never a sentence for a person, so it answers
+ * undefined and the caller's localized fallback shows instead.
  */
 export function apiErrorMessage(err: unknown): string | undefined {
   if (err instanceof ApiError) {
     const message = err.message.trim();
     if (message) return message;
   }
-  if (err instanceof Error) {
+  if (err instanceof Error && !(err instanceof TypeError)) {
     const message = err.message.trim();
     if (message) return message;
   }
@@ -175,11 +177,8 @@ function newCorrelationId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
-  const headers: Record<string, string> = {
-    [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId(),
-    ...opts.headers,
-  };
+/** The caller's identity on a request: the bearer token, or the guest session when there is none. */
+function withAuth(headers: Record<string, string>): Record<string, string> {
   const token = getAccessToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -187,6 +186,23 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     const guest = getGuestSession();
     if (guest) headers[GUEST_SESSION_HEADER] = guest;
   }
+  return headers;
+}
+
+/**
+ * URL and headers exactly as `request` sends them, for the one transport that
+ * cannot be a fetch: an XHR upload, which is the only way to see upload
+ * progress. Content-Type is left to the caller's body.
+ */
+export function authedRequestHead(path: string, correlationId?: string): { url: string; headers: Record<string, string> } {
+  return { url: baseUrl() + path, headers: withAuth({ [CORRELATION_HEADER]: correlationId ?? newCorrelationId() }) };
+}
+
+async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
+  const headers = withAuth({
+    [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId(),
+    ...opts.headers,
+  });
 
   let body: BodyInit | undefined;
   if (opts.body instanceof FormData || opts.body instanceof Blob) {
@@ -342,7 +358,7 @@ export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"
  */
 export async function requestDownload(
   path: string,
-  opts: Pick<RequestOpts, "signal"> = {},
+  opts: Pick<RequestOpts, "signal" | "method" | "body"> = {},
 ): Promise<{ blob: Blob; filename: string | null }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {

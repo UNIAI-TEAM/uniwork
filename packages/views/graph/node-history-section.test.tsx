@@ -112,3 +112,19 @@ it("shows the empty state when the node is not projected yet", async () => {
   render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
   expect(await screen.findByText("Chưa ghi nhận thay đổi nào.")).toBeInTheDocument();
 });
+
+it("does not repeat the origin the screen already names", async () => {
+  const meeting = { type: "MEETING", id: "m1", subtype: "", title: "Giao ban", status: "ENDED", workspace_id: "w1", workspace_slug: "team", deleted: false };
+  const base = requestMock.getMockImplementation()!;
+  requestMock.mockImplementation((path: unknown, init?: unknown) =>
+    String(path).includes("/history")
+      ? Promise.resolve({ node: null, items: [
+          { kind: "edge", edge_type: "ORIGINATED_FROM", direction: "out", valid_from: "2026-10-03T02:00:00Z", node: meeting },
+          { kind: "edge", edge_type: "OWNED_BY", direction: "out", valid_from: "2026-10-05T02:00:00Z", node: actor("u3", "Bình") },
+        ] })
+      : base(path, init),
+  );
+  render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" originShown /></WorkspaceProvider>));
+  expect(await screen.findByRole("link", { name: "Giao cho Bình" })).toBeInTheDocument();
+  expect(screen.queryByText(/Giao ban/)).toBeNull();
+});

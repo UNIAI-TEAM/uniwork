@@ -26,7 +26,7 @@ describe("tileGridClass", () => {
 describe("primaryGridClass", () => {
   it("scales primary tiles up to three columns", () => {
     expect(primaryGridClass(1)).toBe("grid-cols-1");
-    expect(primaryGridClass(2)).toBe("grid-cols-2");
+    expect(primaryGridClass(2)).toBe("grid-cols-1 sm:grid-cols-2");
     expect(primaryGridClass(6)).toBe("grid-cols-2 lg:grid-cols-3");
   });
 });

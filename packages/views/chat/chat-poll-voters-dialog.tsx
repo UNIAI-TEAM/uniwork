@@ -17,7 +17,7 @@ import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { pollOptionPercents } from "./chat-poll-percent";
 
 type PollOption = { id: string; label: string; votes: number };
@@ -90,7 +90,7 @@ function PollOptionVotersSection({
           <p className="min-w-0 truncate text-body-lg font-semibold text-foreground">{option.label}</p>
           {mine ? (
             <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-2 text-micro font-semibold text-brand">
-              <Check className="size-3" strokeWidth={3} aria-hidden />
+              <Check className="size-3" aria-hidden />
               {t("chat.poll_voters_your_pick")}
             </span>
           ) : null}

@@ -7,6 +7,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CALLS_NATIVE_ONLY } from "./i18n-calls.mjs";
+import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
+import { SECURITY_ONLY } from "./i18n-security.mjs";
+import { UX_ONLY } from "./i18n-ux.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreLocales = path.resolve(here, "../../../packages/core/i18n/locales");
@@ -19,6 +23,8 @@ const PATHS = [
   "common",
   "nav",
   "settings.preferences",
+  // UNI-2053 S2: deleting the account on the phone says what the web's dialog says.
+  "settings.security.delete",
   "workspace.pickTitle",
   // The whole web chat copy: the mobile chat tab speaks with the web's words.
   "chat",
@@ -42,7 +48,9 @@ const TABS_PATHS = [
 ];
 
 // Chat strings only the phone needs (M2a), nested under chat.mobile so they
-// cannot collide with a web key; keep vi and en aligned.
+// cannot collide with a web key; keep vi and en aligned. An English string
+// with {{count}} is a `_one`/`_other` pair, the Vietnamese one a single key,
+// as in packages/core (lib/i18n.test.ts fails on a missing form).
 const CHAT_MOBILE_ONLY = {
   vi: {
     open_on_web: "Mở trên web",
@@ -67,6 +75,8 @@ const CHAT_MOBILE_ONLY = {
     workspace_pill_aria_quiet: "Đổi workspace. Đang ở {{name}}",
     search_placeholder: "Tìm kiếm",
     offline_banner: "Đang chờ mạng…",
+    // UNI-2053 S3: the network is there, the workspace socket is not (yet).
+    connecting_banner: "Đang kết nối…",
     catch_up_open: "Mở {{name}}",
     catch_up_summary: "Tóm tắt",
     catch_up_highlights: "Điểm chính",
@@ -81,6 +91,10 @@ const CHAT_MOBILE_ONLY = {
     login_browser_hint: "Đăng nhập bằng tài khoản UniWork trong trình duyệt",
     login_sample_in: "Chiều nay họp lúc 3 giờ được không?",
     login_sample_out: "Được, em vào ngay",
+    // ADR 0041: Sign in with Apple on the iPhone, and why it can refuse.
+    login_apple_failed: "Không đăng nhập được bằng Apple. Thử lại.",
+    login_apple_conflict: "Email Apple của bạn đã thuộc một tài khoản UniWork khác. Hãy đăng nhập bằng trình duyệt.",
+    login_apple_mfa: "Tài khoản này bật xác thực hai bước. Hãy đăng nhập bằng trình duyệt.",
     thread_reply_placeholder: "Trả lời trong chủ đề…",
     back_to_conversation: "Quay lại cuộc trò chuyện",
     cancel_reply: "Hủy trả lời",
@@ -132,17 +146,23 @@ const CHAT_MOBILE_ONLY = {
     call_speaker: "Speaker",
     follow_up_remove: "Remove from follow-ups",
     workspace_sheet_title: "Workspace",
-    workspace_count: "{{org}} · {{count}} workspaces you belong to",
+    workspace_count_one: "{{org}} · {{count}} workspace you belong to",
+    workspace_count_other: "{{org}} · {{count}} workspaces you belong to",
     workspace_open: "Open now",
-    workspace_open_unread: "Open now · {{count}} unread",
-    workspace_unread: "{{count}} unread",
-    workspace_unread_mentions: "{{count}} unread · you were mentioned",
+    workspace_open_unread_one: "Open now · {{count}} unread",
+    workspace_open_unread_other: "Open now · {{count}} unread",
+    workspace_unread_one: "{{count}} unread",
+    workspace_unread_other: "{{count}} unread",
+    workspace_unread_mentions_one: "{{count}} unread · you were mentioned",
+    workspace_unread_mentions_other: "{{count}} unread · you were mentioned",
     workspace_no_new: "Nothing new",
     workspace_at: "In {{name}}",
-    workspace_pill_aria: "Switch workspace. In {{name}}, {{count}} unread in other workspaces",
+    workspace_pill_aria_one: "Switch workspace. In {{name}}, {{count}} unread in another workspace",
+    workspace_pill_aria_other: "Switch workspace. In {{name}}, {{count}} unread in other workspaces",
     workspace_pill_aria_quiet: "Switch workspace. In {{name}}",
     search_placeholder: "Search",
     offline_banner: "Waiting for a connection…",
+    connecting_banner: "Connecting…",
     catch_up_open: "Open {{name}}",
     catch_up_summary: "Summary",
     catch_up_highlights: "Highlights",
@@ -157,6 +177,9 @@ const CHAT_MOBILE_ONLY = {
     login_browser_hint: "Sign in with your UniWork account in the browser",
     login_sample_in: "Can we meet at 3 this afternoon?",
     login_sample_out: "Sure, joining now",
+    login_apple_failed: "Could not sign in with Apple. Try again.",
+    login_apple_conflict: "Your Apple email already belongs to another UniWork account. Sign in with the browser instead.",
+    login_apple_mfa: "This account uses two-step verification. Sign in with the browser instead.",
     thread_reply_placeholder: "Reply in thread…",
     back_to_conversation: "Back to the conversation",
     cancel_reply: "Cancel reply",
@@ -181,21 +204,30 @@ const CHAT_MOBILE_ONLY = {
     create_group_members: "Choose members",
     group_name_placeholder: "Group name",
     room_role_admin_short: "Admin",
-    workspace_count_only: "{{count}} workspaces you belong to",
-    catch_up_banner: "{{count}} unread · UNI sums them up for you",
+    workspace_count_only_one: "{{count}} workspace you belong to",
+    workspace_count_only_other: "{{count}} workspaces you belong to",
+    catch_up_banner_one: "{{count}} unread · UNI sums it up for you",
+    catch_up_banner_other: "{{count}} unread · UNI sums them up for you",
     search_short: "Search",
     call_short: "Call",
     shared_title: "Shared",
     shared_kinds_aria: "Kinds of shared content",
-    shared_more_photos: "See all {{count}} photos",
-    shared_tab_hint: "{{count}} in this conversation",
+    shared_more_photos_one: "See the {{count}} photo",
+    shared_more_photos_other: "See all {{count}} photos",
+    shared_tab_hint_one: "{{count}} item in this conversation",
+    shared_tab_hint_other: "{{count}} items in this conversation",
     shared_notes_counts: "{{pins}} pinned · {{notes}} notes · {{polls}} polls",
-    tab_photos: "Photos {{count}}",
-    tab_files: "Files {{count}}",
-    tab_links: "Links {{count}}",
-    tab_voice: "Voice {{count}}",
+    tab_photos_one: "Photo {{count}}",
+    tab_photos_other: "Photos {{count}}",
+    tab_files_one: "File {{count}}",
+    tab_files_other: "Files {{count}}",
+    tab_links_one: "Link {{count}}",
+    tab_links_other: "Links {{count}}",
+    tab_voice_one: "Voice {{count}}",
+    tab_voice_other: "Voice {{count}}",
     group_members_hint: "Pick at least 2 people",
-    group_selected: "{{count}} selected",
+    group_selected_one: "{{count}} selected",
+    group_selected_other: "{{count}} selected",
   },
 };
 
@@ -233,7 +265,6 @@ const MOBILE_ONLY = {
         push_failed: "Không đổi được thông báo. Thử lại sau.",
         workspace: "Workspace",
         switch_workspace: "Chuyển workspace",
-        version: "Phiên bản {{version}}",
       },
     },
   },
@@ -269,8 +300,81 @@ const MOBILE_ONLY = {
         push_failed: "Could not change notifications. Try again later.",
         workspace: "Workspace",
         switch_workspace: "Switch workspace",
-        version: "Version {{version}}",
       },
+    },
+  },
+};
+
+// UNI-2053 (observability and release): the crash screen, toasts, the
+// update gate, Settings › About and the calls kill switch; merged into
+// `mobile` below. Keep vi and en aligned.
+const RELEASE_ONLY = {
+  vi: {
+    app: {
+      error_title: "Màn hình này gặp lỗi",
+      error_body: "UniChat không mở được màn hình này. Thử lại; nếu vẫn lỗi, hãy đóng hẳn ứng dụng rồi mở lại.",
+      error_retry: "Thử lại",
+    },
+    toast: {
+      dismiss: "Đóng thông báo",
+    },
+    update: {
+      title: "Cần cập nhật UniChat",
+      body: "Phiên bản {{version}} không còn được hỗ trợ. Cập nhật lên bản {{min}} trở lên để tiếp tục nhắn tin và gọi.",
+      open_store: "Cập nhật",
+      no_store: "Bản mới chưa có trên cửa hàng ứng dụng. Hãy hỏi quản trị viên của tổ chức cách cài bản mới.",
+      check_again: "Kiểm tra lại",
+      nudge_title: "Đã có UniChat {{version}}",
+      nudge_body: "Cập nhật để nhận các bản sửa lỗi và tính năng mới nhất.",
+      nudge_dismiss: "Để sau",
+    },
+    about: {
+      title: "Giới thiệu",
+      version: "Phiên bản",
+      build: "Bản dựng",
+      channel: "Kênh cập nhật",
+      update: "Bản cập nhật",
+      embedded: "Bản cài sẵn trong ứng dụng",
+      none: "Không có",
+      copy: "Sao chép thông tin phiên bản",
+      copied: "Đã sao chép thông tin phiên bản",
+    },
+    calls: {
+      disabled: "Tính năng gọi đang tạm tắt trên điện thoại.",
+    },
+  },
+  en: {
+    app: {
+      error_title: "This screen hit a problem",
+      error_body: "UniChat could not open this screen. Try again; if it keeps happening, close the app fully and open it again.",
+      error_retry: "Try again",
+    },
+    toast: {
+      dismiss: "Dismiss notice",
+    },
+    update: {
+      title: "Update UniChat to continue",
+      body: "Version {{version}} is no longer supported. Update to {{min}} or later to keep messaging and calling.",
+      open_store: "Update",
+      no_store: "The new version is not in the app store yet. Ask your organization's admin how to install it.",
+      check_again: "Check again",
+      nudge_title: "UniChat {{version}} is out",
+      nudge_body: "Update to get the latest fixes and features.",
+      nudge_dismiss: "Not now",
+    },
+    about: {
+      title: "About",
+      version: "Version",
+      build: "Build",
+      channel: "Update channel",
+      update: "Update",
+      embedded: "Built into the app",
+      none: "None",
+      copy: "Copy version details",
+      copied: "Version details copied",
+    },
+    calls: {
+      disabled: "Calling is turned off on phones for now.",
     },
   },
 };
@@ -295,23 +399,64 @@ function build(locale) {
     set(out, dotted, value);
   }
   set(out, "chat.mobile", CHAT_MOBILE_ONLY[locale]);
-  return { ...out, ...MOBILE_ONLY[locale] };
+  const mobile = MOBILE_ONLY[locale].mobile;
+  return {
+    ...out,
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+  };
+}
+
+// The call channels' names as Android string resources of modules/unichat-calls, from the same copy: the module
+// creates its channels from them when it rings before JavaScript has run once (CallNotifications.ensureChannelsExist),
+// so a Vietnamese phone never sees English channel names (audit "native-channel-fallback-english"). `values` is
+// English, as the app reads English for every language but Vietnamese (lib/i18n/singleton.ts › matchSupportedLocale).
+const NATIVE_STRINGS = {
+  unichat_calls_channel_calls: "mobile.notify.channel_calls",
+  unichat_calls_channel_calls_hint: "mobile.notify.channel_calls_hint",
+  unichat_calls_channel_ongoing: "mobile.notify.channel_ongoing",
+  unichat_calls_channel_ongoing_hint: "mobile.notify.channel_ongoing_hint",
+};
+const nativeRes = path.resolve(here, "../modules/unichat-calls/android/src/main/res");
+const NATIVE_DIRS = { en: "values", vi: "values-vi" };
+
+/** Android's string resource escaping: XML's, plus the apostrophe, quote and a leading @ or ? Android reads specially. */
+function androidString(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/^([@?])/, "\\$1");
+}
+
+function nativeStrings(bundle) {
+  const lines = Object.entries(NATIVE_STRINGS).map(([name, key]) => {
+    const value = get(bundle, key);
+    if (typeof value !== "string" || value === "") throw new Error(`no ${key} for the native strings`);
+    return `  <string name="${name}">${androidString(value)}</string>`;
+  });
+  return `<?xml version="1.0" encoding="utf-8"?>\n<!-- Generated by apps/chat-mobile/scripts/sync-i18n.mjs from the app's copy; do not edit. -->\n<resources>\n${lines.join("\n")}\n</resources>\n`;
 }
 
 const check = process.argv.includes("--check");
 let stale = false;
-for (const locale of Object.keys(MOBILE_ONLY)) {
-  const file = path.join(outDir, `${locale}.json`);
-  const next = `${JSON.stringify(build(locale), null, 2)}\n`;
+function sync(file, next) {
   const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
-  if (current === next) continue;
+  if (current === next) return;
   if (check) {
     stale = true;
     console.error(`${path.relative(process.cwd(), file)} is stale; run scripts/sync-i18n.mjs`);
   } else {
-    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, next);
     console.log(`wrote ${path.relative(process.cwd(), file)}`);
   }
+}
+for (const locale of Object.keys(MOBILE_ONLY)) {
+  const bundle = build(locale);
+  sync(path.join(outDir, `${locale}.json`), `${JSON.stringify(bundle, null, 2)}\n`);
+  sync(path.join(nativeRes, NATIVE_DIRS[locale], "strings.xml"), nativeStrings(bundle));
 }
 process.exit(stale ? 1 : 0);

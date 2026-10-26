@@ -109,7 +109,6 @@ export function ChannelSettingsMembers({
                       onKick={() =>
                         moderation.requestRemove(
                           member.user_id,
-                          label,
                           t("chat.channel.kick_confirm", { name: label }),
                         )
                       }

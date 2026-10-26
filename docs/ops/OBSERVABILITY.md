@@ -19,7 +19,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compos
 | `otel-collector` | 4317 | Nhận OTLP/gRPC từ API; exporter `debug` in span ra `docker compose logs otel-collector`. Tempo/Jaeger để sẵn dạng comment trong `deploy/otel-collector.yaml` |
 | `prometheus` | 9091 | Scrape `server:9090` (job `uniwork-api`) và probe `/readyz` qua `blackbox` (job `readyz`); nạp `deploy/alerts.yml` |
 | `blackbox` | — | `prom/blackbox-exporter`, module `http_2xx`, chỉ để probe `/readyz` |
-| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; sáu dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
+| `grafana` | 3001 | Đăng nhập `admin` / `GRAFANA_ADMIN_PASSWORD`; anonymous tắt; bảy dashboard nạp tự động từ `deploy/grafana/dashboards` (thư mục *UniWork*) |
 | `loki` | 3100 | Tùy chọn. Datasource đã khai báo; ship log bằng promtail/Docker log driver, API không tự ghi vào Loki |
 
 File này ghi đè env của `server`: `METRICS_ADDR=0.0.0.0:9090`,
@@ -53,7 +53,9 @@ và `docker run --rm -v "$PWD/deploy:/etc/prometheus:ro" --entrypoint promtool p
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng = không export | OTLP/gRPC, ví dụ `http://otel-collector:4317`. Rỗng thì không ghi span nào và không mở kết nối, nhưng mọi request vẫn có trace id (`X-Trace-Id`, `correlation_id`) |
 | `OTEL_SERVICE_NAME` | `uniwork-api` | Tên service trong backend trace |
 | `OTEL_TRACES_SAMPLER_ARG` | rỗng = `1.0` | Tỷ lệ sampling parent-based 0..1. Xem mục sampling |
-| `LOG_FORMAT` | text | `json` ở production; gì khác là text màu cho terminal |
+| `LOG_FORMAT` | text | `json` ở production: một object mỗi dòng, không ANSI, thứ tự field không đổi. Giá trị khác là handler text cho log dev |
+| `LOG_COLOR` | bật | `always` (mặc định, kể cả pipe của Docker), `auto` (chỉ khi stderr là terminal), `never` tắt màu. So sánh không phân biệt hoa thường |
+| `NO_COLOR` | trống | Khác rỗng thì tắt màu và thắng `LOG_COLOR=always`. Trống không tắt. `.env.example` comment key này để Make không export giá trị rỗng |
 | `LOG_LEVEL` | `debug` | `debug` / `info` / `warn` / `error`; production dùng `info` |
 | `FEATURE_FLAGS_FILE` | rỗng | YAML flag tĩnh; override theo tổ chức nằm ở DB (`/admin/flags`) |
 | `RUM_SAMPLE_RATE` | `0.2` | Tỷ lệ trình duyệt gửi web-vitals về `/api/v1/rum`; client đọc qua `GET /api/v1/config`. Flag `rum_sampling` tắt hẳn |
@@ -86,7 +88,12 @@ request đó bất kể tỷ lệ; từ tài khoản thường bị bỏ qua. Fl
 
 Listener `METRICS_ADDR` phục vụ `/metrics` với Go/process collector cộng mọi
 metric `uniwork_*`: `http_*` (`method,route,status` — route là pattern Chi,
-không phải path thật), `db_pool_*`, `db_query_duration_seconds{query_name}`,
+không phải path thật; `http_client_requests_total{platform,client_version,client_update,status_class}` cho bản
+app mobile/desktop, nhãn chỉ nhận giá trị từ request đã xác thực, giới hạn theo tiến trình (giá trị không ai gửi trong
+24 giờ nhường chỗ) và `other` cho phần dư; access log còn có `client_update_id`), `db_pool_*`, `db_query_duration_seconds{query_name}`,
 `outbox_*`, `realtime_*`, `meeting_*`, `ai_*`, `web_vitals_seconds{metric,route_pattern}`,
+`mobile_events_total{event,result,os,client_version,client_update}` và
+`mobile_event_duration_seconds{event,os,client_version}` (sự kiện sản phẩm ẩn danh của UniChat mobile,
+`POST /api/v1/mobile/events`; dashboard `unichat-mobile.json`),
 `audit_events_*`, `notifications_*`, `build_info{version,commit}`. Không đổi
 tên metric cũ; alert và dashboard tham chiếu tên trong `server/internal/metrics/*.go`.

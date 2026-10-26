@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { usePush } from "@uniwork/core/notifications/push";
 import { showWebNotification, useHostFocus, useWebNotificationPermission } from "@uniwork/core/platform";
-import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 /** Realtime fallback for an open browser; a subscribed browser is notified by the push lane. */
 export function useCallNotification(state: VoiceCallOverlayState, href: string): void {

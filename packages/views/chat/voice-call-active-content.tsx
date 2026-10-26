@@ -13,17 +13,17 @@ import {
   VoiceCallPresenceAnnouncer,
 } from "./voice-call-call-notices";
 import { ActiveVoiceControls } from "./voice-call-controls";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import {
   VoiceCallFloatingPanel,
   type VoiceCallPanelMode,
 } from "./voice-call-floating-panel";
-import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
+import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "@uniwork/core/chat/voice-call-kind";
 import { useVoiceCallParticipantsPanel } from "./voice-call-participants-panel";
 import type {
   VoiceCallEndInit,
   VoiceCallKind,
-} from "./voice-call-overlay-types";
+} from "@uniwork/core/chat/voice-call-types";
 import { VoiceCallRecIndicator } from "./voice-call-recording-controls";
 import {
   useVoiceCallActions,

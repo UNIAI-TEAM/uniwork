@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { motionsTabState, useMeetingMotions } from "@uniwork/core/meetings/motions";
@@ -7,10 +8,11 @@ import type { Meeting } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
-import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
+import { MeetingRoomCopilotTab, type CopilotSection } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
+import { RoomPanelNavigation } from "./room-panel-navigation";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions" | "recordings";
@@ -68,6 +70,11 @@ export function MeetingRoomSidebar({
   onTabChange,
   chatUnread = 0,
   tabsEnd,
+  lateMinutes = null,
+  onDismissCatchUp,
+  scribeOn = false,
+  liveItemsUnseen = 0,
+  onCopilotSectionChange,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -81,6 +88,14 @@ export function MeetingRoomSidebar({
   chatUnread?: number;
   /** Beside the tab row (the sheet's close button), so it never covers a tab. */
   tabsEnd?: ReactNode;
+  /** How late this member is when late enough for the catch-up card (catchUpLateMinutes). */
+  lateMinutes?: number | null;
+  onDismissCatchUp?: () => void;
+  /** The AI scribe is in the room. */
+  scribeOn?: boolean;
+  /** Live items the scribe wrote that this viewer has not had on screen. */
+  liveItemsUnseen?: number;
+  onCopilotSectionChange?: (section: CopilotSection) => void;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -122,7 +137,12 @@ export function MeetingRoomSidebar({
             meetingId={meetingId}
             workspaceId={guestMode ? undefined : workspaceId}
             projectId={guestMode ? undefined : meeting?.project_id}
-            canHost={canHost === true}
+            canClerk={isClerk}
+            lateMinutes={guestMode ? null : lateMinutes}
+            onDismissCatchUp={onDismissCatchUp}
+            scribeOn={scribeOn}
+            actionsUnseen={liveItemsUnseen}
+            onSectionChange={onCopilotSectionChange}
           />
         ) : (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
@@ -171,21 +191,25 @@ export function MeetingRoomSidebar({
             value={activeTab}
             onChange={onTabChange}
             label={tabLabel}
+            ariaLabel={t("meetings.roomPanel")}
+            icon={(id) => (id === "copilot" ? <Sparkles aria-hidden className="size-3.5 shrink-0" /> : null)}
             panelId={panelId}
             badge={(id) =>
               id === "participants" && pendingJoinCount > 0 ? (
-                <MeetingUnderlineTabBadge
-                  aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
-                >
+                <MeetingUnderlineTabBadge srLabel={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}>
                   {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
                 </MeetingUnderlineTabBadge>
               ) : id === "chat" && chatUnread > 0 ? (
-                <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
+                <MeetingUnderlineTabBadge srLabel={t("meetings.chatUnread", { count: chatUnread })}>
                   {chatUnread > 9 ? "9+" : chatUnread}
+                </MeetingUnderlineTabBadge>
+              ) : id === "copilot" && liveItemsUnseen > 0 ? (
+                <MeetingUnderlineTabBadge srLabel={t("meetings.liveItemsUnseen", { count: liveItemsUnseen })}>
+                  {liveItemsUnseen > 9 ? "9+" : liveItemsUnseen}
                 </MeetingUnderlineTabBadge>
               ) : id === "motions" && motionsTab.pending ? (
                 // At most one item is open at a time, so the count is always one.
-                <MeetingUnderlineTabBadge aria-label={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
+                <MeetingUnderlineTabBadge srLabel={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
               ) : null
             }
           />
@@ -199,7 +223,7 @@ export function MeetingRoomSidebar({
         aria-label={tabLabel(activeTab)}
         className={PANEL_CLASS}
       >
-        {panelContent(activeTab)}
+        <RoomPanelNavigation>{panelContent(activeTab)}</RoomPanelNavigation>
       </div>
     </aside>
   );

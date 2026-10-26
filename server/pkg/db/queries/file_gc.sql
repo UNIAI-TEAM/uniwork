@@ -203,6 +203,13 @@ SELECT r.wallpaper_file_id AS file_id, r.organization_id
 FROM chat_rooms r
 WHERE r.wallpaper_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: FileGCAiAttachmentRefTenants :many
+-- tenant: system
+-- ai_attachments.file_id: the row carries its tenant (UNI-2119).
+SELECT a.file_id, a.organization_id
+FROM ai_attachments a
+WHERE a.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: FileGCChatLinkPreviewRefTenants :many
 -- tenant: system
 -- chat_link_previews.image_file_id: a link preview's picture (ADR 0035).
@@ -210,6 +217,12 @@ SELECT p.image_file_id AS file_id, p.organization_id
 FROM chat_link_previews p
 WHERE p.image_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: FileGCMeetingTranscriptionRefTenants :many
+-- tenant: system
+-- meeting_transcriptions.file_id: an uploaded meeting recording (UNI-2001).
+SELECT file_id, organization_id
+FROM meeting_transcriptions
+WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
 -- name: FileGCDocumentDownloadJobRefTenants :many
 -- tenant: system
 -- document_download_jobs.file_id: the row carries its tenant.

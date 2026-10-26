@@ -28,7 +28,7 @@ export function useRoomMemberModeration({
   demote: (userId: string) => void;
   mute: (userId: string) => void;
   unmute: (userId: string) => void;
-  requestRemove: (userId: string, label: string, confirmTitle: string, copy?: RemoveCopy) => void;
+  requestRemove: (userId: string, confirmTitle: string, copy?: RemoveCopy) => void;
   confirmDialog: ReactNode;
 } {
   const { t } = useTranslation();
@@ -57,7 +57,7 @@ export function useRoomMemberModeration({
     demote: (userId) => update(userId, { role: "member" }),
     mute: (userId) => update(userId, { send_restricted: true }),
     unmute: (userId) => update(userId, { send_restricted: false }),
-    requestRemove: (userId, _label, confirmTitle, copy) => setPendingRemove({ userId, title: confirmTitle, ...copy }),
+    requestRemove: (userId, confirmTitle, copy) => setPendingRemove({ userId, title: confirmTitle, ...copy }),
     confirmDialog: (
       <ConfirmDialog
         open={pendingRemove != null}

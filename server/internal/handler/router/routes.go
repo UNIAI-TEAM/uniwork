@@ -9,33 +9,39 @@ type Routes struct {
 	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
-	Config                     http.HandlerFunc
-	OfficeDesktopDownload      http.HandlerFunc
-	RUM                        http.HandlerFunc
-	CreateDemoRequest          http.HandlerFunc
-	AdminListDemoRequests      http.HandlerFunc
-	AdminUpdateDemoRequest     http.HandlerFunc
-	AdminMe                    http.HandlerFunc
-	AdminListOrganizations     http.HandlerFunc
-	AdminGetOrganization       http.HandlerFunc
-	AdminSuspendOrganization   http.HandlerFunc
-	AdminUnsuspendOrganization http.HandlerFunc
-	AdminChangePlan            http.HandlerFunc
-	AdminTrace                 http.HandlerFunc
-	AdminSystem                http.HandlerFunc
-	AdminListFlags             http.HandlerFunc
-	AdminListFlagOverrides     http.HandlerFunc
-	AdminListAllFlagOverrides  http.HandlerFunc
-	AdminSetFlagOverride       http.HandlerFunc
-	AdminDeleteFlagOverride    http.HandlerFunc
-	AdminListPlans             http.HandlerFunc
-	AdminCreatePlan            http.HandlerFunc
-	AdminUpdatePlan            http.HandlerFunc
-	AdminUpdatePlanFeature     http.HandlerFunc
-	AdminListInvoices          http.HandlerFunc
-	AdminListPaymentIntents    http.HandlerFunc
-	AdminRefundInvoice         http.HandlerFunc
-	AdminConfirmInvoiceRefund  http.HandlerFunc
+	Config                            http.HandlerFunc
+	OfficeDesktopDownload             http.HandlerFunc
+	RUM                               http.HandlerFunc
+	MobileEvents                      http.HandlerFunc
+	CreateDemoRequest                 http.HandlerFunc
+	AdminListDemoRequests             http.HandlerFunc
+	AdminUpdateDemoRequest            http.HandlerFunc
+	AdminListChatReports              http.HandlerFunc
+	AdminResolveChatReport            http.HandlerFunc
+	AdminRemoveReportedMessage        http.HandlerFunc
+	AdminMe                           http.HandlerFunc
+	AdminListOrganizations            http.HandlerFunc
+	AdminGetOrganization              http.HandlerFunc
+	AdminSuspendOrganization          http.HandlerFunc
+	AdminScheduleOrganizationDeletion http.HandlerFunc
+	AdminCancelOrganizationDeletion   http.HandlerFunc
+	AdminUnsuspendOrganization        http.HandlerFunc
+	AdminChangePlan                   http.HandlerFunc
+	AdminTrace                        http.HandlerFunc
+	AdminSystem                       http.HandlerFunc
+	AdminListFlags                    http.HandlerFunc
+	AdminListFlagOverrides            http.HandlerFunc
+	AdminListAllFlagOverrides         http.HandlerFunc
+	AdminSetFlagOverride              http.HandlerFunc
+	AdminDeleteFlagOverride           http.HandlerFunc
+	AdminListPlans                    http.HandlerFunc
+	AdminCreatePlan                   http.HandlerFunc
+	AdminUpdatePlan                   http.HandlerFunc
+	AdminUpdatePlanFeature            http.HandlerFunc
+	AdminListInvoices                 http.HandlerFunc
+	AdminListPaymentIntents           http.HandlerFunc
+	AdminRefundInvoice                http.HandlerFunc
+	AdminConfirmInvoiceRefund         http.HandlerFunc
 
 	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
 	// 0031), mounted by registerMCP.
@@ -69,6 +75,7 @@ type Routes struct {
 	AuthProviders         http.HandlerFunc
 	GoogleStart           http.HandlerFunc
 	GoogleCallback        http.HandlerFunc
+	AppleSignIn           http.HandlerFunc
 	DesktopStart          http.HandlerFunc
 	DesktopConsent        http.HandlerFunc
 	DesktopConsentCommand http.HandlerFunc
@@ -90,6 +97,9 @@ type Routes struct {
 	RevokeSession       http.HandlerFunc
 	RevokeOtherSessions http.HandlerFunc
 	DeleteAccount       http.HandlerFunc
+	SetAIConsent        http.HandlerFunc
+	WithdrawAIConsent   http.HandlerFunc
+	SetPushPreviews     http.HandlerFunc
 	PatchOnboarding     http.HandlerFunc
 	CompleteOnboarding  http.HandlerFunc
 	MyInvitations       http.HandlerFunc
@@ -99,6 +109,12 @@ type Routes struct {
 	GetOrganization    http.HandlerFunc
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
+
+	OrgPushPreviewPolicy    http.HandlerFunc
+	SetOrgPushPreviewPolicy http.HandlerFunc
+	// The organization's floor under members' phone app lock and screen capture.
+	OrgMobileSecurityPolicy    http.HandlerFunc
+	SetOrgMobileSecurityPolicy http.HandlerFunc
 
 	ListOrgMembers      http.HandlerFunc
 	GetOrgMembershipMe  http.HandlerFunc
@@ -288,20 +304,44 @@ type Routes struct {
 	SubscribePush              http.HandlerFunc
 	UnsubscribePush            http.HandlerFunc
 
-	AiCapabilities       http.HandlerFunc
-	GetOrgAskModels      http.HandlerFunc
-	SetOrgAskModels      http.HandlerFunc
-	AskUni               http.HandlerFunc
-	AskUniStream         http.HandlerFunc
-	ChatCatchUp          http.HandlerFunc
-	ListAiConversations  http.HandlerFunc
-	ListAiMessages       http.HandlerFunc
-	DeleteAiConversation http.HandlerFunc
-	RenameAiConversation http.HandlerFunc
-	SetAiFeedback        http.HandlerFunc
-	ClearAiFeedback      http.HandlerFunc
-	WorkspaceAiUsage     http.HandlerFunc
-	OrganizationAiUsage  http.HandlerFunc
+	AiCapabilities          http.HandlerFunc
+	UploadAiAttachment      http.HandlerFunc
+	CancelAiAttachment      http.HandlerFunc
+	DownloadAiAttachment    http.HandlerFunc
+	GetOrgAskModels         http.HandlerFunc
+	SetOrgAskModels         http.HandlerFunc
+	GetOrgAskWritePolicy    http.HandlerFunc
+	SetOrgAskWritePolicy    http.HandlerFunc
+	SetAskUniMode           http.HandlerFunc
+	ListAiMemory            http.HandlerFunc
+	CreateAiMemory          http.HandlerFunc
+	UpdateAiMemory          http.HandlerFunc
+	DeleteAiMemory          http.HandlerFunc
+	ClearAiMemory           http.HandlerFunc
+	SplitAiMemoryImport     http.HandlerFunc
+	ImportAiMemory          http.HandlerFunc
+	SetAskUniMemory         http.HandlerFunc
+	ApplyAiMemoryProposal   http.HandlerFunc
+	RejectAiMemoryProposal  http.HandlerFunc
+	UndoAiMemoryProposal    http.HandlerFunc
+	EditAiMemoryProposal    http.HandlerFunc
+	ApplyAiProposal         http.HandlerFunc
+	RejectAiProposal        http.HandlerFunc
+	UndoAiProposal          http.HandlerFunc
+	EditAiProposal          http.HandlerFunc
+	ApplyAiMessageProposals http.HandlerFunc
+	SaveAiAnswerDocument    http.HandlerFunc
+	AskUni                  http.HandlerFunc
+	AskUniStream            http.HandlerFunc
+	ChatCatchUp             http.HandlerFunc
+	ListAiConversations     http.HandlerFunc
+	ListAiMessages          http.HandlerFunc
+	DeleteAiConversation    http.HandlerFunc
+	RenameAiConversation    http.HandlerFunc
+	SetAiFeedback           http.HandlerFunc
+	ClearAiFeedback         http.HandlerFunc
+	WorkspaceAiUsage        http.HandlerFunc
+	OrganizationAiUsage     http.HandlerFunc
 
 	AiByokChatCompletions http.HandlerFunc
 	AiByokMessages        http.HandlerFunc
@@ -402,13 +442,50 @@ type Routes struct {
 	MeetingStatistics              http.HandlerFunc
 	MeetingActivity                http.HandlerFunc
 	AppendTranscript               http.HandlerFunc
-	AppendAgentTranscript          http.HandlerFunc
+	SetMeetingScribe               http.HandlerFunc
+	SetMeetingAISharing            http.HandlerFunc
+	GetMeetingSettings             http.HandlerFunc
+	SetMeetingSettings             http.HandlerFunc
+	SetParticipantSharedMic        http.HandlerFunc
+	ListSpeakerLabels              http.HandlerFunc
+	AssignSpeakerLabel             http.HandlerFunc
+	RecordMeetingHeld              http.HandlerFunc
+	CreateMeetingAudioUpload       http.HandlerFunc
+	RequestMeetingTranscription    http.HandlerFunc
+	ListMeetingTranscriptions      http.HandlerFunc
+	DeleteMeetingTranscription     http.HandlerFunc
+	EditTranscriptSegment          http.HandlerFunc
+	DeleteTranscriptSegment        http.HandlerFunc
+	DeleteTranscript               http.HandlerFunc
+	SetTranscriptRetention         http.HandlerFunc
+	MeetingDialIn                  http.HandlerFunc
+	RotateMeetingDialInPin         http.HandlerFunc
+	MeetingAgentStarted            http.HandlerFunc
+	MeetingAgentContext            http.HandlerFunc
+	MeetingAgentSegments           http.HandlerFunc
+	MeetingAgentFinished           http.HandlerFunc
+	MeetingAgentExtract            http.HandlerFunc
+	MeetingAgentTranslate          http.HandlerFunc
+	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
-	CreateSummaryTasks             http.HandlerFunc
+	MeetingEvidence                http.HandlerFunc
+	ListActionItems                http.HandlerFunc
+	ListCarriedOverItems           http.HandlerFunc
+	GetMeetingMinutes              http.HandlerFunc
+	CreateMeetingMinutes           http.HandlerFunc
+	FinalizeMeetingMinutes         http.HandlerFunc
+	RefreshMeetingMinutes          http.HandlerFunc
+	ReopenMeetingMinutes           http.HandlerFunc
+	AddActionItem                  http.HandlerFunc
+	DismissActionItem              http.HandlerFunc
+	RestoreActionItem              http.HandlerFunc
+	LinkActionItem                 http.HandlerFunc
+	ConvertActionItems             http.HandlerFunc
+	MeetingCatchUp                 http.HandlerFunc
 	StartRecording                 http.HandlerFunc
 	StopRecording                  http.HandlerFunc
 	ListRecordings                 http.HandlerFunc
@@ -422,6 +499,7 @@ type Routes struct {
 	LookupChatUser                   http.HandlerFunc
 	GetChatBlockStatus               http.HandlerFunc
 	BlockChatUser                    http.HandlerFunc
+	ReportChat                       http.HandlerFunc
 	UnblockChatUser                  http.HandlerFunc
 	ListChatNicknames                http.HandlerFunc
 	SetChatNickname                  http.HandlerFunc
@@ -433,6 +511,7 @@ type Routes struct {
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
 	ListChatCallLogs                 http.HandlerFunc
+	GetChatSync                      http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
@@ -503,6 +582,7 @@ type Routes struct {
 	SignalChatVoiceInvite            http.HandlerFunc
 	SignalChatVoiceAccept            http.HandlerFunc
 	SignalChatVoiceHangup            http.HandlerFunc
+	SignalChatVoiceDecline           http.HandlerFunc
 	StartChatVoiceRecording          http.HandlerFunc
 	StopChatVoiceRecording           http.HandlerFunc
 	GetActiveChatVoiceRecording      http.HandlerFunc
@@ -593,6 +673,10 @@ type Routes struct {
 	GetOfficeFrameAvatar     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).
 	ExportOfficeFramePDF http.HandlerFunc
+	// DOCX/PDF export of a UniNote page (UNI-2004).
+	ExportDocumentPage http.HandlerFunc
+	// The formats that export can render here (follow-6).
+	GetDocumentPageExportFormats http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
 	OfficeFrameAiCredentialsList     http.HandlerFunc
 	OfficeFrameAiCredentialSave      http.HandlerFunc

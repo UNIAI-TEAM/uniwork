@@ -5,7 +5,7 @@ import { Mic, MicOff, Users, Video, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { useVoiceCallMedia } from "./voice-call-room-context";
 import type { VoiceCallParticipantTile } from "./voice-call-room-types";
@@ -117,7 +117,7 @@ export function useVoiceCallParticipantsPanel({
       className="h-11 shrink-0 gap-2 rounded-full border-transparent px-3.5 text-body font-semibold aria-pressed:bg-call-speaking/15 aria-pressed:text-call-speaking"
       onClick={() => setOpen((value) => !value)}
     >
-      <Users aria-hidden className="size-4.5" />
+      <Users aria-hidden className="size-4" />
       <span className="max-sm:sr-only">{t("chat.voice_call_participants_toggle")}</span>
       <span className="h-5.5 min-w-5.5 rounded-full bg-call-accent px-1.75 text-center text-caption leading-5.5 text-on-solid tabular-nums">
         {count}
@@ -155,7 +155,7 @@ export function useVoiceCallParticipantsPanel({
             toggleRef.current?.focus();
           }}
         >
-          <X aria-hidden className="size-4.5" />
+          <X aria-hidden className="size-4" />
         </Button>
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">

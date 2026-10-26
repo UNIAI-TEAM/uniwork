@@ -6,6 +6,7 @@ import { useRecordings } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
@@ -59,12 +60,7 @@ export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
             className="flex flex-col gap-2 rounded-xl border border-border bg-surface-hover px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="text-caption tabular-nums text-muted-foreground">
-              {r.started_at
-                ? new Date(r.started_at).toLocaleString(meetingLocale(i18n.language), {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })
-                : null}
+              {formatMeetingDayTime(r.started_at, meetingLocale(i18n.language))}
             </span>
             <Button type="button" size="sm" variant="secondary" onClick={() => setPlaybackId(r.id)}>
               {t("meetings.recording_play")}

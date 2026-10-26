@@ -112,6 +112,10 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build /repo/apps/office-engine/dist/ ./
 COPY --from=build /repo/pdf-assets /app/pdf-assets
+# UNI-2004: page exports declare Noto Sans for its Vietnamese coverage; the
+# system font dir is where fontconfig (and so the Docs renderer's Chromium,
+# once staged) finds it. The image ships no other fonts.
+COPY --from=build /repo/pdf-assets/fonts /usr/local/share/fonts/uniwork
 # Same image, supervisor-owned: the sidecar is spawned per job by the worker
 # inside the job sandbox; the gateway bundle is imported, not executed.
 COPY --from=xlsx-src /xlsx-build/dist/xlsx-gateway.mjs /app/xlsx-assets/xlsx-gateway.mjs

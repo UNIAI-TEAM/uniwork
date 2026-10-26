@@ -72,4 +72,27 @@ type DeleteAccountSDI struct {
 	Password          string `json:"password" description:"Mật khẩu hiện tại (tài khoản có mật khẩu)" example:"password123"`
 	Code              string `json:"code" description:"Mã TOTP hoặc mã khôi phục (tài khoản chỉ Google, có MFA)" example:"123456"`
 	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
+	CloseOrganization string `json:"close_organization,omitempty" description:"Địa chỉ (slug) của tổ chức mà tài khoản là chủ sở hữu và thành viên duy nhất, gõ lại: tổ chức được đóng (lưu trữ) cùng giao dịch với việc xóa tài khoản" example:"cong-ty-mot-minh"`
+}
+
+// SetPushPreviewsSDI is PUT /api/v1/me/push-previews.
+type SetPushPreviewsSDI struct {
+	Show *bool `json:"show" description:"true hiện nội dung trong push, false chỉ nói loại việc vừa xảy ra, không tên hay chữ trong tin; bắt buộc" example:"false"`
+}
+
+// PushPreviewPolicySDI is PUT /api/v1/orgs/{org}/push-preview-policy.
+type PushPreviewPolicySDI struct {
+	Hidden *bool `json:"hidden" description:"true ẩn nội dung (tên, tiêu đề, chữ trong tin) trong mọi push của tổ chức; bắt buộc" example:"true"`
+}
+
+// MobileSecurityPolicySDI is PUT /api/v1/orgs/{org}/mobile-security-policy:
+// at least one field; a field left out keeps its value.
+type MobileSecurityPolicySDI struct {
+	RequireAppLock     *bool `json:"require_app_lock,omitempty" description:"true bắt buộc khoá UniChat trên điện thoại của mọi thành viên, false bỏ yêu cầu; bỏ trống thì giữ nguyên" example:"true"`
+	BlockScreenCapture *bool `json:"block_screen_capture,omitempty" description:"true bắt buộc chặn chụp/quay màn hình UniChat, false bỏ yêu cầu; bỏ trống thì giữ nguyên" example:"true"`
+}
+
+// SetAIConsentSDI is PUT /api/v1/me/ai-consent.
+type SetAIConsentSDI struct {
+	Version string `json:"version" description:"Phiên bản thông báo xử lý AI người dùng vừa đồng ý (tối đa 64 ký tự, không khoảng trắng)" example:"2026-10-anthropic"`
 }

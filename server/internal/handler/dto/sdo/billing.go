@@ -63,15 +63,16 @@ type CheckoutSDO struct {
 
 // InvoiceDTO is one paid billing period from a provider checkout.
 type InvoiceDTO struct {
-	ID          string `json:"id" example:"01K4F02INV0N1P2Q3R4S5T6U7V"`
-	Number      string `json:"number" example:"UW-2026-01ABC12345"`
-	Status      string `json:"status" example:"paid"`
-	Provider    string `json:"provider" example:"vnpay"`
-	AmountPaid  int64  `json:"amount_paid" example:"499000"`
-	Currency    string `json:"currency" example:"VND"`
-	PeriodStart string `json:"period_start" example:"2026-09-06T00:00:00Z"`
-	PeriodEnd   string `json:"period_end" example:"2026-10-06T00:00:00Z"`
-	PaidAt      string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
+	ID             string `json:"id" example:"01K4F02INV0N1P2Q3R4S5T6U7V"`
+	Number         string `json:"number" example:"UW-2026-01ABC12345"`
+	Status         string `json:"status" example:"paid"`
+	Provider       string `json:"provider" example:"vnpay"`
+	AmountPaid     int64  `json:"amount_paid" example:"499000"`
+	AmountRefunded int64  `json:"amount_refunded" example:"0"`
+	Currency       string `json:"currency" example:"VND"`
+	PeriodStart    string `json:"period_start" example:"2026-09-06T00:00:00Z"`
+	PeriodEnd      string `json:"period_end" example:"2026-10-06T00:00:00Z"`
+	PaidAt         string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
 }
 
 // InvoiceListSDO is GET /api/v1/orgs/{orgID}/billing/invoices.

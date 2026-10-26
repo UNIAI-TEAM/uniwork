@@ -110,11 +110,15 @@ export function MeetingAdmitGuestsButton({
         size="sm"
         variant="successSolid"
         aria-label={accessibleName}
-        className={cn("h-8 gap-1.5 rounded-full px-3", className)}
+        className={cn("h-8 gap-1.5 rounded-full px-2.5 @4xl/stagehead:px-3", className)}
         onClick={onOpenPeople}
       >
         <UserPlus aria-hidden className="size-3.5" />
-        <span className="max-w-[10rem] truncate">{label}</span>
+        {/* A narrow header shows the icon and the count, so the meeting title keeps its room; the name says it all. */}
+        <span aria-hidden className="tabular-nums @4xl/stagehead:hidden" data-testid="meeting-admit-count">
+          {count}
+        </span>
+        <span className="hidden max-w-[10rem] truncate @4xl/stagehead:inline">{label}</span>
       </Button>
       {/* Positioned against the stage header, just under it. */}
       {panelVisible ? (
