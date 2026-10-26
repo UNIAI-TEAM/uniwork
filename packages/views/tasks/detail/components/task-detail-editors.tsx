@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useTaskPermissions } from "@uniwork/core/permissions";
 import {
   useAddTaskReaction,
   useComments,
@@ -53,6 +54,7 @@ export function TaskDetailEditors({
   const currentUser = useAuthStore((state) => state.user);
   const members = useMembers(workspaceId);
   const attachments = useTaskAttachments(workspaceId, task.id);
+  const { canEdit, isLoading: permissionsLoading } = useTaskPermissions(task, workspaceId);
   const comments = useComments(task.id);
   const uploadMutation = useUploadTaskAttachment(workspaceId, task.id);
   const addReaction = useAddTaskReaction(task.id);
@@ -203,6 +205,7 @@ export function TaskDetailEditors({
           workspaceId={workspaceId}
           taskId={task.id}
           content={attachmentReferences}
+          canEdit={permissionsLoading ? true : canEdit.allowed}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         {/* The context line names the meeting a task came from; the timeline does not repeat it. */}

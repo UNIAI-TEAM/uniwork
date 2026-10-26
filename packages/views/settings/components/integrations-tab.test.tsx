@@ -172,8 +172,33 @@ describe("IntegrationsTab", () => {
   });
 
   describe("Google Drive row (W1, UNI-2186)", () => {
-    it("hides the Google Drive row when flag drive_connector is off or drive.available is false", async () => {
-      const { unmount: unmount1 } = renderTab([], { driveFlag: false, driveAvailable: true });
+    it("hides the Google Drive row when only config.flags.drive_connector is true (provider flag off) or when flag is on but drive.available is false", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") {
+          return Promise.resolve({
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        return Promise.resolve({});
+      });
+      const offService = new FeatureFlagService(
+        new StaticProvider({ drive_connector: { default: false } }),
+      );
+      const { unmount: unmount1 } = render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={offService}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          fakeNav("/acme/team/settings?tab=integrations"),
+        ),
+      );
       expect(await screen.findByText("Email Hub")).toBeInTheDocument();
       await waitFor(() =>
         expect(requestMock).toHaveBeenCalledWith("/api/v1/config", expect.anything()),

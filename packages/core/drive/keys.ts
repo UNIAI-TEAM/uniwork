@@ -14,4 +14,5 @@ export const driveKeys = {
   all: ["drive"] as const,
   workspace: (wsId: string) => [...driveKeys.all, wsId] as const,
   connections: (wsId: string) => [...driveKeys.workspace(wsId), "connections"] as const,
+  task: (wsId: string, taskId: string) => [...driveKeys.workspace(wsId), "tasks", taskId] as const,
 };

@@ -11,14 +11,33 @@ export type DocumentIconFormat =
   | "pptx"
   | "pdf"
   | "md"
+  | "markdown"
   | "txt"
+  | "text"
   | "html"
   | "page"
   | "folder"
   | "file"
+  | "generic"
   | "google_doc"
   | "google_sheet"
   | "google_slide";
+
+function normalizeFormat(raw: string | null | undefined): string {
+  const lower = raw?.toLowerCase() ?? "file";
+  if (lower === "markdown") return "md";
+  if (lower === "text") return "txt";
+  if (lower === "generic") return "file";
+  return lower;
+}
+
+/** Localized file-type label for a document or Drive `icon_kind` / format. */
+export function documentFormatLabel(
+  format: string | null | undefined,
+  t: (key: string) => string,
+): string {
+  return labelFor(normalizeFormat(format), t);
+}
 
 /** The lowercase extension of a file name, or "" when it has none. */
 export function fileExtension(name: string | null | undefined): string {
@@ -48,8 +67,7 @@ export function DocumentTypeIcon({
   decorative?: boolean;
 }) {
   const { t } = useTranslation();
-  const raw = format?.toLowerCase() ?? "file";
-  const normalized = raw === "markdown" ? "md" : raw === "text" ? "txt" : raw === "generic" ? "file" : raw;
+  const normalized = normalizeFormat(format);
   const label = labelFor(normalized, t);
   if (isFileMarkFormat(normalized)) {
     return (
