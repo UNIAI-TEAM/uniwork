@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bell, Clock, Trash2 } from "lucide-react";
+import { Bell, Clock, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -113,7 +113,7 @@ export function ChatReminderMessageRow({
       </p>
       {onDelete ? (
         <Button type="button" variant="destructive" size="sm" className="mt-2.5 h-8 rounded-full px-3" onClick={onDelete}>
-          <Trash2 className="size-3.5" aria-hidden />
+          <Trash className="size-3.5" aria-hidden />
           {t("chat.reminder_delete")}
         </Button>
       ) : null}

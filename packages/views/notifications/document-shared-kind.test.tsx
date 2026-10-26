@@ -87,11 +87,11 @@ describe("SH-W3 document_shared notification kind", () => {
 
     await setLocale("vi");
     const viLevel = t(`documents.share.level_${level}`);
-    expect(sentence(n)).toBe(`An đã chia sẻ tài liệu “Hợp đồng” với bạn. Quyền: ${viLevel}.`);
+    expect(sentence(n)).toBe(`An đã chia sẻ tài liệu "Hợp đồng" với bạn. Quyền: ${viLevel}.`);
 
     await setLocale("en");
     const enLevel = t(`documents.share.level_${level}`);
-    expect(sentence(n)).toBe(`An shared “Hợp đồng” with you (${enLevel}).`);
+    expect(sentence(n)).toBe(`An shared "Hợp đồng" with you (${enLevel}).`);
   });
 
   it("reads level-less, never the raw value, when the level is unknown (F-W3-03)", async () => {
@@ -99,11 +99,11 @@ describe("SH-W3 document_shared notification kind", () => {
     expect(notificationTitleKey(unknown)).toBe("notifications.kind.document_shared_nolevel");
 
     await setLocale("vi");
-    expect(sentence(unknown)).toBe("An đã chia sẻ tài liệu “Hợp đồng” với bạn.");
+    expect(sentence(unknown)).toBe('An đã chia sẻ tài liệu "Hợp đồng" với bạn.');
     expect(sentence(unknown)).not.toMatch(/super_edit|documents\.share\.level_|notifications\.kind|\{\{/);
 
     await setLocale("en");
-    expect(sentence(unknown)).toBe("An shared “Hợp đồng” with you.");
+    expect(sentence(unknown)).toBe('An shared "Hợp đồng" with you.');
     expect(sentence(unknown)).not.toMatch(/super_edit|documents\.share\.level_|notifications\.kind|\{\{/);
   });
 
@@ -116,10 +116,10 @@ describe("SH-W3 document_shared notification kind", () => {
       const n = notification(params);
       expect(notificationTitleKey(n)).toBe("notifications.kind.document_shared_nolevel");
       await setLocale("vi");
-      expect(sentence(n)).toBe("An đã chia sẻ tài liệu “Hợp đồng” với bạn.");
+      expect(sentence(n)).toBe('An đã chia sẻ tài liệu "Hợp đồng" với bạn.');
       expect(sentence(n)).not.toMatch(/Quyền: ?\.|\(\)/);
       await setLocale("en");
-      expect(sentence(n)).toBe("An shared “Hợp đồng” with you.");
+      expect(sentence(n)).toBe('An shared "Hợp đồng" with you.');
       expect(sentence(n)).not.toMatch(/\(\)|\(\s*\)/);
     }
   });
@@ -146,12 +146,12 @@ describe("SH-W3 document_shared notification kind", () => {
       await setLocale("vi");
       const viText = sentence(n);
       expect(viText).toBe(`An đã chia sẻ một tài liệu với bạn. Quyền: ${t("documents.share.level_view")}.`);
-      expect(viText).not.toMatch(/notifications\.kind|\{\{|“\s*”/);
+      expect(viText).not.toMatch(/notifications\.kind|\{\{|"\s*"/);
 
       await setLocale("en");
       const enText = sentence(n);
       expect(enText).toBe(`An shared a document with you (${t("documents.share.level_view")}).`);
-      expect(enText).not.toMatch(/notifications\.kind|\{\{|“\s*”/);
+      expect(enText).not.toMatch(/notifications\.kind|\{\{|"\s*"/);
     }
   });
 
@@ -182,7 +182,7 @@ describe("SH-W3 document_shared notification kind", () => {
     expect(link).toHaveAttribute("href", "/acme/team/documents/d1");
     expect(screen.getByText(t("notifications.merged_other", { count: 2 }))).toBeInTheDocument();
     // F-W3-04: the grouped row carries the share sentence and the share glyph, not the "access approved" one.
-    expect(link).toHaveTextContent(`An đã chia sẻ tài liệu “Kế hoạch” với bạn. Quyền: ${t("documents.share.level_edit")}.`);
+    expect(link).toHaveTextContent(`An đã chia sẻ tài liệu "Kế hoạch" với bạn. Quyền: ${t("documents.share.level_edit")}.`);
     expect(link.querySelector("svg.lucide-share-2")).not.toBeNull();
     expect(link.querySelector("svg.lucide-circle-check")).toBeNull();
 

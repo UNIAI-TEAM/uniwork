@@ -16,12 +16,24 @@ import (
 )
 
 func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID string, title string) (db.Meeting, error) {
+	return s.CreateInstantKeyed(ctx, userID, workspaceID, title, "")
+}
+
+// CreateInstantKeyed is CreateInstant under an Idempotency-Key (UNI-2153): a
+// retry with the same key replays the started meeting and skips the room,
+// scribe and dial-in ensures, which the first call already ran (the outbox
+// provider.ensure_session row covers the room). An empty key skips the claim.
+func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspaceID, title, idempotencyKey string) (db.Meeting, error) {
 	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return db.Meeting{}, err
 	}
 	if title == "" {
 		title = "Cuộc họp tức thì"
+	}
+	tz, err := s.creatorTimezone(ctx, userID)
+	if err != nil {
+		return db.Meeting{}, err
 	}
 	now := time.Now().UTC()
 	id := util.NewID()
@@ -31,15 +43,26 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, idempotencyKey, userID,
+		IdempotencyOptions{Fingerprint: IdempotencyFingerprint(idempotencyScopeMeetingCreateInstant, title)})
+	if err != nil {
+		return db.Meeting{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return replayedMeeting(replay)
+	}
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
 		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID, Title: title, Description: "",
 		StartsAt: pgtype.Timestamptz{Time: now, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
-		HostUserID: userID, Timezone: "UTC", AllowJoinRequest: true,
+		HostUserID: userID, Timezone: tz, AllowJoinRequest: true,
 	})
 	if err != nil {
+		return db.Meeting{}, err
+	}
+	if m, err = s.createdScribeOff(ctx, q, m, userID); err != nil {
 		return db.Meeting{}, err
 	}
 	if _, err := s.addHostParticipant(ctx, q, m, userID); err != nil {
@@ -74,10 +97,17 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeInstant, "title": m.Title}))
 	s.record(ctx, q, started, audit.User(userID), "meeting.started", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingInProgress}))
+	if err := completeMeetingClaim(commit, started); err != nil {
+		return db.Meeting{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -130,6 +160,10 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	}
 	s.count("started")
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -234,6 +268,11 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		})
 		_ = s.writeAudit(ctx, q, m, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
+	// The summary the system makes once the meeting is over (A5) is queued
+	// with the end itself, so a restart between the two cannot lose it.
+	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+		return db.Meeting{}, err
+	}
 	s.record(ctx, q, ended, actor, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingInProgress}, map[string]any{"status": MeetingEnded}))
 	if err := tx.Commit(ctx); err != nil {
@@ -242,6 +281,9 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	s.count("ended")
 	if closedSessions > 0 {
 		s.publishAttendanceChanged(ctx, m.ID)
+	}
+	if m.SipDispatchRuleID.Valid {
+		s.ensureDialInNow(ctx, m.ID)
 	}
 	return ended, nil
 }

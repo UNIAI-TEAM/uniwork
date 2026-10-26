@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Layers, Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Layers, Pencil, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskView } from "@uniwork/core/types/task-view";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -103,7 +103,7 @@ function SortableRow({
             onClick={onDelete}
             className="text-muted-foreground hover:text-destructive"
           >
-            <Trash2 className="size-3.5" aria-hidden />
+            <Trash className="size-3.5" aria-hidden />
           </Button>
         </span>
       ) : null}

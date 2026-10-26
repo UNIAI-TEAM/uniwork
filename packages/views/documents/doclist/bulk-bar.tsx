@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Download, FolderInput, Share2, Trash2, X, type LucideIcon } from "lucide-react";
+import { Archive, ArchiveRestore, Download, FolderInput, Share2, Trash, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { BulkActionId, BulkPlan } from "./bulk-actions";
@@ -10,10 +10,10 @@ const ICONS: Record<BulkActionId, LucideIcon> = {
   move: FolderInput,
   download: Download,
   shelve: Archive,
-  trash: Trash2,
+  trash: Trash,
   unshelve: ArchiveRestore,
   restore: ArchiveRestore,
-  purge: Trash2,
+  purge: Trash,
 };
 
 /**

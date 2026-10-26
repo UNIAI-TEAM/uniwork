@@ -2,9 +2,9 @@ Subject: Đăng nhập mới vào tài khoản UniWork
 
 Đăng nhập từ thiết bị mới
 
-Tài khoản UniWork của bạn vừa được đăng nhập từ một trình duyệt chưa dùng trước đây.
+{{if .Data.App}}Tài khoản UniWork của bạn vừa được đăng nhập trên điện thoại bằng app UniChat.{{else}}Tài khoản UniWork của bạn vừa được đăng nhập từ một trình duyệt chưa dùng trước đây.{{end}}
 
-    Trình duyệt: {{.Data.UserAgent}}
+    {{if .Data.App}}Thiết bị{{else}}Trình duyệt{{end}}: {{.Data.UserAgent}}
     Địa chỉ IP: {{.Data.IP}}
     Thời điểm: {{.Data.At.Format "02/01/2006 15:04 MST"}}
 

@@ -1,0 +1,1 @@
+-- Data repair is not reversed; duplicate ACTIVE rows may reappear if this migration is rolled back alone.

@@ -47,6 +47,21 @@ export interface NotificationRowProps {
 export const ROW_FOCUS_SELECTOR = "[data-row-focus]";
 
 /**
+ * Sentences that end in what matters, cut at two lines on a phone: break-glass
+ * carries its "(24h)" window mid-sentence, a trash notice ends in its purge
+ * date (the vi sentence, actor + date, needs a 4th line), a ready summary in
+ * "Xem và giao việc", and a failed transcript in its next step, which must
+ * never be cut even under a long meeting name.
+ */
+const TITLE_CLAMP: Partial<Record<string, string>> = {
+  document_trashed_by_other: "line-clamp-4",
+  document_break_glass: "line-clamp-3",
+  meeting_summary_ready: "line-clamp-3",
+  meeting_recap_ready: "line-clamp-3",
+  meeting_transcript_failed: "line-clamp-5",
+};
+
+/**
  * One inbox line, read left to right the way a person triages: who (the
  * actor's face, the kind pinned to its corner in the module's tint), what
  * (the locale's sentence with the actor, the thing and the state picked
@@ -98,13 +113,7 @@ export function NotificationRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           className={cn(
-            // Break-glass titles carry the "(24h)" window mid-sentence, and a trash notice ends in its purge
-            // date; at phone width two lines cut both off. The vi trash sentence (actor + date) needs a 4th line.
-            n.kind === "document_trashed_by_other"
-              ? "line-clamp-4"
-              : n.kind === "document_break_glass"
-                ? "line-clamp-3"
-                : "line-clamp-2",
+            TITLE_CLAMP[n.kind] ?? "line-clamp-2",
             "text-body text-pretty",
             unread ? "text-foreground" : "text-muted-foreground",
           )}

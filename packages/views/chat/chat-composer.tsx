@@ -30,8 +30,8 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatReplyComposerBar, COMPOSER_QUOTE_CLIP_CLASS, COMPOSER_QUOTE_REVEAL_CLASS } from "./chat-reply-quote";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
+import type { ChatMentionCandidate } from "@uniwork/core/chat/chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "@uniwork/core/chat/chat-mention-utils";
 import { CHAT_DOCUMENT_ACCEPT, CHAT_FILE_ACCEPT } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
@@ -512,7 +512,7 @@ export function ChatComposer({
                 ) : editing.saving ? (
                   <Spinner className="size-5" />
                 ) : (
-                  <Check className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
+                  <Check className={cn("size-5", ICON_POP_IN)} aria-hidden />
                 )}
               </Button>
             ) : (
@@ -530,7 +530,7 @@ export function ChatComposer({
                   else void voiceRecorder.start();
                 }}
               >
-                <Mic className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
+                <Mic className={cn("size-5", ICON_POP_IN)} aria-hidden />
               </Button>
             )}
           </div>

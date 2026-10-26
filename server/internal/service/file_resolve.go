@@ -44,7 +44,7 @@ type resolveFilter func(fileRecord) bool
 // still resolve.
 func (s *FileService) ResolveMany(ctx context.Context, in files.ResolveInput) ([]files.Resolved, error) {
 	mode := in.Mode
-	entries, err := s.resolveRecords(ctx, in.Scope, &mode, in.Disposition, in.Variant, in.FileIDs, nil)
+	entries, err := s.resolveRecords(ctx, in.Scope, &mode, in.Disposition, in.Variant, in.SigningWindow, in.FileIDs, nil, in.MaxTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +69,9 @@ type resolvedEntry struct {
 // not expose: mode nil resolves every id in its own purpose's mode (the
 // upload-session route serves mixed purposes), and keep drops records the
 // caller's context does not cover. variant signs each id's derivative where
-// one exists (ResolveInput.Variant).
-func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mode *files.ReadMode, disposition files.Disposition, variant files.Variant, ids []files.FileID, keep resolveFilter) ([]resolvedEntry, error) {
+// one exists (ResolveInput.Variant); window signs as of its start
+// (ResolveInput.SigningWindow), and maxTTL caps the URL (ResolveInput.MaxTTL).
+func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mode *files.ReadMode, disposition files.Disposition, variant files.Variant, window time.Duration, ids []files.FileID, keep resolveFilter, maxTTL time.Duration) ([]resolvedEntry, error) {
 	records, err := s.loadResolvable(ctx, scope, ids)
 	if err != nil {
 		return nil, err
@@ -120,7 +121,7 @@ func (s *FileService) resolveRecords(ctx context.Context, scope files.Scope, mod
 			if d, ok := derived[id]; ok {
 				signed = d
 			}
-			url, expires, err := s.presignRead(ctx, signed, disposition, now)
+			url, expires, err := s.presignRead(ctx, signed, disposition, now, window, maxTTL)
 			if err != nil {
 				refuse(files.StorageUnavailable(err))
 				continue
@@ -144,11 +145,21 @@ func claimWindowEnd(sess db.FileUploadSession) (time.Time, bool) {
 }
 
 // presignRead signs a GET for one record and returns the URL with the instant
-// it stops working: min(12h, the claim window of a staged file, the
-// credential expiry the signer reports). The URL is used exactly as signed - host, path and query are never
+// it stops working: min(12h from the signing instant, the claim window of a
+// staged file, the credential expiry the signer reports). The signing instant
+// is now, or the start of the current window when one is given
+// (ResolveInput.SigningWindow). The URL is used exactly as signed - host, path and query are never
 // rewritten afterwards, because that would break the signature.
-func (s *FileService) presignRead(ctx context.Context, rec fileRecord, disposition files.Disposition, now time.Time) (string, time.Time, error) {
-	expires := now.Add(files.MaxResolveURLTTL)
+func (s *FileService) presignRead(ctx context.Context, rec fileRecord, disposition files.Disposition, now time.Time, window, maxTTL time.Duration) (string, time.Time, error) {
+	signedAt, asOf := now, time.Time{}
+	if window > 0 {
+		signedAt = now.Truncate(window)
+		asOf = signedAt
+	}
+	expires := signedAt.Add(files.MaxResolveURLTTL)
+	if maxTTL > 0 && now.Add(maxTTL).Before(expires) {
+		expires = now.Add(maxTTL)
+	}
 	if end, ok := claimWindowEnd(rec.session); ok && end.Before(expires) {
 		expires = end
 	}
@@ -160,8 +171,9 @@ func (s *FileService) presignRead(ctx context.Context, rec fileRecord, dispositi
 	}
 	view := fileView(rec.file)
 	signed, err := s.signer.SignRead(ctx, locator(rec.file), storage.SignOptions{
-		TTL:         expires.Sub(now),
+		TTL:         expires.Sub(signedAt),
 		Disposition: fileContentDisposition(view, disposition),
+		SignedAt:    asOf,
 	})
 	if err != nil {
 		return "", time.Time{}, err

@@ -48,3 +48,28 @@ func TestContextRenderSourcesNeutralisesUntrustedTags(t *testing.T) {
 		}
 	}
 }
+
+// A source may carry a larger cap of its own (the meeting record Ask UNI is
+// scoped to, UNI-1995 #17); every other source keeps MaxExcerpt, and the
+// whole pack keeps MaxContextTokens.
+func TestBuildContextHonoursASourcesOwnCap(t *testing.T) {
+	long := strings.Repeat("ạ", MaxExcerpt*3)
+	pack, truncated := BuildContext([]Source{
+		{Kind: "meeting", Title: "Họp", Excerpt: long, MaxRunes: MaxRecordExcerpt},
+		{Kind: "task", Title: "Task", Excerpt: long},
+	})
+	if len(pack) != 2 || pack[0].Excerpt != long {
+		t.Fatalf("the record was cut to %d runes", len([]rune(pack[0].Excerpt)))
+	}
+	if got := len([]rune(pack[1].Excerpt)); got != MaxExcerpt+1 || !truncated {
+		t.Fatalf("a plain source kept %d runes (truncated=%v), want MaxExcerpt+1", got, truncated)
+	}
+	huge := strings.Repeat("ạ", MaxRecordExcerpt*3)
+	pack, _ = BuildContext([]Source{{Kind: "meeting", Title: "Họp", Excerpt: huge, MaxRunes: MaxRecordExcerpt}})
+	if got := len([]rune(pack[0].Excerpt)); got != MaxRecordExcerpt+1 {
+		t.Fatalf("a record past its own cap kept %d runes", got)
+	}
+	if MaxRecordExcerpt/4 > MaxContextTokens/4 {
+		t.Fatalf("one record may take at most a quarter of the context budget")
+	}
+}

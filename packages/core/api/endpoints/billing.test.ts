@@ -86,8 +86,8 @@ describe("billing endpoints", () => {
 
   it("createCheckout returns the url and '' when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ url: "https://pay.test/x" }, 201));
-    expect(await createCheckout("o1", { plan_code: "team", success_path: "/a", cancel_path: "/b" })).toBe("https://pay.test/x");
+    expect(await createCheckout("o1", { plan_code: "team", success_path: "/a" })).toBe("https://pay.test/x");
     vi.mocked(fetch).mockResolvedValueOnce(json({ url: 5 }, 201));
-    expect(await createCheckout("o1", { plan_code: "team", success_path: "/a", cancel_path: "/b" })).toBe("");
+    expect(await createCheckout("o1", { plan_code: "team", success_path: "/a" })).toBe("");
   });
 });

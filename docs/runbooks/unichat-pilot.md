@@ -89,7 +89,14 @@ Pilot chứng minh UniChat dùng được làm kênh chat chính của nhân s�
    ```promql
    sum by (kind) (increase(uniwork_push_suppressed_total[1d]))
    sum by (result) (increase(uniwork_push_sent_total[1d]))
+   sum by (result) (increase(uniwork_push_receipts_total[1d]))
    ```
+
+   `uniwork_push_receipts_total` là kết quả giao thật của push điện thoại (receipt của Expo, đọc 15 phút sau khi gửi,
+   `server/internal/notification/push_receipts.go`): `device_not_registered` là máy đã gỡ app (subscription bị thu
+   hồi), `invalid_credentials`/`mismatch_sender_id` là khoá FCM/APNs trên Expo sai (mọi push của nền tảng đó hỏng —
+   sửa ở `eas credentials`), `expired` là receipt không tới trong một ngày. `sent` cao mà `ok` của receipt thấp là push
+   tới Expo nhưng không tới máy.
 
    Tỷ lệ bỏ / (bỏ + `sent`) theo ngày đặt cạnh số phàn nàn "không nhận push trên điện thoại khi desktop mở mà tôi
    không ngồi máy" trong `#unichat-feedback`. Spec không có metric `notification_push_suppressed_total`; tên đúng là

@@ -1,0 +1,235 @@
+package handler
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+func TestSummaryLocaleIsAClosedSet(t *testing.T) {
+	for raw, want := range map[string]string{"": "vi", "vi": "vi", "EN": "en", " en ": "en", "fr": "vi", "en-US": "vi"} {
+		if got := summaryLocale(raw); got != want {
+			t.Errorf("summaryLocale(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+// TestActionItemDTOCarriesTheAIProse: an AI item's description and suggested
+// priority reach the client under the names the composer prefills from.
+func TestActionItemDTOCarriesTheAIProse(t *testing.T) {
+	d := toActionItemDTO(service.ActionItemView{Item: db.MeetingActionItem{
+		ID: "01J8X4ACTN1P2Q3R4S5T6U7V", Source: "AI", Title: "Gửi báo giá",
+		Description: "Gửi báo giá để khách chốt đơn.", SuggestedPriority: "high",
+	}})
+	raw, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["description"] != "Gửi báo giá để khách chốt đơn." || got["suggested_priority"] != "high" {
+		t.Fatalf("dto = %s", raw)
+	}
+}
+
+func TestMeetingActionItemsHTTP(t *testing.T) {
+	d, _ := newTestDeps(t, nil, discardOutbox{})
+	d.Meetings.Tasks = d.Tasks
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	host, _ := registerChatUser(t, srv, "act-host@example.com", "Host")
+	_, out := doJSON(t, srv, "POST", "/api/v1/orgs", host, map[string]string{"name": "Org", "slug": "act-org"})
+	orgID := out["organization"].(map[string]any)["id"].(string)
+	_, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+orgID+"/workspaces", host, map[string]string{"name": "WS", "slug": "act-ws"})
+	wsID := out["workspace"].(map[string]any)["id"].(string)
+	member, memberID := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "act-minh@example.com")
+	res, out := doJSON(t, srv, "PATCH", "/api/v1/me", member, map[string]string{"display_name": "Minh"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("rename member: %d %v", res.StatusCode, out)
+	}
+	_, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/meetings/instant", host, map[string]string{"title": "Giao ban"})
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	base := "/api/v1/meetings/" + meetingID + "/action-items"
+
+	res, out = doJSON(t, srv, "POST", base, member, map[string]any{"title": "x"})
+	if res.StatusCode != http.StatusForbidden || errorCode(out) != "not_meeting_clerk" {
+		t.Fatalf("member added: %d %v", res.StatusCode, out)
+	}
+	add := func(body map[string]any) string {
+		t.Helper()
+		res, out := doJSON(t, srv, "POST", base, host, body)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("add %v: %d %v", body, res.StatusCode, out)
+		}
+		item := out["item"].(map[string]any)
+		if item["source"] != "MANUAL" || item["status"] != "PENDING" {
+			t.Fatalf("added item: %v", item)
+		}
+		return item["id"].(string)
+	}
+	reportID := add(map[string]any{"title": "Gửi báo cáo", "owner_text": "Minh", "due_text": "ngày mai"})
+	roomID := add(map[string]any{"title": "Đặt phòng"})
+
+	// A meeting without a project carries nothing over: an empty list, not null.
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/carried-over-items", member, nil)
+	if items, ok := out["items"].([]any); res.StatusCode != http.StatusOK || !ok || len(items) != 0 {
+		t.Fatalf("carried over without a project: %d %v", res.StatusCode, out)
+	}
+
+	// A member outside the meeting reads what it handed out, nothing yet, and
+	// how much is left (UNI-1995 access, demo bug 2); the people of the meeting
+	// read the items. The summary no longer carries them.
+	res, out = doJSON(t, srv, "GET", base, member, nil)
+	if items, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(items) != 0 || out["counts"].(map[string]any)["pending"] != float64(2) {
+		t.Fatalf("list for a member outside the meeting: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", base, host, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	items := out["items"].([]any)
+	first := items[0].(map[string]any)
+	if first["id"] != reportID || first["suggested_assignee_id"] != memberID || first["suggested_due_date"] == nil || first["task"] != nil {
+		t.Fatalf("first item before conversion: %v", first)
+	}
+	if counts := out["counts"].(map[string]any); counts["pending"] != float64(2) {
+		t.Fatalf("counts: %v", counts)
+	}
+	// A manual item has no AI description or priority: both keys, empty.
+	if d, ok := first["description"].(string); !ok || d != "" {
+		t.Fatalf("manual item description: %v", first)
+	}
+	if p, ok := first["suggested_priority"].(string); !ok || p != "" {
+		t.Fatalf("manual item suggested_priority: %v", first)
+	}
+	// A manual item has no evidence: an empty list, not null (UNI-2002).
+	if ev, ok := first["evidence"].([]any); !ok || len(ev) != 0 {
+		t.Fatalf("manual item evidence: %v", first["evidence"])
+	}
+	// A cited line is AI content: a member outside the meeting is refused
+	// (UNI-1995 access); invited, they read it; a malformed reference list is 400.
+	_, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/notes", host, map[string]any{"body": "Nhớ gửi bản nháp"})
+	noteID := out["note"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=note:"+noteID, member, nil)
+	if res.StatusCode != http.StatusForbidden || errorCode(out) != "meeting_ai_restricted" {
+		t.Fatalf("evidence for a member outside the meeting: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/invitations", host, map[string]any{"user_id": memberID}); res.StatusCode >= 300 {
+		t.Fatalf("invite member: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=note:"+noteID, member, nil)
+	if got, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(got) != 1 ||
+		got[0].(map[string]any)["text"] != "Nhớ gửi bản nháp" || got[0].(map[string]any)["author"] != "Host" || got[0].(map[string]any)["at"] == "" {
+		t.Fatalf("evidence: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=page:"+noteID, member, nil); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed refs: %d %v", res.StatusCode, out)
+	}
+	// The summary is AI content, for the people of the meeting (UNI-1995 access).
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/summary", host, nil)
+	if res.StatusCode != http.StatusOK || out["summary"] != nil {
+		t.Fatalf("no summary yet: %d %v", res.StatusCode, out)
+	}
+
+	convert := map[string]any{"items": []any{map[string]any{"action_item_id": reportID, "assignee_id": nil, "due_date": ""}}}
+	res, out = doJSON(t, srv, "POST", base+"/convert", member, convert)
+	if res.StatusCode != http.StatusForbidden || errorCode(out) != "not_meeting_clerk" {
+		t.Fatalf("member converted: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/convert", host, map[string]any{"items": []any{map[string]any{"title": "x"}}})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("no action_item_id: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/convert", host, convert)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("convert: %d %v", res.StatusCode, out)
+	}
+	links := out["links"].([]any)
+	link := links[0].(map[string]any)
+	taskID, _ := link["task_id"].(string)
+	if len(links) != 1 || link["action_item_id"] != reportID || taskID == "" {
+		t.Fatalf("convert answer: %v", out)
+	}
+	// Null assignee and empty due date are the clerk's "none": the owner
+	// that names Minh and the parseable "ngày mai" are not applied.
+	_, out = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, host, nil)
+	task := out["task"].(map[string]any)
+	if task["assignee_id"] != nil || task["due_date"] != nil {
+		t.Fatalf("explicit none was re-resolved: %v", task)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/convert", host, convert)
+	if res.StatusCode != http.StatusConflict || errorCode(out) != "action_item_not_pending" {
+		t.Fatalf("second conversion: %d %v", res.StatusCode, out)
+	}
+	fields, _ := out["error"].(map[string]any)["fields"].(map[string]any)
+	if raw, _ := json.Marshal(fields["action_item_ids"]); string(raw) != `["`+reportID+`"]` {
+		t.Fatalf("fields: %v", fields)
+	}
+	_, out = doJSON(t, srv, "GET", base, host, nil)
+	if got := out["items"].([]any)[0].(map[string]any); got["status"] != "CONVERTED" || got["task"].(map[string]any)["id"] != taskID {
+		t.Fatalf("after conversion: %v", got)
+	}
+	// Outside the meeting, the converted item is the task it became and no
+	// word the meeting said about it: no owner or due phrase, no evidence.
+	outsider, _ := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "act-tuan@example.com")
+	res, out = doJSON(t, srv, "GET", base, outsider, nil)
+	if items, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(items) != 1 {
+		t.Fatalf("list for an outsider after conversion: %d %v", res.StatusCode, out)
+	}
+	ref := out["items"].([]any)[0].(map[string]any)
+	if ref["id"] != reportID || ref["status"] != "CONVERTED" || ref["title"] != "Gửi báo cáo" || ref["task"].(map[string]any)["id"] != taskID ||
+		ref["owner_text"] != "" || ref["due_text"] != "" || ref["description"] != "" || ref["suggested_priority"] != "" ||
+		ref["suggested_assignee_id"] != nil || ref["suggested_due_date"] != nil || ref["summary_id"] != nil {
+		t.Fatalf("converted item for an outsider: %v", ref)
+	}
+	if ev, ok := ref["evidence"].([]any); !ok || len(ev) != 0 {
+		t.Fatalf("evidence for an outsider: %v", ref["evidence"])
+	}
+
+	// Dismiss with a reason, restore, and restore again (409).
+	res, out = doJSON(t, srv, "POST", base+"/"+roomID+"/dismiss", host, map[string]any{"reason": "Trùng"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("dismiss: %d %v", res.StatusCode, out)
+	}
+	_, out = doJSON(t, srv, "GET", base, host, nil)
+	if got := out["items"].([]any)[1].(map[string]any); got["status"] != "DISMISSED" || got["dismiss_reason"] != "Trùng" || got["dismissed_at"] == nil {
+		t.Fatalf("after dismiss: %v", got)
+	}
+	if res, out = doJSON(t, srv, "POST", base+"/"+roomID+"/restore", host, nil); res.StatusCode != http.StatusOK {
+		t.Fatalf("restore: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/"+roomID+"/restore", host, nil)
+	if res.StatusCode != http.StatusConflict || errorCode(out) != "action_item_not_dismissed" {
+		t.Fatalf("restore twice: %d %v", res.StatusCode, out)
+	}
+	// A chunked body (no Content-Length) is still read, through decode's cap.
+	req, _ := http.NewRequest("POST", srv.URL+base+"/"+roomID+"/dismiss", io.MultiReader(strings.NewReader(`{"reason":"Chunked"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+host)
+	chunked, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = chunked.Body.Close()
+	if chunked.StatusCode != http.StatusOK || req.ContentLength != 0 {
+		t.Fatalf("chunked dismiss: %d (content length %d)", chunked.StatusCode, req.ContentLength)
+	}
+	_, out = doJSON(t, srv, "GET", base, host, nil)
+	if got := out["items"].([]any)[1].(map[string]any); got["dismiss_reason"] != "Chunked" {
+		t.Fatalf("chunked reason not stored: %v", got)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/summary/tasks", host, map[string]any{})
+	if res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("the retired route still answers: %d %v", res.StatusCode, out)
+	}
+}

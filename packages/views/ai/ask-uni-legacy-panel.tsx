@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowLeft, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { ArrowLeft, MessageSquarePlus, Sparkles, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useAiCapabilities,
@@ -12,6 +12,7 @@ import {
   useDeleteAiConversation,
 } from "@uniwork/core/ai";
 import { errorCode } from "@uniwork/core/api/http";
+import { useMeeting } from "@uniwork/core/meetings";
 import type { AiCitation, AiMessage } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -23,13 +24,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
-import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { IconTile, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 
@@ -46,7 +50,26 @@ const KNOWN_ERRORS = new Set([
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
 
-function resolveErrorKey(err: unknown): string {
+const MeetingIcon = MODULE_ICONS.meetings;
+
+/** What the conversation is about, when it is about one meeting: "Cuộc họp: <title>". */
+function MeetingContextChip({ meetingId }: { meetingId: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  const meeting = useMeeting(meetingId);
+  // A meeting that cannot be read still says the question is about one, rather than vanishing.
+  if (!meeting.data && !meeting.isError) return null;
+  return (
+    <p className="mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-caption text-foreground">
+      <MeetingIcon aria-hidden className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("meetings")])} />
+      <span className="truncate">
+        {meeting.data ? t("context_meeting", { title: meeting.data.title }) : t("context_meeting_unavailable")}
+      </span>
+    </p>
+  );
+}
+
+/** The ai.errors.* key for a failed ask; the meeting copilot's Ask UNI box reads it too. */
+export function resolveErrorKey(err: unknown): string {
   const code = errorCode(err) ?? "";
   if (KNOWN_ERRORS.has(code)) return code;
   const message = (err as { message?: unknown } | null)?.message;
@@ -54,20 +77,44 @@ function resolveErrorKey(err: unknown): string {
   return KNOWN_ERRORS.has(candidate) ? candidate : "default";
 }
 
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+/** What an empty answer's notice says; `t` is keyed under "ai". */
+export function noticeText(t: Translate, code: string): string {
+  switch (code) {
+    case "no_sources":
+      return t("notice.no_sources");
+    case "stopped":
+      return t("notice.stopped");
+    case "interrupted":
+      return t("notice.interrupted");
+    default:
+      return t("notice.unavailable");
+  }
+}
+
+/** A transcript source is the meeting's title, worded in the reader's language. */
+function citationLabel(t: Translate, c: AiCitation): string {
+  if (c.kind === "transcript") return t("source_transcript", { title: c.title });
+  return c.title || c.kind;
+}
+
 function Citations({ citations }: { citations: AiCitation[] }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
-  const linkable = citations.filter((c) => c.href);
+  // One citation per quote: a source the answer cites four times is listed once.
+  const linkable = citations.filter((c, i) => c.href && citations.findIndex((o) => o.source_id === c.source_id) === i);
   if (linkable.length === 0) return null;
   return (
     <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t("sources")}>
       {linkable.map((c) => (
         <li key={c.source_id}>
+          {/* A link, styled as one: "[S1]" ties it to the answer's marker, in the text face, not as code. */}
           <AppLink
             href={c.href}
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-caption text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
+            className="inline-flex max-w-full items-center gap-1 text-caption text-primary underline-offset-2 hover:underline pointer-coarse:min-h-11"
           >
-            <span className="font-mono text-muted-foreground">[{c.source_id}]</span>
-            <span className="truncate">{c.title || c.kind}</span>
+            <span className="tabular-nums">[{c.source_id}]</span>
+            <span className="truncate">{citationLabel(t, c)}</span>
           </AppLink>
         </li>
       ))}
@@ -83,18 +130,6 @@ export function AskUniMessageTurn({
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
-  const noticeText = (code: string) => {
-    switch (code) {
-      case "no_sources":
-        return t("notice.no_sources");
-      case "stopped":
-        return t("notice.stopped");
-      case "interrupted":
-        return t("notice.interrupted");
-      default:
-        return t("notice.unavailable");
-    }
-  };
   return (
     <li className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
       <span className="px-1 text-caption font-medium text-muted-foreground">{mine ? t("you") : t("uni")}</span>
@@ -104,7 +139,7 @@ export function AskUniMessageTurn({
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
-        {message.content === "" && message.notice ? noticeText(message.notice) : message.content}
+        {message.content === "" && message.notice ? noticeText(t, message.notice) : message.content}
         {mine ? null : <Citations citations={message.citations} />}
       </div>
     </li>
@@ -117,8 +152,17 @@ export function AskUniLegacyPanel() {
   const { workspace } = useWorkspace();
   const caps = useAiCapabilities(workspace.id);
   const enabled = !!caps.data?.enabled;
-  const { open, setOpen, conversationId, workspaceId, bindWorkspace, select, pendingFocus, clearPendingFocus } =
-    useAiPanelStore();
+  const {
+    open,
+    setOpen,
+    conversationId,
+    workspaceId,
+    bindWorkspace,
+    select,
+    pendingFocus,
+    focusByConversation,
+    forgetConversation,
+  } = useAiPanelStore();
   // Until bindWorkspace runs, the stored conversation may belong to the previous workspace.
   const activeConversationId = workspaceId === workspace.id ? conversationId : null;
   const conversations = useAiConversations(workspace.id, open && enabled);
@@ -128,6 +172,7 @@ export function AskUniLegacyPanel() {
   const [question, setQuestion] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const askReset = ask.reset;
   const answeredConversation = ask.data?.conversation_id;
   useEffect(() => {
@@ -142,7 +187,8 @@ export function AskUniLegacyPanel() {
     if (!q || ask.isPending) return;
     setPendingQuestion(q);
     setQuestion("");
-    const focus = pendingFocus ?? undefined;
+    // A follow-up keeps the conversation's focus: the server does not store it, and the chip says it holds.
+    const focus = pendingFocus ?? (activeConversationId ? focusByConversation[activeConversationId] : undefined);
     ask.mutate(
       {
         question: q,
@@ -153,9 +199,9 @@ export function AskUniLegacyPanel() {
       {
         onSuccess: (res) => {
           // A late answer from the workspace we left must not open its conversation here.
+          // (useAskUni already remembered the conversation's focus.)
           if (useAiPanelStore.getState().workspaceId !== workspace.id) return;
           select(res.conversation_id);
-          if (focus) clearPendingFocus();
         },
         onSettled: () => setPendingQuestion(null),
         onError: () => setQuestion(q),
@@ -177,11 +223,26 @@ export function AskUniLegacyPanel() {
   const turns: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations">[] = [...(messages.data ?? [])];
   if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, notice: "", citations: [] });
   const showHome = !activeConversationId && !pendingQuestion;
+  const focus = pendingFocus ?? (activeConversationId ? focusByConversation[activeConversationId] : undefined);
+  const meetingFocusId = focus?.kind === "meeting" ? focus.id : null;
   const recent = conversations.data ?? [];
+  // One region, always mounted, says only what just changed; the history is never re-read.
+  const answered = ask.data?.message;
+  const liveText = ask.isPending
+    ? t("asking")
+    : answered
+      ? t("answer_announcement", { answer: answered.content || noticeText(t, answered.notice) })
+      : "";
+  const loadingHistory = !!activeConversationId && messages.isPending;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg" closeLabel={t("close")}>
+      <SheetContent
+        side="right"
+        className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+        closeLabel={t("close")}
+        initialFocus={composerRef}
+      >
         <SheetHeader className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2 pr-8">
             {!showHome ? (
@@ -221,10 +282,12 @@ export function AskUniLegacyPanel() {
                   size="icon-sm"
                   className="size-8"
                   aria-label={t("delete_conversation")}
-                  disabled={remove.isPending}
-                  onClick={() => setConfirmDelete(true)}
+                  aria-disabled={remove.isPending || undefined}
+                  onClick={() => {
+                    if (!remove.isPending) setConfirmDelete(true);
+                  }}
                 >
-                  <Trash2 aria-hidden className="size-4" />
+                  <Trash aria-hidden className="size-4" />
                 </Button>
               ) : null}
             </div>
@@ -236,14 +299,15 @@ export function AskUniLegacyPanel() {
                 <AlertDialogDescription>{t("delete_confirm_description")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={remove.isPending}>{t("delete_cancel")}</AlertDialogCancel>
+                <AlertDialogCancel>{t("delete_cancel")}</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={remove.isPending}
+                  aria-disabled={remove.isPending || undefined}
                   onClick={() => {
-                    if (!activeConversationId) return;
+                    if (!activeConversationId || remove.isPending) return;
                     remove.mutate(activeConversationId, {
                       onSuccess: () => {
                         setConfirmDelete(false);
+                        forgetConversation(activeConversationId);
                         select(null);
                       },
                     });
@@ -273,7 +337,7 @@ export function AskUniLegacyPanel() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={ask.isPending}
+                    aria-disabled={ask.isPending || undefined}
                     onClick={() => askQuestion(t(key))}
                   >
                     {t(key)}
@@ -299,19 +363,34 @@ export function AskUniLegacyPanel() {
                 </div>
               ) : null}
             </div>
+          ) : loadingHistory ? (
+            <div className="space-y-4" aria-busy="true" aria-label={t("loading_conversation")}>
+              <Skeleton className="ml-auto h-10 w-2/3" />
+              <Skeleton className="h-20 w-11/12" />
+            </div>
+          ) : messages.isError && turns.length === 0 ? (
+            <div role="alert" className="flex flex-col items-start gap-2 rounded-md border border-border bg-surface px-3 py-2.5">
+              <p className="text-caption text-foreground">{t("conversation_error")}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void messages.refetch()}>
+                {t("conversation_retry")}
+              </Button>
+            </div>
           ) : (
-            <ul className="space-y-4" aria-live="polite">
+            <ul className="space-y-4">
               {turns.map((m) => (
                 <AskUniMessageTurn key={m.id} message={m} />
               ))}
               {ask.isPending ? (
-                <li className="flex items-center gap-2 text-caption text-muted-foreground">
+                <li aria-hidden className="flex items-center gap-2 text-caption text-muted-foreground">
                   <Spinner className="size-3.5" />
                   {t("asking")}
                 </li>
               ) : null}
             </ul>
           )}
+          <p role="status" className="sr-only">
+            {liveText}
+          </p>
           {ask.isError ? (
             <p
               role="alert"
@@ -328,9 +407,11 @@ export function AskUniLegacyPanel() {
         </div>
 
         <form onSubmit={submit} className="border-t border-border bg-surface/60 p-3">
-          <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
+          <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
+            {meetingFocusId ? <MeetingContextChip meetingId={meetingFocusId} /> : null}
             <Textarea
-              aria-label={t("placeholder")}
+              ref={composerRef}
+              aria-label={t("input_label")}
               aria-describedby="ask-uni-hint"
               placeholder={t("placeholder")}
               value={question}
@@ -338,13 +419,20 @@ export function AskUniLegacyPanel() {
               onKeyDown={onKeyDown}
               rows={2}
               maxLength={2000}
-              className="min-h-[3.25rem] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
+              // The wrapper's full-strength ring is the one focus indicator of the composer.
+              className="min-h-[3.25rem] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 focus-visible:outline-none"
             />
             <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-1">
-              <p id="ask-uni-hint" className="text-caption text-muted-foreground">
+              {/* A touch keyboard has no Enter to read about; the hint stays as the field's description. */}
+              <p id="ask-uni-hint" className="text-caption text-muted-foreground pointer-coarse:hidden">
                 <Kbd>{t("key_enter")}</Kbd> {t("hint_send")}
               </p>
-              <Button type="submit" size="sm" className="px-4" disabled={!question.trim() || ask.isPending}>
+              <Button
+                type="submit"
+                size="sm"
+                className="ml-auto px-4"
+                aria-disabled={!question.trim() || ask.isPending || undefined}
+              >
                 {ask.isPending ? <Spinner className="size-3.5" /> : null}
                 {t("ask")}
               </Button>

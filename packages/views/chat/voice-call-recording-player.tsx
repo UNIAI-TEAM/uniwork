@@ -5,7 +5,7 @@ import { Maximize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 /** A thin track with its filled part and thumb; the real <input type="range"> sits invisibly on top. */
 function Track({
@@ -109,7 +109,7 @@ export function VoiceCallRecordingPlayer({ src, onError }: { src: string; onErro
           aria-label={playing ? t("chat.voice_recording_pause") : t("chat.voice_recordings_play")}
           onClick={toggle}
         >
-          {playing ? <Pause aria-hidden className="size-4.5 fill-current" /> : <Play aria-hidden className="size-4.5 fill-current" />}
+          {playing ? <Pause aria-hidden className="size-4 fill-current" /> : <Play aria-hidden className="size-4 fill-current" />}
         </Button>
         <span className="shrink-0 text-label font-semibold tabular-nums">{format(position)}</span>
         <Track
@@ -159,7 +159,7 @@ export function VoiceCallRecordingPlayer({ src, onError }: { src: string; onErro
           aria-label={t("meetings.fullscreenEnter")}
           onClick={() => void frameRef.current?.requestFullscreen?.().catch(() => undefined)}
         >
-          <Maximize aria-hidden className="size-4.5" />
+          <Maximize aria-hidden className="size-4" />
         </Button>
       </div>
     </div>

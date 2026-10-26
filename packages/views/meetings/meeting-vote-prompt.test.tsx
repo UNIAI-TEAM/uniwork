@@ -95,7 +95,7 @@ describe("MeetingVotePrompt", () => {
     // Announced by the always-mounted status message, not by the region itself.
     expect(region).not.toHaveAttribute("aria-live");
     expect(screen.getByRole("status")).toHaveTextContent(`Mời bỏ phiếu: ${TITLE}`);
-    expect(within(region).getByRole("radiogroup", { name: `Phiếu của bạn cho “${TITLE}”` })).toBeInTheDocument();
+    expect(within(region).getByRole("radiogroup", { name: `Phiếu của bạn cho "${TITLE}"` })).toBeInTheDocument();
     expect(document.activeElement).toBe(mic);
   });
 

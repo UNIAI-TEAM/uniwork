@@ -1,14 +1,26 @@
 // Expo push registration. The Expo push token travels in `endpoint` with an
 // empty web-push key pair, and `platform` tells the server it is an Expo
-// token (server SDI). Without an EAS projectId (no EAS account yet, spec §12
-// Q8) there is no token to fetch, so registration is skipped and said once.
+// token (server SDI); `call_ui` tells it an Android build rings calls
+// itself, and `chat_quiet` that it has the quiet chat channel and groups a
+// room's pushes under one notification. Without an
+// EAS projectId (no EAS account yet, spec §12 Q8) there is no token to
+// fetch, so registration is skipped and said once.
 // Settings can turn push off for this device: the choice lives in SecureStore
 // and every later registration respects it.
+// An iPhone build with calls also registers PushKit's VoIP token, as a
+// subscription of its own (docs/adr/0038): no Expo project and no notification
+// permission needed (CallKit rings without either), the same switch, the same
+// sign-out. The token is kept across launches and updates too: an iPhone build
+// without calls (an App Store build after a TestFlight one with them) has no
+// PushKit to name it, and drops it with the kept copy.
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
-import type { ApiClient } from "./api";
+import type { ApiClient, PushSubscription } from "./api";
+import type { VoipPushSource } from "./calls/native-call-session";
+import { createLogger } from "./logger";
 
-const PUSH_PREF_KEY = "push_enabled";
+/** This device's push choice in SecureStore; data/local-wipe.ts drops it with an erased account. */
+export const PUSH_PREF_KEY = "push_enabled";
 
 type PushApi = Pick<ApiClient, "subscribePush" | "unsubscribePush">;
 
@@ -18,10 +30,63 @@ interface RegisterPushOptions {
   projectId: string | undefined;
   /** Platform.OS, passed in so this module stays free of react-native */
   platform: string;
+  /**
+   * Creates the Android channels (data/notification-channels.ts): Android
+   * wants one before the permission prompt and the first push.
+   */
+  channels?: () => Promise<void>;
+  /**
+   * This build draws its own incoming call (the native calls module is
+   * there: nativeCalls.available). Android only: the server then sends call
+   * pushes data-only; without it they stay visible pushes, which a build
+   * with no call UI can still show.
+   */
+  callUI?: boolean;
+  /**
+   * Asks for the notification permission (the primer of data/permissions.ts:
+   * it explains first, and asks unprompted only once per phone); resolves
+   * whether it is granted. Without it, the system prompt is shown directly.
+   */
+  ask?: () => Promise<boolean>;
+  /** PushKit's VoIP token (data/calls/native-call-session.ts › voipPush): an iPhone build with calls only. */
+  voip?: VoipPushSource | null;
 }
+
+const log = createLogger("push");
 
 let registeredToken: string | null = null;
 let skipLogged = false;
+/** The FCM or APNs token last seen by watchPushTokenRotation, as a string. */
+let lastDeviceToken: string | null = null;
+/** The VoIP token last registered, as `registeredToken` is the Expo one. */
+let registeredVoip: string | null = null;
+
+/**
+ * The VoIP token this phone last registered, in SecureStore across launches and app updates. While the server holds it,
+ * it rings this session through CallKit and skips the session's Expo "đang gọi" alert: a later build without calls,
+ * which has no PushKit to ring or to name the token, drops it from here. A build with calls drops the token PushKit
+ * replaced while the app was closed.
+ */
+const VOIP_TOKEN_KEY = "push_voip_token";
+
+/** Unreadable reads as none: nothing to drop. */
+async function keptVoip(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(VOIP_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Best effort: a copy not written is a token left to APNs' 410; one not deleted is dropped again, a no-op. */
+async function keepVoip(token: string | null): Promise<void> {
+  try {
+    if (token) await SecureStore.setItemAsync(VOIP_TOKEN_KEY, token);
+    else await SecureStore.deleteItemAsync(VOIP_TOKEN_KEY);
+  } catch {
+    // kept as it was
+  }
+}
 
 /** The person's choice for this device: on until they turn it off; an unreadable store reads as on. */
 export async function isPushEnabled(): Promise<boolean> {
@@ -32,27 +97,79 @@ export async function isPushEnabled(): Promise<boolean> {
   }
 }
 
+/** PushKit's token as the server stores it: the server sends CallKit's pushes straight to APNs with it. */
+function voipSubscription(token: string, voip: VoipPushSource): PushSubscription {
+  return {
+    endpoint: token,
+    keys: { p256dh: "", auth: "" },
+    platform: "ios",
+    transport: "apns_voip",
+    apns_environment: voip.environment(),
+    apns_bundle_id: voip.bundleId(),
+  };
+}
+
+/** An iPhone build without calls: the VoIP token a build with calls registered on this phone goes (kept on failure). */
+async function dropKeptVoip(api: PushApi): Promise<void> {
+  const kept = await keptVoip();
+  if (!kept) return;
+  try {
+    await api.unsubscribePush({ endpoint: kept });
+    await keepVoip(null);
+  } catch (err) {
+    log.warn("VoIP token of an earlier build not dropped", { error: err instanceof Error ? err.name : typeof err });
+  }
+}
+
+/**
+ * Registers the VoIP token PushKit holds now (none yet: watchPushTokenRotation registers it when it comes), and drops
+ * the one it replaces, this launch's or the last one's. An iPhone build without calls drops the one a build with calls
+ * left. Failures are logged, never thrown: the Expo token's registration goes on regardless.
+ */
+async function registerVoip(api: PushApi, voip: VoipPushSource | null | undefined, platform: string): Promise<void> {
+  if (!voip) {
+    if (platform === "ios") await dropKeptVoip(api);
+    return;
+  }
+  const token = voip.token();
+  if (!token) return;
+  try {
+    await api.subscribePush(voipSubscription(token, voip));
+    const previous = registeredVoip ?? (await keptVoip());
+    registeredVoip = token;
+    await keepVoip(token);
+    if (previous && previous !== token) await api.unsubscribePush({ endpoint: previous });
+  } catch (err) {
+    log.warn("VoIP registration failed", { error: err instanceof Error ? err.name : typeof err });
+  }
+}
+
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
-export async function registerPushToken({ api, projectId, platform }: RegisterPushOptions): Promise<string | null> {
+export async function registerPushToken({ api, projectId, platform, channels, callUI, ask, voip }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
+  await registerVoip(api, voip, platform);
   if (!projectId) {
     if (!skipLogged) {
       skipLogged = true;
-      console.info("[push] no EAS projectId in app config; push registration skipped");
+      log.info("no EAS projectId in app config; push registration skipped");
     }
     return null;
   }
-  if (platform === "android") {
-    // Android needs a channel before the first notification; HIGH makes chat messages heads-up.
-    await Notifications.setNotificationChannelAsync("chat", {
-      name: "Chat",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
-  const permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) return null;
+  if (platform === "android") await channels?.();
+  const granted = ask ? await ask() : (await Notifications.requestPermissionsAsync()).granted;
+  if (!granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-  await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform });
+  await api.subscribePush({
+    endpoint: token,
+    keys: { p256dh: "", auth: "" },
+    platform,
+    ...(platform === "android" && callUI ? { call_ui: true } : {}),
+    // This build creates the chat_quiet channel (lib/notification-channels.ts), so the server may send a room's
+    // follow-up messages on it; an older build would show them on an alerting fallback channel. Its FCM service
+    // also lifts the push's tag (modules/unichat-calls › PushTag), so a room's pushes replace one notification and
+    // the server may put the room's count in the title.
+    ...(platform === "android" ? { chat_quiet: true } : {}),
+  });
   registeredToken = token;
   return token;
 }
@@ -75,14 +192,72 @@ export async function setPushEnabled(enabled: boolean, options: RegisterPushOpti
   }
   if (token) await options.api.unsubscribePush({ endpoint: token });
   registeredToken = null;
+  const voipToken = registeredVoip ?? options.voip?.token() ?? (await keptVoip());
+  if (voipToken) await options.api.unsubscribePush({ endpoint: voipToken });
+  registeredVoip = null;
+  await keepVoip(null);
   await SecureStore.setItemAsync(PUSH_PREF_KEY, "off");
   return null;
 }
 
+/**
+ * FCM or APNs may replace this device's token while the app runs: pushes to the old one then fail as
+ * DeviceNotRegistered and the server revokes it, so nothing reaches the phone until its next launch. A new device
+ * token registers again — Expo maps the Expo token to the new device token, the server gets the (possibly new) Expo
+ * token, and an Expo token that changed is dropped. Fetching the token emits the same event, so only a token
+ * different from the last one seen counts, and only in a process that registered one; the permission is only read,
+ * never asked. Returns the unsubscribe.
+ */
+export function watchPushTokenRotation(options: RegisterPushOptions): () => void {
+  const subscription = Notifications.addPushTokenListener((device) => {
+    const next = typeof device.data === "string" ? device.data : JSON.stringify(device.data);
+    const previous = lastDeviceToken;
+    lastDeviceToken = next;
+    if (previous === null || previous === next || registeredToken === null) return;
+    void registerAgain(options, registeredToken);
+  });
+  // PushKit hands the VoIP token over after launch, and may replace it: each new one registers (with push on). One
+  // it takes back ("") is left to the server, which drops it on APNs' first 410.
+  const voipSubscriptionOff = options.voip?.onToken((token) => {
+    if (token) void registerVoipIfEnabled(options);
+  });
+  return () => {
+    subscription.remove();
+    voipSubscriptionOff?.();
+  };
+}
+
+async function registerVoipIfEnabled(options: RegisterPushOptions): Promise<void> {
+  if (await isPushEnabled()) await registerVoip(options.api, options.voip, options.platform);
+}
+
+async function registerAgain(options: RegisterPushOptions, previous: string): Promise<void> {
+  try {
+    const token = await registerPushToken({ ...options, ask: async () => (await Notifications.getPermissionsAsync()).granted });
+    if (token && token !== previous) await options.api.unsubscribePush({ endpoint: previous });
+  } catch (err) {
+    log.warn("re-registration after a token change failed", { error: err instanceof Error ? err.name : typeof err });
+  }
+}
+
 /** Logout: drop the device's subscription while the session can still authorize the call. */
 export async function unregisterPushToken(api: PushApi): Promise<void> {
-  const token = registeredToken;
-  if (!token) return;
+  const voip = registeredVoip ?? (await keptVoip());
+  const tokens = [registeredToken, voip].filter((token): token is string => token !== null);
   registeredToken = null;
-  await api.unsubscribePush({ endpoint: token });
+  registeredVoip = null;
+  for (const token of tokens) await api.unsubscribePush({ endpoint: token });
+  await keepVoip(null);
+}
+
+/**
+ * A sign-out the server already made (refresh expired, device revoked): no
+ * session is left to authorize the unsubscribe, so only this process forgets
+ * the token; the server stops pushing to an ended device session on its own
+ * (ListDeliverablePushSubscriptions), and the next sign-in registers afresh.
+ */
+export function forgetPushToken(): void {
+  registeredToken = null;
+  registeredVoip = null;
+  void keepVoip(null);
 }

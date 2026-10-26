@@ -142,7 +142,7 @@ export function StepSidebar({
                         )}
                       >
                         {isDone ? (
-                          <Check aria-hidden className="size-3.5" strokeWidth={2.5} />
+                          <Check aria-hidden className="size-3.5" />
                         ) : isCurrent ? (
                           <span aria-hidden className="block size-2 rounded-full bg-primary" />
                         ) : (

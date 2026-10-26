@@ -61,7 +61,7 @@ caller run their own idle timeouts and close first; shutdown still reaps via `cl
 | `OFFICE_ENGINE_WORKER_UID_BASE` / `_GID_BASE` | `60100` | Start of the per-slot worker uid/gid pool (`maxWorkers` entries, 1000..65533) |
 | `UNIWORK_PDF_ASSETS` | `/app/pdf-assets` in the image | Directory holding `pdfium.wasm`, `harfbuzz-subset.wasm` and `fonts/` (bundled OFL Noto Sans). Set by the Dockerfile; unset in dev, where assets resolve package-relative |
 | `UNIWORK_XLSX_ASSETS` | `/app/xlsx-assets` in the image | Directory holding `xlsx-gateway.mjs` (patched upstream bundle) and `xlsx-sidecar` (the Rust recalculation binary) plus `build-record.json` checksums. Set by the Dockerfile; in dev point it at a dir staged from `node scripts/office/build-upstream.mjs --with-native` (gateway at `dist/xlsx-gateway.mjs`, binary at `upstream/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar`). Unset/unstaged is legal: `open:xlsx` and `serialize:xlsx` still run (gateway only), while `edit:xlsx` on a formula-bearing workbook fails `engine_incompatible` — it never falls back to stale cached values |
-| `UNIWORK_DOCS_PDF_ASSETS` | unset (not yet in the image) | `export:docx` → PDF (UNI-1013): directory holding `bundle/` (the pinned genoffice Docs web build, `index.html` at its root) and `chromium` (a headless Chromium / chrome-headless-shell executable). The job runs only under the per-slot uid sandbox (`OFFICE_ENGINE_SANDBOX` not `off`): otherwise it fails `engine_incompatible` / `sandbox_required`. Unset or unstaged is legal: the export job fails `engine_incompatible` and the frame falls back to in-frame print. A render peaks at ~700 MB RSS for the job tree, above the 512 MiB `OFFICE_ENGINE_MEMORY_MB` default — raise it before staging the renderer (`docs/office/pdf-export-decision.md`) |
+| `UNIWORK_DOCS_PDF_ASSETS` | unset (not yet in the image) | `export:docx` → PDF (UNI-1013): directory holding `bundle/` (the pinned genoffice Docs web build, `index.html` at its root) and `chromium` (a headless Chromium / chrome-headless-shell executable). The job runs only under the per-slot uid sandbox (`OFFICE_ENGINE_SANDBOX` not `off`): otherwise it fails `engine_incompatible` / `sandbox_required`. Unset or unstaged is legal: the export job fails `engine_incompatible` and the frame falls back to in-frame print. The capability answer for `docx` and `page` carries an `export_pdf` row that is `supported` only when `bundle/index.html` and `chromium` exist there and the sandbox is engaged (reason `docs_pdf_assets_missing` / `sandbox_required` otherwise); `GET /api/v1/documents/{id}/export` reads it, so a page's (and the meeting minutes') "Xuất PDF" item is shown only where the renderer can run (follow-6). A render peaks at ~700 MB RSS for the job tree, above the 512 MiB `OFFICE_ENGINE_MEMORY_MB` default — raise it before staging the renderer (`docs/office/pdf-export-decision.md`) |
 
 **Every limit default is provisional** (acceptance-thresholds T-2: not a budget until `n >= 5` on the target machine
 class). Measured so far: see `reports/g2-02-engine-service/limits-measurement.md` in the run folder. XLSX (G2-04)
@@ -340,6 +340,31 @@ Settled with G2-04 on the runbook recommendation. The reasoning stands:
 Revisit only if a large-workbook measurement shows the sidecar needs a different scaling or isolation profile than
 the rest of the engine (e.g. memory per workbook far above the per-job budget); then split it into its own container
 reached only by this service. Owner of the decision: Advisor with G2-04.
+
+## Staging the Docs PDF renderer (owner work, follow-6)
+
+The shipped image does not stage it, so PDF export of a page or minutes is
+hidden. Turning it on is an image change plus two settings, not a code change:
+
+1. In a build stage, fetch the pinned Docs web build (the one the frame serves,
+   `apps/web/public/office-frame/docs/<version>`, synced by W7's script from the
+   genoffice fork SHA in `docs.pin.json`; the directory is gitignored, so the
+   build must run the sync or take it as a build context) and a headless
+   Chromium for the target arch (chrome-headless-shell, or Debian `chromium`):
+   ```dockerfile
+   COPY --from=docs-bundle /bundle /app/docs-pdf/bundle
+   COPY --from=chromium /chrome-headless-shell /app/docs-pdf/chromium-dist
+   RUN ln -s /app/docs-pdf/chromium-dist/chrome-headless-shell /app/docs-pdf/chromium
+   ENV UNIWORK_DOCS_PDF_ASSETS=/app/docs-pdf
+   ```
+   plus the shared libraries chrome-headless-shell needs on bookworm-slim
+   (`libnss3 libatk-bridge2.0-0 libgbm1 libxkbcommon0 libasound2 …`).
+2. Raise `OFFICE_ENGINE_MEMORY_MB` to at least 1024 (a render peaks ~700 MB).
+3. Keep `OFFICE_ENGINE_SANDBOX=required` and do the sandbox review in
+   `docs/office/pdf-export-decision.md` ("Before turning it on" 3).
+4. Verify: `curl -H "Authorization: Bearer $OFFICE_ENGINE_SERVICE_TOKEN"
+   127.0.0.1:8090/v1/capability?format=page` shows `export_pdf` with
+   `"supported": true`, then export a page with Vietnamese text to PDF.
 
 ## Kubernetes (Helm)
 

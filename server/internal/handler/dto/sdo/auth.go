@@ -26,11 +26,30 @@ type UserDTO struct {
 	MFAEnabledAt            *string         `json:"mfa_enabled_at" description:"Thời điểm bật xác thực hai lớp (RFC3339); null khi tắt" example:"2026-09-07T08:00:00Z"`
 	HasPassword             bool            `json:"has_password" description:"true khi tài khoản có mật khẩu (không phải chỉ Google); quyết định cách xác thực lại khi xóa" example:"true"`
 	PlatformRole            string          `json:"platform_role,omitempty" description:"admin hoặc support khi là nhân sự nền tảng; nền tảng bắt buộc MFA" example:"support"`
+	AIConsentVersion        *string         `json:"ai_consent_version" description:"Phiên bản thông báo xử lý AI người dùng đã đồng ý; null khi chưa đồng ý hoặc đã rút lại" example:"2026-10-anthropic"`
+	AIConsentAt             *string         `json:"ai_consent_at" description:"Thời điểm đồng ý xử lý AI (RFC3339); null khi chưa đồng ý" example:"2026-10-21T08:00:00Z"`
+	AIOptOutAt              *string         `json:"ai_opt_out_at" description:"Thời điểm người dùng từ chối (hay rút lại) xử lý AI (RFC3339): từ đó tin của họ không vào yêu cầu AI nào, dù ai yêu cầu; null khi không từ chối" example:"2026-10-22T08:00:00Z"`
+	PushPreviews            bool            `json:"push_previews" description:"true khi push được hiện nội dung; false khi người dùng ẩn (chính sách của tổ chức có thể ẩn dù đây là true)" example:"true"`
+}
+
+// PushPreviewPolicySDO is GET/PUT /api/v1/orgs/{org}/push-preview-policy.
+type PushPreviewPolicySDO struct {
+	Hidden    bool    `json:"hidden" description:"true khi mọi push của tổ chức (trừ chuông cuộc gọi đến) ẩn nội dung: không tên người, phòng, việc, tài liệu hay chữ trong tin" example:"false"`
+	HiddenAt  *string `json:"hidden_at" description:"Thời điểm bật ẩn (RFC3339); null khi đang hiện" example:"2026-10-22T08:00:00Z"`
+	CanManage bool    `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
+}
+
+// MobileSecurityPolicySDO is GET/PUT /api/v1/orgs/{org}/mobile-security-policy.
+type MobileSecurityPolicySDO struct {
+	RequireAppLock     bool `json:"require_app_lock" description:"true khi tổ chức bắt buộc khoá UniChat (Face ID, vân tay hay mã máy) trên điện thoại của mọi thành viên; app coi là mức tối thiểu người dùng không hạ được" example:"false"`
+	BlockScreenCapture bool `json:"block_screen_capture" description:"true khi tổ chức bắt buộc chặn chụp và quay màn hình UniChat (kèm che nội dung trong trình chuyển ứng dụng) trên điện thoại của mọi thành viên" example:"false"`
+	CanManage          bool `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
 }
 
 // AuthProvidersSDO is GET /api/v1/auth/providers.
 type AuthProvidersSDO struct {
 	Google bool `json:"google" description:"true khi Google sign-in được cấu hình trên server" example:"true"`
+	Apple  bool `json:"apple" description:"true khi Sign in with Apple native (app iPhone) được cấu hình trên server" example:"true"`
 }
 
 // MFAChallengeSDO replaces SessionSDO on login when the account has MFA on.

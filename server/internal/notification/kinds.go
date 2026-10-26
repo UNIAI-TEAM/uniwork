@@ -11,6 +11,7 @@ package notification
 // the preference matrix; NOTIFICATION_KINDS in packages/core mirrors the list.
 const (
 	KindTaskAssigned      = "task_assigned"
+	KindTasksAssigned     = "tasks_assigned" // several at once, one creation (UNI-1996)
 	KindTaskStatusChanged = "task_status_changed"
 	KindTaskCommented     = "task_commented"
 	KindMentioned         = "mentioned"
@@ -18,10 +19,25 @@ const (
 	KindMeetingStarting   = "meeting_starting"
 	// Nudge after a meeting ends with something to summarize (C-11 §9.1 V1).
 	KindMeetingSummaryReminder = "meeting_summary_reminder"
-	KindMemberAdded            = "member_added"
-	KindRoleChanged            = "role_changed"
-	KindAuditExportReady       = "audit_export_ready"
-	KindChatFollowUp           = "chat_follow_up"
+	// The system summarized an ended meeting (UNI-2026, scribe spec §4.5): it
+	// replaces the reminder for that meeting.
+	KindMeetingSummaryReady = "meeting_summary_ready"
+	// The recap for everyone else in the meeting (follow-1): its first
+	// summary, then its finalized minutes (params.stage = "minutes").
+	KindMeetingRecapReady = "meeting_recap_ready"
+	// follow-2: a day after a meeting ends, its clerks hear how many items
+	// nobody assigned yet; a task a meeting handed out reminds its assignee
+	// on its due day and once overdue (params.stage = "overdue").
+	KindMeetingActionItemsPending = "meeting_action_items_pending"
+	KindMeetingTaskDue            = "meeting_task_due"
+	// An uploaded meeting recording was transcribed, or failed for good
+	// (UNI-2001, parent spec §8.3): sent to the clerk who asked.
+	KindMeetingTranscriptReady  = "meeting_transcript_ready"
+	KindMeetingTranscriptFailed = "meeting_transcript_failed"
+	KindMemberAdded             = "member_added"
+	KindRoleChanged             = "role_changed"
+	KindAuditExportReady        = "audit_export_ready"
+	KindChatFollowUp            = "chat_follow_up"
 	// A chat reminder came due (H16), fired by the server's reminder worker.
 	KindChatReminder    = "chat_reminder"
 	KindEmailHubNewMail = "email_hub_new_mail"
@@ -53,9 +69,15 @@ const (
 	// params carry ids only.
 	KindDocumentBreakGlass = "document_break_glass"
 	// Chat (H1): one row per room or thread while unread, so a burst of
-	// messages is one notification and one push.
-	KindChatMentioned     = "chat_mentioned"
-	KindChatDM            = "chat_dm"
+	// messages is one inbox notification; each message still pushes, grouped
+	// on the phone by the row's group key (UNI-2141).
+	KindChatMentioned = "chat_mentioned"
+	KindChatDM        = "chat_dm"
+	// A message in a group, channel or workspace room of at most
+	// chatSmallRoomMembers that does not name the person (UNI-2141): every
+	// message notifies, as a messenger's does. Its push switch off is
+	// "mentions only".
+	KindChatMessage       = "chat_message"
 	KindChatThreadReplied = "chat_thread_replied"
 	// A chat call ringing (UniChat M3): one row per room, closed when the
 	// person answers or the call ends; its push lives 60 seconds.
@@ -88,14 +110,16 @@ const (
 
 // Kinds is the list in display order.
 var Kinds = []string{
-	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
-	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
+	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
+	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder, KindMeetingSummaryReady, KindMeetingRecapReady,
+	KindMeetingActionItemsPending, KindMeetingTaskDue,
+	KindMeetingTranscriptReady, KindMeetingTranscriptFailed,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
 	KindDocumentBreakGlass,
-	KindChatMentioned, KindChatDM, KindChatThreadReplied, KindChatCallIncoming,
+	KindChatMentioned, KindChatDM, KindChatMessage, KindChatThreadReplied, KindChatCallIncoming,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 	KindDocumentShared,
 	KindDocumentTrashedByOther,
@@ -123,4 +147,11 @@ func TitleKey(kind string) string { return "notifications.kind." + kind }
 const (
 	TopicCreated = "notification.created"
 	TopicPush    = "notification.push"
+	// TopicCallRingClosed is ChatService saying a call stopped ringing for one
+	// person; the push consumer tells their Android phones (handleRingClosed).
+	TopicCallRingClosed = "chat.voice.ring_closed"
+	// TopicRoomNotificationsCleared is ChatService saying a person read a room
+	// whose message notifications were still open; the push consumer tells
+	// their Android phones to take those out of the tray (handleRoomCleared).
+	TopicRoomNotificationsCleared = "chat.room.notifications_cleared"
 )

@@ -1,18 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { signalChatPresence } from "../api/endpoints/chat";
-import { beatChatPresence } from "../api/endpoints/chat-presence";
 import { useAuthStore } from "../auth/store";
-import { isHostFocused } from "../platform/host-focus";
+import { acquirePresenceHeartbeat } from "./presence-heartbeat-coordinator";
 import { usePresenceStore } from "./presence-store";
-
-const HEARTBEAT_MS = 15_000;
-
-function leave(workspaceId: string, opts?: { keepalive?: boolean }): void {
-  // Presence is best-effort — never surface fetch failures as unhandled rejections.
-  void signalChatPresence(workspaceId, "offline", opts).catch(() => undefined);
-}
 
 /**
  * Keep the caller's online presence fresh while the hook is mounted
@@ -24,34 +15,11 @@ function leave(workspaceId: string, opts?: { keepalive?: boolean }): void {
 export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): void {
   useEffect(() => {
     if (!enabled || !workspaceId) return;
-    let cancelled = false;
 
-    const beat = () => {
-      if (cancelled) return;
-      const sentAt = Date.now();
-      // A hidden tab or unfocused UniChat window still beats (presence), but must not hold back mobile pushes.
-      void beatChatPresence(workspaceId, isHostFocused())
-        .then((online) => {
-          const self = useAuthStore.getState().user?.id;
-          if (cancelled || online === null || !self) return;
-          usePresenceStore.getState().reconcile(online, self, sentAt);
-        })
-        .catch(() => undefined);
-    };
-
-    beat();
-    const timer = window.setInterval(beat, HEARTBEAT_MS);
-
-    const onPageHide = () => {
-      leave(workspaceId, { keepalive: true });
-    };
-    window.addEventListener("pagehide", onPageHide);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("pagehide", onPageHide);
-      leave(workspaceId);
-    };
+    return acquirePresenceHeartbeat(workspaceId, (online, sentAt) => {
+      const self = useAuthStore.getState().user?.id;
+      if (online === null || !self) return;
+      usePresenceStore.getState().reconcile(online, self, sentAt);
+    });
   }, [workspaceId, enabled]);
 }

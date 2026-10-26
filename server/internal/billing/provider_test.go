@@ -33,7 +33,7 @@ func TestFromConfig(t *testing.T) {
 func TestManualProviderReturnsUnavailable(t *testing.T) {
 	t.Parallel()
 	var m Manual
-	_, err := m.CreateCheckout(context.Background(), CheckoutInput{OrganizationID: "org", PlanCode: "pro"})
+	_, err := m.CreateCheckout(context.Background(), CheckoutInput{})
 	if !errors.Is(err, ErrProviderUnavailable) {
 		t.Fatalf("checkout: %v", err)
 	}

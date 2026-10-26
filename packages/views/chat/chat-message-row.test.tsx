@@ -106,7 +106,45 @@ describe("ChatMessageRow", () => {
     expect(screen.getByText("Đã xem")).toBeInTheDocument();
   });
 
-  it("shows delivery status for pending messages", () => {
+  it("shows time on every own bubble in a run, not only the last", () => {
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ id: "mid" })}
+          senderLabel="Me"
+          isOwn
+          showReadReceipt={false}
+          compactTop
+          lastOfRun={false}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("img", { name: "Đã gửi" })).toBeInTheDocument();
+  });
+
+  it("shows time on every incoming bubble in a run, not only the last", () => {
+    // Local wall-clock 10:19: the bubble prints the viewer's local time, so a
+    // fixed-offset instant would only read "10:19" on a UTC+7 host.
+    const ts = new Date(2026, 9, 23, 10, 19).getTime();
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ id: "mid-in", ts, body: "a" })}
+          senderLabel="Guest"
+          isOwn={false}
+          showReadReceipt={false}
+          showSenderName={false}
+          compactTop
+          lastOfRun={false}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("10:19")).toBeInTheDocument();
+  });
+
+  it("shows time and sent receipt while a message is in flight", () => {
     render(
       wrap(
         <ChatMessageRow
@@ -118,7 +156,8 @@ describe("ChatMessageRow", () => {
       ),
     );
 
-    expect(screen.getByText("Đang gửi…")).toBeInTheDocument();
+    expect(screen.queryByText("Đang gửi…")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Đã gửi" })).toBeInTheDocument();
   });
 
   it("invokes reply and react handlers from action buttons", () => {

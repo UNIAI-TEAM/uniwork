@@ -101,7 +101,7 @@ export function SidebarHeader({
             className="flex max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left font-display text-title-lg font-bold tracking-[-0.02em] text-foreground hover:bg-surface-hover"
           >
             <span className="truncate">{name}</span>
-            <ChevronDown aria-hidden strokeWidth={2.2} className="size-4.5 shrink-0 text-muted-foreground" />
+            <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className={MENU}>
             {onOpenFollowUps ? (
@@ -219,7 +219,7 @@ export function ChatScopeSwitch({ scope }: { scope: ChatScope }) {
               )}
             >
               {side.scope === "messages" ? (
-                <MessagesSquare aria-hidden className="size-4.5 shrink-0 text-brand" />
+                <MessagesSquare aria-hidden className="size-4 shrink-0 text-brand" />
               ) : (
                 <WorkspaceIcon
                   workspace={workspace}
@@ -285,7 +285,7 @@ export function SidebarSearch({
       <div className="relative">
         <Search
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           ref={inputRef}

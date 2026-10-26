@@ -1,6 +1,7 @@
 "use client";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as admin from "../api/endpoints/admin";
+import * as chatReports from "../api/endpoints/admin-chat-reports";
 import type { AdminBillingQuery, AdminOrganizationQuery } from "../api/endpoints/admin";
 import type {
   FlagOverrideDeleteInput,
@@ -20,6 +21,7 @@ export type {
   AdminOrganizationSort,
   AdminPaymentIntentPage,
 } from "../api/endpoints/admin";
+export type { AdminChatReport, AdminChatReportPage, AdminChatReportQuery, AdminChatReportStatus } from "../api/endpoints/admin-chat-reports";
 
 /**
  * The caller's platform role. A 404 is the server saying "no role" without
@@ -75,6 +77,16 @@ export function useChangeOrganizationPlan(orgId: string) {
   return useOrganizationMutation(orgId, (body: { plan_code: string; reason: string }) =>
     admin.changeOrganizationPlan(orgId, body),
   );
+}
+
+export function useScheduleAdminOrganizationDeletion(orgId: string) {
+  return useOrganizationMutation(orgId, (body: { reason: string; confirm_slug: string }) =>
+    admin.scheduleAdminOrganizationDeletion(orgId, body),
+  );
+}
+
+export function useCancelAdminOrganizationDeletion(orgId: string) {
+  return useOrganizationMutation(orgId, (reason: string) => admin.cancelAdminOrganizationDeletion(orgId, reason));
 }
 
 export function useAdminTrace(traceId: string) {
@@ -199,4 +211,44 @@ export function useUpdateAdminPlanFeature(code: string, featureKey: string) {
   return usePlanCatalogMutation((body: PlanFeatureUpdateInput) =>
     admin.updateAdminPlanFeature(code, featureKey, body),
   );
+}
+
+/** The operator's queue of chat reports (store UGC policy): every organization's, ids and reasons only. */
+export function useAdminChatReports(query: chatReports.AdminChatReportQuery = {}, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.chatReports(query),
+    queryFn: () => chatReports.listAdminChatReports(query),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+/** Closes one report with the operator's reason; awaits the server's receipt (no optimistic close). */
+export function useResolveAdminChatReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const receipt = await chatReports.resolveAdminChatReport(id, reason);
+      if (!receipt) throw new Error("The report resolve returned no receipt");
+      return receipt;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.chatReportsRoot });
+    },
+  });
+}
+
+/** Takes a reported message down and closes its report; awaits the server's receipt (no optimistic removal). */
+export function useRemoveAdminReportedMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const receipt = await chatReports.removeAdminReportedMessage(id, reason);
+      if (!receipt) throw new Error("The reported message takedown returned no receipt");
+      return receipt;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.chatReportsRoot });
+    },
+  });
 }

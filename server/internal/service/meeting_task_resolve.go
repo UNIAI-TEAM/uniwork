@@ -335,6 +335,22 @@ func meetingLocation(tz string) *time.Location {
 	return time.FixedZone("ICT", 7*60*60)
 }
 
+// creatorTimezone is the zone a meeting made without one is set in: its
+// creator's own (users.timezone), else Vietnam's, never a bare UTC the person
+// did not choose.
+func (s *MeetingService) creatorTimezone(ctx context.Context, userID string) (string, error) {
+	u, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if tz := strings.TrimSpace(u.Timezone); tz != "" && tz != "Local" {
+		if _, err := time.LoadLocation(tz); err == nil {
+			return tz, nil
+		}
+	}
+	return defaultMeetingTimezone, nil
+}
+
 // meetingDueAnchor is the moment spoken due dates ("ngày mai", "thứ Sáu")
 // are counted from: when the meeting actually ended, else its scheduled end,
 // else its start, else now, expressed in the meeting's time zone so the

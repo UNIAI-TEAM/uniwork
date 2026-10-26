@@ -1,0 +1,3 @@
+# The golden set is personal data (voices, names): it never enters git.
+data/
+out/

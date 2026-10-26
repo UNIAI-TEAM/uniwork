@@ -6,7 +6,7 @@ import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { CHAT_BUBBLE_OTHER, chatBubbleShape } from "./chat-message-row";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { formatTypingLabel } from "./typing-indicator";
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 
 const DOT_DELAYS = ["[animation-delay:0ms]", "[animation-delay:150ms]", "[animation-delay:300ms]"];
 

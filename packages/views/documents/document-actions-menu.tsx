@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -10,10 +10,11 @@ import {
   Ellipsis,
   ScrollText,
   Share2,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { usePageExportEnabled } from "@uniwork/core/documents/office-enabled";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { canManageTrashed, isMyFolder, isShelved, type Document } from "@uniwork/core/types/document";
@@ -22,6 +23,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
@@ -31,6 +33,8 @@ import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { DocumentShelveDialog } from "./document-shelve-dialog";
+import { DocumentTypeIcon } from "./document-type-icon";
+import { usePageExport } from "./use-page-export";
 import { useShelvedActions } from "./use-shelved-actions";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { ShareDialog } from "./share-dialog";
@@ -108,9 +112,20 @@ export function DocumentActionsMenu({
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
+  // Page export (UNI-2004): any reader of a live page, behind page_export at the page's organization.
+  const pageExportEnabled = usePageExportEnabled(doc.organization_id);
+  const pageExport = usePageExport(doc, pageExportEnabled && doc.kind === "page" && !archived);
 
-  const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
+  type ItemId = Exclude<PanelId, null> | "export_docx" | "export_pdf";
+  type Item = { id: ItemId; label: string; icon?: typeof RotateCcwClock; mark?: "docx" | "pdf"; destructive?: boolean };
+  const items: Item[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
+  if (pageExportEnabled && doc.kind === "page" && !archived) {
+    // Each format by its own file mark; only those this deployment renders (follow-6).
+    for (const format of pageExport.formats) {
+      items.push({ id: `export_${format}`, label: t(`documents.actions.export_${format}`), mark: format });
+    }
+  }
   // Every reader opens Share: a manager manages access there, anyone else sees
   // their own level and sources read-only (access addendum §5.2, U-SH4). The
   // personal My Folder root is never shareable (MYFOLDER-01), and no folder is.
@@ -130,7 +145,7 @@ export function DocumentActionsMenu({
     items.push({ id: "unshelve", label: t("documents.shelved_list.unshelve"), icon: ArchiveRestore });
   }
   if (canManage && !owned && !archived && !myFolder) {
-    items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash2, destructive: true });
+    items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash, destructive: true });
   }
   if (canManage && !owned && archived && !myFolder) {
     items.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore });
@@ -160,27 +175,38 @@ export function DocumentActionsMenu({
               {t(documentCommentsTitleKey(doc))}
             </DropdownMenuItem>
           ) : null}
-          {items.map((item) => (
-            <DropdownMenuItem
-              key={item.id}
-              variant={item.destructive ? "destructive" : "default"}
-              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => {
-                if (item.id === "shelve") {
-                  // A document shelves directly (undo toast); a folder opens the
-                  // same cascade dialog the row menu uses (U-4).
-                  if (doc.kind === "folder") setPanel("shelve");
-                  else void shelvedActions.runShelve({ id: doc.id, kind: doc.kind, title: doc.title });
-                } else if (item.id === "unshelve") {
-                  void shelvedActions.runUnshelve({ id: doc.id, kind: doc.kind, title: doc.title });
-                } else {
-                  setPanel(item.id);
-                }
-              }}
-            >
-              <item.icon aria-hidden className="size-3.5" />
-              {item.label}
-            </DropdownMenuItem>
+          {items.map((item, index) => (
+            <Fragment key={item.id}>
+              {/* The destructive entry sits apart from the rest. */}
+              {item.destructive && index > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                variant={item.destructive ? "destructive" : "default"}
+                className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+                // One export at a time: the items stay focusable and say they are waiting.
+                disabled={!!item.mark && pageExport.exporting}
+                onClick={() => {
+                  if (item.id === "export_docx" || item.id === "export_pdf") {
+                    pageExport.exportPage(item.id === "export_docx" ? "docx" : "pdf");
+                  } else if (item.id === "shelve") {
+                    // A document shelves directly (undo toast); a folder opens the
+                    // same cascade dialog the row menu uses (U-4).
+                    if (doc.kind === "folder") setPanel("shelve");
+                    else void shelvedActions.runShelve({ id: doc.id, kind: doc.kind, title: doc.title });
+                  } else if (item.id === "unshelve") {
+                    void shelvedActions.runUnshelve({ id: doc.id, kind: doc.kind, title: doc.title });
+                  } else {
+                    setPanel(item.id);
+                  }
+                }}
+              >
+                {item.mark ? (
+                  <DocumentTypeIcon format={item.mark} decorative className="size-3.5" />
+                ) : item.icon ? (
+                  <item.icon aria-hidden className="size-3.5" />
+                ) : null}
+                {item.label}
+              </DropdownMenuItem>
+            </Fragment>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>

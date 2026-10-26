@@ -21,7 +21,7 @@ import { useChatRoomMessages, useToggleChatMessagePin } from "@uniwork/core/chat
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
-import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
@@ -150,7 +150,7 @@ export function ChatPinnedMessagesBar({
         disabled={togglePin.isPending}
         onClick={() => void handleUnpin(id)}
       >
-        <X className="size-4.5" aria-hidden />
+        <X className="size-4" aria-hidden />
       </Button>
     ) : null;
   const jumpTitle = windowFull ? t("chat.pinned_bar_window", { count: CHAT_MESSAGE_INITIAL }) : undefined;

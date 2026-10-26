@@ -13,10 +13,15 @@ import (
 // A user without a platform role gets 404 on every route.
 //
 //	GET  /api/v1/admin/me
+//	GET  /api/v1/admin/chat-reports
+//	POST /api/v1/admin/chat-reports/{chatReportID}/resolve
+//	POST /api/v1/admin/chat-reports/{chatReportID}/remove-message
 //	GET  /api/v1/admin/organizations
 //	GET  /api/v1/admin/organizations/{orgID}
 //	POST /api/v1/admin/organizations/{orgID}/suspend
 //	POST /api/v1/admin/organizations/{orgID}/unsuspend
+//	POST /api/v1/admin/organizations/{orgID}/deletion
+//	POST /api/v1/admin/organizations/{orgID}/deletion/cancel
 //	POST /api/v1/admin/organizations/{orgID}/plan
 //	GET  /api/v1/admin/trace/{traceID}
 //	GET  /api/v1/admin/system
@@ -36,6 +41,7 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Use(support)
 		a.Get("/me", h.AdminMe, apiOp{summary: "Admin: my platform role", description: "Vai trò platform của người gọi; 404 khi không có.", tags: tags, sdo: sdo.AdminMeSDO{}, auth: true})
 		a.Get("/demo-requests", h.AdminListDemoRequests, apiOp{summary: "Admin: demo requests", description: "Danh sách yêu cầu demo, lọc theo status, limit và offset.", tags: tags, sdo: sdo.DemoRequestListSDO{}, auth: true})
+		a.Get("/chat-reports", h.AdminListChatReports, apiOp{summary: "Admin: chat reports", description: "Hàng đợi báo cáo tin nhắn/người của mọi tổ chức (Apple 1.2: xử lý trong 24 giờ): id, lý do, trạng thái, thời điểm; không bao giờ nội dung hay lời mô tả. Query: status (open | resolved), limit (mặc định 50, tối đa 100), offset. Kèm open_count và oldest_open_at.", tags: tags, sdo: sdo.AdminChatReportListSDO{}, auth: true})
 		a.Get("/organizations", h.AdminListOrganizations, apiOp{summary: "Admin: list organizations", description: "Danh sách tổ chức kèm gói, số thành viên/workspace, hoạt động gần nhất. Query: q, status, limit (mặc định 50, tối đa 200), offset, sort (created_desc | activity_desc | activity_asc). Trả kèm total của cả tập lọc.", tags: tags, sdo: sdo.AdminOrganizationListSDO{}, auth: true})
 		a.Get("/organizations/{orgID}", h.AdminGetOrganization, apiOp{summary: "Admin: organization detail", description: "Chi tiết, quota (entitlement snapshot) và 20 thao tác admin gần nhất.", tags: tags, sdo: sdo.AdminOrganizationDetailSDO{}, auth: true})
 		a.Get("/trace/{traceID}", h.AdminTrace, apiOp{summary: "Admin: trace lookup", description: "Audit, outbox và admin_actions mang cùng trace id (tối đa 500 dòng mỗi bảng).", tags: tags, sdo: sdo.AdminTraceSDO{}, auth: true})
@@ -49,8 +55,20 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Group(func(w api) {
 			w.Use(admin)
 			w.Patch("/demo-requests/{demoRequestID}", h.AdminUpdateDemoRequest, apiOp{summary: "Admin: process demo request", description: "Cập nhật trạng thái, ghi lý do vào admin_actions và audit_events trong cùng transaction.", tags: tags, sdi: sdi.UpdateDemoRequestSDI{}, sdo: sdo.DemoRequestSDO{}, auth: true})
+			w.Post("/chat-reports/{chatReportID}/remove-message", h.AdminRemoveReportedMessage, apiOp{summary: "Admin: take a reported message down", description: "Gỡ tin nhắn bị báo cáo cho mọi người (như người gửi tự xóa) và đóng báo cáo nếu còn mở; console không đọc nội dung tin. Ghi admin_actions và audit_events (chat.message.removed và chat.report.resolved, trong tổ chức của báo cáo) cùng transaction; client nhận chat.message.deleted. Tin đã bị xóa trước đó vẫn đóng được báo cáo. Báo cáo về một người (không có tin) → 400. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminChatReportSDO{}, auth: true})
+			w.Post("/chat-reports/{chatReportID}/resolve", h.AdminResolveChatReport, apiOp{summary: "Admin: resolve chat report", description: "Đóng một báo cáo đang mở sau khi đã xử lý; ghi admin_actions và audit_events (chat.report.resolved, trong tổ chức của báo cáo) cùng transaction. Đã đóng → 409. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminChatReportSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/suspend", h.AdminSuspendOrganization, apiOp{summary: "Admin: suspend organization", description: "status → suspended; mọi request của thành viên trả 403 organization_suspended. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/unsuspend", h.AdminUnsuspendOrganization, apiOp{summary: "Admin: unsuspend organization", description: "status → active. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
+			w.Post("/organizations/{orgID}/deletion", h.AdminScheduleOrganizationDeletion, apiOp{
+				summary:     "Admin: delete an organization",
+				description: "Ghi nhận xóa tổ chức. Job xóa cứng chạy sau 5 ngày. reason ≥ 10 ký tự và confirm_slug khớp định danh hiện tại. Đã xóa cứng → 409 organization_already_deleted.",
+				tags:        tags, sdi: sdi.AdminScheduleOrganizationDeletionSDI{}, sdo: sdo.AdminOrganizationDeletionSDO{}, status: 202, auth: true,
+			})
+			w.Post("/organizations/{orgID}/deletion/cancel", h.AdminCancelOrganizationDeletion, apiOp{
+				summary:     "Admin: cancel an organization deletion",
+				description: "Hủy lệnh xóa khi job chưa chạy. reason ≥ 10 ký tự. Job đã bắt đầu → 409 privacy_delete_started.",
+				tags:        tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationDeletionSDO{}, auth: true,
+			})
 			w.Post("/organizations/{orgID}/plan", h.AdminChangePlan, apiOp{summary: "Admin: change plan", description: "Đổi gói thủ công (pilot, đối tác), ghi admin_actions với before/after.", tags: tags, sdi: sdi.AdminChangePlanSDI{}, sdo: sdo.SubscriptionSDO{}, auth: true})
 			w.Put("/flags/{key}/overrides", h.AdminSetFlagOverride, apiOp{summary: "Admin: set override", description: "Ghi/đè override theo scope; user scope bắt buộc expires_at ≤ 30 ngày. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 			w.Delete("/flags/{key}/overrides", h.AdminDeleteFlagOverride, apiOp{summary: "Admin: delete override", description: "Xóa override theo scope. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideDeleteSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})

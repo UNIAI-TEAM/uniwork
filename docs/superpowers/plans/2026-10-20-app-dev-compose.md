@@ -207,7 +207,7 @@ SMTP_PORT=465
 SMTP_USERNAME=contact@unicomhub.com
 SMTP_TLS=
 SMTP_TLS_INSECURE=false
-SMTP_EHLO_NAME=UniWork Development
+SMTP_EHLO_NAME=UniWork
 MAIL_FROM=UniWork Development <noreply@unicomhub.com>
 
 # ==================== Storage (MinIO) ====================

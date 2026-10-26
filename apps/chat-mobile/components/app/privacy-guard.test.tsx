@@ -1,0 +1,270 @@
+// The privacy guard (privacy-guard.tsx): the cover away from the front, the app lock on a cold start and after the
+// chosen time away, never over a call, and only for someone signed in.
+import { act, fireEvent, screen } from "@testing-library/react-native";
+import { AppState, type AppStateStatus } from "react-native";
+import { createStore } from "zustand/vanilla";
+import { useAuthStore } from "@/data/auth/store";
+import { callEngine } from "@/data/calls/call-store";
+import type { PrivacyState } from "@/data/privacy-settings";
+import { DEFAULT_PRIVACY_SETTINGS } from "@/lib/app-lock";
+import { render, viText } from "@/test/render";
+import { appLockState, whileOwnerPrompt } from "@/data/stores/app-lock-store";
+import { PrivacyGuard } from "./privacy-guard";
+
+const NO_FLOOR = { appLock: false, screenSecurity: false };
+const mockPrivacy = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: true }));
+const mockAuthenticate = jest.fn(async (_prompt: string, _cancel: string) => true);
+const mockCanLock = jest.fn(async () => true);
+jest.mock("./privacy", () => {
+  const { useStore } = jest.requireActual<typeof import("zustand")>("zustand");
+  const { whileOwnerPrompt } = jest.requireActual<typeof import("@/data/stores/app-lock-store")>("@/data/stores/app-lock-store");
+  return {
+    usePrivacySettings: () => useStore(mockPrivacy),
+    deviceCanLock: () => mockCanLock(),
+    // As the real one: the prompt is marked open while it runs.
+    authenticateOwner: (prompt: string, cancel: string) => whileOwnerPrompt(() => mockAuthenticate(prompt, cancel)),
+  };
+});
+
+jest.mock("@/data/auth/store", () => {
+  const { create } = jest.requireActual<typeof import("zustand")>("zustand");
+  return { useAuthStore: create(() => ({ user: null as unknown })) };
+});
+
+let changeAppState: (status: AppStateStatus) => void = () => undefined;
+let clock = 1_000;
+const now = () => clock;
+
+const setPrivacy = (state: Partial<PrivacyState["settings"]>, loaded = true, restored = loaded) =>
+  act(() => mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, ...state }, floor: NO_FLOOR, loaded, restored }));
+const goTo = (status: AppStateStatus) => act(() => changeAppState(status));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  clock = 1_000;
+  mockAuthenticate.mockResolvedValue(true);
+  mockCanLock.mockResolvedValue(true);
+  mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: true });
+  useAuthStore.setState({ user: { id: "u1", email: "an@acme.vn", display_name: "An" } as never });
+  callEngine.store.setState({ call: { status: "idle" } });
+  // React Native's Jest preset makes currentState a mock function; the app reads the string.
+  Object.defineProperty(AppState, "currentState", { value: "active", configurable: true, writable: true });
+  jest.spyOn(AppState, "addEventListener").mockImplementation((_, listener) => {
+    changeAppState = listener as (status: AppStateStatus) => void;
+    return { remove: jest.fn() };
+  });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+describe("PrivacyGuard", () => {
+  it("shows nothing with both protections off, in front or away", async () => {
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    await goTo("background");
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  it("covers the app away from the front with screen security on, so the app switcher shows no conversation", async () => {
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, screenSecurity: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    await goTo("inactive");
+    expect(screen.getByTestId("privacy-cover")).toBeOnTheScreen();
+    expect(screen.getByText(viText("mobile.security.privacy_cover"))).toBeOnTheScreen();
+    await goTo("active");
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    // A Face ID prompt or the shade (inactive) never counts as time away: no lock with the lock off.
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+  });
+
+  it("covers the app until the saved choices are known, and never the sign-in screen", async () => {
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: false, restored: false });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.getByTestId("privacy-cover")).toBeOnTheScreen();
+    await setPrivacy({});
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+
+    await act(() => useAuthStore.setState({ user: null }));
+    await setPrivacy({}, false);
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+  });
+
+  it("locks a cold start with the lock on, asks at once, and opens once the owner proves it", async () => {
+    let answer: (ok: boolean) => void = () => undefined;
+    mockAuthenticate.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    expect(screen.getByRole("header", { name: viText("mobile.security.locked_title") })).toBeOnTheScreen();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+    expect(mockAuthenticate).toHaveBeenCalledWith(viText("mobile.security.unlock_prompt"), viText("common.cancel"));
+    // A second tap while the prompt is up asks nothing more.
+    await fireEvent.press(screen.getByRole("button", { name: viText("mobile.security.unlock") }));
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+    await act(async () => answer(true));
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  it("stays locked after a cancel, does not ask again by itself, and Unlock asks again", async () => {
+    mockAuthenticate.mockResolvedValueOnce(false);
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    // The cancelled prompt made the app inactive, then active again: no second prompt by itself.
+    await goTo("inactive");
+    await goTo("active");
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: viText("mobile.security.unlock") }));
+    expect(mockAuthenticate).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  // A phone whose screen lock was removed, or one whose organization requires the lock, cannot prove its owner:
+  // the lock screen says how to get in, and goes back to its usual words once a proof succeeds.
+  it("says to set a screen lock when the proof fails on a phone that has none", async () => {
+    mockAuthenticate.mockResolvedValueOnce(false);
+    mockCanLock.mockResolvedValueOnce(false);
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: { appLock: true, screenSecurity: false }, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(await screen.findByText(viText("mobile.security.locked_no_device_lock"))).toBeOnTheScreen();
+    expect(screen.queryByText(viText("mobile.security.locked_body"))).toBeNull();
+    // A cancel on a phone that has a lock keeps the usual words.
+    mockAuthenticate.mockResolvedValueOnce(false);
+    await fireEvent.press(screen.getByRole("button", { name: viText("mobile.security.unlock") }));
+    expect(await screen.findByText(viText("mobile.security.locked_body"))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: viText("mobile.security.unlock") }));
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  it("locks again after the chosen time in the background, not before", async () => {
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true, relockAfterMs: 60_000 }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+
+    await goTo("background");
+    expect(screen.getByTestId("privacy-cover")).toBeOnTheScreen();
+    clock += 59_000;
+    await goTo("active");
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+
+    await goTo("background");
+    clock += 60_000;
+    mockAuthenticate.mockResolvedValueOnce(false);
+    await goTo("active");
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(2);
+
+    // Away and back while still locked: asked again on the way back.
+    await goTo("background");
+    await goTo("active");
+    expect(mockAuthenticate).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  it("never holds a ringing or live call behind the lock, and locks again once it ends", async () => {
+    mockAuthenticate.mockResolvedValue(false);
+    callEngine.store.setState({ call: { status: "incoming", callId: "c1", roomId: "r1", peerName: "Bình", callKind: "dm" } });
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+    await act(() => callEngine.store.setState({ call: { status: "idle" } }));
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+  });
+
+  it("says the lock is engaged even while a live call lifts its screen, so the call cannot shrink and sheets close", async () => {
+    mockAuthenticate.mockResolvedValue(false);
+    callEngine.store.setState({ call: { status: "active", callId: "c1", roomId: "r1", peerName: "Bình", callKind: "dm", outgoing: false, token: "t", url: "wss://lk" } });
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    const view = await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(appLockState.getState().engaged).toBe(true);
+    await act(() => useAuthStore.setState({ user: null }));
+    expect(appLockState.getState().engaged).toBe(false);
+    await act(() => useAuthStore.setState({ user: { id: "u1" } as never }));
+    expect(appLockState.getState().engaged).toBe(true);
+    await view.unmount();
+    expect(appLockState.getState().engaged).toBe(false);
+  });
+
+  it("locks when the saved choices arrive after the read's cap, as on a cold start", async () => {
+    mockAuthenticate.mockResolvedValue(false);
+    // The cap passed: both read as off for now, the app is usable.
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: false });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    // A choice of the person's meanwhile is not the late answer: no lock for it.
+    await setPrivacy({ screenSecurity: true }, true, false);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    await setPrivacy({ appLock: true }, true, true);
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks a late answer once: its lock opened, later changes do not lock again", async () => {
+    mockPrivacy.setState({ settings: DEFAULT_PRIVACY_SETTINGS, floor: NO_FLOOR, loaded: true, restored: false });
+    await render(<PrivacyGuard now={now} />);
+    await setPrivacy({ appLock: true }, true, true);
+    // Opened by the owner (the prompt answered yes).
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    await setPrivacy({ appLock: true, relockAfterMs: 0 }, true, true);
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not count the owner's own proof as leaving the app (Android's passcode screen pauses it)", async () => {
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true, relockAfterMs: 0 }, floor: NO_FLOOR, loaded: true, restored: true });
+    let answer: (ok: boolean) => void = () => undefined;
+    mockAuthenticate.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    // The passcode activity: background, the answer, then active again.
+    await goTo("background");
+    clock += 5_000;
+    await act(async () => answer(true));
+    await goTo("active");
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+
+    // Settings' own proof (turning the lock on or off) counts the same.
+    let settle: () => void = () => undefined;
+    // Not rendered by the guard (it reads the count when the app state changes), so no act().
+    const proving = whileOwnerPrompt(() => new Promise<void>((resolve) => (settle = resolve)));
+    await goTo("background");
+    clock += 5_000;
+    settle();
+    await proving;
+    await goTo("active");
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+
+    // A real trip away still locks at "Immediately".
+    await goTo("background");
+    mockAuthenticate.mockResolvedValueOnce(false);
+    await goTo("active");
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+  });
+
+  it("opens when the lock is turned off", async () => {
+    mockAuthenticate.mockResolvedValue(false);
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard now={now} />);
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+    await setPrivacy({ appLock: false });
+    expect(screen.queryByTestId("privacy-lock")).toBeNull();
+  });
+
+  it("uses the real clock by default", async () => {
+    mockPrivacy.setState({ settings: { ...DEFAULT_PRIVACY_SETTINGS, appLock: true, relockAfterMs: 0 }, floor: NO_FLOOR, loaded: true, restored: true });
+    await render(<PrivacyGuard />);
+    await goTo("background");
+    mockAuthenticate.mockResolvedValueOnce(false);
+    await goTo("active");
+    expect(screen.getByTestId("privacy-lock")).toBeOnTheScreen();
+  });
+});

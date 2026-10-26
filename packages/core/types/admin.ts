@@ -49,6 +49,8 @@ export const AdminOrganizationDetailSchema = z.object({
   organization: AdminOrganizationSchema,
   suspended_at: z.string().nullable().optional().default(null),
   suspended_reason: z.string().nullable().optional().default(null),
+  deletion_scheduled_at: z.string().nullable().optional().default(null),
+  erased: z.boolean().optional().default(false),
   entitlements: z.array(AdminEntitlementSchema).optional().default([]),
   actions: z.array(AdminActionSchema).optional().default([]),
 });

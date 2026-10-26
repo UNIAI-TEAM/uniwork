@@ -195,18 +195,23 @@ WHERE id IN (
 )
 RETURNING *;
 
--- name: ListCompletedBillingIntentsMissingProviderMeta :many
+-- name: ClaimCompletedBillingIntentsMissingProviderMeta :many
 -- tenant: system
-SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
-FROM billing_payment_intents
-WHERE provider = 'vnpay' AND status = 'completed'
-  AND (
-    provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
-    OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
-    OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
-  )
-ORDER BY COALESCE(completed_at, created_at) DESC
-LIMIT $1;
+UPDATE billing_payment_intents SET updated_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status = 'completed'
+    AND (
+      provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
+      OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+      OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
+    )
+    AND updated_at < now() - interval '1 hour'
+  ORDER BY updated_at ASC
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at;
 
 -- name: MarkBillingPaymentIntentFailed :exec
 UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
@@ -327,6 +332,7 @@ LIMIT $1;
 
 -- name: ConfirmInvoiceRefundFromProvider :one
 UPDATE invoices SET
+  refund_confirm_reason = COALESCE(sqlc.narg('refund_confirm_reason'), refund_confirm_reason),
   amount_refunded = CASE
     WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
     THEN amount_refunded + partial_refund_amount
@@ -345,7 +351,7 @@ UPDATE invoices SET
     ELSE refunded_at
   END,
   updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id') AND status IN ('refund_pending', 'partial_refund_pending')
 RETURNING *;
 
 -- name: ClaimPendingBillingWebhookInbox :many

@@ -1,0 +1,34 @@
+# Performance, step 3 (chat-mobile-verify.yml › android, nightly, after the
+# frame check): a tap on a quote whose message is pages back lands on that
+# message, on whichever timeline the test account is served (the inverted
+# FlatList, or FlashList 2 under unichat_mobile_timeline_recycled: the A/B in
+# runbook › Đo hiệu năng trên thiết bị). The room needs the reply seeded once:
+# "Perf jump target", 200 messages, then "Perf jump quote" replying to it
+# (runbook), so the target is not on the newest page and the jump opens the page
+# around it, mounting the list on the jump, the case FlashList's own initial
+# scroll to the bottom used to undo. Android only: the quote sits inside a
+# bubble a screen reader reads as one element, which UiAutomator still lists
+# and XCUITest does not.
+appId: com.uniworkos.chat.staging
+name: Jump from a quote to a message pages back
+tags:
+  - perf
+---
+- runFlow: perf-open-room.yaml
+# The reply is near the newest message (the nightly's own sends land under it):
+# the list is inverted, so older messages are above.
+- scrollUntilVisible:
+    element:
+      id: message-quote
+    direction: UP
+    timeout: 60000
+- tapOn:
+    id: message-quote
+# The message the quote names, highlighted where the list landed.
+- extendedWaitUntil:
+    visible:
+      id: message-highlighted
+    timeout: 30000
+- assertVisible: ".*Perf jump target.*"
+- assertNotVisible:
+    id: message-quote

@@ -246,10 +246,41 @@ describe("token contract", () => {
       const brand = /--brand:\s*([^;]+);/.exec(b)?.[1];
       expect(primary, `${selector} primary`).toBe(brand);
     }
-    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]"]) {
+    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]", '[data-ask-provider="anthropic"]']) {
       const b = block(selector);
       expect(b, `${selector} does not re-derive --primary`).toMatch(/--primary:\s*var\(--brand\);/);
       expect(b, `${selector} does not re-derive --primary-foreground`).toMatch(/--primary-foreground:\s*var\(--brand-foreground\);/);
+    }
+  });
+
+  // Ask UNI's Claude look re-points the dock's slots at its own palette; text
+  // and the send button's arrow must stay readable on it in both themes.
+  for (const selector of [":root", ".dark"]) {
+    it(`keeps Ask UNI's Claude look readable in ${selector}`, () => {
+      for (const background of ["--ask-anthropic-canvas", "--ask-anthropic-canvas-top", "--ask-anthropic-input", "--ask-anthropic-bubble"]) {
+        expect(contrast(value(selector, "--foreground"), value(selector, background)), `--foreground on ${background}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The arrow is an icon, so the non-text minimum applies.
+      expect(contrast(value(selector, "--ask-anthropic-foreground"), value(selector, "--ask-anthropic"))).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  // Thư ký UNI's caption box floats over screen shares, very often a white slide. Its surface must be opaque
+  // enough that its faintest words still read there: the muted line at the trough of its breathing, and the
+  // dimmed interim words (audit 2026-10-26: at 64% the muted line measured 1.78:1).
+  it("keeps Thư ký UNI's captions readable over a white slide", () => {
+    const glass = value(".dark", "--meeting-caption-glass").match(/^rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)$/);
+    expect(glass, "--meeting-caption-glass is rgb(r g b / a)").not.toBeNull();
+    const [r, g, b, a] = (glass ?? []).slice(1).map(Number) as [number, number, number, number];
+    const trough = Number(baseCss.match(/@keyframes caption-breathe \{ 0%, 100% \{ opacity: ([\d.]+); \}/)?.[1]);
+    expect(trough, "caption-breathe's trough").toBeGreaterThan(0);
+    const mix = (top: number[], alpha: number, under: number[]) => top.map((t, i) => alpha * t + (1 - alpha) * (under[i] ?? 0));
+    const hex = (c: number[]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+    const rgbOf = (token: string) => srgb(value(".dark", token)).map((v) => v * 255);
+    const card = mix([r, g, b], a, [255, 255, 255]);
+    const faintest = { "--meeting-bar-muted-foreground": trough, "--meeting-bar-foreground": 0.6 };
+    for (const [token, opacity] of Object.entries(faintest)) {
+      expect(contrast(hex(mix(rgbOf(token), opacity, card)), hex(card)), `${token} at ${opacity}`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

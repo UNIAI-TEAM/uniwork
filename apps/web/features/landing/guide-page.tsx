@@ -12,7 +12,7 @@ import "./guide-page.css";
 export function GuidePage({ contentKey, locale }: { contentKey: string; locale: SupportedLocale }) {
   const copy = seoCopy(contentKey, locale);
   const guide = guideContent(contentKey, locale);
-  const isGuide = !["about", "security", "privacy"].includes(contentKey);
+  const isGuide = !["about", "security", "privacy", "terms"].includes(contentKey);
   const sectionId = (section: GuideSection, index: number) => section.id ?? `guide-section-${index + 1}`;
   return <MarketingShell><article className="public-guide">
     <nav aria-label={locale === "vi" ? "Đường dẫn" : "Breadcrumb"}><Link href="/">UniWork</Link><span aria-hidden>/</span>{isGuide ? <Link href="/learn">{locale === "vi" ? "Hướng dẫn" : "Guides"}</Link> : <span aria-current="page">{copy.title}</span>}</nav>

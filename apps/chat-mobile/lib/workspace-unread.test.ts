@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badgeText, unreadForTabBadge, unreadInOtherWorkspaces, unreadOfWorkspace, workspaceMetaKind } from "./workspace-unread";
+import { appBadgeCount, badgeText, unreadForTabBadge, unreadInOtherWorkspaces, unreadOfWorkspace, workspaceMetaKind } from "./workspace-unread";
 
 const summary = {
   direct: { unread: 2, mentions: 1 },
@@ -22,6 +22,7 @@ describe("workspace-unread", () => {
     expect(unreadInOtherWorkspaces(undefined, "a")).toBe(0);
     expect(unreadForTabBadge(summary, "a")).toBe(8);
     expect(unreadForTabBadge(summary, "c")).toBe(2);
+    expect(unreadForTabBadge(undefined, "a")).toBe(0);
   });
 
   it("picks the row's meta line", () => {
@@ -30,6 +31,12 @@ describe("workspace-unread", () => {
     expect(workspaceMetaKind({ unread: 7, mentions: 2 }, false)).toBe("unread_mentions");
     expect(workspaceMetaKind({ unread: 4, mentions: 0 }, false)).toBe("unread");
     expect(workspaceMetaKind({ unread: 0, mentions: 0 }, false)).toBe("none");
+  });
+
+  it("badges the app icon with every workspace plus direct, once", () => {
+    expect(appBadgeCount(summary)).toBe(15);
+    expect(appBadgeCount({ direct: { unread: -1, mentions: 0 }, workspaces: [{ workspace_id: "a", unread: -3, mentions: 0 }] })).toBe(0);
+    expect(appBadgeCount(undefined)).toBe(0);
   });
 
   it("caps a badge at 99+ and hides zero", () => {

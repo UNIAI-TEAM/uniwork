@@ -1,0 +1,14 @@
+{
+  "$comment": "Required status checks on main and develop (audit P0 'no-branch-protection'). Each context is a job's display name (its id when it has none) in a workflow that runs on every pull request into these branches with no path filter, or the check would stay pending for ever: scripts/branch-protection.test.mjs. Applied by an admin with scripts/branch-protection.mjs --apply; --check compares GitHub with this file.",
+  "repository": "UNIAI-TEAM/uniwork",
+  "branches": ["main", "develop"],
+  "contexts": [
+    { "context": "frontend", "workflow": "ci.yml", "job": "frontend" },
+    { "context": "backend", "workflow": "ci.yml", "job": "backend" },
+    { "context": "e2e", "workflow": "ci.yml", "job": "e2e" },
+    { "context": "secrets", "workflow": "ci.yml", "job": "secrets" },
+    { "context": "chart", "workflow": "ci.yml", "job": "chart" },
+    { "context": "link", "workflow": "uniai-link.yml", "job": "link" },
+    { "context": "UniChat mobile gate", "workflow": "mobile-verify.yml", "job": "gate" }
+  ]
+}

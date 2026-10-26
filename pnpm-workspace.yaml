@@ -15,7 +15,7 @@ catalog:
   # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
   esbuild: "0.28.2"
   jszip: "3.10.1"
-  zod: "^4.1.5"
+  zod: "^4.6.7"
   # Office engine PDF lane (UNI-688 / G2-05, Advisor-approved delta): pdfium WASM
   # (pin = vendored pdf2docx floor), pdf-lib serialize, hb-subset font subsetting,
   # pure-JS image codec (pngjs decode/encode + jpeg-js decode) replacing the
@@ -35,7 +35,7 @@ catalog:
   tailwind-merge: "^3.4.0"
   class-variance-authority: "^0.7.1"
   clsx: "^2.1.1"
-  lucide-react: "^1.0.1"
+  lucide-react: "^1.48.0"
   i18next: "^26.0.8"
   react-i18next: "^17.0.6"
   vite: "8.2.4"
@@ -135,7 +135,7 @@ catalog:
   "@fullcalendar/interaction": "^6.1.19"
 
   # UniChat desktop shell (apps/chat-desktop)
-  electron: "^43.7.6"
+  electron: "^43.8.3"
   electron-vite: "^5.0.0"
   electron-builder: "^26.0.12"
 

@@ -78,9 +78,9 @@ describe("UNI-1968 document_body_mentioned notification kind", () => {
   it("renders the vi and en sentences of contract S4", async () => {
     const n = notification({ actor: "An", document: "Kế hoạch" });
     await setLocale("vi");
-    expect(sentence(n)).toBe("An đã nhắc đến bạn trong tài liệu “Kế hoạch”.");
+    expect(sentence(n)).toBe('An đã nhắc đến bạn trong tài liệu "Kế hoạch".');
     await setLocale("en");
-    expect(sentence(n)).toBe("An mentioned you in “Kế hoạch”.");
+    expect(sentence(n)).toBe('An mentioned you in "Kế hoạch".');
   });
 
   it("uses the _untitled sentence when the document name is missing or blank in both locales", async () => {
@@ -90,11 +90,11 @@ describe("UNI-1968 document_body_mentioned notification kind", () => {
       await setLocale("vi");
       const viText = sentence(n);
       expect(viText).toBe("An đã nhắc đến bạn trong một tài liệu.");
-      expect(viText).not.toMatch(/notifications\.kind|\{\{|“\s*”/);
+      expect(viText).not.toMatch(/notifications\.kind|\{\{|"\s*"/);
       await setLocale("en");
       const enText = sentence(n);
       expect(enText).toBe("An mentioned you in a document.");
-      expect(enText).not.toMatch(/notifications\.kind|\{\{|“\s*”/);
+      expect(enText).not.toMatch(/notifications\.kind|\{\{|"\s*"/);
     }
   });
 

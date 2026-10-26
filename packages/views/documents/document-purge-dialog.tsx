@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { isDocumentNotInTrashError } from "@uniwork/core/documents/errors";
@@ -109,7 +109,7 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
               </>
             ) : (
               <>
-                <Trash2 aria-hidden className="size-3.5" />
+                <Trash aria-hidden className="size-3.5" />
                 {t("documents.trash.purge")}
               </>
             )}

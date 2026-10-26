@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, ChevronDown, MousePointer2, PanelLeft, Play, Plus, Search, Sparkles, X } from "lucide-react";
+import { Bell, BriefcasePlus, ChevronDown, MousePointer2, PanelLeft, Play, Search, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
 import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
@@ -121,7 +121,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
           <div className="product-demo-toolbar-actions">
             <Button variant="ghost" size="icon" aria-label={t("ai.title")} onClick={() => select("ask")}><Sparkles aria-hidden /></Button>
             <Button variant="ghost" size="icon" aria-label={t("nav.inbox")} onClick={() => select("inbox")}><Bell aria-hidden /></Button>
-            <Button variant="ghost" size="icon" aria-label={t("home.start.create_task")} aria-haspopup="dialog" onClick={() => { setTaskTitle(""); setCreating(true); }}><Plus aria-hidden /></Button>
+            <Button variant="ghost" size="icon" aria-label={t("home.start.create_task")} aria-haspopup="dialog" onClick={() => { setTaskTitle(""); setCreating(true); }}><BriefcasePlus aria-hidden /></Button>
             <MarketingPreferences />
           </div>
           {["email", "chat", "ask"].includes(mode) && <div className="product-demo-email-presentation"><Button size="icon" variant="ghost" data-action="toggle-presentation" aria-label={t(watch ? "landing.playback.explore" : "landing.playback.watch")} onClick={onWatch}>{watch ? <MousePointer2 aria-hidden /> : <Play aria-hidden />}</Button>{watch && <div ref={setPlaybackSlot} className="product-demo-email-playback-slot" />}</div>}

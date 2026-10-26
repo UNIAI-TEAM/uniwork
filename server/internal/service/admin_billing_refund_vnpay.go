@@ -37,11 +37,7 @@ func (s *AdminService) refundInvoiceVnpay(
 	if err != nil {
 		return db.Invoice{}, err
 	}
-	invNow, err := s.q.AdminGetInvoiceByID(ctx, invoiceID)
-	if err != nil {
-		return db.Invoice{}, err
-	}
-	gatewayRef, pErr := s.billing.RefundInvoiceOnProvider(ctx, adminID, invNow, amount, reason, clientIP)
+	gatewayRef, pErr := s.billing.RefundInvoiceOnProvider(ctx, adminID, inv, amount, clientIP)
 	if pErr != nil {
 		var ce CodedError
 		if errors.As(pErr, &ce) && ce.Code == "vnpay_refund_unknown" {
@@ -83,7 +79,10 @@ func (s *AdminService) commitInvoiceRefundPending(
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	beforeMap := map[string]any{"status": inv.Status, "number": inv.Number, "amount_paid": inv.AmountPaid}
+	beforeMap := map[string]any{
+		"status": inv.Status, "number": inv.Number,
+		"amount_paid": inv.AmountPaid, "amount_refunded": inv.AmountRefunded,
+	}
 	var after db.Invoice
 	if partial {
 		after, err = q.AdminRequestPartialInvoiceRefund(ctx, db.AdminRequestPartialInvoiceRefundParams{
@@ -102,7 +101,11 @@ func (s *AdminService) commitInvoiceRefundPending(
 	if err != nil {
 		return db.Invoice{}, err
 	}
-	afterMap := map[string]any{"status": after.Status, "number": after.Number, "amount_paid": after.AmountPaid}
+	afterMap := map[string]any{
+		"status": after.Status, "number": after.Number,
+		"amount_paid": after.AmountPaid, "amount_refunded": after.AmountRefunded,
+		"refund_amount": amount,
+	}
 	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionBillingInvoiceRefunded, "invoice", invoiceID, beforeMap, afterMap, reason); err != nil {
 		return db.Invoice{}, err
 	}
@@ -111,8 +114,11 @@ func (s *AdminService) commitInvoiceRefundPending(
 		Actor:          audit.User(adminID),
 		Action:         audit.ActionBillingInvoiceRefunded,
 		ResourceType:   "invoice", ResourceID: invoiceID,
-		Changes:  audit.Diff(beforeMap, afterMap),
-		Metadata: map[string]any{"reason": reason, "platform_admin": true, "provider": inv.Provider, "refund_phase": "pending"},
+		Changes: audit.Diff(beforeMap, afterMap),
+		Metadata: map[string]any{
+			"reason": reason, "platform_admin": true, "provider": inv.Provider,
+			"refund_phase": "pending", "refund_amount": amount,
+		},
 	}); err != nil {
 		return db.Invoice{}, err
 	}

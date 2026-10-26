@@ -10,7 +10,7 @@ import {
   PenLine,
   Printer,
   FaceSlightlySmiling,
-  Trash2,
+  Trash,
   Type,
   X,
 } from "lucide-react";
@@ -494,7 +494,7 @@ export function ComposeEmailToolbar({
         </div>
 
         <ToolbarIconButton label={t("email_hub.compose.discard")} onClick={onDiscard} className="shrink-0">
-          <Trash2 className="size-5" aria-hidden />
+          <Trash className="size-5" aria-hidden />
         </ToolbarIconButton>
       </div>
 

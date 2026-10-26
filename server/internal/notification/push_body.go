@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -11,12 +12,73 @@ import (
 
 // isChatPushKind reports the kinds whose push carries a message preview.
 func isChatPushKind(kind string) bool {
-	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatThreadReplied
+	return kind == KindChatMentioned || kind == KindChatDM || kind == KindChatMessage || kind == KindChatThreadReplied
 }
 
 var pushBodyLabels = map[string]map[string]string{
 	"vi": {"file": "[Tệp]", "image": "[Ảnh]", "voice": "[Tin thoại]"},
 	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]"},
+}
+
+// hiddenPushTitles stand in for the whole push when the recipient or their
+// organization hides previews (service.SetPushPreviews, SetPushPreviewPolicy).
+// A title passes through Expo, FCM and APNs and sits on a lock screen as the
+// body does, so these name no one and nothing: not the sender, the room, a
+// task or document, nor a reminder's words. They say only what kind of thing
+// happened. "" is every kind without a line of its own.
+var hiddenPushTitles = map[string]map[string]string{
+	"vi": {
+		KindChatDM:            "Tin nhắn riêng mới",
+		KindChatMessage:       "Tin nhắn mới trong một cuộc trò chuyện",
+		KindChatMentioned:     "Bạn được nhắc đến trong một cuộc trò chuyện",
+		KindChatThreadReplied: "Có trả lời mới trong một thread",
+		ChannelMissedCalls:    "Cuộc gọi nhỡ",
+		"":                    "Bạn có thông báo mới",
+	},
+	"en": {
+		KindChatDM:            "New direct message",
+		KindChatMessage:       "New message in a conversation",
+		KindChatMentioned:     "You were mentioned in a conversation",
+		KindChatThreadReplied: "New reply in a thread",
+		ChannelMissedCalls:    "Missed call",
+		"":                    "You have a new notification",
+	},
+}
+
+// hiddenPushTitle is the title of a hidden push; the body is left empty. A
+// missed call is told by its channel, since its row is a chat_dm.
+func hiddenPushTitle(locale, kind, channel string) string {
+	titles, ok := hiddenPushTitles[locale]
+	if !ok {
+		titles = hiddenPushTitles["en"]
+	}
+	if channel == ChannelMissedCalls {
+		return titles[ChannelMissedCalls]
+	}
+	if title, ok := titles[kind]; ok {
+		return title
+	}
+	return titles[""]
+}
+
+// chatUnreadSummaries say how many messages a chat row holds, after the
+// title of an Android push that replaced the room's earlier ones.
+var chatUnreadSummaries = map[string]string{
+	"vi": "{{count}} tin nhắn mới",
+	"en": "{{count}} new messages",
+}
+
+// chatUnreadSummary is that line in locale (en when unknown); "" for a
+// single message.
+func chatUnreadSummary(locale string, count int) string {
+	if count < 2 {
+		return ""
+	}
+	s, ok := chatUnreadSummaries[locale]
+	if !ok {
+		s = chatUnreadSummaries["en"]
+	}
+	return strings.ReplaceAll(s, "{{count}}", strconv.Itoa(count))
 }
 
 var (

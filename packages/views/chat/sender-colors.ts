@@ -1,5 +1,5 @@
 import { tintForegroundClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 
 /** A reply quote's side bar and wash, in the quoted sender's tint (same as the name and the avatar). */
 const SENDER_QUOTE_CLASSES: Record<Tint, string> = {

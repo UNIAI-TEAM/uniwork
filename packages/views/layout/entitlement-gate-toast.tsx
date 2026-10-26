@@ -16,12 +16,16 @@ function featureKeyFromFields(fields: Record<string, unknown> | undefined): stri
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
 }
 
-function gateMessage(t: (key: string, opts?: Record<string, unknown>) => string, event: EntitlementGateError): string {
+function gateMessage(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  translateRoot: (key: string, opts?: Record<string, unknown>) => string,
+  event: EntitlementGateError,
+): string {
   if (event.code === "quota_exceeded") return t("gate_quota_exceeded");
   const feature = featureKeyFromFields(event.fields);
   if (feature) {
     return t("gate_entitlement_required_named", {
-      feature: t(`settings.billing.features.${feature.replaceAll(".", "_")}`, { defaultValue: feature }),
+      feature: translateRoot(`settings.billing.features.${feature.replaceAll(".", "_")}`, { defaultValue: feature }),
     });
   }
   return t("gate_entitlement_required");
@@ -32,7 +36,7 @@ function gateMessage(t: (key: string, opts?: Record<string, unknown>) => string,
  * threshold event targets the signed-in org admin.
  */
 export function EntitlementGateToastHost() {
-  const { t } = useTranslation(undefined, { keyPrefix: "entitlement.toast" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "entitlement.toast" });
   const { workspace } = useWorkspace();
   const userId = useAuthStore((s) => s.user?.id);
   const navigation = useNavigation();
@@ -57,14 +61,14 @@ export function EntitlementGateToastHost() {
 
   useEffect(() => {
     return subscribeEntitlementGateError((event) => {
-      const message = gateMessage(t, event);
+      const message = gateMessage(t, i18n.t.bind(i18n), event);
       const canOpenBilling = billing.canView.allowed || billing.canManage.allowed;
       toast.error(message, {
         action: canOpenBilling ? { label: t("view_billing"), onClick: openBilling } : undefined,
         description: canOpenBilling ? undefined : t("contact_admin"),
       });
     });
-  }, [billing.canManage.allowed, billing.canView.allowed, openBilling, t]);
+  }, [billing.canManage.allowed, billing.canView.allowed, i18n, openBilling, t]);
 
   return null;
 }

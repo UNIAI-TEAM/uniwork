@@ -40,6 +40,16 @@ describe("MeetingPersonAvatar", () => {
     const inner = container.querySelector("[data-slot='avatar'] [data-slot='avatar']") as HTMLElement;
     expect(inner.style.width).toBe("56px");
   });
+
+  it("draws the kit diameters without an inline size, and a per-person tint behind the initials", () => {
+    const { container, rerender } = render(<MeetingPersonAvatar name="Lan Phạm" size={24} tint="blue" />);
+    const inner = () => container.querySelector("[data-slot='avatar'] [data-slot='avatar']") as HTMLElement;
+    expect(inner().style.width).toBe("");
+    expect(inner()).toHaveClass("size-6", "text-micro", "font-semibold", "bg-tint-blue", "text-tint-blue-foreground");
+    rerender(<MeetingPersonAvatar name="Lan Phạm" size={28} />);
+    expect(inner()).toHaveClass("size-7", "text-caption", "text-foreground");
+    expect(inner()).not.toHaveClass("text-micro");
+  });
 });
 
 describe("MeetingPersonAvatar at stage size", () => {

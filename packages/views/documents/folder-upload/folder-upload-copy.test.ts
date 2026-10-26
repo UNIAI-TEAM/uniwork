@@ -136,6 +136,7 @@ describe("failureReasonMessage", () => {
     "missing_part_url",
     "untrusted_target",
     "aborted",
+    "file_unreadable",
   ];
 
   it("has one sentence per server code and per client code", () => {
@@ -262,6 +263,21 @@ describe("files-mode copy", () => {
     }
     expect(failureReasonMessage(t, "unsupported_media", "zip_unreadable", "files")).toContain("tải lại tệp");
     expect(failureReasonMessage(en, "unsupported_media", "zip_unreadable", "files")).not.toMatch(/folder/i);
+  });
+
+  // UNI-2152: the report is where a person who kept going without the unreadable file learns what to do about it.
+  it("tells the person the path is most often too long and points at UniWork Office, in both modes and both languages", () => {
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "folder")).toBe(
+      "Trình duyệt không đọc được tệp này, thường do đường dẫn trên máy quá dài. Mở UniWork Office để tải thư mục này, hoặc chép thư mục vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
+    );
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "files")).toBe(
+      "Trình duyệt không đọc được tệp này, thường do đường dẫn trên máy quá dài. Mở UniWork Office để tải các tệp này, hoặc chép tệp vào chỗ có đường dẫn ngắn hơn rồi tải lại.",
+    );
+    expect(failureReasonMessage(en, "file_unreadable", undefined, "folder")).toBe(
+      "The browser could not read this file, most often because its path on this computer is too long. Open UniWork Office to upload this folder, or copy the folder to a shorter path and upload it again.",
+    );
+    expect(failureReasonMessage(en, "file_unreadable", undefined, "files")).not.toMatch(/folder/i);
+    expect(failureReasonMessage(t, "file_unreadable", undefined, "files")).not.toContain("thư mục");
   });
 
   it("never asks for the folder again in a files-mode run error", () => {

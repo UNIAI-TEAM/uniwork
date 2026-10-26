@@ -42,7 +42,7 @@ import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { CHAT_PILL_SM_CLASS } from "./chat-dialog-look";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { stripInlineMarkdown } from "./chat-info-panel-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
@@ -233,7 +233,7 @@ function BulletinTabPanel({
                     </span>
                     {pinnedKind ? (
                       <span className="inline-flex items-center gap-1 text-caption font-semibold text-muted-foreground">
-                        <Pin aria-hidden className="size-3.25 rotate-45" />
+                        <Pin aria-hidden className="size-3.5 rotate-45" />
                         {t("chat.pinned_label")}
                       </span>
                     ) : null}

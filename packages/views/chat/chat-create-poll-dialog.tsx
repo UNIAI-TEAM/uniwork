@@ -224,7 +224,7 @@ export function ChatCreatePollDialog({
                         aria-label={t("chat.poll_remove_option", { index: index + 1 })}
                         onClick={() => removeOption(option.id)}
                       >
-                        <X aria-hidden className="size-4.5" />
+                        <X aria-hidden className="size-4" />
                       </Button>
                     ) : null}
                   </li>
@@ -240,7 +240,7 @@ export function ChatCreatePollDialog({
                 className="-ml-1 h-9 self-start rounded-full pr-3 pl-2 text-body font-semibold text-brand hover:text-brand"
                 onClick={addOption}
               >
-                <Plus aria-hidden className="size-4.5" />
+                <Plus aria-hidden className="size-4" />
                 {t("chat.poll_add_option")}
               </Button>
             ) : null}

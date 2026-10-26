@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestCatchUpExcerptKinds(t *testing.T) {
@@ -131,6 +132,31 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 	}
 	if again.MessageCount != 0 || fake.Calls != calls {
 		t.Fatalf("after self-send: %+v calls=%d want_calls=%d", again, fake.Calls, calls)
+	}
+}
+
+// Apple 5.1.2(i): a member who declined AI processing never reaches the
+// provider through someone else's catch-up; the others' messages still do.
+func TestCatchUpLeavesOutAMemberWhoDeclinedAI(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	ctx := context.Background()
+	addMember(t, s.meetings, w.ID, ub.ID)
+	room, err := s.chat.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.chat.SendRoomMessage(ctx, ub.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "riêng tư của Bình"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.SetUserAIConsent(ctx, db.SetUserAIConsentParams{ID: ub.ID}); err != nil {
+		t.Fatal(err)
+	}
+	brief, err := s.CatchUp(ctx, ua.ID, w.ID, CatchUpInput{RoomID: room.RoomID, Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.Calls != 0 || brief.Summary != "Không có tin mới kể từ lần đọc trước." {
+		t.Fatalf("a decliner's only message reached the provider: calls=%d %+v", fake.Calls, brief)
 	}
 }
 

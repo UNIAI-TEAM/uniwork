@@ -9,7 +9,7 @@ import {
   selectSidebarTypingUserIds,
   useSidebarTypingStore,
 } from "@uniwork/core/chat/sidebar-typing-store";
-import { formatTypingLabel } from "./typing-indicator";
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 
 const TYPING_DEBOUNCE_MS = 600;
 

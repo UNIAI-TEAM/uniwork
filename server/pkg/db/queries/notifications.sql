@@ -86,6 +86,24 @@ WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
 
+-- name: CloseNotificationGroups :execrows
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the open rows it closed: an answered
+-- call's open ring row is the durable sign that the call rang that person.
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
+
+-- name: CloseRoomNotificationGroups :one
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the closed rows a phone was shown
+-- (phone_pushed_at): only those left something in a phone's tray to clear.
+WITH closed AS (
+  UPDATE notifications SET read_at = now(), updated_at = now()
+  WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL
+  RETURNING phone_pushed_at
+)
+SELECT count(*)::bigint FROM closed WHERE phone_pushed_at IS NOT NULL;
+
 -- name: MarkAllNotificationsRead :many
 -- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
@@ -169,11 +187,15 @@ ON CONFLICT (user_id, kind) DO UPDATE SET
   in_app = EXCLUDED.in_app, push = EXCLUDED.push, email = EXCLUDED.email, updated_at = now();
 
 -- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+-- transport, apns_environment and apns_bundle_id are set only for an iPhone's
+-- PushKit token ('apns_voip'); a browser or an Expo token leaves them NULL.
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, transport, apns_environment, apns_bundle_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id,
+  transport = EXCLUDED.transport, apns_environment = EXCLUDED.apns_environment,
+  apns_bundle_id = EXCLUDED.apns_bundle_id, last_used_at = now()
 RETURNING *;
 
 -- name: RevokePushSubscriptionsForSession :exec
@@ -191,6 +213,25 @@ WHERE p.user_id = $1 AND p.revoked_at IS NULL
 -- name: ListActivePushSubscriptions :many
 SELECT * FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL;
 
+-- name: ListDeliverablePushSubscriptions :many
+-- What the push lane sends to: the live subscriptions, minus those a native
+-- device session registered once that session is over. A phone whose refresh
+-- token ran out (or whose device was revoked without the push following) can
+-- no longer unsubscribe itself, and must stop showing message previews.
+-- A browser session or a row older than session_id names no device session
+-- family and is kept.
+SELECT p.* FROM push_subscriptions p
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND (
+    p.session_id IS NULL
+    OR NOT EXISTS (SELECT 1 FROM device_sessions d WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id)
+    OR EXISTS (
+      SELECT 1 FROM device_sessions d
+      WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id
+        AND d.revoked_at IS NULL AND d.expires_at > now()
+    )
+  );
+
 -- name: RevokePushSubscription :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
 
@@ -201,6 +242,106 @@ WHERE user_id = $1 AND endpoint = $2 AND revoked_at IS NULL;
 -- name: MarkNotificationPushed :exec
 -- tenant: system
 UPDATE notifications SET pushed_at = now() WHERE id = $1 AND pushed_at IS NULL;
+
+-- name: MarkNotificationPhonePushed :one
+-- tenant: system
+-- MarkNotificationPushed for a push a phone was actually sent. It answers
+-- whether the row was read meanwhile: a read that closed it while the push was
+-- on its way found no phone_pushed_at, so the sender clears the tray itself.
+UPDATE notifications SET pushed_at = COALESCE(pushed_at, now()), phone_pushed_at = now()
+WHERE id = $1
+RETURNING (read_at IS NOT NULL)::bool AS read;
+
+-- name: AddCallRingVoIPSubscriptions :exec
+-- tenant: system
+-- Records on a call's ring row the PushKit tokens its VoIP push reached
+-- (ADR 0038), so the ring's end goes to them (TakeCallRingVoIPSubscriptions).
+-- A retried ring adds to the list.
+UPDATE notifications SET voip_subscription_ids = ARRAY(
+  SELECT DISTINCT s FROM unnest(COALESCE(voip_subscription_ids, '{}'::text[]) || sqlc.arg('subscription_ids')::text[]) AS s
+)
+WHERE id = sqlc.arg('id');
+
+-- name: TakeCallRingVoIPSubscriptions :one
+-- tenant: self
+-- Takes, once, the PushKit tokens the ring of call_id reached (its newest ring
+-- row in the room's call group): the list is cleared in the same statement,
+-- so a retried ring_closed row or the call's own end later finds nothing and
+-- sends no second end. created_at says whether the ring is still within its
+-- window. No row back means no iPhone rang through CallKit.
+WITH cur AS (
+  SELECT r.id, r.voip_subscription_ids, r.created_at FROM notifications r
+  WHERE r.user_id = sqlc.arg('user_id') AND r.group_key = sqlc.arg('group_key')
+    AND r.voip_subscription_ids IS NOT NULL
+    AND r.params::jsonb ->> 'call_id' = sqlc.arg('call_id')::text
+  ORDER BY r.created_at DESC
+  LIMIT 1
+  FOR UPDATE
+)
+UPDATE notifications n SET voip_subscription_ids = NULL
+FROM cur
+WHERE n.id = cur.id
+RETURNING cur.voip_subscription_ids::text[] AS subscription_ids, cur.created_at;
+
+-- name: ClaimChatNotificationPush :one
+-- tenant: system
+-- Claims one message's push of a chat row before it is sent (UNI-2141): every
+-- message of a room pushes, and the push lane runs several workers on several
+-- nodes, so the claim is one statement under the row's lock. It succeeds only
+-- while the row is unread and the message comes after the last one claimed, in
+-- the room's order (created_at, then id: ids are minted on each node's clock,
+-- created_at on the database's); no row back means send nothing. With a phone
+-- among the person's devices, phone_pushed_at is when a phone last ALERTED for
+-- the row: the claim moves it, and answers alerted, only when the last alert is
+-- alert_window_seconds old, so a burst alerts once and the window runs on the
+-- database's clock. The prev_ columns are the row before the claim, for
+-- ReleaseChatNotificationPush.
+WITH old AS (
+  SELECT cur.id, cur.pushed_at, cur.pushed_message_id, cur.pushed_message_at, cur.phone_pushed_at, cur.read_at
+  FROM notifications AS cur WHERE cur.id = sqlc.arg('id')
+  FOR UPDATE
+)
+UPDATE notifications AS n SET
+  pushed_at = COALESCE(old.pushed_at, now()),
+  pushed_message_id = sqlc.arg('message_id')::text,
+  pushed_message_at = sqlc.arg('message_at')::timestamptz,
+  phone_pushed_at = CASE
+    WHEN sqlc.arg('phone')::bool AND (
+      old.phone_pushed_at IS NULL
+      OR old.phone_pushed_at <= now() - make_interval(secs => sqlc.arg('alert_window_seconds')::float8)
+    ) THEN now()
+    ELSE old.phone_pushed_at
+  END
+FROM old
+WHERE n.id = old.id
+  AND old.read_at IS NULL
+  AND (
+    old.pushed_message_at IS NULL
+    OR (old.pushed_message_at, COALESCE(old.pushed_message_id, ''))
+      < (sqlc.arg('message_at')::timestamptz, sqlc.arg('message_id')::text)
+  )
+RETURNING
+  old.pushed_at AS prev_pushed_at,
+  old.pushed_message_id AS prev_message_id,
+  old.pushed_message_at AS prev_message_at,
+  old.phone_pushed_at AS prev_phone_pushed_at,
+  (n.phone_pushed_at IS DISTINCT FROM old.phone_pushed_at)::bool AS alerted;
+
+-- name: ReleaseChatNotificationPush :exec
+-- tenant: system
+-- Gives a claim back when its push failed, so the lane's retry of the row
+-- sends it (and alerts) as the first try would have. Only while the claim is
+-- still the row's: a newer message claimed since is left as it is.
+UPDATE notifications SET
+  pushed_at = sqlc.narg('prev_pushed_at')::timestamptz,
+  pushed_message_id = sqlc.narg('prev_message_id')::text,
+  pushed_message_at = sqlc.narg('prev_message_at')::timestamptz,
+  phone_pushed_at = sqlc.narg('prev_phone_pushed_at')::timestamptz
+WHERE id = sqlc.arg('id') AND pushed_message_id = sqlc.arg('message_id')::text;
+
+-- name: IsNotificationRead :one
+-- tenant: system
+SELECT (read_at IS NOT NULL)::bool AS read FROM notifications WHERE id = $1;
 
 -- name: ListDigestCandidateUsers :many
 -- tenant: system
@@ -281,3 +422,44 @@ JOIN meeting_invitations i ON i.participant_id = p.id
 WHERE p.meeting_id = $1 AND p.user_id IS NOT NULL AND p.removed_at IS NULL AND i.response_status = 'ACCEPTED'
 UNION
 SELECT host_user_id FROM meetings WHERE id = $1;
+
+-- name: ListMeetingsWithPendingItems :many
+-- tenant: system
+-- follow-2 (a): ENDED meetings whose end falls in [$1, $2) that still have
+-- items nobody handled (not dismissed, no live task), and that the nudge has
+-- not reached yet. idx_meetings_ended_at (migration 9991792900000050) bounds
+-- the scan to the window.
+SELECT m.id, m.organization_id, m.workspace_id, m.title, m.host_user_id,
+  COUNT(*)::int AS pending
+FROM meetings m
+JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
+WHERE m.status = 'ENDED'
+  AND COALESCE(m.actual_end_at, m.ends_at) >= sqlc.arg(ended_after)::timestamptz
+  AND COALESCE(m.actual_end_at, m.ends_at) < sqlc.arg(ended_before)::timestamptz
+  AND i.dismissed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_pending_items:' || m.id)
+GROUP BY m.id
+ORDER BY m.id
+LIMIT 500;
+
+-- name: ListMeetingTasksDue :many
+-- tenant: system
+-- follow-2 (b): open tasks a meeting handed out to a person, due in
+-- [$1, $2], with the assignee's timezone so the caller reads "today" in it.
+-- A task already told it is overdue is done with.
+SELECT t.id AS task_id, t.organization_id, t.workspace_id, t.title AS task_title,
+  t.assignee_id::text AS assignee_id, t.due_date, u.timezone,
+  m.id AS meeting_id, m.title AS meeting_title
+FROM meeting_action_items i
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+JOIN meetings m ON m.id = i.meeting_id AND m.organization_id = i.organization_id
+JOIN users u ON u.id = t.assignee_id
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE i.task_id IS NOT NULL AND i.dismissed_at IS NULL
+  AND t.assignee_kind = 'human'
+  AND t.due_date BETWEEN sqlc.arg(due_from)::date AND sqlc.arg(due_to)::date
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+  AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_task_overdue:' || t.id)
+ORDER BY t.due_date, t.id
+LIMIT 1000;

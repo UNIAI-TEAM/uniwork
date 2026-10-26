@@ -1,0 +1,4 @@
+<!-- The service, the receiver and the permissions are declared by the app's
+     config plugin (apps/chat-mobile/plugins/with-unichat-calls.js), where
+     scripts/android-manifest.mjs and android-manifest.test.ts can see them. -->
+<manifest />

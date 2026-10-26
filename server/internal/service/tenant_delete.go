@@ -30,12 +30,19 @@ func (s *PrivacyExportService) RequestDeletion(ctx context.Context, userID, orgI
 	if err := s.requireOwner(ctx, orgID, userID); err != nil {
 		return db.DataSubjectRequest{}, err
 	}
+	return s.queueDeletion(ctx, userID, orgID, confirmSlug, nil, nil)
+}
+
+func (s *PrivacyExportService) queueDeletion(ctx context.Context, actorID, orgID, confirmSlug string, meta map[string]any, hook func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest, eraseAt time.Time) error) (db.DataSubjectRequest, error) {
 	org, err := s.q.GetOrganizationByID(ctx, orgID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.DataSubjectRequest{}, ErrNotFound
 	}
 	if err != nil {
 		return db.DataSubjectRequest{}, err
+	}
+	if org.SuspendedReason.Valid && org.SuspendedReason.String == "organization_deleted" {
+		return db.DataSubjectRequest{}, coded(http.StatusConflict, "organization_already_deleted", "tổ chức đã bị xóa cứng")
 	}
 	if strings.TrimSpace(confirmSlug) != org.Slug {
 		return db.DataSubjectRequest{}, coded(http.StatusBadRequest, "privacy_delete_confirm", "nhập đúng định danh tổ chức để xác nhận")
@@ -56,7 +63,7 @@ func (s *PrivacyExportService) RequestDeletion(ctx context.Context, userID, orgI
 	eraseAt := time.Now().UTC().Add(privacyDeletionDelay)
 	row, err := q.InsertDataSubjectDeletion(ctx, db.InsertDataSubjectDeletionParams{
 		ID: util.NewID(), OrganizationID: orgID,
-		RequestedBy: userID, RequestedByKind: string(audit.KindHuman),
+		RequestedBy: actorID, RequestedByKind: string(audit.KindHuman),
 		EraseAt: pgtype.Timestamptz{Time: eraseAt, Valid: true},
 	})
 	if err != nil {
@@ -73,9 +80,10 @@ func (s *PrivacyExportService) RequestDeletion(ctx context.Context, userID, orgI
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
-		Actor:          audit.User(userID),
+		Actor:          audit.User(actorID),
 		Action:         audit.ActionPrivacyDeletionRequested,
 		ResourceType:   "data_subject_request", ResourceID: row.ID,
+		Metadata: meta,
 	}, audit.Event{
 		Topic:          "privacy.deletion_requested",
 		Payload:        map[string]string{"request_id": row.ID, "organization_id": orgID},
@@ -83,6 +91,11 @@ func (s *PrivacyExportService) RequestDeletion(ctx context.Context, userID, orgI
 		AvailableAt:    eraseAt,
 	}); err != nil {
 		return db.DataSubjectRequest{}, err
+	}
+	if hook != nil {
+		if err := hook(ctx, q, row, eraseAt); err != nil {
+			return db.DataSubjectRequest{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.DataSubjectRequest{}, err
@@ -97,6 +110,10 @@ func (s *PrivacyExportService) CancelDeletion(ctx context.Context, userID, orgID
 	if err := s.requireOwner(ctx, orgID, userID); err != nil {
 		return db.DataSubjectRequest{}, err
 	}
+	return s.cancelDeletion(ctx, userID, orgID, nil, nil)
+}
+
+func (s *PrivacyExportService) cancelDeletion(ctx context.Context, actorID, orgID string, meta map[string]any, hook func(ctx context.Context, q *db.Queries, row db.DataSubjectRequest) error) (db.DataSubjectRequest, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.DataSubjectRequest{}, err
@@ -122,11 +139,17 @@ func (s *PrivacyExportService) CancelDeletion(ctx context.Context, userID, orgID
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
-		Actor:          audit.User(userID),
+		Actor:          audit.User(actorID),
 		Action:         audit.ActionPrivacyDeletionCancelled,
 		ResourceType:   "data_subject_request", ResourceID: row.ID,
+		Metadata: meta,
 	}); err != nil {
 		return db.DataSubjectRequest{}, err
+	}
+	if hook != nil {
+		if err := hook(ctx, q, row); err != nil {
+			return db.DataSubjectRequest{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.DataSubjectRequest{}, err

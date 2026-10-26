@@ -98,7 +98,7 @@ describe("MeetingMotionCard — draft", () => {
 
   it("edits, reorders and deletes from the actions menu", async () => {
     renderCard(motion(), { isClerk: true, canMoveUp: false });
-    const menu = screen.getByRole("button", { name: "Thao tác với “Thông qua kế hoạch”" });
+    const menu = screen.getByRole("button", { name: 'Thao tác với "Thông qua kế hoạch"' });
     fireEvent.click(menu);
     expect(await screen.findByRole("menuitem", { name: "Chuyển lên" })).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("menuitem", { name: "Chuyển xuống" }));
@@ -133,7 +133,7 @@ describe("MeetingMotionCard — open", () => {
     renderCard(open(), { canVote: true });
     expect(screen.getByText("Đang bỏ phiếu")).toBeInTheDocument();
     expect(screen.getByText("Đã bỏ phiếu 1/4")).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Phiếu của bạn cho “Thông qua kế hoạch”" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: 'Phiếu của bạn cho "Thông qua kế hoạch"' })).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "Gửi phiếu" });
     expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(submit);

@@ -136,6 +136,65 @@ func (q *Queries) ChangeSubscriptionPlan(ctx context.Context, arg ChangeSubscrip
 	return i, err
 }
 
+const claimCompletedBillingIntentsMissingProviderMeta = `-- name: ClaimCompletedBillingIntentsMissingProviderMeta :many
+UPDATE billing_payment_intents SET updated_at = now()
+WHERE id IN (
+  SELECT id FROM billing_payment_intents
+  WHERE provider = 'vnpay' AND status = 'completed'
+    AND (
+      provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
+      OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+      OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
+    )
+    AND updated_at < now() - interval '1 hour'
+  ORDER BY updated_at ASC
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
+`
+
+type ClaimCompletedBillingIntentsMissingProviderMetaRow struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	PlanID            string             `json:"plan_id"`
+	ProviderTxnRef    string             `json:"provider_txn_ref"`
+	ProviderOrderInfo pgtype.Text        `json:"provider_order_info"`
+	ProviderPayDate   pgtype.Text        `json:"provider_pay_date"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+}
+
+// tenant: system
+func (q *Queries) ClaimCompletedBillingIntentsMissingProviderMeta(ctx context.Context, limit int32) ([]ClaimCompletedBillingIntentsMissingProviderMetaRow, error) {
+	rows, err := q.db.Query(ctx, claimCompletedBillingIntentsMissingProviderMeta, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimCompletedBillingIntentsMissingProviderMetaRow{}
+	for rows.Next() {
+		var i ClaimCompletedBillingIntentsMissingProviderMetaRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PlanID,
+			&i.ProviderTxnRef,
+			&i.ProviderOrderInfo,
+			&i.ProviderPayDate,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimPendingBillingWebhookInbox = `-- name: ClaimPendingBillingWebhookInbox :many
 UPDATE webhook_inbox SET
   status = 'PROCESSING',
@@ -247,6 +306,7 @@ func (q *Queries) ClaimStaleBillingPaymentIntentsForReconcile(ctx context.Contex
 
 const confirmInvoiceRefundFromProvider = `-- name: ConfirmInvoiceRefundFromProvider :one
 UPDATE invoices SET
+  refund_confirm_reason = COALESCE($1, refund_confirm_reason),
   amount_refunded = CASE
     WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
     THEN amount_refunded + partial_refund_amount
@@ -265,17 +325,18 @@ UPDATE invoices SET
     ELSE refunded_at
   END,
   updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+WHERE id = $2 AND organization_id = $3 AND status IN ('refund_pending', 'partial_refund_pending')
 RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
 `
 
 type ConfirmInvoiceRefundFromProviderParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
+	RefundConfirmReason pgtype.Text `json:"refund_confirm_reason"`
+	ID                  string      `json:"id"`
+	OrganizationID      string      `json:"organization_id"`
 }
 
 func (q *Queries) ConfirmInvoiceRefundFromProvider(ctx context.Context, arg ConfirmInvoiceRefundFromProviderParams) (Invoice, error) {
-	row := q.db.QueryRow(ctx, confirmInvoiceRefundFromProvider, arg.ID, arg.OrganizationID)
+	row := q.db.QueryRow(ctx, confirmInvoiceRefundFromProvider, arg.RefundConfirmReason, arg.ID, arg.OrganizationID)
 	var i Invoice
 	err := row.Scan(
 		&i.ID,
@@ -1027,60 +1088,6 @@ func (q *Queries) ListAllPlans(ctx context.Context) ([]Plan, error) {
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listCompletedBillingIntentsMissingProviderMeta = `-- name: ListCompletedBillingIntentsMissingProviderMeta :many
-SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
-FROM billing_payment_intents
-WHERE provider = 'vnpay' AND status = 'completed'
-  AND (
-    provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
-    OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
-    OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
-  )
-ORDER BY COALESCE(completed_at, created_at) DESC
-LIMIT $1
-`
-
-type ListCompletedBillingIntentsMissingProviderMetaRow struct {
-	ID                string             `json:"id"`
-	OrganizationID    string             `json:"organization_id"`
-	PlanID            string             `json:"plan_id"`
-	ProviderTxnRef    string             `json:"provider_txn_ref"`
-	ProviderOrderInfo pgtype.Text        `json:"provider_order_info"`
-	ProviderPayDate   pgtype.Text        `json:"provider_pay_date"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
-}
-
-// tenant: system
-func (q *Queries) ListCompletedBillingIntentsMissingProviderMeta(ctx context.Context, limit int32) ([]ListCompletedBillingIntentsMissingProviderMetaRow, error) {
-	rows, err := q.db.Query(ctx, listCompletedBillingIntentsMissingProviderMeta, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListCompletedBillingIntentsMissingProviderMetaRow{}
-	for rows.Next() {
-		var i ListCompletedBillingIntentsMissingProviderMetaRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.PlanID,
-			&i.ProviderTxnRef,
-			&i.ProviderOrderInfo,
-			&i.ProviderPayDate,
-			&i.CreatedAt,
-			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}

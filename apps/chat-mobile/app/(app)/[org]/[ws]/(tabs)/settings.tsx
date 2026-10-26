@@ -1,17 +1,23 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/more/settings.tsx. The
 // settings tab: the account (read only), the workspace and a way to switch it,
-// push for this device, the signed-in devices, theme, language, the build, and
-// sign out.
+// push for this device, message text in notifications, app lock and screen security, the signed-in devices, theme, language, Privacy &
+// legal (policy, AI processing, support, licenses), About (the build, its
+// channel and update), sign out, and deleting the account.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import Constants from "expo-constants";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { AboutSection } from "@/components/settings/about-section";
+import { DeleteAccountSection } from "@/components/settings/delete-account";
+import { LegalSection } from "@/components/settings/legal-section";
+import { OptionGroup, type Option } from "@/components/settings/option-group";
 import { DevicesSection } from "@/components/settings/devices-section";
+import { PrivacySection } from "@/components/settings/privacy-section";
+import { PushPreviewsRow } from "@/components/settings/push-previews-row";
 import { PushSection } from "@/components/settings/push-section";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
@@ -19,18 +25,13 @@ import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
-import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
-import { unregisterPushToken } from "@/data/push";
 import { workspaceListOptions } from "@/data/queries/workspaces";
-import { useLocalePreference } from "@/lib/i18n/provider";
+import { useLocalePreference } from "@/components/app/i18n-provider";
 import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme, type ThemePreference } from "@/lib/use-color-scheme";
-import { cn } from "@/lib/utils";
-
-type Option<T> = { value: T; label: string; icon?: keyof typeof Ionicons.glyphMap };
+import { useColorScheme, type ThemePreference } from "@/components/ui/use-color-scheme";
 
 const THEME_OPTIONS: Option<ThemePreference>[] = [
   { value: "system", label: "settings.preferences.themeSystem", icon: "phone-portrait-outline" },
@@ -41,57 +42,6 @@ const LOCALE_OPTIONS: Option<SupportedLocale>[] = [
   { value: "vi", label: "settings.preferences.languageVi" },
   { value: "en", label: "settings.preferences.languageEn" },
 ];
-
-/** A titled segmented control: one tap picks a segment, as the radio rows it replaces did. */
-function OptionGroup<T extends string>({
-  title,
-  options,
-  value,
-  onChange,
-}: {
-  title: string;
-  options: Option<T>[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
-  const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
-  return (
-    <View className="gap-2">
-      <Text accessibilityRole="header" className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel={title} className="flex-row gap-1.5 rounded-xl bg-card p-1.5" style={continuousCorners}>
-        {options.map((option) => {
-          const selected = option.value === value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onChange(option.value)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
-              className={cn(
-                "flex-1 items-center justify-center gap-1.5 rounded-lg",
-                option.icon ? "h-[68px]" : "h-11",
-                selected ? "bg-primary" : "bg-muted active:bg-secondary",
-              )}
-            >
-              {option.icon ? (
-                <Ionicons name={option.icon} size={20} color={selected ? THEME[colorScheme].primaryForeground : THEME[colorScheme].foreground} />
-              ) : null}
-              <Text
-                numberOfLines={1}
-                className={cn("font-semibold", option.icon ? "text-[13px]" : "text-[15px]", selected ? "text-primary-foreground" : "text-foreground")}
-              >
-                {t(option.label)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 export default function SettingsTab() {
   const { t } = useTranslation();
@@ -104,11 +54,6 @@ export default function SettingsTab() {
   const workspace = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);
   const [switchOpen, setSwitchOpen] = useState(false);
   const name = user?.display_name.trim() || user?.email || "";
-
-  const onLogout = async () => {
-    await unregisterPushToken(api).catch(() => undefined);
-    await logout();
-  };
 
   return (
     <View className="flex-1 bg-muted dark:bg-background">
@@ -123,10 +68,10 @@ export default function SettingsTab() {
         >
           <PersonAvatar name={name} avatarUrl={user?.avatar_url} size={56} seed={user?.id} />
           <View className="flex-1 gap-0.5">
-            <Text numberOfLines={1} className="text-lg font-display font-bold text-foreground">
+            <Text numberOfLines={1} className="text-title3 font-display font-bold text-foreground">
               {name}
             </Text>
-            <Text numberOfLines={1} className="text-sm text-muted-foreground">
+            <Text numberOfLines={1} className="text-callout text-muted-foreground">
               {user?.email}
             </Text>
           </View>
@@ -137,36 +82,46 @@ export default function SettingsTab() {
             onPress={() => setSwitchOpen(true)}
             accessibilityRole="button"
             accessibilityLabel={`${t("mobile.settings.switch_workspace")}, ${t("chat.mobile.workspace_at", { name: workspace?.name ?? ws })}`}
-            className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-3.5 active:bg-secondary"
+            className="min-h-[64px] flex-row items-center gap-3 py-2.5 ps-4 pe-3.5 active:bg-secondary"
           >
-            <WorkspaceAvatar name={workspace?.name ?? ws} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} size={40} seed={workspace?.id} />
+            <WorkspaceAvatar
+              name={workspace?.name ?? ws}
+              iconUrl={workspace?.icon_url}
+              iconEmoji={workspace?.icon_emoji}
+              size={40}
+              seed={workspace?.id}
+            />
             <View className="flex-1">
-              <Text numberOfLines={1} className="text-base font-semibold text-foreground">
+              <Text numberOfLines={1} className="text-body font-semibold text-foreground">
                 {workspace?.name ?? ws}
               </Text>
-              <Text className="text-sm font-medium text-primary">{t("mobile.settings.switch_workspace")}</Text>
+              <Text className="text-callout font-medium text-primary">{t("mobile.settings.switch_workspace")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
           </Pressable>
         </SettingsSection>
 
         <PushSection />
+        <PrivacySection>
+          <PushPreviewsRow orgSlug={org} />
+        </PrivacySection>
         <DevicesSection />
         <OptionGroup title={t("settings.preferences.theme")} options={THEME_OPTIONS} value={preference} onChange={setPreference} />
         <OptionGroup title={t("settings.preferences.language")} options={LOCALE_OPTIONS} value={locale} onChange={setLocale} />
+        <LegalSection />
+        <AboutSection />
         <View className="gap-3.5 pt-1">
           <Button
             variant="destructive"
-            className="h-12 rounded-full bg-destructive-solid active:opacity-90 sm:h-12 dark:bg-destructive-solid"
-            onPress={() => void onLogout()}
+            className="min-h-12 rounded-full bg-destructive-solid py-3 active:opacity-90 dark:bg-destructive-solid"
+            // logout() drops this phone's push subscription first (data/auth/store.ts).
+            onPress={() => void logout()}
           >
             <Ionicons name="log-out-outline" size={18} color={THEME.light.primaryForeground} />
-            <Text className="text-base font-semibold">{t("auth.logout")}</Text>
+            <Text className="text-body font-semibold">{t("auth.logout")}</Text>
           </Button>
-          <Text className="text-center text-xs text-muted-foreground">
-            {t("mobile.settings.version", { version: Constants.expoConfig?.version ?? "" })}
-          </Text>
         </View>
+        <DeleteAccountSection workspace={{ orgSlug: org, wsSlug: ws }} />
       </ScrollView>
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={workspace?.id ?? ""} />
     </View>

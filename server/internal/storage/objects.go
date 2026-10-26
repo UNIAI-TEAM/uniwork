@@ -101,6 +101,12 @@ type SignOptions struct {
 	// Disposition, when set, is the response-content-disposition the URL
 	// makes the storage emit - attachment for downloads, inline for previews.
 	Disposition string
+	// SignedAt, when set, is the instant the signature is made as of (SigV4's
+	// X-Amz-Date), and the URL works until SignedAt+TTL. Every read of the
+	// same object, disposition and credentials signed as of one instant is the
+	// very same URL, so a client or CDN cache keyed by URL keeps hitting. It
+	// must not be in the future; zero signs as of now. SignWrite ignores it.
+	SignedAt time.Time
 }
 
 // SignedURL is one presigned URL. URL carries the signature; it must never be

@@ -210,6 +210,18 @@ var (
 	// cannot tell an audio-only WebM from a video one, so every WebM is
 	// video/webm.
 	recordingMIMETypes = []string{"video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
+	// meetingAudioMIMETypes is a meeting recorded on a phone or recorder and
+	// uploaded for transcription (UNI-2001, parent spec §5.5): formats
+	// AssemblyAI documents for pre-recorded audio. An M4A is audio/mp4 by
+	// its brand; a phone's video, or an audio MP4 the sniffer cannot place,
+	// is video/mp4, which the vendor also takes.
+	meetingAudioMIMETypes      = []string{"audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/webm", "video/mp4"}
+	meetingAudioCanonicalTypes = map[string]string{
+		"audio/wave":      "audio/wav",
+		"video/webm":      "audio/webm",
+		"application/ogg": "audio/ogg",
+		"video/ogg":       "audio/ogg",
+	}
 	// recordingKeySuffix ends every recording key: LiveKit egress writes the
 	// object itself and appends ".mp4" to a filepath that has no extension,
 	// so the key FileService records must already carry it.
@@ -220,6 +232,18 @@ var (
 	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV, or a
 	// zip of them. The text types need the .ndjson / .csv filename.
 	exportMIMETypes = []string{"application/x-ndjson", "text/csv", "application/zip"}
+	// aiAttachmentMIMETypes is what an Ask UNI question may carry: pictures
+	// the model reads, and the documents the text extractor opens (PDF, DOCX,
+	// XLSX, PPTX, ODT, plain text, CSV, Markdown). The legacy DOC/XLS/PPT are
+	// left out on purpose: nothing extracts them.
+	aiAttachmentMIMETypes = []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text",
+		"text/plain", "text/csv", "text/markdown",
+	}
 	// documentMIMETypes is what a Document version may hold. text/html is in
 	// C-01 §5.5's file-document allowlist and is one of the six Office format
 	// lanes (G2-06/G2-07a); the preview sandbox, not this allowlist, is what
@@ -394,6 +418,14 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
 		{
+			// A meeting recording uploaded for transcription (UNI-2001): read
+			// only by the transcription vendor through a presigned URL.
+			Purpose: MeetingAudio,
+			Prefix:  "meetings/audio",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 2 << 30, MIMEAllowlist: meetingAudioMIMETypes, CanonicalTypes: meetingAudioCanonicalTypes, ReadMode: ReadPresign},
+		},
+		{
 			// The zip of a multi-document download job (UNI-2045 SV-9): built
 			// by the slow lane from files the requester may download, served
 			// through the proxy for an hour, then released. The cap is the
@@ -405,6 +437,14 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Prefix:  "documents/downloads",
 			Scope:   ScopeOrgWorkspace,
 			Policy:  Policy{MaxBytes: 1<<30 + 64<<20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+		},
+		{
+			// A file attached to an Ask UNI question (UNI-2119): private to
+			// the asker's workspace, read back only through the proxy.
+			Purpose: AiAttachment,
+			Prefix:  "ai/attachments",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 20 << 20, MIMEAllowlist: aiAttachmentMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
 		},
 	}
 }

@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -391,7 +392,11 @@ func (s *Service) SetPreferences(ctx context.Context, userID string, prefs []Kin
 // SubscribePush registers (or refreshes) a browser's push subscription, or
 // the mobile app's Expo token, which needs neither VAPID nor keys. sessionID
 // is the caller's token `sid`, so revoking that device closes the push too.
-func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint, p256dh, auth, userAgent, platform string) error {
+// caps is what an Android build says it can do (PushCaps): draw its own
+// incoming call, so call pushes reach it data-only (push_expo.go ›
+// expoMessageFor), and show a chat follow-up on its quiet channel. The app
+// registers on every launch, so an updated build marks its token at once.
+func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint, p256dh, auth, userAgent, platform string, caps PushCaps) error {
 	if strings.HasPrefix(endpoint, "Expo") {
 		if !isExpoPushToken(endpoint) {
 			return service.Invalid("token Expo không hợp lệ")
@@ -401,7 +406,7 @@ func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint
 		}
 		_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
 			ID: util.NewID(), UserID: userID, Endpoint: endpoint, P256dh: "", Auth: "",
-			UserAgent: optText("expo/" + platform), SessionID: optText(sessionID),
+			UserAgent: optText(expoUserAgent(platform, caps)), SessionID: optText(sessionID),
 		})
 		return err
 	}
@@ -418,9 +423,46 @@ func (s *Service) SubscribePush(ctx context.Context, userID, sessionID, endpoint
 	return err
 }
 
+// pushKitTokenPattern is an iPhone's PushKit token as the app registers it:
+// the device token's bytes in hex (32 today; Apple may lengthen it).
+var pushKitTokenPattern = regexp.MustCompile(`^[0-9a-fA-F]{64,200}$`)
+
+// bundleIDPattern is an Apple bundle identifier (reverse DNS, letters, digits,
+// hyphens and dots); "<bundle id>.voip" is the topic its VoIP pushes go to.
+var bundleIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$`)
+
+// SubscribeVoIPPush registers (or refreshes) an iPhone's PushKit token
+// (ADR 0038): a subscription of its own beside the app's Expo token, with the
+// APNs environment the build's token belongs to ("production" for TestFlight
+// and the App Store, "sandbox" for a development build) and the app's bundle
+// id. It is stored whatever the server's APNs key: without one the push lane
+// skips it and the Expo token keeps ringing. sessionID ties it to the device
+// session, so the lane knows which Expo token it rings in place of, and a
+// device revoke closes both.
+func (s *Service) SubscribeVoIPPush(ctx context.Context, userID, sessionID, token, environment, bundleID string) error {
+	if !pushKitTokenPattern.MatchString(token) {
+		return service.Invalid("token PushKit không hợp lệ")
+	}
+	if environment != APNsProduction && environment != APNsSandbox {
+		return service.Invalid("apns_environment phải là production hoặc sandbox")
+	}
+	if len(bundleID) > 155 || !bundleIDPattern.MatchString(bundleID) {
+		return service.Invalid("apns_bundle_id không hợp lệ")
+	}
+	_, err := s.q.UpsertPushSubscription(ctx, db.UpsertPushSubscriptionParams{
+		ID: util.NewID(), UserID: userID, Endpoint: strings.ToLower(token), P256dh: "", Auth: "",
+		UserAgent: optText("apns/ios"), SessionID: optText(sessionID),
+		Transport: optText(TransportAPNsVoIP), ApnsEnvironment: optText(environment), ApnsBundleID: optText(bundleID),
+	})
+	return err
+}
+
 // UnsubscribePush revokes the caller's subscription for endpoint. Unknown
 // endpoints are fine: the browser may have dropped it first.
 func (s *Service) UnsubscribePush(ctx context.Context, userID, endpoint string) error {
+	if pushKitTokenPattern.MatchString(endpoint) {
+		endpoint = strings.ToLower(endpoint) // stored lower-cased by SubscribeVoIPPush
+	}
 	_, err := s.q.RevokePushSubscriptionByEndpoint(ctx, db.RevokePushSubscriptionByEndpointParams{UserID: userID, Endpoint: endpoint})
 	return err
 }

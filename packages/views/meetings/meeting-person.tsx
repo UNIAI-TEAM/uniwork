@@ -1,5 +1,6 @@
 "use client";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { tintClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import type { AvatarSize } from "@uniwork/ui/lib/avatar-size";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -22,11 +23,20 @@ export function personAvatarSrc(avatarUrl: unknown): string | undefined {
 /**
  * Size vocabulary mirrors the `Avatar` primitive (sm 24px, default 32px,
  * lg 40px) plus `xl` (56px) and `stage` (fluid, for a full stage tile),
- * mapped onto the semantic avatar scale.
+ * mapped onto the semantic avatar scale. The numbers are the meeting-detail
+ * kit's exact diameters, with the kit's initials type (no inline font size).
  */
-export type MeetingPersonAvatarSize = "sm" | "default" | "lg" | "xl" | "stage";
+export type MeetingPersonAvatarSize = "sm" | "default" | "lg" | "xl" | "stage" | KitAvatarSize;
+type KitAvatarSize = 20 | 24 | 28 | 32;
 
-const SIZE_TIER: Record<Exclude<MeetingPersonAvatarSize, "stage">, AvatarSize> = {
+const KIT_SIZE: Record<KitAvatarSize, string> = {
+  20: "size-5 text-micro font-semibold tracking-tight",
+  24: "size-6 text-micro font-semibold tracking-tight",
+  28: "size-7 text-caption font-semibold",
+  32: "size-8 text-caption font-semibold",
+};
+
+const SIZE_TIER: Record<"sm" | "default" | "lg" | "xl", AvatarSize> = {
   sm: "md",
   default: "lg",
   lg: "xl",
@@ -60,6 +70,7 @@ export function MeetingPersonAvatar({
   avatarUrl,
   size = "sm",
   tone = "surface",
+  tint,
   className,
 }: {
   name: string;
@@ -67,11 +78,14 @@ export function MeetingPersonAvatar({
   size?: MeetingPersonAvatarSize;
   /** `stage` for the dark in-room chrome, where the default fill disappears. */
   tone?: "surface" | "stage";
+  /** A per-person pale fill behind the initials (meeting detail, `meetingAvatarTint`). */
+  tint?: Tint;
   className?: string;
 }) {
   // `stage` grows with its tile: the caller sizes the wrapper in container
   // units, the circle fills it, and the photo fades in over the initials.
   const stage = size === "stage";
+  const kit = typeof size === "number" ? KIT_SIZE[size] : null;
   return (
     <span
       data-slot="avatar"
@@ -82,11 +96,12 @@ export function MeetingPersonAvatar({
         name=""
         initials={initials(name)}
         avatarUrl={personAvatarSrc(avatarUrl)}
-        size={stage ? "fluid" : SIZE_TIER[size]}
+        size={stage || kit ? "fluid" : SIZE_TIER[size as keyof typeof SIZE_TIER]}
         fadeIn={stage}
         className={cn(
-          tone === "stage" || stage ? STAGE_FALLBACK : SURFACE_FALLBACK,
+          tone === "stage" || stage ? STAGE_FALLBACK : tint ? tintClass[tint] : SURFACE_FALLBACK,
           stage && "size-full text-avatar-stage",
+          kit,
         )}
       />
     </span>

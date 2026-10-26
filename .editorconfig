@@ -25,3 +25,13 @@ trim_trailing_whitespace = false
 
 [*.{sql,sh}]
 indent_size = 2
+
+# Kotlin (apps/chat-mobile/modules/*/android): ktlint reads these
+# (mobile-verify.yml › android-release). Android's own style at the repo's
+# two-space indent; lines up to 160, as the module's comments run long. An
+# expression body may start on the line after its signature when that reads
+# better (function-signature would force it up).
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+max_line_length = 160
+ktlint_standard_function-signature = disabled

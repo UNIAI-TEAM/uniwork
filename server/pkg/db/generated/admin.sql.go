@@ -11,69 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const adminConfirmInvoiceRefund = `-- name: AdminConfirmInvoiceRefund :one
-UPDATE invoices SET
-  refund_confirm_reason = $1,
-  amount_refunded = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-    THEN amount_refunded + partial_refund_amount
-    ELSE amount_paid
-  END,
-  partial_refund_amount = NULL,
-  status = CASE
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
-    ELSE 'refunded'
-  END,
-  refunded_at = CASE
-    WHEN status = 'refund_pending' THEN now()
-    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
-      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
-    ELSE refunded_at
-  END,
-  updated_at = now()
-WHERE id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
-RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+const adminChatReportQueue = `-- name: AdminChatReportQueue :one
+SELECT count(*)::bigint AS open_count, min(created_at)::timestamptz AS oldest_open_at
+FROM chat_reports WHERE status = 'open'
 `
 
-type AdminConfirmInvoiceRefundParams struct {
-	RefundConfirmReason pgtype.Text `json:"refund_confirm_reason"`
-	ID                  string      `json:"id"`
+type AdminChatReportQueueRow struct {
+	OpenCount    int64              `json:"open_count"`
+	OldestOpenAt pgtype.Timestamptz `json:"oldest_open_at"`
 }
 
 // tenant: platform
-func (q *Queries) AdminConfirmInvoiceRefund(ctx context.Context, arg AdminConfirmInvoiceRefundParams) (Invoice, error) {
-	row := q.db.QueryRow(ctx, adminConfirmInvoiceRefund, arg.RefundConfirmReason, arg.ID)
-	var i Invoice
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.SubscriptionID,
-		&i.Provider,
-		&i.ProviderInvoiceID,
-		&i.Number,
-		&i.Status,
-		&i.AmountDue,
-		&i.AmountPaid,
-		&i.Currency,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.HostedUrl,
-		&i.IssuedAt,
-		&i.PaidAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.InitiatedBy,
-		&i.InitiatedByKind,
-		&i.RefundedAt,
-		&i.RefundProviderRef,
-		&i.RefundRequestedAt,
-		&i.AmountRefunded,
-		&i.PartialRefundAmount,
-		&i.RefundReason,
-		&i.RefundConfirmReason,
-		&i.PaymentIntentID,
-	)
+// How many reports wait and since when: the console's banner and the 24-hour promise.
+func (q *Queries) AdminChatReportQueue(ctx context.Context) (AdminChatReportQueueRow, error) {
+	row := q.db.QueryRow(ctx, adminChatReportQueue)
+	var i AdminChatReportQueueRow
+	err := row.Scan(&i.OpenCount, &i.OldestOpenAt)
 	return i, err
 }
 
@@ -98,17 +51,27 @@ WHERE ($1::text IS NULL OR i.provider = $1::text)
   AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
     OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
     OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < $5::timestamptz)
 `
 
 type AdminCountInvoicesParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
 }
 
 // tenant: platform
 func (q *Queries) AdminCountInvoices(ctx context.Context, arg AdminCountInvoicesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, adminCountInvoices, arg.Provider, arg.Status, arg.Q)
+	row := q.db.QueryRow(ctx, adminCountInvoices,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -144,20 +107,59 @@ WHERE ($1::text IS NULL OR pi.provider = $1::text)
     OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
     OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
     OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR pi.created_at >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR pi.created_at < $5::timestamptz)
 `
 
 type AdminCountPaymentIntentsParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
 }
 
 // tenant: platform
 func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPaymentIntentsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, adminCountPaymentIntents, arg.Provider, arg.Status, arg.Q)
+	row := q.db.QueryRow(ctx, adminCountPaymentIntents,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const adminGetChatReportForUpdate = `-- name: AdminGetChatReportForUpdate :one
+SELECT id, organization_id, workspace_id, room_id, message_id, status FROM chat_reports WHERE id = $1 FOR UPDATE
+`
+
+type AdminGetChatReportForUpdateRow struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	RoomID         pgtype.Text `json:"room_id"`
+	MessageID      pgtype.Text `json:"message_id"`
+	Status         string      `json:"status"`
+}
+
+// tenant: platform
+// room_id and message_id name what a takedown removes (AdminService.RemoveReportedMessage); never the content.
+func (q *Queries) AdminGetChatReportForUpdate(ctx context.Context, id string) (AdminGetChatReportForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, adminGetChatReportForUpdate, id)
+	var i AdminGetChatReportForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.RoomID,
+		&i.MessageID,
+		&i.Status,
+	)
+	return i, err
 }
 
 const adminGetDemoRequest = `-- name: AdminGetDemoRequest :one
@@ -192,8 +194,8 @@ SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoic
 FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
 LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-LEFT JOIN plans pl ON pl.id = sub.plan_id
 LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
 LEFT JOIN LATERAL (
   SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
   FROM billing_payment_intents pi
@@ -287,7 +289,7 @@ func (q *Queries) AdminGetInvoiceByID(ctx context.Context, id string) (AdminGetI
 }
 
 const adminGetOrganization = `-- name: AdminGetOrganization :one
-SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,
+SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.deletion_scheduled_at, o.created_at,
   COALESCE(p.code, '')::text AS plan_code,
   (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
   (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
@@ -299,17 +301,18 @@ WHERE o.id = $1
 `
 
 type AdminGetOrganizationRow struct {
-	ID              string             `json:"id"`
-	Slug            string             `json:"slug"`
-	Name            string             `json:"name"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	PlanCode        string             `json:"plan_code"`
-	MemberCount     int64              `json:"member_count"`
-	WorkspaceCount  int64              `json:"workspace_count"`
-	LastActivityAt  pgtype.Timestamptz `json:"last_activity_at"`
+	ID                  string             `json:"id"`
+	Slug                string             `json:"slug"`
+	Name                string             `json:"name"`
+	Status              string             `json:"status"`
+	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
+	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	PlanCode            string             `json:"plan_code"`
+	MemberCount         int64              `json:"member_count"`
+	WorkspaceCount      int64              `json:"workspace_count"`
+	LastActivityAt      pgtype.Timestamptz `json:"last_activity_at"`
 }
 
 // tenant: platform
@@ -323,6 +326,7 @@ func (q *Queries) AdminGetOrganization(ctx context.Context, id string) (AdminGet
 		&i.Status,
 		&i.SuspendedAt,
 		&i.SuspendedReason,
+		&i.DeletionScheduledAt,
 		&i.CreatedAt,
 		&i.PlanCode,
 		&i.MemberCount,
@@ -371,6 +375,80 @@ func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correla
 			&i.ResourceID,
 			&i.RequestID,
 			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListChatReports = `-- name: AdminListChatReports :many
+
+SELECT r.id, r.organization_id, o.slug AS organization_slug, o.name AS organization_name, o.status AS organization_status,
+  r.workspace_id, r.room_id, r.message_id, r.target_user_id, r.reason, r.status, r.created_by, r.created_at,
+  count(*) OVER ()::bigint AS total_count
+FROM chat_reports r
+JOIN organizations o ON o.id = r.organization_id
+WHERE ($1::text IS NULL OR r.status = $1::text)
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT $3 OFFSET $2
+`
+
+type AdminListChatReportsParams struct {
+	Status pgtype.Text `json:"status"`
+	Offset int32       `json:"offset"`
+	Limit  int32       `json:"limit"`
+}
+
+type AdminListChatReportsRow struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	OrganizationSlug   string             `json:"organization_slug"`
+	OrganizationName   string             `json:"organization_name"`
+	OrganizationStatus string             `json:"organization_status"`
+	WorkspaceID        string             `json:"workspace_id"`
+	RoomID             pgtype.Text        `json:"room_id"`
+	MessageID          pgtype.Text        `json:"message_id"`
+	TargetUserID       string             `json:"target_user_id"`
+	Reason             string             `json:"reason"`
+	Status             string             `json:"status"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	TotalCount         int64              `json:"total_count"`
+}
+
+// The operator's queue of chat reports (store UGC policy, Apple 1.2: the operator acts on every report within 24
+// hours). Ids, the reason, the status and when: the reporter's own words (details) and the reported message never
+// leave through here, as nothing of content does from this file.
+// tenant: platform
+func (q *Queries) AdminListChatReports(ctx context.Context, arg AdminListChatReportsParams) ([]AdminListChatReportsRow, error) {
+	rows, err := q.db.Query(ctx, adminListChatReports, arg.Status, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListChatReportsRow{}
+	for rows.Next() {
+		var i AdminListChatReportsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OrganizationSlug,
+			&i.OrganizationName,
+			&i.OrganizationStatus,
+			&i.WorkspaceID,
+			&i.RoomID,
+			&i.MessageID,
+			&i.TargetUserID,
+			&i.Reason,
+			&i.Status,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -453,11 +531,11 @@ FROM (
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
   LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
-  LEFT JOIN plans pl ON pl.id = sub.plan_id
+  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+  LEFT JOIN plans pl ON pl.id = COALESCE(pi_link.plan_id, sub.plan_id)
   LEFT JOIN users init_u ON init_u.id = i.initiated_by
   LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
-  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
   LEFT JOIN LATERAL (
     SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
     FROM billing_payment_intents pi
@@ -472,17 +550,21 @@ FROM (
     AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
       OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
       OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+    AND ($4::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) >= $4::timestamptz)
+    AND ($5::timestamptz IS NULL OR COALESCE(i.refund_requested_at, i.refunded_at, i.paid_at, i.created_at) < $5::timestamptz)
 ) t
 ORDER BY COALESCE(t.paid_at, t.created_at) DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type AdminListInvoicesParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
-	Offset   int32       `json:"offset"`
-	Limit    int32       `json:"limit"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+	Offset   int32              `json:"offset"`
+	Limit    int32              `json:"limit"`
 }
 
 type AdminListInvoicesRow struct {
@@ -530,6 +612,8 @@ func (q *Queries) AdminListInvoices(ctx context.Context, arg AdminListInvoicesPa
 		arg.Provider,
 		arg.Status,
 		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -752,17 +836,21 @@ FROM (
       OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
       OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
       OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+    AND ($4::timestamptz IS NULL OR pi.created_at >= $4::timestamptz)
+    AND ($5::timestamptz IS NULL OR pi.created_at < $5::timestamptz)
 ) t
 ORDER BY t.created_at DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type AdminListPaymentIntentsParams struct {
-	Provider pgtype.Text `json:"provider"`
-	Status   pgtype.Text `json:"status"`
-	Q        pgtype.Text `json:"q"`
-	Offset   int32       `json:"offset"`
-	Limit    int32       `json:"limit"`
+	Provider pgtype.Text        `json:"provider"`
+	Status   pgtype.Text        `json:"status"`
+	Q        pgtype.Text        `json:"q"`
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+	Offset   int32              `json:"offset"`
+	Limit    int32              `json:"limit"`
 }
 
 type AdminListPaymentIntentsRow struct {
@@ -796,6 +884,8 @@ func (q *Queries) AdminListPaymentIntents(ctx context.Context, arg AdminListPaym
 		arg.Provider,
 		arg.Status,
 		arg.Q,
+		arg.DateFrom,
+		arg.DateTo,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -1077,6 +1167,31 @@ func (q *Queries) AdminRequestPartialInvoiceRefund(ctx context.Context, arg Admi
 	return i, err
 }
 
+const adminResolveChatReport = `-- name: AdminResolveChatReport :one
+UPDATE chat_reports SET status = 'resolved' WHERE id = $1 AND status = 'open'
+RETURNING id, organization_id, workspace_id, status
+`
+
+type AdminResolveChatReportRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Status         string `json:"status"`
+}
+
+// tenant: platform
+func (q *Queries) AdminResolveChatReport(ctx context.Context, id string) (AdminResolveChatReportRow, error) {
+	row := q.db.QueryRow(ctx, adminResolveChatReport, id)
+	var i AdminResolveChatReportRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const adminRevertInvoiceRefundRequest = `-- name: AdminRevertInvoiceRefundRequest :one
 UPDATE invoices SET
   status = 'paid',
@@ -1128,7 +1243,7 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
 WHERE id = $1 AND status IN ('active', 'suspended')
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by, mobile_app_lock_required_at, mobile_app_lock_required_by, mobile_screen_capture_blocked_at, mobile_screen_capture_blocked_by, ask_uni_write_ceiling, ask_uni_write_ceiling_updated_by, ask_uni_write_ceiling_updated_at
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1166,6 +1281,15 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
+		&i.MobileAppLockRequiredAt,
+		&i.MobileAppLockRequiredBy,
+		&i.MobileScreenCaptureBlockedAt,
+		&i.MobileScreenCaptureBlockedBy,
+		&i.AskUniWriteCeiling,
+		&i.AskUniWriteCeilingUpdatedBy,
+		&i.AskUniWriteCeilingUpdatedAt,
 	)
 	return i, err
 }
@@ -1196,17 +1320,6 @@ func (q *Queries) AdminUpdateDemoRequest(ctx context.Context, arg AdminUpdateDem
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getOrganizationStatus = `-- name: GetOrganizationStatus :one
-SELECT status FROM organizations WHERE id = $1
-`
-
-func (q *Queries) GetOrganizationStatus(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRow(ctx, getOrganizationStatus, id)
-	var status string
-	err := row.Scan(&status)
-	return status, err
 }
 
 const insertAdminAction = `-- name: InsertAdminAction :exec
@@ -1359,7 +1472,7 @@ func (q *Queries) ListPlatformRoleUsers(ctx context.Context) ([]ListPlatformRole
 const setUserPlatformRole = `-- name: SetUserPlatformRole :one
 UPDATE users SET platform_role = $2, platform_role_granted_by = $3, platform_role_granted_at = CASE WHEN $2::text IS NULL THEN NULL ELSE now() END
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off
 `
 
 type SetUserPlatformRoleParams struct {
@@ -1394,6 +1507,15 @@ func (q *Queries) SetUserPlatformRole(ctx context.Context, arg SetUserPlatformRo
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
 	)
 	return i, err
 }

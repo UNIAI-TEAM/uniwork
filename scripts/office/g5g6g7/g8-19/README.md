@@ -133,7 +133,7 @@ bash scripts/office/g5g6g7/g8-19/server-row.sh G8-A03 --dry-run   # prints what 
 ```
 
 `G8-A03` service + handler comment tests (kind, tombstone, revisions, list token, and the purge and copy tests, which start with `Document`, not `DocumentComment`: `TestDocumentCommentCollabTombstoneHTTP`, `TestDocumentCommentRevisionsTombstoneRefused`, `TestDocumentPurgeDropsTheCommentOrbit`, `TestDocumentCopyCarriesNoComments`) and `./migrations`; `G8-A05` notification / service /
-mentions; `G8-A06` notification; `G8-A08` isolation matrix, the audit coverage tests (`TestEveryAuditedCommandWritesItsRow`, `TestReusedAuditActionCommandsWriteTheirOwnRows`: `-run AuditCoverage` matches nothing) and the node
+mentions; `G8-A06` notification; `G8-A08` isolation matrix, the audit coverage tests (`TestEveryAuditedCommandWritesItsRow`, `TestReusedAuditActionCommandsWriteTheirOwnRows`, `TestMemoryProposalCommandsWriteTheirRows`: `-run AuditCoverage` matches nothing) and the node
 events-catalogue / no-PII-log tests. A `go test` that matched no test, or a test named by `-run`
 that was SKIPped (no database on the VM), is a FAIL; nested `--- SKIP` lines are listed too.
 `server-row.test.mjs` also checks statically that every `-run` alternative of every row names a Test func

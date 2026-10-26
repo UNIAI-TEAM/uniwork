@@ -1,3 +1,5 @@
+import { formatMeetingClock, formatMeetingDay, meetingDayKey } from "./meeting-datetime";
+
 /**
  * Reading helpers for the meeting detail page: storage values ("Asia/Ho_Chi_Minh")
  * turned into what a colleague reads ("GMT+7 · Hồ Chí Minh").
@@ -39,4 +41,27 @@ export function meetingTimeZoneLabel(value: string, language: string, at: Date =
   const offset = shortOffset(zone, Number.isNaN(at.getTime()) ? new Date() : at);
   const city = cityOf(zone, language);
   return offset ? `${offset} · ${city}` : city;
+}
+
+/**
+ * A moment on the detail page in the hero's date style plus the clock, in the
+ * viewer's zone: "Thứ Tư, 21 tháng 10, 15:59" (the year when it is not this
+ * one). Empty for a bad timestamp.
+ */
+export function formatMeetingDayTime(iso: string | null | undefined, locale: string): string {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return "";
+  // Two formatters: vi-VN would put the clock first ("lúc 15:59 Thứ Tư, …").
+  return `${formatMeetingDay(meetingDayKey(iso as string), locale)}, ${formatMeetingClock(ms, locale)}`;
+}
+
+/**
+ * A moment told against the day the screen already shows: the clock alone on
+ * that day ("16:59"), the day and clock otherwise. `dayKey` defaults to today.
+ */
+export function formatMeetingMoment(iso: string | null | undefined, locale: string, dayKey?: string): string {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return "";
+  const shownDay = dayKey ?? meetingDayKey(new Date().toISOString());
+  return meetingDayKey(iso as string) === shownDay ? formatMeetingClock(ms, locale) : formatMeetingDayTime(iso, locale);
 }

@@ -282,6 +282,9 @@ func (f *Fake) ResolveMany(_ context.Context, in files.ResolveInput) ([]files.Re
 		resolved := files.Resolved{File: e.file}
 		if in.Mode == files.ReadPresign {
 			expires := f.now().Add(files.MaxResolveURLTTL)
+			if in.MaxTTL > 0 && in.MaxTTL < files.MaxResolveURLTTL {
+				expires = f.now().Add(in.MaxTTL)
+			}
 			// A URL never outlives the grant behind it: the preview URL of an
 			// unclaimed file stops with its claim window (T1-Q7).
 			if !e.referenced && e.claimExpiresAt.Before(expires) {
@@ -368,11 +371,15 @@ func (f *Fake) RegisterProviderOutput(_ context.Context, in files.ProviderOutput
 		return files.ProviderOutput{}, files.StorageUnavailable(errStorageDown)
 	}
 
+	filename := files.SanitizeFilename("") + spec.Policy.ObjectKeySuffix
+	if strings.TrimSpace(in.Filename) != "" {
+		filename = files.SanitizeFilename(in.Filename)
+	}
 	id := files.FileID(f.newID())
 	f.entries[id] = &entry{
 		file: files.File{
 			ID: id, OrganizationID: in.Scope.OrganizationID,
-			Filename: files.SanitizeFilename("") + spec.Policy.ObjectKeySuffix,
+			Filename: filename,
 			Status:   files.StatusPending,
 		},
 		spec:        spec,
@@ -442,8 +449,8 @@ func (f *Fake) CompleteProviderOutput(_ context.Context, in files.CompleteOutput
 	if int64(len(e.bytes)) > e.spec.Policy.MaxBytes {
 		return files.File{}, files.TooLarge(e.spec.Policy.MaxBytes)
 	}
-	// A provider output carries no filename (FS-C1 section 4), so only the
-	// bytes speak: the extension-hinted text types stay text/plain here.
+	// The bytes speak; the recorded filename is only the hint Upload takes, and
+	// a provider registered without one has none (FS-C1 section 4).
 	contentType := e.spec.Policy.Canonical(files.DetectContentType(e.bytes, e.file.Filename))
 	if !e.spec.Policy.Allows(contentType) {
 		return files.File{}, files.TypeRejected(contentType)

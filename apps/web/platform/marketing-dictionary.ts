@@ -8,7 +8,7 @@ const MEETING_PREVIEW_KEYS = [
   "devicesSettingsTitle", "deviceMic", "deviceCamera", "deviceSpeaker", "chat", "participants", "people", "addNote", "recordingsTab",
   "insightsTab", "notes", "transcriptTab", "actionsTab", "aiSummary", "summaryEmpty", "notesInputLabel", "notesPlaceholder",
   "chatPlaceholder", "recordingsEmpty", "uniworkAi", "betaLabel", "summarizing", "regenerateSummary", "generateSummary",
-  "askAboutMeeting", "comingSoon", "createTasksInUniwork", "recordConfirmTitle", "recordConfirm", "confirmStartRecording",
+  "askUniTitle", "createTasksInUniwork", "recordConfirmTitle", "recordConfirm", "confirmStartRecording",
   "leaveConfirmTitle", "leaveConfirm", "confirmLeave", "status_SCHEDULED", "status_IN_PROGRESS",
 ];
 
@@ -41,7 +41,7 @@ export const loadMarketingDictionary = cache(async (locale: SupportedLocale, pat
   const email = dictionary.email_hub as Record<string, unknown>;
   const preview = path === "/" || path.startsWith("/features/");
   const appPage = path === "/apps" || path.startsWith("/apps/");
-  const lean = ["/request-demo", "/about", "/security", "/privacy", "/changelog"].includes(path) || path.startsWith("/learn/") || appPage;
+  const lean = ["/request-demo", "/about", "/security", "/privacy", "/terms", "/changelog"].includes(path) || path.startsWith("/learn/") || appPage;
   // `apps` rides on every lean page: the header's Apps menu reads it.
   const publicLanding = lean ? {
     ...Object.fromEntries(["nav", "cta", "footer", "final", "productPages", "catalog", "solutions", "studio", "workforce", "businessOs", "meetings", "demo", "apps"].map(key => [key, landing[key]])),

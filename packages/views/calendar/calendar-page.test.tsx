@@ -96,8 +96,8 @@ vi.mock("./create-from-slot", () => ({
   },
 }));
 
-vi.mock("../meetings/new-meeting-dialog", () => ({
-  NewMeetingDialog: () => null,
+vi.mock("../meetings/meeting-sheet", () => ({
+  MeetingSheet: () => null,
 }));
 
 vi.mock("../meetings/meeting-detail-view", () => ({

@@ -1,0 +1,4 @@
+<!-- Declares nothing: the drain job runs on WorkManager's own services, whose manifest entries
+     scripts/android-manifest.mjs reads from its MAVEN_MANIFESTS table, where android-manifest.test.ts
+     can see them. -->
+<manifest />

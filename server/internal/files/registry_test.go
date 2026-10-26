@@ -137,6 +137,41 @@ func TestCapsFollowThePublishedPipelines(t *testing.T) {
 	}
 }
 
+// Ask UNI reads these types and no others: the same families the answer
+// pipeline can turn into text or a picture. The legacy Office formats stay out
+// because nothing extracts them.
+func TestAiAttachmentPurposeTakesAskFileTypesOnly(t *testing.T) {
+	spec, err := DefaultRegistry().Lookup(AiAttachment)
+	if err != nil {
+		t.Fatalf("lookup %q: %v", AiAttachment, err)
+	}
+	if spec.Policy.MaxBytes != 20<<20 {
+		t.Errorf("cap = %d, want 20 MiB", spec.Policy.MaxBytes)
+	}
+	if spec.Scope != ScopeOrgWorkspace || spec.Policy.ReadMode != ReadProxy {
+		t.Errorf("scope = %q, read mode = %q, want org_workspace and proxy", spec.Scope, spec.Policy.ReadMode)
+	}
+	for _, ok := range []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text", "text/plain", "text/csv", "text/markdown",
+	} {
+		if !spec.Policy.Allows(ok) {
+			t.Errorf("ai_attachment refuses %q", ok)
+		}
+	}
+	for _, no := range []string{
+		"application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+		"application/x-msdownload", "application/zip", "text/html", "image/svg+xml", "video/mp4",
+	} {
+		if spec.Policy.Allows(no) {
+			t.Errorf("ai_attachment allows %q", no)
+		}
+	}
+}
+
 func TestTaskAttachmentPoliciesAllowMP4(t *testing.T) {
 	registry := DefaultRegistry()
 	for _, purpose := range []UploadPurpose{TaskAttachment, TaskCommentAttachment} {

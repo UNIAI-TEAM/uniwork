@@ -1,160 +1,144 @@
 # apps/chat-mobile
 
-App Expo (iOS + Android) của UniChat (lát M1, UNI-1831): đăng nhập PKCE qua
-trình duyệt hệ thống, chọn workspace, một socket realtime, push Expo, deep
-link, bốn tab; tab Chat thật từ M2a (UNI-1832, mục Cấu trúc). Spec:
-`docs/superpowers/specs/2026-10-16-unichat-mobile-foundation-design.md`;
-plan: `docs/superpowers/plans/2026-10-17-unichat-mobile-foundation.md`;
-luật gốc: ADR 0011. Mirror từ `usf/apps/mobile` — mỗi file copy ghi một dòng
-"Ported from usf apps/mobile/<path>" ở đầu và sạch tên thương hiệu usf
-(`scripts/no-usf-leak.test.mjs`).
+App Expo (iOS + Android) của UniChat: đăng nhập PKCE qua trình duyệt hệ thống, chọn workspace, một socket realtime,
+push, deep link, bốn tab (Chat, Cuộc gọi, Danh bạ, Cài đặt) và cuộc gọi. Luật gốc: ADR 0011 (mobile chỉ import kiểu
+và hàm thuần từ `packages/core`) và ADR 0043 (cổng chất lượng). File này là **bản đồ**: tầng, ranh giới, đặt gì ở đâu
+và luật nào có test giữ. Thiết kế từng phần nằm ở `docs/engineering/unichat-mobile/` (mục lục:
+`docs/engineering/unichat-mobile/README.md`); sửa hành vi một phần thì sửa file của phần đó cùng PR.
+`scripts/mobile-docs.test.mjs` giữ file này ngắn (≤ 200 dòng) và mọi tài liệu nó trỏ tới tồn tại.
 
-## Ranh giới import (lint, không phải quy ước)
+## Tầng và chiều phụ thuộc
 
-`eslint.config.mjs` dùng `@typescript-eslint/no-restricted-imports`: cấm
-`@uniwork/views*`, `@uniwork/ui*`, `next/*`, `@react-navigation/*`, đường
-dẫn tương đối vào `packages/*`; cấm `@uniwork/core` và mọi subpath trừ
-allowlist trong `scripts/mobile-core-allowlist.test.mjs` (`api/schema`,
-`api/endpoints/chat-schemas`, `permissions/rules`, `paths/paths`,
-`paths/marketing`, `types/events`, các `chat/*-utils` thuần…) và
-`@uniwork/core/types/*` chỉ với `import type`. Hai danh sách phải giống
-nhau; test đó đi theo import bắc cầu của từng mục nên mục không thuần phải
-tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
-Logic khác của web: **copy, ghi nguồn**, test parity — không import.
+`app/` → `components/` → `data/` → `lib/` (mũi tên là "được import"); `@uniwork/core` chỉ qua allowlist. Mọi chiều
+ngược lại là lỗi lint, có fixture test (`lib/lint-boundary.test.ts`, `lib/lint-quality.test.ts`,
+`lib/lint-structure.test.ts`, `lib/lint-copy.test.ts`).
 
-## Cấu trúc
+| Tầng | Đặt gì | Không được |
+| --- | --- | --- |
+| `app/` | File route: đọc param, ghép màn. Một export default (cộng tên kê trong `lib/route-files.test.ts`). | Định nghĩa component/hook con; đọc/ghi cache trực tiếp; đặt test dưới `app/`. |
+| `components/` | Component, hook giao diện, sheet. Đổi trạng thái server chỉ qua hook `data/mutations/*`. | Import giá trị từ endpoint/lệnh (`COMMAND_MODULES` trong `eslint.config.mjs`); `Modal` của react-native ngoài `components/ui/call-aware-modal.tsx`; sheet trượt ngoài `BottomSheet`. |
+| `data/` | Transport, endpoint, query/mutation, store zustand (`data/stores/*`), cache, realtime, dịch vụ native, hook của tầng data. | Import `components/` hay `app/`, kể cả `import type`. |
+| `lib/` | Logic thuần, test vitest ở sàn 100 %. Thu hẹp giá trị lạ bằng guard (`lib/unknown-shape.ts`). | Import giá trị từ React, react-native, expo, Sentry, LiveKit, `data/`, `components/`; ép kiểu (`as`, trừ `as const`). |
 
-- `app.config.ts` — cấu hình duy nhất, không `app.json`, **không `.env`**
-  (pre-commit từ chối). Biến build: `UNICHAT_ENV` (`dev`|`staging`|`production`),
-  `UNICHAT_API_URL`, `UNICHAT_APP_URL` (bắt buộc với staging/production: thiếu
-  thì config ném lỗi trên máy build EAS (`EAS_BUILD=true`) thay vì ship bản trỏ
-  `localhost`; ngoài đó đọc là chuỗi rỗng, vì eas-cli đọc config một lần để lấy
-  project id trước khi nạp môi trường EAS chứa URL), `UNICHAT_EAS_PROJECT_ID`
-  (ghi đè hằng `EAS_PROJECT_ID`), `GOOGLE_SERVICES_JSON` (biến EAS kiểu file →
-  `android.googleServicesFile`; thiếu thì Android không lấy được push token);
-  kết quả nằm ở `extra` (`apiUrl`,
-  `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
-  khi có dự án EAS) và app gọi `configureRuntime()` lúc boot. Bundle id
-  `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
-  với id prod.
-- `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
-  `tailwind.config.js` mirror nhau; giá trị là `packages/ui/styles/tokens.css`
-  đổi sang HSL, đổi một nơi thì đổi cả ba. `radius-tokens.json` là thang
-  `--radius-*` của tokens.css. Ngoại lệ có chủ ý (R4b, UNI-1916): các slot
-  `chat-*` của chế độ tối và `call-surface` lấy giá trị của canvas, ghi trong
-  comment. Mặt người / phòng / workspace là `--tint-*-solid` theo
-  `lib/identity-tint.ts` (bảy tint, cùng hash với web) với chữ cái của
-  `lib/initials.ts`. Font: Inter (thân) và Plus Jakarta Sans (`font-display`:
-  tiêu đề, tên) nhúng bằng plugin `expo-font` trong `app.config.ts`.
-- `data/` (Task 2–3) — `auth/*` (port từ `apps/chat-desktop/src/main/auth/*`),
-  `realtime/ws-client.ts`, `api.ts`, `secure-storage.ts`, `session-epoch.ts`.
-  Realtime ba tầng: `ws-client` (socket, auth frame, scope/replay, 4001 →
-  refresh → reconnect), `realtime-provider` (mount theo auth + workspace,
-  AppState/NetInfo), `use-<feature>-realtime` (hook theo feature, patch rồi
-  invalidate hẹp). Luật socket: frame `subscribe`/`unsubscribe` chỉ đi sau
-  `auth_ack` (server đòi auth là frame đầu; replay lo phần còn lại); frame
-  `{error}` trước auth là kết thúc — `onSessionEnded(error)`, không backoff,
-  provider chỉ refresh với `invalid token`; `active` chỉ `resume()` sau
-  `background` hoặc khi socket chưa auth. Reader token cho provider là
-  `realtime/refresh-for-socket.ts` (thuần): thử token hiện tại trước, refresh
-  khi vẫn là token đã chết, thất bại tạm thời thì reject để giữ phiên.
-- `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
-  `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
-  systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
-  `router.push` cho chạm thông báo; URL Linking không push lần hai.
-- Tab Chat (M2a, UNI-1832; spec `2026-10-16-unichat-mobile-chat-design.md`,
-  plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
-  `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
-  test web (`rooms-display`, `typing-display`, `timeline-display`,
-  `send-pipeline`, `mentions`, `file-accept`, `media-body`, `search-fold`,
-  `people-display`, `message-display`, `room-list`); `data/*` — endpoint
-  (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
-  (`queries/chat-keys.ts`, không import `chatKeys` web), cache
-  (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
-  `realtime-cache`, viewer là tham số), hàng đợi gửi trong phiên
-  (`chat-send.ts` + `stores/chat-send-store.ts`, `client_msg_id`, flush khi
-  NetInfo online hoặc socket reconnect), `realtime/chat-realtime.ts` (bảng §8
-  spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
-  `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
-  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
-  + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
-  của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác).
-  Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
-  `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
-  "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
-- Gọi (M3, UNI-1834; spec `2026-10-16-unichat-mobile-calls-design.md`, plan
-  `2026-10-17-unichat-mobile-calls.md`). `lib/voice-call.ts` (thuần, copy
-  `voice-call-{overlay-types,kind-utils,invites,copy}` web) →
-  `data/calls/call-engine.ts` (máy trạng thái của `use-native-voice-call.ts`,
-  store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
-  `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
-  lời mời chờ khi mở workspace và mỗi lần reconnect). UI:
-  `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
-  gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
-  workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;
-  `registerGlobals()` ở `app/_layout.tsx`). Nhạc chuông: `lib/call-ringtone.ts`
-  render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
-  `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi
-  `callEngine.joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
-  Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
-  `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);
-  composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
-  `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
-  sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.
-- `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
-  bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
-  sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.
+Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 
-## Chạy
+## Dùng chung với web, không copy
+
+- Logic thuần dùng chung nằm ở core và được import; thêm module thì thêm vào `core-allowlist.json` (một nguồn cho lint
+  và `scripts/mobile-core-allowlist.test.mjs`, test đi theo import bắc cầu) và `exports` của core.
+- Endpoint là factory nhận transport (`@uniwork/core/api/endpoints/chat-*-api`); web bind `request` của `http.ts`, app
+  bind qua `toChatRequest` (`data/chat-api.ts`). Thao tác cache dùng chung cũng vậy (`chat/chat-cache-records`,
+  `chat/room-timeline-cache`: nhận key và transport của mỗi bên).
+- Phần mirror từ repo `usf` (`apps/mobile`) ghi "Ported from usf apps/mobile/<path>" ở đầu file và sạch tên thương
+  hiệu usf (`scripts/no-usf-leak.test.mjs`).
+- Thứ còn phải copy ghi nguồn ở comment đầu file; `web-copies.json` ghi hash nguồn và ratchet `copiedCodeChars` chỉ đi
+  xuống, cùng `target` (cỡ đích, hạn `by`, lý do): quá hạn mà ratchet còn trên đích thì test đỏ
+  (`scripts/mobile-web-copies.test.mjs`, chạy cả ở `ci.yml`). Rà bản copy rồi `node scripts/mobile-web-copies.mjs
+  --write`. Bản copy mới phải có lý do vì sao không thành module core được.
+
+## Luật có test giữ
+
+- Mọi input không tin được đi qua zod và degrade thay vì throw: REST qua `parseWithFallback` (mỗi endpoint một case
+  malformed trong `data/chat-api.test.ts`; ngoại lệ có chủ đích là `listWorkspaces`, đi qua `fetchStrict` và hiện lỗi
+  kèm Thử lại, vì `[]` nghĩa là "bạn chưa ở workspace nào"), frame qua `data/realtime/frames.ts` (đối chiếu `docs/events/CATALOGUE.md`),
+  cache đĩa qua schema mạng (`data/persisted-schema.lock.json`). Schema đổi thì quyết định bump version.
+- `data/server-contract.test.ts`: mỗi trường schema app đọc là một trường JSON của SDO Go trả nó; mỗi flag trong
+  `MOBILE_FLAG_DEFAULTS` là flag `Mobile: true` của `server/internal/featureflags/keys.go`.
+- `scripts/mobile-route-catalogue.test.mjs`: mọi path `/api/v1` app gọi (kể cả core nó chạy) là route router đăng ký.
+- Không nuốt lỗi: `.catch(bestEffort(...))` (`data/report.ts`) hoặc `settled()` (`lib/settled.ts`); log qua
+  `data/logger.ts` (`no-console` ở nơi khác); lỗi một thao tác là `toast.error(...)`.
+- Không `any`, không `x!` trong `app/`/`components/`; dòng mã nguồn ≤ 150 ký tự (`max-len`); file ≤ 500 dòng.
+- Mọi chữ người dùng đọc hay nghe đi qua `t()` (`i18next/no-literal-string`); chuỗi viết ở nguồn i18n rồi chạy
+  `scripts/sync-i18n.mjs` (vi và en đủ, `lib/i18n.test.ts`; commit chạm locale của core mà bản copy của app cũ thì
+  `.githooks/pre-commit` chặn ở mọi `GATE_LEVEL`); toast, alert, lời đọc cho trình đọc màn hình và chữ của thông báo
+  trong file `.ts` cũng vậy (`copySyntax` của `eslint.config.mjs`); ngày giờ và số (`{{count}}`, cỡ tệp) chỉ qua
+  `lib/locale-format.ts` (`formatSyntax`: không `toFixed`/`toLocale*`/`new Intl` ở nơi khác).
+- Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor`; tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
+  cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
+  (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
+- Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
+  `store-listing.test.ts`); thêm quyền thì sửa bảng ở đó, checklist ở `docs/runbooks/unichat-mobile-release.md`. Mọi
+  quyền binary Android xin, kể cả quyền thư viện Maven gộp vào, có trong `android-permissions.json` kèm ai thêm, vì sao
+  giữ, Play hỏi gì (`scripts/mobile-apk-scan.mjs` đọc APK/AAB thật); không cần thì chặn bằng `blockedPermissions`.
+- Mọi tin FCM vào `UniChatMessagingService` trước (`modules/unichat-calls`, ưu tiên trên dịch vụ của expo-notifications,
+  `android-manifest.test.ts › messagingServices`): push đổ chuông reo không cần JavaScript, phần còn lại đi tiếp với `tag` của server nhấc lên chỗ
+  expo-notifications đọc (`PushTag.kt`: mỗi push của phòng thay thông báo của phòng);
+  chữ và công tắc của chuông native ghi qua `data/calls/native-ring.ts` (chi tiết: `calls.md`).
+- iPhone (ADR 0038, `calls-ios.md`): mọi VoIP push vào `modules/unichat-calls/ios/CallCenter.swift` được báo cho CallKit trước completion
+  của PushKit, kể cả `end` và payload lạ (`native-modules.test.ts › every VoIP push is reported to CallKit`); module iOS
+  tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
+  (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
+  (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
+- Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
+  PR, có `ReviewAt`.
+- Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo
+  nhóm) theo sàn từng file ở `coverage-floor.json`, chỉ đi lên (`node scripts/mobile-coverage-floor.mjs --write` sau
+  một lần chạy đủ `test:components`).
+
+## Bản đồ tài liệu
+
+| Phần | Tài liệu |
+| --- | --- |
+| Ranh giới, allowlist, lớp mutation, luật lint | `docs/engineering/unichat-mobile/boundaries.md` |
+| `app.config.ts`, biến build, ký OTA, ghim TLS | `docs/engineering/unichat-mobile/config-security.md` |
+| `lib/`, theme, token, tương phản | `docs/engineering/unichat-mobile/lib-and-theme.md` |
+| Socket, frame, ân hạn nền, khôi phục phiên | `docs/engineering/unichat-mobile/realtime.md` |
+| Mở lạnh, kho trên máy, outbox, gửi tiếp ở nền, lượt chờ, nháp, cache đĩa | `docs/engineering/unichat-mobile/offline-first.md` |
+| Báo lỗi, Sentry, log, cấu hình từ xa, thống kê | `docs/engineering/unichat-mobile/observability.md` |
+| Xoá tài khoản, pháp lý, đồng ý AI, báo cáo, hồ sơ store | `docs/engineering/unichat-mobile/store-compliance.md` |
+| Ẩn thông báo, khoá app, chặn chụp màn hình | `docs/engineering/unichat-mobile/device-privacy.md` |
+| Deep link, phản hồi thông báo | `docs/engineering/unichat-mobile/navigation.md` |
+| Tab Chat: key, cache, màn hình, file route | `docs/engineering/unichat-mobile/chat.md` |
+| Cuộc gọi, cuộc gọi native Android, kênh và push | `docs/engineering/unichat-mobile/calls.md` |
+| Cuộc gọi trên iPhone: PushKit, CallKit, token VoIP, `NativeCallSession` | `docs/engineering/unichat-mobile/calls-ios.md` |
+| Hiệu năng danh sách, timeline, ảnh, bundle | `docs/engineering/unichat-mobile/performance.md` |
+| Trợ năng, cảm giác, quy ước nền tảng, ngôn ngữ | `docs/engineering/unichat-mobile/ux-a11y-i18n.md` |
+| Lệnh, hai lớp test, CI | `docs/engineering/unichat-mobile/testing-ci.md` |
+| Profile EAS, phát hành, OTA, Maestro | `docs/engineering/unichat-mobile/release.md` |
+| Baseline bảo mật OWASP MASVS L1 | `docs/engineering/unichat-mobile-masvs.md` |
+| Runbook phát hành và vận hành | `docs/runbooks/unichat-mobile-release.md` |
+
+## Đặt code mới ở đâu
+
+- Module mới của `data/` vào thư mục theo tính năng (`data/<feature>/`: api, cache, store, hook của tính năng đó), không ở
+  gốc `data/`: gốc là một ratchet chỉ co lại (`scripts/mobile-data-layout.test.mjs`); chuyển một module gốc vào thư mục
+  thì hạ trần cùng PR.
+- Query mới: `*Options` ở `data/queries/`, key từ factory của `data/queries/chat-keys.ts` (dưới `["chat", wsId]`).
+- Lệnh mới: hàm ở `data/chat-actions.ts` (hay `pending-ops.ts` nếu chạy offline) và hook `useCommand` ở
+  `data/mutations/*`; màn hình gọi hook, báo lỗi từ `mutateAsync`.
+- Trạng thái client: store ở `data/stores/*` (persist qua kho trên máy, đọc lại qua schema của
+  `lib/persisted-records.ts`); trạng thái của một màn: reducer thuần ở `lib/` (ví dụ `lib/conversation-sheets.ts`).
+- Logic có nhánh của một màn: hàm thuần ở `lib/` (vitest) hay hook ở `components/`/`data/` có test jest, không trong
+  file route.
+- Dịch vụ khởi lúc boot: `data/app-startup.ts`; nối nền tảng ở composition root (`app/_layout.tsx`,
+  `app/(app)/_layout.tsx`).
+- Gói native: `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`; đổi native thì bump `version` (runtime
+  theo fingerprint). iOS không link `@expo/ui`, `@expo/dom-webview`, `expo-symbols` (`expo.autolinking.ios.exclude`
+  trong `package.json`): app không gọi chúng trên iOS mà chúng tốn chừng 1,6 s đăng ký native trước khi bundle chạy
+  (đo trên simulator CI); dùng `@expo/ui`, một SF Symbol (`expo-symbols`) hay component DOM trên iOS thì gỡ tên đó
+  khỏi danh sách trước (`native-modules.test.ts`). Bundle iOS một PR export ra mà còn chứa tên trong danh sách thì
+  bước Bundle composition của `mobile-verify` đỏ (`scripts/mobile-bundle-composition.mjs`): module đó ném lỗi khi nạp.
+
+## Lệnh
 
 ```bash
-pnpm --filter @uniwork/chat-mobile dev        # Metro; UNICHAT_ENV=dev mặc định
-pnpm --filter @uniwork/chat-mobile ios        # scripts/native-run.sh ios (prebuild rồi run)
-pnpm --filter @uniwork/chat-mobile android
-pnpm --filter @uniwork/chat-mobile test | typecheck | lint
+pnpm --filter @uniwork/chat-mobile dev | ios | android
+pnpm --filter @uniwork/chat-mobile typecheck | lint
+pnpm --filter @uniwork/chat-mobile test:unit         # vitest: lib/, data/, app.config, android-manifest
+pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/, hook của data/, test/routes/
 ```
 
-Máy thật không thấy `localhost` của máy dev: đặt `UNICHAT_API_URL=http://<LAN IP>:8080`
-và `UNICHAT_APP_URL=http://<LAN IP>:3000` khi chạy, và chạy server + web với
-`FRONTEND_ORIGIN` / `NEXT_PUBLIC_{API,WS,APP}_URL` trỏ cùng IP (một bản sao
-`.env`, `make start ENV_FILE=…`); `apps/web/next.config.mjs` tự cho host của
-`NEXT_PUBLIC_APP_URL` vào `allowedDevOrigins`, thiếu thì trang đăng nhập trắng.
-Server dev phải bật `DESKTOP_AUTH_CLIENTS` (`.env.example`) với client
-`uniwork-chat-mobile`. Ký bằng Apple ID cá nhân (Personal Team) thì team không
-có push và associated domains: build tay với file entitlements rỗng.
+Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`; app kiểm ở
+`.github/workflows/mobile-verify.yml`, kết thúc ở job `gate` (chi tiết: `docs/engineering/unichat-mobile/testing-ci.md`).
 
-Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
-app kiểm ở `.github/workflows/mobile-verify.yml`. Không có script `build`.
-Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
-nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm
-`.npmrc` hoist.
+## Ngoại lệ của knip
 
-## Phát hành (M4, UNI-1836)
+`knip.json` bỏ qua, mỗi tên một lý do (`scripts/mobile-knip.test.mjs` đỏ khi một tên không có ở đây):
 
-Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
-`docs/superpowers/plans/2026-10-17-unichat-mobile-release.md`.
-
-- `eas.json`: `development` (dev client), `preview` (cài trực tiếp, pilot trước
-  store), `internal` (TestFlight + Play internal, staging), `production`. Mỗi
-  profile ghim `UNICHAT_ENV`, kênh OTA cùng tên và môi trường EAS chứa URL
-  server. Build number do EAS giữ (`appVersionSource: remote`), không commit.
-- `version` trong `app.config.ts` là `runtimeVersion` (`policy: appVersion`):
-  đổi native (gói native, plugin, quyền, SDK) thì bump nó; chỉ đổi JS thì phát
-  OTA. Chưa có `EAS_PROJECT_ID` thì `updates.enabled: false` và push bỏ qua.
-  `knip.json` bỏ qua `@babel/plugin-transform-react-jsx` (preset
-  `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
-  bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
-  `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
-- Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`
-  (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
-  `EXPO_TOKEN`; thiếu thì notice và xanh).
-- `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
-  có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
-  `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
-  `.github/workflows/chat-mobile-verify.yml` với server staging (biến
-  `MAESTRO_*`; thiếu thì notice và xanh). Trong app flow chọn theo `testID`
-  (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
-  `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
-  PR; trang web trong sheet đăng nhập thì theo chữ vi|en.
-- `store/listing.md`: mô tả vi/en, privacy labels, lý do từng quyền, tài khoản
-  demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó.
+- `@babel/plugin-transform-react-jsx`: preset `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu
+  thì bước `createReleaseUpdatesResources` của build release đỏ.
+- `@expo-google-fonts/*`: `app.config.ts` chỉ trỏ tới file `.ttf` của chúng (plugin `expo-font`).
+- `@sentry/cli`: bước Xcode "Upload Debug Symbols to Sentry" và Gradle của Sentry tìm nó từ thư mục app; chỉ là
+  phụ thuộc của `@sentry/react-native` thì pnpm không cho với tới và build iOS đỏ trước cả `SENTRY_ALLOW_FAILURE`.
+- `react-native-css-interop`: phụ thuộc của `nativewind` mà `metro.config.js` trỏ tới (một bản duy nhất trong
+  bundle); app không khai nó.

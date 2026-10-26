@@ -86,7 +86,7 @@ export function ChatFrameListToggle({ t, onShowList }: { t: (key: string) => str
         data-chat-sidebar-expand=""
         onClick={onShowList}
       >
-        <PanelLeft aria-hidden className="size-4.5" />
+        <PanelLeft aria-hidden className="size-4" />
         {t("chat.show_conversations")}
       </Button>
     </div>

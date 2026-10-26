@@ -18,7 +18,7 @@ import {
   watchScreenShareSharpness,
 } from "../meetings/share-adaptive-stream";
 import { deviceFailureFromError } from "./voice-call-media";
-import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "@uniwork/core/chat/voice-call-types";
 import type { VoiceCallConnectionState } from "./voice-call-room-context";
 import {
   participantScreenShareKey,

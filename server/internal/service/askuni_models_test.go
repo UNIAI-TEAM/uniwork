@@ -102,6 +102,23 @@ func TestAskAgentSendsTheChosenModelAndEffort(t *testing.T) {
 	}
 }
 
+// Each answer keeps the model that wrote it: the key of a chosen model, ""
+// for Auto, and "" when a choice fell back to Auto (opus is off here).
+func TestAskAgentStoresTheModelThatAnswered(t *testing.T) {
+	s, fake, ua, _, w := modelsFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	for _, c := range []struct{ choice, want string }{{"haiku", "haiku"}, {"", ""}, {"opus", ""}} {
+		scriptAgent(fake, "banner", "Xong")
+		res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner tới đâu rồi?", Locale: "vi", Model: c.choice})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Message.Model != c.want {
+			t.Errorf("choice %q stored model %q, want %q", c.choice, res.Message.Model, c.want)
+		}
+	}
+}
+
 func TestSetAskModelsNeedsOrgAdmin(t *testing.T) {
 	s, _, ua, ub, w := modelsFixture(t)
 	ctx := context.Background()
@@ -147,9 +164,9 @@ func TestCapabilitiesListsSelectableModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []AskModelOption{
-		{Key: "haiku", Speed: 5, Intelligence: 3, Cost: 1, Enabled: true},
-		{Key: "sonnet", Speed: 4, Intelligence: 4, Cost: 3, Enabled: true},
-		{Key: "opus", Speed: 2, Intelligence: 5, Cost: 4, Enabled: false},
+		{Key: "haiku", Provider: "fake", Speed: 5, Intelligence: 3, Cost: 1, Enabled: true},
+		{Key: "sonnet", Provider: "fake", Speed: 4, Intelligence: 4, Cost: 3, Enabled: true},
+		{Key: "opus", Provider: "fake", Speed: 2, Intelligence: 5, Cost: 4, Enabled: false},
 	}
 	if !reflect.DeepEqual(c.Models, want) || c.AutoModel != "sonnet" {
 		t.Fatalf("models %+v auto %q, want %+v auto sonnet", c.Models, c.AutoModel, want)

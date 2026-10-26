@@ -3,9 +3,72 @@ import { ApiError } from "../api/http";
 import {
   CHAT_SEND_MAX_ATTEMPTS,
   isChatSendNetworkError,
+  isChatSendRateLimited,
+  isPermanentChatSendRefusal,
   isRetriableChatSendError,
   runWithChatSendRetry,
 } from "./send-retry";
+
+/**
+ * The phone's ApiError (apps/chat-mobile/data/api.ts): an Error with a numeric
+ * status and no `code`. The policy is shared, so it must read this one too
+ * without importing either transport (ADR 0011).
+ */
+const phoneError = (status: number, retryAfterSeconds?: number) =>
+  Object.assign(new Error(`status ${status}`), { status, retryAfterSeconds });
+
+describe("either host's error", () => {
+  it("reads the status of an error that is not the web's ApiError", () => {
+    expect(isRetriableChatSendError(phoneError(503))).toBe(true);
+    expect(isRetriableChatSendError(phoneError(408))).toBe(true);
+    expect(isPermanentChatSendRefusal(phoneError(403))).toBe(true);
+    expect(isChatSendRateLimited(phoneError(429))).toBe(true);
+  });
+
+  it("retries the phone's own timeout and unreachable server (status 0)", () => {
+    expect(isRetriableChatSendError(phoneError(0))).toBe(true);
+    expect(isPermanentChatSendRefusal(phoneError(0))).toBe(false);
+  });
+
+  it("ignores a status that is not a number, or one on something that is not an Error", () => {
+    expect(isRetriableChatSendError(Object.assign(new Error("x"), { status: "500" }))).toBe(false);
+    expect(isRetriableChatSendError({ status: 500 })).toBe(false);
+    expect(isRetriableChatSendError(new Error("boom"))).toBe(false);
+    expect(isRetriableChatSendError(null)).toBe(false);
+    expect(isChatSendRateLimited(new TypeError("offline"))).toBe(false);
+  });
+
+  it("is a permanent refusal only for a 4xx other than 401, 408 and 429", () => {
+    expect(isPermanentChatSendRefusal(new ApiError("gone", "not_found", 404))).toBe(true);
+    expect(isPermanentChatSendRefusal(phoneError(422))).toBe(true);
+    expect(isPermanentChatSendRefusal(phoneError(401))).toBe(false);
+    expect(isPermanentChatSendRefusal(phoneError(429))).toBe(false);
+    expect(isPermanentChatSendRefusal(phoneError(500))).toBe(false);
+    expect(isPermanentChatSendRefusal(new TypeError("offline"))).toBe(false);
+  });
+
+  it("waits out the phone's Retry-After too", async () => {
+    vi.useFakeTimers();
+    const fn = vi.fn().mockRejectedValueOnce(phoneError(429, 2)).mockResolvedValueOnce("ok");
+    const promise = runWithChatSendRetry(fn, { maxAttempts: 2, delaysMs: [100] });
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+
+  it("falls back to 400 ms when given no delays", async () => {
+    vi.useFakeTimers();
+    const fn = vi.fn().mockRejectedValueOnce(phoneError(503)).mockResolvedValueOnce("ok");
+    const promise = runWithChatSendRetry(fn, { maxAttempts: 2, delaysMs: [] });
+    await vi.advanceTimersByTimeAsync(399);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+});
 
 describe("isRetriableChatSendError", () => {
   it("treats network TypeError as retriable", () => {

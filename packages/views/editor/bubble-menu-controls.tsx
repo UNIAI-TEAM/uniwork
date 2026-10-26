@@ -317,7 +317,7 @@ export function HeadingDropdown({ editor, onOpenChange, activeLevel }: { editor:
 // List Dropdown
 // ---------------------------------------------------------------------------
 
-export function ListDropdown({ editor, onOpenChange, isBullet, isOrdered, isTask }: { editor: Editor; onOpenChange: (open: boolean) => void; isBullet: boolean; isOrdered: boolean; isTask: boolean }) {
+export function ListDropdown({ editor, onOpenChange, isBullet, isOrdered, isTask, withTaskList = true }: { editor: Editor; onOpenChange: (open: boolean) => void; isBullet: boolean; isOrdered: boolean; isTask: boolean; withTaskList?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
@@ -375,18 +375,20 @@ export function ListDropdown({ editor, onOpenChange, isBullet, isOrdered, isTask
           <ListOrdered className="size-3.5" /> {t("editor.bubble_menu.list_dropdown.ordered_list")}
           {isOrdered && <Check className="ml-auto size-3.5" />}
         </button>
-        <button
-          type="button"
-          className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-caption outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            editor.chain().focus().toggleTaskList().run();
-            handleOpenChange(false);
-          }}
-        >
-          <ListTodo className="size-3.5" /> {t("editor.bubble_menu.list_dropdown.task_list")}
-          {isTask && <Check className="ml-auto size-3.5" />}
-        </button>
+        {withTaskList ? (
+          <button
+            type="button"
+            className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-caption outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().toggleTaskList().run();
+              handleOpenChange(false);
+            }}
+          >
+            <ListTodo className="size-3.5" /> {t("editor.bubble_menu.list_dropdown.task_list")}
+            {isTask && <Check className="ml-auto size-3.5" />}
+          </button>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

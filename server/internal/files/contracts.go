@@ -142,11 +142,21 @@ type ResolveInput struct {
 	Mode        ReadMode
 	Disposition Disposition
 	FileIDs     []FileID
+	// MaxTTL caps a presigned URL below MaxResolveURLTTL when set: a URL
+	// handed to a third party lives no longer than its job needs.
+	MaxTTL time.Duration
 	// Variant signs a derivative of each id instead of the original, under
 	// the same rules as OpenInput.Variant: authorized as its source, and a
 	// file without that derivative signs the original. Resolved.File stays
 	// the requested file; only the URL names the derivative.
 	Variant Variant
+	// SigningWindow, when set, signs each presigned URL as of the start of
+	// the current window of that length (now truncated to it): every read of
+	// a file in one window gets the very same URL, so a client's image cache
+	// and a response that did not change stay the same, at the cost of a URL
+	// that lives up to one window less than MaxResolveURLTTL. Zero signs as of
+	// now. Proxy mode ignores it.
+	SigningWindow time.Duration
 }
 
 // Resolved is one entry of a batch resolve. Err is per id: a file that is out
@@ -207,6 +217,11 @@ type ProviderOutputInput struct {
 	Scope       Scope
 	OperationID string
 	Deadline    time.Time
+	// Filename is optional: the name the person's file carries when the
+	// provider is a browser writing it (a folder upload). Its extension is
+	// the same hint Upload takes - it names a compound file DOC/XLS/PPT and a
+	// text file CSV/Markdown, never a type the bytes do not prove.
+	Filename string
 }
 
 // ProviderOutput is what the provider needs: the id to report back and the

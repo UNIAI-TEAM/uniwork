@@ -104,6 +104,62 @@ func TestAdminRoutesGuardedByPlatformRole(t *testing.T) {
 	}
 }
 
+func TestAdminOrganizationDeletionRoute(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	w := buildAuditWorld(t, srv)
+	enrolMFA(t, srv, w.token)
+	grant := func(role string) {
+		t.Helper()
+		if _, err := d.Admin.SetPlatformRole(context.Background(), service.CLIActor, "audit@example.com", role, "test fixture grant"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	path := "/api/v1/admin/organizations/" + w.orgID + "/deletion"
+	res, _ := doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "unicom"})
+	if res.StatusCode != 404 {
+		t.Fatalf("no role: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", path+"/cancel", w.token, map[string]string{"reason": "khách rút lại yêu cầu xóa"})
+	if res.StatusCode != 404 {
+		t.Fatalf("no role cancel: %d", res.StatusCode)
+	}
+	grant("support")
+	res, out := doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "unicom"})
+	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "platform_role_insufficient" {
+		t.Fatalf("support: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", path+"/cancel", w.token, map[string]string{"reason": "khách rút lại yêu cầu xóa"})
+	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "platform_role_insufficient" {
+		t.Fatalf("support cancel: %d %v", res.StatusCode, out)
+	}
+	grant("admin")
+	res, out = doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "unicom"})
+	if res.StatusCode != 202 || out["deletion_scheduled_at"] == nil {
+		t.Fatalf("schedule: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/admin/organizations/"+w.orgID, w.token, nil)
+	if res.StatusCode != 200 || out["deletion_scheduled_at"] == nil || out["erased"] != false {
+		t.Fatalf("detail: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", path+"/cancel", w.token, map[string]string{"reason": "khách rút lại yêu cầu xóa"})
+	if res.StatusCode != 200 || out["deletion_scheduled_at"] != nil {
+		t.Fatalf("cancel: %d %v", res.StatusCode, out)
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE organizations SET status = 'archived', suspended_reason = 'organization_deleted' WHERE id = $1`, w.orgID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/admin/organizations/"+w.orgID, w.token, nil)
+	if res.StatusCode != 200 || out["erased"] != true {
+		t.Fatalf("erased: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", path, w.token, map[string]string{"reason": "khách yêu cầu xóa tổ chức", "confirm_slug": "d-ignored"})
+	if res.StatusCode != 409 || out["error"].(map[string]any)["code"] != "organization_already_deleted" {
+		t.Fatalf("deleted: %d %v", res.StatusCode, out)
+	}
+}
+
 // Overrides written from the console reach GET /config for the targeted
 // organization only, and user-scoped overrides need an expiry.
 func TestFlagOverridesReachPublicConfig(t *testing.T) {

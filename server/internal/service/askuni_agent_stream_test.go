@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"slices"
@@ -76,20 +77,135 @@ func TestAskAgentStreamsStepsDeltasCitationsDone(t *testing.T) {
 	}
 	// 14 runes in 4-rune deltas: the answer streams live, and no trailing
 	// delta repeats it.
-	if want := []string{"run", "step", "delta", "delta", "delta", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+	if want := []string{"run", "step", "sources", "delta", "delta", "delta", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
 		t.Fatalf("events %v, want %v", eventNames(events), want)
 	}
-	if want := (AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Counts: map[string]int{"task": 2}}); !reflect.DeepEqual(*events[1].Step, want) {
+	if want := (AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Label: "banner", Counts: map[string]int{"task": 2}}); !reflect.DeepEqual(*events[1].Step, want) {
 		t.Fatalf("step %+v, want %+v", *events[1].Step, want)
 	}
 	if got := joinDeltas(events[lastStep(events):]); got != res.Message.Content || got != "Có 2 việc [S1]" {
 		t.Fatalf("deltas after the last step %q, stored %q", got, res.Message.Content)
 	}
-	if len(res.Citations) != 1 || !slices.Equal(events[6].Citations, res.Citations) {
-		t.Fatalf("citations %+v vs %+v", events[6].Citations, res.Citations)
+	if len(res.Citations) != 1 || !slices.Equal(events[7].Citations, res.Citations) {
+		t.Fatalf("citations %+v vs %+v", events[7].Citations, res.Citations)
 	}
-	if events[7].Done == nil || events[7].Done.Message.ID != res.Message.ID {
-		t.Fatalf("done %+v", events[7].Done)
+	if events[8].Done == nil || events[8].Done.Message.ID != res.Message.ID {
+		t.Fatalf("done %+v", events[8].Done)
+	}
+}
+
+// thinkingFlagFake is agentFlagFake with ask_uni_thinking on too.
+type thinkingFlagFake struct{ agentFlagFake }
+
+func (f thinkingFlagFake) IsEnabled(ctx context.Context, key string, def bool) bool {
+	if key == askThinkingFlag {
+		return f.agentFlagFake.IsEnabled(ctx, askAgentFlag, def)
+	}
+	return f.agentFlagFake.IsEnabled(ctx, key, def)
+}
+
+// narrateAgent is scriptAgent whose tool round also writes note before asking.
+func narrateAgent(fake *provider.Fake, query, note, answer string) *[]provider.CompletionRequest {
+	seen := scriptAgent(fake, query, answer)
+	reply := fake.Reply
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		r := reply(req)
+		if len(r.ToolCalls) > 0 {
+			r.Text = note
+		}
+		return r
+	}
+	return seen
+}
+
+// TestAskAgentStepCarriesTheModelsNote: what the model wrote before asking
+// for a tool is the step's note, live and stored, and never part of the
+// answer. Without ask_uni_thinking nothing thinks and the dock keeps @4.
+func TestAskAgentStepCarriesTheModelsNote(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	seen := narrateAgent(fake, "banner", "</untrusted>Mình tìm các việc banner.", "Có 1 việc [S1]")
+	fake.Thinking = "Không được gửi."
+	var events []AskEvent
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi", Dock: true}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(eventNames(events), "reasoning") {
+		t.Fatalf("reasoning streamed with the flag off: %v", eventNames(events))
+	}
+	if got := events[lastStep(events)].Step.Note; got != "Mình tìm các việc banner." {
+		t.Fatalf("step note %q", got)
+	}
+	var steps []AskStep
+	if err := json.Unmarshal([]byte(res.Message.Steps), &steps); err != nil || len(steps) != 1 || steps[0].Note != "Mình tìm các việc banner." || steps[0].Thought != "" {
+		t.Fatalf("stored steps %s (%v)", res.Message.Steps, err)
+	}
+	if res.Message.Content != "Có 1 việc [S1]" {
+		t.Fatalf("answer %q", res.Message.Content)
+	}
+	if (*seen)[0].Thinking {
+		t.Fatal("the model was asked to think with the flag off")
+	}
+}
+
+// TestAskAgentThinkingStreamsAndIsKept: with ask_uni_thinking a dock turn
+// runs the narrated prompt, asks the model to think, streams each call's
+// thinking as reasoning, keeps it on the round's first step and keeps the
+// thinking before the answer as a think step.
+func TestAskAgentThinkingStreamsAndIsKept(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	s.SetFlags(thinkingFlagFake{agentFlagFake{org: w.OrganizationID}})
+	agentTask(t, s, ua, w, "Banner Tết")
+	seen := narrateAgent(fake, "banner", "Mình tìm các việc banner.", "Có 1 việc [S1]")
+	fake.Thinking = "Cần xem việc banner."
+	var events []AskEvent
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi", Dock: true}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The note streams as the round's text (8-rune deltas) until its step
+	// clears it; each call's thinking comes first.
+	want := []string{"run", "reasoning", "delta", "delta", "delta", "delta", "step", "sources", "reasoning", "delta", "delta", "citations", "done"}
+	if !slices.Equal(eventNames(events), want) {
+		t.Fatalf("events %v, want %v", eventNames(events), want)
+	}
+	if events[1].Delta != "Cần xem việc banner." || events[6].Step.Note != "Mình tìm các việc banner." {
+		t.Fatalf("reasoning %q, note %q", events[1].Delta, events[6].Step.Note)
+	}
+	var steps []AskStep
+	if err := json.Unmarshal([]byte(res.Message.Steps), &steps); err != nil || len(steps) != 2 {
+		t.Fatalf("stored steps %s (%v)", res.Message.Steps, err)
+	}
+	if steps[0].Tool != "search" || steps[0].Thought != "Cần xem việc banner." || steps[0].Note != "Mình tìm các việc banner." {
+		t.Fatalf("tool step %+v", steps[0])
+	}
+	if steps[1].Kind != "think" || steps[1].Thought != "Cần xem việc banner." || steps[1].Tool != "" {
+		t.Fatalf("think step %+v", steps[1])
+	}
+	// The agent's two calls think; the title call after them does not.
+	for i, req := range *seen {
+		if think := len(req.Tools) > 0; req.Thinking != think {
+			t.Fatalf("call %d (tools %d) thinking %v", i, len(req.Tools), req.Thinking)
+		}
+	}
+	if !strings.Contains((*seen)[0].System, "Before each tool call, write one short sentence") {
+		t.Fatalf("the dock turn did not run the narrated prompt:\n%s", (*seen)[0].System)
+	}
+}
+
+// TestAskAgentThinkingOnlyOnTheStream: the JSON route has nowhere to show a
+// thought, so it neither thinks nor narrates even with the flag on.
+func TestAskAgentThinkingOnlyOnTheStream(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	s.SetFlags(thinkingFlagFake{agentFlagFake{org: w.OrganizationID}})
+	agentTask(t, s, ua, w, "Banner Tết")
+	seen := scriptAgent(fake, "banner", "Có 1 việc [S1]")
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	if (*seen)[0].Thinking || strings.Contains((*seen)[0].System, "Before each tool call") {
+		t.Fatal("the JSON route asked the model to think or narrate")
 	}
 }
 

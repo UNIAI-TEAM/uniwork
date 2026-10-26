@@ -18,7 +18,7 @@ import {
   COMPOSER_QUOTE_MARK_CLASS,
 } from "./chat-reply-quote";
 import type { ChatVoiceRecorderError, ChatVoiceRecording, ChatVoiceRecorderState } from "./use-chat-voice-recorder";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 const VOICE_MAX_SECONDS = 120;
 /** Bars in the live wave while recording, and in the clip's shape before sending (canvas). */
@@ -150,7 +150,7 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
           className="flex size-12 shrink-0 items-center justify-center rounded-control bg-brand-subtle text-brand-subtle-foreground"
           aria-hidden
         >
-          <FileText className="size-5.5" />
+          <FileText className="size-5" />
         </span>
       )}
       <span className="min-w-0 flex-1">
@@ -399,7 +399,7 @@ export function ComposerVoiceBar({
         )}
       >
         {error ? (
-          <MicOff className="size-4.5 shrink-0" aria-hidden />
+          <MicOff className="size-4 shrink-0" aria-hidden />
         ) : busy ? (
           <Spinner className="size-4.5 shrink-0 text-brand" />
         ) : recordingNow ? (
@@ -475,7 +475,7 @@ export function ComposerVoiceBar({
           disabled={!sendEnabled}
           onClick={onSend}
         >
-          <Send aria-hidden className="size-4.5" />
+          <Send aria-hidden className="size-4" />
           {state === "ready" && error === "upload" ? t("chat.composer_state.retry") : t("chat.send")}
         </Button>
       )}
@@ -492,7 +492,7 @@ export function ComposerDropOverlay() {
       aria-live="polite"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground" aria-hidden>
-        <Upload className="size-4.5" />
+        <Upload className="size-4" />
       </span>
       <span className="flex flex-col">
         <span className="text-body-lg font-semibold text-brand">{t("chat.file_drop_hint")}</span>

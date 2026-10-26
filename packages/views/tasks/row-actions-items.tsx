@@ -7,7 +7,7 @@ import {
   ExternalLink,
   Link2,
   SignalHigh,
-  Trash2,
+  Trash,
   UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -228,7 +228,7 @@ export function RowActionItems({
         <>
           <P.Separator />
           <P.Item variant="destructive" onClick={model.requestDelete}>
-            <Trash2 aria-hidden />
+            <Trash aria-hidden />
             {t("tasks.row_actions.delete")}
           </P.Item>
         </>

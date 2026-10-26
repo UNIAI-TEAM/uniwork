@@ -14,8 +14,8 @@ import {
   latestRingingInvite,
   voiceEventForUser,
   type VoiceInvitePayload,
-} from "./voice-call-invites";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+} from "@uniwork/core/chat/voice-call-invites";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 import {
   VOICE_CALL_CONNECTING_TIMEOUT_MS,
   VOICE_CALL_ENDED_DISMISS_MS,
@@ -26,7 +26,7 @@ import {
   type VoiceCallEndedState,
   type VoiceCallKind,
   type VoiceCallOverlayState,
-} from "./voice-call-overlay-types";
+} from "@uniwork/core/chat/voice-call-types";
 
 type MintVoiceToken = (
   roomId: string,
@@ -93,6 +93,9 @@ export function useNativeVoiceCall({
   allowedRoomIdsRef.current = allowedRoomIds;
 
   const allowedRoomsKey = useMemo(() => [...allowedRoomIds].sort().join(","), [allowedRoomIds]);
+  const lastPendingSyncAtRef = useRef(0);
+  /** Best-effort poll cap when room metadata churn would retrigger the effect. */
+  const PENDING_INVITE_SYNC_MIN_MS = 30_000;
 
   const setCallState = useCallback((next: VoiceCallOverlayState) => {
     stateRef.current = next;
@@ -216,8 +219,13 @@ export function useNativeVoiceCall({
     [currentUserId, declineBusyInvite, mutedRoomIds, roomKindById, setCallState],
   );
 
-  const syncPendingInvites = useCallback(async () => {
+  const syncPendingInvites = useCallback(async (options?: { bypassThrottle?: boolean }) => {
     if (isLive(stateRef.current)) return;
+    const now = Date.now();
+    if (!options?.bypassThrottle && now - lastPendingSyncAtRef.current < PENDING_INVITE_SYNC_MIN_MS) {
+      return;
+    }
+    lastPendingSyncAtRef.current = now;
     try {
       const invites = await listPendingChatVoiceInvites(workspaceId);
       const latest = latestRingingInvite(invites);
@@ -237,6 +245,9 @@ export function useNativeVoiceCall({
       // Best-effort recovery when realtime invite was missed.
     }
   }, [applyIncomingInvite, workspaceId]);
+
+  const syncPendingInvitesRef = useRef(syncPendingInvites);
+  syncPendingInvitesRef.current = syncPendingInvites;
 
   const markVoiceConnected = useCallback(() => {
     if (connectedAtRef.current == null) {
@@ -298,15 +309,15 @@ export function useNativeVoiceCall({
   );
 
   useEffect(() => {
-    void syncPendingInvites();
-  }, [syncPendingInvites, allowedRoomsKey]);
+    void syncPendingInvitesRef.current({ bypassThrottle: true });
+  }, [workspaceId, allowedRoomsKey]);
 
   useEffect(() => {
     if (!ws) return;
     return ws.onReconnect(() => {
-      void syncPendingInvites();
+      void syncPendingInvitesRef.current({ bypassThrottle: true });
     });
-  }, [ws, syncPendingInvites]);
+  }, [ws]);
 
   useEffect(() => {
     if (!ws) return;
@@ -324,7 +335,7 @@ export function useNativeVoiceCall({
         );
         return;
       }
-      void syncPendingInvites();
+      void syncPendingInvitesRef.current({ bypassThrottle: true });
     });
 
     // Our own frame: another tab of ours answered or declined. Stop ringing
@@ -376,7 +387,7 @@ export function useNativeVoiceCall({
       offAccept();
       offHangup();
     };
-  }, [ws, currentUserId, connectCall, applyIncomingInvite, closeLocal, declineBusyInvite, syncPendingInvites]);
+  }, [ws, currentUserId, connectCall, applyIncomingInvite, closeLocal, declineBusyInvite]);
 
   // Ring, connect and "ended" panels all run on a clock, not forever.
   useEffect(() => {

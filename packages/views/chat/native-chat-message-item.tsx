@@ -175,11 +175,13 @@ function MessageBody({
   layout,
   context,
   highlighted,
+  isTimelineTail,
 }: {
   message: ChatMessage;
   layout: NativeChatRowLayout;
   context: NativeChatMessageContext;
   highlighted: boolean;
+  isTimelineTail: boolean;
 }) {
   const {
     workspaceId,
@@ -333,6 +335,11 @@ function MessageBody({
       />
     );
   }
+  const sendEnterAnimation =
+    isOwn &&
+    isTimelineTail &&
+    (Boolean(message.deliveryStatus) || isPendingChatMessageId(message.id));
+
   return (
     <ChatMessageRow
       {...common}
@@ -344,6 +351,7 @@ function MessageBody({
       nameContext={nameContext}
       lastOfRun={layout.lastOfRun}
       highlighted={highlighted}
+      sendEnterAnimation={sendEnterAnimation}
     />
   );
 }
@@ -359,13 +367,24 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
   layout,
   context,
   highlighted,
+  isTimelineTail = false,
 }: {
   message: ChatMessage;
   layout: NativeChatRowLayout;
   context: NativeChatMessageContext;
   highlighted: boolean;
+  /** Newest row in the loaded timeline (outgoing send animation). */
+  isTimelineTail?: boolean;
 }) {
-  const body = <MessageBody message={message} layout={layout} context={context} highlighted={highlighted} />;
+  const body = (
+    <MessageBody
+      message={message}
+      layout={layout}
+      context={context}
+      highlighted={highlighted}
+      isTimelineTail={isTimelineTail}
+    />
+  );
   if (!layout.opensDay && !layout.opensUnread && !layout.opensReplies) return body;
   return (
     <div>
@@ -379,10 +398,27 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
 sameRow);
 
 function sameRow(
-  prev: { message: ChatMessage; layout: NativeChatRowLayout; context: NativeChatMessageContext; highlighted: boolean },
-  next: { message: ChatMessage; layout: NativeChatRowLayout; context: NativeChatMessageContext; highlighted: boolean },
+  prev: {
+    message: ChatMessage;
+    layout: NativeChatRowLayout;
+    context: NativeChatMessageContext;
+    highlighted: boolean;
+    isTimelineTail?: boolean;
+  },
+  next: {
+    message: ChatMessage;
+    layout: NativeChatRowLayout;
+    context: NativeChatMessageContext;
+    highlighted: boolean;
+    isTimelineTail?: boolean;
+  },
 ): boolean {
-  if (prev.message !== next.message || prev.context !== next.context || prev.highlighted !== next.highlighted) {
+  if (
+    prev.message !== next.message ||
+    prev.context !== next.context ||
+    prev.highlighted !== next.highlighted ||
+    prev.isTimelineTail !== next.isTimelineTail
+  ) {
     return false;
   }
   const a = prev.layout;

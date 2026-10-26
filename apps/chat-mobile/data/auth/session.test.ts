@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { installReportSink } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import {
   callback,
@@ -15,15 +16,25 @@ import type { DesktopSession, TransportErrorCode } from "./transport";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());
 
-let warn: MockInstance<typeof console.warn>;
+// The session logs through data/logger.ts: each warning is a breadcrumb, read
+// here as one line (message and data) so a test can say what was logged.
+let warn: Mock<(line: string) => void>;
 beforeEach(() => {
   resetFakeSessions();
   vi.useFakeTimers({ now: new Date("2026-10-01T00:00:00Z") });
-  warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  warn = vi.fn();
+  installReportSink({
+    captureException: () => undefined,
+    addBreadcrumb: (b) => {
+      if (b.level === "warning") warn(`${b.message} ${JSON.stringify(b.data ?? {})}`);
+    },
+    setUser: () => undefined,
+    setTag: () => undefined,
+  });
 });
 afterEach(() => {
   vi.useRealTimers();
-  warn.mockRestore();
+  installReportSink(null);
 });
 
 describe("sign-in", () => {
@@ -343,6 +354,52 @@ describe("sign-in", () => {
   });
 });
 
+// Audit (Security & privacy, keychain-survives-reinstall): iOS keeps Keychain items after the app is deleted, so a
+// reinstall used to sign the previous account straight back in.
+describe("discardStored (the first launch of a fresh install)", () => {
+  it("clears the stored session without adopting it, and revokes its device in the background", async () => {
+    const ctx = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    const epoch = currentSessionEpoch();
+    await ctx.session.discardStored();
+    expect(ctx.storage.current()).toBeNull();
+    expect(ctx.tokens).toEqual([]);
+    expect(ctx.session.status()).toBe("signed-out");
+    expect(currentSessionEpoch()).not.toBe(epoch);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_1" }, "at_stored");
+    // Nothing left: the restore that follows finds no credential.
+    expect(await ctx.session.restore()).toBe(false);
+  });
+
+  it("revokes a stale one with a refreshed token, and a refusal or an offline phone still clears it", async () => {
+    const stale = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    await stale.session.discardStored();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stale.transport.refresh).toHaveBeenCalledWith({ deviceSessionId: "dev_1", refreshToken: "rt_stored" });
+    expect(stale.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_1" }, "at_1");
+
+    const offline = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    offline.transport.refresh.mockImplementationOnce(fail("network"));
+    await offline.session.discardStored();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(offline.storage.current()).toBeNull();
+    expect(offline.transport.logout).not.toHaveBeenCalled();
+  });
+
+  it("does nothing more without a stored session, or with one it cannot read", async () => {
+    const none = setup(vi);
+    await none.session.discardStored();
+    expect(none.storage.clear).toHaveBeenCalledTimes(1);
+    expect(none.transport.logout).not.toHaveBeenCalled();
+    const locked = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    locked.storage.load.mockRejectedValueOnce(new Error("locked"));
+    locked.storage.clear.mockRejectedValueOnce(new Error("locked"));
+    await expect(locked.session.discardStored()).resolves.toBeUndefined();
+    expect(locked.transport.logout).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stored session not cleared"));
+  });
+});
+
 describe("restore", () => {
   it("adopts a stored session whose access token is still fresh without a network call", async () => {
     const ctx = setup(vi, { storage: createMemoryStorage(vi, stored()) });
@@ -398,6 +455,31 @@ describe("restore", () => {
     expect(locked.session.status()).toBe("signed-out");
     expect(locked.transport.refresh).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("unreadable"));
+  });
+
+  it("resolves to whether a credential is held: a cold start routes on it without waiting for the network", async () => {
+    const fresh = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    expect(await fresh.session.restore({ awaitRefresh: false })).toBe(true);
+
+    // The refresh hangs (a dead spot): the credential is still held, and the refresh goes on in the background.
+    const hung = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    hung.transport.refresh.mockImplementationOnce(() => new Promise(() => undefined));
+    expect(await hung.session.restore({ awaitRefresh: false })).toBe(true);
+    expect(hung.session.status()).toBe("refreshing");
+
+    // Offline: the refresh fails transiently, the session keeps the credential and recovers on its own.
+    const offline = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    offline.transport.refresh.mockImplementationOnce(fail("network"));
+    expect(await offline.session.restore()).toBe(true);
+    expect(offline.session.status()).toBe("server-unreachable");
+
+    // A server verdict on the refresh ends it.
+    const revoked = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    revoked.transport.refresh.mockImplementationOnce(fail("device_revoked"));
+    expect(await revoked.session.restore()).toBe(false);
+    expect(revoked.tokens).toEqual([null]);
+
+    expect(await setup(vi).session.restore({ awaitRefresh: false })).toBe(false);
   });
 
   it("an expired refresh token is cleared without a network call", async () => {

@@ -1,22 +1,12 @@
-// "… đang nhập" lines, copied from packages/views/chat/typing-indicator.ts and
-// chat-sidebar-typing.ts; typing-display.test.ts runs the web tests' cases.
+// The room list's "… đang nhập" line, copied from
+// packages/views/chat/chat-sidebar-typing.ts (typing-display.test.ts runs the
+// web tests' cases); the line itself is core's formatTypingLabel.
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 import { isPlaceholderChatDisplayName } from "@uniwork/core/chat/chat-room-helpers";
-import { resolveChatNicknameForUser, type ChatContact } from "./rooms-display";
+import { resolveChatNicknameForUser, type ChatContact } from "@uniwork/core/chat/contact-labels";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
-
-/** Typing line: one name, or a locale-aware list ("B và C đang nhập…"). */
-export function formatTypingLabel(names: string[], t: TranslateFn, locale: string): string | null {
-  if (names.length === 0) return null;
-  if (names.length === 1) return t("chat.typing_one", { name: names[0] });
-  // Hermes ships no Intl.ListFormat; a comma list is the fallback there.
-  const list =
-    typeof Intl.ListFormat === "function"
-      ? new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(names)
-      : names.join(", ");
-  return t("chat.typing_list", { names: list });
-}
 
 function humanTypingName(label: string | undefined, userId: string): string {
   const name = label?.trim() ?? "";
