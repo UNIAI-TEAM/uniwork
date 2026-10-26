@@ -49,6 +49,7 @@ type Deps struct {
 	// the caller is a member of its workspace, so `meeting_minutes` honours
 	// organization overrides (UNI-2003); nil evaluates it per user.
 	MeetingOrganization func(*http.Request) string
+	DriveOrganization   func(*http.Request) string
 	DeviceStatus        func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
@@ -212,6 +213,7 @@ func New(d Deps, h Routes) http.Handler {
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
+		registerDriveGoogleCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
 		registerMeetingAgent(v1, h, mw.RequireMeetingAgentToken([]byte(d.Cfg.JWTSecret)), meetingAgentLimit(
 			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent-ip", 6000, time.Minute, proxies, nil),
@@ -283,6 +285,7 @@ func New(d Deps, h Routes) http.Handler {
 			// (UNI-1197): per signed-in person and route, 10 per 10 minutes.
 			emailHubConnectLimit := mw.RateLimitPerRoute(d.Redis, 10, 10*time.Minute, proxies, bearerUser(d.Minter))
 			registerEmailHub(authed, h, emailHubConnectLimit)
+			registerDriveConnections(authed.With(mw.FlagOrganization(d.DriveOrganization)), h, d.FeatureFlags, emailHubConnectLimit)
 			registerAudit(authed, h)
 			registerPrivacy(authed, h)
 			registerGraph(authed, h)

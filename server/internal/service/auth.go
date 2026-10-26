@@ -46,6 +46,9 @@ type AuthService struct {
 	// apple is optional: wired, DeleteAccount revokes the Sign in with Apple
 	// token the account kept (ADR 0041).
 	apple *AppleAuthService
+	// drive is optional: wired, DeleteAccount revokes the Google Drive grants
+	// of the connections it disconnects after commit (spec §5.3a).
+	drive *DriveConnectionService
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -65,6 +68,9 @@ func (s *AuthService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 // SetApple lets DeleteAccount revoke the account's Sign in with Apple token;
 // main wires it when Sign in with Apple is configured.
 func (s *AuthService) SetApple(a *AppleAuthService) { s.apple = a }
+
+// SetDrive lets DeleteAccount revoke the Google Drive grants it disconnects after commit.
+func (s *AuthService) SetDrive(d *DriveConnectionService) { s.drive = d }
 
 // SessionMeta is what a session remembers about the client that opened it.
 // The handler puts it on the context; every path that mints a session
