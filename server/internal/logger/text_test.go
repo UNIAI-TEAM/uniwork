@@ -200,6 +200,31 @@ func TestTextQuotesNewlinesAndESC(t *testing.T) {
 	}
 }
 
+type countingErr struct {
+	n   *int
+	msg string
+}
+
+func (e countingErr) Error() string {
+	*e.n++
+	return e.msg
+}
+
+func TestTextPlainErrorLogValuePanickedMessage(t *testing.T) {
+	var n int
+	err := countingErr{n: &n, msg: "LogValue panicked: real"}
+	got := render(t, false, slog.LevelError, "x", "err", err)
+	if strings.Contains(got, "!PANIC") {
+		t.Fatalf("rewrote plain error to panic: %s", got)
+	}
+	if !strings.Contains(got, "LogValue panicked: real") {
+		t.Fatalf("missing error text: %s", got)
+	}
+	if n != 1 {
+		t.Fatalf("Error() calls = %d, want 1", n)
+	}
+}
+
 func TestTextPanicValueDoesNotDropTheRest(t *testing.T) {
 	got := render(t, false, slog.LevelError, "x", "err", panicErr{}, "room_id", "r1")
 	if !strings.Contains(got, "err=!PANIC") || !strings.Contains(got, "room_id=r1") {

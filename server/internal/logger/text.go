@@ -164,33 +164,39 @@ func flattenAttrs(prefix string, attrs []slog.Attr) []slog.Attr {
 			continue
 		}
 		key := joinPrefix(prefix, a.Key)
-		var resolved slog.Value
-		resolveOK := true
-		func() {
-			defer func() {
-				if recover() != nil {
-					resolveOK = false
+		val := a.Value
+		if val.Kind() == slog.KindLogValuer {
+			resolved := val.Resolve()
+			if logValueResolveFailed(resolved) {
+				out = append(out, slog.Attr{Key: key, Value: slog.AnyValue(logFormatPanic{})})
+				continue
+			}
+			if resolved.Kind() == slog.KindGroup {
+				children := resolved.Group()
+				if len(children) == 0 {
+					continue
 				}
-			}()
-			resolved = a.Value.Resolve()
-		}()
-		if !resolveOK {
-			out = append(out, slog.Attr{Key: key, Value: a.Value})
+				out = append(out, flattenAttrs(joinPrefix(prefix, a.Key), children)...)
+				continue
+			}
+			if resolved.Kind() == slog.KindAny {
+				if err, ok := resolved.Any().(error); ok && err != nil {
+					out = append(out, slog.Attr{Key: key, Value: slog.StringValue(err.Error())})
+					continue
+				}
+			}
+			out = append(out, slog.Attr{Key: key, Value: resolved})
 			continue
 		}
-		if logValueResolveFailed(resolved) {
-			out = append(out, slog.Attr{Key: key, Value: slog.AnyValue(logFormatPanic{})})
-			continue
-		}
-		if resolved.Kind() == slog.KindGroup {
-			children := resolved.Group()
+		if val.Kind() == slog.KindGroup {
+			children := val.Group()
 			if len(children) == 0 {
 				continue
 			}
 			out = append(out, flattenAttrs(joinPrefix(prefix, a.Key), children)...)
 			continue
 		}
-		out = append(out, slog.Attr{Key: key, Value: resolved})
+		out = append(out, slog.Attr{Key: key, Value: val})
 	}
 	return out
 }
