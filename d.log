@@ -1,0 +1,53 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; (cd packages/views && pnpm exec vitest run documents/ editor/ --coverage.enabled=false --reporter verbose > /tmp/mv1-vv.log 2>&1); rc=$?; grep -E "document-media-viewer|zoom|Test Files|Tests |FAIL|skipped" /tmp/mv1-vv.log | head -120; echo; echo "VITEST_VIEWS_TARGETED_EXIT=$rc"
+ ✓ documents/access-report/access-report-people.test.tsx > AccessReportPeople - states > says the reader manages nothing here, not that nothing matches, when documents were skipped 10ms
+ ✓ documents/access-report/access-report-view.test.tsx > AccessReportView - tabs > By person: the skipped line shows beside the principals line 47ms
+ ✓ documents/access-report/access-report-view.test.tsx > AccessReportView - tabs > By person: an empty list with documents skipped reads like By document's skipped-only state 47ms
+ ✓ documents/access-report/access-report-view.test.tsx > AccessReportView - states > empty: nothing matches and nothing was skipped 41ms
+ ✓ documents/access-report/access-report-view.test.tsx > AccessReportView - states > skipped only: the reader manages nothing here 45ms
+ ✓ documents/documents-page-view-folder-upload.test.tsx > Documents home folder upload entries (UNI-2052) > reads a dropped folder with the server's extension list, so skipped files do not trip the read bound 144ms
+ ✓ documents/doclist/use-bulk-commands.test.tsx > useDocListBulkCommands > zips several files: creates the job, polls it to ready, downloads the link and lists what was skipped 23ms
+ ✓ documents/doclist/use-bulk-commands.test.tsx > useDocListBulkCommands > sends a zip of at most 100 files and counts the rest as skipped with their own reason 19ms
+ ✓ documents/doclist/bulk-selection.test.tsx > bulk selection > runs a mixed selection on the rows that allow it and lists the others as skipped, unsent 75ms
+ ✓ documents/folder-upload/folder-upload-dialog.test.tsx > FolderUploadDialog > groups skipped files by reason and expands the paths of one group 47ms
+ ✓ documents/document-media-viewer.test.tsx > isImageDocument > opens image/* files in the viewer, and nothing else (video is out of scope) 4ms
+ ✓ documents/document-media-viewer.test.tsx > ZoomControls slider opt-in > leaves default ZoomControls output unchanged without a slider, and renders the slider only when opted in 107ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > shows the loading state with zoom controls disabled while the bytes are in flight 75ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > shows an image on the shared zoom canvas with intent=view, and opens file facts in the popover 121ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > updates scale and percent when fit, actual size, zoom buttons, and the slider (including keyboard arrows) are used 104ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > offers the full screen button only when document.fullscreenEnabled is true and toggles fullscreen 65ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > offers a retry when the bytes do not arrive 53ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > falls back to the file card with the reason when the browser cannot decode the image 64ms
+ ✓ documents/document-media-viewer.test.tsx > DocumentMediaViewer > gives a view-only reader the viewer without the new-version command 50ms
+ ✓ documents/use-drop-upload-folders.test.tsx > useDropUpload folders (UNI-2052) > quotes only the files the planner would upload when a truncated folder also holds skipped ones 56ms
+ ✓ editor/utils/zoom-transform.test.ts > clampScale > holds zoom inside the 25%–400% product range 1ms
+ ✓ editor/utils/zoom-transform.test.ts > clampScale > falls back to 1 for non-finite input rather than propagating NaN into the transform 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeFitScale > shrinks an oversized diagram to the tighter axis 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeFitScale > leaves a small diagram at natural size instead of magnifying it 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeFitScale > goes below the default minimum for content that cannot fit at 25% 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeFitScale > returns 1 when either size is unknown, so a 0x0 measure never divides by zero 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeFitTransform > centers the fitted diagram 0ms
+ ✓ editor/utils/zoom-transform.test.ts > clampTransform > keeps the diagram reachable when panned far off the left edge 0ms
+ ✓ editor/utils/zoom-transform.test.ts > clampTransform > keeps the diagram reachable when panned far off the right edge 0ms
+ ✓ editor/utils/zoom-transform.test.ts > clampTransform > requires a diagram smaller than the margin to stay fully visible 0ms
+ ✓ editor/utils/zoom-transform.test.ts > clampTransform > leaves an in-bounds transform untouched 1ms
+ ✓ editor/utils/zoom-transform.test.ts > zoomToAt > pins the content point under the anchor so zoom tracks the cursor 0ms
+ ✓ editor/utils/zoom-transform.test.ts > zoomToAt > clamps to the max zoom rather than overshooting 0ms
+ ✓ editor/utils/zoom-transform.test.ts > zoomToAt > clamps to the min zoom rather than undershooting 0ms
+ ✓ editor/utils/zoom-transform.test.ts > zoomToAt > is a no-op once already at the limit, so held keys/wheel do not drift the diagram 0ms
+ ✓ editor/utils/zoom-transform.test.ts > zoomByAtCenter > zooms about the viewport center for button/keyboard input 0ms
+ ✓ editor/utils/zoom-transform.test.ts > panBy > moves by the delta and re-clamps 0ms
+ ✓ editor/utils/zoom-transform.test.ts > panBy > cannot pan the diagram out of sight 0ms
+ ✓ editor/utils/zoom-transform.test.ts > centerTransform > centers content at an explicit scale 0ms
+ ✓ editor/utils/zoom-transform.test.ts > wheelZoomFactor > zooms in when scrolling up and out when scrolling down 0ms
+ ✓ editor/utils/zoom-transform.test.ts > wheelZoomFactor > is symmetric, so equal opposite scrolls return to the original scale 0ms
+ ✓ editor/utils/zoom-transform.test.ts > wheelZoomFactor > normalizes line and page delta modes so a mouse wheel is not 16x weaker than a trackpad 0ms
+ ✓ editor/utils/zoom-transform.test.ts > pinch helpers > measures distance between two pointers 0ms
+ ✓ editor/utils/zoom-transform.test.ts > pinch helpers > finds the midpoint used as the pinch anchor 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeMinScale > is the default floor for content that fits comfortably 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeMinScale > drops to the fit scale for content too large to fit at the default floor 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeMinScale > keeps the fitted transform of a long screenshot intact through a clamp 0ms
+ ✓ editor/utils/zoom-transform.test.ts > computeMinScale > lets zoomToAt reach the fit scale of a long screenshot 0ms
+ Test Files  193 passed (193)
+      Tests  2794 passed (2794)
+
+VITEST_VIEWS_TARGETED_EXIT=0

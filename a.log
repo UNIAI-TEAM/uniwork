@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^603e6c7a7" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -5
+VM_HEAD_SHA=603e6c7a7fb7d85d5f8b39612537cf3208b49b2d
+603e6c7a7 test(documents): pin the suffix probe access rows
+9d32625de feat(documents): add view intent and status-bar zoom slider to image viewer
+d21ba5c8c feat(documents): record view access when the viewer fetches a document file
+6c9e75567 feat(documents): image viewer for file Documents, Step 1 r1 design
+ba31cc20f chore: merge UNI-2113 web Documents Type multi-select into the G5-G7 root
