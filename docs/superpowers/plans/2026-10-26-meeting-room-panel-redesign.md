@@ -1,6 +1,6 @@
 # Panel bên phải phòng họp theo canvas: Implementation Plan
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt thiết kế 2026-10-26 ("oke duyệt, giống thiết kế 100%"), issue UNI-2173 (cha: UNI-2153), nhánh `feature/UNI-2173-thiet-ke-lai-panel-ben-phai-phong-hop-th` cắt từ develop 6a9198f74. Tóm tắt giữ cách tạo tay (nút ↻), không tự cập nhật.
+> **Trạng thái:** in-progress — 16 task xong và qua review toàn nhánh 2026-10-26 (đến a01550d44), chờ PR vào develop. Lệch so với kế hoạch: câu hỏi bị từ chối quay về ô Hỏi (không sang ô ghi chú); khách có tab "Bản ghi" khi có bản ghi phát được; tóm tắt tách mỗi câu một gạch đầu dòng. Chủ sản phẩm duyệt thiết kế 2026-10-26 ("oke duyệt, giống thiết kế 100%"), issue UNI-2173 (cha: UNI-2153), nhánh `feature/UNI-2173-thiet-ke-lai-panel-ben-phai-phong-hop-th` cắt từ develop 6a9198f74. Tóm tắt giữ cách tạo tay (nút ↻), không tự cập nhật.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
