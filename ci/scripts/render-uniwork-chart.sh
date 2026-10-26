@@ -9,13 +9,23 @@ ENV_BE="${ROOT}/deploy/app/env/uniwork-be.env"
 ENV_FE="${ROOT}/deploy/app/env/uniwork-fe.env"
 ENV_OE="${ROOT}/deploy/app/env/uniwork-office-engine.env"
 
+DIGEST_BE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+DIGEST_FE=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+DIGEST_OE=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+DIGEST_MA=sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+
+COMMON_SET=(
+  --set-file "env.beContent=${ENV_BE}"
+  --set-file "env.feContent=${ENV_FE}"
+  --set-file "env.officeEngineContent=${ENV_OE}"
+  --set "be.image.digest=${DIGEST_BE}"
+  --set "fe.image.digest=${DIGEST_FE}"
+  --set-string "officeEngine.image.digest=${DIGEST_OE}"
+  --set-string "meetingAgent.image.digest=${DIGEST_MA}"
+)
+
 helm template uniwork "${CHART}" \
-  --set-file env.beContent="${ENV_BE}" \
-  --set-file env.feContent="${ENV_FE}" \
-  --set-file env.officeEngineContent="${ENV_OE}" \
-  --set be.image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  "${COMMON_SET[@]}" \
   --set be.image.tag=test --set fe.image.tag=test --set-string officeEngine.image.tag=test \
   > "${OUT}"
 
@@ -23,6 +33,7 @@ grep -q 'namespace: uniwork' "${OUT}"
 grep -q 'name: uniwork-be' "${OUT}"
 grep -q 'name: uniwork-fe' "${OUT}"
 grep -q 'name: uniwork-office-engine' "${OUT}"
+grep -q 'name: uniwork-meeting-agent' "${OUT}"
 grep -q 'replicas: 1' "${OUT}"
 # Scheduling is a nodeAffinity over the app and exam pools plus the exam taint's
 # toleration (helpers: uniwork.nodeAffinity / uniwork.tolerations).
@@ -67,12 +78,9 @@ for forbidden in LoadBalancer NodePort; do
 done
 
 if helm template uniwork "${CHART}" \
-  --set-file env.beContent="${ENV_BE}" \
-  --set-file env.feContent="${ENV_FE}" \
-  --set-file env.officeEngineContent="${ENV_OE}" \
+  "${COMMON_SET[@]}" \
   --set be.image.digest= \
-  --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  --set be.image.tag=test --set fe.image.tag=test --set-string officeEngine.image.tag=test \
   >/dev/null 2>"${OUT}.err"; then
   echo "FAIL: expected helm to refuse empty be.image.digest" >&2
   exit 1
@@ -80,11 +88,13 @@ fi
 
 # Missing officeEngineContent must fail when engine is enabled (default).
 if helm template uniwork "${CHART}" \
-  --set-file env.beContent="${ENV_BE}" \
-  --set-file env.feContent="${ENV_FE}" \
-  --set be.image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  --set-file "env.beContent=${ENV_BE}" \
+  --set-file "env.feContent=${ENV_FE}" \
+  --set "be.image.digest=${DIGEST_BE}" \
+  --set "fe.image.digest=${DIGEST_FE}" \
+  --set-string "officeEngine.image.digest=${DIGEST_OE}" \
+  --set-string "meetingAgent.image.digest=${DIGEST_MA}" \
+  --set be.image.tag=test --set fe.image.tag=test --set-string officeEngine.image.tag=test \
   >/dev/null 2>"${OUT}.err"; then
   echo "FAIL: expected helm to refuse missing env.officeEngineContent" >&2
   exit 1
