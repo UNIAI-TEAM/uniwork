@@ -30,10 +30,12 @@ export function DriveSidebarSection({
   onSelect,
 }: DriveSidebarSectionProps) {
   const { t } = useTranslation();
-  const { connections: defaultConnections } = useDriveLibraryConnections(wsId);
-  const connections = connectionsProp ?? defaultConnections;
+  const { connections: defaultConnections, driveAvailable } = useDriveLibraryConnections(wsId, {
+    enabled: connectionsProp === undefined,
+  });
+  const connections = driveAvailable ? (connectionsProp ?? defaultConnections) : [];
 
-  if (connections.length === 0) {
+  if (!driveAvailable || connections.length === 0) {
     return null;
   }
 

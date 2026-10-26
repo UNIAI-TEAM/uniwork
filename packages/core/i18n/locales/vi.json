@@ -14479,7 +14479,6 @@
       "footnote": "Mỗi tệp gắn với tài khoản Google Drive đã chọn nó. Mở tệp và cho UNI đọc đều dùng đúng tài khoản đó. Khi bỏ liên kết, tệp trên Google Drive vẫn giữ nguyên.",
       "add_all": "Thêm từ Google Drive",
       "add_account": "Thêm từ {{email}}",
-      "add_unavailable_hint": "Kết nối Google Drive hoặc mở từ trình duyệt để chọn tệp",
       "manage_connections": "Quản lý kết nối",
       "reconnect_inline": "Mất kết nối · kết nối lại",
       "columns": {

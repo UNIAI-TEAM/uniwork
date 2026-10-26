@@ -11,6 +11,9 @@ import {
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
+import {
+  createFakeDrivePickerAdapter,
+} from "../../integrations/drive-picker";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { DriveFileDetailView } from "./drive-file-detail-view";
@@ -20,9 +23,10 @@ const { t } = initI18n();
 
 const WS = "ws1";
 const FILE_ID = "df1";
+const CONFIG_URL = "/api/v1/config";
+const DRIVE_CONNECTIONS_URL = `/api/v1/workspaces/${WS}/drive-connections`;
 const DETAIL_URL = `/api/v1/workspaces/${WS}/drive-files/${FILE_ID}`;
 const HISTORY_URL = `/api/v1/workspaces/${WS}/resources/drive_file/${FILE_ID}/history`;
-
 const sessionUser = {
   id: "u1",
   email: "minh@example.com",
@@ -105,8 +109,47 @@ function detailFile(over: Record<string, unknown> = {}) {
   };
 }
 
-function withFlag(ui: React.ReactElement, on = true, nav = fakeNav()) {
-  const service = new FeatureFlagService(new StaticProvider({ documents: { default: on } }));
+function defaultConfigResponse(driveAvailable = true, documentsFlag = true, driveFlag = true) {
+  return {
+    flags: { documents: documentsFlag, drive_connector: driveFlag },
+    rum_sample_rate: 0,
+    drive: { available: driveAvailable },
+  };
+}
+
+const rawConnections = [
+  {
+    id: "conn1",
+    provider: "google",
+    google_email: "uni-work1@gmail.com",
+    status: "active",
+    needs_reconnect: false,
+    linked_file_count: 3,
+    connected_at: "2026-10-26T09:00:00Z",
+  },
+  {
+    id: "conn2",
+    provider: "google",
+    google_email: "uni-work2@gmail.com",
+    status: "active",
+    needs_reconnect: false,
+    linked_file_count: 2,
+    connected_at: "2026-10-26T09:05:00Z",
+  },
+];
+
+function withFlag(
+  ui: React.ReactElement,
+  on = true,
+  nav = fakeNav(),
+  driveFlag = true,
+) {
+  const service = new FeatureFlagService(
+    new StaticProvider({
+      documents: { default: on },
+      drive_connector: { default: driveFlag },
+    }),
+  );
   return wrapWithNav(
     <WorkspaceProvider workspace={workspace} user={sessionUser}>
       <FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>
@@ -117,6 +160,11 @@ function withFlag(ui: React.ReactElement, on = true, nav = fakeNav()) {
 
 beforeEach(() => {
   requestMock.mockReset();
+  requestMock.mockImplementation((path: string) => {
+    if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+    if (path === DRIVE_CONNECTIONS_URL) return Promise.resolve({ connections: rawConnections });
+    return Promise.resolve({ events: [] });
+  });
   resetAuthStoreForTests();
   setSessionUser(sessionUser);
   useAiPanelStore.getState().reset();
@@ -125,6 +173,7 @@ beforeEach(() => {
 describe("DriveFileDetailView (4.2)", () => {
   it("renders title, open_url link, properties, bound-by suffix when bound_by_id !== created_by, used-in tasks, task creations, and resource history", async () => {
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -224,6 +273,7 @@ describe("DriveFileDetailView (4.2)", () => {
   it("renders the §7.4 block instead of 'Bạn mở bằng' when viewer_access is unknown, lost, or connection_lost", async () => {
     // 1. unknown
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -244,6 +294,7 @@ describe("DriveFileDetailView (4.2)", () => {
 
     // 2. lost (with access_lost_at also set: does not duplicate bound_access_lost warning, W8-V1-06)
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -263,6 +314,7 @@ describe("DriveFileDetailView (4.2)", () => {
     lostRender.unmount();
     // 3. connection_lost
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -283,7 +335,10 @@ describe("DriveFileDetailView (4.2)", () => {
   });
 
   it("shows 404 not-found state with 'Không tìm thấy tệp này hoặc bạn không có quyền xem.' and 'Về Google Drive của tôi'", async () => {
-    requestMock.mockRejectedValue(new ApiError("not found", "not_found", 404));
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      return Promise.reject(new ApiError("not found", "not_found", 404));
+    });
     render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />));
 
     expect(await screen.findByText(t("driveLibrary.detail.not_found.title"))).toBeInTheDocument();
@@ -293,6 +348,7 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("confirms unlink with the §7.7 AlertDialog, moves focus into the dialog and back to trigger on cancel, calls DELETE without a second GET of detail, and navigates to ?view=drive", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL && opts?.method === "DELETE") {
         return Promise.resolve({ status: "ok" });
       }
@@ -346,9 +402,10 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(getDetailCalls).toHaveLength(1);
   });
 
-  it("shows rebind only when onRebind is passed, can_rebind is true, and (access_lost_at or bound_connection_lost), and calls POST .../rebind", async () => {
-    // 1. Healthy bound connection -> no rebind button even when onRebind is passed
+  it("shows rebind when can_rebind is true and (access_lost_at or bound_connection_lost), opens W3 Picker with fileIds: [external_file_id] and linkOnPick: false, then calls POST .../rebind", async () => {
+    // 1. Healthy bound connection -> no rebind button
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({ can_rebind: true, bound_connection_lost: false, access_lost_at: undefined }),
@@ -358,30 +415,40 @@ describe("DriveFileDetailView (4.2)", () => {
     });
     const { unmount } = render(
       withFlag(
-        <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} onRebind={vi.fn()} />,
+        <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />,
       ),
     );
     await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
     expect(screen.queryByRole("button", { name: t("driveLibrary.detail.rebind.button") })).toBeNull();
     unmount();
 
-    // 1b. Broken bound connection but no onRebind prop -> rebind button stays hidden (seam rule)
-    requestMock.mockImplementation((path: string) => {
-      if (path === DETAIL_URL) {
+    // 2. access_lost_at set -> rebind button visible without needing an onRebind prop; picks with fileIds=[ext-1] and linkOnPick=false then posts /rebind
+    const fakeAdapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "ext-1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) {
+        return Promise.resolve({ connections: rawConnections });
+      }
+      if (
+        path === `/api/v1/workspaces/${WS}/drive-connections/conn2/picker-token` &&
+        opts?.method === "POST"
+      ) {
         return Promise.resolve({
-          file: detailFile({ can_rebind: true, bound_connection_lost: true, access_lost_at: "2026-10-26T09:00:00Z" }),
+          access_token: "picker-tok-conn2",
+          expires_at: "2026-10-26T12:00:00Z",
+          developer_key: "dev-key",
+          app_id: "app-id",
         });
       }
-      return Promise.resolve({ events: [] });
-    });
-    const noSeamRender = render(
-      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
-    );
-    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
-    expect(screen.queryByRole("button", { name: t("driveLibrary.detail.rebind.button") })).toBeNull();
-    noSeamRender.unmount();
-    // 2. access_lost_at set -> rebind button visible, opens dialog and posts rebind
-    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === `${DETAIL_URL}/rebind` && opts?.method === "POST") {
         return Promise.resolve({
           file: detailFile({
@@ -412,6 +479,7 @@ describe("DriveFileDetailView (4.2)", () => {
           driveFileId={FILE_ID}
           connections={connections}
           onRebind={onRebindSeam}
+          pickerAdapter={fakeAdapter}
         />,
       ),
     );
@@ -426,11 +494,28 @@ describe("DriveFileDetailView (4.2)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
 
     await waitFor(() => expect(onRebindSeam).toHaveBeenCalledWith("conn2"));
+    await waitFor(() => expect(fakeAdapter.calls).toHaveLength(1));
+    expect(fakeAdapter.calls[0]?.token).toBe("picker-tok-conn2");
+    expect(fakeAdapter.calls[0]?.fileIds).toEqual(["ext-1"]);
+    expect(fakeAdapter.calls[0]?.multiselect).toBe(false);
+    // linkOnPick: false -> never calls POST /drive-files
+    expect(
+      requestMock.mock.calls.some(
+        ([path, opts]) =>
+          path === `/api/v1/workspaces/${WS}/drive-files` &&
+          (opts as { method?: string } | undefined)?.method === "POST",
+      ),
+    ).toBe(false);
+
+    // Calls POST .../rebind with { connection_id: "conn2" }
     await waitFor(() =>
       expect(
         requestMock.mock.calls.some(
           ([path, opts]) =>
-            path === `${DETAIL_URL}/rebind` && (opts as { method?: string } | undefined)?.method === "POST",
+            path === `${DETAIL_URL}/rebind` &&
+            (opts as { method?: string } | undefined)?.method === "POST" &&
+            JSON.stringify((opts as { body?: unknown } | undefined)?.body) ===
+              JSON.stringify({ connection_id: "conn2" }),
         ),
       ).toBe(true),
     );
@@ -438,6 +523,7 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("hides action buttons for a read-only/guest viewer when can_* flags are false, and strips ?propose=1 / ?ask=1 (§7.11)", async () => {
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -483,7 +569,10 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("shows loading skeleton and retryable error state on 4.2 (§7.10), and invokes onPropose/onAsk when ?propose=1 or ?ask=1 is passed with can_* true (§7.11)", async () => {
     // 1. Loading skeleton
-    requestMock.mockImplementation(() => new Promise(() => {}));
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      return new Promise(() => {});
+    });
     const { unmount } = render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />));
     expect(document.querySelector("[aria-busy='true']")).toBeTruthy();
     unmount();
@@ -491,6 +580,7 @@ describe("DriveFileDetailView (4.2)", () => {
     // 2. Error + retry + ?propose=1 & ?ask=1 with can_propose & can_ask = true
     let calls = 0;
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         calls += 1;
         if (calls <= 2) return Promise.reject(new ApiError("boom", "internal", 500));
@@ -527,7 +617,23 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("uses localized failure toasts on non-ApiError unlink/rebind failures and never falls back to bound_account_email when viewer_account_email is absent", async () => {
     const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const fakeAdapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [{ id: "ext-1", name: "Kế hoạch ra mắt Q4", mimeType: "application/vnd.google-apps.document" }],
+    });
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) {
+        return Promise.resolve({ connections: rawConnections });
+      }
+      if (path.endsWith("/picker-token") && opts?.method === "POST") {
+        return Promise.resolve({
+          access_token: "picker-tok",
+          expires_at: "2026-10-26T12:00:00Z",
+          developer_key: "dev-key",
+          app_id: "app-id",
+        });
+      }
       if (path === DETAIL_URL && opts?.method === "DELETE") {
         return Promise.reject(new Error("internal English transport error"));
       }
@@ -554,11 +660,10 @@ describe("DriveFileDetailView (4.2)", () => {
           wsId={WS}
           driveFileId={FILE_ID}
           connections={connections}
-          onRebind={vi.fn()}
+          pickerAdapter={fakeAdapter}
         />,
       ),
     );
-
     await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
     // Viewer account shows "—", not other-member@gmail.com twice, and explainer uses no-account variant
     expect(screen.getAllByText("other-member@gmail.com")).toHaveLength(1);
@@ -584,6 +689,7 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("renders Hỏi UNI aria-disabled with access_required_hint when viewer_access !== 'granted' and seam is present (§7.4)", async () => {
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -614,6 +720,7 @@ describe("DriveFileDetailView (4.2)", () => {
   it("wires default useAskUniOpener without bound_account_email fallback and waits for capabilities before stripping ?ask=1", async () => {
     const { promise: capsPromise, resolve: resolveCaps } = Promise.withResolvers<unknown>();
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
@@ -634,6 +741,7 @@ describe("DriveFileDetailView (4.2)", () => {
     const service = new FeatureFlagService(
       new StaticProvider({
         documents: { default: true },
+        drive_connector: { default: true },
         ask_uni_stream: { default: true },
       }),
     );
@@ -669,6 +777,7 @@ describe("DriveFileDetailView (4.2)", () => {
   it("invokes onPropose at most once when ?propose=1&ask=1 is loaded while capabilities are pending", async () => {
     const { promise: capsPromise, resolve: resolveCaps } = Promise.withResolvers<unknown>();
     requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({ can_propose: true, can_ask: true, viewer_access: "granted" }),
@@ -690,6 +799,7 @@ describe("DriveFileDetailView (4.2)", () => {
     const service = new FeatureFlagService(
       new StaticProvider({
         documents: { default: true },
+        drive_connector: { default: true },
         ask_uni_stream: { default: true },
       }),
     );
@@ -710,5 +820,38 @@ describe("DriveFileDetailView (4.2)", () => {
     resolveCaps({ enabled: true, ask_uni: true });
     await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
     expect(onPropose).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces the W8-R1-05 gate on 4.2 (waits for config without flashing off, hides screen when flag or drive.available is off)", async () => {
+    // 1. Config loading -> renders skeleton, does not flash off state or fetch detail yet
+    const { promise: configPromise, resolve: resolveConfig } = Promise.withResolvers<unknown>();
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return configPromise;
+      return Promise.resolve({ file: detailFile() });
+    });
+
+    const { unmount } = render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />, true, fakeNav(), true),
+    );
+    expect(document.querySelector("[aria-busy='true']")).toBeTruthy();
+    expect(screen.queryByText(t("documents.page.off_title"))).toBeNull();
+    expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
+
+    // Resolve config with drive.available: false -> renders DocumentsGateState off without fetching detail
+    resolveConfig(defaultConfigResponse(false));
+    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
+    unmount();
+
+    // 2. drive_connector flag off -> renders DocumentsGateState off
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true, true, false));
+      return Promise.resolve({ file: detailFile() });
+    });
+    render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />, true, fakeNav(), false),
+    );
+    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
   });
 });

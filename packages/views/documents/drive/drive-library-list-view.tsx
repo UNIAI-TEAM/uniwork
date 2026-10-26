@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FolderOpen, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useDriveFiles, type DriveFile } from "@uniwork/core/drive-library";
+import { driveLibraryKeys, useDriveFiles, type DriveFile } from "@uniwork/core/drive-library";
 import { paths } from "@uniwork/core/paths";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  useDrivePicker,
+  type DrivePickerAdapter,
+} from "../../integrations/drive-picker";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
@@ -24,8 +29,10 @@ export interface DriveLibraryListViewProps {
   connections?: readonly DriveConnectionSummary[];
   /** Optional mobile sidebar opener button rendered in the header. */
   navButton?: ReactNode;
-  /** Seam for W3 Picker: opens Picker for all connections (`null`) or the selected account. */
+  /** Optional override for W3 Picker: when omitted, the built-in `useDrivePicker` opens. */
   onAddFromDrive?: (connectionId: string | null) => void;
+  /** Optional Google Picker adapter for deterministic testing. */
+  pickerAdapter?: DrivePickerAdapter;
 }
 
 function formatSharingBadge(
@@ -86,15 +93,27 @@ export function DriveLibraryListView({
   connections: connectionsProp,
   navButton,
   onAddFromDrive,
+  pickerAdapter,
 }: DriveLibraryListViewProps) {
   const { t } = useTranslation();
-  const { connections: defaultConnections, isLoading: defaultConnectionsLoading } =
-    useDriveLibraryConnections(wsId);
+  const queryClient = useQueryClient();
+  const {
+    connections: defaultConnections,
+    isLoading: defaultConnectionsLoading,
+    driveAvailable,
+    configWaitForDrive,
+  } = useDriveLibraryConnections(wsId, {
+    enabled: connectionsProp === undefined,
+  });
   const connections = connectionsProp ?? defaultConnections;
   const connectionsLoading = connectionsProp === undefined && defaultConnectionsLoading;
+  // W8-R3-01: wait for connections only when an `accountId` is selected so the
+  // plain "all accounts" list fires its GET immediately without a waterfall.
+  const waitForConnections = connectionsLoading && Boolean(accountId);
   const context = useOptionalWorkspace();
   const { searchParams, replace } = useNavigation();
   const addBtnRef = useRef<HTMLButtonElement | null>(null);
+  const strippedGateRef = useRef(false);
 
   const wsPaths = paths.workspace(
     context?.workspace.organization_slug || "org",
@@ -102,8 +121,33 @@ export function DriveLibraryListView({
   );
   const settingsIntegrationsHref = `${wsPaths.settings()}?tab=integrations`;
 
+  const picker = useDrivePicker({
+    wsId,
+    adapter: pickerAdapter,
+    onLinked: () => {
+      void queryClient.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) });
+    },
+  });
+  const reconnectHref = picker.reconnectHref;
+
+  // W8-R1-05: when the Drive connector gate (`DRIVE_CONNECTOR_FLAG` + `drive.available`)
+  // is off after config settles, strip `?view=drive` and `&account=` with `replace`
+  // (matching `IntegrationsTab` in `packages/views/settings/components/integrations-tab.tsx:122-137`).
+  useEffect(() => {
+    if (configWaitForDrive || driveAvailable || strippedGateRef.current) {
+      return;
+    }
+    strippedGateRef.current = true;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("view");
+    nextParams.delete("account");
+    nextParams.delete("pick");
+    const qs = nextParams.toString();
+    replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
+  }, [configWaitForDrive, driveAvailable, replace, searchParams, wsPaths]);
+
   const selectedConnection =
-    !connectionsLoading && accountId
+    !waitForConnections && accountId
       ? connections.find((c) => c.id === accountId) ?? null
       : null;
   const effectiveAccountId = selectedConnection ? selectedConnection.id : null;
@@ -111,7 +155,7 @@ export function DriveLibraryListView({
 
   const query = useDriveFiles(wsId, {
     connectionId: effectiveAccountId,
-    enabled: !connectionsLoading,
+    enabled: driveAvailable && !configWaitForDrive && !waitForConnections,
   });
   const files = query.data?.pages.flatMap((p) => p.files) ?? [];
 
@@ -119,13 +163,17 @@ export function DriveLibraryListView({
   // It never opens the Picker automatically.
   const pickParam = searchParams.get("pick") === "1";
   useEffect(() => {
-    if (!pickParam) return;
+    if (!pickParam || configWaitForDrive || !driveAvailable) return;
     addBtnRef.current?.focus();
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("pick");
     const qs = nextParams.toString();
     replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
-  }, [pickParam, searchParams, replace, wsPaths]);
+  }, [configWaitForDrive, driveAvailable, pickParam, searchParams, replace, wsPaths]);
+
+  if (!configWaitForDrive && !driveAvailable) {
+    return null;
+  }
 
   const title = selectedConnection
     ? t("driveLibrary.list.title_account", { email: selectedConnection.google_email })
@@ -141,9 +189,15 @@ export function DriveLibraryListView({
     ? t("driveLibrary.list.add_account", { email: selectedConnection.google_email })
     : t("driveLibrary.list.add_all");
 
-  const addDisabled = brokenAccount || !onAddFromDrive;
-  const addHint = !onAddFromDrive && !brokenAccount ? t("driveLibrary.list.add_unavailable_hint") : undefined;
-  const addHintId = addHint ? "drive-library-add-hint" : undefined;
+  const addDisabled = brokenAccount || picker.pending;
+  const handleAddFromDrive = () => {
+    if (addDisabled) return;
+    if (onAddFromDrive) {
+      onAddFromDrive(effectiveAccountId);
+      return;
+    }
+    picker.open(effectiveAccountId ? { connectionId: effectiveAccountId } : {});
+  };
 
   const addButton = (
     <Button
@@ -151,11 +205,7 @@ export function DriveLibraryListView({
       type="button"
       size="sm"
       aria-disabled={addDisabled || undefined}
-      aria-describedby={addHintId}
-      onClick={() => {
-        if (addDisabled || !onAddFromDrive) return;
-        onAddFromDrive(effectiveAccountId);
-      }}
+      onClick={handleAddFromDrive}
     >
       <Plus aria-hidden className="size-4" />
       {addLabel}
@@ -171,26 +221,31 @@ export function DriveLibraryListView({
           <h1 className="truncate text-title font-semibold">{title}</h1>
           <p className="text-caption text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {brokenAccount ? (
             <AppLink
-              href={settingsIntegrationsHref}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
+              href={reconnectHref}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "gap-1.5 text-warning",
+              )}
             >
-              {t("driveLibrary.list.manage_connections")}
+              <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+              <span>{t("driveLibrary.list.reconnect_inline")}</span>
             </AppLink>
-            {addButton}
-            {navButton}
-          </div>
-          {addHint ? (
-            <p id={addHintId} className="text-caption text-muted-foreground">
-              {addHint}
-            </p>
           ) : null}
+          <AppLink
+            href={settingsIntegrationsHref}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("driveLibrary.list.manage_connections")}
+          </AppLink>
+          {addButton}
+          {navButton}
         </div>
       </div>
 
-      {connectionsLoading || query.isPending ? (
+      {configWaitForDrive || waitForConnections || query.isPending ? (
         <div
           role="status"
           className="overflow-hidden rounded-lg border border-border bg-background"
@@ -266,11 +321,7 @@ export function DriveLibraryListView({
                 variant="outline"
                 size="sm"
                 aria-disabled={addDisabled || undefined}
-                aria-describedby={addHintId}
-                onClick={() => {
-                  if (addDisabled || !onAddFromDrive) return;
-                  onAddFromDrive(effectiveAccountId);
-                }}
+                onClick={handleAddFromDrive}
               >
                 <Plus aria-hidden className="size-4" />
                 {addLabel}
@@ -339,7 +390,7 @@ export function DriveLibraryListView({
                               </span>
                               {rowNeedsReconnect ? (
                                 <AppLink
-                                  href={settingsIntegrationsHref}
+                                  href={reconnectHref}
                                   className="inline-flex min-h-6 basis-full items-center gap-1 text-caption text-warning hover:underline pointer-coarse:min-h-11"
                                 >
                                   <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
@@ -355,7 +406,7 @@ export function DriveLibraryListView({
                           <span className="text-caption text-foreground">{accountEmail}</span>
                           {rowNeedsReconnect ? (
                             <AppLink
-                              href={settingsIntegrationsHref}
+                              href={reconnectHref}
                               className="inline-flex min-h-6 items-center gap-1 text-caption text-warning hover:underline pointer-coarse:min-h-11"
                             >
                               <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
@@ -424,6 +475,7 @@ export function DriveLibraryListView({
           <p className="text-caption text-muted-foreground">{t("driveLibrary.list.footnote")}</p>
         </>
       )}
+      {picker.dialogs}
     </div>
   );
 }
