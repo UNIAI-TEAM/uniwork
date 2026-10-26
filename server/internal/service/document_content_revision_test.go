@@ -101,8 +101,15 @@ func TestDocumentContentRevision(t *testing.T) {
 				t.Fatalf("rename: revision %d content_revision %d", renamed.Document.Revision, renamed.Document.ContentRevision)
 			}
 			up := env.upload(t, member, created.Document.ID, "rename-v2.pdf", pdfBody("rename-v2"))
-			_, err = env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			saved, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
 			mustf(t, err, "save on the pre-rename base")
+			if saved.Document.Title != title {
+				t.Fatalf("saved document.title = %q, want %q", saved.Document.Title, title)
+			}
+			if stored := env.doc(t, created.Document.ID); stored.Title != title || stored.SearchText != documentSearchText(title, "") {
+				t.Fatalf("stored after rename+save: title=%q search_text=%q, want %q / %q",
+					stored.Title, stored.SearchText, title, documentSearchText(title, ""))
+			}
 		})
 
 		t.Run("a content commit in between still conflicts, even after a move", func(t *testing.T) {
@@ -140,9 +147,15 @@ func TestDocumentContentRevision(t *testing.T) {
 				Revision: created.Document.Revision, Title: &title,
 			})
 			mustf(t, err, "rename while the job ran")
-			_, err = env.commit(member, created.Document.ID, job.OutputFileID.String, created.Document.Revision, util.NewID())
+			jobSaved, err := env.commit(member, created.Document.ID, job.OutputFileID.String, created.Document.Revision, util.NewID())
 			mustf(t, err, "job commit after a rename")
-
+			if jobSaved.Document.Title != title {
+				t.Fatalf("jobSaved document.title = %q, want %q", jobSaved.Document.Title, title)
+			}
+			if stored := env.doc(t, created.Document.ID); stored.Title != title || stored.SearchText != documentSearchText(title, "") {
+				t.Fatalf("stored after rename+job: title=%q search_text=%q, want %q / %q",
+					stored.Title, stored.SearchText, title, documentSearchText(title, ""))
+			}
 			// A content commit in between is still a conflict for the job.
 			other := env.createFile(t, member, "job-race.pdf", pdfBody("job-race-v1"))
 			late := env.officeJob(t, member, other.Document, pdfBody("job-race-v2"), "completed")
@@ -175,6 +188,13 @@ func TestDocumentContentRevision(t *testing.T) {
 			mustf(t, err, "restore on the pre-rename base")
 			if res.Document.ContentRevision != res.Document.Revision {
 				t.Fatalf("restore: content_revision %d revision %d", res.Document.ContentRevision, res.Document.Revision)
+			}
+			if res.Document.Title != title {
+				t.Fatalf("restore document.title = %q, want %q", res.Document.Title, title)
+			}
+			if stored := env.doc(t, created.Document.ID); stored.Title != title || stored.SearchText != documentSearchText(title, "") {
+				t.Fatalf("stored after rename+restore: title=%q search_text=%q, want %q / %q",
+					stored.Title, stored.SearchText, title, documentSearchText(title, ""))
 			}
 			if got := env.read(t, member, created.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, pdfBody("rr-v1")) {
 				t.Fatal("restore did not point back at the first bytes")

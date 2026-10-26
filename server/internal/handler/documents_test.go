@@ -9,8 +9,10 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"io"
@@ -1026,8 +1028,11 @@ func TestDocumentCommitLegacyConversionRoute(t *testing.T) {
 	ver := out["version"].(map[string]any)
 	docAfter := out["document"].(map[string]any)
 	fileAfter := docAfter["file"].(map[string]any)
-	if ver["version"].(float64) != 2 || ver["reason"] != "converted_version" || ver["converted_from_version"].(float64) != 1 || ver["converted_from_checksum"] == "" {
-		t.Fatalf("version SDO = %v", ver)
+	wantV1SHA := sha256.Sum256(v1Bytes)
+	wantV1Hex := hex.EncodeToString(wantV1SHA[:])
+	gotChecksum, hasChecksum := ver["converted_from_checksum"].(string)
+	if ver["version"].(float64) != 2 || ver["reason"] != "converted_version" || ver["converted_from_version"].(float64) != 1 || !hasChecksum || gotChecksum != wantV1Hex {
+		t.Fatalf("version SDO = %v, want converted_from_checksum=%q", ver, wantV1Hex)
 	}
 	if docAfter["title"] != "legacy-brief.docx" {
 		t.Fatalf("document.title = %v, want legacy-brief.docx", docAfter["title"])
@@ -1045,8 +1050,10 @@ func TestDocumentCommitLegacyConversionRoute(t *testing.T) {
 	if len(versions) != 2 {
 		t.Fatalf("versions count = %d, want 2", len(versions))
 	}
-	if v2Row := versions[0].(map[string]any); v2Row["reason"] != "converted_version" || v2Row["converted_from_version"].(float64) != 1 {
-		t.Fatalf("versions[0] = %v", v2Row)
+	v2Row := versions[0].(map[string]any)
+	v2ListChecksum, hasListChecksum := v2Row["converted_from_checksum"].(string)
+	if v2Row["reason"] != "converted_version" || v2Row["converted_from_version"].(float64) != 1 || !hasListChecksum || v2ListChecksum != wantV1Hex {
+		t.Fatalf("versions[0] = %v, want converted_from_checksum=%q", v2Row, wantV1Hex)
 	}
 
 	// Download ?version=1 returns the original .doc bytes and filename; default download returns v2 .docx.
