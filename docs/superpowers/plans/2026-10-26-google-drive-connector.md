@@ -4,7 +4,7 @@
 
 **Goal:** Người dùng kết nối Google Drive (nhiều tài khoản), liên kết tệp vào việc trên web và thấy cùng danh sách ở app desktop; UNI đọc tệp bằng quyền của chính người yêu cầu, đề xuất việc, người duyệt rồi việc được tạo.
 
-**Architecture:** Server Go giữ token (secretbox), gọi Drive REST trực tiếp bằng `net/http` như Calendar; bảng riêng `drive_connections`, `drive_files`, `drive_file_access`, `drive_file_task_links`, `drive_task_proposals`, `drive_task_proposal_links` (không phải `documents`, ADR nháp 0038). Endpoint đề xuất theo mẫu `meeting_summary_tasks.go` + `ai.Gateway`. Web: `packages/core/drive` + `packages/views` (Picker, thẻ Drive, hộp duyệt, mục Google Drive). Desktop (fork `uniwork-office`): nút Google Drive ở sidebar Tài liệu qua cùng API, không giữ token Google, chuyển sang trình duyệt/web cho Picker, kết nối, tạo việc, Hỏi UNI.
+**Architecture:** Server Go giữ token (secretbox), gọi Drive REST trực tiếp bằng `net/http` như Calendar; bảng riêng `drive_connections`, `drive_files`, `drive_file_access`, `drive_file_task_links`, `drive_task_proposals`, `drive_task_proposal_links` (không phải `documents`, ADR 0047). Endpoint đề xuất theo mẫu `meeting_summary_tasks.go` + `ai.Gateway`. Web: `packages/core/drive` + `packages/views` (Picker, thẻ Drive, hộp duyệt, mục Google Drive). Desktop (fork `uniwork-office`): nút Google Drive ở sidebar Tài liệu qua cùng API, không giữ token Google, chuyển sang trình duyệt/web cho Picker, kết nối, tạo việc, Hỏi UNI.
 
 **Tech Stack:** Go (Chi, pgx/sqlc, `golang.org/x/oauth2`, `go-oidc`), Next.js + TanStack Query + zod, Google Picker JS; Electron + Vitest (fork).
 
@@ -147,7 +147,7 @@
 - Chế độ `transient` (spec §9): `AskUniSDI` (`handler/dto/sdi/ai.go:9-18`) thêm `transient`, `transcript` có giới hạn; service bỏ qua tạo hội thoại, tin nhắn, trích dẫn ở cả đường mặc định (`askuni.go:259`, `:336`, `:609-636`) và đường agent (`askuni_agent.go:327`), dùng `transcript` làm `History` không tin cậy, trích dẫn chỉ trong phản hồi, kiểm lại focus và đọc lại tệp mỗi yêu cầu; audit `drive_file.read` (`purpose = ask_uni`).
 - Test: `TestAskUniDriveFocusIsNotPersisted` (hai câu hỏi liên tiếp, flag `ask_uni_agent` tắt và bật, không dòng hội thoại/tin nhắn/trích dẫn nào), `transient` + `conversation_id` → 400, route stream (`ai_stream.go`) ở chế độ tạm thời: frame `run` có `conversation_id` rỗng, người dùng dừng giữa chừng không để lại dòng nào, focus `drive_file` thiếu `transient` → 400, bản chép quá giới hạn → 400, người hỏi chưa có quyền → câu trả lời nói rõ, không lỗi; cả hai trạng thái flag `ask_uni_agent`; văn bản và PDF; `TestAskUniToolsAreReadOnly` và `TestAskAgentToolsAreReadOnly` vẫn qua (không thêm tool).
 
-### B9 — ADR 0038 accepted + luật CLAUDE.md — 0,25d (cùng PR với B3)
+### B9 — ADR 0047 accepted + luật CLAUDE.md — 0,25d (cùng PR với B3)
 - Chuyển ADR ra `docs/adr/`, bảng README, mục Audit and Events của `CLAUDE.md` nêu tên test; `scripts/governance.test.mjs`.
 
 ### B11 — Trích văn bản DOCX/XLSX/PPTX qua office-engine (Q8) — 4,5d
