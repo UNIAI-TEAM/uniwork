@@ -68,6 +68,9 @@ func (s *AskUNIService) askContextWithLocale(ctx context.Context, tc ai.ToolCont
 			if f.Kind == "drive_file" {
 				it, src, dc, err := s.driveFileContext(ctx, tc, f.ID, locale)
 				if err != nil {
+					if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+						return nil, askRefs{}, ai.ErrContextForbidden
+					}
 					return nil, askRefs{}, err
 				}
 				items = append(items, it)
@@ -218,16 +221,19 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 	if id == "" {
 		return agentItem{}, ai.Source{}, nil, ErrNotFound
 	}
-	base, err := s.base(ctx, tc.WorkspaceID)
-	if err != nil {
-		return agentItem{}, ai.Source{}, nil, err
-	}
-	href := base + "/documents/drive/" + id
 	reader := s.drive
 	if reader == nil {
 		reader = driveUnavailableReader{}
 	}
 	dc, err := reader.ReadForAI(ctx, tc.ActorID, tc.WorkspaceID, id, DriveContentPurposeAskUni)
+	var href string
+	if s.q != nil {
+		base, err := s.base(ctx, tc.WorkspaceID)
+		if err != nil {
+			return agentItem{}, ai.Source{}, nil, err
+		}
+		href = base + "/documents/drive/" + id
+	}
 	if err != nil {
 		if errors.Is(err, ErrDriveFileNotFound) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
 			return agentItem{}, ai.Source{}, nil, ErrNotFound
@@ -241,7 +247,7 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 			title = "Google Drive"
 		}
 		src := ai.Source{Kind: "drive_file", Title: title, Href: href, Excerpt: note}
-		it := agentItem{Kind: "drive_file", ID: id, Key: href, Title: title, Href: href, Text: withText("ID: "+id, "Note: "+note), Body: note, Foreign: true}
+		it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: "", Text: withText("ID: "+id, "Note: "+note), Body: note, Foreign: true}
 		return it, src, nil, nil
 	}
 	title := strings.TrimSpace(dc.Name)
@@ -268,7 +274,7 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 		body = pdfNote
 	}
 	src := ai.Source{Kind: "drive_file", Title: title, Href: href, Excerpt: body, MaxRunes: ai.MaxRecordExcerpt}
-	it := agentItem{Kind: "drive_file", ID: id, Key: href, Title: title, Href: href, Text: withText(fields, body), Body: body, Foreign: true}
+	it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: "", Text: withText(fields, body), Body: body, Foreign: true}
 	return it, src, &dc, nil
 }
 

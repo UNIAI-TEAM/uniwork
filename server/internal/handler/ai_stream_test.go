@@ -21,6 +21,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -612,5 +613,75 @@ func TestAskUniStreamWritesTitleAfterDone(t *testing.T) {
 	}
 	if title.Title != "Việc trễ" || title.ConversationID == "" || title.ConversationID != run.ConversationID {
 		t.Fatalf("title %+v run %+v", title, run)
+	}
+}
+
+func TestAskInputFromSDIMapsTransientAndTranscript(t *testing.T) {
+	in := sdi.AskUniSDI{
+		Question:  "Tóm tắt tài liệu",
+		Transient: true,
+		Focus:     &sdi.AskUniFocusSDI{Kind: "drive_file", ID: "01DRIVEFILE000000000000001"},
+		Transcript: []sdi.AskUniTranscriptTurnSDI{
+			{Role: "user", Text: "Câu 1"},
+			{Role: "assistant", Text: "Trả lời 1"},
+		},
+	}
+	got := askInputFromSDI(in)
+	if !got.Transient || got.Focus == nil || got.Focus.Kind != "drive_file" || len(got.Transcript) != 2 ||
+		got.Transcript[0].Role != "user" || got.Transcript[0].Text != "Câu 1" ||
+		got.Transcript[1].Role != "assistant" || got.Transcript[1].Text != "Trả lời 1" {
+		t.Fatalf("askInputFromSDI = %+v", got)
+	}
+}
+
+func TestAskUniStreamTransientRefusalsAndRunFrame(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply, StreamChunk: 2, StreamDelay: 150 * time.Millisecond})
+	badBodies := map[string]map[string]any{
+		"drive_file without transient": {
+			"question": "Tóm tắt",
+			"focus":    map[string]any{"kind": "drive_file", "id": "01DRIVEFILE000000000000001"},
+		},
+		"transient with conversation_id": {
+			"question":        "Tóm tắt",
+			"transient":       true,
+			"conversation_id": "01CONV00000000000000000001",
+		},
+		"transient with regenerate_message_id": {
+			"question":              "Tóm tắt",
+			"transient":             true,
+			"regenerate_message_id": "01MSG000000000000000000001",
+		},
+	}
+	for name, body := range badBodies {
+		r1, out1 := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, body)
+		r2 := postStream(t, srv, wsID, owner, body)
+		var out2 map[string]any
+		_ = json.NewDecoder(r2.Body).Decode(&out2)
+		if r1.StatusCode != 400 || r2.StatusCode != 400 || errorCodeOf(out1) != "invalid_request" || errorCodeOf(out2) != "invalid_request" {
+			t.Fatalf("%s: ask=%d %v, stream=%d %v", name, r1.StatusCode, out1, r2.StatusCode, out2)
+		}
+	}
+
+	res := postStream(t, srv, wsID, owner, map[string]any{
+		"question":  "Tóm tắt",
+		"locale":    "vi",
+		"transient": true,
+		"focus":     map[string]any{"kind": "drive_file", "id": "01DRIVEFILE000000000000001"},
+	})
+	ch := readSSE(res.Body)
+	var run sdo.AskStreamRunDTO
+	sawRun := false
+	for f := range ch {
+		if f.event == "run" {
+			sawRun = true
+			_ = json.Unmarshal([]byte(f.data), &run)
+		}
+		if f.event == "delta" {
+			break
+		}
+	}
+	res.Body.Close()
+	if !sawRun || run.ConversationID != "" {
+		t.Fatalf("transient stream run frame = %+v (sawRun=%v), want empty conversation_id", run, sawRun)
 	}
 }
