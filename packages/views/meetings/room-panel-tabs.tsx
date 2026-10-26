@@ -26,6 +26,7 @@ export function RoomPanelTabs<T extends string>({
   panelId,
   ariaLabel,
   end,
+  fill = false,
 }: {
   tabs: readonly T[];
   value: T;
@@ -38,6 +39,8 @@ export function RoomPanelTabs<T extends string>({
   ariaLabel: string;
   /** After the tabs: the collapse button on a wide screen, the close button on the sheet. */
   end?: ReactNode;
+  /** The track spans the row and the tabs share it (the phone sheet, Phone board). */
+  fill?: boolean;
 }) {
   const baseId = useId();
   const tabRefs = useRef(new Map<T, HTMLButtonElement>());
@@ -59,7 +62,7 @@ export function RoomPanelTabs<T extends string>({
         role="tablist"
         aria-orientation="horizontal"
         aria-label={ariaLabel}
-        className="flex min-w-0 items-center gap-0.5 rounded-xl bg-surface-hover p-[3px]"
+        className={cn("flex min-w-0 items-center gap-0.5 rounded-xl bg-surface-hover p-[3px]", fill && "flex-1")}
       >
         {tabs.map((tab, index) => {
           const active = tab === value;
@@ -84,6 +87,8 @@ export function RoomPanelTabs<T extends string>({
                 active
                   ? "min-w-0 gap-1.5 bg-surface pr-2.5 pl-2 text-label font-semibold text-foreground shadow-sm"
                   : "w-10 shrink-0 bg-transparent text-muted-foreground hover:text-foreground pointer-coarse:w-11",
+                // Filling, the pill takes half again an icon's share, as on the Phone board.
+                fill && (active ? "flex-[1.5]" : "w-auto min-w-10 flex-1 pointer-coarse:w-auto"),
               )}
               onClick={() => onChange(tab)}
               onKeyDown={(event) => onKeyDown(event, index)}

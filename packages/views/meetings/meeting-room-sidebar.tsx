@@ -223,7 +223,8 @@ export function MeetingRoomSidebar({
 
   return (
     <aside className={cn("flex min-h-0 min-w-0 w-full flex-col bg-surface", className)}>
-      <div className="relative z-10 shrink-0 border-b border-border py-2.5 pr-2.5 pl-3">
+      {/* The sheet (it brings its close button) has no rule under the tabs: the Phone board runs them into the panel. */}
+      <div className={cn("relative z-10 shrink-0 py-2.5 pr-2.5 pl-3", !tabsEnd && "border-b border-border")}>
         <RoomPanelTabs
           tabs={sidebarTabs}
           value={activeTab}
@@ -233,6 +234,7 @@ export function MeetingRoomSidebar({
           icon={tabIcon}
           badge={tabBadge}
           panelId={panelId}
+          fill={tabsEnd !== undefined}
           end={
             onCollapse || tabsEnd ? (
               <>

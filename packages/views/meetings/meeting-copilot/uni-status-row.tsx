@@ -73,12 +73,13 @@ export function UniStatusRow({
               onClick={() => onViewChange(id)}
               onKeyDown={onKeyDown}
               className={cn(
-                "inline-flex h-7 items-center gap-1.25 rounded-lg px-2.5 text-caption font-medium transition-colors pointer-coarse:h-11",
+                "inline-flex h-7 items-center gap-1.25 rounded-lg px-2.5 text-caption font-medium transition-colors pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center",
                 checked ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon aria-hidden className="size-3.5" />
-              {t(label)}
+              {/* On a phone the view is its icon (Phone board); the label still names the radio. */}
+              <span className="pointer-coarse:sr-only">{t(label)}</span>
             </button>
           );
         })}

@@ -12,7 +12,7 @@ const BADGES: Partial<Record<Tab, RoomPanelBadge>> = {
   votes: { tone: "attention", srLabel: "một biểu quyết đang chờ bạn" },
 };
 
-function renderTabs(props: { value?: Tab; onChange?: (tab: Tab) => void; end?: React.ReactNode } = {}) {
+function renderTabs(props: { value?: Tab; onChange?: (tab: Tab) => void; end?: React.ReactNode; fill?: boolean } = {}) {
   return render(
     <RoomPanelTabs
       tabs={TABS}
@@ -24,6 +24,7 @@ function renderTabs(props: { value?: Tab; onChange?: (tab: Tab) => void; end?: R
       panelId={(tab) => `panel-${tab}`}
       ariaLabel="Bảng bên"
       end={props.end}
+      fill={props.fill}
     />,
   );
 }
@@ -92,5 +93,17 @@ describe("RoomPanelTabs", () => {
     const tablist = screen.getByRole("tablist");
     expect(tablist.parentElement).toContainElement(end);
     expect(tablist.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("RoomPanelTabs fill", () => {
+  it("spreads the track over the row on the sheet, the pill taking the larger share", () => {
+    const { unmount } = renderTabs();
+    expect(screen.getByRole("tablist")).not.toHaveClass("flex-1");
+    unmount();
+    renderTabs({ fill: true });
+    expect(screen.getByRole("tablist")).toHaveClass("flex-1");
+    expect(screen.getByRole("tab", { name: "UNI" })).toHaveClass("flex-[1.5]");
+    expect(screen.getByRole("tab", { name: /^Trò chuyện/ })).toHaveClass("flex-1", "w-auto");
   });
 });

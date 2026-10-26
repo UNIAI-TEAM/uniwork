@@ -358,7 +358,8 @@ export function MeetingComposer({
                   ))}
                 </div>
                 {mode === "ask" ? (
-                  <span title={tc("scopeLabel")} className="inline-flex h-6.5 items-center gap-1 rounded-lg px-2 text-caption font-medium text-muted-foreground ring-1 ring-border ring-inset">
+                  // Not drawn on a phone (Phone board): the frame has room for the modes, @ and send only. Read there still.
+                  <span title={tc("scopeLabel")} className="inline-flex h-6.5 items-center gap-1 rounded-lg px-2 text-caption font-medium text-muted-foreground ring-1 ring-border ring-inset pointer-coarse:sr-only">
                     <MeetingIcon aria-hidden className="size-3.5" />
                     <span aria-hidden>{tc("scope")}</span>
                     <span className="sr-only">{tc("scopeLabel")}</span>
