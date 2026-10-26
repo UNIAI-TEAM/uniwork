@@ -300,11 +300,16 @@ interface AskUniContextRef {
   id: string;
 }
 
+export interface AskUniTranscriptTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface AskUniInput {
   conversation_id?: string;
   question: string;
   focus?: {
-    kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
+    kind: "task" | "meeting" | "email_thread" | "document" | "drive_file" | "project" | "room" | "thread" | "message";
     id: string;
   };
   /** Up to 5 objects the asker names; each must be readable by them. */
@@ -320,6 +325,10 @@ export interface AskUniInput {
   attachment_ids?: string[];
   /** "ask" | "plan" | "auto"; sent only when set, absent = the asker's saved mode. */
   mode?: string;
+  /** True when the turn is not stored on the server (required for `focus.kind === "drive_file"`, forbidden with `conversation_id`). */
+  transient?: boolean;
+  /** In-memory transcript window sent on each transient question (≤ 20 turns, ≤ 32,000 total chars). */
+  transcript?: AskUniTranscriptTurn[];
 }
 
 export const AskModelsSchema = z.object({ models: z.array(z.string()) });

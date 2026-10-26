@@ -410,13 +410,17 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	defer cancel()
 	deadline := started.Add(askAgentDeadline)
 
-	rows, err := s.q.AiListMessages(runCtx, conv.ID)
-	if err != nil {
-		return AskResult{}, err
+	var rows []db.AiMessage
+	if !base.Transient {
+		rows, err = s.q.AiListMessages(runCtx, conv.ID)
+		if err != nil {
+			return AskResult{}, err
+		}
 	}
 	// A conversation with no stored answer yet gets its name from this one (a
-	// refused or failed turn stored only a notice); a regenerate never does.
-	first := base.Regenerates == "" && !slices.ContainsFunc(rows, func(r db.AiMessage) bool {
+	// refused or failed turn stored only a notice); a regenerate or transient
+	// turn never does.
+	first := !base.Transient && base.Regenerates == "" && !slices.ContainsFunc(rows, func(r db.AiMessage) bool {
 		return r.Role == "assistant" && r.Content != "" && r.Notice.String == ""
 	})
 	var regenerated db.AiMessage // the question a regenerate answers again
@@ -438,7 +442,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		window = append(slices.Clip(window), regenerated)
 	}
 	var plan askFilePlan
-	if len(base.Files) > 0 || s.attachmentsEnabled(runCtx, userID, w) {
+	if !base.Transient && (len(base.Files) > 0 || s.attachmentsEnabled(runCtx, userID, w)) {
 		var release func()
 		if plan, release, err = s.turnFilePlan(runCtx, files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}, window, base.Files); err != nil {
 			if errors.Is(err, ai.ErrAttachmentUnreadable) {
@@ -454,18 +458,21 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		s.taintNow(runCtx, w.OrganizationID, conv.ID, &taint)
 	}
 	base.FileNotes = plan.Notes
-	stored, err := s.q.AiListConversationCitations(runCtx, db.AiListConversationCitationsParams{OrganizationID: w.OrganizationID, ConversationID: conv.ID})
-	if err != nil {
-		return AskResult{}, err
-	}
-	cited := make([][]AskCitation, 0, len(stored))
-	for _, raw := range stored {
-		var cs []AskCitation
-		if json.Unmarshal([]byte(raw), &cs) != nil { // a row that does not decode cites nothing
-			slog.Warn("ask uni: stored citations do not decode", "organization_id", w.OrganizationID, "conversation_id", conv.ID)
-			continue
+	var cited [][]AskCitation
+	if !base.Transient {
+		stored, err := s.q.AiListConversationCitations(runCtx, db.AiListConversationCitationsParams{OrganizationID: w.OrganizationID, ConversationID: conv.ID})
+		if err != nil {
+			return AskResult{}, err
 		}
-		cited = append(cited, cs)
+		cited = make([][]AskCitation, 0, len(stored))
+		for _, raw := range stored {
+			var cs []AskCitation
+			if json.Unmarshal([]byte(raw), &cs) != nil { // a row that does not decode cites nothing
+				slog.Warn("ask uni: stored citations do not decode", "organization_id", w.OrganizationID, "conversation_id", conv.ID)
+				continue
+			}
+			cited = append(cited, cs)
+		}
 	}
 	book := newSourceBook(cited)
 	// The focus and mentions were read before the run, in AskStream; here they
@@ -525,17 +532,25 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 	}
 	prompt, _ := ai.LookupPrompt(promptID)
-	hist := history(rows, true)
-	if err := s.historyProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
-		return AskResult{}, err
+	hist := base.Transcript
+	if !base.Transient {
+		hist = history(rows, true)
+		if err := s.historyProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
+			return AskResult{}, err
+		}
+		if err := s.historyMemoryProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
+			return AskResult{}, err
+		}
 	}
-	if err := s.historyMemoryProposals(runCtx, w.OrganizationID, rows, hist); err != nil {
-		return AskResult{}, err
+	firstParts := plan.Parts
+	if base.Drive != nil && len(base.Drive.Attachments) > 0 {
+		firstParts = append(slices.Clone(firstParts), base.Drive.Attachments...)
 	}
 	// The rendered question as the gateway sends it on the first call, with
 	// the files; later calls replay it byte for byte, so the cached prefix
 	// holds, and send the files again on it (a tool-result turn or a
-	// continuation takes no Attachments).
+	// continuation takes no Attachments). Drive PDF attachments go into the
+	// first model call of the request only (spec §9).
 	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars), Parts: plan.Parts})
 	tools := s.agentTools()
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
@@ -551,9 +566,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: promptID, Vars: vars, History: hist,
 		Tools: registry, FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
-		Attachments: plan.Parts,
+		Attachments: firstParts,
 	}
-	// Every call streams its text to the asker as it arrives (R2); without a
 	// sink nothing streams.
 	draft := &askDraft{emit: emit, cutFollowups: splitOff, cutMemory: memory != nil}
 	if emit != nil {
@@ -805,26 +819,34 @@ func namedSources(answer string, b *sourceBook) string {
 // not answer). Its text already streamed, so it ends with any proposals, any
 // memory proposals, citations, any follow-ups and done.
 func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups, memoryIDs []string, writes *askWrites) (AskResult, error) {
-	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, MemoryIDs: memoryIDs, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes, MemoryProposals: base.MemoryProposals}
+	turn := askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, MemoryIDs: memoryIDs, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates, Model: base.Model, Files: base.Files, UserID: base.UserID, WorkspaceID: base.WorkspaceID, FileNotes: base.FileNotes, MemoryProposals: base.MemoryProposals, Transient: base.Transient}
 	if writes != nil {
 		turn.Proposals, turn.Mode, turn.Tainted, turn.RunID = writes.rows, writes.mode, writes.tainted, res.RunID
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, turn)
-	if err != nil {
-		return AskResult{}, err
+	var msg db.AiMessage
+	if base.Transient {
+		msg = s.transientMessage(turn)
+	} else {
+		var err error
+		msg, err = s.store(ctx, w.OrganizationID, conv.ID, turn)
+		if err != nil {
+			return AskResult{}, err
+		}
 	}
 	res.Message, res.Citations, res.MemoryIDs = msg, citations, memoryIDs
 	if len(memoryIDs) > 0 && s.agentMetrics != nil {
 		s.agentMetrics.ObserveAskMemory("used")
 	}
-	if len(turn.Proposals) > 0 {
+	if !base.Transient && len(turn.Proposals) > 0 {
 		if res.Proposals = s.turnProposals(ctx, base.UserID, w.OrganizationID, msg.ID, writes); len(res.Proposals) > 0 {
 			emit.emit(AskEvent{Name: "proposal", Proposals: res.Proposals})
 		}
 	}
-	if n := len(turn.MemoryProposals); n > 0 {
-		if res.MemoryProposals = s.turnMemoryProposals(ctx, w.OrganizationID, msg.ID, n); len(res.MemoryProposals) > 0 {
-			emit.emit(AskEvent{Name: "memory_proposals", MemoryProposals: res.MemoryProposals})
+	if !base.Transient {
+		if n := len(turn.MemoryProposals); n > 0 {
+			if res.MemoryProposals = s.turnMemoryProposals(ctx, w.OrganizationID, msg.ID, n); len(res.MemoryProposals) > 0 {
+				emit.emit(AskEvent{Name: "memory_proposals", MemoryProposals: res.MemoryProposals})
+			}
 		}
 	}
 	emit.emitDone(res, followups)

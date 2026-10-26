@@ -7,7 +7,6 @@ import { useCurrentMember } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
-import { useTaskDriveFiles } from "@uniwork/core/drive";
 import type { AuditEvent } from "@uniwork/core/types";
 import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import type { UploadContext } from "@uniwork/core/hooks/use-file-upload";
@@ -38,7 +37,6 @@ import {
   AvatarGroupCount,
 } from "@uniwork/ui/components/ui/avatar";
 import { toastApiError } from "../../../toast-api-error";
-import { useDriveAvailable } from "../../../settings/components/drive-integration-row";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
 import { useTaskThreadNavOptional } from "../thread-nav-context";
@@ -101,10 +99,6 @@ export function TaskDetailTimeline({
   const threadNav = useTaskThreadNavOptional();
   const { data: comments, isLoading } = useComments(taskId);
   const attachments = useTaskAttachments(workspaceId, taskId);
-  const driveAvailable = useDriveAvailable();
-  useTaskDriveFiles(workspaceId, taskId, {
-    enabled: driveAvailable,
-  });
   const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
   const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);

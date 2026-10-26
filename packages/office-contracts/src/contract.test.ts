@@ -253,6 +253,43 @@ describe("validateEnvelope", () => {
     });
   });
 
+  it("validates extract_text envelope with required input tuple and rejects base_revision", async () => {
+    const checksum = sha256Sync(new TextEncoder().encode("hello"));
+    const valid = {
+      request_id: "01J8Z2REQ00000000000000009",
+      contract_version: ENGINE_CONTRACT_VERSION,
+      protocol_version: ENGINE_PROTOCOL_VERSION,
+      operation: "extract_text",
+      format: "docx",
+      deadline_ms: 60000,
+      grant_id: "01J8Z2GRANT000000000000009",
+      payload: {
+        input_checksum: checksum,
+        input_length: 5,
+      },
+    };
+    const out = await validateEnvelope(valid);
+    expect(out.operation).toBe("extract_text");
+    expect(out.format).toBe("docx");
+    expect(out.inputs).toEqual({ checksum, length: 5 });
+
+    await expect(
+      validateEnvelope({ ...valid, payload: {} }),
+    ).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_checksum",
+      rule: "required",
+    });
+
+    await expect(
+      validateEnvelope({ ...valid, payload: { ...valid.payload, base_revision: 1 } }),
+    ).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.base_revision",
+      rule: "unknown_field",
+    });
+  });
+
 });
 
 describe("canonicalJson + base64", () => {

@@ -122,10 +122,14 @@ export function DriveCallbackAlert({ notice }: { notice: CallbackNotice }) {
 export function DriveIntegrationRow({
   focusDriveRow = false,
   onDriveRowFocused,
+  focusManageButton = false,
+  onManageButtonFocused,
   onOpenDriveView,
 }: {
   focusDriveRow?: boolean;
   onDriveRowFocused?: () => void;
+  focusManageButton?: boolean;
+  onManageButtonFocused?: () => void;
   onOpenDriveView: (initialNotice?: CallbackNotice) => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
@@ -135,6 +139,7 @@ export function DriveIntegrationRow({
   const startConnect = useStartDriveConnect(workspace.id);
 
   const rowRef = useRef<HTMLLIElement>(null);
+  const manageBtnRef = useRef<HTMLButtonElement>(null);
   const [notice, setNotice] = useState<CallbackNotice | null>(null);
 
   const onPopupOutcome = (outcome: OAuthPopupOutcome) => {
@@ -185,10 +190,21 @@ export function DriveIntegrationRow({
     onDriveRowFocused?.();
   }, [driveAvailable, focusDriveRow, onDriveRowFocused]);
 
-  if (!driveAvailable) return null;
-
   const connections = connectionsQuery.data?.connections ?? [];
   const count = connections.length;
+
+  useEffect(() => {
+    if (!driveAvailable || !focusManageButton || connectionsQuery.isLoading) return;
+    if (manageBtnRef.current) {
+      manageBtnRef.current.focus();
+    } else {
+      rowRef.current?.focus();
+    }
+    onManageButtonFocused?.();
+  }, [driveAvailable, focusManageButton, connectionsQuery.isLoading, count, onManageButtonFocused]);
+
+  if (!driveAvailable) return null;
+
   const brokenCount = connections.filter((c) => isDriveConnectionLost(c)).length;
   const busy = popup.pending || startConnect.isPending;
 
@@ -234,6 +250,7 @@ export function DriveIntegrationRow({
     </Button>
   ) : count > 0 ? (
     <Button
+      ref={manageBtnRef}
       type="button"
       variant="outline"
       size="sm"
@@ -260,6 +277,8 @@ export function DriveIntegrationRow({
       tabIndex={-1}
       data-testid="drive-integration-row"
       align="start"
+      wrapTitle
+      className="rounded-sm first:rounded-t-lg last:rounded-b-lg focus-visible:-outline-offset-2"
       leading={<DriveMarkTile />}
       title={t("title")}
       badge={badge}
@@ -278,7 +297,7 @@ export function DriveIntegrationRow({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto px-0"
+                className="h-auto px-0 focus-visible:-outline-offset-2"
                 onClick={popup.focus}
               >
                 {t("oauth_show_window")}

@@ -33,8 +33,8 @@ test("version checkpoint restores the working copy and a second session sees it"
   await documentAction(page, "Lịch sử phiên bản");
   const sheet = historySheet(page);
   await expect(sheet).toBeVisible({ timeout: 30_000 });
-  await sheet.getByLabel("Tên mốc").fill("Trước khi sửa");
-  await sheet.getByRole("button", { name: "Tạo mốc" }).click();
+  await sheet.getByLabel("Tên phiên bản").fill("Trước khi sửa");
+  await sheet.getByRole("button", { name: "Tạo phiên bản" }).click();
   const done = page.getByText(/^Đã tạo phiên bản \d+$/);
   await expect(done).toBeVisible({ timeout: 30_000 });
   const checkpointNo = Number((await done.textContent())?.match(/\d+/)?.[0]);

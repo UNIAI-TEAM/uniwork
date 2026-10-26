@@ -8,11 +8,6 @@ import {
 } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
-import {
-  FeatureFlagService,
-  FeatureFlagsProvider,
-  StaticProvider,
-} from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
 import { useTaskDetailUiStore } from "@uniwork/core/tasks/stores/task-detail-ui-store";
@@ -124,48 +119,6 @@ vi.mock("@uniwork/core/audit", async (importOriginal) => {
   return {
     ...actual,
     useResourceHistory: useResourceHistoryMock,
-  };
-});
-
-const mockUseTaskDriveFiles = vi.hoisted(() =>
-  vi.fn((_wsId: string, _taskId: string, _opts?: { enabled?: boolean }) => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-  })),
-);
-
-vi.mock("@uniwork/core/drive", () => ({
-  useTaskDriveFiles: mockUseTaskDriveFiles,
-}));
-
-const publicConfigState = vi.hoisted(() => ({
-  data: {
-    flags: {} as Record<string, boolean>,
-    rum_sample_rate: 0,
-    work_management_capabilities: {
-      "tasks.agent_runs": {
-        status: "unavailable",
-        reason_code: "agent_runtime_missing",
-        explanation_key: "capabilities.agent_runtime_missing",
-      },
-      "tasks.vcs": {
-        status: "unavailable",
-        reason_code: "vcs_provider_missing",
-        explanation_key: "capabilities.vcs_provider_missing",
-      },
-    },
-    drive: {
-      available: false,
-    },
-  },
-}));
-
-vi.mock("@uniwork/core/feature-flags", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@uniwork/core/feature-flags")>();
-  return {
-    ...actual,
-    usePublicConfig: () => ({ data: publicConfigState.data }),
   };
 });
 
@@ -287,18 +240,11 @@ const workspace: Workspace = {
   organization_name: "Org",
 };
 
-function shell(ui: ReactNode, opts?: { driveFlag?: boolean }) {
-  const service = new FeatureFlagService(
-    new StaticProvider({
-      drive_connector: { default: opts?.driveFlag ?? false },
-    }),
-  );
+function shell(ui: ReactNode) {
   return wrapWithNav(
-    <FeatureFlagsProvider service={service}>
-      <WorkspaceProvider workspace={workspace} user={me}>
-        {ui}
-      </WorkspaceProvider>
-    </FeatureFlagsProvider>,
+    <WorkspaceProvider workspace={workspace} user={me}>
+      {ui}
+    </WorkspaceProvider>,
   );
 }
 
@@ -415,8 +361,6 @@ beforeEach(() => {
   createMutateAsync.mockClear();
   addReactionMutate.mockClear();
   removeReactionMutate.mockClear();
-  mockUseTaskDriveFiles.mockClear();
-  publicConfigState.data.drive = { available: false };
   // Drafts are a module singleton: a leftover draft from another case would
   // now auto-activate a composer (initialActive) and change what renders.
   useCommentDraftStore.setState({ drafts: {} });
@@ -462,25 +406,6 @@ describe("TaskDetailTimeline", () => {
       { commentId: "c1", emoji: "❤️" },
       expect.any(Object),
     );
-  });
-
-  it("gates useTaskDriveFiles on Drive availability (flag + config.drive.available)", () => {
-    const { unmount } = renderTimeline({ workspaceId: "w1", taskId: "t1" });
-    expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
-      enabled: false,
-    });
-    unmount();
-
-    mockUseTaskDriveFiles.mockClear();
-    publicConfigState.data.drive = { available: true };
-    render(
-      shell(<TimelineUnderNav workspaceId="w1" taskId="t1" />, {
-        driveFlag: true,
-      }),
-    );
-    expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
-      enabled: true,
-    });
   });
 
   it("shows real follower avatars beside the follow action and caps the visible group", () => {

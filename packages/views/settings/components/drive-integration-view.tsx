@@ -51,7 +51,7 @@ function formatDriveConnectedAt(iso: string, locale: string): string {
  * The "UNI được làm gì với tài liệu đã liên kết" block and the three scope /
  * count / storage summary tiles from prototype 1.3 (`Connected.dc.html`).
  */
-function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: number }) {
+function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: number | null }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
   return (
     <div className="space-y-4 rounded-xl border border-surface-border bg-surface p-4">
@@ -63,7 +63,9 @@ function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: numbe
         <div className="rounded-lg border border-border bg-card px-3.5 py-2.5">
           <div className="text-caption text-muted-foreground">{t("linked_count_label")}</div>
           <div className="mt-0.5 text-body font-medium text-foreground">
-            {t("linked_count", { count: totalLinkedFiles })}
+            {totalLinkedFiles === null
+              ? t("linked_count_unknown")
+              : t("linked_count", { count: totalLinkedFiles })}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-card px-3.5 py-2.5">
@@ -181,9 +183,13 @@ function DriveAccountCard({
  */
 export function DriveIntegrationView({
   initialNotice = null,
+  focusHeading = false,
+  onHeadingFocused,
   onBack,
 }: {
   initialNotice?: CallbackNotice | null;
+  focusHeading?: boolean;
+  onHeadingFocused?: () => void;
   onBack: () => void;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
@@ -194,16 +200,33 @@ export function DriveIntegrationView({
   const startConnect = useStartDriveConnect(workspace.id);
   const disconnect = useDisconnectDriveConnection(workspace.id);
 
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const reconnectTargetRef = useRef<DriveConnection | null>(null);
   const lastDisconnectEmailRef = useRef("");
+  const justConnectedRef = useRef(initialNotice?.tone === "success");
   const [notice, setNotice] = useState<CallbackNotice | null>(initialNotice);
   const [pendingDisconnect, setPendingDisconnect] = useState<DriveConnection | null>(null);
 
   useEffect(() => {
     if (initialNotice) {
       setNotice(initialNotice);
+      if (initialNotice.tone === "success") {
+        justConnectedRef.current = true;
+      }
     }
   }, [initialNotice]);
+
+  useEffect(() => {
+    if (!connectionsQuery.isFetching) {
+      justConnectedRef.current = false;
+    }
+  }, [connectionsQuery.isFetching]);
+
+  useEffect(() => {
+    if (!driveAvailable || !focusHeading) return;
+    headingRef.current?.focus();
+    onHeadingFocused?.();
+  }, [driveAvailable, focusHeading, onHeadingFocused]);
 
   const onPopupOutcome = (outcome: OAuthPopupOutcome) => {
     const targetEmail = reconnectTargetRef.current?.google_email;
@@ -251,6 +274,8 @@ export function DriveIntegrationView({
   const connections = connectionsQuery.data?.connections ?? [];
   const totalLinkedFiles = connections.reduce((sum, c) => sum + c.linked_file_count, 0);
   const busy = popup.pending || startConnect.isPending;
+  const firstConnectFetching =
+    justConnectedRef.current && connectionsQuery.isFetching && connections.length === 0;
 
   const handleConnect = (reconnect?: DriveConnection) => {
     setNotice(null);
@@ -284,6 +309,7 @@ export function DriveIntegrationView({
       </nav>
 
       <SettingsTab
+        headingRef={headingRef}
         title={t("title")}
         description={t("meta")}
         actions={
@@ -302,7 +328,9 @@ export function DriveIntegrationView({
         }
       >
         <div className="space-y-6">
-          {notice ? <DriveCallbackAlert notice={notice} /> : null}
+          {notice && !firstConnectFetching ? (
+            <DriveCallbackAlert notice={notice} />
+          ) : null}
 
           {popup.pending ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
@@ -314,7 +342,7 @@ export function DriveIntegrationView({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto px-0"
+                className="h-auto px-0 focus-visible:-outline-offset-2"
                 onClick={popup.focus}
               >
                 {t("oauth_show_window")}
@@ -323,7 +351,7 @@ export function DriveIntegrationView({
           ) : null}
 
           <SettingsSection title={t("view.accounts_title")}>
-            {connectionsQuery.isLoading ? (
+            {connectionsQuery.isLoading || firstConnectFetching ? (
               <SettingsSkeletonRows rows={2} />
             ) : connectionsQuery.isError ? (
               <SettingsCard>
@@ -354,7 +382,13 @@ export function DriveIntegrationView({
             )}
           </SettingsSection>
 
-          <DrivePermissionsSummary totalLinkedFiles={totalLinkedFiles} />
+          <DrivePermissionsSummary
+            totalLinkedFiles={
+              connectionsQuery.isLoading || connectionsQuery.isError || firstConnectFetching
+                ? null
+                : totalLinkedFiles
+            }
+          />
         </div>
       </SettingsTab>
 

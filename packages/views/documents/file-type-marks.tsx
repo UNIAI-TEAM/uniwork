@@ -133,7 +133,7 @@ function GoogleSheetMark({ className }: MarkProps) {
       <path d="M9 2h11l7 7v19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#0F9D58" />
       <path d="M20 2v5a2 2 0 0 0 2 2h5z" fill="#87CEAC" />
       <rect x="11" y="14" width="12" height="10" rx=".8" fill="#fff" />
-      <path d="M11 17.4h12M11 20.6h12M15.6 14v10" stroke="#0F9D58" strokeWidth="1.2" />
+      <path d="M11 17.4h12M11 20.6h12M15.6 14v10" stroke="#0F9D58" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -143,7 +143,7 @@ function GoogleSlideMark({ className }: MarkProps) {
     <svg aria-hidden focusable="false" className={className} viewBox="0 0 32 32" fill="none">
       <path d="M9 2h11l7 7v19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#F4B400" />
       <path d="M20 2v5a2 2 0 0 0 2 2h5z" fill="#FADA80" />
-      <rect x="11.4" y="14.4" width="11.2" height="8.4" rx=".8" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <rect x="11.4" y="14.4" width="11.2" height="8.4" rx=".8" fill="none" stroke="#fff" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }

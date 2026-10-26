@@ -23,8 +23,10 @@ export interface CreateTaskDriveErrorResolution {
 /**
  * Resolves a per-file Google Drive error returned from `POST /api/v1/workspaces/{ws}/tasks`
  * against the draft's `driveFiles` array (contract W4 gaps §1: `error.fields.drive_files_index`
- * 0-based integer + `error.fields.external_file_id` string). Stores only `errorCode` in the
- * persisted draft and derives localized toast copy at render / error time.
+ * 0-based integer). Trusts `drive_files_index` as the authoritative 0-based index into
+ * the request's `drive_files` array even if `external_file_id` is absent or mismatches;
+ * non-file errors carry no `drive_files_index` and return `null` so the caller shows a
+ * generic error toast without marking any chip.
  */
 export function resolveCreateTaskDriveError(
   error: unknown,
@@ -40,11 +42,6 @@ export function resolveCreateTaskDriveError(
     return null;
   }
 
-  const failedExternalFileId =
-    typeof fields.external_file_id === "string"
-      ? fields.external_file_id
-      : undefined;
-
   const resolvedErrorCode = code ?? "link_failed";
   const reason = driveLinkErrorReason(resolvedErrorCode, (k) =>
     t(`drive.picker.${k}`),
@@ -53,10 +50,7 @@ export function resolveCreateTaskDriveError(
 
   const updatedDriveFiles: CreateTaskDraftDriveFile[] = currentFiles.map(
     (df, index) => {
-      const matchesFile =
-        index === failedIndex &&
-        (!failedExternalFileId || df.externalFileId === failedExternalFileId);
-      if (matchesFile) {
+      if (index === failedIndex) {
         matchedName = df.name;
         return {
           ...df,
@@ -66,7 +60,6 @@ export function resolveCreateTaskDriveError(
       return df;
     },
   );
-
   if (!matchedName) {
     return null;
   }

@@ -1,33 +1,32 @@
 "use client";
 
-import { Ellipsis } from "lucide-react";
+import { CircleAlert, Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
 import { isMyFolder, type Document } from "@uniwork/core/types/document";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { CollectionPageHeader } from "../layout/collection-page";
+import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
+import { AppLink } from "../navigation";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { folderMenuItems } from "./documents-folders-grid";
-import { DocumentsSearchBox } from "./documents-search-box";
-import type { UseDocumentsSearchResult } from "./use-documents-search";
 import { FolderBreadcrumb } from "./folder-breadcrumb";
 import { CreateMenu, QuickCreateRow, type CreateChoicesProps } from "./documents-home-create";
 
 /**
  * The single header row of the Documents home board (Main.dc) and the open
  * folder (Folder.dc): h1 "Tài liệu của workspace", or the breadcrumb whose bold leaf (h1) is the
- * folder name, with its rename pencil and ⋯ menu, then search, Tải lên, Tạo mới. These views
- * have no collection header (TRASH-A3).
+ * folder name, with its rename pencil and ⋯ menu, then Tải lên, Tạo mới. Search sits on the filter
+ * row below (UNI-2205). These views have no collection header (TRASH-A3).
  */
 
 export interface DocumentsHomeHeaderProps {
@@ -44,14 +43,13 @@ export interface DocumentsHomeHeaderProps {
   folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
   /** Opens the access report scoped to the open folder; offered in its ⋯ menu to a manager. */
   onAccessReport?: (folderId: string) => void;
-  search: UseDocumentsSearchResult;
   canCreate: boolean;
   create: CreateChoicesProps;
   /** Host extras beside the create buttons (Office launch, the mobile nav). */
   actions?: React.ReactNode;
 }
 
-export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, onAccessReport, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
+export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, onAccessReport, canCreate, create, actions }: DocumentsHomeHeaderProps) {
   const { t } = useTranslation();
   const rename = useUpdateDocument(wsId, folderDoc?.id ?? "");
   const myFolder = isMyFolder(folderDoc);
@@ -98,10 +96,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
         </DropdownMenuContent>
       </DropdownMenu>
     ) : null;
-  // The row is a size container: the content width is the viewport minus the app and documents
-  // sidebars, so only the row itself says whether the search box fits beside the actions.
   return (
-    <div className="@container flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <div className="flex min-w-0 flex-1 basis-72 items-center">
         {folderDoc ? (
           <FolderBreadcrumb
@@ -132,11 +128,6 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
           </div>
         )}
       </div>
-      <DocumentsSearchBox
-        search={search}
-        folderPlaceholder={Boolean(folderDoc)}
-        className="order-last basis-full @min-[60rem]:order-none @min-[60rem]:w-56 @min-[60rem]:basis-auto"
-      />
       <div className="flex shrink-0 items-center gap-2">
         {actions}
         {canCreate ? <CreateMenu {...create} /> : null}
@@ -150,26 +141,36 @@ export function DocumentsHomeNote({ create }: { create: CreateChoicesProps | nul
   return create ? <QuickCreateRow {...create} /> : null;
 }
 
-/** The collection header the list views (Recent, Starred, Shared, Elsewhere) and the gate states keep. */
-export function DocumentsCollectionHeader({ search, children }: { search: UseDocumentsSearchResult | null; children?: React.ReactNode }) {
+/** The collection header the gate states keep. */
+export function DocumentsCollectionHeader() {
   const { t } = useTranslation();
   return (
     <CollectionPageHeader
       icon={MODULE_ICONS.documents}
       tone={moduleTone("documents")}
       title={t("documents.page.title")}
-      className={
-        search
-          ? "h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
-          : undefined
-      }
+    />
+  );
+}
+
+/** Shown when `?folder=` names a missing, trashed, or inaccessible folder. */
+export function DocumentsFolderInvalidState({ backHref, onBack }: { backHref: string; onBack: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <CollectionPageState
+      icon={CircleAlert}
+      tone="destructive"
+      role="alert"
+      title={t("documents.home.folder_invalid.title")}
+      description={t("documents.home.folder_invalid.description")}
       actions={
-        search ? (
-          <>
-            <DocumentsSearchBox search={search} className="order-last basis-full sm:order-first sm:basis-auto sm:w-48 md:w-64" />
-            <div className="flex shrink-0 items-center gap-2">{children}</div>
-          </>
-        ) : null
+        <AppLink
+          href={backHref}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+          onClick={onBack}
+        >
+          {t("documents.home.folder_invalid.back")}
+        </AppLink>
       }
     />
   );

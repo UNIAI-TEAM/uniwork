@@ -95,7 +95,7 @@ function builderTemplates(): string[] {
     paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.chatSettings(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.document(ID), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.chatSettings(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.documentsDriveFile(ID), ws.document(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p
@@ -119,6 +119,13 @@ describe("paths stay in step with the app's routes", () => {
     const missingRoute = [...builders].filter((b) => !routes.has(b));
     expect(missingBuilder, `pages without a paths builder: ${missingBuilder.join(", ")}`).toEqual([]);
     expect(missingRoute, `builders without a page: ${missingRoute.join(", ")}`).toEqual([]);
+  });
+
+  it("builds Google Drive library and file detail paths", () => {
+    const ws = paths.workspace("acme", "team");
+    expect(ws.documentsDrive()).toBe("/acme/team/documents?view=drive");
+    expect(ws.documentsDrive("conn-1")).toBe("/acme/team/documents?view=drive&account=conn-1");
+    expect(ws.documentsDriveFile("df-1")).toBe("/acme/team/documents/drive/df-1");
   });
 });
 

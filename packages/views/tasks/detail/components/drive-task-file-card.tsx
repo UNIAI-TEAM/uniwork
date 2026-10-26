@@ -21,6 +21,7 @@ import {
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../../../common/form-dialog";
+import { shortDateFormat } from "../../../common/date-pill";
 import {
   DocumentTypeIcon,
   documentFormatLabel,
@@ -62,7 +63,7 @@ function formatShortDate(iso: string | undefined, locale: string): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
+  return date.toLocaleDateString(locale, shortDateFormat(String(date.getFullYear())));
 }
 
 function buildMetadataLine(
@@ -182,7 +183,6 @@ export function DriveTaskFileCard({
 }: DriveTaskFileCardProps) {
   const { t: tRoot, i18n } = useTranslation();
   const { t } = useTranslation(undefined, { keyPrefix: "drive.card" });
-  const { t: tDriveTerms } = useTranslation(undefined, { keyPrefix: "drive.terms" });
   const { t: tDriveSettings } = useTranslation(undefined, {
     keyPrefix: "settings.integrations.drive",
   });
@@ -309,12 +309,12 @@ export function DriveTaskFileCard({
         needsAttention ? "border-warning-soft-foreground/20" : "border-surface-border",
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <DocumentTypeIcon
           format={card.icon_kind}
           className="size-9 shrink-0"
         />
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-44 flex-1 flex-col gap-0.5">
           <span className="truncate text-body font-semibold text-foreground">
             {card.name}
           </span>
@@ -323,17 +323,16 @@ export function DriveTaskFileCard({
           </span>
         </div>
         {card.bound_connection_lost && !isConnectionLost ? (
-          <Badge
-            variant="outline"
-            className="shrink-0 gap-1 border-warning-soft-foreground/20 bg-warning-soft text-warning-soft-foreground"
-          >
-            <TriangleAlert className="size-3" aria-hidden />
-            {t("bound_connection_lost_badge")}
-          </Badge>
+          <div className="flex basis-full items-center gap-2 pl-12 sm:basis-auto sm:pl-0">
+            <Badge
+              variant="outline"
+              className="shrink-0 gap-1 border-warning-soft-foreground/20 bg-warning-soft text-warning-soft-foreground"
+            >
+              <TriangleAlert className="size-3" aria-hidden />
+              {t("bound_connection_lost_badge")}
+            </Badge>
+          </div>
         ) : null}
-        <Badge variant="secondary" className="shrink-0">
-          {tDriveTerms("link")}
-        </Badge>
       </div>
 
       {card.access_lost_at && !isLost ? (

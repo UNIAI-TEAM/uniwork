@@ -5,7 +5,7 @@ import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { AskUniFocusButton } from "./ask-uni-focus-button";
+import { AskUniFocusButton, useAskUniOpener } from "./ask-uni-focus-button";
 import { capabilities, composerRoutes, user, workspace } from "./ask-uni-fixtures";
 
 initI18n();
@@ -51,5 +51,43 @@ describe("AskUniFocusButton", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/ai/capabilities"))).toBe(true));
     await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("opens the dock with a drive_file focus and its accountEmail through useAskUniOpener, and hides when AI is unavailable", async () => {
+    function DriveAskProbe() {
+      const open = useAskUniOpener({
+        kind: "drive_file",
+        id: "df1",
+        label: "Kế hoạch ra mắt Q4",
+        accountEmail: "uni-work1@gmail.com",
+        openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+      });
+      if (!open) return null;
+      return (
+        <button type="button" onClick={open}>
+          Hỏi UNI về tệp Google Drive này
+        </button>
+      );
+    }
+    const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: true } }));
+    const { unmount } = render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DriveAskProbe />
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tệp Google Drive này" }));
+    expect(useAiPanelStore.getState().open).toBe(true);
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({
+      kind: "drive_file",
+      id: "df1",
+      label: "Kế hoạch ra mắt Q4",
+      accountEmail: "uni-work1@gmail.com",
+      openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+    });
+    unmount();
   });
 });
