@@ -22,6 +22,7 @@ import {
 } from "../api/endpoints/documents-collections";
 import { canManageTrashed, DocumentNotVerifiableError } from "../types/document";
 import { useEnsureMyFolder } from "./hooks";
+import { trashKeys } from "../trash/keys";
 import { documentKeys } from "./keys";
 import { keepWhileSorting } from "./keep-while-sorting";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
@@ -297,6 +298,7 @@ export function useArchiveDocument(wsId: string) {
       ),
     onSuccess: (res) => {
       qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(wsId) });
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });
@@ -317,6 +319,7 @@ export function useRestoreDocument(wsId: string) {
     },
     onSuccess: (res) => {
       qc.setQueryData(documentKeys.detail(wsId, res.document.id), res.document);
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(wsId) });
       return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });
@@ -370,6 +373,9 @@ export function usePurgeDocument(wsId: string) {
     mutationFn: async (documentId: string) => {
       await purgeDocument(documentId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(wsId) });
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
   });
 }

@@ -38,6 +38,7 @@ import {
 } from "./invalidate-scheduler";
 import { allWorkspaceKeys } from "./reconnect-keys";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
+import { trashFrameKeys } from "./trash-events";
 import { createSourcesRefresher } from "./source-events";
 
 /** The projector trails a task event (ADR 0019); the second graph refresh waits it out. */
@@ -97,6 +98,7 @@ function keysFor(
     if (cal) push(cal);
   };
 
+  for (const k of trashFrameKeys(wsId, type, payload)) push(k);
   const workMgmt = planCacheUpdate(wsId, { type, payload });
   if (workMgmt.keys.length > 0) {
     const patchedDetail =

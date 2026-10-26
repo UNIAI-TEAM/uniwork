@@ -32,6 +32,7 @@
     "./calendar": "./calendar/hooks.ts",
     "./calendar/preferences": "./calendar/preferences.ts",
     "./calendar/types": "./calendar/types.ts",
+    "./trash": "./trash/index.ts",
     "./home": "./home/hooks.ts",
     "./home/*": "./home/*.ts",
     "./agents": "./agents/hooks.ts",

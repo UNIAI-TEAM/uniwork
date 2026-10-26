@@ -1,6 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as projects from "../api/endpoints/projects";
+import { trashKeys } from "../trash/keys";
 import { taskKeys } from "./keys";
 
 function stableHash(value: unknown): string {
@@ -72,6 +73,7 @@ export function useDeleteProject(workspaceId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
     },
   });

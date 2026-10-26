@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import * as suite from "../api/endpoints/tasks-suite";
 import * as table from "../api/endpoints/tasks-table";
 import type { TaskQueryPage } from "../types/task";
+import { trashKeys } from "../trash/keys";
 import { taskKeys } from "./keys";
 import type { MyTasksRelation } from "./surface/scope";
 import { tableQueryRetry } from "./surface/table-query";
@@ -162,6 +163,7 @@ export function useBatchDeleteTasks(workspaceId: string) {
     mutationFn: (taskIds: string[]) => suite.batchDeleteTasks(workspaceId, taskIds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });

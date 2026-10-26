@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import * as tasks from "../api/endpoints/tasks";
 import type { Task } from "../types/task";
 import { invalidateTaskCollections } from "./invalidate";
+import { trashKeys } from "../trash/keys";
 import { taskKeys } from "./keys";
 import { useRecentTasksStore } from "./stores/recent-tasks-store";
 import { applyTaskPatch, patchTableCaches } from "./table-cache-patch";
@@ -121,6 +122,7 @@ export function useDeleteTask(workspaceId: string) {
     mutationFn: (taskId: string) => tasks.deleteTask(taskId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       invalidatePagedTaskLists(qc, workspaceId);
       return qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });

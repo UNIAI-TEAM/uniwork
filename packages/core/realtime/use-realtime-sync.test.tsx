@@ -1260,6 +1260,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
         JSON.stringify(["documents", "ws1"]),
+        JSON.stringify(["trash", "ws1"]),
         JSON.stringify(["chat", "room-members", "ws1"]),
         JSON.stringify(["chat", "follow-ups", "ws1"]),
         JSON.stringify(["chat", "followed-threads", "ws1"]),
@@ -1755,5 +1756,44 @@ describe("useRealtimeSync › own organization membership", () => {
     expect(keys).not.toContain(organizations);
     expect(keys).not.toContain(workspaces);
     expect(fetchMe).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared trash frames", () => {
+  const trashRoot = JSON.stringify(["trash", "ws1"]);
+
+  it.each([
+    "task.trashed",
+    "task.restored",
+    "task.deleted",
+    "project.trashed",
+    "project.restored",
+    "project.deleted",
+    "document.archived",
+    "document.restored",
+    "document.deleted",
+  ] as const)("invalidates the shared trash on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type,
+      payload: { task_id: "t1", project_id: "p1", document_id: "d1", workspace_id: "ws1" },
+    } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(trashRoot);
+    vi.useRealTimers();
+  });
+
+  it("ignores a trash frame stamped for another workspace", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "document.archived", payload: { document_id: "d1", workspace_id: "ws2" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(trashRoot);
+    vi.useRealTimers();
   });
 });

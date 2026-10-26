@@ -2,6 +2,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as trash from "../api/endpoints/tasks-trash";
 import { invalidateTaskCollections } from "./invalidate";
+import { trashKeys } from "../trash/keys";
 import { taskKeys } from "./keys";
 
 export function useTaskTrash(workspaceId: string) {
@@ -31,6 +32,7 @@ export function useRestoreTask(workspaceId: string) {
     mutationFn: (taskId: string) => trash.restoreTask(taskId),
     onSuccess: (result, taskId) => {
       void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       for (const id of new Set([taskId, ...result.ids])) {
         void qc.invalidateQueries({ queryKey: taskKeys.detail(id) });
@@ -44,7 +46,10 @@ export function usePurgeTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (taskId: string) => trash.purgeTask(taskId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
+      return qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+    },
   });
 }
 
@@ -56,6 +61,7 @@ export function useRestoreProject(workspaceId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       return invalidateTaskCollections(qc, workspaceId);
     },
@@ -66,6 +72,9 @@ export function usePurgeProject(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (projectId: string) => trash.purgeProject(workspaceId, projectId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(workspaceId) });
+      return qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
+    },
   });
 }
