@@ -333,6 +333,11 @@ func driveReadErrorNote(err error, locale string) (string, bool) {
 			return "Không đọc được tệp Google Drive này (drive_grant_required): người hỏi cần chọn lại tệp qua Google Picker để cấp quyền cho ứng dụng.", true
 		}
 		return "Could not read this Google Drive file (drive_grant_required): the asker must select the file in Google Picker to authorize the app.", true
+	case errors.Is(err, ErrDriveBlockedByWorkspaceAdmin):
+		if vi {
+			return "Không đọc được tệp Google Drive này (blocked_by_workspace_admin): quản trị viên Google Workspace của tổ chức chưa cho phép UniWork truy cập Google Drive.", true
+		}
+		return "Could not read this Google Drive file (blocked_by_workspace_admin): your organization's Google Workspace administrator has not allowed UniWork to access Google Drive.", true
 	case errors.Is(err, ErrDriveFileNotAccessible):
 		if vi {
 			return "Không đọc được tệp Google Drive này (drive_file_not_accessible): tài khoản Google Drive của người hỏi không còn quyền truy cập tệp này trên Google Drive.", true
@@ -343,6 +348,18 @@ func driveReadErrorNote(err error, locale string) (string, bool) {
 			return "Không đọc được tệp Google Drive này (drive_format_unsupported): UNI chưa hỗ trợ đọc định dạng tệp này.", true
 		}
 		return "Could not read this Google Drive file (drive_format_unsupported): UNI does not support reading this file format yet.", true
+	case errors.Is(err, ErrDriveFileUnreadable):
+		var ce CodedError
+		if errors.As(err, &ce) && ce.Code == "password_required" {
+			if vi {
+				return "Không đọc được tệp Google Drive này (password_required): tệp đặt mật khẩu nên UNI không đọc được.", true
+			}
+			return "Could not read this Google Drive file (password_required): the file is password-protected and cannot be read by UNI.", true
+		}
+		if vi {
+			return "Không đọc được tệp Google Drive này (corrupted): tệp Office bị hỏng hoặc không đọc được.", true
+		}
+		return "Could not read this Google Drive file (corrupted): the Office file is corrupted or unreadable.", true
 	case errors.Is(err, ErrDriveExtractUnavailable):
 		if vi {
 			return "Không đọc được tệp Google Drive này (drive_extract_unavailable): bộ trích xuất nội dung tài liệu hiện không khả dụng, vui lòng thử lại sau.", true

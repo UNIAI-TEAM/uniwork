@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +38,7 @@ const (
 	DrivePDFMaxBytes           = 10 << 20                    // 10 MiB PDF media attachment cap
 	DrivePlainTextMaxBytes     = 1 << 20                     // 1 MiB text/plain and text/markdown cap
 	DriveOfficeExtractMaxBytes = office.MaxExtractInputBytes // 20 MiB DOCX/XLSX/PPTX in-memory cap
+	driveAuditTxTimeout        = 5 * time.Second
 )
 
 // ErrDriveFileUnreadable is returned when an Office Open XML file on Drive
@@ -78,6 +80,13 @@ type driveFileAccessLostRecorder interface {
 	RecordFileAccessLost(ctx context.Context, requesterID, workspaceID, driveFileID, connectionID string) error
 }
 
+// driveFileMetadataRecorder is an optional hook implemented by the B4 store to
+// persist the refreshed metadata snapshot returned by FilesGetWithConnection
+// before each content read (spec §6.2).
+type driveFileMetadataRecorder interface {
+	RecordFileMetadataRefresh(ctx context.Context, workspaceID, driveFileID string, meta DriveFileMetadata) error
+}
+
 // driveOfficeExtractor is the narrow seam satisfied by *office.Client for
 // extracting text from in-memory DOCX, XLSX, and PPTX bytes (spec §8.3a, B11).
 type driveOfficeExtractor interface {
@@ -94,16 +103,17 @@ type driveAuditTxWriter func(ctx context.Context, entry audit.Entry) error
 // driveDownloadMedia (enforced by TestDriveContentOnlyFromDriveContent in
 // server/internal/arch_test.go; ADR 0047).
 type DriveContentService struct {
-	pool      *pgxpool.Pool
-	q         *db.Queries
-	ws        *WorkspaceService
-	lookup    driveFileAccessLookup
-	lost      driveFileAccessLostRecorder
-	tokens    DriveTokenSource
-	api       *DriveAPIClient
-	extractor driveOfficeExtractor
-	log       *slog.Logger
-	auditHook driveAuditTxWriter
+	pool         *pgxpool.Pool
+	q            *db.Queries
+	ws           *WorkspaceService
+	lookup       driveFileAccessLookup
+	lost         driveFileAccessLostRecorder
+	metaRecorder driveFileMetadataRecorder
+	tokens       DriveTokenSource
+	api          *DriveAPIClient
+	extractor    driveOfficeExtractor
+	log          *slog.Logger
+	auditHook    driveAuditTxWriter
 }
 
 // NewDriveContentService constructs the DriveContentService.
@@ -123,16 +133,21 @@ func NewDriveContentService(
 	if r, ok := lookup.(driveFileAccessLostRecorder); ok {
 		lost = r
 	}
+	var metaRecorder driveFileMetadataRecorder
+	if mr, ok := lookup.(driveFileMetadataRecorder); ok {
+		metaRecorder = mr
+	}
 	return &DriveContentService{
-		pool:      pool,
-		q:         q,
-		ws:        ws,
-		lookup:    lookup,
-		lost:      lost,
-		tokens:    tokens,
-		api:       api,
-		extractor: extractor,
-		log:       slog.Default(),
+		pool:         pool,
+		q:            q,
+		ws:           ws,
+		lookup:       lookup,
+		lost:         lost,
+		metaRecorder: metaRecorder,
+		tokens:       tokens,
+		api:          api,
+		extractor:    extractor,
+		log:          slog.Default(),
 	}
 }
 
@@ -148,6 +163,13 @@ func (s *DriveContentService) SetLogger(log *slog.Logger) {
 func (s *DriveContentService) SetLostRecorder(r driveFileAccessLostRecorder) {
 	if s != nil {
 		s.lost = r
+	}
+}
+
+// SetMetadataRecorder wires an explicit driveFileMetadataRecorder for §6.2 pre-read metadata updates.
+func (s *DriveContentService) SetMetadataRecorder(r driveFileMetadataRecorder) {
+	if s != nil {
+		s.metaRecorder = r
 	}
 }
 
@@ -176,17 +198,15 @@ func (s *DriveContentService) ReadForAI(
 	if requesterID == "" || workspaceID == "" || driveFileID == "" {
 		return DriveContent{}, ErrDriveFileNotFound
 	}
-	if s == nil || s.lookup == nil {
+	if s == nil || s.ws == nil || s.ws.q == nil || s.lookup == nil {
 		return DriveContent{}, ErrDriveUnavailable
 	}
 
-	if s.ws != nil {
-		if err := s.ws.requireActorMember(ctx, workspaceID, Human(requesterID)); err != nil {
-			if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
-				return DriveContent{}, ErrDriveFileNotFound
-			}
-			return DriveContent{}, err
+	if err := s.ws.requireActorMember(ctx, workspaceID, Human(requesterID)); err != nil {
+		if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+			return DriveContent{}, ErrDriveFileNotFound
 		}
+		return DriveContent{}, err
 	}
 
 	row, err := s.lookup.LookupFileForRead(ctx, requesterID, workspaceID, driveFileID)
@@ -222,21 +242,52 @@ func (s *DriveContentService) ReadForAI(
 	if s.tokens == nil || s.api == nil {
 		return partial, ErrDriveUnavailable
 	}
+	if s.auditHook == nil && (s.pool == nil || s.q == nil) {
+		return partial, ErrDriveUnavailable
+	}
 
-	// Classify how this MIME type is read before making any network call to Google
-	// so unsupported formats fail immediately without downloading bytes.
-	kind, officeFmt, supported := classifyDriveContentMime(row.MimeType)
+	// Refresh metadata with the requester's validated connection before format
+	// dispatch so renamed, MIME-updated, or trashed files are handled from live
+	// Google state (spec §6.2: "trước mỗi lượt đọc").
+	meta, err := s.api.FilesGetWithConnection(ctx, s.tokens, conn, row.ExternalFileID)
+	if err != nil {
+		s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
+		return partial, mapDriveContentCallError(err)
+	}
+	if meta.Trashed {
+		trashedErr := &DriveAPIError{
+			Class:          DriveErrorClassFileNotAccessible,
+			HTTPStatus:     http.StatusNotFound,
+			GoogleReason:   "trashed",
+			MarkAccessLost: true,
+			Err:            ErrDriveFileNotAccessible,
+		}
+		s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, trashedErr)
+		return partial, ErrDriveFileNotAccessible
+	}
+	name := strings.TrimSpace(meta.Name)
+	if name == "" {
+		name = row.Name
+	}
+	mimeType := strings.TrimSpace(meta.MimeType)
+	if mimeType == "" {
+		mimeType = row.MimeType
+	}
+	partial.Name = name
+	partial.MimeType = mimeType
+	s.maybeRecordMetadataRefresh(ctx, workspaceID, row.DriveFileID, meta)
+
+	kind, officeFmt, supported := classifyDriveContentMime(mimeType)
 	if !supported {
 		return partial, ErrDriveFormatUnsupported
 	}
 
 	out := DriveContent{
 		DriveFileID: row.DriveFileID,
-		Name:        row.Name,
-		MimeType:    row.MimeType,
+		Name:        name,
+		MimeType:    mimeType,
 		GoogleEmail: conn.GoogleEmail,
 	}
-
 	switch kind {
 	case driveReadKindGoogleDoc:
 		raw, err := s.exportGoogleDoc(ctx, conn, row.ExternalFileID)
@@ -398,8 +449,21 @@ func (s *DriveContentService) maybeRecordAccessLost(ctx context.Context, request
 	if !errors.As(err, &apiErr) || !apiErr.MarkAccessLost {
 		return
 	}
-	if rerr := s.lost.RecordFileAccessLost(context.WithoutCancel(ctx), requesterID, workspaceID, driveFileID, connectionID); rerr != nil {
+	recCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveAuditTxTimeout)
+	defer cancel()
+	if rerr := s.lost.RecordFileAccessLost(recCtx, requesterID, workspaceID, driveFileID, connectionID); rerr != nil {
 		s.log.Warn("drive record file access lost failed", "drive_file_id", driveFileID, "err", rerr)
+	}
+}
+
+func (s *DriveContentService) maybeRecordMetadataRefresh(ctx context.Context, workspaceID, driveFileID string, meta DriveFileMetadata) {
+	if s.metaRecorder == nil {
+		return
+	}
+	recCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveAuditTxTimeout)
+	defer cancel()
+	if rerr := s.metaRecorder.RecordFileMetadataRefresh(recCtx, workspaceID, driveFileID, meta); rerr != nil {
+		s.log.Warn("drive record file metadata refresh failed", "drive_file_id", driveFileID, "err", rerr)
 	}
 }
 
@@ -434,7 +498,7 @@ func mapDriveContentCallError(err error) error {
 				Status: http.StatusForbidden,
 				Code:   "blocked_by_workspace_admin",
 				Msg:    "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive.",
-				Err:    ErrDriveFileNotAccessible,
+				Err:    ErrDriveBlockedByWorkspaceAdmin,
 			}
 		case DriveErrorClassFileNotAccessible:
 			return ErrDriveFileNotAccessible
@@ -454,18 +518,20 @@ func mapOfficeExtractError(err error) error {
 	var ue *office.ExtractUnreadableError
 	if errors.As(err, &ue) {
 		msg := "Tệp Office bị hỏng hoặc không đọc được."
+		wrapped := ErrDriveFileUnreadable
 		switch ue.Reason {
 		case string(office.OpenPasswordRequired):
 			msg = "Tệp đặt mật khẩu nên UNI không đọc được."
 		case string(office.OpenNotOfficeFile):
 			msg = "UNI chưa đọc được định dạng này."
+			wrapped = errors.Join(ErrDriveFileUnreadable, ErrDriveFormatUnsupported)
 		}
 		return CodedError{
 			Status: http.StatusUnprocessableEntity,
 			Code:   ue.Reason,
 			Msg:    msg,
 			Fields: map[string]any{"reason": ue.Reason},
-			Err:    errors.Join(ErrDriveFileUnreadable, ErrDriveFormatUnsupported),
+			Err:    wrapped,
 		}
 	}
 	if errors.Is(err, office.ErrExtractUnavailable) {
@@ -493,13 +559,14 @@ func (s *DriveContentService) recordReadAudit(
 			"google_sub":   conn.GoogleSub,
 		},
 	}
+	txCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveAuditTxTimeout)
+	defer cancel()
 	if s.auditHook != nil {
-		return s.auditHook(ctx, entry)
+		return s.auditHook(txCtx, entry)
 	}
 	if s.pool == nil || s.q == nil {
-		return nil
+		return ErrDriveUnavailable
 	}
-	txCtx := context.WithoutCancel(ctx)
 	tx, err := s.pool.Begin(txCtx)
 	if err != nil {
 		return err

@@ -16,10 +16,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/office"
+	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -204,15 +208,18 @@ func writeGoogleDriveError(w http.ResponseWriter, status int, reason, raw string
 }
 
 type fakeDriveFileAccessLookup struct {
-	mu       sync.Mutex
-	rows     map[string]driveFileAccessRow
-	err      error
-	lostRecs []string
+	mu          sync.Mutex
+	rows        map[string]driveFileAccessRow
+	err         error
+	lookupCalls int
+	lostRecs    []string
+	metaRecs    []DriveFileMetadata
 }
 
 func (f *fakeDriveFileAccessLookup) LookupFileForRead(_ context.Context, requesterID, workspaceID, driveFileID string) (driveFileAccessRow, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lookupCalls++
 	if f.err != nil {
 		return driveFileAccessRow{}, f.err
 	}
@@ -232,6 +239,13 @@ func (f *fakeDriveFileAccessLookup) RecordFileAccessLost(_ context.Context, requ
 	return nil
 }
 
+func (f *fakeDriveFileAccessLookup) RecordFileMetadataRefresh(_ context.Context, _, _ string, meta DriveFileMetadata) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.metaRecs = append(f.metaRecs, meta)
+	return nil
+}
+
 func (f *fakeDriveFileAccessLookup) lostSnapshots() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -240,14 +254,23 @@ func (f *fakeDriveFileAccessLookup) lostSnapshots() []string {
 	return out
 }
 
+func (f *fakeDriveFileAccessLookup) refreshedMetadata() []DriveFileMetadata {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]DriveFileMetadata, len(f.metaRecs))
+	copy(out, f.metaRecs)
+	return out
+}
+
 type fakeDriveTokenSource struct {
-	mu           sync.Mutex
-	tokensByConn map[string]string
-	refreshToken map[string]string
-	errByConn    map[string]error
-	refreshErr   map[string]error
-	accessCalls  []string
-	refreshCalls []string
+	mu             sync.Mutex
+	tokensByConn   map[string]string
+	refreshToken   map[string]string
+	errByConn      map[string]error
+	refreshErr     map[string]error
+	accessCalls    []string
+	refreshCalls   []string
+	rejectedTokens []string
 }
 
 func (f *fakeDriveTokenSource) AccessToken(_ context.Context, conn db.DriveConnection) (string, time.Time, error) {
@@ -264,10 +287,11 @@ func (f *fakeDriveTokenSource) AccessToken(_ context.Context, conn db.DriveConne
 	return tok, time.Now().UTC().Add(time.Hour), nil
 }
 
-func (f *fakeDriveTokenSource) ForceRefreshAccessToken(_ context.Context, conn db.DriveConnection) (string, time.Time, error) {
+func (f *fakeDriveTokenSource) ForceRefreshAccessToken(_ context.Context, conn db.DriveConnection, rejectedToken string) (string, time.Time, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refreshCalls = append(f.refreshCalls, conn.ID)
+	f.rejectedTokens = append(f.rejectedTokens, rejectedToken)
 	if err, ok := f.refreshErr[conn.ID]; ok && err != nil {
 		return "", time.Time{}, err
 	}
@@ -279,6 +303,108 @@ func (f *fakeDriveTokenSource) ForceRefreshAccessToken(_ context.Context, conn d
 		f.tokensByConn[conn.ID] = tok
 	}
 	return tok, time.Now().UTC().Add(time.Hour), nil
+}
+
+type driveUnitRowFunc func(dest ...any) error
+
+func (fn driveUnitRowFunc) Scan(dest ...any) error { return fn(dest...) }
+
+// memDriveUnitDBTX is an in-memory db.DBTX used by DB-free unit tests to run
+// the real WorkspaceService.requireActorMember gate and the real
+// DriveConnectionService token refresh path without a live Postgres connection.
+type memDriveUnitDBTX struct {
+	mu       sync.Mutex
+	admitted map[string]string             // "wsID|userID" -> orgID
+	conns    map[string]db.DriveConnection // connID -> row
+}
+
+func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if strings.Contains(sql, "-- name: UpdateDriveConnectionTokens ") {
+		accessEnc, _ := args[0].(string)
+		accessExp, _ := args[1].(pgtype.Timestamptz)
+		refreshEnc, _ := args[2].(string)
+		id, _ := args[3].(string)
+		orgID, _ := args[4].(string)
+		credVer, _ := args[5].(int64)
+		prevExp, _ := args[6].(pgtype.Timestamptz)
+		row, ok := m.conns[id]
+		if !ok || row.OrganizationID != orgID || row.CredentialVersion != credVer ||
+			!sameDriveExpiry(row.AccessExpiresAt, prevExp) || row.DisconnectedAt.Valid || row.AuthFailedAt.Valid {
+			return pgconn.NewCommandTag("UPDATE 0"), nil
+		}
+		row.AccessTokenEnc = accessEnc
+		row.AccessExpiresAt = accessExp
+		if refreshEnc != "" {
+			row.RefreshTokenEnc = refreshEnc
+		}
+		m.conns[id] = row
+		return pgconn.NewCommandTag("UPDATE 1"), nil
+	}
+	return pgconn.NewCommandTag(""), errors.New("unexpected Exec in memDriveUnitDBTX: " + sql)
+}
+
+func (m *memDriveUnitDBTX) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+	return nil, errors.New("unexpected Query in memDriveUnitDBTX: " + sql)
+}
+
+func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch {
+	case strings.Contains(sql, "-- name: GetWorkspaceAccess "):
+		wsID, _ := args[0].(string)
+		userID, _ := args[1].(string)
+		orgID, ok := m.admitted[wsID+"|"+userID]
+		if !ok {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = "member"
+			*(dest[1].(*string)) = orgID
+			*(dest[2].(*string)) = OrganizationActive
+			*(dest[3].(*string)) = "member"
+			*(dest[4].(*pgtype.Timestamptz)) = pgtype.Timestamptz{}
+			*(dest[5].(*bool)) = false
+			return nil
+		})
+	case strings.Contains(sql, "-- name: GetDriveConnection "):
+		id, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		userID, _ := args[2].(string)
+		row, ok := m.conns[id]
+		if !ok || row.OrganizationID != orgID || row.UserID != userID || row.DisconnectedAt.Valid {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = row.ID
+			*(dest[1].(*string)) = row.OrganizationID
+			*(dest[2].(*string)) = row.UserID
+			*(dest[3].(*string)) = row.Provider
+			*(dest[4].(*string)) = row.GoogleSub
+			*(dest[5].(*string)) = row.GoogleEmail
+			*(dest[6].(*string)) = row.RefreshTokenEnc
+			*(dest[7].(*string)) = row.AccessTokenEnc
+			*(dest[8].(*pgtype.Timestamptz)) = row.AccessExpiresAt
+			*(dest[9].(*int64)) = row.CredentialVersion
+			*(dest[10].(*string)) = row.Scopes
+			*(dest[11].(*pgtype.Timestamptz)) = row.AuthFailedAt
+			*(dest[12].(*pgtype.Text)) = row.AuthFailedReason
+			*(dest[13].(*pgtype.Timestamptz)) = row.CreatedAt
+			*(dest[14].(*pgtype.Timestamptz)) = row.UpdatedAt
+			*(dest[15].(*pgtype.Timestamptz)) = row.DisconnectedAt
+			return nil
+		})
+	default:
+		return driveUnitRowFunc(func(...any) error { return errors.New("unexpected QueryRow in memDriveUnitDBTX: " + sql) })
+	}
+}
+
+func newTestDriveWorkspaceService(admitted map[string]string) *WorkspaceService {
+	return &WorkspaceService{
+		q: db.New(&memDriveUnitDBTX{admitted: admitted}),
+	}
 }
 
 type fakeDriveOfficeExtractor struct {
@@ -513,6 +639,26 @@ func TestDriveAPIErrorMappingS4Reasons(t *testing.T) {
 			wantCodedWire: "drive_file_not_accessible",
 		},
 		{
+			name:          "403_fileNotDownloadable_nonACL",
+			status:        http.StatusForbidden,
+			reason:        "fileNotDownloadable",
+			wantClass:     DriveErrorClassFileNotAccessible,
+			wantSentinel:  ErrDriveFileNotAccessible,
+			wantLost:      false,
+			wantCodedHTTP: http.StatusForbidden,
+			wantCodedWire: "drive_file_not_accessible",
+		},
+		{
+			name:          "403_cannotDownloadFile_nonACL",
+			status:        http.StatusForbidden,
+			reason:        "cannotDownloadFile",
+			wantClass:     DriveErrorClassFileNotAccessible,
+			wantSentinel:  ErrDriveFileNotAccessible,
+			wantLost:      false,
+			wantCodedHTTP: http.StatusForbidden,
+			wantCodedWire: "drive_file_not_accessible",
+		},
+		{
 			name:          "403_rateLimitExceeded",
 			status:        http.StatusForbidden,
 			reason:        "rateLimitExceeded",
@@ -652,10 +798,9 @@ func TestDriveAPIErrorMappingS4Reasons(t *testing.T) {
 	if err != nil || meta.Name != "Retry Doc" {
 		t.Fatalf("FilesGetWithConnection after 401 refresh: meta=%+v err=%v", meta, err)
 	}
-	if len(tokens.refreshCalls) != 1 || tokens.refreshCalls[0] != "conn-1" {
-		t.Fatalf("refreshCalls = %v, want [conn-1]", tokens.refreshCalls)
+	if len(tokens.refreshCalls) != 1 || tokens.refreshCalls[0] != "conn-1" || len(tokens.rejectedTokens) != 1 || tokens.rejectedTokens[0] != "stale-tok" {
+		t.Fatalf("refreshCalls = %v rejectedTokens = %v, want [conn-1] and [stale-tok]", tokens.refreshCalls, tokens.rejectedTokens)
 	}
-
 	// 401 authError followed by invalid_grant on refresh -> DriveErrorClassAuthFailed (auth_failed).
 	tokensInvalidGrant := &fakeDriveTokenSource{
 		tokensByConn: map[string]string{"conn-1": "stale-tok"},
@@ -669,6 +814,153 @@ func TestDriveAPIErrorMappingS4Reasons(t *testing.T) {
 	var ce CodedError
 	if !errors.As(ceErr, &ce) || ce.Status != http.StatusConflict || ce.Code != "auth_failed" {
 		t.Fatalf("DriveErrToCodedError(auth_failed) = %+v", ce)
+	}
+}
+
+// TestDriveForceRefreshAfterRejectedToken exercises the real DriveConnectionService
+// token path (R1-1): when a caller holds an older snapshot C0 and AccessToken(C0)
+// rereads or refreshes the stored row to T1, a 401 from Google for T1 must pass
+// T1 as the rejected token into ForceRefreshAccessToken so refreshConnection
+// calls the OAuth provider once for T2 instead of seeing read != C0 and returning
+// the rejected T1 again.
+func TestDriveForceRefreshAfterRejectedToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+
+	box, err := secretbox.New(bytes.Repeat([]byte{0x42}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seal := func(plain string) string {
+		enc, err := box.Seal([]byte(plain))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return enc
+	}
+
+	const (
+		orgID  = "01ORG000000000000000000001"
+		userID = "01USER00000000000000000001"
+		connID = "01CONN00000000000000000001"
+	)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// Scenario 1: caller holds expiring snapshot C0 (tok-0), DB already holds
+	// fresh C1 (tok-1). AccessToken(C0) rereads C1 -> tok-1 (0 provider calls).
+	// Google rejects tok-1 with 401 authError. ForceRefreshAccessToken must not
+	// return tok-1 as "different from C0"; it calls the provider once for tok-2
+	// and retries with tok-2.
+	conn0 := db.DriveConnection{
+		ID:                connID,
+		OrganizationID:    orgID,
+		UserID:            userID,
+		Provider:          "google",
+		GoogleSub:         "sub-r1-1",
+		GoogleEmail:       "u1@example.com",
+		RefreshTokenEnc:   seal("ref-1"),
+		AccessTokenEnc:    seal("tok-0"),
+		AccessExpiresAt:   pgtype.Timestamptz{Time: now.Add(30 * time.Second), Valid: true},
+		CredentialVersion: 1,
+		Scopes:            "openid email " + DriveGoogleScope,
+	}
+	storedC1 := conn0
+	storedC1.AccessTokenEnc = seal("tok-1")
+	storedC1.AccessExpiresAt = pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true}
+
+	memDB := &memDriveUnitDBTX{
+		conns: map[string]db.DriveConnection{connID: storedC1},
+	}
+	connSvc := NewDriveConnectionService(nil, db.New(memDB), nil, box)
+	fakeProv := NewFakeDriveProvider(config.Config{
+		APIPublicURL:            "https://api.example.com",
+		GoogleDriveClientID:     "cid",
+		GoogleDriveClientSecret: "csec",
+	})
+	var providerCalls int
+	fakeProv.SetRefresh(func(_ context.Context, refreshToken string) (DriveTokenResponse, error) {
+		providerCalls++
+		return DriveTokenResponse{
+			AccessToken:  "tok-2",
+			RefreshToken: refreshToken,
+			Expiry:       now.Add(2 * time.Hour),
+		}, nil
+	})
+	connSvc.SetProvider(fakeProv)
+
+	gSrv.SetFile("file-r1-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-r1-1",
+			Name:     "Fresh Doc After 401",
+			MimeType: DriveMimeGoogleDoc,
+		},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-1": {Status: http.StatusUnauthorized, Reason: "authError"},
+		},
+	})
+
+	meta, err := gSrv.Client.FilesGetWithConnection(ctx, connSvc, conn0, "file-r1-1")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection R1-1 reread scenario failed: %v", err)
+	}
+	if meta.Name != "Fresh Doc After 401" {
+		t.Fatalf("meta.Name = %q, want Fresh Doc After 401", meta.Name)
+	}
+	if providerCalls != 1 {
+		t.Fatalf("provider refresh calls = %d, want 1", providerCalls)
+	}
+	calls := gSrv.Calls()
+	if len(calls) != 2 || calls[0].Token != "tok-1" || calls[1].Token != "tok-2" {
+		t.Fatalf("Google calls = %+v, want tokens [tok-1, tok-2]", calls)
+	}
+
+	// Scenario 2: both C0 and the DB row start with expired tok-0; AccessToken(C0)
+	// refreshes via the provider to tok-1, Google rejects tok-1 with 401, and
+	// ForceRefreshAccessToken refreshes again to tok-2.
+	memDB.mu.Lock()
+	memDB.conns[connID] = conn0
+	memDB.mu.Unlock()
+	providerCalls = 0
+	fakeProv.SetRefresh(func(_ context.Context, refreshToken string) (DriveTokenResponse, error) {
+		providerCalls++
+		if providerCalls == 1 {
+			return DriveTokenResponse{
+				AccessToken:  "tok-1",
+				RefreshToken: refreshToken,
+				Expiry:       now.Add(time.Hour),
+			}, nil
+		}
+		return DriveTokenResponse{
+			AccessToken:  "tok-2",
+			RefreshToken: refreshToken,
+			Expiry:       now.Add(2 * time.Hour),
+		}, nil
+	})
+	meta, err = gSrv.Client.FilesGetWithConnection(ctx, connSvc, conn0, "file-r1-1")
+	if err != nil || meta.Name != "Fresh Doc After 401" {
+		t.Fatalf("FilesGetWithConnection R1-1 refresh-then-401 scenario: meta=%+v err=%v", meta, err)
+	}
+	if providerCalls != 2 {
+		t.Fatalf("provider refresh calls = %d, want 2 (initial refresh to tok-1 + forced refresh to tok-2)", providerCalls)
+	}
+
+	// Scenario 3: another caller rotated the stored row away from rejected tok-1
+	// to tok-3 before ForceRefreshAccessToken acquired the lock -> reuses tok-3
+	// without calling the provider.
+	storedC3 := storedC1
+	storedC3.AccessTokenEnc = seal("tok-3")
+	storedC3.AccessExpiresAt = pgtype.Timestamptz{Time: now.Add(3 * time.Hour), Valid: true}
+	memDB.mu.Lock()
+	memDB.conns[connID] = storedC3
+	memDB.mu.Unlock()
+	providerCalls = 0
+	meta, err = gSrv.Client.FilesGetWithConnection(ctx, connSvc, storedC1, "file-r1-1")
+	if err != nil || meta.Name != "Fresh Doc After 401" {
+		t.Fatalf("FilesGetWithConnection R1-1 already-rotated scenario: meta=%+v err=%v", meta, err)
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider refresh calls = %d, want 0 when DB already rotated to tok-3", providerCalls)
 	}
 }
 
@@ -706,7 +998,8 @@ func TestDriveContentFormatTableAndTruncation(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
 	var auditEntries []audit.Entry
 
-	svc := NewDriveContentService(nil, nil, nil, lookup, tokens, gSrv.Client, extractor)
+	ws := newTestDriveWorkspaceService(map[string]string{wsID + "|" + userID: orgID})
+	svc := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, extractor)
 	svc.SetLogger(logger)
 	svc.auditHook = func(_ context.Context, entry audit.Entry) error {
 		auditEntries = append(auditEntries, entry)
@@ -858,7 +1151,8 @@ func TestDriveContentFormatTableAndTruncation(t *testing.T) {
 		t.Fatalf("truncated = %v, rune len = %d, want true and %d", dc.Truncated, utf8.RuneCountInString(dc.Text), DriveContentMaxChars)
 	}
 
-	// 8. Unsupported formats (image/png, legacy .doc, .odt) fail before any Google download with ErrDriveFormatUnsupported.
+	// 8. Unsupported formats (image/png, legacy .doc, .odt) refresh metadata via files.get
+	// and fail before any export/media download with ErrDriveFormatUnsupported.
 	callsBeforeUnsupported := len(gSrv.Calls())
 	for i, badMime := range []string{
 		"image/png",
@@ -878,10 +1172,11 @@ func TestDriveContentFormatTableAndTruncation(t *testing.T) {
 			t.Fatalf("mime %s: partial DriveContent missing Name/DriveFileID: %+v", badMime, got)
 		}
 	}
-	if len(gSrv.Calls()) != callsBeforeUnsupported {
-		t.Fatalf("unsupported format made %d Google calls, want 0", len(gSrv.Calls())-callsBeforeUnsupported)
+	for _, c := range gSrv.Calls()[callsBeforeUnsupported:] {
+		if c.Op != "get" {
+			t.Fatalf("unsupported format made non-metadata call %+v, want only files.get", c)
+		}
 	}
-
 	// 9. Verify audit rows carry purpose, google_email, google_sub, resource_type=drive_file,
 	// and NEVER carry document content; logs never carry email, file name, or content.
 	if len(auditEntries) == 0 {
@@ -987,13 +1282,18 @@ func TestDriveContentReadsUseTheCallersConnection(t *testing.T) {
 	}
 
 	var auditedEmails []string
-	svc := NewDriveContentService(nil, nil, nil, lookup, tokens, gSrv.Client, nil)
+	ws := newTestDriveWorkspaceService(map[string]string{
+		wsID + "|" + userMinh:      orgID,
+		wsID + "|" + userMai:       orgID,
+		wsID + "|" + userHung:      orgID,
+		otherWsID + "|" + userMinh: orgID,
+	})
+	svc := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, nil)
 	svc.auditHook = func(_ context.Context, e audit.Entry) error {
 		email, _ := e.Metadata["google_email"].(string)
 		auditedEmails = append(auditedEmails, e.Actor.ID+":"+email)
 		return nil
 	}
-
 	// 1. Minh reads -> uses Minh's connection token.
 	resMinh, err := svc.ReadForAI(ctx, userMinh, wsID, driveFileID, DriveContentPurposeTaskProposal)
 	if err != nil {
@@ -1013,8 +1313,12 @@ func TestDriveContentReadsUseTheCallersConnection(t *testing.T) {
 	}
 
 	calls := gSrv.Calls()
-	if len(calls) != 2 || calls[0].Token != "tok-minh-only" || calls[1].Token != "tok-mai-only" {
-		t.Fatalf("Google calls = %+v, want [tok-minh-only, tok-mai-only]", calls)
+	if len(calls) != 4 ||
+		calls[0].Op != "get" || calls[0].Token != "tok-minh-only" ||
+		calls[1].Op != "media" || calls[1].Token != "tok-minh-only" ||
+		calls[2].Op != "get" || calls[2].Token != "tok-mai-only" ||
+		calls[3].Op != "media" || calls[3].Token != "tok-mai-only" {
+		t.Fatalf("Google calls = %+v, want Minh get+media then Mai get+media", calls)
 	}
 	if len(auditedEmails) != 2 || auditedEmails[0] != userMinh+":minh@example.com" || auditedEmails[1] != userMai+":mai@example.com" {
 		t.Fatalf("auditedEmails = %v", auditedEmails)
@@ -1094,6 +1398,26 @@ func TestDriveContentReadsUseTheCallersConnection(t *testing.T) {
 	if len(gSrv.Calls()) != callsBefore {
 		t.Fatalf("refused reads made %d Google calls, want 0", len(gSrv.Calls())-callsBefore)
 	}
+
+	// 8. Membership gate (R1-3): nil WorkspaceService fails closed with ErrDriveUnavailable;
+	// a non-member of the workspace is refused before LookupFileForRead, Google, or extractor.
+	svcNilWS := NewDriveContentService(nil, nil, nil, lookup, tokens, gSrv.Client, nil)
+	svcNilWS.auditHook = svc.auditHook
+	if _, err := svcNilWS.ReadForAI(ctx, userMinh, wsID, driveFileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveUnavailable) {
+		t.Fatalf("nil WorkspaceService: err = %v, want ErrDriveUnavailable", err)
+	}
+	lookupBeforeOutsider := lookup.lookupCalls
+	callsBeforeOutsider := len(gSrv.Calls())
+	outsiderExtractor := &fakeDriveOfficeExtractor{}
+	svcOutsider := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, outsiderExtractor)
+	svcOutsider.auditHook = svc.auditHook
+	if _, err := svcOutsider.ReadForAI(ctx, "01USEROUTSIDER000000000009", wsID, driveFileID, DriveContentPurposeAskUni); !errors.Is(err, ErrDriveFileNotFound) {
+		t.Fatalf("non-member ReadForAI: err = %v, want ErrDriveFileNotFound", err)
+	}
+	if lookup.lookupCalls != lookupBeforeOutsider || len(gSrv.Calls()) != callsBeforeOutsider || len(outsiderExtractor.calls) != 0 {
+		t.Fatalf("non-member reached downstream dependencies: lookupCalls=%d->%d googleCalls=%d->%d extractorCalls=%d",
+			lookupBeforeOutsider, lookup.lookupCalls, callsBeforeOutsider, len(gSrv.Calls()), len(outsiderExtractor.calls))
+	}
 }
 
 // TestDriveContentOfficeExtractAndAccessLostRecording verifies Office extraction
@@ -1143,7 +1467,9 @@ func TestDriveContentOfficeExtractAndAccessLostRecording(t *testing.T) {
 		DefaultMedia: []byte("PK-docx-bytes"),
 	})
 
-	svc := NewDriveContentService(nil, nil, nil, lookup, tokens, gSrv.Client, extractor)
+	ws := newTestDriveWorkspaceService(map[string]string{wsID + "|" + userID: orgID})
+	svc := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, extractor)
+	svc.auditHook = func(_ context.Context, _ audit.Entry) error { return nil }
 
 	// 1. Engine unavailable -> ErrDriveExtractUnavailable (503).
 	extractor.err = office.ErrExtractUnavailable
@@ -1157,19 +1483,37 @@ func TestDriveContentOfficeExtractAndAccessLostRecording(t *testing.T) {
 		t.Fatalf("DriveErrToCodedError(ErrDriveExtractUnavailable) = %+v", ce)
 	}
 
-	// 2. Engine unreadable (password_required, corrupted, not_office_file) -> 422 CodedError.
-	for _, reason := range []string{
-		string(office.OpenPasswordRequired),
-		string(office.OpenCorrupted),
-		string(office.OpenNotOfficeFile),
+	// 2. Engine unreadable (password_required, corrupted, not_office_file) -> 422 CodedError (R1-6):
+	// password_required and corrupted must NOT wrap ErrDriveFormatUnsupported, and Ask UNI's
+	// driveReadErrorNote must surface the specific reason rather than drive_format_unsupported.
+	for _, tc := range []struct {
+		reason          string
+		wantUnsupported bool
+		wantNoteSubstr  string
+	}{
+		{string(office.OpenPasswordRequired), false, "password_required"},
+		{string(office.OpenCorrupted), false, "corrupted"},
+		{string(office.OpenNotOfficeFile), true, "drive_format_unsupported"},
 	} {
-		extractor.err = &office.ExtractUnreadableError{Reason: reason}
+		extractor.err = &office.ExtractUnreadableError{Reason: tc.reason}
 		_, err := svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeTaskProposal)
-		if !errors.As(err, &ce) || ce.Status != http.StatusUnprocessableEntity || ce.Code != reason {
-			t.Fatalf("reason %s: got err=%v (ce=%+v), want 422 %s", reason, err, ce, reason)
+		if !errors.As(err, &ce) || ce.Status != http.StatusUnprocessableEntity || ce.Code != tc.reason {
+			t.Fatalf("reason %s: got err=%v (ce=%+v), want 422 %s", tc.reason, err, ce, tc.reason)
 		}
-		if !errors.Is(err, ErrDriveFileUnreadable) || !errors.Is(err, ErrDriveFormatUnsupported) {
-			t.Fatalf("reason %s: expected errors.Is ErrDriveFileUnreadable and ErrDriveFormatUnsupported", reason)
+		if !errors.Is(err, ErrDriveFileUnreadable) {
+			t.Fatalf("reason %s: expected errors.Is ErrDriveFileUnreadable", tc.reason)
+		}
+		if got := errors.Is(err, ErrDriveFormatUnsupported); got != tc.wantUnsupported {
+			t.Fatalf("reason %s: errors.Is(err, ErrDriveFormatUnsupported) = %v, want %v", tc.reason, got, tc.wantUnsupported)
+		}
+		for _, locale := range []string{"vi", "en"} {
+			note, ok := driveReadErrorNote(err, locale)
+			if !ok || !strings.Contains(note, tc.wantNoteSubstr) {
+				t.Fatalf("reason %s locale %s: note=%q ok=%v, want substring %q", tc.reason, locale, note, ok, tc.wantNoteSubstr)
+			}
+			if !tc.wantUnsupported && strings.Contains(note, "drive_format_unsupported") {
+				t.Fatalf("reason %s locale %s: note=%q must not report drive_format_unsupported", tc.reason, locale, note)
+			}
 		}
 	}
 
@@ -1203,6 +1547,143 @@ func TestDriveContentOfficeExtractAndAccessLostRecording(t *testing.T) {
 	}
 	if got := lookup.lostSnapshots(); len(got) != 1 {
 		t.Fatalf("lostSnapshots after rate limit = %v, want unchanged length 1", got)
+	}
+
+	// 5. Unknown/non-ACL 403 reason (R1-2: e.g. fileNotDownloadable) -> ErrDriveFileNotAccessible,
+	// but RecordFileAccessLost is NOT called.
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		DefaultError: &FakeGoogleDriveErrorResponse{
+			Status: http.StatusForbidden,
+			Reason: "fileNotDownloadable",
+		},
+	})
+	_, err = svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeTaskProposal)
+	if !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("fileNotDownloadable: err = %v, want ErrDriveFileNotAccessible", err)
+	}
+	if got := lookup.lostSnapshots(); len(got) != 1 {
+		t.Fatalf("lostSnapshots after unknown 403 reason = %v, want unchanged length 1", got)
+	}
+
+	// 6. Google 403 domainPolicy (R1-7) -> wraps ErrDriveBlockedByWorkspaceAdmin (not
+	// ErrDriveFileNotAccessible), does not record access lost, and maps to the admin note in Ask UNI.
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		DefaultError: &FakeGoogleDriveErrorResponse{
+			Status: http.StatusForbidden,
+			Reason: "domainPolicy",
+		},
+	})
+	_, err = svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, ErrDriveBlockedByWorkspaceAdmin) || errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("domainPolicy: err = %v, want ErrDriveBlockedByWorkspaceAdmin and NOT ErrDriveFileNotAccessible", err)
+	}
+	if got := lookup.lostSnapshots(); len(got) != 1 {
+		t.Fatalf("lostSnapshots after domainPolicy = %v, want unchanged length 1", got)
+	}
+	for _, locale := range []string{"vi", "en"} {
+		note, ok := driveReadErrorNote(err, locale)
+		if !ok || !strings.Contains(note, "blocked_by_workspace_admin") {
+			t.Fatalf("domainPolicy locale %s: note=%q ok=%v, want blocked_by_workspace_admin", locale, note, ok)
+		}
+	}
+
+	// 7. Pre-read metadata refresh (R1-5):
+	// (a) Cached row has stale Name/MIME (text/plain), but Google files.get now reports
+	// DOCX ("RenamedOnDrive.docx") -> ReadForAI dispatches to the DOCX Office extractor,
+	// returns the refreshed Name and MimeType, and notifies the metadata recorder.
+	lookup.rows[userID+"|"+wsID+"|"+driveFileID] = driveFileAccessRow{
+		DriveFileID:    driveFileID,
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		ExternalFileID: extFileID,
+		Name:           "StaleName.txt",
+		MimeType:       DriveMimePlainText,
+		HasAccessRow:   true,
+		AccessState:    "granted",
+		Connection:     conn,
+	}
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       extFileID,
+			Name:     "RenamedOnDrive.docx",
+			MimeType: DriveMimeDOCX,
+		},
+		DefaultMedia: []byte("PK-updated-docx"),
+	})
+	extractor.calls = nil
+	extractor.res = office.ExtractTextResult{Text: "Extracted from refreshed DOCX"}
+	dc, err := svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if err != nil {
+		t.Fatalf("MIME-changed ReadForAI: %v", err)
+	}
+	if dc.Name != "RenamedOnDrive.docx" || dc.MimeType != DriveMimeDOCX || dc.Text != "Extracted from refreshed DOCX" {
+		t.Fatalf("MIME-changed result = %+v", dc)
+	}
+	if len(extractor.calls) != 1 || extractor.calls[0].Format != office.ExtractFormatDOCX {
+		t.Fatalf("expected DOCX extractor call after metadata refresh, got %+v", extractor.calls)
+	}
+	if metas := lookup.refreshedMetadata(); len(metas) == 0 || metas[len(metas)-1].Name != "RenamedOnDrive.docx" {
+		t.Fatalf("expected RecordFileMetadataRefresh with RenamedOnDrive.docx, got %+v", metas)
+	}
+
+	// (b) Trashed file on Google -> refused with ErrDriveFileNotAccessible before any download,
+	// and access lost is recorded.
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       extFileID,
+			Name:     "TrashedOnDrive.docx",
+			MimeType: DriveMimeDOCX,
+			Trashed:  true,
+		},
+		DefaultMedia: []byte("PK-should-not-download"),
+	})
+	callsBeforeTrashed := len(gSrv.Calls())
+	extractor.calls = nil
+	_, err = svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("trashed file ReadForAI: err = %v, want ErrDriveFileNotAccessible", err)
+	}
+	for _, c := range gSrv.Calls()[callsBeforeTrashed:] {
+		if c.Op != "get" {
+			t.Fatalf("trashed file made download call %+v, want only files.get", c)
+		}
+	}
+	if len(extractor.calls) != 0 {
+		t.Fatalf("trashed file invoked extractor %d times, want 0", len(extractor.calls))
+	}
+	if got := lookup.lostSnapshots(); len(got) != 2 {
+		t.Fatalf("lostSnapshots after trashed file = %v, want 2", got)
+	}
+
+	// 8. Audit fail-closed (R1-4): missing audit sink (pool/q/auditHook all nil) or a
+	// failing audit write prevents returning any content.
+	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       extFileID,
+			Name:     "Report.docx",
+			MimeType: DriveMimeDOCX,
+		},
+		DefaultMedia: []byte("PK-docx-bytes"),
+	})
+	svcUnaudited := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, extractor)
+	dcUnaudited, err := svcUnaudited.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, ErrDriveUnavailable) || dcUnaudited.Text != "" || len(dcUnaudited.Attachments) != 0 {
+		t.Fatalf("unaudited service: dc=%+v err=%v, want ErrDriveUnavailable with empty content", dcUnaudited, err)
+	}
+	auditBoom := errors.New("audit write failed")
+	var sawBoundedAuditCtx bool
+	svc.auditHook = func(auditCtx context.Context, _ audit.Entry) error {
+		if dl, ok := auditCtx.Deadline(); ok && time.Until(dl) <= driveAuditTxTimeout && time.Until(dl) > 0 {
+			sawBoundedAuditCtx = true
+		}
+		return auditBoom
+	}
+	dcFailAudit, err := svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
+	if !errors.Is(err, auditBoom) || dcFailAudit.Text != "" || len(dcFailAudit.Attachments) != 0 {
+		t.Fatalf("failing audit: dc=%+v err=%v, want auditBoom with empty content", dcFailAudit, err)
+	}
+	if !sawBoundedAuditCtx {
+		t.Fatal("expected recordReadAudit context to carry a bounded timeout (L-1)")
 	}
 }
 
@@ -1278,7 +1759,9 @@ func TestDriveOfficeExtractWritesNoObject(t *testing.T) {
 		DefaultMedia: []byte("PK\x03\x04docx-in-memory"),
 	})
 
-	svc := NewDriveContentService(nil, nil, nil, lookup, tokens, gSrv.Client, officeCli)
+	ws := newTestDriveWorkspaceService(map[string]string{wsID + "|" + userID: orgID})
+	svc := NewDriveContentService(nil, nil, ws, lookup, tokens, gSrv.Client, officeCli)
+	svc.auditHook = func(_ context.Context, _ audit.Entry) error { return nil }
 	dc, err := svc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeAskUni)
 	if err != nil {
 		t.Fatalf("ReadForAI with real office.Client: %v", err)

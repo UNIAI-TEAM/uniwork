@@ -49,12 +49,12 @@ const (
 
 // DriveAPIError is a classified error from the Google Drive REST API (spec §5.7).
 //
-// MarkAccessLost is true only when Class == DriveErrorClassFileNotAccessible
-// (Google reasons notFound, insufficientFilePermissions, forbidden, or a
-// trashed file): the caller in B4/B5/B8 records drive_file_access.state = lost
-// for that user (and drive_files.access_lost_at when the connection is the file's
-// bound connection). Transient errors (rate limit, 5xx, timeout) leave
-// MarkAccessLost false so stored state is never mutated on a temporary outage.
+// MarkAccessLost is true only when Google reports notFound (404),
+// insufficientFilePermissions, forbidden, or a trashed file: the caller in
+// B4/B5/B8 records drive_file_access.state = lost for that user (and
+// drive_files.access_lost_at when the connection is the file's bound
+// connection). Other 403 reasons (e.g. fileNotDownloadable) and transient
+// errors (rate limit, 5xx, timeout) leave MarkAccessLost false.
 type DriveAPIError struct {
 	Class          DriveErrorClass
 	HTTPStatus     int
@@ -216,18 +216,19 @@ func isLoopbackRedirectHost(host string) bool {
 // db.DriveConnection. *DriveConnectionService satisfies this interface.
 type DriveTokenSource interface {
 	AccessToken(ctx context.Context, conn db.DriveConnection) (string, time.Time, error)
-	ForceRefreshAccessToken(ctx context.Context, conn db.DriveConnection) (string, time.Time, error)
+	ForceRefreshAccessToken(ctx context.Context, conn db.DriveConnection, rejectedToken string) (string, time.Time, error)
 }
 
-// ForceRefreshAccessToken invalidates the cached access token expiry on conn's
-// in-memory snapshot and refreshes against Google once when a Drive API call
-// returns 401/authError (spec §5.7: "401 / authError -> refresh một lần;
-// invalid_grant -> auth_failed").
-func (s *DriveConnectionService) ForceRefreshAccessToken(ctx context.Context, conn db.DriveConnection) (string, time.Time, error) {
+// ForceRefreshAccessToken invalidates the cached access token on conn when a
+// Drive API call returns 401/authError for rejectedToken (spec §5.7:
+// "401 / authError -> refresh một lần; invalid_grant -> auth_failed"). A stored
+// token is reused without calling the provider only if it differs from
+// rejectedToken.
+func (s *DriveConnectionService) ForceRefreshAccessToken(ctx context.Context, conn db.DriveConnection, rejectedToken string) (string, time.Time, error) {
 	if s == nil {
 		return "", time.Time{}, ErrDriveNotConfigured
 	}
-	return s.forceRefreshConn(ctx, conn)
+	return s.forceRefreshConn(ctx, conn, rejectedToken)
 }
 
 // FilesGetWithConnection fetches metadata for externalFileID using conn's OAuth
@@ -256,7 +257,7 @@ func (c *DriveAPIClient) withConnectionToken(ctx context.Context, tokens DriveTo
 	}
 	var apiErr *DriveAPIError
 	if errors.As(err, &apiErr) && apiErr.Class == DriveErrorClassAuthenticationNeed {
-		tok2, _, rerr := tokens.ForceRefreshAccessToken(ctx, conn)
+		tok2, _, rerr := tokens.ForceRefreshAccessToken(ctx, conn, tok)
 		if rerr != nil {
 			return mapTokenSourceError(rerr)
 		}
@@ -568,7 +569,7 @@ func classifyDriveHTTPError(status int, body []byte) *DriveAPIError {
 				GoogleReason: reason,
 				Err:          ErrDriveBlockedByWorkspaceAdmin,
 			}
-		case "notFound", "insufficientFilePermissions", "forbidden", "cannotDownloadFile":
+		case "notFound", "insufficientFilePermissions", "forbidden":
 			return &DriveAPIError{
 				Class:          DriveErrorClassFileNotAccessible,
 				HTTPStatus:     status,
@@ -623,7 +624,7 @@ func classifyDriveHTTPError(status int, body []byte) *DriveAPIError {
 			Class:          DriveErrorClassFileNotAccessible,
 			HTTPStatus:     status,
 			GoogleReason:   firstReason,
-			MarkAccessLost: true,
+			MarkAccessLost: false,
 			Err:            ErrDriveFileNotAccessible,
 		}
 	case status == http.StatusTooManyRequests:
