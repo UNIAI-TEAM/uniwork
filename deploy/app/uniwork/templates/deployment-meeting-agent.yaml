@@ -34,8 +34,9 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- include "uniwork.nodeAffinity" . | nindent 8 }}
+      {{- include "uniwork.tolerations" . | nindent 6 }}
       # A worker drains on SIGTERM: it takes no new job and lets every meeting
       # it serves run to its end, which can be hours (spec §4.6: 4 h).
       terminationGracePeriodSeconds: {{ $ma.terminationGracePeriodSeconds }}

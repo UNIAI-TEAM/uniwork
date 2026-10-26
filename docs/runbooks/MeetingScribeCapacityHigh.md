@@ -19,7 +19,7 @@
    sum(scribe_jobs_running)
    ```
    Một pod rất cao, pod khác thấp: job dồn lệch (LiveKit chọn worker theo tải báo lên), chờ vài phút. Mọi pod cao: thiếu pod. Tải thấp mà vẫn có `scribe_no_capacity`: không có worker nào đăng ký `agent_name=uniwork-scribe` (pod không chạy, sai khóa LiveKit), xem `MeetingScribeCannotJoin.md` bước 2 và 5.
-2. HPA đã chạm trần chưa: `kubectl -n uniwork get hpa uniwork-meeting-agent` — `REPLICAS` bằng `MAXPODS` (mặc định `meetingAgent.maxReplicas: 6`) là hết chỗ; thấp hơn mà pod mới `Pending`: node pool hết CPU (`kubectl -n uniwork describe pod -l app.kubernetes.io/name=uniwork-meeting-agent | grep -A5 Events`).
+2. HPA đã chạm trần chưa: `kubectl -n uniwork get hpa uniwork-meeting-agent` — `REPLICAS` bằng `MAXPODS` (mặc định `meetingAgent.maxReplicas: 3`) là hết chỗ; thấp hơn mà pod mới `Pending`: node pool hết CPU (`kubectl -n uniwork describe pod -l app.kubernetes.io/name=uniwork-meeting-agent | grep -A5 Events`).
 3. Có cuộc họp đã bị bỏ lỡ chưa:
    ```promql
    sum(increase(uniwork_meetings_total{event=~"scribe_failed|scribe_dispatched|scribe_no_capacity"}[15m])) by (event)
@@ -31,7 +31,7 @@
 
 ## Khắc phục
 
-- Thêm sức chứa ngay: `kubectl -n uniwork scale deploy/uniwork-meeting-agent --replicas=<n>` chỉ có tác dụng nếu HPA cho phép; cách đúng là nâng `meetingAgent.maxReplicas` (và `minReplicas` cho giờ cao điểm) trong `deploy/app/uniwork/values.yaml` rồi `helm upgrade`. Mỗi pod giữ 4 CPU / 8 GiB; kiểm node pool còn chỗ trước.
+- Thêm sức chứa ngay: `kubectl -n uniwork scale deploy/uniwork-meeting-agent --replicas=<n>` chỉ có tác dụng nếu HPA cho phép; cách đúng là nâng `meetingAgent.maxReplicas` (và `minReplicas` cho giờ cao điểm) trong `deploy/app/uniwork/values.yaml` rồi `helm upgrade`. Mỗi pod xin 500m / 1 GiB và bị trần 1 CPU / 2 GiB; kiểm node pool còn chỗ trước.
 - Cuộc họp đang chờ (`scribe_no_capacity`) tự có thư ký ở lần gửi lại kế tiếp khi đã có chỗ; lần chạy đã `FAILED` tự được gọi lại sau 10 phút. Không cần làm gì thêm cho chúng.
 - Đã bật `meetingAgent.keda`: kiểm `ScaledObject` (`kubectl -n uniwork get scaledobject`) có đang scale theo `sum(scribe_jobs_running)` và trần `maxReplicas` của nó.
 - Không restart pod đang có job để "giải phóng" chỗ: pod drain tới 4 giờ và các cuộc họp đang ghi mất phần còn lại.
