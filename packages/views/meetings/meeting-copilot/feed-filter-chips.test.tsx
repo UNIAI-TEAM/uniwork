@@ -41,7 +41,15 @@ describe("FeedFilterChips", () => {
   it("keeps the chosen kind's chip, pressed, when its count drops to 0", () => {
     render(wrap(<FeedFilterChips counts={counts} value="note" onChange={() => {}} />));
     expect(screen.getByRole("button", { name: "Ghi chú, 0" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Ghi chú, 0" })).toHaveTextContent("Ghi chú0");
     expect(screen.queryByRole("button", { name: /^Bản ghi/ })).toBeNull();
+  });
+
+  it("says the chosen kind in a word and drops All's count while another kind is chosen", () => {
+    render(wrap(<FeedFilterChips counts={counts} value="task" onChange={() => {}} />));
+    expect(screen.getByRole("button", { name: "Việc cần làm, 1" })).toHaveTextContent("Việc1");
+    expect(screen.getByRole("button", { name: "Tất cả, 4" })).toHaveTextContent(/^Tất cả$/);
+    expect(screen.getByRole("button", { name: "Quyết định, 2" })).toHaveTextContent(/^2$/);
   });
 
   it("keeps All when the feed is empty", () => {

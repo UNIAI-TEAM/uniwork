@@ -1,6 +1,7 @@
 "use client";
 
 import { countFeed, type MeetingFeedEntry } from "@uniwork/core/meetings/feed";
+import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingCarriedOverSection } from "../meeting-action-items/carried-over-section";
 import { MeetingActionItemsSection } from "../meeting-action-items/meeting-action-items-section";
 import type { ActionItemSelection } from "../meeting-action-items/use-action-item-conversion";
@@ -92,8 +93,9 @@ export function UniFeedView({
   return (
     <div className="px-3">
       {error}
-      <MeetingSummaryCard gen={gen} sourcesLabel={sourcesLabel} />
-      <div className="mt-3.5 mb-1.5">
+      {/* A chosen kind is a list of that kind (UniActions board): the summary waits under All. */}
+      {filter === "all" ? <MeetingSummaryCard gen={gen} sourcesLabel={sourcesLabel} /> : null}
+      <div className={cn("mb-1.5", filter === "all" && "mt-3.5")}>
         <FeedFilterChips counts={counts} value={filter} onChange={onFilterChange} />
       </div>
       {tasks && canClerk ? (

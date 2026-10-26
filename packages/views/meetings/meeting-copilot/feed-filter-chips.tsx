@@ -44,9 +44,19 @@ const chipClass = (active: boolean) =>
     active ? "border-foreground bg-foreground text-background" : "border-border bg-surface text-foreground hover:bg-surface-hover",
   );
 
+// The chosen chip says its kind in a word (UniActions board: "Việc 4"); the others are their mark and count.
+const CHOSEN_WORD: Record<MeetingFeedKind, string> = {
+  decision: "meetings.panel.empty.decided",
+  task: "meetings.panel.empty.todo",
+  question: "meetings.panel.empty.asked",
+  note: "meetings.panel.kind.note",
+  recording: "meetings.panel.kind.recording",
+};
+
 /**
  * The UNI feed's kind filter: All, then one chip per kind that has entries,
- * each its mark and count. A kind with nothing in it has no chip unless it is the chosen one.
+ * each its mark and count; the chosen chip adds its word, and All shows its count only when chosen.
+ * A kind with nothing in it has no chip unless it is the chosen one.
  */
 export function FeedFilterChips({
   counts,
@@ -68,7 +78,7 @@ export function FeedFilterChips({
         onClick={() => onChange("all")}
       >
         {t("meetings.panel.filters.all")}
-        <span className="opacity-70">{counts.all}</span>
+        {value === "all" ? <span className="opacity-70">{counts.all}</span> : null}
       </button>
       {/* The chosen kind keeps its chip at 0, so the pressed state never vanishes. */}
       {KINDS.filter((kind) => counts[kind] > 0 || value === kind).map((kind) => (
@@ -81,6 +91,7 @@ export function FeedFilterChips({
           onClick={() => onChange(kind)}
         >
           <FeedKindMark kind={kind} size="chip" />
+          {value === kind ? <span className="font-semibold">{t(CHOSEN_WORD[kind])}</span> : null}
           {counts[kind]}
         </button>
       ))}

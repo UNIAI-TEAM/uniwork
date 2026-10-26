@@ -256,6 +256,10 @@ describe("MeetingRoomCopilotTab › wiring between the views", () => {
     expect(view("Tổng hợp")).toHaveAttribute("aria-checked", "true");
     expect(chip(/^Quyết định, 1$/)).toHaveAttribute("aria-pressed", "true");
     expect(within(feedList()!).queryByText("Viết ghi chú phát hành")).not.toBeInTheDocument();
+    // A chosen kind is a list of that kind; the summary is back under All.
+    expect(screen.queryByRole("heading", { name: "Tóm tắt đến giờ" })).not.toBeInTheDocument();
+    fireEvent.click(chip(/^Tất cả/));
+    expect(await screen.findByRole("heading", { name: "Tóm tắt đến giờ" })).toBeInTheDocument();
   });
 
   it("a clerk's “+ Hạn” in the feed opens that item's edit composer in the task list", async () => {
