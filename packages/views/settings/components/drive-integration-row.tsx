@@ -21,6 +21,18 @@ import { SettingsBadge, SettingsListItem } from "./settings-layout";
 export const DRIVE_CONNECTOR_FLAG = "drive_connector";
 export const DRIVE_OAUTH_MESSAGE = "uniwork:drive-oauth";
 
+/**
+ * Single availability rule for the Google Drive connector across Settings,
+ * Tasks, and Documents: both the `drive_connector` feature flag and
+ * `drive.available` from `GET /api/v1/config` must be true.
+ */
+export function useDriveAvailable(): boolean {
+  const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
+  const { data: publicConfig } = usePublicConfig();
+  const config = publicConfig ?? EMPTY_CONFIG;
+  return flagEnabled && Boolean(config.drive?.available);
+}
+
 export type CallbackNotice = {
   tone: "success" | "destructive" | "muted";
   code: string;
@@ -118,10 +130,7 @@ export function DriveIntegrationRow({
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
   const { workspace } = useWorkspace();
-  const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
-  const { data: publicConfig } = usePublicConfig();
-  const config = publicConfig ?? EMPTY_CONFIG;
-  const driveAvailable = flagEnabled && Boolean(config.drive?.available);
+  const driveAvailable = useDriveAvailable();
   const connectionsQuery = useDriveConnections(workspace.id, { enabled: driveAvailable });
   const startConnect = useStartDriveConnect(workspace.id);
 

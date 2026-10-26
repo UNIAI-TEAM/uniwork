@@ -5,6 +5,7 @@ export {
 } from "./drive-picker-adapter";
 export { DrivePickerDisclosure } from "./drive-picker-dialogs";
 export {
+  driveLinkErrorReason,
   useDrivePicker,
   type DrivePickerOpenRequest,
   type UseDrivePickerOptions,

@@ -11,17 +11,16 @@ import {
   useStartDriveConnect,
   type DriveConnection,
 } from "@uniwork/core/drive";
-import { EMPTY_CONFIG, useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
 import {
-  DRIVE_CONNECTOR_FLAG,
   DRIVE_OAUTH_MESSAGE,
   DriveCallbackAlert,
   DriveMarkTile,
+  useDriveAvailable,
   type CallbackNotice,
 } from "./drive-integration-row";
 import {
@@ -190,10 +189,7 @@ export function DriveIntegrationView({
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
   const { t: tSettings } = useTranslation(undefined, { keyPrefix: "settings" });
   const { workspace } = useWorkspace();
-  const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
-  const { data: publicConfig } = usePublicConfig();
-  const config = publicConfig ?? EMPTY_CONFIG;
-  const driveAvailable = flagEnabled && Boolean(config.drive?.available);
+  const driveAvailable = useDriveAvailable();
   const connectionsQuery = useDriveConnections(workspace.id, { enabled: driveAvailable });
   const startConnect = useStartDriveConnect(workspace.id);
   const disconnect = useDisconnectDriveConnection(workspace.id);
