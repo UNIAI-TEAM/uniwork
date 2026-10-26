@@ -639,8 +639,9 @@ func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) 
 	return &info, nil
 }
 
-// versionFilename resolves the filename of v. For a converted version
-// (reason=converted_version, UNI-2213) it keeps the source version's base
+// versionFilename resolves the effective filename of v. For a converted
+// version (reason=converted_version, UNI-2213), or a restore chain whose
+// restored source is a converted version, it keeps the source version's base
 // name and rewrites the extension to the target OOXML extension (.docx,
 // .xlsx, .pptx). For an extensionless provider-output placeholder on an
 // engine-produced version whose own mime is text/plain, it walks earlier
@@ -651,6 +652,11 @@ func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) 
 func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, name string) string {
 	if v.Reason == DocumentVersionReasonConverted {
 		return s.convertedVersionFilename(ctx, doc, v, name)
+	}
+	if v.RestoredFrom.Valid {
+		if converted, ok := s.restoredConvertedVersion(ctx, doc, v); ok {
+			return s.convertedVersionFilename(ctx, doc, converted, name)
+		}
 	}
 	if path.Ext(name) != "" || !v.EngineName.Valid || v.EngineName.String == "" || s.files == nil {
 		return name
@@ -694,6 +700,26 @@ func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, 
 		}
 	}
 	return name
+}
+
+// restoredConvertedVersion walks v's RestoredFrom chain and returns the
+// underlying converted_version row when v restores a converted version.
+func (s *DocumentService) restoredConvertedVersion(ctx context.Context, doc db.Document, v db.DocumentVersion) (db.DocumentVersion, bool) {
+	cur := v
+	for hops := 0; hops < 16 && cur.RestoredFrom.Valid && cur.RestoredFrom.Int32 > 0 && cur.RestoredFrom.Int32 < cur.Version; hops++ {
+		src, err := s.q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			DocumentID: doc.ID, Version: cur.RestoredFrom.Int32,
+		})
+		if err != nil {
+			return db.DocumentVersion{}, false
+		}
+		if src.Reason == DocumentVersionReasonConverted {
+			return src, true
+		}
+		cur = src
+	}
+	return db.DocumentVersion{}, false
 }
 
 // documentView re-derives the caller's access on doc through q and adds the

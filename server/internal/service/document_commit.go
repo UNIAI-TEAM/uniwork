@@ -539,21 +539,15 @@ func (s *DocumentService) commitClaimedFileVersion(
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
-	if in.Conversion != nil {
-		pair, ok := legacyConversionPairs[in.Conversion.FromFormat]
-		if !ok || pair.toFormat != in.Conversion.ToFormat {
-			return DocumentFileResult{}, false, false, errLegacyConversionInvalid("target_mismatch", "định dạng chuyển đổi không khớp với tài liệu gốc")
-		}
-	}
 	facts, err := s.checkStoredFile(ctx, fs, scope, file)
 	if err != nil {
-		if in.Conversion != nil {
+		if in.Conversion != nil && isDocumentFormatValidationError(err) {
 			return DocumentFileResult{}, false, false, errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
 		}
 		return DocumentFileResult{}, false, false, err
 	}
 	if in.Conversion != nil {
-		if err := s.verifyStoredOOXMLTarget(ctx, fs, scope, file, facts, in.Conversion.ToFormat); err != nil {
+		if err := s.verifyStoredOOXMLTarget(ctx, fs, scope, file, facts); err != nil {
 			return DocumentFileResult{}, false, false, err
 		}
 	}
@@ -674,7 +668,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 					FileIDs: []files.FileID{files.FileID(current.FileID.String)},
 				})
 				if rerr == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
-					name = resolved[0].File.Filename
+					name = s.versionFilename(ctx, locked, *current, resolved[0].File.Filename)
 				}
 			}
 			res = DocumentFileResult{Document: locked, Version: *current, File: fileInfoOf(*current, name), Access: access}
@@ -719,7 +713,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 			if job != nil {
 				return errOfficeUploadInvalid("office_job_convert_copy_only")
 			}
-			prov, targetMime, targetExt, err := validateLegacyConversion(current, f, *in.Conversion)
+			prov, targetMime, targetExt, err := validateLegacyConversion(current, f, facts.Format, *in.Conversion)
 			if err != nil {
 				return err
 			}
@@ -905,6 +899,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 		// The snapshot is the restored version's own: the same bytes.
 		f := claimed[0]
 		f.ContentType, f.SizeBytes, f.ChecksumSHA256 = src.MimeType.String, src.SizeBytes, src.ChecksumSha256.String
+		f.Filename = s.versionFilename(ctx, locked, src, f.Filename)
 		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, "restore",
 			DocumentEngineInfo{Name: src.EngineName.String, Version: src.EngineVersion.String,
 				ContractVersion: src.ContractVersion.String, ProtocolVersion: src.ProtocolVersion.String},
@@ -958,32 +953,46 @@ type convertedVersionProvenance struct {
 }
 
 // verifyStoredOOXMLTarget ensures the staged file's bytes are a valid OOXML
-// ZIP package with [Content_Types].xml and the main part of toFormat
-// (word/document.xml, xl/workbook.xml, ppt/presentation.xml), even when
-// FileService sniffed the staged bytes as another type (such as text/plain or
-// application/pdf).
-func (s *DocumentService) verifyStoredOOXMLTarget(ctx context.Context, fs files.Service, scope files.Scope, f files.File, facts document.FileFacts, toFormat string) error {
-	targetMime, ok := ooxmlTargetMime(toFormat)
-	if !ok {
-		return errLegacyConversionInvalid("target_mismatch", "định dạng chuyển đổi không khớp với tài liệu gốc")
-	}
-	if files.NormalizeContentType(f.ContentType) == targetMime && facts.Format == toFormat {
+// ZIP package with [Content_Types].xml and one of the three OOXML main parts
+// (word/document.xml, xl/workbook.xml, ppt/presentation.xml) before the
+// transaction opens; whether that OOXML family matches the declared conversion
+// pair and live version is checked inside validateLegacyConversion after the
+// lock/engine/base gates (R1-11).
+func (s *DocumentService) verifyStoredOOXMLTarget(ctx context.Context, fs files.Service, scope files.Scope, f files.File, facts document.FileFacts) error {
+	if _, ok := ooxmlTargetMime(facts.Format); ok {
 		return nil
 	}
-	// Re-validate the stored bytes explicitly against targetMime so a non-ZIP
-	// or wrong-part upload staged under another MIME answers 422 not_ooxml.
+	// Re-validate the stored bytes explicitly against an OOXML MIME so a
+	// non-ZIP upload staged under another MIME (e.g. PDF or text/plain) runs
+	// through the OOXML ZIP validator and answers 422 not_ooxml on format
+	// failure, while preserving operational storage errors (R1-2).
 	fAsTarget := f
-	fAsTarget.ContentType = targetMime
+	fAsTarget.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	checked, err := s.checkStoredFile(ctx, fs, scope, fAsTarget)
-	if err != nil || checked.Format != toFormat {
+	if err != nil {
+		if isDocumentFormatValidationError(err) {
+			return errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
+		}
+		return err
+	}
+	if _, ok := ooxmlTargetMime(checked.Format); !ok {
 		return errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
 	}
 	return nil
 }
 
+// isDocumentFormatValidationError reports whether err is a document format
+// validation refusal (mapped by documentValidationError from
+// *document.FileError), as opposed to an operational storage/spool/context
+// error that must retain its own status/code.
+func isDocumentFormatValidationError(err error) bool {
+	var ce CodedError
+	return errors.As(err, &ce) && ce.Code == document.ErrCodeUnsupportedMedia
+}
+
 // validateLegacyConversion checks the live version and the claimed upload
 // against the declared conversion pair inside the commit transaction.
-func validateLegacyConversion(current *db.DocumentVersion, f files.File, conv DocumentVersionConversion) (convertedVersionProvenance, string, string, error) {
+func validateLegacyConversion(current *db.DocumentVersion, f files.File, validatedFormat string, conv DocumentVersionConversion) (convertedVersionProvenance, string, string, error) {
 	if current == nil || !current.MimeType.Valid {
 		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("not_legacy", "chỉ tài liệu định dạng cũ (.doc, .xls, .ppt) mới chuyển đổi sang phiên bản OOXML")
 	}
@@ -995,7 +1004,7 @@ func validateLegacyConversion(current *db.DocumentVersion, f files.File, conv Do
 	if !ok || pair.toFormat != conv.ToFormat || liveLegacyFormat != conv.FromFormat {
 		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("target_mismatch", "định dạng chuyển đổi không khớp với tài liệu gốc")
 	}
-	if files.NormalizeContentType(f.ContentType) != pair.toMime {
+	if files.NormalizeContentType(f.ContentType) != pair.toMime || validatedFormat != pair.toFormat {
 		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
 	}
 	return convertedVersionProvenance{
