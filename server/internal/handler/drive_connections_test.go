@@ -289,8 +289,7 @@ func TestDriveFakeProviderOfflineEndToEndFlow(t *testing.T) {
 	d.DriveConnections.SetFlags(d.FeatureFlags)
 	_ = flags
 
-	var srv *httptest.Server
-	srv = httptest.NewServer(New(d))
+	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	d.Cfg.APIPublicURL = srv.URL
 	d.DriveConnections.ConfigureOAuth(d.Cfg)
