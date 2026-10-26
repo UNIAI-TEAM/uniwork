@@ -121,7 +121,9 @@ describe("ZoomControls slider opt-in", () => {
     unmount();
 
     render(<Harness slider />);
-    expect(screen.getByRole("group", { name: t("editor.canvas.zoom_level") })).toBeInTheDocument();
+    const group = screen.getByRole("group", { name: t("editor.canvas.zoom_level") });
+    expect(group).toHaveClass("data-horizontal:w-24", "[&_[data-slot=slider-track]]:bg-input");
+    expect(group).not.toHaveClass("data-horizontal:w-full");
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("min", "25");
     expect(slider).toHaveAttribute("max", "400");

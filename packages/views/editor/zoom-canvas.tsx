@@ -119,7 +119,7 @@ export function ZoomControls({
         </ZoomToolbarButton>
         {slider ? (
           <Slider
-            className="mx-1 w-24 shrink-0 [&_[data-slot=slider-control]]:pointer-coarse:min-h-11 [&_[data-slot=slider-thumb]]:pointer-coarse:after:-inset-4"
+            className="mx-1 shrink-0 data-horizontal:w-24 [&_[data-slot=slider-control]]:pointer-coarse:min-h-11 [&_[data-slot=slider-thumb]]:pointer-coarse:after:-inset-4 [&_[data-slot=slider-track]]:bg-input"
             min={minPercent}
             max={maxPercent}
             step={5}
