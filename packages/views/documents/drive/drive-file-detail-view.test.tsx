@@ -661,4 +661,50 @@ describe("DriveFileDetailView (4.2)", () => {
     });
     expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);
   });
+
+  it("invokes onPropose at most once when ?propose=1&ask=1 is loaded while capabilities are pending", async () => {
+    const { promise: capsPromise, resolve: resolveCaps } = Promise.withResolvers<unknown>();
+    requestMock.mockImplementation((path: string) => {
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({ can_propose: true, can_ask: true, viewer_access: "granted" }),
+        });
+      }
+      if (path.endsWith("/ai/capabilities")) {
+        return capsPromise;
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    const onPropose = vi.fn();
+    const baseNav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1&ask=1`);
+    // Simulate a slow replace that has not yet updated searchParams when capabilities resolve
+    const nav = {
+      ...baseNav,
+      replace: vi.fn(),
+    };
+    const service = new FeatureFlagService(
+      new StaticProvider({
+        documents: { default: true },
+        ask_uni_stream: { default: true },
+      }),
+    );
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={sessionUser}>
+          <FeatureFlagsProvider service={service}>
+            <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} onPropose={onPropose} />
+          </FeatureFlagsProvider>
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    await waitFor(() => expect(onPropose).toHaveBeenCalledTimes(1));
+
+    resolveCaps({ enabled: true, ask_uni: true });
+    await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
+    expect(onPropose).toHaveBeenCalledTimes(1);
+  });
 });

@@ -699,7 +699,7 @@ describe("AskUniComposer", () => {
       );
     });
 
-    it("ignores a drive_file page chip when a saved conversation is open so conversation_id is kept and no Drive reader line or footer shows", async () => {
+    it("ignores a drive_file page chip when a saved conversation is open so conversation_id is kept and no Drive reader line or footer shows, and select(null) shows the page chip again", async () => {
       const { onSend } = mount();
       act(() => {
         useAiPanelStore.getState().setPage({
@@ -708,7 +708,7 @@ describe("AskUniComposer", () => {
           label: "Kế hoạch ra mắt Q4",
           accountEmail: "uni-work1@gmail.com",
         });
-        useAiPanelStore.setState({ conversationId: "c1", pageDismissed: null });
+        useAiPanelStore.getState().select("c1");
       });
       expect(
         screen.queryByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
@@ -729,6 +729,18 @@ describe("AskUniComposer", () => {
       expect(payload.conversation_id).toBe("c1");
       expect(payload.focus).toBeUndefined();
       expect(payload).not.toHaveProperty("transient");
+
+      act(() => {
+        useAiPanelStore.getState().select(null);
+      });
+      expect(
+        await screen.findByText("Kế hoạch ra mắt Q4 — UNI đang dùng tài liệu này làm ngữ cảnh"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+        ),
+      ).toBeInTheDocument();
     });
   });
 });

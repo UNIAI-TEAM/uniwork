@@ -1,21 +1,18 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { CircleAlert, ExternalLink, FileX, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, apiErrorMessage, errorCode } from "@uniwork/core/api";
-import { useAiCapabilities } from "@uniwork/core/ai";
 import { useResourceHistory } from "@uniwork/core/audit";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useDriveFile, useUnlinkDriveFile, type DriveFile, type DriveIconKind } from "@uniwork/core/drive-library";
-import { useFlag } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { useAskUniOpener } from "../../ai/ask-uni-focus-button";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
@@ -23,6 +20,7 @@ import { AppLink, useOptionalNavigation } from "../../navigation";
 import { relativeTime } from "../../notifications/relative-time";
 import { DocumentTypeIcon } from "../document-type-icon";
 import { DocumentsGateState, useDocumentsGate } from "../documents-gate";
+import { DriveAskUniHeaderButton, useDriveAskUniSeam } from "./drive-ask-uni-seam";
 import {
   DriveFileActivitySection,
   DriveRebindSection,
@@ -137,41 +135,14 @@ export function DriveFileDetailView({
     [members.data],
   );
   const unlinkMutation = useUnlinkDriveFile(wsId);
-  const askDocked = useFlag("ask_uni_stream", false);
-  const aiCaps = useAiCapabilities(wsId, askDocked && wsId !== "");
-  const defaultAskOpener = useAskUniOpener(
-    { kind: "drive_file", id: file?.id ?? driveFileId, label: file?.name, accountEmail: file?.viewer_account_email || undefined, openUrl: file?.open_url },
+  const { showAsk, askGranted, askDisabled, triggerAsk } = useDriveAskUniSeam({
     wsId,
-  );
-  const hasAskSeam = Boolean(onAsk || defaultAskOpener);
-  const askCapsPending = !hasAskSeam && askDocked && aiCaps.isPending;
-
-  // §7.11: `?propose=1` / `?ask=1` are read and stripped with `replace`, calling `onPropose` / `onAsk` if present.
-  const searchParams = nav?.searchParams;
-  const replace = nav?.replace;
-  const proposeParam = searchParams?.get("propose") === "1";
-  const askParam = searchParams?.get("ask") === "1";
-
-  useEffect(() => {
-    if (!file || (!proposeParam && !askParam)) return;
-    if (proposeParam && file.can_propose && onPropose) {
-      onPropose(file);
-    }
-    if (askParam && askCapsPending && !proposeParam) return;
-    if (askParam && file.can_ask && file.viewer_access === "granted") {
-      if (onAsk) onAsk(file);
-      else defaultAskOpener?.();
-    }
-    if (replace && searchParams) {
-      const next = new URLSearchParams(searchParams.toString());
-      if (proposeParam) next.delete("propose");
-      if (askParam && !askCapsPending) next.delete("ask");
-      const qs = next.toString();
-      const baseHref = wsPaths.documentsDriveFile(driveFileId);
-      replace(qs ? `${baseHref}?${qs}` : baseHref);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultAskOpener is recreated per render; trigger once per file/param
-  }, [file, proposeParam, askParam, askCapsPending, onPropose, onAsk, Boolean(defaultAskOpener), replace, searchParams, wsPaths, driveFileId]);
+    driveFileId,
+    file,
+    detailHref: wsPaths.documentsDriveFile(driveFileId),
+    onPropose,
+    onAsk,
+  });
 
   if (gate !== "on") {
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
@@ -263,9 +234,6 @@ export function DriveFileDetailView({
       : file.owner_display;
 
   const showPropose = file.can_propose && Boolean(onPropose);
-  const askGranted = file.viewer_access === "granted";
-  const showAsk = hasAskSeam && (file.can_ask || !askGranted);
-  const askDisabled = !askGranted || !file.can_ask;
   const usedInTotal = Math.max(file.used_in_count, file.used_in_tasks.length);
   const creations = (file.task_creations ?? []).filter((g) => g.tasks.length > 0);
   const totalCreatedCount = file.tasks_created?.count ?? 0;
@@ -303,15 +271,12 @@ export function DriveFileDetailView({
         actionsClassName="max-w-none flex-wrap justify-end overflow-visible"
         actions={
           <>
-            {showAsk ? (
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" aria-disabled={askDisabled || undefined} aria-describedby={!askGranted ? "drive-detail-ask-access-hint" : undefined} onClick={askDisabled ? undefined : () => (onAsk ? onAsk(file) : defaultAskOpener?.())}>
-                  <Sparkles aria-hidden className="size-4" />
-                  {t("driveLibrary.detail.ask_uni")}
-                </Button>
-                {!askGranted ? <span id="drive-detail-ask-access-hint" className="text-caption text-muted-foreground">{t("driveLibrary.detail.access_required_hint")}</span> : null}
-              </div>
-            ) : null}
+            <DriveAskUniHeaderButton
+              showAsk={showAsk}
+              askGranted={askGranted}
+              askDisabled={askDisabled}
+              onTriggerAsk={triggerAsk}
+            />
             <a
               href={file.open_url}
               target="_blank"

@@ -197,7 +197,7 @@ export function useAskUniStream(wsId: string) {
               turnConversation.current = e.conversationId;
               setState((s) => ({ ...s, conversationId: e.conversationId }));
               if (useAiPanelStore.getState().conversationId === null && e.conversationId !== "") {
-                useAiPanelStore.getState().select(e.conversationId);
+                useAiPanelStore.getState().setConversationFromRun(e.conversationId);
               }
             }
             break;

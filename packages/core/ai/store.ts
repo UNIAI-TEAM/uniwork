@@ -28,7 +28,7 @@ export function buildTransientTranscript(messages: readonly Pick<AiMessage, "rol
   const turns: AskUniTranscriptTurn[] = messages
     .filter(
       (m): m is Pick<AiMessage, "role" | "content"> & { role: "user" | "assistant" } =>
-        (m.role === "user" || m.role === "assistant") && m.content !== "",
+        (m.role === "user" || m.role === "assistant") && m.content.trim() !== "",
     )
     .map((m) => ({ role: m.role, text: m.content }));
   let start = 0;
@@ -79,6 +79,8 @@ interface AiPanelStore {
   toggle: () => void;
   /** Opening another conversation (or a new one) drops a focus that was meant for a fresh question. */
   select: (conversationId: string | null) => void;
+  /** Sets the conversation id announced by a non-transient `run` frame without clearing/bumping transient state. */
+  setConversationFromRun: (conversationId: string) => void;
   openWithFocus: (focus: AskUniPanelFocus) => void;
   /** Another screen hands the panel a conversation it started, with the focus it was asked with. */
   openConversation: (conversationId: string, focus: AskUniPanelFocus) => void;
@@ -120,7 +122,9 @@ function clearedTransient(s: AiPanelStore) {
     (s.conversationId === null &&
       (s.focus?.kind === "drive_file" ||
         s.pendingFocus?.kind === "drive_file" ||
-        (!s.focus && s.page?.kind === "drive_file")));
+        (!s.focus &&
+          s.page?.kind === "drive_file" &&
+          s.pageDismissed !== `${s.page.kind}:${s.page.id}`)));
   if (!wasTransient) return {};
   return {
     transientMessages: [],
@@ -226,10 +230,15 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
             conversationId,
             pendingFocus: null,
             ...(s.focus?.kind === "drive_file" ? { focus: null } : {}),
-            ...(s.page?.kind === "drive_file" ? { pageDismissed: `${s.page.kind}:${s.page.id}` } : {}),
             ...clearedTransient(s),
           },
     ),
+  setConversationFromRun: (conversationId) =>
+    set((s) => ({
+      conversationId,
+      pendingFocus: null,
+      ...(s.focus?.kind === "drive_file" ? { focus: null } : {}),
+    })),
   openWithFocus: (focus) =>
     set((s) => {
       const active = s.focus ?? s.pendingFocus;
@@ -288,7 +297,11 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   dismissPage: () =>
     set((s) => ({
       pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null,
-      ...(s.page?.kind === "drive_file" && !s.focus ? clearedTransient(s) : {}),
+      ...(s.page?.kind === "drive_file" &&
+      !s.focus &&
+      (s.transientMessages.length > 0 || s.transientWindowTrimmed)
+        ? clearedTransient(s)
+        : {}),
     })),
   appendTransientTurn: (question, answer) =>
     set((s) => {

@@ -137,6 +137,7 @@ export function AskUniActions({
   const writes = !transient && actions?.enabled === true;
   const convTitle = useAiConversations(wsId, writes).data?.find((c) => c.id === conversationId)?.title ?? "";
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+
   const copy = async () => {
     try {
       // No clipboard (insecure context) throws here, a denied one rejects; either leaves the button unchanged.

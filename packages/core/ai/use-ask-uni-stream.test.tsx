@@ -642,4 +642,27 @@ describe("useAskUniStream transient mode (drive_file)", () => {
     expect(sentBody?.transcript?.[0]).toEqual({ role: "user", text: "Q2" });
     expect(sentBody?.transcript?.[19]).toEqual({ role: "assistant", text: "A11" });
   });
+
+  it("does not abort a saved first turn started on a drive_file page after the page chip was dismissed", () => {
+    const { result, qc } = setup();
+    act(() => {
+      useAiPanelStore.getState().setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+      useAiPanelStore.getState().dismissPage();
+    });
+
+    act(() => void result.current.ask({ question: "Câu hỏi thường" }));
+    emit({ type: "run", runId: "r-saved", conversationId: "conv_new" });
+    expect(opts.signal.aborted).toBe(false);
+    expect(useAiPanelStore.getState().conversationId).toBe("conv_new");
+    expect(result.current.state.status).toBe("streaming");
+
+    emit({ type: "delta", text: "Câu trả lời đầy đủ" });
+    emit({ type: "done", message: msg({ id: "m-saved", content: "Câu trả lời đầy đủ" }), usage: usage0 });
+
+    expect(opts.signal.aborted).toBe(false);
+    expect(result.current.state.status).toBe("done");
+    expect(result.current.state.message?.content).toBe("Câu trả lời đầy đủ");
+    const stored = qc.getQueryData<{ id: string; content: string }[]>(aiKeys.messages("conv_new"));
+    expect(stored?.find((m) => m.id === "m-saved")?.content).toBe("Câu trả lời đầy đủ");
+  });
 });

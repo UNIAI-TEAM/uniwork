@@ -205,10 +205,11 @@ describe("ai panel transient mode (drive_file)", () => {
     ]);
     expect(res.transcript.reduce((n, t) => n + t.text.length, 0)).toBeLessThanOrEqual(MAX_TRANSIENT_CHARS);
   });
-  it("buildTransientTranscript skips turns with empty content and carries role and text only", () => {
+  it("buildTransientTranscript skips turns with empty or whitespace-only content and carries role and text only", () => {
     const res = buildTransientTranscript([
       turn("user", "q1"),
       turn("assistant", ""),
+      turn("user", "   \n\t  "),
       turn("user", "q2"),
       turn("assistant", "a2"),
     ]);
@@ -220,18 +221,18 @@ describe("ai panel transient mode (drive_file)", () => {
     ]);
     for (const item of res.transcript) {
       expect(Object.keys(item).sort()).toEqual(["role", "text"]);
-      expect(item.text.length).toBeGreaterThan(0);
+      expect(item.text.trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("does not bump transientEpoch on setPage(null) or dismissPage when a saved conversation is open on a drive_file page", () => {
+  it("does not bump transientEpoch on setPage(null) or dismissPage when a saved conversation is open on a drive_file page, and select(null) keeps the page chip undismissed", () => {
     const s = useAiPanelStore.getState();
     s.bindWorkspace("w1");
     s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
     s.select("c1");
     expect(useAiPanelStore.getState()).toMatchObject({
       conversationId: "c1",
-      pageDismissed: "drive_file:df1",
+      pageDismissed: null,
       transientMessages: [],
     });
     const epochBefore = useAiPanelStore.getState().transientEpoch;
@@ -239,6 +240,39 @@ describe("ai panel transient mode (drive_file)", () => {
     expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
     s.setPage(null);
     expect(useAiPanelStore.getState().transientEpoch).toBe(epochBefore);
+
+    // Picking a saved conversation and then pressing "Hội thoại mới" (select(null)) preserves the page chip
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    s.select("c1");
+    s.select(null);
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: null,
+      page: { kind: "drive_file", id: "df1", label: "Kế hoạch Q4" },
+      pageDismissed: null,
+    });
+  });
+
+  it("does not bump transientEpoch on dismissPage with no transient turn or on select(conv_new) / setConversationFromRun after the page chip is dismissed", () => {
+    const s = useAiPanelStore.getState();
+    s.bindWorkspace("w1");
+    s.setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    const epoch0 = useAiPanelStore.getState().transientEpoch;
+    s.dismissPage();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      pageDismissed: "drive_file:df1",
+      transientEpoch: epoch0,
+    });
+    s.select("conv_new");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "conv_new",
+      transientEpoch: epoch0,
+    });
+    s.select(null);
+    s.setConversationFromRun("conv_run");
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: "conv_run",
+      transientEpoch: epoch0,
+    });
   });
 
   it("clears transient transcript on panel close, focus change, picking a saved conversation, or new conversation", () => {
