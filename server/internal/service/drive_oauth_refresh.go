@@ -160,7 +160,7 @@ func (s *DriveConnectionService) markAuthFailed(ctx context.Context, conn db.Dri
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: updated.OrganizationID,
-		Actor:          audit.System("drive"),
+		Actor:          audit.User(updated.UserID),
 		Action:         audit.ActionDriveConnectionAuthFailed,
 		ResourceType:   "drive_connection",
 		ResourceID:     updated.ID,

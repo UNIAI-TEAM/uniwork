@@ -912,6 +912,27 @@ func TestDriveOAuthRefreshFenceAndInvalidGrant(t *testing.T) {
 		listAfterFail[0].AuthFailedAt == nil || listAfterFail[0].AuthFailedReason != "invalid_grant" {
 		t.Fatalf("connection view after invalid_grant = %+v", listAfterFail[0])
 	}
+
+	// Verify drive_connection.auth_failed audit row (R1-9): actor is the owning
+	// UniWork human (kind="human", id=fx.user.ID) and metadata carries both
+	// google_email and google_sub (spec §5.5, §11).
+	var actorKind, actorID, rawMeta string
+	if err := fx.pool.QueryRow(ctx, `
+		SELECT actor_kind, actor_id, metadata::text
+		FROM audit_events
+		WHERE organization_id = $1 AND action = 'drive_connection.auth_failed' AND resource_id = $2
+		ORDER BY created_at DESC LIMIT 1`, fx.org.ID, connID).Scan(&actorKind, &actorID, &rawMeta); err != nil {
+		t.Fatalf("read drive_connection.auth_failed audit row: %v", err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
+		t.Fatalf("unmarshal audit metadata %q: %v", rawMeta, err)
+	}
+	if actorKind != "human" || actorID != fx.user.ID ||
+		meta["google_email"] != "drive-refresh1@example.com" || meta["google_sub"] != "fake-sub-refresh1" ||
+		meta["reason"] != "invalid_grant" {
+		t.Fatalf("auth_failed audit row: actor=%s:%s meta=%v", actorKind, actorID, meta)
+	}
 }
 
 // TestDriveRevocationProtocol53bMatrix tests every required §5.3b edge case from
@@ -984,7 +1005,33 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 		t.Fatal(err)
 	}
 	cOrg1 := connectSub(fx.user, fx.work.ID, "sharedsub")
-	_ = connectSub(user2, ws2View.Workspace.ID, "sharedsub")
+	cOrg2 := connectSub(user2, ws2View.Workspace.ID, "sharedsub")
+
+	// Assert dual identity in audit_events for two UniWork users sharing the same google_sub (R1-9, R1-13, spec §5.5, §11).
+	for _, tc := range []struct {
+		orgID  string
+		userID string
+		connID string
+	}{
+		{fx.org.ID, fx.user.ID, cOrg1},
+		{org2.ID, user2.ID, cOrg2},
+	} {
+		var aKind, aID, mRaw string
+		if err := fx.pool.QueryRow(ctx, `
+			SELECT actor_kind, actor_id, metadata::text
+			FROM audit_events
+			WHERE organization_id = $1 AND action = 'drive_connection.connected' AND resource_id = $2
+			ORDER BY created_at DESC LIMIT 1`, tc.orgID, tc.connID).Scan(&aKind, &aID, &mRaw); err != nil {
+			t.Fatalf("read drive_connection.connected audit row for user %s: %v", tc.userID, err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(mRaw), &m); err != nil {
+			t.Fatal(err)
+		}
+		if aKind != "human" || aID != tc.userID || m["google_email"] != "drive-sharedsub@example.com" || m["google_sub"] != "fake-sub-sharedsub" {
+			t.Fatalf("shared-sub audit row for %s: actor=%s:%s meta=%v", tc.userID, aKind, aID, m)
+		}
+	}
 	beforeRevokeLen := len(fx.fake.RevokeCalls())
 	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cOrg1); err != nil {
 		t.Fatal(err)
