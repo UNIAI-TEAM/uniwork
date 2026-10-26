@@ -1,0 +1,3 @@
+$ cd packages/views && NODE_OPTIONS=--max-old-space-size=6144 pnpm exec eslint . --max-warnings 0 > /tmp/sync1-views-lint.log 2>&1; rc=$?; cd - >/dev/null; grep -E "error|warning|problem|Aborted|heap" /tmp/sync1-views-lint.log | head -60; tail -10 /tmp/sync1-views-lint.log; echo; echo "VIEWS_LINT_EXIT=$rc"; [ $rc -eq 0 ]
+
+VIEWS_LINT_EXIT=0

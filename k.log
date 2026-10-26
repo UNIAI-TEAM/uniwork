@@ -1,0 +1,5 @@
+$ pnpm audit --audit-level high 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "AUDIT_EXIT=$rc"; [ $rc -eq 0 ]
+16 vulnerabilities found
+Severity: 3 low | 10 moderate | 3 high (2 ignored)
+
+AUDIT_EXIT=0

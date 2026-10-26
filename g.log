@@ -1,0 +1,10 @@
+$ ls scripts/*.test.mjs scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs scripts/office/g5g6g7/*/*.test.mjs 2>/dev/null | sort -u > /tmp/sync1-scripts.txt; wc -l < /tmp/sync1-scripts.txt; node --test $(cat /tmp/sync1-scripts.txt) > /tmp/sync1-scripts.log 2>&1; rc=$?; grep -E "^# (tests|pass|fail|skipped)|^not ok|✖" /tmp/sync1-scripts.log | head -60; echo; echo "SCRIPTS_EXIT=$rc"; [ $rc -eq 0 ]
+155
+not ok 381 - every metric in an alert expr is registered by D server code
+not ok 1029 - importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+# tests 2461
+# pass 2441
+# fail 2
+# skipped 18
+
+SCRIPTS_EXIT=1

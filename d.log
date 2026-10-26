@@ -1,0 +1,31 @@
+$ pnpm lint > /tmp/sync1-lint.log 2>&1; rc=$?; grep -E "error|warning|✖" /tmp/sync1-lint.log | head -60; tail -20 /tmp/sync1-lint.log; echo; echo "LINT_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/chat-desktop:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/views:lint:  2: 0x1248d00 v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+@uniwork/views:lint:  3: 0x1248fd7 v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+@uniwork/views:lint:  4: 0x1477ee5  [node]
+@uniwork/views:lint:  5: 0x1477f13  [node]
+@uniwork/views:lint:  6: 0x1490fea  [node]
+@uniwork/views:lint:  7: 0x14941b8  [node]
+@uniwork/views:lint:  8: 0x1cfcc61  [node]
+@uniwork/views:lint: Aborted
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 134.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.nvm/versions/node/v22.23.4/bin/pnpm run lint exited (134)
+
+ Tasks:    7 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m27.945s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (134)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.
+
+LINT_EXIT=0
