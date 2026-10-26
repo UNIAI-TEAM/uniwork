@@ -1,0 +1,7 @@
+$ ls -la /tmp/pr8r4-cover-go-rest.out; b=$(git hash-object -w /tmp/pr8r4-cover-go-rest.out); echo "COVER_BLOB=go-rest=$b"; git push origin "$b:refs/test-artifacts/pr8-develop-r4/go-rest-d6ba2d18f" > /tmp/pr8r4-push-go-rest.log 2>&1; rc=$?; tail -2 /tmp/pr8r4-push-go-rest.log; echo "COVER_PUSH_EXIT=$rc"; [ $rc -eq 0 ]
+ls: cannot access '/tmp/pr8r4-cover-go-rest.out': No such file or directory
+fatal: could not open '/tmp/pr8r4-cover-go-rest.out' for reading: No such file or directory
+COVER_BLOB=go-rest=
+To https://github.com/UNIAI-TEAM/uniwork
+ - [deleted]             refs/test-artifacts/pr8-develop-r4/go-rest-d6ba2d18f
+COVER_PUSH_EXIT=0
