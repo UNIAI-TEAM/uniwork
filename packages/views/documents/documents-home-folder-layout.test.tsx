@@ -8,6 +8,7 @@ import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { typeFilterSelect } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 
 // The TRASH-A3 boards (Main.dc.html / Folder.dc.html / Trash.dc.html): the
@@ -150,10 +151,10 @@ describe("home layout (Main.dc)", () => {
     // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
     expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
-    // The greeting, the create card grid and the scope tabs are gone; the type chips are the
+    // The greeting, the create card grid and the scope tabs are gone; the Loại select is part of the
     // filter bar every screen shares (UNI-2045 W10), with no Group by (Q6).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(typeFilterSelect()).toBeInTheDocument();
     expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByText(/Chào buổi/)).toBeNull();
   });
@@ -335,7 +336,7 @@ describe("folder layout (Folder.dc)", () => {
     // the one every list screen carries (UNI-2045 W10), filtering on the client.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(typeFilterSelect()).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeInTheDocument();
     // Sorting lives in the table headers now (UNI-2038): no sort Select in a folder.
     expect(screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ })).toBeNull();
@@ -435,7 +436,7 @@ describe("trash view (Trash.dc)", () => {
     expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
     // The old scope tabs never appear here, and Thùng rác has no filter bar (UNI-2045 W10).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+    expect(typeFilterSelect()).toBeNull();
     expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.sidebar.home") })).toBeNull();

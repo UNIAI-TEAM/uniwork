@@ -25,6 +25,7 @@ import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
+import type { DocumentTypeFilter } from "./library-rows";
 import { useCollapsedGroups } from "./doclist/group-state";
 import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
 import { docMemberLookup } from "./doclist/screen-cells";
@@ -38,7 +39,6 @@ import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
-import type { TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { useDocumentsUploads } from "./use-documents-uploads";
@@ -52,6 +52,9 @@ import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
 import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
+
+// Thùng rác has no filter bar: its library reads no type.
+const NO_TYPES: DocumentTypeFilter[] = [];
 
 export interface DocumentsPageViewProps {
   wsId: string;
@@ -88,7 +91,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     setLastSearchKey(searchKey);
     setView(viewFromSearchParams(searchParams));
   }
-  const [chip, setChip] = useState<TypeChip>("all");
+  const [types, setTypes] = useState<DocumentTypeFilter[]>([]);
   const [navOpen, setNavOpen] = useState(false);
 
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
@@ -120,7 +123,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     enabled,
     view,
     folderId,
-    chip: view.kind === "archived" ? "all" : chip,
+    types: view.kind === "archived" ? NO_TYPES : types,
     editorNames: names,
   });
   const search = useDocumentsSearch(wsId, enabled);
@@ -204,7 +207,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
   // new folder, view or filter starts a fresh selection.
   const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
-  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.activity, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
+  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", types.join(","), library.activity, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
@@ -214,7 +217,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
     if (next.kind !== view.kind) {
       // A screen change starts with no filter; none carries over unseen.
-      setChip("all");
+      setTypes([]);
       library.clearFilters();
     }
     setView(next);
@@ -290,7 +293,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // "filtered" answers "is a filter on" (the filter bar of every list screen):
   // it gates the folder's subfolders-only suppression (TV-4), the root's empty
   // copy and the no-results state, so all three read the same flag.
-  const filtered = metaFiltered || chip !== "all";
+  const filtered = metaFiltered || types.length > 0;
   const filteredBy = filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
@@ -376,7 +379,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       onLoadMore={state.loadMore}
       onRetry={state.refetch}
       onClearFilters={() => {
-        setChip("all");
+        setTypes([]);
         library.clearFilters();
       }}
       handlers={handlers}
@@ -390,8 +393,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     />
   );
   const toolbar = {
-    chip,
-    onChip: setChip,
+    types,
+    onTypes: setTypes,
     editor: library.editor,
     onEditor: library.setEditor,
     members: members.data,
@@ -502,8 +505,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : view.kind === "shelved" ? (
               <DocumentsShelvedView
                 library={library}
-                chip={chip}
-                onChip={setChip}
+                types={types}
+                onTypes={setTypes}
                 members={members.data}
                 handlers={handlers}
                 bulk={bulkCommands.bulk}

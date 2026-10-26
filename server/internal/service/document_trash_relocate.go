@@ -13,22 +13,24 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Trashing a workspace folder (ADR 0037 point 5, UNI-2055): the folder's
-// creator or an admin may trash it whatever it holds. A document they cannot
-// manage - hidden from them, or readable without manage - is never trashed by
-// them: it moves to the workspace root with its own subtree, its access and
-// its title untouched. Everything else, every folder below included, goes to
-// the trash in the command's one batch.
+// Trashing a root with a live subtree (ADR 0037 point 5, UNI-2055 for a
+// workspace folder, UNI-2074 for every other root: a page, a file, a legacy
+// private folder, a My Folder sub-folder): whoever passed the root's gate may
+// trash it whatever it holds. A page or file below that they cannot manage -
+// hidden from them, or readable without manage - is never trashed by them: it
+// moves to the workspace root with its own subtree, its access and its title
+// untouched, a root inside My Folder included. Everything else goes to the
+// trash in the command's one batch.
 
-// planFolderTrash splits the bounded live subtree of a workspace folder into
-// the ids the archive stamps and the documents it relocates. Walking down from
+// planSubtreeTrash splits the bounded live subtree of a trashed root into the
+// ids the archive stamps and the documents it relocates. Walking down from
 // the root, the first page or file the actor does not manage on each path
 // relocates and takes its subtree with it; folders always go to the trash. A
 // live node whose parent is not live (left under an already-trashed page)
 // starts a walk of its own. It writes nothing, so the archive-impact read
-// shares it. A work-product-owned node is never in a folder tree; one that is
-// refuses the command as before rather than being moved.
-func (s *DocumentService) planFolderTrash(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) (trash []string, relocate []db.Document, err error) {
+// shares it. A work-product-owned node is never in a document tree; one that
+// is refuses the command as before rather than being moved.
+func (s *DocumentService) planSubtreeTrash(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) (trash []string, relocate []db.Document, err error) {
 	rows, err := q.ListDocumentsByIDs(ctx, db.ListDocumentsByIDsParams{
 		OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, Ids: live,
 	})
@@ -141,13 +143,16 @@ func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries,
 	return out, nil
 }
 
-// relocateOutOfTrashedFolder moves each planned document to the workspace
+// relocateOutOfTrashedRoot moves each planned document to the workspace
 // root inside the archive transaction, title kept (pages and files have no
 // name index, and a relocation is not the owner's rename), at the end of the
 // root list. Each gets one document.moved audit row - the hook UNI-2056
 // notifies the owner from - and its ids-only frame in the same Record; the
-// pages under it keep their parent and get no row.
-func (s *DocumentService) relocateOutOfTrashedFolder(ctx context.Context, q *db.Queries, actor Actor, folder db.Document, batch string, relocate []db.Document) error {
+// pages under it keep their parent and get no row. The row keeps the reason
+// folder_trashed and the key from_folder_id whatever the root's kind (the
+// hook keys on them) and names that kind in from_kind, so the notice can say
+// a page rather than a folder was trashed.
+func (s *DocumentService) relocateOutOfTrashedRoot(ctx context.Context, q *db.Queries, actor Actor, root db.Document, batch string, relocate []db.Document) error {
 	for _, d := range relocate {
 		row, err := q.LockDocumentByID(ctx, d.ID)
 		if err != nil {
@@ -185,7 +190,8 @@ func (s *DocumentService) relocateOutOfTrashedFolder(ctx context.Context, q *db.
 			Metadata: map[string]any{
 				"revision":       strconv.FormatInt(moved.Revision, 10),
 				"reason":         audit.ReasonFolderTrashed,
-				"from_folder_id": folder.ID,
+				"from_folder_id": root.ID,
+				"from_kind":      root.Kind,
 				"batch_id":       batch,
 			},
 		}, audit.Event{Topic: "document.moved", Payload: map[string]string{

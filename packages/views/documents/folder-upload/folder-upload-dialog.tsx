@@ -38,6 +38,8 @@ export interface FolderUploadDialogProps {
   destinationName: string;
   /** True when the destination already shares with the workspace: the toggle shows that state and sends nothing. */
   parentShared?: boolean;
+  /** True when the destination is outside My Folder (ADR 0037): the new folders are visible to the whole workspace. */
+  destinationInWorkspace?: boolean;
   /** Folders still waiting behind this one (several dropped at once). */
   queued?: number;
   /** The plan is on its way; closing (Cancel, Esc, ×) still works and means "cancel the run". */
@@ -73,6 +75,7 @@ export function FolderUploadDialog({
   plan,
   destinationName,
   parentShared = false,
+  destinationInWorkspace = false,
   queued = 0,
   pending = false,
   waiting = false,
@@ -116,9 +119,12 @@ export function FolderUploadDialog({
   const renamed = mode === "folder" && plan !== null && plan.rootTitle !== plan.rootName;
   const groups = plan ? groupSkipped(plan.skipped) : [];
   const effectiveShare = parentShared || share;
+  // Already shared wins; files mode creates no folders, so only folder mode says who sees them.
   const hintText = parentShared
     ? t("documents.folder_upload.dialog.share_inherited")
-    : t("documents.folder_upload.dialog.share_hint", ctx);
+    : mode === "folder" && destinationInWorkspace
+      ? t("documents.folder_upload.dialog.share_hint_workspace")
+      : t("documents.folder_upload.dialog.share_hint", ctx);
 
   const toggleGroup = (reason: string) =>
     setExpanded((prev) => {

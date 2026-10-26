@@ -859,6 +859,9 @@ type SharedWithMeQuery struct {
 	// (UNI-1868); an unknown value is 400 invalid_filter.
 	Format string
 	Access string
+	// Types is the repeated ?type= filter of the other lists (UNI-2113): OR across
+	// the values, AND with Format; an unknown or empty value is 400 invalid_type.
+	Types []string
 	// UpdatedBy, UpdatedFrom and UpdatedTo are the last-editor and updated_at
 	// window of the other lists (UNI-2045 SV-8); zero values are absent.
 	UpdatedBy   string
@@ -960,7 +963,7 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		return SharedWithMePage{}, err
 	}
 	limit := EffectiveSharedWithMeLimit(in.Limit)
-	filters, err := resolveListFilters(in.Format, in.Access, "", false)
+	filters, err := resolveListFilters(in.Format, in.Access, "", false, in.Types)
 	if err != nil {
 		return SharedWithMePage{}, err
 	}
@@ -987,7 +990,8 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			// filter below stays the authority for who is a recipient.
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
-			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes,
+			Access: nullText(filters.access), AccessLevels: filters.accessLevels,
 			UpdatedBy: nullText(in.UpdatedBy),
 		}
 		if !in.UpdatedFrom.IsZero() {

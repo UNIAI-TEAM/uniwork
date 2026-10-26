@@ -754,7 +754,9 @@
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
         "document_trashed_by_other": "Your document moved to the trash",
-        "document_changed": "Changes to your documents and documents shared with you"
+        "document_changed": "Changes to your documents and documents shared with you",
+        "document_owner_transferred": "Document ownership transferred to you",
+        "document_owners_bulk_transferred": "A member's documents transferred to you"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -7120,8 +7122,15 @@
       "document_changed_relocated_many": "{{actor}} moved the folder holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
       "document_changed_relocated_one": "{{actor}} moved the folder holding \"{{document}}\" to trash; the document is now at the workspace root",
       "document_changed_relocated_untitled": "{{actor}} moved the folder holding one of your documents to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_many": "{{actor}} moved the page holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
+      "document_changed_relocated_from_page_one": "{{actor}} moved the page holding \"{{document}}\" to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_untitled": "{{actor}} moved the page holding one of your documents to trash; the document is now at the workspace root",
       "document_changed_generic_one": "{{actor}} changed \"{{document}}\"",
-      "document_changed_generic_untitled": "{{actor}} changed a document"
+      "document_changed_generic_untitled": "{{actor}} changed a document",
+      "document_owner_transferred": "{{actor}} transferred ownership of \"{{document}}\" to you.",
+      "document_owner_transferred_untitled": "{{actor}} transferred ownership of a document to you.",
+      "document_owners_bulk_transferred": "{{actor}} transferred {{name}}'s documents to you.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} transferred a member's documents to you."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -7136,7 +7145,9 @@
       "document_access_declined": "Request declined",
       "document_shared": "Document shared",
       "document_trashed_by_other": "Your document was moved to trash",
-      "document_changed": "Documents changed"
+      "document_changed": "Documents changed",
+      "document_owner_transferred": "You now own a document",
+      "document_owners_bulk_transferred": "You now own documents"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -11318,6 +11329,22 @@
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
         "unavailable": "No installer has been published yet."
       },
+      "apt": {
+        "title": "Install with apt",
+        "intro": "On Ubuntu and Debian (amd64), install either way; later versions then arrive through sudo apt update && sudo apt upgrade.",
+        "script": "Option 1: install script",
+        "scriptNote": "The script adds the UniWork Office apt repository, then installs the app.",
+        "quick": "Option 2: download the .deb",
+        "quickNote": "The package adds the repository itself, so later versions arrive through apt.",
+        "manual": "Manual setup",
+        "setup": "1. Add the repository",
+        "install": "2. Install",
+        "copy": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
+        "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
+        "fingerprint": "Key fingerprint"
+      },
       "works": {
         "title": "Works with UniWork",
         "sub": "The app is not apart from the workspace: files go from UniWork to the app and back.",
@@ -12166,6 +12193,7 @@
         "refusal_title_files": "These files can’t be uploaded",
         "share_toggle": "Share with workspace",
         "share_hint": "Applies to every file in this upload. The folders stay private.",
+        "share_hint_workspace": "Applies to every file in this upload. The new folders are visible to the whole workspace.",
         "share_hint_files": "Applies to every file in this upload.",
         "share_inherited": "The destination folder is shared with the workspace, so the files are too.",
         "cancel": "Cancel",
@@ -12822,7 +12850,7 @@
       "archive_submitting": "Moving to trash…",
       "archive_failed": "Could not move to trash. Nothing changed.",
       "archive_toast": "Moved to trash",
-      "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
+      "archive_forbidden": "You cannot move this to trash: you do not manage it or a subfolder inside it.",
       "restore_title": "Restore document",
       "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
@@ -12838,9 +12866,12 @@
       "delete_documents_other": "{{count}} documents",
       "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
       "delete_relocated": "Other people's documents in this folder go back to their owners, with their access unchanged.",
+      "archive_relocated": "Other people's documents inside this item go back to their owners, with their access unchanged.",
       "delete_loading": "Counting what's in the folder…",
       "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
       "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "archive_impact_error": "Couldn't count what's inside this item. Try again before moving it to the trash.",
+      "archive_too_large": "This item holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
       "delete_confirm": "Delete",
       "delete_submitting": "Deleting…",
       "delete_failed": "Couldn't delete. Nothing changed."
@@ -13212,6 +13243,9 @@
       "filters": {
         "editor": "Edited by",
         "updated": "Updated",
+        "type": "Type",
+        "type_count_other": "{{count}} types",
+        "type_remove": "Remove {{type}} filter",
         "editor_any": "Any",
         "editor_me": "Me",
         "updated_any": "Any time",
@@ -13258,7 +13292,6 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-      "chips_label": "Filter by type",
       "chips": {
         "all": "All types",
         "page": "UniNote",
@@ -13305,6 +13338,8 @@
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "preview_expand": "Expand to full width",
+        "preview_restore": "Restore size",
         "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",

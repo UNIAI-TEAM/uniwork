@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-20 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-22 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -190,6 +190,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.edit_request_answered` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.access_requested` | 1 | `document_id`, `workspace_id`, `request_id` | — | workspace | outbox |
 | `document.access_request_decided` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
+| `document.owner_transferred` | 1 | `document_id`, `workspace_id`, `bulk_id` | — | workspace | outbox |
+| `document.owners_bulk_transferred` | 1 | `organization_id`, `user_id`, `bulk_id`, `from_user_id`, `workspace_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.body_mentioned` | 1 | `document_id`, `workspace_id`, `user_id`, `author_id` | — | - | outbox |
 | `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |

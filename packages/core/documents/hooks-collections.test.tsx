@@ -390,6 +390,32 @@ describe("documents collection hooks", () => {
     expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
   });
 
+  it("the lists send the repeated type and key the picks; no picks is the unfiltered entry (UNI-2113)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const types = ["docx", "xlsx"];
+    const home = renderHook(() => useDocumentList("w1", { parentId: "", types }), { wrapper });
+    const recent = renderHook(() => useRecentDocuments("w1", { types }), { wrapper });
+    const shared = renderHook(() => useSharedWithMe("w1", { types }), { wrapper });
+    const byMe = renderHook(() => useSharedByMe("w1", { types }), { wrapper });
+    const shelved = renderHook(() => useShelvedDocuments("w1", { types }), { wrapper });
+    const none = renderHook(() => useRecentDocuments("w1", { types: [] }), { wrapper });
+    for (const hook of [home, recent, shared, byMe, shelved, none]) await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => new URL(String(url)));
+    const typed = urls.filter((u) => u.searchParams.getAll("type").length > 0);
+    expect(typed).toHaveLength(5);
+    for (const u of typed) expect(u.searchParams.getAll("type")).toEqual(["docx", "xlsx"]);
+    // A different selection is a different cache entry, and an empty one is the plain key.
+    const key = documentFilterKey({ types });
+    expect(qc.getQueryData(documentKeys.recent("w1", key))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.recent("w1", documentFilterKey({ types: ["docx"] })))).toBeUndefined();
+    expect(qc.getQueryData(documentKeys.recent("w1"))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.sharedWithMe("w1", key))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.sharedByMe("w1", key))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.shelved("w1", key))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.list("w1", documentFilterKey({ parentId: "", types })))).toBeDefined();
+  });
+
   it("the sibling lists put sort and order in the request and in their own cache entry (UNI-2038 S2)", async () => {
     vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
     const { qc, wrapper } = setup();

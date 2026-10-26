@@ -58,6 +58,11 @@ const subtree = {
   ],
 };
 
+/** archive-impact for the page d1 (UNI-2074): `total` counts the root plus what will really be trashed. */
+function pageImpact(over: Record<string, unknown> = {}) {
+  return { folders: 0, documents: 3, total: 4, max_nodes: 1000, too_large: false, relocated_count: 0, ...over };
+}
+
 function renderDialog(over: {
   open?: boolean;
   mode?: "archive" | "restore";
@@ -95,6 +100,7 @@ describe("DocumentArchiveDialog", () => {
       if (path === "/api/v1/documents/f1/archive-impact") {
         return Promise.resolve({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false });
       }
+      if (path === "/api/v1/documents/d1/archive-impact") return Promise.resolve(pageImpact());
       if (opts?.method === "POST") {
         return Promise.resolve({
           document: { ...documentFixture(), archived_at: "2026-09-28T03:00:00Z" },
@@ -121,6 +127,7 @@ describe("DocumentArchiveDialog", () => {
         if (fail) return Promise.reject(new Error("offline"));
         return Promise.resolve(subtree);
       }
+      if (path === "/api/v1/documents/d1/archive-impact") return Promise.resolve(pageImpact());
       if (opts?.method === "POST") return Promise.resolve({});
       return Promise.resolve({});
     });
@@ -139,6 +146,7 @@ describe("DocumentArchiveDialog", () => {
     const posts: { path: string; key?: string }[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; headers?: Record<string, string> }) => {
       if (path.startsWith("/api/v1/workspaces/ws1/documents/tree")) return Promise.resolve(subtree);
+      if (path === "/api/v1/documents/d1/archive-impact") return Promise.resolve(pageImpact());
       if (opts?.method === "POST") {
         posts.push({ path, key: opts.headers?.["Idempotency-Key"] });
         return Promise.resolve({
@@ -167,6 +175,7 @@ describe("DocumentArchiveDialog", () => {
   it("keeps a refused archive in the dialog with its message", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path.startsWith("/api/v1/workspaces/ws1/documents/tree")) return Promise.resolve(subtree);
+      if (path === "/api/v1/documents/d1/archive-impact") return Promise.resolve(pageImpact());
       if (opts?.method === "POST") return Promise.reject(new ApiError("nope", "forbidden", 403));
       return Promise.resolve({});
     });
@@ -213,6 +222,127 @@ describe("DocumentArchiveDialog", () => {
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
     await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
+  });
+
+  describe("UNI-2074 page root impact (relocation for every root)", () => {
+    function mockPage(impact: () => Promise<unknown>) {
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+        if (path.startsWith("/api/v1/workspaces/ws1/documents/tree")) return Promise.resolve(subtree);
+        if (path === "/api/v1/documents/d1/archive-impact") return impact();
+        if (path === "/api/v1/documents/d1/archive" && opts?.method === "POST") {
+          return Promise.resolve({
+            document: { ...documentFixture(), archived_at: "2026-10-22T03:00:00Z" },
+            batch_id: "b1",
+            affected: ["d1", "c1"],
+          });
+        }
+        return Promise.resolve({});
+      });
+    }
+
+    it("shows the relocation sentence and the impact total, and names no child, when relocated_count > 0", async () => {
+      mockPage(() => Promise.resolve(pageImpact({ documents: 2, total: 3, relocated_count: 2 })));
+      renderDialog();
+
+      const note = await screen.findByText(t("documents.archive.archive_relocated"));
+      expect(note.textContent).not.toMatch(/\d/);
+      // The count is the server's total (what really goes to trash), not the tree's 4.
+      expect(screen.getByText(t("documents.archive.impact_count", { count: 3 }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.impact_count", { count: 4 }))).toBeNull();
+      // A tree title may belong to a document that relocates: never show one.
+      expect(screen.queryByText("Con A")).toBeNull();
+      expect(screen.queryByText("Con B")).toBeNull();
+      expect(screen.queryByText(t("documents.archive.impact_more", { count: 1 }))).toBeNull();
+      expect(screen.getByRole("button", { name: t("documents.archive.archive_confirm") })).toBeEnabled();
+    });
+
+    it("keeps today's body when relocated_count is 0 (tree first child and the 'more' line)", async () => {
+      mockPage(() => Promise.resolve(pageImpact()));
+      renderDialog();
+
+      expect(await screen.findByText(t("documents.archive.impact_count", { count: 4 }))).toBeInTheDocument();
+      expect(screen.getByText("Con A")).toBeInTheDocument();
+      expect(screen.getByText(t("documents.archive.impact_more", { count: 2 }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.archive_relocated"))).toBeNull();
+    });
+
+    it("shows only the relocation sentence when nothing but the root goes to trash and the rest relocates", async () => {
+      mockPage(() => Promise.resolve(pageImpact({ documents: 0, total: 1, relocated_count: 3 })));
+      renderDialog();
+
+      expect(await screen.findByText(t("documents.archive.archive_relocated"))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.impact_count", { count: 1 }))).toBeNull();
+      expect(screen.queryByText(t("documents.archive.impact_empty"))).toBeNull();
+      expect(screen.queryByText("Con A")).toBeNull();
+    });
+
+    it("locks confirm until the impact arrives, even when the tree is already in", async () => {
+      let resolveImpact!: (value: unknown) => void;
+      mockPage(() => new Promise((resolve) => (resolveImpact = resolve)));
+      renderDialog();
+
+      const confirm = await screen.findByRole("button", { name: t("documents.archive.archive_confirm") });
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/documents/d1/archive-impact",
+        expect.anything(),
+      ));
+      expect(confirm).toBeDisabled();
+      expect(screen.queryByText("Con A")).toBeNull();
+
+      resolveImpact(pageImpact({ relocated_count: 1, total: 2 }));
+      await waitFor(() => expect(confirm).toBeEnabled());
+      expect(screen.getByText(t("documents.archive.impact_count", { count: 2 }))).toBeInTheDocument();
+    });
+
+    it("keeps confirm locked and offers a retry when the impact cannot be read", async () => {
+      let fail = true;
+      mockPage(() => (fail ? Promise.reject(new Error("offline")) : Promise.resolve(pageImpact())));
+      renderDialog();
+
+      expect(await screen.findByText(t("documents.archive.archive_impact_error"))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.delete_impact_error"))).toBeNull();
+      const confirm = screen.getByRole("button", { name: t("documents.archive.archive_confirm") });
+      expect(confirm).toBeDisabled();
+
+      fail = false;
+      fireEvent.click(screen.getByRole("button", { name: t("documents.archive.retry") }));
+      await waitFor(() => expect(confirm).toBeEnabled());
+    });
+
+    it.each([
+      [403, "forbidden"],
+      [404, "not_found"],
+    ])("shows the permission message and no confirm button when the impact answers %i", async (status, code) => {
+      mockPage(() => Promise.reject(new ApiError(code, code, status)));
+      renderDialog();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.archive.archive_forbidden"));
+      expect(screen.queryByRole("button", { name: t("documents.archive.archive_confirm") })).toBeNull();
+      expect(screen.queryByRole("button", { name: t("documents.archive.retry") })).toBeNull();
+      expect(screen.getByRole("button", { name: t("common.cancel") })).toBeInTheDocument();
+    });
+
+    it("replaces the confirm button with the too-large message", async () => {
+      mockPage(() => Promise.resolve({ too_large: true, max_nodes: 1000 }));
+      renderDialog();
+
+      expect(await screen.findByText(t("documents.archive.archive_too_large", { max: 1000 }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.archive.delete_too_large", { max: 1000 }))).toBeNull();
+      expect(screen.queryByRole("button", { name: t("documents.archive.archive_confirm") })).toBeNull();
+    });
+
+    it("toasts the count the server archived, not the preview", async () => {
+      const toastSpy = vi.spyOn(toast, "success");
+      mockPage(() => Promise.resolve(pageImpact({ documents: 2, total: 3, relocated_count: 2 })));
+      const onArchived = vi.fn();
+      renderDialog({ onArchived });
+
+      await screen.findByText(t("documents.archive.archive_relocated"));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.archive.archive_confirm") }));
+
+      await waitFor(() => expect(onArchived).toHaveBeenCalled());
+      expect(toastSpy).toHaveBeenCalledWith(t("documents.archive.impact_count", { count: 2 }));
+    });
   });
 
   describe("FD-09 folder delete impact and toasts", () => {

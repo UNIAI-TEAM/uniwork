@@ -753,7 +753,9 @@
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
         "document_shared": "Tài liệu được chia sẻ với bạn",
         "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác",
-        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn"
+        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn",
+        "document_owner_transferred": "Được chuyển quyền sở hữu tài liệu",
+        "document_owners_bulk_transferred": "Được chuyển quyền sở hữu các tài liệu của một thành viên"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -7074,8 +7076,15 @@
       "document_changed_relocated_many": "{{actor}} đã chuyển thư mục chứa {{document_count}} tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
       "document_changed_relocated_one": "{{actor}} đã chuyển thư mục chứa tài liệu \"{{document}}\" của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_relocated_untitled": "{{actor}} đã chuyển thư mục chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_many": "{{actor}} đã chuyển trang chứa {{document_count}} tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_one": "{{actor}} đã chuyển trang chứa tài liệu \"{{document}}\" của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_from_page_untitled": "{{actor}} đã chuyển trang chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
       "document_changed_generic_one": "{{actor}} đã thay đổi tài liệu \"{{document}}\"",
-      "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu"
+      "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu",
+      "document_owner_transferred": "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu \"{{document}}\".",
+      "document_owner_transferred_untitled": "{{actor}} đã chuyển cho bạn quyền sở hữu một tài liệu.",
+      "document_owners_bulk_transferred": "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của {{name}}.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của một thành viên."
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -7090,7 +7099,9 @@
       "document_access_declined": "Yêu cầu bị từ chối",
       "document_shared": "Tài liệu được chia sẻ",
       "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác",
-      "document_changed": "Tài liệu đã thay đổi"
+      "document_changed": "Tài liệu đã thay đổi",
+      "document_owner_transferred": "Bạn là chủ sở hữu tài liệu",
+      "document_owners_bulk_transferred": "Bạn nhận quyền sở hữu nhiều tài liệu"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
@@ -11256,6 +11267,22 @@
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
         "unavailable": "Chưa có bản cài đặt nào được phát hành."
       },
+      "apt": {
+        "title": "Cài qua apt",
+        "intro": "Trên Ubuntu và Debian (amd64), cài theo cách nào cũng được; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
+        "script": "Cách 1: script cài đặt",
+        "scriptNote": "Script thêm kho apt của UniWork Office rồi cài ứng dụng.",
+        "quick": "Cách 2: tải gói .deb",
+        "quickNote": "Gói tự thêm kho, nên các phiên bản sau đến qua apt.",
+        "manual": "Cài thủ công",
+        "setup": "1. Thêm kho",
+        "install": "2. Cài đặt",
+        "copy": "Sao chép lệnh: {{step}}",
+        "copied": "Đã sao chép",
+        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
+        "deb": "Nếu bạn đã cài tệp .deb, tệp này đã có sẵn và bạn có thể bỏ qua bước 1.",
+        "fingerprint": "Dấu vân tay của khóa"
+      },
       "works": {
         "title": "Làm việc cùng UniWork",
         "sub": "Ứng dụng không tách khỏi workspace: file đi từ UniWork sang ứng dụng và quay về.",
@@ -12104,6 +12131,7 @@
         "refusal_title_files": "Chưa tải lên được các tệp này",
         "share_toggle": "Chia sẻ với workspace",
         "share_hint": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục vẫn riêng tư.",
+        "share_hint_workspace": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục mới sẽ hiện với cả workspace.",
         "share_hint_files": "Áp dụng cho mọi tệp trong lần tải lên này.",
         "share_inherited": "Thư mục đích đang chia sẻ với workspace nên các tệp cũng vậy.",
         "cancel": "Hủy",
@@ -12750,7 +12778,7 @@
       "archive_submitting": "Đang chuyển vào thùng rác…",
       "archive_failed": "Không chuyển vào thùng rác được. Chưa có gì thay đổi.",
       "archive_toast": "Đã chuyển vào thùng rác",
-      "archive_forbidden": "Có tài liệu con bạn không quản lý được, nên cả nhóm không vào thùng rác.",
+      "archive_forbidden": "Bạn không thể chuyển mục này vào thùng rác: bạn không quản lý nó hoặc một thư mục con bên trong.",
       "restore_title": "Khôi phục tài liệu",
       "restore_description": "Khôi phục mục này cùng những mục con bạn quản lý. Mục về lại thư mục cũ nếu thư mục còn, nếu không thì về gốc workspace.",
       "restore_confirm": "Khôi phục",
@@ -12766,9 +12794,12 @@
       "delete_documents_other": "{{count}} tài liệu",
       "delete_body": "{{subfolders}} và {{documents}} sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày.",
       "delete_relocated": "Tài liệu của người khác trong thư mục này sẽ được trả về cho chủ sở hữu, giữ nguyên quyền truy cập.",
+      "archive_relocated": "Tài liệu của người khác bên trong mục này sẽ được trả về cho chủ sở hữu, giữ nguyên quyền truy cập.",
       "delete_loading": "Đang đếm nội dung thư mục…",
       "delete_impact_error": "Không đếm được nội dung thư mục. Thử lại trước khi xóa.",
       "delete_too_large": "Thư mục có hơn {{max}} mục nên chưa chuyển vào thùng rác được một lần. Hãy xóa từng phần bên trong trước.",
+      "archive_impact_error": "Không đếm được nội dung bên trong mục này. Thử lại trước khi chuyển vào thùng rác.",
+      "archive_too_large": "Mục này có hơn {{max}} mục bên trong nên chưa chuyển vào thùng rác được một lần. Hãy xóa từng phần bên trong trước.",
       "delete_confirm": "Xóa",
       "delete_submitting": "Đang xóa…",
       "delete_failed": "Không xóa được. Chưa có gì thay đổi."
@@ -13139,6 +13170,9 @@
       "filters": {
         "editor": "Người sửa",
         "updated": "Cập nhật",
+        "type": "Loại",
+        "type_count_other": "{{count}} loại",
+        "type_remove": "Bỏ lọc {{type}}",
         "editor_any": "Bất kỳ",
         "editor_me": "Tôi",
         "updated_any": "Bất kỳ lúc nào",
@@ -13185,9 +13219,8 @@
         "meeting": "Cuộc họp",
         "email": "Email"
       },
-      "chips_label": "Lọc theo loại",
       "chips": {
-        "all": "Mọi loại",
+        "all": "Tất cả",
         "page": "UniNote",
         "docx": ".docx",
         "xlsx": ".xlsx",
@@ -13232,6 +13265,8 @@
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "preview_expand": "Mở rộng hết chiều ngang",
+        "preview_restore": "Thu về kích thước cũ",
         "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",

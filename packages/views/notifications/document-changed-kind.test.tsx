@@ -125,6 +125,22 @@ describe("document_changed sentence per verb (item 1)", () => {
     expect(sentence(many)).toBe(enMany);
   });
 
+  // UNI-2074: the sentences themselves (notifications.kind.document_changed_relocated_from_page_*) come with
+  // the server slice's locale keys; until they land on this branch the test pins the key each shape resolves to.
+  it("words relocated_from_page with its own key per shape, not the folder one and not the generic one", () => {
+    const keys = {
+      one: notificationTitleKey(changed({ verb: "relocated_from_page" })),
+      many: notificationTitleKey(changed({ verb: "relocated_from_page", document_count: "5" }, { count: 5 })),
+      untitled: notificationTitleKey(changed({ verb: "relocated_from_page", sample_title_1: "" })),
+    };
+    expect(keys).toEqual({
+      one: "notifications.kind.document_changed_relocated_from_page_one",
+      many: "notifications.kind.document_changed_relocated_from_page_many",
+      untitled: "notifications.kind.document_changed_relocated_from_page_untitled",
+    });
+    expect(notificationTitleKey(changed({ verb: "relocated" }))).toBe("notifications.kind.document_changed_relocated_one");
+  });
+
   it("says one unnamed document when no title is readable, never an id or a bare placeholder", async () => {
     const n = changed({ verb: "moved", sample_title_1: "", sample_document_ids: "01J0ABCDEFGHJKMNPQRSTVWXYZ" });
     expect(notificationTitleKey(n)).toBe("notifications.kind.document_changed_moved_untitled");

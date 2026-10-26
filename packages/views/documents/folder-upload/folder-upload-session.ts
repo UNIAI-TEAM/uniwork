@@ -14,6 +14,8 @@ export interface Destination {
   level: number;
   siblingNames: string[];
   shared: boolean;
+  /** Outside My Folder (ADR 0037): folders created here are visible to the workspace. The root means My Folder, so never. */
+  inWorkspace: boolean;
 }
 
 export interface StagedFolder {

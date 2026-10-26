@@ -769,8 +769,14 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/documents/{documentID}/access-requests":                      {checkControl: isoAccessRequestsListCheck},
 	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/approve": {body: isoJSON(map[string]any{"level": "view"})},
 	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/decline": {},
-	"POST /api/v1/documents/{documentID}/uploads":                             {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                     {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// DOC-06 (UNI-2084 §4.2): B's owner names A's document with their own id
+	// as the recipient, so the refusal is the document gate (404). The control
+	// is B's owner handing B's document to its current owner - the same-owner
+	// answer (200, nothing written) - so the pass reaches the route's write path
+	// without moving the fixture document's owner under every later route.
+	"PUT /api/v1/documents/{documentID}/owner":            {body: isoWith(map[string]string{"user_id": "owner"}, map[string]any{"previous_owner_level": "edit"})},
+	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
 	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
 	// is the control of each session route; the complete routes answer 422 on
 	// it because no part was ever PUT, which still proves the owner reached the
@@ -948,14 +954,20 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                               {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                  {mixedFirst: "liveMeeting"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                               {body: isoJSON(map[string]any{"role": "admin"})},
-	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                 {body: isoJSON(map[string]any{"role": "admin"})},
-	"POST /api/v1/workspaces/{workspaceID}/chat/reports":                                      {body: isoWith(map[string]string{"user_id": "peer"}, map[string]any{"reason": "spam"})},
-	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                       {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
-	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history":      {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
-	"POST /api/v1/meetings/{meetingID}/join-requests":                                         {body: isoJSON(map[string]any{"display_name": "Khách"})},
-	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                                   {controlAs: "third"},
-	"POST /api/v1/tasks/{taskID}/labels":                                                      {body: isoWith(map[string]string{"label_id": "label"}, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/agents":                                            {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	// DOC-06b: B's owner counts and moves the documents of B's peer to B's owner.
+	// The peer's restrictedDocument is self_restricted for B's owner, who holds
+	// only AdminScope on it, so it stays with the peer; peerOwnedDocument is
+	// unrestricted and moves, so the control writes under the matrix.
+	"GET /api/v1/orgs/{org}/members/{userID}/document-ownership":                         {},
+	"POST /api/v1/orgs/{org}/members/{userID}/document-ownership":                        {body: isoWith(map[string]string{"to_user_id": "owner"}, nil)},
+	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                            {body: isoJSON(map[string]any{"role": "admin"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/reports":                                 {body: isoWith(map[string]string{"user_id": "peer"}, map[string]any{"reason": "spam"})},
+	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                  {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
+	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history": {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
+	"POST /api/v1/meetings/{meetingID}/join-requests":                                    {body: isoJSON(map[string]any{"display_name": "Khách"})},
+	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                              {controlAs: "third"},
+	"POST /api/v1/tasks/{taskID}/labels":                                                 {body: isoWith(map[string]string{"label_id": "label"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/agents":                                       {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok",
 	})},

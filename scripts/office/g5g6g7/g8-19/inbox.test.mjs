@@ -124,8 +124,8 @@ test("titleKeyFor mirrors notification-title.tsx notificationTitleKey: no docume
 test("expectedTitle renders the real en and vi templates with the row params", () => {
   const en = loadLocale(REPO, "en");
   const vi = loadLocale(REPO, "vi");
-  assert.equal(expectedTitle(en, row()), "G8-19 A mentioned you in a comment on “Báo cáo”.");
-  assert.equal(expectedTitle(vi, row()), "G8-19 A đã nhắc đến bạn trong bình luận tại tài liệu “Báo cáo”.");
+  assert.equal(expectedTitle(en, row()), "G8-19 A mentioned you in a comment on \"Báo cáo\".");
+  assert.equal(expectedTitle(vi, row()), "G8-19 A đã nhắc đến bạn trong bình luận tại tài liệu \"Báo cáo\".");
   assert.equal(expectedTitle(en, row({ kind: "nope", title_key: "notifications.kind.nope" })), null);
 });
 

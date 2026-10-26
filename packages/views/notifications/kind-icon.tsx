@@ -8,6 +8,7 @@ import {
   CircleCheck,
   CircleX,
   ClipboardList,
+  Crown,
   FileDown,
   FileHeadphone,
   KeyRound,
@@ -73,6 +74,8 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_shared: Share2,
   document_trashed_by_other: Trash,
   document_changed: MODULE_ICONS.documents,
+  document_owner_transferred: Crown,
+  document_owners_bulk_transferred: Crown,
 };
 
 /**

@@ -19,7 +19,7 @@ import {
   type FolderUploadTransport,
 } from "@uniwork/core/documents/folder-upload";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { nodeLevel, siblingsOf } from "../document-tree-model";
+import { newFolderIsWorkspaceVisible, nodeLevel, siblingsOf } from "../document-tree-model";
 import type { OfficeHomeLaunchProps } from "../../office/office-home-launch";
 import { modeContext, runErrorMessage } from "./folder-upload-copy";
 import { FolderUploadDialog } from "./folder-upload-dialog";
@@ -143,6 +143,7 @@ export function useFolderUpload({
       level: parentId ? (nodeLevel(tree, parentId) ?? 1) : 1,
       siblingNames: siblingsOf(tree, parentId).map((node) => node.title),
       shared: parentShared,
+      inWorkspace: folderId !== null && newFolderIsWorkspaceVisible(tree, folderId),
     };
   }, [folderId, myFolderId, destinationName, tree, parentShared]);
 
@@ -470,6 +471,7 @@ export function useFolderUpload({
             plan={plan}
             destinationName={head?.destination.name ?? destinationName}
             parentShared={head?.destination.shared ?? false}
+            destinationInWorkspace={head?.destination.inWorkspace ?? false}
             queued={Math.max(0, queue.length - 1)}
             pending={pending}
             waiting={waiting}

@@ -259,6 +259,21 @@ const (
 	ActionDocumentAccessRequestDeclined  = "document.access_request_declined"
 	ActionDocumentAccessRequestCancelled = "document.access_request_cancelled"
 
+	// Document owner transfer (DOC-06, UNI-2084): the ACL owner slot moved to
+	// another person. Changes carries acl_owner_id before -> after; metadata
+	// carries from_user_id (the previous owner, "" when the slot was empty)
+	// and previous_owner_level (edit, comment, view or none); the bulk route
+	// adds bulk_id. The previous owner's share is its own document.shared row.
+	ActionDocumentOwnerTransferred = "document.owner_transferred"
+
+	// Bulk owner transfer (DOC-06b, UNI-2092): one call of
+	// POST /orgs/{org}/members/{userID}/document-ownership moved documents of
+	// the member (ResourceID) to to_user_id. Written only when the call moved
+	// at least one; each moved document has its own document.owner_transferred
+	// row with the same bulk_id. Metadata: bulk_id, to_user_id, transferred,
+	// skipped{recipient_not_member, self_restricted}.
+	ActionDocumentOwnersBulkTransferred = "document.owners_bulk_transferred"
+
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
 	// trail for create, atomic redeem and explicit revoke.
