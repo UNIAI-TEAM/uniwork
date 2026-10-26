@@ -1,0 +1,8 @@
+$ node --test --test-reporter=spec scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/acceptance-matrix.test.mjs scripts/office/g5g6g7/fault/cases.test.mjs scripts/office/g5g6g7/g7-04/cross-host.test.mjs scripts/office/g5g6g7/g8-19/server-row.test.mjs scripts/office/g5g6g7/g8-19/spec.test.mjs scripts/office/g5g6g7/g8-19/inbox.test.mjs > /tmp/pr8r3-rows.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr8r3-rows.log | grep -E "✖|ℹ (tests|pass|fail)|Error|expected|actual" | head -60; echo; echo "ROWS_EXIT=$rc"; [ $rc -eq 0 ]
+  ✔ names the measured guard in the miss reason when a value actually fails one (D5-01) (4.14973ms)
+✔ expectedTitle renders the real en and vi templates with the row params (18.366432ms)
+ℹ tests 163
+ℹ pass 148
+ℹ fail 0
+
+ROWS_EXIT=0
