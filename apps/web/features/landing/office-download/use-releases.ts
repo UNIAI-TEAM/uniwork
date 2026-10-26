@@ -4,9 +4,9 @@ import type { OfficeReleases } from "@uniwork/core/api/endpoints/office-releases
 import { useOfficeReleases } from "@uniwork/core/office/releases-hooks";
 import { channelLatests, RELEASE_CHANNELS, type ReleaseChannel } from "./manifest";
 
-export type ReleasesStatus = "loading" | "ready" | "empty" | "error";
+type ReleasesStatus = "loading" | "ready" | "empty" | "error";
 export interface NewVersion { channel: ReleaseChannel; version: string }
-export interface Releases {
+interface Releases {
   status: ReleasesStatus;
   manifest: OfficeReleases | null;
   /** A newer `latest` a re-check found; applied only when the reader asks. */

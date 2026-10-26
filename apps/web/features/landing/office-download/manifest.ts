@@ -26,7 +26,7 @@ export const channelLatests = (manifest: OfficeReleases): Record<string, string>
 export type FileId = "win" | "mac_arm" | "mac_intel" | "deb" | "appimage";
 export interface DlFile { id: FileId; os: DesktopOS; url: string; size?: number }
 
-export const FILE_OS: Record<FileId, DesktopOS> = { win: "windows", mac_arm: "macos", mac_intel: "macos", deb: "linux", appimage: "linux" };
+const FILE_OS: Record<FileId, DesktopOS> = { win: "windows", mac_arm: "macos", mac_intel: "macos", deb: "linux", appimage: "linux" };
 const FILE_ORDER: readonly FileId[] = ["win", "mac_arm", "mac_intel", "deb", "appimage"];
 const BY_PLATFORM: Partial<Record<DesktopPlatform, FileId>> = { "win32-x64": "win", "darwin-arm64": "mac_arm", "darwin-x64": "mac_intel", "linux-x64-deb": "deb", "linux-x64-appimage": "appimage" };
 /** The manifest's (platform, arch, kind) of every build the page offers; any other row (checksums, a new arch) is not offered. */

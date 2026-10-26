@@ -13,7 +13,7 @@ import { OS_ORDER, type DlFile, type FileId, type ReleaseChannel } from "./manif
 import { OsPicker } from "./os-picker";
 import { ProductShot } from "./product-shot";
 
-export interface GroupMeta { version?: string; date?: string; channel?: ReleaseChannel }
+interface GroupMeta { version?: string; date?: string; channel?: ReleaseChannel }
 
 function useSub(meta: GroupMeta): string | null {
   const { t } = useTranslation();
