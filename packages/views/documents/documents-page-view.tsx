@@ -47,6 +47,7 @@ import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
+import { DocumentsSearchBox } from "./documents-search-box";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
@@ -392,6 +393,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       empty={emptyCopy}
     />
   );
+  const searchBox = <DocumentsSearchBox search={search} folderPlaceholder={Boolean(folderDoc)} />;
   const toolbar = {
     types,
     onTypes: setTypes,
@@ -400,6 +402,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     members: members.data,
     updated: library.updated,
     onUpdated: library.setUpdated,
+    search: searchBox,
   };
 
   return (
@@ -434,35 +437,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   onFolder={(id) => goHome({ kind: "home" }, id)}
                   folderHandlers={handlers}
                   onAccessReport={(id) => push(wsPaths.documentsAccessReport(id))}
-                  search={search}
                   canCreate={canCreate && !folderInvalid}
                   create={createProps}
-                  actions={
-                    <>
-                      {hostActions}
-                      {navButton}
-                    </>
-                  }
+                  actions={<>{hostActions}{navButton}</>}
                 />
               </div>
             ) : screenHead ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
-                <DocumentsScreenHead view={view} search={search} actions={navButton} />
+                <DocumentsScreenHead view={view} actions={navButton} />
               </div>
             ) : null}
-            {search.active ? (
-              <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                <DocumentsSearchResults
-                  search={search}
-                  myFolderId={myFolderId}
-                  onSelectFolder={(id) => {
-                    search.clear();
-                    goHome({ kind: "home" }, id);
-                  }}
-                  onSelectDocument={onOpen}
-                />
-              </div>
-            ) : folderInvalid ? (
+            {folderInvalid && !search.active ? (
               <CollectionPageState
                 icon={CircleAlert}
                 tone="destructive"
@@ -479,7 +464,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   </AppLink>
                 }
               />
-            ) : view.kind === "archived" ? (
+            ) : view.kind === "archived" && !search.active ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
@@ -502,51 +487,60 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   }}
                 />
               </div>
-            ) : view.kind === "shelved" ? (
-              <DocumentsShelvedView
-                library={library}
-                types={types}
-                onTypes={setTypes}
-                members={members.data}
-                handlers={handlers}
-                bulk={bulkCommands.bulk}
-                selectionKey={selectionKey}
-                actions={{
-                  onUnshelve: shelvedActions.onUnshelve,
-                  onTrash: (doc) => rowDialogs.onArchive(doc),
-                  isUnshelving: shelvedActions.isUnshelving,
-                }}
-              />
-            ) : homeView ? (
-              <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
-                <LibraryToolbar {...toolbar} className="border-t border-border pt-4" />
-                <DocumentsSections
-                  folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
-                  folders={subfolders}
-                  documentsCount={tableRows.length}
-                  hideDocuments={
-                    // TV-4: a folder whose children are only subfolders is not
-                    // empty, so it shows no "Tài liệu 0" and no empty copy.
-                    // Filters, loading and failure keep their own states.
-                    Boolean(folderId) && subfolders.length > 0 && tableRows.length === 0 && !filtered && !listLoading && !state.failure
-                  }
-                  grid={{ docById: library.docById, handlers, onOpenFolder: (id) => goHome({ kind: "home" }, id) }}
-                >
-                  {libraryList}
-                </DocumentsSections>
-                {canCreate && !listLoading && tableRows.length > 0 ? (
-                  <p className="text-caption text-muted-foreground">{t("documents.home.drop_hint")}</p>
-                ) : null}
-              </div>
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
-                <LibraryToolbar
-                  {...toolbar}
-                  {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}
-                />
-                {libraryList}
+                {homeView && canCreate && !search.active ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
+                {!homeView && cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
+                {view.kind === "shelved" ? (
+                  <DocumentsShelvedView
+                    library={library}
+                    types={types}
+                    onTypes={setTypes}
+                    members={members.data}
+                    handlers={handlers}
+                    bulk={bulkCommands.bulk}
+                    selectionKey={selectionKey}
+                    search={searchBox}
+                    showList={!search.active}
+                    actions={{ onUnshelve: shelvedActions.onUnshelve, onTrash: (doc) => rowDialogs.onArchive(doc), isUnshelving: shelvedActions.isUnshelving }}
+                  />
+                ) : view.kind !== "archived" ? (
+                  <LibraryToolbar
+                    {...toolbar}
+                    {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}
+                    className={homeView ? "border-t border-border pt-4" : undefined}
+                  />
+                ) : null}
+                {search.active ? (
+                  <DocumentsSearchResults
+                    search={search}
+                    myFolderId={myFolderId}
+                    onSelectFolder={(id) => { search.clear(); goHome({ kind: "home" }, id); }}
+                    onSelectDocument={onOpen}
+                  />
+                ) : view.kind === "shelved" ? null : homeView ? (
+                  <>
+                    <DocumentsSections
+                      folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
+                      folders={subfolders}
+                      documentsCount={tableRows.length}
+                      hideDocuments={
+                        // TV-4: a folder whose children are only subfolders is not
+                        // empty, so it shows no "Tài liệu 0" and no empty copy.
+                        // Filters, loading and failure keep their own states.
+                        Boolean(folderId) && subfolders.length > 0 && tableRows.length === 0 && !filtered && !listLoading && !state.failure
+                      }
+                      grid={{ docById: library.docById, handlers, onOpenFolder: (id) => goHome({ kind: "home" }, id) }}
+                    >
+                      {libraryList}
+                    </DocumentsSections>
+                    {canCreate && !listLoading && tableRows.length > 0 ? (
+                      <p className="text-caption text-muted-foreground">{t("documents.home.drop_hint")}</p>
+                    ) : null}
+                  </>
+                ) : (
+                  libraryList
+                )}
               </div>
             )}
             {uploads.dropActive ? <DocumentsDropOverlay /> : null}

@@ -26,8 +26,8 @@ import { CreateMenu, QuickCreateRow, type CreateChoicesProps } from "./documents
 /**
  * The single header row of the Documents home board (Main.dc) and the open
  * folder (Folder.dc): h1 "Tài liệu của workspace", or the breadcrumb whose bold leaf (h1) is the
- * folder name, with its rename pencil and ⋯ menu, then search, Tải lên, Tạo mới. These views
- * have no collection header (TRASH-A3).
+ * folder name, with its rename pencil and ⋯ menu, then Tải lên, Tạo mới. Search sits on the filter
+ * row below (UNI-2205). These views have no collection header (TRASH-A3).
  */
 
 export interface DocumentsHomeHeaderProps {
@@ -44,14 +44,13 @@ export interface DocumentsHomeHeaderProps {
   folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
   /** Opens the access report scoped to the open folder; offered in its ⋯ menu to a manager. */
   onAccessReport?: (folderId: string) => void;
-  search: UseDocumentsSearchResult;
   canCreate: boolean;
   create: CreateChoicesProps;
   /** Host extras beside the create buttons (Office launch, the mobile nav). */
   actions?: React.ReactNode;
 }
 
-export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, onAccessReport, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
+export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, onAccessReport, canCreate, create, actions }: DocumentsHomeHeaderProps) {
   const { t } = useTranslation();
   const rename = useUpdateDocument(wsId, folderDoc?.id ?? "");
   const myFolder = isMyFolder(folderDoc);
@@ -132,11 +131,6 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
           </div>
         )}
       </div>
-      <DocumentsSearchBox
-        search={search}
-        folderPlaceholder={Boolean(folderDoc)}
-        className="order-last basis-full @min-[60rem]:order-none @min-[60rem]:w-56 @min-[60rem]:basis-auto"
-      />
       <div className="flex shrink-0 items-center gap-2">
         {actions}
         {canCreate ? <CreateMenu {...create} /> : null}
@@ -150,7 +144,7 @@ export function DocumentsHomeNote({ create }: { create: CreateChoicesProps | nul
   return create ? <QuickCreateRow {...create} /> : null;
 }
 
-/** The collection header the list views (Recent, Starred, Shared, Elsewhere) and the gate states keep. */
+/** The collection header the gate states keep. */
 export function DocumentsCollectionHeader({ search, children }: { search: UseDocumentsSearchResult | null; children?: React.ReactNode }) {
   const { t } = useTranslation();
   return (
@@ -160,13 +154,13 @@ export function DocumentsCollectionHeader({ search, children }: { search: UseDoc
       title={t("documents.page.title")}
       className={
         search
-          ? "h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
+          ? "@container h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
           : undefined
       }
       actions={
         search ? (
           <>
-            <DocumentsSearchBox search={search} className="order-last basis-full sm:order-first sm:basis-auto sm:w-48 md:w-64" />
+            <DocumentsSearchBox search={search} className="order-last sm:order-first sm:w-56 sm:basis-auto sm:focus-within:w-80 sm:data-[expanded=true]:w-80" />
             <div className="flex shrink-0 items-center gap-2">{children}</div>
           </>
         ) : null

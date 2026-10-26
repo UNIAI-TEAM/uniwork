@@ -15,14 +15,23 @@ export interface DocumentsSearchBoxProps {
 }
 
 /**
- * Search input for the Documents page header (and its narrow-width row below
- * the header). Ignores intermediate IME composition keystrokes and clears on
- * Escape or the clear button.
+ * Search input for the Documents filter row (and header rows on screens without
+ * a filter bar). Compact at rest (~14rem), widens smoothly on focus or while holding
+ * a query (~20rem), and wraps to its own full-width line below the row's container
+ * breakpoint. Ignores intermediate IME composition keystrokes and clears on Escape
+ * or the clear button.
  */
 export function DocumentsSearchBox({ search, className, folderPlaceholder = false }: DocumentsSearchBoxProps) {
   const { t } = useTranslation();
+  const hasQuery = search.query.length > 0;
   return (
-    <div className={cn("relative flex min-w-0 items-center", className)}>
+    <div
+      data-expanded={hasQuery ? "true" : "false"}
+      className={cn(
+        "relative flex min-w-0 max-w-full basis-full items-center transition-[width] duration-200 ease-out motion-reduce:transition-none @min-[48rem]:ml-auto @min-[48rem]:w-56 @min-[48rem]:basis-auto @min-[48rem]:focus-within:w-80 @min-[48rem]:data-[expanded=true]:w-80",
+        className,
+      )}
+    >
       <Search
         aria-hidden
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -43,10 +52,10 @@ export function DocumentsSearchBox({ search, className, folderPlaceholder = fals
         autoComplete="off"
         className={cn(
           "h-8 w-full pl-8 pointer-coarse:min-h-11 [&::-webkit-search-cancel-button]:hidden",
-          search.query.length > 0 && "pr-8 pointer-coarse:pr-11",
+          hasQuery && "pr-8 pointer-coarse:pr-11",
         )}
       />
-      {search.query.length > 0 ? (
+      {hasQuery ? (
         <Button
           type="button"
           variant="ghost"

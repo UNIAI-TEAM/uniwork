@@ -37,6 +37,8 @@ export interface LibraryToolbarProps {
   onActivity?: (activity: ActivityFilter) => void;
   /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" and its sort note). */
   children?: ReactNode;
+  /** The search box pushed to the right end of the filter row (UNI-2205). */
+  search?: ReactNode;
   className?: string;
 }
 
@@ -67,6 +69,7 @@ export function LibraryToolbar({
   activity,
   onActivity,
   children,
+  search,
   className,
 }: LibraryToolbarProps) {
   const { t } = useTranslation();
@@ -78,7 +81,7 @@ export function LibraryToolbar({
   ];
   const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+    <div className={cn("@container flex flex-wrap items-center gap-2", className)}>
       {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
       <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
       <FilterSelect
@@ -95,6 +98,7 @@ export function LibraryToolbar({
       />
       {children}
       <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
+      {search}
     </div>
   );
 }
