@@ -145,6 +145,7 @@ export function useChatDocumentMenu({
           open={legacyOpen}
           onOpenChange={setLegacyOpen}
           documentId={doc.document_id}
+          filename={doc.title}
           savedVersion={doc.version_number ?? 1}
           operation={canEdit ? "edit" : "view"}
           desktopOpen={desktopForModal}

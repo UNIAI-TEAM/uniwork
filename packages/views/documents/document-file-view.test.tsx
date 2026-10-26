@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
@@ -668,7 +668,16 @@ describe("DocumentFileView", () => {
       expect(officeHost).not.toHaveBeenCalled();
       const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
       expect(dialog).toBeInTheDocument();
-      expect(screen.getAllByText(t("documents.file.legacy_format_title")).length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText(t("office.legacy.file_label", { name: filename }))).toBeInTheDocument();
+
+      // Notice structure: title and description sit in the status notice as distinct elements, beside the reopen button.
+      const notice = screen.getByRole("status");
+      const noticeTitle = within(notice).getByText(t("documents.file.legacy_format_title"));
+      const noticeDesc = within(notice).getByText(t("documents.file.legacy_format_description"));
+      expect(noticeTitle.tagName).toBe("P");
+      expect(noticeDesc.tagName).toBe("P");
+      expect(noticeTitle).not.toBe(noticeDesc);
+      expect(within(notice).getByRole("button", { name: t("office.desktop.action") })).toBeInTheDocument();
 
       // Close the auto-opened modal, then re-open it from a legacy version row (read-only version=1).
       fireEvent.click(screen.getAllByRole("button", { name: t("office.legacy.close") })[0]!);

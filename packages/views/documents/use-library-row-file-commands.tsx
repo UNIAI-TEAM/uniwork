@@ -119,6 +119,7 @@ export function useLibraryRowFileCommands({
             if (!next) setLegacyTarget(null);
           }}
           documentId={legacyTarget.id}
+          filename={legacyTarget.title}
           savedVersion={legacySavedVersion}
           operation={legacyOperation}
           desktopOpen={desktopOpen?.({ id: legacyTarget.id, organization_id: legacyOrgId, current_version: legacySavedVersion })}

@@ -399,6 +399,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc, desktopOpen
               if (!next) setLegacyVersionNo(undefined);
             }}
             documentId={doc.id}
+            filename={doc.file?.filename || doc.title}
             savedVersion={doc.current_version || doc.file?.version}
             version={legacyVersionNo}
             operation="view"

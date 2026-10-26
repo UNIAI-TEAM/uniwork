@@ -14125,6 +14125,9 @@
     "legacy": {
       "title": "Open this file in UniWork Office",
       "description": "This is an older Office file format that opens in the UniWork Office app on your computer.",
+      "file_label": "File: {{name}}",
+      "ticket_failed": "Could not open the file in UniWork Office. Try again in a few minutes.",
+      "launched": "Sent to UniWork Office on your computer.",
       "close": "Close"
     }
   },

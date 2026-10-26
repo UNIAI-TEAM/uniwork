@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -24,6 +25,8 @@ export interface LegacyFormatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string;
+  /** The document or file name to show in the dialog (`truncate` + `title` attribute). */
+  filename?: string;
   /** The current version ordinal of the document; defaults to `desktopOpen.savedVersion ?? 1`. */
   savedVersion?: number | null;
   /** A historical version ordinal to open read-only in the desktop app. */
@@ -45,29 +48,42 @@ export function LegacyFormatDialog({
   open,
   onOpenChange,
   documentId,
+  filename,
   savedVersion,
   version,
   operation = "edit",
   desktopOpen,
 }: LegacyFormatDialogProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.legacy" });
+  const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
   const resolvedSavedVersion = savedVersion ?? desktopOpen?.savedVersion ?? (version ?? 1);
+  const trimmedName = filename?.trim() ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-md"
         showCloseButton={false}
+        initialFocus={primaryButtonRef}
         aria-describedby="office-legacy-format-description"
         data-testid="legacy-format-dialog"
       >
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
+          {trimmedName ? (
+            <p
+              className="truncate text-caption font-medium text-foreground"
+              title={trimmedName}
+              data-testid="legacy-format-filename"
+            >
+              {t("file_label", { name: trimmedName })}
+            </p>
+          ) : null}
           <DialogDescription id="office-legacy-format-description">
             {t("description")}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="sm:flex-wrap">
           <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {t("close")}
           </Button>
@@ -79,6 +95,7 @@ export function LegacyFormatDialog({
             version={version}
             operation={version ? "view" : operation}
             placement="dialog"
+            primaryButtonRef={primaryButtonRef}
           />
         </DialogFooter>
       </DialogContent>

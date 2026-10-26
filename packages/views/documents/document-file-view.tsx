@@ -239,11 +239,13 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
           tone="info"
           icon={FileText}
           layout="inline"
+          className="flex-wrap items-start sm:flex-nowrap sm:items-center [&>div:last-child]:w-full [&>div:last-child]:sm:w-auto [&>svg]:mt-0.5 [&>svg]:sm:mt-0"
           action={
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto"
               onClick={() => setLegacyModal({ open: true, version: undefined })}
             >
               <MonitorUp aria-hidden className="size-3.5" />
@@ -251,8 +253,8 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
             </Button>
           }
         >
-          <span className="font-medium text-foreground">{t("documents.file.legacy_format_title")}</span>{" "}
-          {t("documents.file.legacy_format_description")}
+          <p className="font-medium text-foreground">{t("documents.file.legacy_format_title")}</p>
+          <p className="font-normal">{t("documents.file.legacy_format_description")}</p>
         </Notice>
       ) : (
         <Notice tone="info" icon={FileText} layout="inline">
@@ -338,6 +340,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
           open={legacyModal.open}
           onOpenChange={(open) => setLegacyModal((prev) => ({ ...prev, open }))}
           documentId={doc.id}
+          filename={file.filename || doc.title}
           savedVersion={doc.current_version || file.version}
           version={legacyModal.version}
           operation={readonly ? "view" : "edit"}

@@ -60,22 +60,27 @@ beforeEach(async () => {
 });
 
 describe("LegacyFormatDialog", () => {
-  it.each(["vi", "en"] as const)("renders the modal copy with no download button in %s", async (locale) => {
+  it.each(["vi", "en"] as const)("renders the modal copy, filename, and initial focus on the primary button with no download button in %s", async (locale) => {
     await setLocale(locale);
-    renderDialog();
+    const longName = "Báo cáo tổng hợp tình hình thực hiện kế hoạch kinh doanh năm 2024.doc";
+    renderDialog({ filename: longName });
 
     const dialog = screen.getByRole("dialog", { name: t("office.legacy.title") });
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText(t("office.legacy.description"))).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: t("office.desktop.action") })).toBeInTheDocument();
+    const fileLine = within(dialog).getByText(t("office.legacy.file_label", { name: longName }));
+    expect(fileLine).toHaveAttribute("title", longName);
+    const primaryButton = within(dialog).getByRole("button", { name: t("office.desktop.action") });
+    expect(primaryButton).toBeInTheDocument();
+    await waitFor(() => expect(primaryButton).toHaveFocus());
 
     // USER decision: no download button or download split menu on the modal itself.
     expect(within(dialog).queryByRole("button", { name: /tải|download/i })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: t("office.desktop.menu") })).toBeNull();
   });
 
-  it("calls the desktop launch session and deep link on the primary action without opening the install prompt when installed", async () => {
-    const { createSession, launch, loadInstallers } = renderDialog();
+  it("calls the desktop launch session and deep link on the primary action, shows the launched status, and does not auto-close or open the install prompt when installed", async () => {
+    const { onOpenChange, createSession, launch, loadInstallers } = renderDialog();
 
     fireEvent.click(screen.getByRole("button", { name: t("office.desktop.action") }));
 
@@ -85,10 +90,30 @@ describe("LegacyFormatDialog", () => {
       return_hint: "office",
     })));
     await waitFor(() => expect(launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`, expect.anything()));
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(t("office.legacy.launched"));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(loadInstallers).not.toHaveBeenCalled();
     expect(screen.queryByText(t("office.desktop.install.title"))).toBeNull();
   });
 
+  it.each(["vi", "en"] as const)("shows the dialog-specific error message with role=alert when preparing the launch session fails in %s", async (locale) => {
+    await setLocale(locale);
+    renderDialog({
+      desktopOpen: {
+        deploymentId: "dep-1",
+        channel: "stable",
+        savedVersion: 2,
+        createSession: vi.fn(async () => null),
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("office.desktop.action") }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("office.legacy.ticket_failed"));
+    expect(alert).not.toHaveTextContent(t("office.desktop.ticket_failed"));
+  });
   it("opens the install prompt only when the desktop app is not installed / does not answer", async () => {
     const launch = vi.fn(async () => "not-installed" as const);
     const { createSession, loadInstallers } = renderDialog({

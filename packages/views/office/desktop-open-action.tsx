@@ -114,6 +114,8 @@ export interface DesktopOpenActionProps {
   surface?: { primary: string; menu: string };
   /** A stored version the page shows read-only (UNI-2033): the ticket names it, so the app opens that version's copy. */
   version?: number;
+  /** Ref to the primary action button, e.g. for dialog `initialFocus`. */
+  primaryButtonRef?: MutableRefObject<HTMLButtonElement | null>;
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -159,11 +161,15 @@ export function DesktopOpenAction({
   commentId,
   surface,
   version: viewVersion,
+  primaryButtonRef,
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
+  const { t: tLegacy } = useTranslation(undefined, { keyPrefix: "office.legacy" });
+  const ticketFailedMessage = placement === "dialog" ? tLegacy("ticket_failed") : t("ticket_failed");
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [working, setWorking] = useState(false);
+  const [launched, setLaunched] = useState(false);
   // An object, so each failed attempt is a new value and the row toast fires again for the same message.
   const [failure, setFailure] = useState<{ message: string } | null>(null);
   const setError = (message: string | null) => setFailure(message === null ? null : { message });
@@ -184,7 +190,7 @@ export function DesktopOpenAction({
   const launchedAt = useRef(0);
   // The launcher saw the app take the focus after it had already answered "not-installed".
   const lateHandoff = useRef(false);
-  const onLateHandoff = () => { lateHandoff.current = true; setInstallOpen(false); };
+  const onLateHandoff = () => { lateHandoff.current = true; setInstallOpen(false); setLaunched(true); };
   const headerSlot = useHeaderActionsSlotAvailable();
   const inline = placement !== "header";
   const inPageHeader = headerSlot && !inline;
@@ -229,8 +235,9 @@ export function DesktopOpenAction({
 
   const startHandoff = async (version: number): Promise<DesktopOpenOutcome> => {
     if (working || !Number.isSafeInteger(version) || version <= 0) return "unavailable";
-    if (!deploymentId) { setError(t("ticket_failed")); return "unavailable"; }
+    if (!deploymentId) { setLaunched(false); setError(ticketFailedMessage); return "unavailable"; }
     setWorking(true);
+    setLaunched(false);
     setError(null);
     try {
       // `version` names a HISTORICAL version and makes the server force a
@@ -244,7 +251,7 @@ export function DesktopOpenAction({
         ...(commentId ? { comment_id: commentId } : {}),
       });
       if (!session) {
-        setError(t("ticket_failed"));
+        setError(ticketFailedMessage);
         return "unavailable";
       }
       // Rebuild from the ticket even when the server included a URL. This
@@ -253,17 +260,18 @@ export function DesktopOpenAction({
       const profile = apiOrigin ? { deploymentId, apiOrigin } : undefined;
       const url = safeOfficeDeepLink(session, channel, profile);
       if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel, profile)) {
-        setError(t("ticket_failed"));
+        setError(ticketFailedMessage);
         return "unavailable";
       }
       launchedAt.current = Date.now();
       lateHandoff.current = false;
       const outcome = launch ? await launch(url, { onLateHandoff }) : "not-installed";
-      if (outcome === "launched") return "launched";
+      if (outcome === "launched") { setLaunched(true); return "launched"; }
       await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");
+      if (lateHandoff.current) setLaunched(true);
       return lateHandoff.current ? "launched" : "installer";
     } catch {
-      setError(t("ticket_failed"));
+      setError(ticketFailedMessage);
       return "unavailable";
     } finally {
       setWorking(false);
@@ -292,6 +300,7 @@ export function DesktopOpenAction({
 
   const onAction = () => {
     setError(null);
+    setLaunched(false);
     if (currentlyDirty) setChoiceOpen(true);
     else if (canOpenSaved) void startHandoff(savedVersion);
     else setError(t("version_unavailable"));
@@ -362,6 +371,7 @@ export function DesktopOpenAction({
         </Button>
       ) : placement === "dialog" ? (
         <Button
+          ref={primaryButtonRef}
           type="button"
           variant="default"
           size="sm"
@@ -397,7 +407,8 @@ export function DesktopOpenAction({
           </DropdownMenu>
         </ButtonGroup>
       )}
-      {error && (placement === "header" || placement === "inline" || placement === "dialog") ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      {error && (placement === "header" || placement === "inline" || placement === "dialog") ? <p role="alert" className={cn("text-caption leading-tight text-destructive", placement === "dialog" ? "w-full basis-full" : "max-w-56")}>{error}</p> : null}
+      {!error && launched && placement === "dialog" ? <p role="status" className="w-full basis-full text-caption leading-tight text-muted-foreground">{tLegacy("launched")}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>
