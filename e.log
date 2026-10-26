@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-go-service-e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-go-service-e.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/sync1-go-service-e.log; grep -E "^=== RUN" /tmp/sync1-go-service-e.log | tail -1; rc=$(cat /tmp/sync1-go-service-e.exit 2>/dev/null || echo 99); echo "TEST_GO_EXIT=$rc"; [ $rc -eq 0 ]
+DONE_FILE=yes
+871
+=== RUN   TestWorkspaceSlugChangeRejectsBadAndIgnoresUnchanged
+TEST_GO_EXIT=0
