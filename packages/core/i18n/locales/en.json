@@ -14337,6 +14337,7 @@
       },
       "tasks_created_one": "{{count}} task",
       "tasks_created_other": "{{count}} tasks",
+      "no_account_value": "—",
       "empty_title": "No Google Drive files have been linked yet.",
       "empty_description": "Pick files from your Google Drive to link them to tasks or let UNI read them.",
       "error_title": "Could not load Google Drive files.",
@@ -14381,7 +14382,9 @@
         "unknown_note": "If Google says you don't have access, ask the owner to share it on Google Drive. UniWork does not share files for you.",
         "grant_button": "Let UniWork read this file",
         "lost_body": "Account {{email}} no longer has access to this file.",
+        "lost_body_no_email": "Your Google Drive account no longer has access to this file.",
         "connection_lost_body": "Google Drive connection {{email}} has expired.",
+        "connection_lost_body_no_email": "Your Google Drive connection has expired.",
         "reconnect_button": "Reconnect"
       },
       "used_in": {
@@ -14402,6 +14405,7 @@
         "empty": "No activity has been recorded yet.",
         "error": "Activity could not be loaded.",
         "actor_you": "You",
+        "actor_unknown": "A member",
         "tasks_created_one": "{{actor}} created {{count}} task from UNI's proposal",
         "tasks_created_other": "{{actor}} created {{count}} tasks from UNI's proposal",
         "linked": "{{actor}} linked this file from Google Drive",

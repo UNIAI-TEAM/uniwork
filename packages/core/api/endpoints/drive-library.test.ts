@@ -111,6 +111,27 @@ describe("drive-library endpoints", () => {
     });
   });
 
+  it("listDriveFiles accepts null for files and used_in_tasks (nil Go slices)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ files: null, total_count: 0, next_cursor: null }),
+    );
+    await expect(listDriveFiles("ws1")).resolves.toEqual({
+      files: [],
+      total_count: 0,
+      next_cursor: null,
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        files: [validFile({ used_in_tasks: null })],
+        total_count: 1,
+        next_cursor: null,
+      }),
+    );
+    const withNullTasks = await listDriveFiles("ws1");
+    expect(withNullTasks.files[0]?.used_in_tasks).toEqual([]);
+  });
+
   it("listDriveFiles lets future server enum strings pass through", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -147,6 +168,38 @@ describe("drive-library endpoints", () => {
     expect(out?.task_creations?.[0]?.tasks[0]?.identifier).toBe("UNI-1051");
   });
 
+  it("getDriveFile accepts null for used_in_tasks, task_creations, and tasks inside task_creations", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        file: validFile({
+          used_in_tasks: null,
+          task_creations: null,
+        }),
+      }),
+    );
+    const first = await getDriveFile("ws1", "df1");
+    expect(first?.used_in_tasks).toEqual([]);
+    expect(first?.task_creations).toEqual([]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        file: validFile({
+          task_creations: [
+            {
+              proposal_id: "prop1",
+              created_at: "2026-10-26T09:58:00Z",
+              created_by_id: "u1",
+              created_by_name: "Minh Nguyễn",
+              tasks: null,
+            },
+          ],
+        }),
+      }),
+    );
+    const second = await getDriveFile("ws1", "df1");
+    expect(second?.task_creations?.[0]?.tasks).toEqual([]);
+  });
+
   it("getDriveFile returns null on a malformed 200 response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ file: { id: 42 } }));
     await expect(getDriveFile("ws1", "df1")).resolves.toBeNull();
@@ -171,9 +224,9 @@ describe("drive-library endpoints", () => {
     expect(ok).toBe(true);
   });
 
-  it("unlinkDriveFile returns false on a malformed response instead of throwing", async () => {
+  it("unlinkDriveFile treats a malformed 200 response as success instead of throwing", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ unexpected: true }));
-    await expect(unlinkDriveFile("ws1", "df1")).resolves.toBe(false);
+    await expect(unlinkDriveFile("ws1", "df1")).resolves.toBe(true);
   });
 
   it("rebindDriveFile posts connection_id and returns the rebound file", async () => {

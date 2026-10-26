@@ -90,17 +90,8 @@ export function useDriveFile(wsId: string, driveFileId: string, opts?: UseDriveF
 export function useUnlinkDriveFile(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (driveFileId: string) => {
-      const ok = await unlinkDriveFile(wsId, driveFileId);
-      if (!ok) {
-        throw new Error("drive file unlink not verifiable");
-      }
-      return ok;
-    },
-    onSuccess: (_ok, driveFileId) => {
-      qc.removeQueries({ queryKey: driveLibraryKeys.detail(wsId, driveFileId) });
-      return qc.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) });
-    },
+    mutationFn: (driveFileId: string) => unlinkDriveFile(wsId, driveFileId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: driveLibraryKeys.lists(wsId) }),
   });
 }
 

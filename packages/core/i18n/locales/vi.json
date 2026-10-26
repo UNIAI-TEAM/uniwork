@@ -14263,6 +14263,7 @@
       },
       "tasks_created_one": "{{count}} việc",
       "tasks_created_other": "{{count}} việc",
+      "no_account_value": "—",
       "empty_title": "Chưa có tệp Google Drive nào được liên kết.",
       "empty_description": "Chọn tệp từ Google Drive của bạn để liên kết vào công việc hoặc nhờ UNI đọc.",
       "error_title": "Không tải được danh sách tệp Google Drive.",
@@ -14307,7 +14308,9 @@
         "unknown_note": "Nếu Google báo bạn không có quyền, hãy nhờ chủ sở hữu chia sẻ trên Google Drive. UniWork không chia sẻ thay.",
         "grant_button": "Cho UniWork đọc tệp",
         "lost_body": "Tài khoản {{email}} không còn quyền với tệp này.",
+        "lost_body_no_email": "Tài khoản Google Drive của bạn không còn quyền với tệp này.",
         "connection_lost_body": "Kết nối Google Drive {{email}} đã hết hạn.",
+        "connection_lost_body_no_email": "Kết nối Google Drive của bạn đã hết hạn.",
         "reconnect_button": "Kết nối lại"
       },
       "used_in": {
@@ -14328,6 +14331,7 @@
         "empty": "Chưa có hoạt động nào được ghi lại.",
         "error": "Không tải được hoạt động.",
         "actor_you": "Bạn",
+        "actor_unknown": "Một thành viên",
         "tasks_created_one": "{{actor}} đã tạo {{count}} việc từ đề xuất của UNI",
         "tasks_created_other": "{{actor}} đã tạo {{count}} việc từ đề xuất của UNI",
         "linked": "{{actor}} đã liên kết tệp từ Google Drive",

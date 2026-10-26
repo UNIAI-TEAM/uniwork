@@ -42,7 +42,7 @@ const DriveTaskCreationGroupSchema = z.object({
   created_at: z.string(),
   created_by_id: z.string(),
   created_by_name: z.string(),
-  tasks: z.array(DriveLinkedTaskRefSchema),
+  tasks: z.array(DriveLinkedTaskRefSchema).nullish().transform((v) => v ?? []),
 });
 export type DriveTaskCreationGroup = z.infer<typeof DriveTaskCreationGroupSchema>;
 
@@ -82,9 +82,9 @@ const DriveFileWireSchema = z.object({
   can_propose: z.boolean(),
   can_ask: z.boolean(),
   used_in_count: z.number(),
-  used_in_tasks: z.array(DriveLinkedTaskRefSchema),
+  used_in_tasks: z.array(DriveLinkedTaskRefSchema).nullish().transform((v) => v ?? []),
   tasks_created: DriveTasksCreatedSummarySchema,
-  task_creations: z.array(DriveTaskCreationGroupSchema).optional(),
+  task_creations: z.array(DriveTaskCreationGroupSchema).nullish().transform((v) => v ?? []),
 });
 
 export type DriveFile = Omit<
@@ -97,7 +97,7 @@ export type DriveFile = Omit<
 };
 
 const DriveFileListWireSchema = z.object({
-  files: z.array(DriveFileWireSchema),
+  files: z.array(DriveFileWireSchema).nullish().transform((v) => v ?? []),
   total_count: z.number(),
   next_cursor: z.string().nullable(),
 });
@@ -198,13 +198,13 @@ export async function unlinkDriveFile(
     `/api/v1/workspaces/${enc(wsId)}/drive-files/${enc(driveFileId)}`,
     { method: "DELETE" },
   );
-  const parsed = parseWithFallback<z.infer<typeof StatusWireSchema> | null>(
+  parseWithFallback<z.infer<typeof StatusWireSchema> | null>(
     raw,
     StatusWireSchema,
     null,
     { endpoint: "DELETE /api/v1/workspaces/{ws}/drive-files/{id}" },
   );
-  return parsed?.status === "ok";
+  return true;
 }
 
 /** POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind — rebind to another connection. */

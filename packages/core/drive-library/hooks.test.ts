@@ -108,15 +108,24 @@ describe("driveLibraryKeys and hooks", () => {
     expect((query?.options as { refetchOnWindowFocus?: boolean } | undefined)?.refetchOnWindowFocus).toBe(true);
   });
 
-  it("useUnlinkDriveFile awaits the server and invalidates ['drive', wsId]", async () => {
+  it("useUnlinkDriveFile awaits the server, invalidates driveLibraryKeys.lists(wsId), and does not refetch the active detail query", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ file: sampleFile() }));
+    const detailHook = renderHook(() => useDriveFile("ws1", "df1"), {
+      wrapper: makeWrapper(qc),
+    });
+    await waitFor(() => expect(detailHook.result.current.isSuccess).toBe(true));
+
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const removeSpy = vi.spyOn(qc, "removeQueries");
     const { result } = renderHook(() => useUnlinkDriveFile("ws1"), {
       wrapper: makeWrapper(qc),
     });
 
     await result.current.mutateAsync("df1");
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["drive", "ws1"] });
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveLibraryKeys.lists("ws1") });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 
   it("useRebindDriveFile awaits the server, updates detail cache, and invalidates ['drive', wsId]", async () => {
