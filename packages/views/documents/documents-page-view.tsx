@@ -501,13 +501,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                       isUnshelving: shelvedActions.isUnshelving,
                     }}
                   />
-                ) : view.kind !== "archived" ? (
+                ) : (
                   <LibraryToolbar
                     {...toolbar}
                     {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}
                     className={homeView ? "border-t border-border pt-4" : undefined}
                   />
-                ) : null}
+                )}
                 {searching ? (
                   searchResults
                 ) : view.kind === "shelved" ? null : homeView ? (
