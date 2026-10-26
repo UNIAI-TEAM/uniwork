@@ -106,7 +106,15 @@ function RoomOpenCard({
         <ToneBadge tone="muted">{t(`meetings.governance.threshold_${threshold}`)}</ToneBadge>
         <ToneBadge tone="muted" className="gap-1">
           {secret ? <Lock aria-hidden className="size-3" /> : <Eye aria-hidden className="size-3" />}
-          {secret ? t("meetings.panel.votes.secret") : t("meetings.governance.ballotMode_PUBLIC")}
+          {secret ? (
+            // Short on the chip (Votes board); named in full for a screen reader.
+            <>
+              <span aria-hidden>{t("meetings.panel.votes.secret")}</span>
+              <span className="sr-only">{t("meetings.governance.ballotMode_SECRET")}</span>
+            </>
+          ) : (
+            t("meetings.governance.ballotMode_PUBLIC")
+          )}
         </ToneBadge>
         <Popover>
           <PopoverTrigger

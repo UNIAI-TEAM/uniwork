@@ -199,6 +199,14 @@ describe("MeetingMotionsList — room", () => {
     render(wrapWithNav(<MeetingMotionsList meeting={meeting} meetingId="m1" workspaceId="w1" canVote density="room" />));
   }
 
+  it("reads 'Kín' on a secret ballot's chip and names it in full", async () => {
+    motions = [open({ ballot_mode: "SECRET" })];
+    renderRoom();
+    await screen.findByRole("button", { name: "Gửi phiếu" });
+    expect(screen.getByText("Kín")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Bỏ phiếu kín")).toHaveClass("sr-only");
+  });
+
   it("sends a ballot only once a choice is picked", async () => {
     motions = [open()];
     renderRoom();
