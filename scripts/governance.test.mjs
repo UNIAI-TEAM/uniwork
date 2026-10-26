@@ -140,6 +140,8 @@ const historicalCommitExceptions = new Map([
   ["30167c4cd59702adf019e52cd77c6e8c7ed1c779", "(fix): smtp"],
   ["dc59c569d0c1fc7b88b3eafa2e90f6e8591ea1ab", "change values config"],
   ["b86272e70161417dedd8e3969ad7b03c74269765", "(fix): design log format"],
+  ["31b77e94dc70fbd2015d51aae5a98f2f9a32d7e7", "(deploy): enabled uniwork-scribe agent"],
+  ["20250f68e4c2a7f897773a62d85b9cf67836be66", "(fix): migration sql"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {

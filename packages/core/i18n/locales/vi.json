@@ -10470,7 +10470,7 @@
       "q7": "UniWork đã phát hành chưa?",
       "a7": "UniWork đang trong giai đoạn trước phát hành rộng. Trang tách riêng chức năng hiện có và lộ trình; một số chức năng cần bật cấu hình hoặc kết nối dịch vụ trước khi sử dụng.",
       "q8": "Bao nhiêu tiền?",
-      "a8": "Starter là gói miễn phí trong giai đoạn hiện tại. Các gói thương mại và hạn mức đang được hoàn thiện; đây không phải cam kết miễn phí không giới hạn lâu dài.",
+      "a8": "Starter miễn phí với hạn mức rõ ràng; Team 499.000 VND/tháng và Business 1.499.000 VND/tháng. Giá và quota khớp catalog trong ứng dụng — xem bảng giá công khai hoặc Cài đặt › Gói sau khi đăng ký.",
       "q9": "Chạy trên hạ tầng của chúng tôi được không?",
       "a9": "Chưa được hôm nay. Bản cài on-premise bằng Docker Compose hoặc Helm nằm trong lộ trình, cùng với OIDC bất kỳ, lưu trữ MinIO và mô hình chạy nội bộ.",
       "q10": "Có API không?",
@@ -10950,8 +10950,8 @@
         "rows": [
           {
             "subject": "Gói hiện tại",
-            "current": "Starter miễn phí trong giai đoạn hiện tại.",
-            "confirm": "Các gói thương mại và hạn mức đang được hoàn thiện; chưa có cam kết miễn phí không giới hạn lâu dài."
+            "current": "Starter miễn phí; Team và Business trả phí theo tháng trên trang bảng giá.",
+            "confirm": "Đối chiếu hạn mức (thành viên, workspace, AI, họp) với quy mô đội trước khi nâng gói."
           },
           {
             "subject": "AI và tài nguyên",
