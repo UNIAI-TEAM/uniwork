@@ -595,13 +595,15 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/admin/plans/{code}/features/{key}": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"enabled": true, "reason": "isolation matrix fixture",
 	})},
-	"GET /api/v1/admin/organizations":                    {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/organizations/{orgID}":            {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/plan":      {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/suspend":   {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/unsuspend": {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/system":                           {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/trace/{traceID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations":                          {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations/{orgID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/plan":            {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/suspend":         {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion":        {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion/cancel": {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/unsuspend":       {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/system":                                 {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/trace/{traceID}":                        {class: isoPlatform, reason: reasonPlatform},
 
 	// Catalogue stubs (router/tasks_stubs.go).
 	"GET /api/v1/tasks/{taskID}/active-task":                                              {class: isoStub, reason: reasonStub},

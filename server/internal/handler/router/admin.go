@@ -20,6 +20,8 @@ import (
 //	GET  /api/v1/admin/organizations/{orgID}
 //	POST /api/v1/admin/organizations/{orgID}/suspend
 //	POST /api/v1/admin/organizations/{orgID}/unsuspend
+//	POST /api/v1/admin/organizations/{orgID}/deletion
+//	POST /api/v1/admin/organizations/{orgID}/deletion/cancel
 //	POST /api/v1/admin/organizations/{orgID}/plan
 //	GET  /api/v1/admin/trace/{traceID}
 //	GET  /api/v1/admin/system
@@ -57,6 +59,16 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 			w.Post("/chat-reports/{chatReportID}/resolve", h.AdminResolveChatReport, apiOp{summary: "Admin: resolve chat report", description: "Đóng một báo cáo đang mở sau khi đã xử lý; ghi admin_actions và audit_events (chat.report.resolved, trong tổ chức của báo cáo) cùng transaction. Đã đóng → 409. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminChatReportSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/suspend", h.AdminSuspendOrganization, apiOp{summary: "Admin: suspend organization", description: "status → suspended; mọi request của thành viên trả 403 organization_suspended. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
 			w.Post("/organizations/{orgID}/unsuspend", h.AdminUnsuspendOrganization, apiOp{summary: "Admin: unsuspend organization", description: "status → active. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationSDO{}, auth: true})
+			w.Post("/organizations/{orgID}/deletion", h.AdminScheduleOrganizationDeletion, apiOp{
+				summary:     "Admin: delete an organization",
+				description: "Ghi nhận xóa tổ chức. Job xóa cứng chạy sau 5 ngày. reason ≥ 10 ký tự và confirm_slug khớp định danh hiện tại. Đã xóa cứng → 409 organization_already_deleted.",
+				tags:        tags, sdi: sdi.AdminScheduleOrganizationDeletionSDI{}, sdo: sdo.AdminOrganizationDeletionSDO{}, status: 202, auth: true,
+			})
+			w.Post("/organizations/{orgID}/deletion/cancel", h.AdminCancelOrganizationDeletion, apiOp{
+				summary:     "Admin: cancel an organization deletion",
+				description: "Hủy lệnh xóa khi job chưa chạy. reason ≥ 10 ký tự. Job đã bắt đầu → 409 privacy_delete_started.",
+				tags:        tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminOrganizationDeletionSDO{}, auth: true,
+			})
 			w.Post("/organizations/{orgID}/plan", h.AdminChangePlan, apiOp{summary: "Admin: change plan", description: "Đổi gói thủ công (pilot, đối tác), ghi admin_actions với before/after.", tags: tags, sdi: sdi.AdminChangePlanSDI{}, sdo: sdo.SubscriptionSDO{}, auth: true})
 			w.Put("/flags/{key}/overrides", h.AdminSetFlagOverride, apiOp{summary: "Admin: set override", description: "Ghi/đè override theo scope; user scope bắt buộc expires_at ≤ 30 ngày. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 			w.Delete("/flags/{key}/overrides", h.AdminDeleteFlagOverride, apiOp{summary: "Admin: delete override", description: "Xóa override theo scope. Phát flag.updated.", tags: tags, sdi: sdi.FlagOverrideDeleteSDI{}, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})

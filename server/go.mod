@@ -22,7 +22,6 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/livekit/protocol v1.50.4
 	github.com/livekit/server-sdk-go/v2 v2.12.2
-	github.com/lmittmann/tint v1.2.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pdfcpu/pdfcpu v0.16.3

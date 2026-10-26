@@ -61,3 +61,31 @@ func TestNewHandlerHonoursFormatAndLevel(t *testing.T) {
 		t.Fatal("nil logger")
 	}
 }
+
+func TestColorEnabled(t *testing.T) {
+	cases := []struct {
+		name  string
+		color string
+		no    string
+		term  bool
+		want  bool
+	}{
+		{name: "empty defaults on", color: "", no: "", term: false, want: true},
+		{name: "always on without a tty", color: "always", no: "", term: false, want: true},
+		{name: "never off even on a tty", color: "never", no: "", term: true, want: false},
+		{name: "NO_COLOR wins over always", color: " ALWAYS ", no: "1", term: true, want: false},
+		{name: "empty NO_COLOR does not disable", color: "always", no: "  ", term: false, want: true},
+		{name: "auto follows the terminal bit", color: "Auto", no: "", term: false, want: false},
+		{name: "auto on when the bit is set", color: "auto", no: "", term: true, want: true},
+		{name: "unknown value is on", color: "weird", no: "", term: false, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("LOG_COLOR", tc.color)
+			t.Setenv("NO_COLOR", tc.no)
+			if got := colorEnabled(tc.term); got != tc.want {
+				t.Fatalf("colorEnabled(%v) = %v, want %v", tc.term, got, tc.want)
+			}
+		})
+	}
+}
