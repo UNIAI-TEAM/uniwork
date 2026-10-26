@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -35,6 +36,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	drive    DriveContentReader
 	memory   *AiMemoryService
 	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
@@ -69,6 +71,10 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
+
+// SetDriveContentReader wires the Drive content reader for drive_file focus reads;
+// nil reads as Drive unavailable (never panics).
+func (s *AskUNIService) SetDriveContentReader(r DriveContentReader) { s.drive = r }
 
 // SetMemory wires the memory service whose flag and switch capabilities report.
 func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
@@ -118,6 +124,12 @@ type AICapabilities struct {
 // the agent on, On is the person's own switch.
 type AskMemoryCaps struct{ Enabled, On bool }
 
+// AskTranscriptTurn is one in-memory turn sent by the client in transient Ask UNI mode (spec §9).
+type AskTranscriptTurn struct {
+	Role string
+	Text string
+}
+
 type AskInput struct {
 	ConversationID string
 	Question       string
@@ -142,6 +154,13 @@ type AskInput struct {
 	// Mode is the permission mode the asker runs this turn in (ask, plan,
 	// auto); "" is their saved one. The organization's ceiling clamps it (R9).
 	Mode string
+	// Transient runs the turn without creating or touching a conversation,
+	// messages, citations or proposals (spec §9); required when focus.kind is
+	// "drive_file" and forbidden with ConversationID or Regenerate.
+	Transient bool
+	// Transcript is the in-memory sliding window (<= 20 non-empty turns,
+	// <= 32,000 runes) sent in transient mode as untrusted History.
+	Transcript []AskTranscriptTurn
 }
 
 // errRegenerateTarget is the one refusal for a message id that is not the
@@ -181,9 +200,11 @@ type AskResult struct {
 }
 
 const (
-	askRateLimit  = 20
-	askRateWindow = time.Minute
-	askHistory    = 6
+	askRateLimit          = 20
+	askRateWindow         = time.Minute
+	askHistory            = 6
+	askMaxTranscriptTurns = 20
+	askMaxTranscriptRunes = 32_000
 )
 
 // askCountScript counts a hit and gives the key its window in one step, so
@@ -278,6 +299,26 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 // done and title (R5). An error after run is returned for the handler to send
 // as an error event.
 func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
+	if in.Focus != nil && in.Focus.Kind == "drive_file" && !in.Transient {
+		return AskResult{}, Invalid("transient: required when focus.kind is drive_file")
+	}
+	if in.Transient {
+		if strings.TrimSpace(in.ConversationID) != "" {
+			return AskResult{}, Invalid("transient: conversation_id is not allowed")
+		}
+		if in.Regenerate != "" {
+			return AskResult{}, Invalid("transient: regenerate_message_id is not allowed")
+		}
+		if len(in.AttachmentIDs) > 0 {
+			return AskResult{}, Invalid("transient: attachment_ids are not allowed")
+		}
+	} else if len(in.Transcript) > 0 {
+		return AskResult{}, Invalid("transcript: transient mode only")
+	}
+	transcriptHist, err := validateAndMergeTranscript(in.Transcript)
+	if err != nil {
+		return AskResult{}, err
+	}
 	regen := in.Regenerate != ""
 	question := strings.TrimSpace(in.Question)
 	var mentions []ai.Focus
@@ -325,15 +366,21 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	}
 	// The files are checked before the conversation exists, so a refused
 	// question leaves nothing behind; the claim is store's.
-	attached, err := s.askAttachments(ctx, userID, w, in.AttachmentIDs)
-	if err != nil {
-		return AskResult{}, err
+	var attached []AskAttachment
+	if !in.Transient {
+		attached, err = s.askAttachments(ctx, userID, w, in.AttachmentIDs)
+		if err != nil {
+			return AskResult{}, err
+		}
 	}
-	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
-	if err != nil {
-		return AskResult{}, err
+	var conv db.AiConversation
+	if !in.Transient {
+		conv, err = s.conversation(ctx, userID, w, in.ConversationID)
+		if err != nil {
+			return AskResult{}, err
+		}
 	}
-	base := askTurn{Question: question, Files: attached, UserID: userID, WorkspaceID: workspaceID}
+	base := askTurn{Question: question, Files: attached, UserID: userID, WorkspaceID: workspaceID, Transient: in.Transient, Transcript: transcriptHist}
 	if regen {
 		// The conversation is the asker's (above); the target must be its last
 		// live answer, right after a question, or nothing runs.
@@ -363,7 +410,6 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		}
 		question = base.Question
 	}
-	// The focus and mentions must be readable by the asker on both paths,
 	// before anything streams (R9); a regenerate reads the stored ones again.
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
 	agent := s.agentOn(ctx, tc) // read once: a flag flip between reads would send a regenerate down P0
@@ -374,13 +420,14 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if len(attached) > 0 && !agent {
 		return AskResult{}, ai.ErrAttachmentsUnavailable
 	}
-	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
+	ctxItems, refs, err := s.askContextWithLocale(ctx, tc, in.Focus, mentions, in.Locale)
 	if err != nil {
 		return AskResult{}, err
 	}
 	if in.Dock {
 		base.Focus, base.Mentions = refs.Focus, refs.Mentions
 	}
+	base.Drive = refs.Drive
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
 	if agent {
@@ -393,16 +440,25 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		}
 		return AskResult{}, err
 	}
-	rows, err := s.q.AiListMessages(ctx, conv.ID)
-	if err != nil {
-		return AskResult{}, err
+	if refs.DriveSource != nil {
+		sources = append([]ai.Source{*refs.DriveSource}, sources...)
 	}
-	if !hasOwnSubject(question, w.TaskPrefix, in.Focus, sources) {
-		if sources, err = s.withLastTopic(ctx, rows, userID, w.OrganizationID, workspaceID, question, sources); err != nil {
+	var rows []db.AiMessage
+	if !in.Transient {
+		rows, err = s.q.AiListMessages(ctx, conv.ID)
+		if err != nil {
 			return AskResult{}, err
+		}
+		if !hasOwnSubject(question, w.TaskPrefix, in.Focus, sources) {
+			if sources, err = s.withLastTopic(ctx, rows, userID, w.OrganizationID, workspaceID, question, sources); err != nil {
+				return AskResult{}, err
+			}
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	if refs.Drive != nil && refs.Drive.Truncated {
+		truncated = true
+	}
 	if len(pack) > 0 { // P0 does not tell who wrote what, so any source taints (R8)
 		p0 := askTaint{conv: convTainted(conv)}
 		s.taintNow(ctx, w.OrganizationID, conv.ID, &p0)
@@ -416,6 +472,14 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		notice = ""
 		callCtx, done := s.runContext(ctx)
 		defer done()
+		hist := history(rows, false)
+		if in.Transient {
+			hist = base.Transcript
+		}
+		var parts []provider.Part
+		if refs.Drive != nil {
+			parts = refs.Drive.Attachments
+		}
 		resp, err = s.gw.Complete(callCtx, ai.Request{
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
@@ -423,13 +487,16 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history(rows, false), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: hist, Sources: pack, Truncated: truncated, Tools: AskUniTools(s), Attachments: parts,
 		})
 		stopped := ""
 		if err != nil {
 			stopped = askStopNotice(ctx, callCtx, err)
 		}
 		switch {
+		case stopped != "" && in.Transient:
+			// A stopped transient turn leaves no row behind (spec §9).
+			return AskResult{}, err
 		case stopped != "":
 			// The asker left mid-call, or Shutdown cut it. P0 streams no
 			// text, so the turn is kept empty, stored past the request (R6, R7).
@@ -462,9 +529,15 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID, Focus: base.Focus, Mentions: base.Mentions})
-	if err != nil {
-		return AskResult{}, err
+	turn := askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID, Focus: base.Focus, Mentions: base.Mentions, Transient: in.Transient}
+	var msg db.AiMessage
+	if in.Transient {
+		msg = s.transientMessage(turn)
+	} else {
+		msg, err = s.store(ctx, w.OrganizationID, conv.ID, turn)
+		if err != nil {
+			return AskResult{}, err
+		}
 	}
 	res := AskResult{ConversationID: conv.ID, Message: msg, Citations: citations, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}
 	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
@@ -774,6 +847,55 @@ func history(rows []db.AiMessage, cited bool) []provider.Message {
 	return out
 }
 
+// validateAndMergeTranscript enforces the transient transcript contract
+// (drive-be:q4, spec §9): empty/whitespace turns are dropped before counting;
+// at most 20 remaining turns and 32,000 Unicode code points across all turns'
+// text; roles must be "user" or "assistant"; consecutive same-role turns are
+// merged joined by a blank line, then wrapped as untrusted History.
+func validateAndMergeTranscript(turns []AskTranscriptTurn) ([]provider.Message, error) {
+	if len(turns) == 0 {
+		return nil, nil
+	}
+	var kept []AskTranscriptTurn
+	totalRunes := 0
+	for _, t := range turns {
+		if t.Role != "user" && t.Role != "assistant" {
+			return nil, Invalid("transcript: role must be user or assistant")
+		}
+		if strings.TrimSpace(t.Text) == "" {
+			continue
+		}
+		totalRunes += utf8.RuneCountInString(t.Text)
+		if totalRunes > askMaxTranscriptRunes {
+			return nil, Invalid("transcript: exceeds 32000 characters")
+		}
+		kept = append(kept, t)
+		if len(kept) > askMaxTranscriptTurns {
+			return nil, Invalid("transcript: exceeds 20 turns")
+		}
+	}
+	if len(kept) == 0 {
+		return nil, nil
+	}
+	var merged []AskTranscriptTurn
+	for _, t := range kept {
+		if n := len(merged); n > 0 && merged[n-1].Role == t.Role {
+			merged[n-1].Text += "\n\n" + t.Text
+		} else {
+			merged = append(merged, t)
+		}
+	}
+	out := make([]provider.Message, 0, len(merged))
+	for _, m := range merged {
+		src := "question"
+		if m.Role == "assistant" {
+			src = "prior_answer"
+		}
+		out = append(out, provider.Message{Role: m.Role, Content: ai.WrapUntrusted(src, m.Text)})
+	}
+	return out, nil
+}
+
 // historyWindow is the rows history replays: notice replies (no sources, empty
 // answer, or the fixed text older rows stored) are dropped before windowing, so
 // they neither mislead the model nor eat a turn; then the last askHistory.
@@ -859,6 +981,9 @@ type askTurn struct {
 	// MemoryProposals are the turn's propose_memory rows, stored with the
 	// answer from position 1 (R11).
 	MemoryProposals []askMemoryDraft
+	Transient       bool
+	Transcript      []provider.Message
+	Drive           *DriveContent
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -870,6 +995,23 @@ func jsonOrEmptyList[T any](v []T) string {
 	return string(b)
 }
 
+// transientMessage builds the in-memory AiMessage returned when Transient is
+// true (spec §9): no ID, no conversation_id, nothing written to the database.
+func (s *AskUNIService) transientMessage(t askTurn) db.AiMessage {
+	return db.AiMessage{
+		Role:      "assistant",
+		Content:   t.Answer,
+		Citations: jsonOrEmptyList(t.Citations),
+		Notice:    strText(t.Notice),
+		Steps:     jsonOrEmptyList(t.Steps),
+		Followups: jsonOrEmptyList(t.Followups),
+		Mentions:  "[]",
+		Model:     t.Model,
+		FileNotes: jsonOrEmptyList(t.FileNotes),
+		MemoryIds: jsonOrEmptyList(t.MemoryIDs),
+		CreatedAt: pgtype.Timestamptz{Time: s.now(), Valid: true},
+	}
+}
 func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTurn) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
