@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-go-service-a.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-go-service-a.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/sync1-go-service-a.log; grep -E "^=== RUN" /tmp/sync1-go-service-a.log | tail -1
+DONE_FILE=yes
+748
+=== RUN   TestWorkspaceTaskPrefixAliases

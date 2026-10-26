@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin fix/UNI-923-root-develop-sync-pr8; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+3bdb942f26f166fbabc9f5995983d245bbd32dd5
+3bdb942f26f166fbabc9f5995983d245bbd32dd5
+3bdb942f2 chore: merge develop 237fc6d47 (PR 8) into the G5-G7 root (UNI-923)
+237fc6d47 UNI-923: Office G5-G7 owner transfer, Type filter, install pages and trash relocation (PR 8) (#468)
+9d603acd7 Merge branch 'feature/UNI-2172-drive-connector-spec' into feature/UNI-923-office-g5-g6-g7
+
+SYNCED_EXIT=0
