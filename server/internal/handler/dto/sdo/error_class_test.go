@@ -143,6 +143,10 @@ func TestErrorClassTable(t *testing.T) {
 		// document (422); the picker shows it in place - neither a lost
 		// permission nor a state conflict.
 		"owner_target_not_member",
+		// UNI-2213 (C5): a version commit with conversion on a non-legacy
+		// live version, a mismatched format pair, or a non-OOXML upload (422);
+		// a refusal of the conversion request with no recovery class.
+		"legacy_conversion_invalid",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

@@ -1117,27 +1117,29 @@ type DocumentShareLink struct {
 }
 
 type DocumentVersion struct {
-	ID              string             `json:"id"`
-	OrganizationID  string             `json:"organization_id"`
-	WorkspaceID     string             `json:"workspace_id"`
-	DocumentID      string             `json:"document_id"`
-	Version         int32              `json:"version"`
-	Kind            string             `json:"kind"`
-	Reason          string             `json:"reason"`
-	Label           pgtype.Text        `json:"label"`
-	Content         []byte             `json:"content"`
-	FileID          pgtype.Text        `json:"file_id"`
-	MimeType        pgtype.Text        `json:"mime_type"`
-	SizeBytes       int64              `json:"size_bytes"`
-	ChecksumSha256  pgtype.Text        `json:"checksum_sha256"`
-	RestoredFrom    pgtype.Int4        `json:"restored_from"`
-	EngineName      pgtype.Text        `json:"engine_name"`
-	EngineVersion   pgtype.Text        `json:"engine_version"`
-	ContractVersion pgtype.Text        `json:"contract_version"`
-	ProtocolVersion pgtype.Text        `json:"protocol_version"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedByKind   string             `json:"created_by_kind"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	DocumentID            string             `json:"document_id"`
+	Version               int32              `json:"version"`
+	Kind                  string             `json:"kind"`
+	Reason                string             `json:"reason"`
+	Label                 pgtype.Text        `json:"label"`
+	Content               []byte             `json:"content"`
+	FileID                pgtype.Text        `json:"file_id"`
+	MimeType              pgtype.Text        `json:"mime_type"`
+	SizeBytes             int64              `json:"size_bytes"`
+	ChecksumSha256        pgtype.Text        `json:"checksum_sha256"`
+	RestoredFrom          pgtype.Int4        `json:"restored_from"`
+	EngineName            pgtype.Text        `json:"engine_name"`
+	EngineVersion         pgtype.Text        `json:"engine_version"`
+	ContractVersion       pgtype.Text        `json:"contract_version"`
+	ProtocolVersion       pgtype.Text        `json:"protocol_version"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	ConvertedFromVersion  pgtype.Int4        `json:"converted_from_version"`
+	ConvertedFromChecksum pgtype.Text        `json:"converted_from_checksum"`
 }
 
 type DriveConnection struct {
