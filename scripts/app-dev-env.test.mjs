@@ -169,3 +169,18 @@ test("meeting agent env lists only non-secret assignments", () => {
     assert.equal(agent.has(secret), false, secret);
   }
 });
+
+test("meeting-agent workflow audits without building an image", () => {
+  const wf = fs.readFileSync(
+    path.join(root, ".github/workflows/meeting-agent-verify.yml"),
+    "utf8",
+  );
+  assert.equal(wf.includes("pip-audit==2.9.0"), true);
+  assert.equal(wf.includes("python -m pytest -q"), true);
+  assert.equal(wf.includes("docker/build-push-action"), false);
+  assert.equal(wf.includes("docker/login-action"), false);
+  assert.equal(wf.includes("docker/setup-buildx-action"), false);
+  const prod = fs.readFileSync(path.join(root, "ci/Jenkinsfile.production-app.groovy"), "utf8");
+  assert.equal(prod.includes("builds and pip-audits"), false);
+  assert.equal(prod.includes("runs ruff, pytest and pip-audit"), true);
+});
