@@ -299,9 +299,12 @@ function DriveLibraryListBody({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
-          <h1 className="truncate text-title font-semibold">{title}</h1>
-          <p className="text-caption text-muted-foreground">{subtitle}</p>
+        <div className="flex min-w-0 flex-1 basis-72 items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="truncate text-title font-semibold">{title}</h1>
+            <p className="text-caption text-muted-foreground">{subtitle}</p>
+          </div>
+          {navButton ? <div className="shrink-0">{navButton}</div> : null}
         </div>
         <div className="flex basis-full flex-wrap items-center justify-start gap-2 sm:basis-auto">
           {brokenAccount ? (
@@ -323,7 +326,6 @@ function DriveLibraryListBody({
             {t("driveLibrary.list.manage_connections")}
           </AppLink>
           {addButton}
-          {navButton}
         </div>
       </div>
 

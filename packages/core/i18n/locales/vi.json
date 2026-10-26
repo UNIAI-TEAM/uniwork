@@ -14606,7 +14606,8 @@
       },
       "not_found": {
         "title": "Không tìm thấy tệp này hoặc bạn không có quyền xem.",
-        "back": "Về Google Drive của tôi"
+        "back": "Về Google Drive của tôi",
+        "back_documents": "Về Tài liệu"
       },
       "error": {
         "title": "Không tải được thông tin tệp Google Drive.",

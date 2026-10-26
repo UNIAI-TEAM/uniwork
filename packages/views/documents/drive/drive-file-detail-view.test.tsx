@@ -586,6 +586,8 @@ describe("DriveFileDetailView (4.2)", () => {
     // While picker-token is in flight, the trigger is disabled and aria-busy="true" (WIRE-R1-04)
     await waitFor(() => expect(rebindBtn).toHaveAttribute("aria-busy", "true"));
     expect(rebindBtn).toBeDisabled();
+    // The trigger shows the spinner in place of the refresh icon while busy (WIRE-V1-04)
+    expect(rebindBtn.querySelector("svg.animate-spin")).not.toBeNull();
 
     resolveToken({
       access_token: "picker-tok-conn2",
@@ -975,8 +977,9 @@ describe("DriveFileDetailView (4.2)", () => {
     resolveConfig(defaultConfigResponse(false));
     expect(await screen.findByText(t("driveLibrary.detail.not_found.title"))).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: t("driveLibrary.detail.not_found.back") }),
-    ).toHaveAttribute("href", "/acme/doi/documents?view=drive");
+      screen.getByRole("link", { name: t("driveLibrary.detail.not_found.back_documents") }),
+    ).toHaveAttribute("href", "/acme/doi/documents");
+    expect(screen.queryByRole("link", { name: t("driveLibrary.detail.not_found.back") })).toBeNull();
     expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
     unmount();
 

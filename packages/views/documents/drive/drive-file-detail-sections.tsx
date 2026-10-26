@@ -28,6 +28,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { EventTime, useAuditLabels } from "../../audit/event-presenter";
 import {
   useDrivePicker,
@@ -323,7 +324,7 @@ export function DriveRebindSection({
           setOpen(true);
         }}
       >
-        <RefreshCw aria-hidden className="size-3.5" />
+        {busy ? <Spinner /> : <RefreshCw aria-hidden className="size-3.5" />}
         {t("driveLibrary.detail.rebind.button")}
       </Button>
 

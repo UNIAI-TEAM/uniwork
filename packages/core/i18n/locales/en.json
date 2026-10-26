@@ -14680,7 +14680,8 @@
       },
       "not_found": {
         "title": "This file wasn't found or you don't have permission to view it.",
-        "back": "Back to my Google Drive"
+        "back": "Back to my Google Drive",
+        "back_documents": "Back to Documents"
       },
       "error": {
         "title": "Could not load Google Drive file details.",

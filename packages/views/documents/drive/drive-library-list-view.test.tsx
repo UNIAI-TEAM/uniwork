@@ -337,6 +337,31 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(within(table).getAllByText(t("driveLibrary.list.access.shared_drive")).length).toBeGreaterThan(0);
   });
 
+  it("renders the Browse nav button once, beside the title, not among the actions (WIRE-V1-01)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path.startsWith(DRIVE_LIST_URL)) return Promise.resolve({ files: [], total_count: 0, next_cursor: null });
+      return Promise.resolve({});
+    });
+    render(
+      withFlag(
+        <DriveLibraryListView
+          wsId={WS}
+          accountId={null}
+          connections={connections}
+          navButton={<button type="button">Browse-nav</button>}
+        />,
+      ),
+    );
+    const heading = await screen.findByRole("heading", { level: 1 });
+    const navButtons = screen.getAllByRole("button", { name: "Browse-nav" });
+    expect(navButtons).toHaveLength(1);
+    const titleRow = heading.parentElement?.parentElement;
+    expect(titleRow).toContainElement(navButtons[0] ?? null);
+    const manage = screen.getByRole("link", { name: t("driveLibrary.list.manage_connections") });
+    expect(manage.parentElement).not.toContainElement(navButtons[0] ?? null);
+  });
+
   it("shows broken account subtitle, disables 'Thêm từ <email>' when a disconnected account is selected, and renders the reconnect link", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));

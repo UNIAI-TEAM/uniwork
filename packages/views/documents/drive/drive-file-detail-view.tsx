@@ -173,10 +173,10 @@ export function DriveFileDetailView({
         title={t("driveLibrary.detail.not_found.title")}
         actions={
           <AppLink
-            href={driveLibraryHref}
+            href={wsPaths.documents()}
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            {t("driveLibrary.detail.not_found.back")}
+            {t("driveLibrary.detail.not_found.back_documents")}
           </AppLink>
         }
       />
