@@ -126,6 +126,7 @@ type DriveConnectionService struct {
 	testBeforeCallbackTx       func(sub string)
 	testAfterRevocationClaimTx func(sub string, attempt db.DriveGrantRevocation)
 	testAfterRevokeGoogle      func(sub string, attempt db.DriveGrantRevocation, revokeErr error) error
+	testBeforeResolveTx        func(sub string, generation int64, attemptID string) error
 }
 
 // NewDriveConnectionService constructs a DriveConnectionService. box may be nil

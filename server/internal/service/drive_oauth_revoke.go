@@ -274,6 +274,11 @@ func (s *DriveConnectionService) claimRevocationAttempt(ctx context.Context, goo
 }
 
 func (s *DriveConnectionService) resolveRevocationAttempt(ctx context.Context, googleSub string, generation int64, attemptID, lastError string) error {
+	if s.testBeforeResolveTx != nil {
+		if err := s.testBeforeResolveTx(googleSub, generation, attemptID); err != nil {
+			return err
+		}
+	}
 	ctx = context.WithoutCancel(ctx)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
