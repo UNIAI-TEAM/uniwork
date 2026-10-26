@@ -239,7 +239,7 @@ describe("refusalMessage", () => {
 // ADDENDUM 2 A7: a files-mode run has no folder, so no sentence may tell the
 // person to upload "the folder" again; the folder mode keeps its sentences.
 describe("files-mode copy", () => {
-  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target"];
+  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target", "file_unreadable"];
   const RUN = [
     "folder_upload_target_signed",
     "idempotency_payload_mismatch",
