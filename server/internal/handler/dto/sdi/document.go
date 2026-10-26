@@ -106,13 +106,15 @@ type ListDocumentVersionsSDI struct {
 	Limit  int32  `query:"limit" description:"Kích thước trang, mặc định 50" example:"50"`
 }
 
-// DownloadDocumentSDI documents the query params of GET
+// DownloadDocumentSDI documents the query params of GET|HEAD
 // /api/v1/documents/{documentID}/download. Without meta the route streams the
 // bytes of the live file version (HEAD/Range); meta=1 answers the JSON
-// descriptor DocumentDownloadSDO instead.
+// descriptor DocumentDownloadSDO instead. intent selects the access-log action
+// (download by default, view when opened by the in-page viewer).
 type DownloadDocumentSDI struct {
-	Version *int32 `query:"version" description:"Số phiên bản file cần tải; bỏ trống = bản hiện hành" example:"2"`
-	Meta    *bool  `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"true"`
+	Version *int32  `query:"version" description:"Số phiên bản file cần tải; bỏ trống = bản hiện hành" example:"2"`
+	Meta    *bool   `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"true"`
+	Intent  *string `query:"intent" description:"Mục đích mở tệp cho nhật ký truy cập: download (mặc định khi bỏ trống) hoặc view (trình xem trên trang); giá trị khác -> 400 invalid_request" example:"view"`
 }
 
 // CreateDocumentCommentSDI is POST /api/v1/documents/{documentID}/comments

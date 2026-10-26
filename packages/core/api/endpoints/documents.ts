@@ -262,11 +262,20 @@ export async function getDocumentAsset(
   return requestBlob(documentAssetPath(documentId, assetId), { signal });
 }
 
+export type DocumentDownloadIntent = "download" | "view";
+
 /** The download proxy path. With `meta=1` the same route answers the JSON
- *  descriptor read by getDocumentDownloadMeta. */
-export function documentDownloadPath(documentId: string, version?: number): string {
+ *  descriptor read by getDocumentDownloadMeta; `intent="view"` marks an
+ *  in-app viewer fetch so the server logs a "view" access row instead of a
+ *  "download". */
+export function documentDownloadPath(
+  documentId: string,
+  version?: number,
+  intent?: DocumentDownloadIntent,
+): string {
   const p = new URLSearchParams();
   if (version !== undefined) p.set("version", String(version));
+  if (intent === "view") p.set("intent", "view");
   const q = p.toString();
   return `/api/v1/documents/${enc(documentId)}/download${q ? `?${q}` : ""}`;
 }
@@ -294,8 +303,9 @@ export async function downloadDocumentFile(
   documentId: string,
   version?: number,
   signal?: AbortSignal,
+  intent?: DocumentDownloadIntent,
 ): Promise<Blob> {
-  return requestBlob(documentDownloadPath(documentId, version), { signal });
+  return requestBlob(documentDownloadPath(documentId, version, intent), { signal });
 }
 
 // ---- DOC-05 (UNI-1628): break-glass + admin-summary + typed errors ---------

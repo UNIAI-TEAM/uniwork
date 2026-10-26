@@ -179,8 +179,9 @@ type DocumentFile struct {
 
 // OpenDocumentFile streams a file document's bytes through Go - never a
 // presigned URL (FS-C1, DOC-004) - so a revoke or a lost level stops the very
-// next read. versionNo 0 is the current version.
-func (s *DocumentService) OpenDocumentFile(ctx context.Context, actor Actor, documentID string, versionNo int32, rng DocumentByteRange) (DocumentFile, error) {
+// next read. versionNo 0 is the current version; action (DocumentAccessDownload
+// or DocumentAccessView) is recorded in the access log when non-empty.
+func (s *DocumentService) OpenDocumentFile(ctx context.Context, actor Actor, documentID string, versionNo int32, rng DocumentByteRange, action string) (DocumentFile, error) {
 	var (
 		doc    db.Document
 		access DocumentAccess
@@ -207,9 +208,11 @@ func (s *DocumentService) OpenDocumentFile(ctx context.Context, actor Actor, doc
 	if err != nil {
 		return DocumentFile{}, err
 	}
-	s.recordDocumentAccess(ctx, documentAccessEvent{
-		Document: doc, Version: &f.Version.Version, Action: DocumentAccessDownload, Actor: actor, Via: access.Via,
-	})
+	if action != "" {
+		s.recordDocumentAccess(ctx, documentAccessEvent{
+			Document: doc, Version: &f.Version.Version, Action: action, Actor: actor, Via: access.Via,
+		})
+	}
 	return f, nil
 }
 

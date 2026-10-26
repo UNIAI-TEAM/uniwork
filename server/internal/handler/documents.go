@@ -620,9 +620,18 @@ func (h *handlers) downloadDocument(w http.ResponseWriter, r *http.Request) {
 		}
 		meta = b
 	}
+	action := service.DocumentAccessDownload
+	switch strings.TrimSpace(q.Get("intent")) {
+	case "", service.DocumentAccessDownload:
+	case service.DocumentAccessView:
+		action = service.DocumentAccessView
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "intent must be download or view")
+		return
+	}
 	actor := service.Human(middleware.UserID(r.Context()))
 	documentID := chi.URLParam(r, "documentID")
-	f, rng, ranged, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo)
+	f, rng, ranged, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo, action)
 	if err != nil || f == nil {
 		return
 	}
@@ -711,11 +720,11 @@ func parseDocumentRange(r *http.Request) documentRangeSpec {
 // whole; a window past the end is answered 416 by serveDocumentFile once it
 // sees the size. Returns the effective window and whether a range applied so
 // the response headers match the opened body.
-func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32) (*service.DocumentFile, service.DocumentByteRange, bool, error) {
+func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32, action string) (*service.DocumentFile, service.DocumentByteRange, bool, error) {
 	spec := parseDocumentRange(r)
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
 	if spec.suffix > 0 {
-		probe, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, service.DocumentByteRange{Length: 1})
+		probe, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, service.DocumentByteRange{Length: 1}, "")
 		if err != nil {
 			h.mapServiceError(w, err)
 			return nil, service.DocumentByteRange{}, false, err
@@ -728,7 +737,7 @@ func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request,
 			rng = service.DocumentByteRange{Offset: size - spec.suffix, Length: spec.suffix}
 		}
 	}
-	f, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, rng)
+	f, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, rng, action)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return nil, service.DocumentByteRange{}, false, err

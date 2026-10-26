@@ -145,4 +145,40 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 			}
 		}
 	}
+
+	var dlOps map[string]struct {
+		Parameters []struct {
+			Name        string `json:"name"`
+			In          string `json:"in"`
+			Description string `json:"description"`
+			Schema      struct {
+				Example any `json:"example"`
+			} `json:"schema"`
+		} `json:"parameters"`
+	}
+	if err := json.Unmarshal(spec.Paths["/api/v1/documents/{documentID}/download"], &dlOps); err != nil {
+		t.Fatalf("download spec: %v", err)
+	}
+	for _, method := range []string{"get", "head"} {
+		got := map[string]bool{}
+		intentDesc := ""
+		var intentExample any
+		for _, p := range dlOps[method].Parameters {
+			if p.In == "query" {
+				got[p.Name] = true
+				if p.Name == "intent" {
+					intentDesc = p.Description
+					intentExample = p.Schema.Example
+				}
+			}
+		}
+		for _, name := range []string{"version", "meta", "intent"} {
+			if !got[name] {
+				t.Errorf("%s /api/v1/documents/{documentID}/download: query param %q missing from spec", strings.ToUpper(method), name)
+			}
+		}
+		if intentDesc == "" || intentExample != "view" {
+			t.Errorf("%s download spec intent description=%q example=%v, want non-empty and view", strings.ToUpper(method), intentDesc, intentExample)
+		}
+	}
 }

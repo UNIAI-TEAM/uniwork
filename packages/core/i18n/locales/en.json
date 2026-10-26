@@ -11327,21 +11327,79 @@
         "version": "Version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
-        "unavailable": "No installer has been published yet."
+        "unavailable": "No installer has been published yet.",
+        "channelsLabel": "Release channel",
+        "channel": {
+          "stable": "Stable",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "For everyday use.",
+          "beta": "A preview of what is headed for Stable.",
+          "dev": "The newest builds, possibly unstable."
+        },
+        "soon": "Coming soon",
+        "cta": "Download for {{label}}",
+        "released": "Version {{version}} · {{date}}",
+        "chip": {
+          "win": "Windows",
+          "mac_arm": "macOS Apple Silicon",
+          "mac_intel": "macOS Intel",
+          "deb": "Linux .deb",
+          "appimage": "Linux .AppImage"
+        },
+        "picker": {
+          "recommended": "Recommended"
+        },
+        "notes": {
+          "title": "What's new in {{version}}",
+          "empty": "This version has no release notes.",
+          "more": "Show more",
+          "less": "Show less"
+        },
+        "history": {
+          "title": "Earlier versions",
+          "none": "This channel has no earlier versions yet.",
+          "open": "Show details for version {{version}}",
+          "files": "Downloads",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Apple Silicon",
+            "mac_intel": "Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
+        },
+        "states": {
+          "loading": "Loading the list of versions…",
+          "soonTitle": "The {{channel}} channel is coming soon",
+          "soonBody": "No version has been released on the {{channel}} channel yet. It will show up here once there is one.",
+          "soonAction": "See the {{channel}} channel",
+          "emptyTitle": "No version has been released yet",
+          "emptyBody": "Meanwhile you can still open and edit Office files on the web, under Documents.",
+          "error": "Could not load the list of versions.",
+          "errorFallback": "Below are the current installers, which may not be the latest."
+        },
+        "update": {
+          "notice": "A new version, {{version}}, is out on the {{channel}} channel.",
+          "action": "Reload",
+          "dismiss": "Dismiss notice"
+        }
       },
       "apt": {
         "title": "Install with apt",
-        "intro": "On Ubuntu and Debian (amd64), install either way; later versions then arrive through sudo apt update && sudo apt upgrade.",
-        "script": "Option 1: install script",
-        "scriptNote": "The script adds the UniWork Office apt repository, then installs the app.",
-        "quick": "Option 2: download the .deb",
-        "quickNote": "The package adds the repository itself, so later versions arrive through apt.",
+        "intro": "Install on Ubuntu or Debian either way.",
+        "script": "Use the install script",
+        "or": "or",
+        "quick": "Download and install the .deb",
+        "copy": "Copy",
+        "copyStep": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
         "manual": "Manual setup",
         "setup": "1. Add the repository",
         "install": "2. Install",
-        "copy": "Copy command: {{step}}",
-        "copied": "Copied",
-        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
         "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
         "fingerprint": "Key fingerprint"
       },
@@ -12415,6 +12473,17 @@
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
+    },
+    "media": {
+      "loading": "Opening file…",
+      "retry": "Try again",
+      "error_title": "Couldn't open the file to view.",
+      "error_description": "The file content didn't load. Try again, or download it from the More actions menu.",
+      "unsupported_title": "This browser can't open this image.",
+      "unsupported_description": "The browser can't show this format, or the file is damaged (for example HEIC or TIFF). Download it to open in an app on your computer.",
+      "fullscreen_enter": "Full screen",
+      "fullscreen_exit": "Exit full screen",
+      "dimensions": "{{width}} × {{height}} px"
     },
     "editor": {
       "aria_label": "Document content",
@@ -13574,6 +13643,7 @@
     "canvas": {
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out",
+      "zoom_level": "Zoom level",
       "zoom_fit": "Fit to view",
       "zoom_actual": "Actual size"
     },
@@ -13789,7 +13859,7 @@
           "appimage": ".AppImage",
           "win_zip": "Portable ZIP",
           "win_zip_hint": "No install needed",
-          "mac_intel_hint": "Older Macs",
+          "mac_intel_hint": "Macs with an Intel chip",
           "appimage_hint": "Runs on any x64 distribution"
         },
         "req": {

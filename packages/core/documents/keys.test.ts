@@ -89,14 +89,19 @@ describe("documentKeys", () => {
     expect(documentKeys.sources("ws1", "chat")).toEqual([...root, "chat"]);
   });
 
-  it("keeps an asset's bytes outside the detail prefix so a realtime frame does not refetch them", () => {
+  it("keeps an asset's bytes outside the detail prefix and a media version's bytes outside the workspace prefix", () => {
+    const workspace = documentKeys.workspace("ws1");
     const detail = documentKeys.detail("ws1", "d1");
     const asset = documentKeys.asset("ws1", "d1", "a1");
     const idle = documentKeys.assetIdle("ws1", "d1");
+    const media = documentKeys.media("ws1", "d1", "v2");
     expect(asset).toEqual(["documents", "ws1", "asset", "d1", "a1"]);
     expect(idle).toEqual(["documents", "ws1", "asset", "d1", "idle"]);
+    expect(media).toEqual(["documents", "media", "ws1", "d1", "v2"]);
     expect(startsWith(asset, detail)).toBe(false);
     expect(startsWith(idle, detail)).toBe(false);
+    expect(startsWith(media, workspace)).toBe(false);
+    expect(media).not.toEqual(documentKeys.media("ws2", "d1", "v2"));
   });
 
   it("scopes organization-level keys by organization rather than workspace", () => {
