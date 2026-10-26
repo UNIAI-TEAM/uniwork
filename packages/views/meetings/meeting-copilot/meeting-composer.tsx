@@ -49,10 +49,10 @@ const isAbort = (err: unknown) => (err as { name?: unknown } | null)?.name === "
 const REFUSALS: Record<string, Blocked> = { ai_quota_exceeded: "outOfCredit", ai_disabled: "askOff" };
 
 // 15/22 as the plan pins it; 16px on touch, where iOS zooms into a smaller field.
-const INPUT_TYPE = "text-body-lg md:text-body-lg pointer-coarse:text-title-sm";
+export const INPUT_TYPE = "text-body-lg md:text-body-lg pointer-coarse:text-title-sm";
 
 // The disabled look is drawn by the colours, not the primitive's half opacity.
-const ROUND = "size-8 rounded-full p-0 pointer-coarse:size-11 aria-disabled:opacity-100 [&_svg]:size-4";
+export const ROUND = "size-8 rounded-full p-0 pointer-coarse:size-11 aria-disabled:opacity-100 [&_svg]:size-4";
 
 function ModeRadio({ ref, checked, tone, disabled, describedBy, onPick, onKeyDown, icon, label }: {
   ref: Ref<HTMLButtonElement>;
