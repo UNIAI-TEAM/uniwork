@@ -181,7 +181,7 @@ describe("the Office Download section", () => {
     expect($(".office-dl-skeleton[aria-busy=true] .office-dl-spot.is-skeleton")).not.toBeNull();
     expect($(".office-dl-skeleton .office-dl-row-skeleton")).not.toBeNull();
     expect($("[role=status]")?.textContent).toBe(copy.states.loading);
-    expect($$("a[download], [role=alert]")).toHaveLength(0);
+    expect($$("a[download], .office-dl-quiet-alert")).toHaveLength(0);
     await act(async () => { resolve(jsonResponse(testManifest())); });
     await settle();
     expect($(".office-dl-skeleton")).toBeNull();
@@ -195,7 +195,7 @@ describe("the Office Download section", () => {
     ["not a manifest", { channels: "dev" }],
   ] as const)("falls back to the current installers with a quiet note when the manifest is %s, and recovers through its retry", async (_, manifest) => {
     await mount({ manifest });
-    const alert = $("[role=alert]");
+    const alert = $(".office-dl-quiet-alert");
     expect(alert?.textContent).toContain(copy.states.error);
     expect(alert?.textContent).toContain(copy.states.errorFallback);
     expect(hrefs("a[download]")).toEqual([CONFIG.office_installers.beta[0]!.url]);
@@ -205,9 +205,9 @@ describe("the Office Download section", () => {
     expect($(".office-dl-picker .apt-code")?.textContent).toContain("-s -- beta");
     fetchMock.mockReset();
     fetchMock.mockImplementation(async () => jsonResponse(testManifest()));
-    await click($("[role=alert] button"));
+    await click($(".office-dl-quiet-alert button"));
     await settle();
-    expect($("[role=alert]")).toBeNull();
+    expect($(".office-dl-quiet-alert")).toBeNull();
     expect(hrefs(".office-dl-spot a[download]")).toEqual([assetUrl("beta", "0.10.0-beta.1", "UniWork-Office_0.10.0-beta.1_unsigned_win32_x64-setup.exe")]);
   });
 
@@ -223,7 +223,7 @@ describe("the Office Download section", () => {
     root = createRoot(container);
     await mount({ manifest: { schema: 1, channels: {} } });
     expect($("[role=status] h3")?.textContent).toBe(copy.states.emptyTitle);
-    expect($$("a[download], [role=alert]")).toHaveLength(0);
+    expect($$("a[download], .office-dl-quiet-alert")).toHaveLength(0);
   });
 
   it("offers a newer release found on a later visit as a notice, and swaps it in only on \"Tải lại\"", async () => {
@@ -248,6 +248,62 @@ describe("the Office Download section", () => {
     expect($(".office-dl-spot-meta")?.textContent).toContain("0.11.0-dev.4");
     expect($(".office-dl-notice")).toBeNull();
     expect($$(".office-dl-history-trigger strong").map((version) => version.textContent)).toEqual(["0.11.0-dev.3", "0.11.0-dev.2"]);
+  });
+
+  it("lets the reader dismiss the notice, and the same version does not come back on the next re-check", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await mount({ search: "?channel=dev" });
+    fetchMock.mockImplementation(async () => jsonResponse(testManifest({ newer: true })));
+    vi.setSystemTime(Date.now() + 10 * 60_000 + 1);
+    await returnToTab();
+    await settle();
+    expect($(".office-dl-notice")).not.toBeNull();
+    await click($(`.office-dl-notice button[aria-label="${copy.update.dismiss}"]`));
+    expect($(".office-dl-notice")).toBeNull();
+    expect($(".office-dl-spot-meta")?.textContent).toContain("0.11.0-dev.3");
+    vi.setSystemTime(Date.now() + 10 * 60_000 + 1);
+    await returnToTab();
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect($(".office-dl-notice")).toBeNull();
+    expect($(".office-dl-spot-meta")?.textContent).toContain("0.11.0-dev.3");
+  });
+
+  it("keeps the shown page, with no notice and no skeleton, when a later re-check fails or comes back drifted", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await mount({ search: "?channel=dev" });
+    const shown = $(".office-dl-spot-meta")?.textContent;
+    for (const answer of [new TypeError("Failed to fetch"), jsonResponse({ channels: "dev" }), jsonResponse({ error: "not found" }, 404)]) {
+      fetchMock.mockReset();
+      if (answer instanceof Error) fetchMock.mockRejectedValue(answer);
+      else fetchMock.mockImplementation(async () => answer.clone());
+      vi.setSystemTime(Date.now() + 10 * 60_000 + 1);
+      await returnToTab();
+      await settle();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect($(".office-dl-notice")).toBeNull();
+      expect($(".office-dl-skeleton")).toBeNull();
+      expect($(".office-dl-quiet-alert")).toBeNull();
+      expect($(".office-dl-spot-meta")?.textContent).toBe(shown);
+    }
+  });
+
+  it("leaves the installer fallback standing when the tab comes back, and reads again only on its retry", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await mount({ manifest: new TypeError("Failed to fetch") });
+    expect($(".office-dl-quiet-alert")?.getAttribute("role")).toBe("status");
+    await openPicker();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 10 * 60_000 + 1);
+    await returnToTab();
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect($(".office-dl-skeleton")).toBeNull();
+    expect($(".office-dl-quiet-alert")).not.toBeNull();
+    // The open row survives the tab return: the fallback was never torn down.
+    expect($(".office-dl-others-trigger")?.getAttribute("aria-expanded")).toBe("true");
+    await click($(".office-dl-quiet-alert button"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("links only to files the manifest lists, and never talks about self-update, signing or checksums", async () => {

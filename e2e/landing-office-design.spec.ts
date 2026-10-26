@@ -99,7 +99,7 @@ for (const scenario of scenarios) {
     await expect(page).toHaveURL(/#office-download$/);
     await expect(page.locator("#office-download-title")).toBeInViewport();
     // The quiet fallback note, then only published files: the visitor's own system first, the others behind one row.
-    await expect(page.locator("#office-download [role=alert]")).toBeVisible();
+    await expect(page.locator("#office-download .office-dl-quiet-alert")).toBeVisible();
     const links = await page.locator("#office-download a[download]").evaluateAll(anchors => anchors.map(anchor => anchor.getAttribute("href")));
     for (const link of links) expect(published.map(row => row.url)).toContain(link);
     if (published.length === 0) expect(links).toEqual([]);

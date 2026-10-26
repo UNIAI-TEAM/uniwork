@@ -127,7 +127,7 @@ describe("the Office page", () => {
     await render({ unexpected: true });
     await settle();
     expect(container.querySelectorAll("[download]")).toHaveLength(0);
-    expect(container.querySelector("#office-download [role=alert]")?.textContent).toContain(viMessages.landing.office.download.states.error);
+    expect(container.querySelector("#office-download .office-dl-quiet-alert")?.textContent).toContain(viMessages.landing.office.download.states.error);
     expect(container.querySelector("h1")?.textContent).toBe("UniOffice");
   });
 
@@ -165,7 +165,7 @@ describe("the Office page", () => {
     await render({ flags: {}, office_installers: installers });
     await settle();
     expect(container.querySelectorAll("#office-download .office-dl-skeleton[aria-busy=true] .office-dl-spot.is-skeleton")).toHaveLength(1);
-    expect(container.querySelectorAll("#office-download [download], #office-download [role=alert]")).toHaveLength(0);
+    expect(container.querySelectorAll("#office-download [download], #office-download .office-dl-quiet-alert")).toHaveLength(0);
     await act(async () => { resolve(jsonResponse(testManifest())); });
     await settle();
     expect(container.querySelector("#office-download .office-dl-skeleton")).toBeNull();
@@ -176,15 +176,15 @@ describe("the Office page", () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await render({ flags: {}, office_installers: installers });
     await settle();
-    expect(container.querySelectorAll("#office-download [role=alert]")).toHaveLength(1);
-    expect(container.querySelector("[role=alert]")?.textContent).toContain("Không tải được danh sách phiên bản");
+    expect(container.querySelectorAll("#office-download .office-dl-quiet-alert")).toHaveLength(1);
+    expect(container.querySelector(".office-dl-quiet-alert")?.textContent).toContain("Không tải được danh sách phiên bản");
     // Today's catalogue, never a guessed link: the visitor's Windows installer.
     expect(hrefs("#office-download a[download]")).toEqual([installers.stable[2]!.url]);
     fetchMock.mockReset();
     fetchMock.mockImplementation(async () => jsonResponse(testManifest()));
-    await act(async () => { container.querySelector<HTMLButtonElement>("[role=alert] button")?.click(); });
+    await act(async () => { container.querySelector<HTMLButtonElement>(".office-dl-quiet-alert button")?.click(); });
     await settle();
-    expect(container.querySelectorAll("[role=alert]")).toHaveLength(0);
+    expect(container.querySelectorAll(".office-dl-quiet-alert")).toHaveLength(0);
     expect(hrefs("#office-download a[download]")).toEqual([WINDOWS_BETA]);
   });
 

@@ -48,7 +48,7 @@ export function NothingPublished() {
 /** The manifest could not be read: one quiet note; the installers below it are today's. */
 export function ManifestError({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
-  return <div className="office-dl-quiet-alert" role="alert">
+  return <div className="office-dl-quiet-alert" role="status">
     <CircleAlert aria-hidden />
     <div><p>{t("landing.office.download.states.error")}</p><p className="office-dl-muted">{t("landing.office.download.states.errorFallback")}</p></div>
     <Button type="button" variant="outline" size="lg" onClick={onRetry}><RotateCcw aria-hidden />{t("landing.office.retry")}</Button>
