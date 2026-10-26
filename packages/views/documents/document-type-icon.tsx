@@ -5,7 +5,39 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { FileTypeMark, isFileMarkFormat } from "./file-type-marks";
 
-export type DocumentIconFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "txt" | "html" | "page" | "folder" | "file";
+export type DocumentIconFormat =
+  | "docx"
+  | "xlsx"
+  | "pptx"
+  | "pdf"
+  | "md"
+  | "markdown"
+  | "txt"
+  | "text"
+  | "html"
+  | "page"
+  | "folder"
+  | "file"
+  | "generic"
+  | "google_doc"
+  | "google_sheet"
+  | "google_slide";
+
+function normalizeFormat(raw: string | null | undefined): string {
+  const lower = raw?.toLowerCase() ?? "file";
+  if (lower === "markdown") return "md";
+  if (lower === "text") return "txt";
+  if (lower === "generic") return "file";
+  return lower;
+}
+
+/** Localized file-type label for a document or Drive `icon_kind` / format. */
+export function documentFormatLabel(
+  format: string | null | undefined,
+  t: (key: string) => string,
+): string {
+  return labelFor(normalizeFormat(format), t);
+}
 
 /** The lowercase extension of a file name, or "" when it has none. */
 export function fileExtension(name: string | null | undefined): string {
@@ -35,7 +67,7 @@ export function DocumentTypeIcon({
   decorative?: boolean;
 }) {
   const { t } = useTranslation();
-  const normalized = format?.toLowerCase() ?? "file";
+  const normalized = normalizeFormat(format);
   const label = labelFor(normalized, t);
   if (isFileMarkFormat(normalized)) {
     return (
@@ -68,6 +100,12 @@ function labelFor(format: string, t: (key: string) => string): string {
       return t("documents.file_types.page");
     case "folder":
       return t("documents.file_types.folder");
+    case "google_doc":
+      return t("documents.file_types.google_doc");
+    case "google_sheet":
+      return t("documents.file_types.google_sheet");
+    case "google_slide":
+      return t("documents.file_types.google_slide");
     default:
       return t("documents.file_types.file");
   }

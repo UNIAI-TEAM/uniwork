@@ -122,6 +122,10 @@ vi.mock("@uniwork/core/audit", async (importOriginal) => {
   };
 });
 
+vi.mock("@uniwork/core/drive", () => ({
+  useTaskDriveFiles: () => ({ data: [], isLoading: false, isError: false }),
+}));
+
 vi.mock("@uniwork/core/feature-flags", () => ({
   usePublicConfig: () => ({
     data: {

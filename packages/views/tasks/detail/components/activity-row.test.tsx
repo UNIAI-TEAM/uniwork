@@ -229,6 +229,57 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("task.archived_by_a_newer_server");
     expect(el).not.toHaveTextContent("Cập nhật việc");
   });
+
+  it("dịch các hành động liên kết / bỏ liên kết tệp Google Drive và tạo việc từ đề xuất của UNI", () => {
+    const linked = row(
+      {
+        id: "drv1",
+        action: "task.drive_file_linked",
+        metadata: { drive_file_id: "df_1", drive_file_name: "Kế hoạch ra mắt Q4" },
+      },
+      "Minh",
+    );
+    expect(linked).toHaveTextContent("Minh");
+    expect(linked).toHaveTextContent("đã liên kết Kế hoạch ra mắt Q4 từ Google Drive");
+
+    const unlinked = row(
+      {
+        id: "drv2",
+        action: "task.drive_file_unlinked",
+        metadata: { drive_file_id: "df_1" },
+      },
+      "Minh",
+    );
+    expect(unlinked).toHaveTextContent("Bỏ liên kết tệp Google Drive");
+
+    render(
+      <TaskActivityRow
+        event={{
+          ...base,
+          id: "drv3",
+          action: "task.drive_file_linked",
+          metadata: { drive_file_id: "df_99" },
+        }}
+        actorName="Minh"
+        valueNames={new Map([["df_99", "Ngân sách Q4"]])}
+      />,
+    );
+    expect(screen.getByTestId("task-timeline-activity-drv3")).toHaveTextContent(
+      "đã liên kết Ngân sách Q4 từ Google Drive",
+    );
+
+    const fromProposal = row(
+      {
+        id: "drv4",
+        action: "task.created",
+        metadata: { source: "drive_task_proposal", drive_file_name: "Kế hoạch ra mắt Q4" },
+      },
+      "Minh",
+    );
+    expect(fromProposal).toHaveTextContent(
+      "đã tạo công việc từ đề xuất của UNI (Kế hoạch ra mắt Q4)",
+    );
+  });
 });
 
 describe("isTimelineActivity", () => {

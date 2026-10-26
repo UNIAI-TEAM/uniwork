@@ -7,6 +7,7 @@ import { useCurrentMember } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
+import { useTaskDriveFiles } from "@uniwork/core/drive";
 import type { AuditEvent } from "@uniwork/core/types";
 import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import type { UploadContext } from "@uniwork/core/hooks/use-file-upload";
@@ -99,6 +100,7 @@ export function TaskDetailTimeline({
   const threadNav = useTaskThreadNavOptional();
   const { data: comments, isLoading } = useComments(taskId);
   const attachments = useTaskAttachments(workspaceId, taskId);
+  const driveFiles = useTaskDriveFiles(workspaceId, taskId);
   const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
   const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);
@@ -228,8 +230,9 @@ export function TaskDetailTimeline({
         ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
         ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
         ...(projects.data?.projects ?? []).map((p) => [p.id, p.title] as const),
+        ...(driveFiles.data ?? []).map((f) => [f.id, f.name] as const),
       ]),
-    [members.data, agents.data, projects.data?.projects],
+    [members.data, agents.data, projects.data?.projects, driveFiles.data],
   );
   const displayEntries = useMemo(() => groupTimelineEntries(entries), [entries]);
 
