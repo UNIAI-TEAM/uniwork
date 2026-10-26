@@ -567,3 +567,45 @@ func TestOnlyBrowserFlowsRedirect(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Google Drive file content (files.export and alt=media downloads) is read in
+// one place — server/internal/service/drive_content.go — so every content read
+// checks workspace membership and the requester's own drive_file_access row
+// before touching Google (ADR 0047, spec §8.3).
+func TestDriveContentOnlyFromDriveContent(t *testing.T) {
+	callRe := regexp.MustCompile(`\.(driveExportFile|driveDownloadMedia)\(`)
+	rawRe := regexp.MustCompile(`alt=media|"alt":\s*\{"media"\}|/drive/v3/files/[^\s"]*export|"/files/"\s*\+[^\n]*\+\s*"/export"`)
+	var sawCall bool
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(slash, "internal/service/drive_content.go") {
+			if callRe.Match(src) {
+				sawCall = true
+			}
+			return nil
+		}
+		if m := callRe.FindStringSubmatch(string(src)); m != nil {
+			t.Errorf("%s calls %s; only internal/service/drive_content.go may read Drive file content (ADR 0047)", slash, m[1])
+		}
+		if !strings.HasSuffix(slash, "internal/service/drive_api.go") && rawRe.Match(src) {
+			t.Errorf("%s constructs a Drive export/alt=media URL directly; go through internal/service/drive_content.go (ADR 0047)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sawCall {
+		t.Fatal("internal/service/drive_content.go makes no driveExportFile/driveDownloadMedia calls; the guard regex is stale")
+	}
+}

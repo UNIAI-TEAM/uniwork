@@ -1995,6 +1995,41 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDriveFileRead: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			connSvc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-read", "drive-read@example.com")
+			googleSrv := NewFakeGoogleDriveServer(t.Cleanup)
+			googleSrv.SetFile("ext-audit-doc", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "ext-audit-doc",
+					Name:     "Audit Plan",
+					MimeType: DriveMimeGoogleDoc,
+				},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Audit Plan"),
+				},
+			})
+			lookup := &fakeDriveFileAccessLookup{
+				rows: map[string]driveFileAccessRow{
+					f.owner.ID + "|" + w.ID + "|01DRIVEFILEAUDIT0000000001": {
+						DriveFileID:    "01DRIVEFILEAUDIT0000000001",
+						OrganizationID: f.orgID,
+						WorkspaceID:    w.ID,
+						ExternalFileID: "ext-audit-doc",
+						Name:           "Audit Plan",
+						MimeType:       DriveMimeGoogleDoc,
+						HasAccessRow:   true,
+						AccessState:    "granted",
+						Connection:     conn,
+					},
+				},
+			}
+			reader := NewDriveContentService(f.pool, f.q, f.ws, lookup, connSvc, googleSrv.Client, nil)
+			if _, err := reader.ReadForAI(f.ctx, f.owner.ID, w.ID, "01DRIVEFILEAUDIT0000000001", DriveContentPurposeAskUni); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2527,6 +2562,7 @@ func auditActions() []string {
 		audit.ActionDriveConnectionRefused,
 		audit.ActionDriveConnectionAuthFailed,
 		audit.ActionDriveConnectionDisconnected,
+		audit.ActionDriveFileRead,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,

@@ -501,6 +501,26 @@ func TestActorKindOnEveryCreatedBy(t *testing.T) {
 	}
 }
 
+// --- ADR 0047: Google Drive tables store references only, never bytes --------
+//
+// No drive_* table may declare a column pointing at object storage
+// (object_key, bucket, storage_path, file_id, blob_key).
+var driveObjectStorageColumnPattern = regexp.MustCompile(`(?i)\b(object_key|object_url|bucket|storage_path|blob_key)\b`)
+
+func TestDriveTablesCarryNoObjectStorageColumns(t *testing.T) {
+	for _, name := range newMigrationUpFiles(t) {
+		sql := stripSQLComments(readMigration(t, name))
+		for table, body := range createdTables(sql) {
+			if !strings.HasPrefix(table, "drive_") {
+				continue
+			}
+			if m := driveObjectStorageColumnPattern.FindString(body); m != "" {
+				t.Errorf("%s creates %s with object-storage column %q; Drive tables store references only, never bytes (ADR 0047)", name, table, m)
+			}
+		}
+	}
+}
+
 func migrationPrefix(t *testing.T, name string) int {
 	t.Helper()
 	m := migrationPrefixPattern.FindStringSubmatch(name)
