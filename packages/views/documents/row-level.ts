@@ -28,7 +28,8 @@ export function canArchiveRow(level: RowLevel): boolean {
 }
 
 /** The desktop app session a row opens: read-only unless the viewer can edit. */
-export function rowAppOperation(level: RowLevel): "view" | "edit" {
+export function rowAppOperation(rowOrLevel: RowLevel | { my_level?: string | null } | null | undefined): "view" | "edit" {
+  const level = typeof rowOrLevel === "string" ? rowOrLevel : rowLevel(rowOrLevel);
   return level === "view" ? "view" : "edit";
 }
 

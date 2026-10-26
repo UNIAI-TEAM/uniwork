@@ -7,6 +7,7 @@ import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocumentOfficeEditorHost } from "@/platform/office-frame/document-host";
+import { useDocumentsDesktopOpen } from "@/platform/office-frame/desktop-open-props";
 import { useDocumentsTabTitle } from "@/platform/office-frame/tab-title";
 
 // The detail view owns the lazy editor chunk; this route only reads params.
@@ -20,6 +21,7 @@ export default function DocumentDetailPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const { workspace } = useWorkspace();
   const { replace } = useNavigation();
+  const desktopOpen = useDocumentsDesktopOpen(workspace.organization_id);
   // Same query key as the detail view: a cache read, not a second request.
   useDocumentsTabTitle(useDocument(workspace.id, documentId).data?.title);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
@@ -35,6 +37,7 @@ export default function DocumentDetailPage() {
         // (FE r1 FE-02).
         onBackToList={() => replace(ws.documents())}
         officeEditorHost={DocumentOfficeEditorHost}
+        desktopOpen={desktopOpen}
       />
     </Suspense>
   );
