@@ -46,9 +46,9 @@ const chipClass = (active: boolean) =>
 
 // The chosen chip says its kind in a word (UniActions board: "Việc 4"); the others are their mark and count.
 const CHOSEN_WORD: Record<MeetingFeedKind, string> = {
-  decision: "meetings.panel.empty.decided",
-  task: "meetings.panel.empty.todo",
-  question: "meetings.panel.empty.asked",
+  decision: "meetings.panel.feed.chipDecision",
+  task: "meetings.panel.feed.chipTask",
+  question: "meetings.panel.feed.chipQuestion",
   note: "meetings.panel.kind.note",
   recording: "meetings.panel.kind.recording",
 };

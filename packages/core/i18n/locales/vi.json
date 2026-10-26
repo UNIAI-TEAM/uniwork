@@ -5148,7 +5148,10 @@
         "new": "Mới",
         "playRecording": "Phát bản ghi",
         "addDue": "+ Hạn",
-        "jumpToLine": "Xem câu nói lúc {{time}}"
+        "jumpToLine": "Xem câu nói lúc {{time}}",
+        "chipDecision": "Chốt",
+        "chipTask": "Việc",
+        "chipQuestion": "Hỏi"
       },
       "empty": {
         "title": "Thư ký UNI đang nghe",
@@ -5182,7 +5185,8 @@
         "everyone": "Cả phòng",
         "outOfCredit": "Hết lượt Hỏi UNI tháng này",
         "askOff": "Hỏi UNI chưa bật",
-        "blockedHelp": "Vì sao và cách xử lý"
+        "blockedHelp": "Vì sao và cách xử lý",
+        "askPlaceholderShort": "Hỏi riêng UNI…"
       },
       "suggest": {
         "last5": "5 phút qua",

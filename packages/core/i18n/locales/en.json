@@ -5149,7 +5149,10 @@
         "new": "New",
         "playRecording": "Play recording",
         "addDue": "+ Due",
-        "jumpToLine": "See what was said at {{time}}"
+        "jumpToLine": "See what was said at {{time}}",
+        "chipDecision": "Decided",
+        "chipTask": "To-do",
+        "chipQuestion": "Asked"
       },
       "empty": {
         "title": "UNI Scribe is listening",
@@ -5183,7 +5186,8 @@
         "everyone": "Everyone",
         "outOfCredit": "Ask UNI is out of credit this month",
         "askOff": "Ask UNI is off",
-        "blockedHelp": "Why, and what to do"
+        "blockedHelp": "Why, and what to do",
+        "askPlaceholderShort": "Ask UNI privately…"
       },
       "suggest": {
         "last5": "Last 5 minutes",
