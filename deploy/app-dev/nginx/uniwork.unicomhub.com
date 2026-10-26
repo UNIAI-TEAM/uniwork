@@ -1,5 +1,6 @@
 # Host nginx for uniwork.unicomhub.com.
-# Route split matches deploy/edge/route.yaml (uniwork-api, uniwork-mcp, uniwork-web).
+# Route split matches deploy/edge/route.yaml (uniwork-api, uniwork-mcp,
+# uniwork-office-downloads, uniwork-web).
 # Published ports are the app-dev compose mappings: API 8086, web 3008.
 
 map $http_upgrade $uniwork_connection_upgrade {
@@ -88,6 +89,32 @@ server {
 
     location = /.well-known/oauth-authorization-server {
         proxy_pass http://127.0.0.1:8086;
+    }
+
+    # uniwork-office-downloads: installers, the apt repository, the update
+    # feed and releases.json come from the public-read downloads bucket, as in
+    # deploy/edge/route.yaml. Ops replaces OFFICE_DOWNLOADS_S3_HOST and
+    # OFFICE_DOWNLOADS_BUCKET at apply time; this must never point at the
+    # user-data bucket. GET/HEAD only (limit_except GET allows HEAD), no
+    # websocket.
+    location /downloads/office/ {
+        limit_except GET {
+            deny all;
+        }
+        rewrite ^/downloads/office/(.*)$ /OFFICE_DOWNLOADS_BUCKET/$1 break;
+        proxy_pass https://OFFICE_DOWNLOADS_S3_HOST;
+        proxy_set_header Host OFFICE_DOWNLOADS_S3_HOST;
+        proxy_ssl_server_name on;
+        proxy_set_header Upgrade "";
+        proxy_set_header Connection "";
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_hide_header x-amz-request-id;
+        proxy_hide_header x-amz-id-2;
+        proxy_hide_header x-amz-version-id;
+        proxy_hide_header x-amz-delete-marker;
+        proxy_hide_header x-amz-storage-class;
+        proxy_hide_header x-amz-server-side-encryption;
     }
 
     # uniwork-web, websocket.
