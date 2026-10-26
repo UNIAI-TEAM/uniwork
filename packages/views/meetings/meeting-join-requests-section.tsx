@@ -17,8 +17,9 @@ import { useJoinRequestActions } from "./use-join-request-actions";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 /**
- * The host's one card for people knocking: up to two faces, the count, and
- * "Admit" for all of them; the chevron unfolds each person's own row.
+ * The host's one card for people knocking: up to two faces, who waits first
+ * and how many more, and "Admit" for all of them; the chevron unfolds each
+ * person's own row.
  */
 export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string }) {
   const { t } = useTranslation();
@@ -29,6 +30,7 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
 
   if (count === 0) return null;
   const only = pending.length === 1 ? pending[0] : undefined;
+  const first = pending[0];
 
   return (
     <section className="mb-3 shrink-0" aria-labelledby="waiting-admission-heading">
@@ -45,16 +47,22 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
               />
             ))}
           </span>
+          {/* Who waits first, then how many more: the name truncates, never the count (the space is for the name, gap-1 draws it). */}
           <h3
             id="waiting-admission-heading"
-            className="min-w-0 flex-1 truncate text-label font-semibold text-warning-soft-foreground"
+            className="flex min-w-0 flex-1 gap-1 text-label font-semibold text-warning-soft-foreground"
           >
-            {t("meetings.panel.people.waiting", { count })}
+            <span className="truncate">{first ? requestDisplayName(first) : ""}</span>{" "}
+            <span className="shrink-0">
+              {count > 1 ? t("meetings.panel.people.waitingOthers", { count: count - 1 }) : t("meetings.panel.people.waitingAlone")}
+            </span>
           </h3>
           <Button
             type="button"
             size="sm"
             className="h-8 shrink-0 rounded-[10px] bg-foreground px-3 text-caption font-semibold text-background hover:bg-foreground/90"
+            // Several waiting, the one button admits them all: its name says how many.
+            aria-label={only ? undefined : t("meetings.panel.people.admitAll", { count: pending.length })}
             disabled={only ? isApproving(only.id) : approving}
             onClick={() => (only ? approveOne(only.id) : void admitAll(pending))}
           >

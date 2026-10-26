@@ -93,7 +93,7 @@ describe("MeetingRoomPeopleTab", () => {
     expect(roll).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("button", { name: "Chốt điểm danh" })).toBeInTheDocument();
     // Latecomers knock while the roll is being taken; they must stay in view.
-    expect(screen.getByText("1 người đang chờ")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Khách muộn đang chờ" })).toBeInTheDocument();
   });
 
   it("keeps the clerk's view when the sidebar closes and reopens", async () => {
@@ -328,10 +328,10 @@ describe("MeetingRoomPeopleTab", () => {
     it("shows the host one waiting card and admits everyone from it", async () => {
       waitingTwo();
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
-      expect(await screen.findByText("2 người đang chờ")).toBeInTheDocument();
+      expect(await screen.findByRole("region", { name: "Khách muộn và 1 người khác đang chờ" })).toBeInTheDocument();
       // The per-person rows stay folded until the chevron opens them.
-      expect(screen.queryByText("Khách muộn")).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Cho vào" }));
+      expect(screen.queryByText("Đức Hải")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Cho vào cả 2 người" }));
       await waitFor(() => {
         expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/meeting-join-requests/jr1/approve"), expect.any(Object));
         expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/meeting-join-requests/jr2/approve"), expect.any(Object));
@@ -340,9 +340,9 @@ describe("MeetingRoomPeopleTab", () => {
 
     it("admits the one person waiting, and opens the rows on the chevron", async () => {
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
-      expect(await screen.findByText("1 người đang chờ")).toBeInTheDocument();
+      expect(await screen.findByRole("region", { name: "Khách muộn đang chờ" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Xem từng người" }));
-      expect(await screen.findByText("Khách muộn")).toBeInTheDocument();
+      expect(await screen.findAllByText("Khách muộn")).toHaveLength(2);
       expect(screen.getByRole("button", { name: "Cho Khách muộn vào" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Cho vào" }));
       await waitFor(() =>
@@ -446,7 +446,7 @@ describe("MeetingRoomPeopleTab", () => {
       expect(screen.queryByRole("button", { name: "Thêm người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Tắt mic mọi người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Điểm danh" })).not.toBeInTheDocument();
-      expect(screen.queryByText(/người đang chờ/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /đang chờ/ })).not.toBeInTheDocument();
     });
   });
 });
