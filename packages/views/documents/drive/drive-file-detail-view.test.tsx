@@ -173,7 +173,10 @@ describe("DriveFileDetailView (4.2)", () => {
 
     render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />));
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    expect(heading).toHaveAttribute("title", "Kế hoạch ra mắt Q4");
+    const leafSpan = screen.getAllByTitle("Kế hoạch ra mắt Q4").find((el) => el.tagName === "SPAN");
+    expect(leafSpan).toBeTruthy();
 
     // Open in Google Drive links use open_url in a new tab with noopener noreferrer
     const openLinks = screen.getAllByRole("link", { name: t("driveLibrary.detail.open_on_drive") });
@@ -197,10 +200,9 @@ describe("DriveFileDetailView (4.2)", () => {
 
     // Used in tasks
     expect(screen.getByText("Đang dùng ở · 2")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "UNI-1042 · Chuẩn bị kế hoạch ra mắt Q4" })).toHaveAttribute(
-      "href",
-      "/acme/doi/tasks/t1",
-    );
+    const taskLink = screen.getByRole("link", { name: "UNI-1042 · Chuẩn bị kế hoạch ra mắt Q4" });
+    expect(taskLink).toHaveAttribute("href", "/acme/doi/tasks/t1");
+    expect(taskLink).toHaveClass("pointer-coarse:min-h-11");
 
     // Tasks created groups (§8.8)
     expect(screen.getByText(t("driveLibrary.detail.tasks_created.title"))).toBeInTheDocument();
@@ -236,13 +238,14 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(screen.queryByText(t("driveLibrary.detail.props.viewer_account"))).toBeNull();
     unmount();
 
-    // 2. lost
+    // 2. lost (with access_lost_at also set: does not duplicate bound_access_lost warning, W8-V1-06)
     requestMock.mockImplementation((path: string) => {
       if (path === DETAIL_URL) {
         return Promise.resolve({
           file: detailFile({
             viewer_access: "lost",
             viewer_account_email: "mai@gmail.com",
+            access_lost_at: "2026-10-26T09:00:00Z",
           }),
         });
       }
@@ -252,8 +255,8 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(
       await screen.findByText(t("driveLibrary.detail.viewer_access.lost_body", { email: "mai@gmail.com" })),
     ).toBeInTheDocument();
+    expect(screen.queryByText(t("driveLibrary.detail.props.bound_access_lost"))).toBeNull();
     lostRender.unmount();
-
     // 3. connection_lost
     requestMock.mockImplementation((path: string) => {
       if (path === DETAIL_URL) {

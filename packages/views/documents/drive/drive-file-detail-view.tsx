@@ -272,10 +272,19 @@ export function DriveFileDetailView({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <BreadcrumbHeader
         segments={[
-          { href: wsPaths.documents(), label: t("driveLibrary.detail.breadcrumb_documents") },
-          { href: driveLibraryHref, label: t("driveLibrary.detail.breadcrumb_drive") },
+          {
+            href: wsPaths.documents(),
+            label: t("driveLibrary.detail.breadcrumb_documents"),
+            className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11",
+          },
+          {
+            href: driveLibraryHref,
+            label: t("driveLibrary.detail.breadcrumb_drive"),
+            className: "inline-flex shrink-0 items-center pointer-coarse:min-h-11",
+          },
         ]}
-        leaf={file.name}
+        leaf={<span title={file.name}>{file.name}</span>}
+        actionsClassName="max-w-none flex-wrap justify-end overflow-visible"
         actions={
           <>
             {showAsk && onAsk ? (
@@ -305,7 +314,9 @@ export function DriveFileDetailView({
           <div className="flex flex-wrap items-center gap-4">
             <DocumentTypeIcon format={file.icon_kind} className="size-11 shrink-0" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <h1 className="truncate text-title font-semibold text-foreground">{file.name}</h1>
+              <h1 title={file.name} className="truncate text-title font-semibold text-foreground">
+                {file.name}
+              </h1>
               <p className="text-caption text-muted-foreground">{subtitleLine}</p>
             </div>
           </div>
@@ -363,7 +374,7 @@ export function DriveFileDetailView({
                       <li key={task.task_id}>
                         <AppLink
                           href={wsPaths.task(task.task_id)}
-                          className="inline-flex min-h-8 items-center text-body text-foreground hover:underline"
+                          className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11"
                         >
                           {t("driveLibrary.detail.used_in.task_row", {
                             identifier: task.identifier,
@@ -411,7 +422,7 @@ export function DriveFileDetailView({
                   <span>{t("driveLibrary.detail.props.bound_connection_lost")}</span>
                 </span>
               ) : null}
-              {file.access_lost_at ? (
+              {file.access_lost_at && file.viewer_access !== "lost" ? (
                 <span className="inline-flex items-center gap-1 text-caption text-warning">
                   <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
                   <span>{t("driveLibrary.detail.props.bound_access_lost")}</span>
@@ -496,7 +507,7 @@ export function DriveFileDetailView({
                   <li key={task.task_id}>
                     <AppLink
                       href={wsPaths.task(task.task_id)}
-                      className="inline-flex min-h-8 items-center text-body text-foreground hover:underline"
+                      className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11"
                     >
                       {t("driveLibrary.detail.used_in.task_row", {
                         identifier: task.identifier,

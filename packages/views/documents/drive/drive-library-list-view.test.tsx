@@ -184,20 +184,27 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
 
     const driveBtn = screen.getAllByRole("button", { name: /^Google Drive/ })[0]!;
     expect(driveBtn).toHaveAttribute("aria-current", "page");
+    expect(driveBtn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
     expect(driveBtn).toHaveTextContent("6");
 
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
+    expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
     expect(acct1Btn).toHaveTextContent("3");
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
+    expect(acct3Btn).toHaveAttribute(
+      "title",
+      `Drive: uni-work3@gmail.com · ${t("driveLibrary.sidebar.disconnected")}`,
+    );
 
     expect(screen.queryByText(/Người khác liên kết/)).toBeNull();
 
     fireEvent.click(acct1Btn);
     expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=drive&account=conn1");
     expect(acct1Btn).toHaveAttribute("aria-current", "page");
+    expect(acct1Btn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
     expect(driveBtn).not.toHaveAttribute("aria-current");
   });
 
@@ -264,31 +271,35 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
     );
 
-    const table = await screen.findByRole("table");
+    const nameLink = await screen.findByRole("link", { name: "Kế hoạch ra mắt Q4" });
+    const table = screen.getByRole("table");
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.name") })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.account") })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.access") })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.used_in") })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: t("driveLibrary.list.columns.tasks_created") })).toBeInTheDocument();
 
-    expect(within(table).getByText("Kế hoạch ra mắt Q4")).toBeInTheDocument();
-    expect(within(table).getByText(t("driveLibrary.list.access.private"))).toBeInTheDocument();
+    expect(nameLink).toHaveAttribute("title", "Kế hoạch ra mắt Q4");
+    expect(nameLink).toHaveClass("pointer-coarse:min-h-11");
+    expect(within(table).getAllByText(t("driveLibrary.list.access.private")).length).toBeGreaterThan(0);
     expect(within(table).getByText("UNI-1042 và 4 việc khác")).toBeInTheDocument();
     expect(within(table).getByText("4 việc")).toBeInTheDocument();
 
-    expect(within(table).getByText("Chia sẻ với 4 người")).toBeInTheDocument();
+    expect(within(table).getAllByText("Chia sẻ với 4 người").length).toBeGreaterThan(0);
     expect(within(table).getByText("UNI-1060")).toBeInTheDocument();
 
-    expect(within(table).getByText(t("driveLibrary.list.access.shared"))).toBeInTheDocument();
+    expect(within(table).getAllByText(t("driveLibrary.list.access.shared")).length).toBeGreaterThan(0);
     expect(within(table).getByText(t("driveLibrary.list.used_in.none"))).toBeInTheDocument();
-    expect(within(table).getByText(t("driveLibrary.list.reconnect_inline"))).toBeInTheDocument();
+    const reconnectLinks = within(table).getAllByRole("link", { name: t("driveLibrary.list.reconnect_inline") });
+    expect(reconnectLinks.length).toBeGreaterThan(0);
+    expect(reconnectLinks[0]).toHaveClass("pointer-coarse:min-h-11");
     // No fallback to bound_account_email when viewer_account_email is absent
-    expect(within(table).getByText(t("driveLibrary.list.no_account_value"))).toBeInTheDocument();
+    expect(within(table).getAllByText(t("driveLibrary.list.no_account_value")).length).toBeGreaterThan(0);
     expect(within(table).queryByText("other-member@gmail.com")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.list.load_more") }));
     expect(await within(table).findByText("Tài liệu Bộ nhớ chung")).toBeInTheDocument();
-    expect(within(table).getByText(t("driveLibrary.list.access.shared_drive"))).toBeInTheDocument();
+    expect(within(table).getAllByText(t("driveLibrary.list.access.shared_drive")).length).toBeGreaterThan(0);
   });
 
   it("shows broken account subtitle and disables 'Thêm từ <email>' when a disconnected account is selected", async () => {
@@ -325,6 +336,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
     const loadingStatus = screen.getByRole("status", { name: t("documents.library.loading") });
     expect(loadingStatus).toHaveAttribute("aria-busy", "true");
+    expect(within(loadingStatus).getByRole("columnheader", { name: t("driveLibrary.list.columns.name") })).toBeInTheDocument();
     unmount();
 
     // 2. Empty state
