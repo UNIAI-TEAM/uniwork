@@ -5108,6 +5108,26 @@
         "none": "Chưa có tóm tắt",
         "create": "Tạo",
         "sourcesHelp": "AI viết từ đâu"
+      },
+      "filters": {
+        "label": "Lọc theo loại",
+        "all": "Tất cả"
+      },
+      "kind": {
+        "decision": "Quyết định",
+        "task": "Việc cần làm",
+        "question": "Câu hỏi còn mở",
+        "note": "Ghi chú",
+        "recording": "Bản ghi",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Diễn biến cuộc họp",
+        "open": "Chưa chốt",
+        "new": "Mới",
+        "playRecording": "Phát bản ghi",
+        "addDue": "+ Hạn",
+        "jumpToLine": "Xem câu nói lúc {{time}}"
       }
     }
   },

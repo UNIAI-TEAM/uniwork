@@ -9,6 +9,7 @@ import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
  * arrived after the viewer's first look at the list. `seeing` is true while
  * the UNI panel's Việc section is on screen; it marks everything there seen.
  * Per viewer and per visit, in memory: a reload starts from what is there.
+ * `ids` holds the unseen items' ids, for the feed's "new" dots.
  */
 export function useUnseenLiveItems(meetingId: string | undefined, seeing: boolean) {
   const { data } = useMeetingActionItems(meetingId ?? "");
@@ -16,16 +17,19 @@ export function useUnseenLiveItems(meetingId: string | undefined, seeing: boolea
     () => (data?.items ?? []).filter((i) => i.source === "LIVE" && i.status === "PENDING"),
     [data],
   );
-  const ids = live.map((i) => i.id).join("\n");
+  const liveIds = live.map((i) => i.id).join("\n");
   const [seen, setSeen] = useState<ReadonlySet<string> | null>(null);
   useEffect(() => {
     if (!data) return;
     // The first answer is the baseline: what was there when the viewer came is not news.
-    setSeen((prev) => (prev === null || seeing ? new Set(ids ? ids.split("\n") : []) : prev));
-  }, [data, ids, seeing]);
+    setSeen((prev) => (prev === null || seeing ? new Set(liveIds ? liveIds.split("\n") : []) : prev));
+  }, [data, liveIds, seeing]);
   const unseen = seen && !seeing ? live.filter((i) => !seen.has(i.id)) : [];
   const latest = unseen.at(-1);
-  return { count: unseen.length, latest: latest ? { id: latest.id, title: latest.title } : undefined };
+  const unseenKey = unseen.map((i) => i.id).join("\n");
+  // Same set while the unseen ids stay the same, so a row list can memo on it.
+  const ids = useMemo<ReadonlySet<string>>(() => new Set(unseenKey ? unseenKey.split("\n") : []), [unseenKey]);
+  return { count: unseen.length, latest: latest ? { id: latest.id, title: latest.title } : undefined, ids };
 }
 
 /** Says, politely, what the scribe just wrote down while the Việc section is off screen. */

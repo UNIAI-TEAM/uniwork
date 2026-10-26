@@ -29,7 +29,7 @@ const ROW_CLASS: Record<ActionItemsVariant, string> = {
 };
 
 /** A YYYY-MM-DD due date in the hero's date style ("Thứ Sáu, 25 tháng 9"); the raw string when it does not parse. */
-function formatDueDate(date: string, locale: string): string {
+export function formatDueDate(date: string, locale: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? formatMeetingDay(date, locale) : date;
 }
 

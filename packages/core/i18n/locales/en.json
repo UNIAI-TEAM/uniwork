@@ -5109,6 +5109,26 @@
         "none": "No summary yet",
         "create": "Create",
         "sourcesHelp": "What the AI read"
+      },
+      "filters": {
+        "label": "Filter by kind",
+        "all": "All"
+      },
+      "kind": {
+        "decision": "Decision",
+        "task": "Action item",
+        "question": "Open question",
+        "note": "Note",
+        "recording": "Recording",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Meeting highlights",
+        "open": "Open",
+        "new": "New",
+        "playRecording": "Play recording",
+        "addDue": "+ Due",
+        "jumpToLine": "See what was said at {{time}}"
       }
     }
   },

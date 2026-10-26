@@ -56,6 +56,7 @@ describe("useUnseenLiveItems (UNI-1995 #21)", () => {
     await more([item("a", "Gửi báo giá"), item("b", "Đặt phòng họp"), item("c", "Gõ tay", "MANUAL")]);
     await waitFor(() => expect(result.current.count).toBe(1));
     expect(result.current.latest?.title).toBe("Đặt phòng họp");
+    expect([...result.current.ids]).toEqual(["b"]);
   });
 
   it("clears once the viewer has the Việc section on screen, and stays clear", async () => {
@@ -66,6 +67,7 @@ describe("useUnseenLiveItems (UNI-1995 #21)", () => {
 
     rerender({ seeing: true });
     await waitFor(() => expect(result.current.count).toBe(0));
+    expect(result.current.ids.size).toBe(0);
     await more([item("a", "Gửi báo giá"), item("b", "Đặt phòng họp"), item("d", "Chốt lịch")]);
     expect(result.current.count).toBe(0);
 
