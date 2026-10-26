@@ -14,12 +14,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 
 import aiohttp
 from livekit import rtc
 from livekit.agents import AgentServer, AutoSubscribe, JobContext, JobProcess, JobRequest, cli
 from livekit.agents.vad import VADEventType
-from livekit.agents.worker import WorkerPermissions
+from livekit.agents.worker import ServerEnvOption, WorkerPermissions
 from livekit.plugins import silero
 from livekit.protocol import models
 
@@ -41,7 +42,7 @@ from scribe.keyterms import KeytermRefresher, build_keyterms
 from scribe.notice import NOTICE_PATH, NoticeLedger, frames_of, read_notice
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
+from scribe.transcriber import Caption, Final, TrackTranscriber, segment_prefix, start_once, stop_track
 from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
@@ -65,7 +66,15 @@ def prewarm(proc: JobProcess) -> None:
 server = AgentServer(
     setup_fnc=prewarm,
     port=SETTINGS.health_port,
-    load_threshold=0.7,
+    # Production refuses jobs past 70% CPU; `dev` shares a laptop with the app
+    # and would turn every meeting away, so there it takes them all.
+    load_threshold=ServerEnvOption(dev_default=math.inf, prod_default=0.7),
+    # A job joins only once its process has loaded the VAD and the RTC
+    # library. On a busy host that outlasted the library's 10 s, every spawn
+    # was killed and the scribe walked in minutes late, on the server's
+    # re-dispatch. One warm process in `dev` too, as production keeps four.
+    initialize_process_timeout=30.0,
+    num_idle_processes=ServerEnvOption(dev_default=1, prod_default=4),
     drain_timeout=SETTINGS.drain_timeout_s,
     # The shutdown callbacks (flush, closing extract, /agent/finished) get the
     # 120 s the chart leaves between drain_timeout and the pod's grace period.
@@ -107,6 +116,11 @@ async def entrypoint(ctx: JobContext) -> None:
     cadence = ExtractCadence(extract)
     transcribers: dict[str, TrackTranscriber] = {}
     tasks: set[asyncio.Task] = set()
+    # Each track's transcribe task, and the transcribers of tracks that left (their STT time still counts).
+    running: dict[str, asyncio.Task] = {}
+    ended: list[TrackTranscriber] = []
+    # How often each track started in this job: a track that starts again needs segment ids of its own.
+    starts: dict[str, int] = {}
     vad_model = ctx.proc.userdata["vad"]
     keyterms: list[str] = []
 
@@ -137,11 +151,21 @@ async def entrypoint(ctx: JobContext) -> None:
             },
         )
 
+    async def publish_skip(lang: str, finals: list[Final], reason: str) -> None:
+        # No uw.segment_id: the room reads this as why those lines stay in the original.
+        await ctx.room.local_participant.send_text(
+            reason,
+            topic=f"{CAPTION_TOPIC}.{lang}",
+            compress=False,
+            attributes={"uw.skipped": reason, "uw.segment_ids": ",".join(f.segment_id for f in finals)},
+        )
+
     # Spec §5.3: the languages the people in the room picked (server-set attribute).
     translator = CaptionTranslator(
         client.translate,
         publish_translation,
         lambda: wanted_languages(p.attributes for p in ctx.room.remote_participants.values()),
+        skip=publish_skip,
     )
 
     def on_final(f: Final) -> None:
@@ -152,8 +176,9 @@ async def entrypoint(ctx: JobContext) -> None:
     def new_transcriber(p: rtc.RemoteParticipant, track: rtc.Track) -> TrackTranscriber:
         diarize = shared_mic(p.attributes)
         return TrackTranscriber(
-            # The job id keeps segment ids unique across the runs of one meeting.
-            segment_prefix=f"{ctx.job.id}-{track.sid}",
+            # The job id keeps segment ids unique across the runs of one meeting, the start count across a
+            # track's starts within one.
+            segment_prefix=segment_prefix(ctx.job.id, track.sid, starts),
             identity=p.identity,
             stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize, base_url=SETTINGS.stt_base_url),
             publish=publish,
@@ -215,9 +240,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
         def maybe_start(track: rtc.Track, pub: rtc.RemoteTrackPublication) -> None:
             if track.kind == rtc.TrackKind.KIND_AUDIO and pub.source == rtc.TrackSource.SOURCE_MICROPHONE:
-                start_once(
+                task = start_once(
                     transcribers, tasks, track.sid, lambda: new_transcriber(p, track), lambda t: transcribe(t, track)
                 )
+                if task is not None:
+                    running[track.sid] = task
 
         def on_sub(track: rtc.Track, pub: rtc.RemoteTrackPublication, who: rtc.RemoteParticipant) -> None:
             if who.identity == p.identity:
@@ -227,6 +254,20 @@ async def entrypoint(ctx: JobContext) -> None:
         for pub in p.track_publications.values():
             if pub.track is not None:
                 maybe_start(pub.track, pub)
+
+    def stop(sid: str) -> None:
+        if (t := stop_track(transcribers, running, sid)) is not None:
+            ended.append(t)
+
+    def on_left(p: rtc.RemoteParticipant) -> None:
+        # The SDK drops the participant before any per-track event can name its tracks.
+        for sid in [sid for sid, t in transcribers.items() if t.identity == p.identity]:
+            stop(sid)
+
+    # A track that leaves must close its stream (stop_track): a reload otherwise captions every line twice.
+    ctx.room.on("track_unsubscribed", lambda track, _pub, _who: stop(track.sid))
+    ctx.room.on("track_unpublished", lambda pub, _who: stop(pub.sid))
+    ctx.room.on("participant_disconnected", on_left)
 
     def on_attributes(changed: dict[str, str], p: rtc.Participant) -> None:
         # Spec §4.3: the server set or cleared uw.shared_mic; reopen that
@@ -313,7 +354,7 @@ async def entrypoint(ctx: JobContext) -> None:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         await cadence.final()
-        session_ms = sum(t.session_ms for t in transcribers.values())
+        session_ms = sum(t.session_ms for t in [*transcribers.values(), *ended])
         if not reports_finished(disconnect["reason"]):
             log.info("replaced by another connection; the run is not ours to finish")
         else:

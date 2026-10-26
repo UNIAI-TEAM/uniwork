@@ -1,6 +1,6 @@
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 
-const MEETING_AVATAR_TINTS = ["blue", "pink", "teal", "orange", "green"] as const satisfies readonly Tint[];
+export const MEETING_AVATAR_TINTS = ["blue", "pink", "teal", "orange", "green"] as const satisfies readonly Tint[];
 
 /**
  * A person's avatar tint on the meeting detail page (PLAN D11): the five

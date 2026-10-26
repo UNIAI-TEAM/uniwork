@@ -137,6 +137,31 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   animation: chat-bubble-send-in var(--duration-fast) var(--ease-out-quart) both;
 }
 
+/* Thư ký UNI's live captions (views/meetings/meeting-scribe-captions.tsx), timed
+   as in the preview the owner approved: a word sharpens in out of a blur, the
+   words a translation replaces lift away, the speaker's name slides in, what
+   waits (a translation, the listening line) breathes, and the picked
+   language's thumb sweeps violet while a translation is on its way. */
+@keyframes caption-word-in {
+  from { opacity: 0; filter: blur(5px); transform: translateY(0.3em); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+@keyframes caption-word-out { to { opacity: 0; filter: blur(4px); transform: translateY(-0.25em); } }
+@keyframes caption-chip-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+/* The trough stays at 0.75: the muted listening line keeps AA at its faintest (tokens.test.ts). */
+@keyframes caption-breathe { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@keyframes caption-thumb-sweep { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+.animate-caption-word-in { animation: caption-word-in 0.36s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.animate-caption-word-out { animation: caption-word-out 0.17s ease forwards; }
+.animate-caption-chip-in { animation: caption-chip-in 0.4s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+.animate-caption-breathe { animation: caption-breathe 1.2s ease-in-out infinite; }
+.animate-caption-listening { animation: caption-breathe 2.4s ease-in-out infinite; }
+.animate-caption-thumb-sweep {
+  background-image: linear-gradient(100deg, var(--meeting-bar-chip-bg) 20%, var(--meeting-caption-sweep) 50%, var(--meeting-bar-chip-bg) 80%);
+  background-size: 250% 100%;
+  animation: caption-thumb-sweep 1.3s linear infinite;
+}
+
 /* Base UI marks orientation as data-orientation="…"; the registry primitives
    (separator, tabs, slider, toggle-group, …) style it through the shorthand
    variants below. Without these two lines the variants match nothing and a
@@ -233,7 +258,13 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   /* Glyph pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
   .animate-welcome-glyph-pop,
   .animate-reaction-pop,
-  .animate-chat-bubble-send-in { animation-name: onboarding-enter; }
+  .animate-chat-bubble-send-in,
+  .animate-caption-word-in,
+  .animate-caption-chip-in { animation-name: onboarding-enter; }
+  /* Caption words fade in and out; nothing breathes or sweeps. */
+  .animate-caption-breathe,
+  .animate-caption-listening,
+  .animate-caption-thumb-sweep { animation: none; }
   .border-beam::before { animation: none; }
   /* Thư ký UNI's mark stands still; the words beside it carry the state. */
   [data-scribe-mark], [data-scribe-mark] * { animation: none !important; }

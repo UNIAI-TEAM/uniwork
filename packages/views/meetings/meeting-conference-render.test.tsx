@@ -4,7 +4,8 @@ import { RoomEvent, Track } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
-import { wrapWithNav } from "../test/api-mock";
+import type { Meeting } from "@uniwork/core/types";
+import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingConference } from "./meeting-conference";
 
 /**
@@ -212,6 +213,16 @@ describe("MeetingConference caption source", () => {
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true, attributes: { "uw.scribe_state": "ok" } }];
     renderRoom();
     expect(screen.getByTestId("scribe-captions")).toBeInTheDocument();
+    expect(screen.queryByTestId("device-captions")).not.toBeInTheDocument();
+  });
+
+  it("shows the scribe on its way in rather than device captions for its first seconds", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/meeting-capabilities") ? { scribe: true } : undefined),
+    );
+    const meeting = { id: "m1", scribe_enabled: true, scribe_status: "DISPATCHED" } as Meeting;
+    render(wrapWithNav(<MeetingConference meetingId="m1" meeting={meeting} workspaceId="w1" onLeave={() => {}} />));
+    expect(await screen.findByTestId("scribe-captions")).toBeInTheDocument();
     expect(screen.queryByTestId("device-captions")).not.toBeInTheDocument();
   });
 

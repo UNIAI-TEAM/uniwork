@@ -1,20 +1,28 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useRemoteParticipants, useRoomContext } from "@livekit/components-react";
-import { RoomEvent } from "livekit-client";
-import { Check } from "lucide-react";
+import { type Room, RoomEvent } from "livekit-client";
+import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { type CaptionLanguage, useSetCaptionLanguage } from "@uniwork/core/meetings/captions";
-import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
+import { ScribeMark, ScribeVoiceLine } from "@uniwork/ui/brand/scribe-mark";
+import { type Tint, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MEETING_AVATAR_TINTS } from "./meeting-detail/avatar-tint";
+import { useCaptionFrame } from "./meeting-scribe-caption-frame";
+import { CaptionText, useCaptionScroll, useLanguageThumb } from "./meeting-scribe-caption-motion";
+import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 
 /** The text-stream topic the AI scribe publishes captions on (spec D7). */
 export const SCRIBE_CAPTION_TOPIC = "uw.caption";
-const SHOWN_LINES = 3;
+// The lines a viewer can scroll back through; the whole meeting is in the transcript tab.
+const KEPT_LINES = 50;
 // Translations kept for the lines on screen and a few that may still arrive.
-const KEPT_TRANSLATIONS = 20;
+const KEPT_TRANSLATIONS = 60;
 const ORIGINAL = "original";
 // The agent drops a final that waited 3 s for its batch; this covers that and the call itself.
 const TRANSLATION_WAIT_MS = 5000;
@@ -28,6 +36,10 @@ type ScribeCaption = {
   language?: string;
   /** When the final arrived, so its translation is waited for a short while only. */
   finalAt?: number;
+  /** The text shown is the picked language's translation, not what was said. */
+  translated?: boolean;
+  /** A final still waiting a short while for its translation. */
+  pending?: boolean;
 };
 
 /** The topic one language's translated captions ride on (spec §5.3). */
@@ -39,11 +51,11 @@ export function scribeTranslationTopic(lang: string): string {
  * Applies one caption from the agent: the interim and final texts of a
  * segment share its id and the newer one replaces the older in place; a
  * final is never overwritten by an interim that arrives late. The newest
- * SHOWN_LINES segments stay.
+ * KEPT_LINES segments stay.
  */
 export function applyScribeCaption(lines: readonly ScribeCaption[], c: ScribeCaption): ScribeCaption[] {
   const at = lines.findIndex((l) => l.segmentId === c.segmentId);
-  if (at < 0) return [...lines, c].slice(-SHOWN_LINES);
+  if (at < 0) return [...lines, c].slice(-KEPT_LINES);
   if (lines[at]?.final && !c.final) return [...lines];
   const next = [...lines];
   next[at] = c;
@@ -70,12 +82,51 @@ export function useScribePaused(): boolean {
   );
 }
 
+/** How long the room shows a joining scribe before each viewer's device captions step in. */
+const SCRIBE_JOIN_WAIT_MS = 30_000;
+
+/**
+ * True while the scribe is on its way in and not late yet: the captions say
+ * it is joining instead of handing the viewer device captions for the few
+ * seconds it takes. A dispatch no worker takes is sent again for minutes
+ * without failing (server scribeCapacityWait), so past SCRIBE_JOIN_WAIT_MS
+ * the device captions take over until it arrives.
+ */
+export function useScribeJoinWait(onItsWay: boolean): boolean {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!onItsWay) return;
+    const id = window.setTimeout(() => setLate(true), SCRIBE_JOIN_WAIT_MS);
+    return () => {
+      window.clearTimeout(id);
+      setLate(false);
+    };
+  }, [onItsWay]);
+  return onItsWay && !late;
+}
+
 /** vi-VN and vi are the same caption language (the agent's base_language). */
 function baseLanguage(language: string | undefined): string {
   return (language ?? "").slice(0, 2).toLowerCase();
 }
 
-type TranslationState = "idle" | "translating" | "original";
+type TranslationState = "idle" | "translating" | "original" | "skipped";
+
+/** The lines the server would not translate, and why (the agent's uw.skipped, spec §5.3). */
+type Skipped = { reason: string; ids: ReadonlySet<string> };
+const NOTHING_SKIPPED: Skipped = { reason: "", ids: new Set() };
+
+/** What the room says about a skip: the AI quota and a switched-off translation by name, anything else plainly. */
+function skippedKey(reason: string): string {
+  switch (reason) {
+    case "ai_quota_exceeded":
+      return "meetings.scribe.captionSkippedQuota";
+    case "unavailable":
+      return "meetings.scribe.captionSkippedOff";
+    default:
+      return "meetings.scribe.captionUntranslated";
+  }
+}
 
 /**
  * Reads the agent's captions while `enabled`, and the translations of the
@@ -96,6 +147,7 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   const room = useRoomContext();
   const [lines, setLines] = useState<ScribeCaption[]>([]);
   const [translated, setTranslated] = useState<ReadonlyMap<string, string>>(new Map());
+  const [skipped, setSkipped] = useState<Skipped>(NOTHING_SKIPPED);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!enabled) {
@@ -119,11 +171,22 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   }, [room, enabled]);
   useEffect(() => {
     setTranslated(new Map());
+    setSkipped(NOTHING_SKIPPED);
     if (!enabled || !lang) return;
     const topic = scribeTranslationTopic(lang);
     room.registerTextStreamHandler(topic, (reader, from) => {
       if (!room.getParticipantByIdentity(from.identity)?.isAgent) return;
-      const segmentId = reader.info.attributes?.["uw.segment_id"];
+      const a = reader.info.attributes ?? {};
+      // The server skipped these lines (the AI quota is spent, say): they stay in the original, and the room says why.
+      const reason = a["uw.skipped"];
+      if (reason) {
+        const ids = (a["uw.segment_ids"] ?? "").split(",").filter(Boolean);
+        void reader.readAll().then(() => {
+          setSkipped((prev) => ({ reason, ids: new Set([...prev.ids, ...ids].slice(-KEPT_TRANSLATIONS)) }));
+        });
+        return;
+      }
+      const segmentId = a["uw.segment_id"];
       if (!segmentId) return;
       void reader.readAll().then((text) => {
         setTranslated((prev) => new Map([...prev, [segmentId, text] as const].slice(-KEPT_TRANSLATIONS)));
@@ -133,7 +196,11 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   }, [room, enabled, lang]);
   // A final said in the picked language needs nothing; one in another waits for its translation.
   const awaiting = (l: ScribeCaption) =>
-    Boolean(lang) && l.final && baseLanguage(l.language) !== lang && !translated.has(l.segmentId);
+    Boolean(lang) &&
+    l.final &&
+    baseLanguage(l.language) !== lang &&
+    !translated.has(l.segmentId) &&
+    !skipped.ids.has(l.segmentId);
   const waiting = (l: ScribeCaption) => awaiting(l) && now - (l.finalAt ?? 0) < TRANSLATION_WAIT_MS;
   const deadline = lines.filter(waiting).reduce((min, l) => Math.min(min, (l.finalAt ?? 0) + TRANSLATION_WAIT_MS), Infinity);
   useEffect(() => {
@@ -142,15 +209,23 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
     return () => window.clearTimeout(id);
   }, [deadline]);
   // A line without its translation (yet) shows the original.
-  const shown = lang ? lines.map((l) => (l.final ? { ...l, text: translated.get(l.segmentId) ?? l.text } : l)) : lines;
+  const shown = lines.map((l) => {
+    const text = lang && l.final ? translated.get(l.segmentId) : undefined;
+    if (text !== undefined) return { ...l, text, translated: true };
+    return waiting(l) ? { ...l, pending: true } : l;
+  });
   const newestForeign = [...lines].reverse().find((l) => l.final && Boolean(lang) && baseLanguage(l.language) !== lang);
-  const state: TranslationState = !newestForeign || !awaiting(newestForeign)
+  const state: TranslationState = !newestForeign
     ? "idle"
-    : waiting(newestForeign)
-      ? "translating"
-      : "original";
+    : skipped.ids.has(newestForeign.segmentId)
+      ? "skipped"
+      : !awaiting(newestForeign)
+        ? "idle"
+        : waiting(newestForeign)
+          ? "translating"
+          : "original";
   const ready = shown.filter((l) => l.final && !waiting(l));
-  return { lines: shown, state, ready };
+  return { lines: shown, state, ready, skipReason: skipped.reason };
 }
 
 /**
@@ -158,19 +233,29 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
  * a screen reader hears that captions are being translated, or that the
  * original is showing, the first time it happens.
  */
-function useTranslationNotice(lang: CaptionLanguage, state: TranslationState): string {
+function useTranslationNotice(lang: CaptionLanguage, state: TranslationState, skipReason: string): string {
   const { t } = useTranslation();
   const [notice, setNotice] = useState("");
-  const told = useRef(new Set<TranslationState>());
+  const told = useRef(new Set<string>());
   useEffect(() => {
     told.current.clear();
     setNotice("");
   }, [lang]);
+  // A skip is said once per reason: the quota running out is news, every line after it is not.
+  const said = state === "skipped" ? `skipped:${skipReason}` : state;
   useEffect(() => {
-    if (state === "idle" || told.current.has(state)) return;
-    told.current.add(state);
-    setNotice(t(state === "translating" ? "meetings.scribe.captionTranslating" : "meetings.scribe.captionUntranslated"));
-  }, [state, t]);
+    if (said === "idle" || told.current.has(said)) return;
+    told.current.add(said);
+    setNotice(
+      t(
+        state === "translating"
+          ? "meetings.scribe.captionTranslating"
+          : state === "skipped"
+            ? skippedKey(skipReason)
+            : "meetings.scribe.captionUntranslated",
+      ),
+    );
+  }, [said, state, skipReason, t]);
   return notice;
 }
 
@@ -250,27 +335,123 @@ function useCaptionLanguage(meetingId: string | undefined) {
   return { lang, pick };
 }
 
-/** The room's captions from the AI scribe: who said it, interim words dimmed, in the picked language. */
+const LANGUAGES = [
+  [ORIGINAL, "meetings.scribe.captionOriginal", "meetings.scribe.captionOriginalShort"],
+  ["vi", "meetings.scribe.captionVietnamese", "meetings.scribe.captionVietnameseShort"],
+  ["en", "meetings.scribe.captionEnglish", "meetings.scribe.captionEnglishShort"],
+] as const;
+
+/**
+ * How loud the room is now, 0–1, for the scribe's voice line. LiveKit reports
+ * a linear level (10^(dBov/20)) in which speech sits around 0.03–0.3; the
+ * square root spreads that over the line's range.
+ */
+function roomLoudness(room: Room): number {
+  const level = room.activeSpeakers.reduce((max, p) => Math.max(max, p.audioLevel), 0);
+  return Math.min(1, Math.sqrt(level) * 1.6);
+}
+
+/** A speaker keeps one tint wherever their name shows, without any state to hold it. */
+function speakerTint(identity: string): Tint {
+  let h = 0;
+  for (const c of identity) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return MEETING_AVATAR_TINTS[Math.abs(h) % MEETING_AVATAR_TINTS.length]!;
+}
+
+/**
+ * One caption line. Memoized on its own fields, so the fifty lines a viewer
+ * can scroll back through stay still while interim words repaint the newest.
+ */
+const CaptionLine = memo(function CaptionLine({
+  identity,
+  name,
+  avatarUrl,
+  showWho,
+  text,
+  final,
+  variant,
+  pending,
+}: {
+  identity: string;
+  name: string;
+  avatarUrl: string | undefined;
+  showWho: boolean;
+  text: string;
+  final: boolean;
+  variant: string;
+  pending: boolean;
+}) {
+  const tint = speakerTint(identity);
+  return (
+    <p data-final={final ? "1" : "0"} className="mt-0.5 first:mt-0">
+      {showWho ? (
+        <span
+          className={cn(
+            "me-2 inline-flex animate-caption-chip-in items-center gap-1.5 align-[1px] text-label leading-none font-semibold",
+            tintForegroundClass[tint],
+          )}
+        >
+          <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size={20} tint={tint} />
+          {name}
+        </span>
+      ) : null}
+      <CaptionText
+        text={text}
+        variant={variant}
+        className={cn(
+          "transition-colors duration-500",
+          final ? "text-meeting-bar-foreground" : "text-meeting-bar-foreground/60",
+          // Its translation is on its way: the line breathes until it arrives.
+          pending && "animate-caption-breathe",
+        )}
+      />
+    </p>
+  );
+});
+
+/**
+ * The room's captions from the AI scribe: who said it, interim words dimmed,
+ * in the picked language. `joining`: the scribe is on its way in, and the box
+ * says so until it arrives and starts listening. Looks and moves as the
+ * preview the owner approved (artifact LbBoGwiRm919GYye1QMycB).
+ */
 export function MeetingScribeCaptions({
   enabled,
   meetingId,
+  joining = false,
+  stage = null,
   className,
 }: {
   enabled: boolean;
   meetingId?: string;
+  joining?: boolean;
+  /** The meeting's stage frame, which the captions can float over; without it they only dock. */
+  stage?: HTMLElement | null;
   className?: string;
 }) {
   const { t } = useTranslation();
   const room = useRoomContext();
+  const avatarOf = useRoomAvatarOf();
   const { lang, pick } = useCaptionLanguage(meetingId);
-  const { lines, state, ready } = useScribeCaptions(enabled, lang);
+  const { lines, state, ready, skipReason } = useScribeCaptions(enabled, lang);
   const said = useSpokenOnce(ready);
-  const notice = useTranslationNotice(lang, state);
+  const notice = useTranslationNotice(lang, state, skipReason);
+  const view = useRef<HTMLDivElement>(null);
+  const frame = useCaptionFrame(stage);
+  const { reading, unseen, latest } = useCaptionScroll(view, lines, frame.floating ? null : frame.rows);
+  const thumb = useLanguageThumb(lang || ORIGINAL);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
+  const translating = state === "translating";
   return (
-    // `dark`: the stage is dark in both themes; the footer sits outside its scope.
-    <div className={cn("dark pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
+    // `dark`: the stage is dark in both themes; the footer sits outside its scope. A set width,
+    // not w-full: the footer's stack fits its content, so the box would follow its longest line.
+    // Floating, its docked slot takes no room, so the footer gives that height back to the stage.
+    <div
+      className={cn("dark pointer-events-none", frame.floating ? "w-0" : "w-180 max-w-full", className)}
+      data-testid="meeting-scribe-captions"
+      data-placement={frame.floating ? "floating" : "docked"}
+    >
       {/* Interim words change several times a second; only finished sentences reach assistive tech, each once. */}
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-announcer">
         {said.map((l) => `${nameOf(l.identity)}: ${l.text}`).join(" ")}
@@ -278,67 +459,153 @@ export function MeetingScribeCaptions({
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-translation-notice">
         {notice}
       </p>
-      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <p aria-hidden className="text-caption text-meeting-bar-muted-foreground" data-testid="meeting-caption-label">
-            <ScribeMark className="mr-1.5 inline-block size-3.5 align-[-3px]" />
-            {t("meetings.scribe.captionsLabel")}
-            {state === "translating" ? (
-              <span className="ml-2">{t("meetings.scribe.captionTranslating")}</span>
+      {/* Reading back, the box slides open upwards over the stage: its negative margin keeps the room it takes
+          in the footer, so the tiles never reflow while someone scrolls (useCaptionScroll slides both). */}
+      <div
+        ref={frame.card}
+        data-reading={reading ? "" : undefined}
+        style={frame.cardStyle}
+        className={cn(
+          "relative isolate overflow-hidden rounded-2xl bg-meeting-caption-glass px-4 pt-2.5 pb-3.5 shadow-meeting-caption ring-1 ring-meeting-bar-border/60 backdrop-blur-[22px] backdrop-saturate-150 [--cap-lh:24px] max-sm:rounded-[18px] max-sm:px-3 max-sm:pt-2 max-sm:pb-3 sm:[--cap-lh:28px]",
+          // Floating over the room where the viewer put it, at the size they gave it.
+          frame.floating && "pointer-events-auto fixed z-30 flex flex-col",
+          // Dragged over the docking zone: it will dock when let go.
+          frame.dockHint && "ring-2 ring-tint-violet-foreground",
+          // The lines' region masks its own edges, focus ring included: the card shows its keyboard focus.
+          "has-[[data-caption-region]:focus-visible]:outline-2 has-[[data-caption-region]:focus-visible]:outline-offset-2 has-[[data-caption-region]:focus-visible]:outline-(--ring)",
+        )}
+      >
+        {frame.handles}
+        {/* Joining or translating, the scribe is busy rather than listening: the light gathers and travels. */}
+        <ScribeVoiceLine level={() => roomLoudness(room)} processing={joining || translating} />
+        <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          {frame.grip}
+          <p
+            aria-hidden
+            className="flex items-center gap-2.5 text-caption font-medium tracking-[0.01em] text-meeting-bar-muted-foreground"
+            data-testid="meeting-caption-label"
+          >
+            <ScribeMark state={joining ? "joining" : "live"} className="size-5" />
+            <span className="max-sm:hidden">{t("meetings.scribe.captionsLabel")}</span>
+            {/* Translating shows on the line and the thumb; a translation that will not come is said in words,
+                as a warning when the server named why (the AI quota is spent, translation is off). */}
+            {state === "skipped" ? (
+              <span
+                className="inline-flex min-h-[22px] animate-caption-chip-in items-center gap-1.5 rounded-[11px] bg-warning/12 px-2.5 py-0.5 font-semibold text-warning before:size-1.5 before:shrink-0 before:rounded-full before:bg-current"
+                data-testid="meeting-caption-skipped"
+              >
+                {t(skippedKey(skipReason))}
+              </span>
             ) : state === "original" ? (
-              <span className="ml-2">{t("meetings.scribe.captionUntranslated")}</span>
+              <span>{t("meetings.scribe.captionUntranslated")}</span>
             ) : null}
           </p>
-          {meetingId ? (
-            <ToggleGroup
-              value={[lang || ORIGINAL]}
-              onValueChange={(v) => {
-                // Pressing the language that is on would clear the group; one is always picked.
-                const next = v[0];
-                if (next === ORIGINAL) pick("");
-                else if (next === "vi" || next === "en") pick(next);
-              }}
-              aria-label={t("meetings.scribe.captionLanguage")}
-              size="sm"
-              className="pointer-events-auto"
-            >
-              {(
-                [
-                  [ORIGINAL, "meetings.scribe.captionOriginal"],
-                  ["vi", "meetings.scribe.captionVietnamese"],
-                  ["en", "meetings.scribe.captionEnglish"],
-                ] as const
-              ).map(([value, key]) => {
-                const pressed = (lang || ORIGINAL) === value;
-                return (
+          <div className="ms-auto flex items-center gap-2">
+            {/* Reading back: the way down to the newest line, beside the picker, so it covers no words and
+                the lines keep their width (a padding for it would rewrap them and move the one being read). */}
+            {reading ? (
+              <Button
+                type="button"
+                variant="meetingChip"
+                size="icon"
+                onClick={latest}
+                aria-label={t("meetings.scribe.captionsLatest")}
+                title={t("meetings.scribe.captionsLatest")}
+                data-testid="meeting-caption-latest"
+                className="pointer-events-auto relative animate-caption-chip-in rounded-full"
+              >
+                <ArrowDown aria-hidden className="size-4" />
+                {/* New lines came while reading back. */}
+                {unseen ? (
+                  <span
+                    aria-hidden
+                    data-testid="meeting-caption-unseen"
+                    className="absolute top-0.5 right-0.5 size-2 rounded-full bg-tint-violet-foreground"
+                  />
+                ) : null}
+              </Button>
+            ) : null}
+            {meetingId ? (
+              <ToggleGroup
+                value={[lang || ORIGINAL]}
+                onValueChange={(v) => {
+                  // Pressing the language that is on would clear the group; one is always picked.
+                  const next = v[0];
+                  if (next === ORIGINAL) pick("");
+                  else if (next === "vi" || next === "en") pick(next);
+                }}
+                aria-label={t("meetings.scribe.captionLanguage")}
+                className="pointer-events-auto relative isolate rounded-full bg-meeting-bar-chip-bg/60 p-[3px] ring-1 ring-meeting-bar-border/70"
+              >
+                {/* The picked language sits on a thumb that slides to it; it sweeps violet while a translation is on its way. */}
+                <span
+                  ref={thumb}
+                  aria-hidden
+                  data-testid="meeting-caption-language-thumb"
+                  data-language={lang || ORIGINAL}
+                  className={cn(
+                    "absolute inset-y-[3px] left-0 -z-10 rounded-full shadow-surface ring-1 ring-meeting-bar-chip-hover/80 data-placed:transition-[transform,width] data-placed:duration-[420ms] data-placed:ease-[cubic-bezier(0.3,1.3,0.5,1)]",
+                    translating ? "animate-caption-thumb-sweep" : "bg-meeting-bar-chip-hover/80",
+                  )}
+                />
+                {LANGUAGES.map(([value, name, short]) => (
                   <ToggleGroupItem
                     key={value}
                     value={value}
-                    // The bar is near black: the picked language takes the brand fill and a tick, never a grey that vanishes.
-                    className="text-caption text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground aria-pressed:bg-brand aria-pressed:font-semibold aria-pressed:text-brand-foreground aria-pressed:hover:bg-brand/90 aria-pressed:hover:text-brand-foreground pointer-coarse:min-h-11"
+                    aria-label={t(name)}
+                    title={t(name)}
+                    className="h-[26px] min-w-[38px] text-caption font-semibold tracking-[0.02em] text-meeting-bar-muted-foreground group-data-[spacing=0]/toggle-group:rounded-full group-data-[spacing=0]/toggle-group:px-2.5 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-full group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-full hover:bg-transparent hover:text-meeting-bar-foreground aria-pressed:bg-transparent aria-pressed:text-meeting-bar-foreground pointer-coarse:min-h-11"
                   >
-                    {pressed ? <Check aria-hidden className="size-3.5" /> : null}
-                    {t(key)}
+                    {t(short)}
                   </ToggleGroupItem>
-                );
-              })}
-            </ToggleGroup>
-          ) : null}
+                ))}
+              </ToggleGroup>
+            ) : null}
+          </div>
         </div>
-        {/* Three lines at most, newest at the bottom: older words slide off the top. */}
-        <div aria-hidden className="flex max-h-[3lh] flex-col justify-end overflow-hidden text-body">
-          {lines.length === 0 ? (
-            <p className="text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
-          ) : (
-            lines.map((l) => (
-              <p key={l.segmentId} data-final={l.final ? "1" : "0"}>
-                <span className="font-medium text-meeting-bar-foreground">{`${nameOf(l.identity)}: `}</span>
-                <span className={l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground"}>
-                  {l.text}
+        {/* Two lines in full, the one before fading out at the top edge as the newest wraps in below. Scrolled
+            back, it opens to six and new lines wait below until the viewer comes back down. */}
+        <div
+          ref={view}
+          role="region"
+          aria-label={t("meetings.scribe.captionsHistory")}
+          data-caption-region=""
+          // A scroll region keyboard users can reach (WCAG 2.1.1); the live announcer above stays the screen reader's feed.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          data-reading={reading ? "" : undefined}
+          className={cn(
+            "pointer-events-auto relative mt-1.5 flex flex-col overflow-y-auto overscroll-contain rounded-md text-title-sm leading-(--cap-lh) font-medium tracking-[-0.006em] [mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95))] [scrollbar-width:none] data-reading:[mask-image:linear-gradient(to_bottom,transparent,black_calc(1lh*0.95),black_calc(100%-1lh*0.6),transparent)] sm:text-title [&::-webkit-scrollbar]:hidden",
+            // Docked, the lines the viewer chose (useCaptionFrame's --cap-rows); floating, what the box leaves it.
+            frame.floating ? "min-h-0 flex-1" : "h-[calc(var(--cap-lh)*var(--cap-rows))]",
+          )}
+        >
+          {/* mt-auto, not justify-end: a column justified to its end cannot scroll back to what overflows its start. */}
+          <div className="mt-auto">
+            {lines.length === 0 ? (
+              <p className="animate-caption-listening text-meeting-bar-muted-foreground">
+                {/* Keyed so "joining" gives way to "listening" the way a caption word arrives. */}
+                <span key={joining ? "joining" : "listening"} className="inline-block animate-caption-word-in">
+                  {t(joining ? "meetings.scribe.chipJoining" : "meetings.captionsListening")}
                 </span>
               </p>
-            ))
-          )}
+            ) : (
+              lines.map((l, i) => (
+                <CaptionLine
+                  key={l.segmentId}
+                  identity={l.identity}
+                  name={nameOf(l.identity)}
+                  avatarUrl={avatarOf(l.identity)}
+                  // The speaker shows when the voice changes, not on every line they say.
+                  showWho={i === 0 || lines[i - 1]?.identity !== l.identity}
+                  text={l.text}
+                  final={l.final}
+                  variant={l.translated ? `t:${lang}` : "o"}
+                  pending={Boolean(l.pending)}
+                />
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

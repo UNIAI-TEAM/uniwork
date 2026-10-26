@@ -121,9 +121,9 @@ class TrackTranscriber:
     """Sessions open and close under one lock (push, tick, close), so a new
     session never starts while the old one drains (S0 §1 item 5a).
 
-    segment_prefix names the job and the track ("<job id>-<track sid>"): a
-    later job on the same track must not reuse an earlier job's segment ids,
-    which the server deduplicates per meeting."""
+    segment_prefix names the job and the track ("<job id>-<track sid>", see
+    segment_prefix()): a later job on the same track must not reuse an earlier
+    job's segment ids, which the server deduplicates per meeting."""
 
     def __init__(
         self,
@@ -376,13 +376,39 @@ def start_once(
     sid: str,
     make: Callable[[], T],
     run: Callable[[T], Coroutine[object, object, None]],
-) -> None:
+) -> asyncio.Task | None:
     """Starts one transcriber per track. It is registered before its task is
     scheduled: a rejoin leaves the first join's track_subscribed listener
-    behind, so one track can be announced twice before any task runs."""
+    behind, so one track can be announced twice before any task runs.
+    Returns the task it started, None when the track already had one."""
     if sid in transcribers:
-        return
+        return None
     t = transcribers[sid] = make()
     task = asyncio.create_task(run(t))
     tasks.add(task)
     task.add_done_callback(tasks.discard)
+    return task
+
+
+def segment_prefix(job_id: str, sid: str, starts: dict[str, int]) -> str:
+    """The prefix of a new transcriber's segment ids, counting in `starts` how
+    often each track started in this job. A track that starts again (it left
+    and came back, as after the agent reconnects) gets "<job>-<track>.<n>":
+    every transcriber numbers its segments from 1, and the server drops a
+    segment whose id it already holds (ON CONFLICT DO NOTHING), so the second
+    start's lines would vanish from the transcript."""
+    n = starts[sid] = starts.get(sid, 0) + 1
+    return f"{job_id}-{sid}" if n == 1 else f"{job_id}-{sid}.{n}"
+
+
+def stop_track[U](transcribers: dict[str, U], running: dict[str, asyncio.Task], sid: str) -> U | None:
+    """Ends the transcriber of a track that left: unsubscribed, unpublished,
+    or its participant gone. Its stream must close, because WebRTC may hand
+    the track's receiver to the next track the participant publishes (a page
+    reload), and a stream left open then transcribes that one a second time:
+    every line twice. The transcriber leaves the map, so the same track can
+    start again, and is returned so its session time still counts."""
+    t = transcribers.pop(sid, None)
+    if (task := running.pop(sid, None)) is not None:
+        task.cancel()
+    return t

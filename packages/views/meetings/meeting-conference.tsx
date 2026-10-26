@@ -29,7 +29,8 @@ import {
   MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
-import { MeetingScribeCaptions, useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
+import { MeetingScribeCaptions, useScribeInRoom, useScribeJoinWait, useScribePaused } from "./meeting-scribe-captions";
+import { scribeChipState } from "./meeting-scribe-chip";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -135,6 +136,8 @@ function ConferenceStage({
   const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [footerReserve, setFooterReserve] = useState(96);
   const stageContentRef = useRef<HTMLDivElement>(null);
+  // The stage frame the scribe's captions float over (state, so the captions follow it once it mounts).
+  const [stageFrame, setStageFrame] = useState<HTMLDivElement | null>(null);
   const handleFooterReserveChange = useCallback((heightPx: number) => {
     setFooterReserve((prev) => (prev === heightPx ? prev : heightPx));
   }, []);
@@ -222,6 +225,11 @@ function ConferenceStage({
   const scribeInRoom = useScribeInRoom();
   const scribePaused = useScribePaused();
   const scribeCaptioning = scribeInRoom && !scribePaused;
+  // On its way in (the chip's "joining"), the scribe's own box says so rather
+  // than handing the viewer device captions for its first seconds.
+  const scribeOnItsWay =
+    caps?.scribe === true && !!meeting && scribeChipState(meeting, scribeInRoom, scribePaused) === "joining";
+  const scribeJoining = useScribeJoinWait(scribeOnItsWay);
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -248,8 +256,13 @@ function ConferenceStage({
   );
   const captions = useMemo(
     () =>
-      scribeCaptioning ? (
-        <MeetingScribeCaptions enabled={captionsOn} meetingId={resolvedMeetingId || undefined} />
+      scribeCaptioning || scribeJoining ? (
+        <MeetingScribeCaptions
+          enabled={captionsOn}
+          joining={!scribeCaptioning}
+          meetingId={resolvedMeetingId || undefined}
+          stage={stageFrame}
+        />
       ) : (
         <MeetingLiveCaptions
           meetingId={resolvedMeetingId}
@@ -257,7 +270,7 @@ function ConferenceStage({
           onError={handleCaptionsError}
         />
       ),
-    [resolvedMeetingId, captionsOn, scribeCaptioning, handleCaptionsError],
+    [resolvedMeetingId, captionsOn, scribeCaptioning, scribeJoining, stageFrame, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(
@@ -268,7 +281,7 @@ function ConferenceStage({
         canHost={canHost.allowed}
         recordingEnabled={recordingEnabled}
         recording={recording}
-        captionsAvailable={scribeInRoom || captionsSupported()}
+        captionsAvailable={scribeInRoom || scribeJoining || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
         onToggleCopilot={toggleCopilot}
@@ -277,7 +290,7 @@ function ConferenceStage({
         copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
   );
 
   return (
@@ -288,7 +301,10 @@ function ConferenceStage({
           !compact && sidebarPinned ? "gap-3" : "gap-0",
         )}
       >
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border">
+        <div
+          ref={setStageFrame}
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border"
+        >
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <MeetingStageHeader
               meeting={meeting}

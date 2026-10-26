@@ -45,6 +45,24 @@ def make(wanted: set[str], answer=None, fail: bool = False):
     return t, clock, calls, published
 
 
+def with_skips(answer: dict):
+    """A translator wanting en whose server answers `answer`, and the skips it tells the room."""
+    published: list[str] = []
+    skips: list[tuple[str, list[str], str]] = []
+
+    async def translate(segments: list[dict], target: str) -> dict:
+        return answer
+
+    async def publish(lang: str, f: Final, text: str) -> None:
+        published.append(f.segment_id)
+
+    async def skip(lang: str, finals: list[Final], reason: str) -> None:
+        skips.append((lang, [f.segment_id for f in finals], reason))
+
+    t = CaptionTranslator(translate, publish, lambda: {"en"}, clock=Clock(), skip=skip)
+    return t, published, skips
+
+
 def test_wanted_languages_reads_the_server_set_attribute():
     attrs = [
         {"uw.caption_lang": "en"},
@@ -190,3 +208,20 @@ async def test_finals_older_than_three_seconds_are_not_paid_for():
     await step(t)
     assert calls == [("en", ["AJ_1-TR_a-2"])]
     assert [p[1] for p in published] == ["AJ_1-TR_a-2"]
+
+
+async def test_a_skipped_batch_tells_the_room_why_for_the_lines_left_untranslated():
+    """The organization's AI quota is spent: the room must say so, not wait for nothing."""
+    t, published, skips = with_skips({"translations": [], "skipped": "ai_quota_exceeded"})
+    t.add(final(1))
+    t.add(final(2))
+    await step(t)
+    assert published == []
+    assert skips == [("en", ["AJ_1-TR_a-1", "AJ_1-TR_a-2"], "ai_quota_exceeded")]
+
+
+async def test_a_translated_batch_tells_no_skip():
+    t, published, skips = with_skips({"translations": [{"segment_id": "AJ_1-TR_a-1", "text": "Sentence 1"}]})
+    t.add(final(1))
+    await step(t)
+    assert published == ["AJ_1-TR_a-1"] and skips == []

@@ -347,6 +347,14 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+  /* Thư ký UNI's caption box: a near-opaque dark surface, lit along its top
+     edge, floating a little above the stage. Opaque enough that its faintest
+     words keep AA over a white slide when it floats over a screen share
+     (tokens.test.ts; at 64% they measured 1.78:1). */
+  --meeting-caption-glass: rgb(20 20 26 / 0.94);
+  --meeting-caption-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 24px 60px -28px rgb(0 0 0 / 0.85);
+  /* The scribe tile's violet (#A23CF2) the language thumb sweeps with while a translation is on its way. */
+  --meeting-caption-sweep: rgb(162 60 242 / 0.45);
 
   /* UniChat call plane — the floating call card, its pill and the fullscreen
      call. Navy and dark in BOTH themes like the meeting stage, so the values
@@ -596,6 +604,14 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+  /* Thư ký UNI's caption box: a near-opaque dark surface, lit along its top
+     edge, floating a little above the stage. Opaque enough that its faintest
+     words keep AA over a white slide when it floats over a screen share
+     (tokens.test.ts; at 64% they measured 1.78:1). */
+  --meeting-caption-glass: rgb(20 20 26 / 0.94);
+  --meeting-caption-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 24px 60px -28px rgb(0 0 0 / 0.85);
+  /* The scribe tile's violet (#A23CF2) the language thumb sweeps with while a translation is on its way. */
+  --meeting-caption-sweep: rgb(162 60 242 / 0.45);
   --call-plane: #0b1220;
   --call-plane-raised: #141e35;
   --call-stage: #151a23;
@@ -841,6 +857,7 @@ html.dark[data-accent] {
   --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
   --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
   --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
+  --color-meeting-caption-glass: var(--meeting-caption-glass);
   --color-call-plane: var(--call-plane);
   --color-call-plane-raised: var(--call-plane-raised);
   --color-call-stage: var(--call-stage);
@@ -857,6 +874,7 @@ html.dark[data-accent] {
   --shadow-floating: var(--floating-shadow);
   --shadow-office-page: var(--office-page-shadow);
   --shadow-chat-bubble: var(--chat-bubble-shadow);
+  --shadow-meeting-caption: var(--meeting-caption-shadow);
   /* Radius ramp, explicit per step: compact controls 8, default controls 10,
      cards 12, dialogs
      and popovers 16, panels 20, section media 32. Pill stays rounded-full. */
