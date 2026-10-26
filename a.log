@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^7734b8e94" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=7734b8e94691376f602ef4be6f349a1908d97e19
+7734b8e94 fix(drive): resolve review-fe-5 cold-load config wait, back navigation, and refetch skeleton scope
+c75e24b42 fix(drive): resolve review-fe-4 focus clipping, sub-view navigation, and SettingsListItem defaults
+cc676e30f chore(mobile): record the reviewed use-realtime-sync hash after the Drive frame keys
