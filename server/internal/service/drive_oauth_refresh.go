@@ -43,6 +43,18 @@ func (s *DriveConnectionService) AccessToken(ctx context.Context, conn db.DriveC
 	if token, exp, ok, err := s.freshAccessToken(conn); ok || err != nil {
 		return token, exp, err
 	}
+	return s.refreshConnection(ctx, conn, false, "")
+}
+
+// forceRefreshConn refreshes conn's access token against the DriveProvider even
+// when the stored access_expires_at is still in the future (used on 401/authError
+// from the Drive API; spec §5.7). A stored fresh token is reused without another
+// provider call only when it differs from rejectedToken.
+func (s *DriveConnectionService) forceRefreshConn(ctx context.Context, conn db.DriveConnection, rejectedToken string) (string, time.Time, error) {
+	return s.refreshConnection(ctx, conn, true, rejectedToken)
+}
+
+func (s *DriveConnectionService) refreshConnection(ctx context.Context, conn db.DriveConnection, force bool, rejectedToken string) (string, time.Time, error) {
 	if !s.Available() {
 		return "", time.Time{}, ErrDriveNotConfigured
 	}
@@ -54,8 +66,21 @@ func (s *DriveConnectionService) AccessToken(ctx context.Context, conn db.DriveC
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	if token, exp, ok, err := s.freshAccessToken(read); ok || err != nil {
-		return token, exp, err
+	token, exp, ok, err := s.freshAccessToken(read)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if ok {
+		if !force {
+			return token, exp, nil
+		}
+		if rejectedToken != "" {
+			if token != rejectedToken {
+				return token, exp, nil
+			}
+		} else if read.CredentialVersion != conn.CredentialVersion || read.AccessTokenEnc != conn.AccessTokenEnc || !sameDriveExpiry(read.AccessExpiresAt, conn.AccessExpiresAt) {
+			return token, exp, nil
+		}
 	}
 	if read.RefreshTokenEnc == "" {
 		return "", time.Time{}, ErrDriveReauthRequired
