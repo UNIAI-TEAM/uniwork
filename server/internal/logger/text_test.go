@@ -518,8 +518,8 @@ func TestBuildHandlerTextColorsAPipe(t *testing.T) {
 		t.Fatalf("pipe was not coloured: %q", got)
 	}
 	plain := stripANSI(got)
-	if !strings.Contains(plain, "method=GET") || !strings.Contains(plain, "trace_id=tid") ||
-		strings.Index(plain, "method=GET") > strings.Index(plain, "trace_id=tid") {
+	method, trace := strings.Index(plain, "method=GET"), strings.Index(plain, "trace_id=tid")
+	if method < 0 || trace < 0 || method > trace {
 		t.Fatalf("order: %s", plain)
 	}
 	if !strings.Contains(got, "\x1b[2mmethod=\x1b[0mGET") {

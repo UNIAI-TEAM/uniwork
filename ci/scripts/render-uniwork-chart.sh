@@ -24,10 +24,12 @@ grep -q 'name: uniwork-be' "${OUT}"
 grep -q 'name: uniwork-fe' "${OUT}"
 grep -q 'name: uniwork-office-engine' "${OUT}"
 grep -q 'replicas: 1' "${OUT}"
-# Scheduling is a nodeAffinity term (pool-app or pool-exam), not a nodeSelector.
+# Scheduling is a nodeAffinity over the app and exam pools plus the exam taint's
+# toleration (helpers: uniwork.nodeAffinity / uniwork.tolerations).
 grep -q 'key: workload' "${OUT}"
 grep -q -- '- "app"' "${OUT}"
 grep -q -- '- "exam"' "${OUT}"
+grep -q 'key: dedicated' "${OUT}"
 grep -q 'type: ClusterIP' "${OUT}"
 grep -q 'path: /healthz' "${OUT}"
 grep -q 'path: /readyz' "${OUT}"
