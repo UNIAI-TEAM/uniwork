@@ -108,7 +108,7 @@ export function DocumentWorkspace({
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(officeGate.editorOpen, Boolean(officeEditorHost), officeGate.format);
-  // The image / video viewer fills the page like the editor does, without taking the edit lock.
+  // The image viewer fills the page like the editor does, without taking the edit lock.
   const surfaceFillsPage = officeEditorMounted || isImageDocument(doc);
   // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
   // refused with document_shelved (someone shelved it while this page was open): the unsaved editor

@@ -14,6 +14,7 @@
 
 import { useCallback, type ReactNode, type RefObject } from "react";
 import { Frame, Maximize, Minus, Plus } from "lucide-react";
+import { Slider } from "@uniwork/ui/components/ui/slider";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   Tooltip,
@@ -77,6 +78,7 @@ export function ZoomControls({
   disabled,
   className,
   compact,
+  slider,
   children,
 }: {
   canvas: ZoomCanvasApi;
@@ -85,11 +87,23 @@ export function ZoomControls({
   className?: string;
   /** The status-bar size: 24px buttons and 14px glyphs instead of 28px and 16px. */
   compact?: boolean;
+  /** Opt-in PDF-frame style range slider (`[−] [slider] [+] [NN%]`); default false keeps `− NN% +`. */
+  slider?: boolean;
   /** Extra toolbar buttons (a ZoomToolbarButton) placed after the zoom group, inside its tooltip provider. */
   children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const icon = compact ? "size-3.5" : "size-4";
+  const minPercent = Math.round(canvas.minScale * 100);
+  const maxPercent = Math.round(canvas.maxScale * 100);
+  const percentReadout = (
+    <span
+      className="w-12 select-none text-center text-caption tabular-nums text-muted-foreground"
+      aria-live="polite"
+    >
+      {canvas.zoomPercent}%
+    </span>
+  );
 
   return (
     <TooltipProvider delay={300}>
@@ -103,13 +117,26 @@ export function ZoomControls({
         >
           <Minus className={icon} />
         </ZoomToolbarButton>
-        {/* Fixed width so the toolbar doesn't jitter as digits change. */}
-        <span
-          className="w-12 select-none text-center text-caption tabular-nums text-muted-foreground"
-          aria-live="polite"
-        >
-          {canvas.zoomPercent}%
-        </span>
+        {slider ? (
+          <Slider
+            className="mx-1 w-24 shrink-0 [&_[data-slot=slider-control]]:pointer-coarse:min-h-11 [&_[data-slot=slider-thumb]]:pointer-coarse:after:-inset-4"
+            min={minPercent}
+            max={maxPercent}
+            step={5}
+            value={[canvas.zoomPercent]}
+            disabled={disabled}
+            thumbAlignment="center"
+            aria-label={t("editor.canvas.zoom_level")}
+            onValueChange={(values) => {
+              const next = Array.isArray(values) ? values[0] : values;
+              if (typeof next === "number" && Number.isFinite(next)) {
+                canvas.zoomTo(next / 100);
+              }
+            }}
+          />
+        ) : (
+          percentReadout
+        )}
         <ZoomToolbarButton
           onClick={canvas.zoomIn}
           compact={compact}
@@ -119,6 +146,7 @@ export function ZoomControls({
         >
           <Plus className={icon} />
         </ZoomToolbarButton>
+        {slider ? percentReadout : null}
         <ZoomToolbarButton
           onClick={canvas.fit}
           compact={compact}

@@ -11668,6 +11668,7 @@
     "canvas": {
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
+      "zoom_level": "Mức thu phóng",
       "zoom_fit": "Vừa khung",
       "zoom_actual": "Kích thước thật"
     },

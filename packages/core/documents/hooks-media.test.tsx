@@ -34,7 +34,9 @@ describe("useDocumentMediaBlob", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.type).toBe("image/png");
     expect(result.current.data?.size).toBe(3);
-    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/api/v1/documents/d1/download");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe(
+      "http://api.test/api/v1/documents/d1/download?intent=view",
+    );
     expect(qc.getQueryData(documentKeys.media("w1", "d1", "v2"))).toBeInstanceOf(Blob);
   });
 

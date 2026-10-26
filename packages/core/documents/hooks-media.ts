@@ -7,12 +7,8 @@ import { documentKeys } from "./keys";
  * The bytes of one file version for the image viewer, typed with the
  * document's own MIME so it renders whatever Content-Type the proxy sent.
  *
- * Prototype of UNI-2166 step 1: the bytes come through the bearer download
- * route as a Blob, which logs a "download" access row and holds the whole file
- * in memory. Step 2 replaces this with the short-lived signed media URL
- * (`POST /documents/{id}/media-url`), which streams with Range and records
- * "view"; the viewer keeps this hook's `{ data, isPending, isError, refetch }`
- * shape so only this file changes.
+ * Fetches through `GET /api/v1/documents/{id}/download?intent=view` so the
+ * server records a "view" access row rather than a "download".
  */
 export function useDocumentMediaBlob(
   wsId: string,
@@ -24,7 +20,7 @@ export function useDocumentMediaBlob(
   return useQuery({
     queryKey: documentKeys.media(wsId, documentId, versionId),
     queryFn: async ({ signal }) => {
-      const blob = await downloadDocumentFile(documentId, undefined, signal);
+      const blob = await downloadDocumentFile(documentId, undefined, signal, "view");
       return new Blob([blob], { type: mimeType });
     },
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId && !!versionId,

@@ -111,7 +111,7 @@ export function DocumentMediaViewer({ wsId, doc, file, actions, readonly, canCom
           </Popover>
           <span className="truncate tabular-nums">{summary}</span>
         </div>
-        <ZoomControls canvas={canvas} disabled={natural === null} compact>
+        <ZoomControls canvas={canvas} disabled={natural === null} compact slider>
           {fullscreen.supported ? (
             <ZoomToolbarButton
               compact

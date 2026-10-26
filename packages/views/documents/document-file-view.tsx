@@ -135,7 +135,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const file = doc.file;
   // A comment-level reader is read-only but not "view only" (UNI-1994).
   const canComment = readonlyReaderCanComment(doc);
-  // An image or video opens in the viewer, which has no version list: history is the page menu's sheet.
+  // An image opens in the viewer, which has no version list: history is the page menu's sheet.
   const isImage = isImageDocument(doc);
   const versions = useDocumentVersions(wsId, doc.id, { enabled: !isImage });
   const actions = useDocumentFileActions(wsId, doc);
