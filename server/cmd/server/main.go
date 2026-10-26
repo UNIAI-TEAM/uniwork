@@ -373,6 +373,7 @@ func main() {
 	// list/download down with it.
 	officeCfg := office.ConfigFromEnv()
 	var officeEngine service.OfficeEngine
+	var driveExtractor service.DriveOfficeExtractor
 	if officeCfg.Enabled() {
 		client, err := office.NewClient(officeCfg, nil)
 		if err != nil {
@@ -380,6 +381,7 @@ func main() {
 			os.Exit(1)
 		}
 		officeEngine = client
+		driveExtractor = client
 	}
 	var officeMetrics service.OfficeMetrics
 	if reg != nil {
@@ -475,6 +477,10 @@ func main() {
 		driveConnectionSvc.SetMetrics(reg.Drive)
 	}
 	dispatcher.RegisterLane(outbox.LaneProvider, driveConnectionSvc.RevocationConsumer())
+	driveFileSvc := service.NewDriveFileService(pool, q, wsSvc, driveConnectionSvc, nil)
+	driveFileSvc.SetLogger(log)
+	driveFileSvc.SetFlags(flags)
+	taskSvc.SetDriveFiles(driveFileSvc)
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
 	// Sockets are checked only when they connect or subscribe; this closes
@@ -814,8 +820,10 @@ func main() {
 	aiMemorySvc.SetImport(gateway, rdb)
 	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
-	// B4 (UNI-2180) swaps this nil-safe reader for NewDriveContentService once drive_files / drive_file_access land.
-	askUNI.SetDriveContentReader(service.NewDriveUnavailableReader())
+	driveFileSvc.SetAIEnabled(gateway.Enabled)
+	driveContentSvc := service.NewDriveContentService(pool, q, wsSvc, driveFileSvc, driveConnectionSvc, nil, driveExtractor)
+	driveContentSvc.SetLogger(log)
+	askUNI.SetDriveContentReader(driveContentSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
