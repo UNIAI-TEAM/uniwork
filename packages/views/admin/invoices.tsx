@@ -226,7 +226,7 @@ export function AdminInvoicesView() {
       ) : tab === "invoices" ? (
         <>
           <AdminInvoicesTable
-            rows={invoiceRows}
+            rows={invoices.data?.invoices ?? []}
             emptyLabel={t("empty")}
             canRefund={canRefund}
             locale={i18n.language}
@@ -247,7 +247,7 @@ export function AdminInvoicesView() {
       ) : (
         <>
           <AdminPaymentIntentsTable
-            rows={intentRows}
+            rows={intents.data?.intents ?? []}
             emptyLabel={t("empty")}
             locale={i18n.language}
             onDetail={(pi: AdminPaymentIntent) => setDetail({ kind: "intent", row: pi })}

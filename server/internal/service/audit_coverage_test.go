@@ -271,6 +271,10 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
+			periodEnd := time.Now().UTC().Add(30 * 24 * time.Hour).Truncate(time.Microsecond)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET current_period_end = $2 WHERE organization_id = $1`, f.orgID, periodEnd); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {
 				t.Fatal(err)
 			}

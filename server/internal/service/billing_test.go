@@ -294,6 +294,7 @@ func TestCustomerBillingRefusesPlatformAdminOutsider(t *testing.T) {
 
 func (f *billingFixture) setSubscriptionPeriodEnd(t *testing.T, end time.Time) {
 	t.Helper()
+	end = end.UTC().Truncate(time.Microsecond)
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET current_period_end = $2 WHERE organization_id = $1`, f.orgID, end); err != nil {
 		t.Fatal(err)
 	}
@@ -324,14 +325,15 @@ func TestCancelWithoutPeriodEndIsRefused(t *testing.T) {
 func TestCancelResumeAndCheckout(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedPlan(t, "paid_team", 500000, nil)
-	periodEnd := time.Now().UTC().Add(30 * 24 * time.Hour)
+	periodEnd := time.Now().UTC().Add(30 * 24 * time.Hour).Truncate(time.Microsecond)
 	f.setSubscriptionPeriodEnd(t, periodEnd)
 	snap, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID)
 	if err != nil || !snap.Subscription.CancelAt.Valid || snap.Subscription.Status != "active" {
 		t.Fatalf("cancel schedules, does not kill: %v %+v", err, snap.Subscription)
 	}
-	if !snap.Subscription.CancelAt.Time.Equal(periodEnd) {
-		t.Fatalf("cancel_at = %v, want %v", snap.Subscription.CancelAt.Time, periodEnd)
+	got := snap.Subscription.CancelAt.Time.UTC().Truncate(time.Microsecond)
+	if !got.Equal(periodEnd) {
+		t.Fatalf("cancel_at = %v, want %v", got, periodEnd)
 	}
 	snap, err = f.billing.Resume(f.ctx, f.owner.ID, f.orgID)
 	if err != nil || snap.Subscription.CancelAt.Valid {
