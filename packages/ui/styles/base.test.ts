@@ -64,8 +64,9 @@ describe("AI edge and brand beam", () => {
     }
   });
 
-  it("strengthens the resting edge while the composer holds focus", () => {
-    expect(styles).toMatch(/\.ai-edge:focus-within\s*\{/);
+  it("strengthens the resting edge while the composer holds focus, but not under the beam", () => {
+    expect(styles).toMatch(/\.ai-edge:not\(\.border-beam-ai\):focus-within\s*\{/);
+    expect(styles).not.toMatch(/\.ai-edge:focus-within\s*\{/);
   });
 
   it("clips the shimmer gradient to the status text", () => {
