@@ -1,0 +1,13 @@
+$ cd server && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate > /tmp/pr8r2-sqlc.log 2>&1; rc=$?; tail -10 /tmp/pr8r2-sqlc.log; echo "SQLC_GEN_EXIT=$rc"; cd ..; git status --porcelain -- server/pkg/db/generated; git diff --stat -- server/pkg/db/generated | tail -5; test -z "$(git status --porcelain -- server/pkg/db/generated)"; echo "SQLC_DRIFT_EXIT=$?"
+go: downloading github.com/jinzhu/inflection v1.0.0
+go: downloading github.com/pingcap/errors v0.11.5-0.20250523034308-74f78ae071ee
+go: downloading github.com/coreos/go-semver v0.3.1
+go: downloading github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86
+go: downloading golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
+go: downloading github.com/ncruces/julianday v1.0.0
+go: downloading golang.org/x/sys v0.43.0
+go: downloading github.com/pingcap/log v1.1.0
+go: downloading go.uber.org/zap v1.27.0
+go: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+SQLC_GEN_EXIT=0
+SQLC_DRIFT_EXIT=0
