@@ -4,6 +4,7 @@ import type { MentionItem } from "./extensions/mention-suggestion";
 import type { BuiltinCommandSuggestionOptions } from "./extensions/slash-command-suggestion";
 import type { CreateSubTaskFn } from "./bubble-menu";
 import type { TextAnchor } from "./text-anchor";
+import type { DriveFileUrlMatch } from "../tasks/drive-paste-url";
 
 export interface ContentEditorBaseProps {
   /**
@@ -131,7 +132,10 @@ export interface ContentEditorBaseProps {
    * of appearance while leaving link insertion (`linkOnPaste` / `markdownPaste`)
    * unchanged.
    */
-  onPasteDriveFileIds?: (fileIds: string[]) => void;
+  onPasteDriveFileIds?: (
+    fileIds: string[],
+    matches?: DriveFileUrlMatch[],
+  ) => void;
 }
 
 export type ContentEditorValueProps =

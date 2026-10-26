@@ -14467,7 +14467,13 @@
       "link_prompt": "Link this Google Drive file to the task?",
       "connect_prompt": "Connect Google Drive to link",
       "dismiss_aria": "Dismiss Google Drive link suggestion",
-      "group_aria": "Google Drive file link suggestion"
+      "group_aria": "Google Drive file link suggestion",
+      "file_kinds": {
+        "google_doc": "Google Docs",
+        "google_sheet": "Google Sheets",
+        "google_slide": "Google Slides",
+        "drive_file": "Google Drive file"
+      }
     },
     "attachments": {
       "drive_load_error": "Couldn't load Google Drive files linked to this task.",

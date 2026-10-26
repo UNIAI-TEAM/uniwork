@@ -151,6 +151,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           drive: { available: true },
         };
       }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
+      }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
         return { connections: [ACTIVE_CONN] };
       }
@@ -295,6 +300,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           drive: { available: true },
         };
       }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
+      }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
         return { connections: [ACTIVE_CONN] };
       }
@@ -429,6 +439,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
             flags: { drive_connector: true },
             rum_sample_rate: 0,
             drive: { available: true },
+          };
+        }
+        if (path === "/api/v1/workspaces/ws1/me") {
+          return {
+            membership: { user_id: "u1", role: "member", source: "membership" },
           };
         }
         if (path === "/api/v1/workspaces/ws1/drive-connections") {
@@ -628,6 +643,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           drive: { available: true },
         };
       }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
+      }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
         return { connections: [] };
       }
@@ -680,6 +700,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           flags: { drive_connector: true },
           rum_sample_rate: 0,
           drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
         };
       }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
@@ -750,6 +775,11 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           drive: { available: true },
         };
       }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "member", source: "membership" },
+        };
+      }
       if (path === "/api/v1/workspaces/ws1/drive-connections") {
         return { connections: [ACTIVE_CONN] };
       }
@@ -775,7 +805,12 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       name: "Mô tả công việc",
     });
 
-    // 1. Prose mixed with a single Drive URL
+    // Wait for permissions query to resolve so canEdit is true
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/me");
+    });
+
+    // 1. Prose mixed with a single Drive URL -> 1 chip (no kind suffix needed)
     const urlOne =
       "https://docs.google.com/document/d/1GdocProseMixOne_0123456/edit";
     pasteTextIntoEditor(editor, `Xem bản nháp tại ${urlOne} trước buổi họp.`);
@@ -785,10 +820,15 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
         "drive-paste-suggestion-chip-1GdocProseMixOne_0123456",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Liên kết tệp Google Drive này vào việc?",
+      }),
+    ).toBeInTheDocument();
     expect(editor).toHaveTextContent("Xem bản nháp tại");
     expect(editor).toHaveTextContent("trước buổi họp.");
 
-    // 2. Paste containing two distinct Drive URLs
+    // 2. Paste containing two more distinct Drive URLs -> 3 chips total, each disambiguated by file kind (F-3)
     const urlTwo =
       "https://docs.google.com/spreadsheets/d/1GsheetMultiTwo_01234567/edit";
     const urlThree =
@@ -806,10 +846,78 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", {
-        name: "Liên kết tệp Google Drive này vào việc?",
+      screen.getByRole("button", {
+        name: "Liên kết tệp Google Drive này vào việc? · Google Docs",
       }),
-    ).toHaveLength(3);
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Liên kết tệp Google Drive này vào việc? · Google Sheets",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Liên kết tệp Google Drive này vào việc? · Tệp Google Drive",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no suggestion chip in task detail when the viewer cannot edit the task (F-2)", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/config") {
+        return {
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/me") {
+        return {
+          membership: { user_id: "u1", role: "viewer", source: "membership" },
+        };
+      }
+      if (path === "/api/v1/workspaces/ws1/drive-connections") {
+        return { connections: [ACTIVE_CONN] };
+      }
+      if (path === "/api/v1/tasks/t1/drive-files") {
+        return { files: [] };
+      }
+      return {};
+    });
+
+    render(
+      renderWithWorkspace(
+        <TaskDetailEditors
+          task={sampleTask}
+          workspaceId="ws1"
+          onSaveTitle={vi.fn()}
+          onSaveDescription={vi.fn()}
+        />,
+        { driveFlag: true },
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", {
+      name: "Mô tả công việc",
+    });
+
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/me");
+    });
+
+    const pastedUrl =
+      "https://docs.google.com/document/d/1GdocReadOnlyViewer_012345/edit";
+    pasteTextIntoEditor(editor, pastedUrl);
+
+    // Link is still inserted into the editor (pre-existing editor behaviour),
+    // but no suggestion chip is shown for a user who cannot edit the task.
+    expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
+    expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
+    expect(
+      screen.queryByTestId(
+        "drive-paste-suggestion-chip-1GdocReadOnlyViewer_012345",
+      ),
+    ).toBeNull();
   });
 
   it("keeps a ContentEditor without onPasteDriveFileIds completely inert on pasting a Drive URL", async () => {

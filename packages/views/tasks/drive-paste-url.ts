@@ -31,10 +31,21 @@ const MAX_URL_CANDIDATE_LENGTH = 2048;
 const FILE_ID_RE = /^[A-Za-z0-9_-]+$/;
 const USER_INDEX_RE = /^\d+$/;
 const WORKSPACE_DOMAIN_RE = /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const DOCS_KINDS: Record<string, true> = {
-  document: true,
-  spreadsheets: true,
-  presentation: true,
+export type DriveFileUrlKind =
+  | "google_doc"
+  | "google_sheet"
+  | "google_slide"
+  | "drive_file";
+
+export interface DriveFileUrlMatch {
+  id: string;
+  kind: DriveFileUrlKind;
+}
+
+const DOCS_KINDS: Record<string, DriveFileUrlKind> = {
+  document: "google_doc",
+  spreadsheets: "google_sheet",
+  presentation: "google_slide",
 };
 const TRAILING_PUNCTUATION: Record<string, true> = {
   ".": true,
@@ -60,7 +71,7 @@ function trimUrlCandidate(raw: string): string {
   return s;
 }
 
-export function parseDriveFileUrl(raw: string): string | null {
+export function parseDriveFileUrlMatch(raw: string): DriveFileUrlMatch | null {
   const candidate = trimUrlCandidate(raw);
   if (!candidate) return null;
 
@@ -100,6 +111,10 @@ export function parseDriveFileUrl(raw: string): string | null {
   return null;
 }
 
+export function parseDriveFileUrl(raw: string): string | null {
+  return parseDriveFileUrlMatch(raw)?.id ?? null;
+}
+
 function stripUserSegment(segments: string[], startIndex: number): number {
   let idx = startIndex;
   while (idx < segments.length) {
@@ -132,27 +147,28 @@ function isValidDriveFileId(fileId: string | undefined): fileId is string {
   );
 }
 
-function parseDocsSegments(segments: string[]): string | null {
+function parseDocsSegments(segments: string[]): DriveFileUrlMatch | null {
   let idx = stripUserSegment(segments, 0);
-  const kind = segments[idx];
-  if (!kind || !DOCS_KINDS[kind]) return null;
+  const rawKind = segments[idx];
+  const kind = rawKind ? DOCS_KINDS[rawKind] : undefined;
+  if (!kind) return null;
   idx = stripUserSegment(segments, idx + 1);
   if (segments[idx] !== "d") return null;
   const fileId = segments[idx + 1];
   // Reject published-to-web URLs (`/document/d/e/<pubId>/pub`) explicitly as
   // well as enforcing the minimum file ID length.
   if (fileId === "e" || !isValidDriveFileId(fileId)) return null;
-  return fileId;
+  return { id: fileId, kind };
 }
 
-function parseDriveFileSegments(segments: string[]): string | null {
+function parseDriveFileSegments(segments: string[]): DriveFileUrlMatch | null {
   let idx = stripUserSegment(segments, 0);
   if (segments[idx] !== "file") return null;
   idx = stripUserSegment(segments, idx + 1);
   if (segments[idx] !== "d") return null;
   const fileId = segments[idx + 1];
   if (fileId === "e" || !isValidDriveFileId(fileId)) return null;
-  return fileId;
+  return { id: fileId, kind: "drive_file" };
 }
 
 const URL_TOKEN_CANDIDATE_RE =
@@ -169,22 +185,24 @@ function stripTrailingPunctuation(token: string): string {
 }
 
 /**
- * Extracts distinct Google Drive file IDs in order of appearance from pasted
- * `text/plain` and `text/html`.
+ * Extracts distinct Google Drive file matches (id + kind) in order of
+ * appearance from pasted `text/plain` and `text/html`.
  */
-export function extractDriveFileIdsFromPaste(
+export function extractDriveFilesFromPaste(
   text: string,
   html?: string,
-): string[] {
+): DriveFileUrlMatch[] {
   const seen = new Set<string>();
+  const matches: DriveFileUrlMatch[] = [];
   const addCandidate = (raw: string) => {
     if (raw.length > MAX_URL_CANDIDATE_LENGTH) return;
     const stripped = stripTrailingPunctuation(raw);
-    const id =
-      parseDriveFileUrl(raw) ??
-      (stripped !== raw ? parseDriveFileUrl(stripped) : null);
-    if (id && !seen.has(id)) {
-      seen.add(id);
+    const match =
+      parseDriveFileUrlMatch(raw) ??
+      (stripped !== raw ? parseDriveFileUrlMatch(stripped) : null);
+    if (match && !seen.has(match.id)) {
+      seen.add(match.id);
+      matches.push(match);
     }
   };
 
@@ -220,5 +238,16 @@ export function extractDriveFileIdsFromPaste(
     }
   }
 
-  return Array.from(seen);
+  return matches;
+}
+
+/**
+ * Extracts distinct Google Drive file IDs in order of appearance from pasted
+ * `text/plain` and `text/html`.
+ */
+export function extractDriveFileIdsFromPaste(
+  text: string,
+  html?: string,
+): string[] {
+  return extractDriveFilesFromPaste(text, html).map((m) => m.id);
 }

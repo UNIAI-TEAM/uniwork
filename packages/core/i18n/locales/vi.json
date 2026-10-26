@@ -14393,7 +14393,13 @@
       "link_prompt": "Liên kết tệp Google Drive này vào việc?",
       "connect_prompt": "Kết nối Google Drive để liên kết",
       "dismiss_aria": "Bỏ qua gợi ý liên kết Google Drive",
-      "group_aria": "Gợi ý liên kết tệp Google Drive"
+      "group_aria": "Gợi ý liên kết tệp Google Drive",
+      "file_kinds": {
+        "google_doc": "Google Docs",
+        "google_sheet": "Google Sheets",
+        "google_slide": "Google Slides",
+        "drive_file": "Tệp Google Drive"
+      }
     },
     "attachments": {
       "drive_load_error": "Không tải được tệp Google Drive gắn với việc này.",

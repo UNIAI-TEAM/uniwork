@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   extractDriveFileIdsFromPaste,
+  extractDriveFilesFromPaste,
   parseDriveFileUrl,
+  parseDriveFileUrlMatch,
 } from "./drive-paste-url";
 
 describe("parseDriveFileUrl", () => {
@@ -23,6 +25,44 @@ describe("parseDriveFileUrl", () => {
         "https://docs.google.com/presentation/d/1Slide-Id-999-AbCdEfGhIjKl/view",
       ),
     ).toBe("1Slide-Id-999-AbCdEfGhIjKl");
+  });
+
+  it("returns both file ID and file kind in parseDriveFileUrlMatch", () => {
+    expect(
+      parseDriveFileUrlMatch(
+        "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz_0123-456/edit",
+      ),
+    ).toEqual({
+      id: "1AbCdEfGhIjKlMnOpQrStUvWxYz_0123-456",
+      kind: "google_doc",
+    });
+
+    expect(
+      parseDriveFileUrlMatch(
+        "https://docs.google.com/spreadsheets/d/1SheetId_1234567890_abcdef/edit",
+      ),
+    ).toEqual({
+      id: "1SheetId_1234567890_abcdef",
+      kind: "google_sheet",
+    });
+
+    expect(
+      parseDriveFileUrlMatch(
+        "https://docs.google.com/presentation/d/1Slide-Id-999-AbCdEfGhIjKl/view",
+      ),
+    ).toEqual({
+      id: "1Slide-Id-999-AbCdEfGhIjKl",
+      kind: "google_slide",
+    });
+
+    expect(
+      parseDriveFileUrlMatch(
+        "https://drive.google.com/file/d/1xYzFileId_42_AbCdEfGhIj/view",
+      ),
+    ).toEqual({
+      id: "1xYzFileId_42_AbCdEfGhIj",
+      kind: "drive_file",
+    });
   });
 
   it("parses drive.google.com/file/d/<id> URLs", () => {
@@ -193,8 +233,13 @@ describe("extractDriveFileIdsFromPaste", () => {
       "1FileBeta_0123456789abcd",
       "1SheetGamma_0123456789ab",
     ]);
-  });
 
+    expect(extractDriveFilesFromPaste(text, html)).toEqual([
+      { id: "1DocAlpha_0123456789abcd", kind: "google_doc" },
+      { id: "1FileBeta_0123456789abcd", kind: "drive_file" },
+      { id: "1SheetGamma_0123456789ab", kind: "google_sheet" },
+    ]);
+  });
   it("returns empty array when no Drive file URLs are present", () => {
     expect(
       extractDriveFileIdsFromPaste(

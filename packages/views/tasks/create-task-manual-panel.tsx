@@ -278,6 +278,7 @@ export function CreateTaskManualPanel({
             onUploadingChange={uploadGate.onUploadingChange}
             attachments={draft.attachments}
             onPasteDriveFileIds={drivePaste.onPasteDriveFileIds}
+            className="[&_a]:wrap-anywhere"
           />
           {isDragOver ? <FileDropOverlay /> : null}
         </div>
@@ -285,6 +286,7 @@ export function CreateTaskManualPanel({
         <DrivePasteSuggestionChips
           workspaceId={workspaceId}
           suggestedFileIds={drivePaste.suggestedFileIds}
+          fileKindsById={drivePaste.fileKindsById}
           onDismiss={drivePaste.dismissFileId}
           onResolved={drivePaste.resolveFileId}
           onDraftFilesPicked={handleDriveFilesPicked}

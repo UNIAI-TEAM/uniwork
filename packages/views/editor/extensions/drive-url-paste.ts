@@ -8,10 +8,15 @@
  */
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { extractDriveFileIdsFromPaste } from "../../tasks/drive-paste-url";
+import {
+  extractDriveFilesFromPaste,
+  type DriveFileUrlMatch,
+} from "../../tasks/drive-paste-url";
 
 export function createDriveUrlPasteExtension(
-  getOnPasteDriveFileIds?: () => ((fileIds: string[]) => void) | undefined,
+  getOnPasteDriveFileIds?: () =>
+    | ((fileIds: string[], matches: DriveFileUrlMatch[]) => void)
+    | undefined,
 ) {
   return Extension.create({
     name: "driveUrlPaste",
@@ -29,9 +34,12 @@ export function createDriveUrlPasteExtension(
 
               const text = clipboard.getData("text/plain");
               const html = clipboard.getData("text/html");
-              const ids = extractDriveFileIdsFromPaste(text, html);
-              if (ids.length > 0) {
-                callback(ids);
+              const matches = extractDriveFilesFromPaste(text, html);
+              if (matches.length > 0) {
+                callback(
+                  matches.map((m) => m.id),
+                  matches,
+                );
               }
               return false;
             },

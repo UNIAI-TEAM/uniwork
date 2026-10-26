@@ -14,6 +14,10 @@ import {
   type DrivePickerAdapter,
 } from "../integrations/drive-picker";
 import { useDriveAvailable } from "../settings/components/drive-integration-row";
+import type {
+  DriveFileUrlKind,
+  DriveFileUrlMatch,
+} from "./drive-paste-url";
 
 interface UseDrivePasteSuggestionsOptions {
   /**
@@ -27,8 +31,13 @@ interface UseDrivePasteSuggestionsOptions {
 interface UseDrivePasteSuggestionsReturn {
   /** Visible candidate file IDs to render as suggestion chips. */
   suggestedFileIds: string[];
+  /** Optional map of file ID -> parsed URL kind (`google_doc`, `google_sheet`, `google_slide`, `drive_file`). */
+  fileKindsById: Readonly<Record<string, DriveFileUrlKind>>;
   /** Callback passed to `ContentEditor` (`onPasteDriveFileIds`). */
-  onPasteDriveFileIds: (fileIds: string[]) => void;
+  onPasteDriveFileIds: (
+    fileIds: string[],
+    matches?: DriveFileUrlMatch[],
+  ) => void;
   /** Dismisses a suggestion chip so the same ID is not re-suggested in this session. */
   dismissFileId: (fileId: string) => void;
   /** Clears a suggestion chip after it has been picked/linked. */
@@ -48,6 +57,9 @@ export function useDrivePasteSuggestions({
   existingFileIds,
 }: UseDrivePasteSuggestionsOptions = {}): UseDrivePasteSuggestionsReturn {
   const [candidates, setCandidates] = useState<string[]>([]);
+  const [fileKindsById, setFileKindsById] = useState<
+    Record<string, DriveFileUrlKind>
+  >({});
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
 
   const existingSet = useMemo(
@@ -55,19 +67,35 @@ export function useDrivePasteSuggestions({
     [existingFileIds],
   );
 
-  const onPasteDriveFileIds = useCallback((fileIds: string[]) => {
-    if (fileIds.length === 0) return;
-    setCandidates((prev) => {
-      let changed = false;
-      const next = [...prev];
-      for (const id of fileIds) {
-        if (!id || next.includes(id)) continue;
-        next.push(id);
-        changed = true;
+  const onPasteDriveFileIds = useCallback(
+    (fileIds: string[], matches?: DriveFileUrlMatch[]) => {
+      if (fileIds.length === 0) return;
+      if (matches && matches.length > 0) {
+        setFileKindsById((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const m of matches) {
+            if (m.id && m.kind && next[m.id] !== m.kind) {
+              next[m.id] = m.kind;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
       }
-      return changed ? next : prev;
-    });
-  }, []);
+      setCandidates((prev) => {
+        let changed = false;
+        const next = [...prev];
+        for (const id of fileIds) {
+          if (!id || next.includes(id)) continue;
+          next.push(id);
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    },
+    [],
+  );
 
   const dismissFileId = useCallback((fileId: string) => {
     setDismissed((prev) => {
@@ -85,6 +113,7 @@ export function useDrivePasteSuggestions({
 
   const reset = useCallback(() => {
     setCandidates([]);
+    setFileKindsById({});
     setDismissed(new Set());
   }, []);
 
@@ -96,6 +125,7 @@ export function useDrivePasteSuggestions({
 
   return {
     suggestedFileIds,
+    fileKindsById,
     onPasteDriveFileIds,
     dismissFileId,
     resolveFileId,
@@ -109,6 +139,8 @@ interface DrivePasteSuggestionChipsProps {
   taskId?: string;
   /** Candidate file IDs from `useDrivePasteSuggestions`. */
   suggestedFileIds: string[];
+  /** Optional map of file ID -> parsed URL kind used to disambiguate when 2+ chips are shown. */
+  fileKindsById?: Readonly<Record<string, DriveFileUrlKind>>;
   onDismiss: (fileId: string) => void;
   onResolved?: (fileId: string) => void;
   /**
@@ -147,6 +179,7 @@ export function DrivePasteSuggestionChips({
   workspaceId,
   taskId,
   suggestedFileIds,
+  fileKindsById,
   onDismiss,
   onResolved,
   onDraftFilesPicked,
@@ -165,6 +198,7 @@ export function DrivePasteSuggestionChips({
       workspaceId={workspaceId}
       taskId={taskId}
       suggestedFileIds={suggestedFileIds}
+      fileKindsById={fileKindsById}
       onDismiss={onDismiss}
       onResolved={onResolved}
       onDraftFilesPicked={onDraftFilesPicked}
@@ -179,6 +213,7 @@ function DrivePasteSuggestionChipsInner({
   workspaceId,
   taskId,
   suggestedFileIds,
+  fileKindsById,
   onDismiss,
   onResolved,
   onDraftFilesPicked,
@@ -283,54 +318,66 @@ function DrivePasteSuggestionChipsInner({
   const promptText = hasNoConnection
     ? t("drive.paste_chip.connect_prompt")
     : t("drive.paste_chip.link_prompt");
+  const showKindCue = visibleIds.length > 1;
 
   return (
     <>
       <div
         data-testid="drive-paste-suggestion-chips"
-        className={cn("flex shrink-0 flex-wrap gap-2", className)}
+        className={cn(
+          "relative z-50 flex shrink-0 flex-wrap gap-2",
+          className,
+        )}
       >
-        {visibleIds.map((fileId) => (
-          <div
-            key={fileId}
-            role="group"
-            aria-label={t("drive.paste_chip.group_aria")}
-            data-testid={`drive-paste-suggestion-chip-${fileId}`}
-            className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-1.5 text-caption text-foreground"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={picker.pending}
-              onClick={() => {
-                setActiveFileId(fileId);
-                picker.open({
-                  fileIds: [fileId],
-                  multiselect: false,
-                  linkOnPick: !isDraftMode,
-                });
-              }}
-              className="h-auto min-h-7 gap-2 px-1.5 py-0.5 text-left text-caption font-medium whitespace-normal text-foreground hover:bg-brand/10 hover:text-primary dark:hover:bg-brand/20"
+        {visibleIds.map((fileId) => {
+          const kind = fileKindsById?.[fileId] ?? "drive_file";
+          const kindLabel = showKindCue
+            ? t(`drive.paste_chip.file_kinds.${kind}`)
+            : null;
+          return (
+            <div
+              key={fileId}
+              role="group"
+              aria-label={t("drive.paste_chip.group_aria")}
+              data-testid={`drive-paste-suggestion-chip-${fileId}`}
+              className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg border border-brand/25 bg-brand-subtle py-1 pr-1.5 pl-1.5 text-caption text-foreground"
             >
-              <GoogleDriveMark
-                className="size-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span>{promptText}</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={t("drive.paste_chip.dismiss_aria")}
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => onDismiss(fileId)}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </Button>
-          </div>
-        ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={picker.pending}
+                onClick={() => {
+                  setActiveFileId(fileId);
+                  picker.open({
+                    fileIds: [fileId],
+                    multiselect: false,
+                    linkOnPick: !isDraftMode,
+                  });
+                }}
+                className="h-auto min-h-7 gap-2 px-1.5 py-0.5 text-left text-caption font-medium whitespace-normal text-foreground hover:bg-brand/10 hover:text-primary dark:hover:bg-brand/20"
+              >
+                <GoogleDriveMark
+                  className="size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>
+                  {kindLabel ? `${promptText} · ${kindLabel}` : promptText}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("drive.paste_chip.dismiss_aria")}
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onDismiss(fileId)}
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        })}
       </div>
       {picker.dialogs}
     </>

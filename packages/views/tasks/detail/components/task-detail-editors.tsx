@@ -62,6 +62,7 @@ export function TaskDetailEditors({
   const members = useMembers(workspaceId);
   const attachments = useTaskAttachments(workspaceId, task.id);
   const { canEdit, isLoading: permissionsLoading } = useTaskPermissions(task, workspaceId);
+  const canEditTask = !permissionsLoading && canEdit.allowed;
   const comments = useComments(task.id);
   const uploadMutation = useUploadTaskAttachment(workspaceId, task.id);
   const addReaction = useAddTaskReaction(task.id);
@@ -117,6 +118,11 @@ export function TaskDetailEditors({
   useEffect(() => {
     resetDrivePaste();
   }, [resetDrivePaste, task.id]);
+  useEffect(() => {
+    if (!permissionsLoading && !canEdit.allowed) {
+      resetDrivePaste();
+    }
+  }, [canEdit.allowed, permissionsLoading, resetDrivePaste]);
   useEffect(() => {
     setLiveDescription(task.description ?? "");
   }, [task.description, task.id]);
@@ -193,18 +199,25 @@ export function TaskDetailEditors({
               attachments={attachments.data}
               onUploadFile={(file) => uploadIntoDescription(file)}
               disableMentions
-              onPasteDriveFileIds={drivePaste.onPasteDriveFileIds}
+              onPasteDriveFileIds={
+                permissionsLoading || canEdit.allowed
+                  ? drivePaste.onPasteDriveFileIds
+                  : undefined
+              }
             />
           </EditorLinkProvider>
-          <DrivePasteSuggestionChips
-            workspaceId={workspaceId}
-            taskId={task.id}
-            suggestedFileIds={drivePaste.suggestedFileIds}
-            onDismiss={drivePaste.dismissFileId}
-            onResolved={drivePaste.resolveFileId}
-            pickerAdapter={pickerAdapter}
-            className="mt-2"
-          />
+          {canEditTask ? (
+            <DrivePasteSuggestionChips
+              workspaceId={workspaceId}
+              taskId={task.id}
+              suggestedFileIds={drivePaste.suggestedFileIds}
+              fileKindsById={drivePaste.fileKindsById}
+              onDismiss={drivePaste.dismissFileId}
+              onResolved={drivePaste.resolveFileId}
+              pickerAdapter={pickerAdapter}
+              className="mt-2"
+            />
+          ) : null}
           <div className="mt-3 flex items-center gap-1">
             <ReactionBar
               reactions={task.reactions ?? []}

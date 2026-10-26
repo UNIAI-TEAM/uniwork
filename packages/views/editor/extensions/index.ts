@@ -66,6 +66,7 @@ import { createPageSlashExtension } from "./page-slash-extension";
 import type { PageTranslate } from "./page-blocks";
 import { createPagePlaceholder } from "./page-placeholder";
 import { PageTaskItem } from "./page-task-item";
+import type { DriveFileUrlMatch } from "../../tasks/drive-paste-url";
 
 const LinkExtension = Link.extend({ inclusive: false }).configure({
   openOnClick: false,
@@ -236,7 +237,9 @@ export interface EditorExtensionsOptions {
    * `markdownPaste` and always returns `false` from `handlePaste` so link
    * insertion stays untouched.
    */
-  getOnPasteDriveFileIds?: () => ((fileIds: string[]) => void) | undefined;
+  getOnPasteDriveFileIds?: () =>
+    | ((fileIds: string[], matches: DriveFileUrlMatch[]) => void)
+    | undefined;
 }
 
 export function createEditorExtensions(
