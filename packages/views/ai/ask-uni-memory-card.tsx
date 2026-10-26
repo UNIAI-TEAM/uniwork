@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, Check, CircleCheck, ShieldAlert, Trash2 } from "lucide-react";
+import { Brain, Check, CircleCheck, ShieldAlert, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import {
@@ -125,7 +125,7 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
             disabled={busy}
             onClick={() => run((cb) => apply.mutate(p.id, cb))}
           >
-            {action === "forget" ? <Trash2 aria-hidden /> : <Check aria-hidden />}
+            {action === "forget" ? <Trash aria-hidden /> : <Check aria-hidden />}
             {t(`proposal.${action === "update" ? "save" : action}`)}
           </Button>
           {action === "forget" ? null : (
