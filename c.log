@@ -1,0 +1,15 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; (cd packages/core && pnpm exec vitest run api/endpoints/office-releases.test.ts office/ i18n/ --coverage.enabled=false --reporter verbose > /tmp/v2-vc.log 2>&1); rc=$?; grep -E "office-releases|releases-hooks|Test Files|Tests |FAIL|skipped" /tmp/v2-vc.log | head -80; echo; echo "VITEST_CORE_TARGETED_EXIT=$rc"
+ ✓ api/endpoints/office-releases.test.ts > office releases endpoint > reads the same-origin manifest without credentials or cache, and keeps only what the page shows 7ms
+ ✓ api/endpoints/office-releases.test.ts > office releases endpoint > returns null for a file that is not a manifest 2ms
+ ✓ api/endpoints/office-releases.test.ts > office releases endpoint > throws on a failed request or a body that is not JSON, so the caller can fall back 2ms
+ ✓ api/endpoints/office-releases.test.ts > office releases endpoint > drops unknown channels, empty channels and broken releases, and keeps the rest 1ms
+ ✓ api/endpoints/office-releases.test.ts > office releases endpoint > degrades drifted fields one by one instead of losing the release 1ms
+ ✓ office/releases-hooks.test.tsx > office releases hook > keys the public manifest without any workspace 2ms
+ ✓ office/releases-hooks.test.tsx > office releases hook > re-checks on focus only once ten minutes have passed, and never retries a failure 123ms
+ ✓ office/releases-hooks.test.tsx > office releases hook > does not re-check on focus while the first read has failed, even after ten minutes; a manual refetch still reads 110ms
+ ✓ office/releases-hooks.test.tsx > office releases hook > keeps re-checking on focus after a good read whose later re-check failed 159ms
+ ✓ office/releases-hooks.test.tsx > office releases hook > surfaces a failed read as an error at once 54ms
+ Test Files  23 passed (23)
+      Tests  277 passed (277)
+
+VITEST_CORE_TARGETED_EXIT=0

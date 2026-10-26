@@ -1,0 +1,7 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/web lint > /tmp/v2-l-web.log 2>&1; rc=$?; tail -25 /tmp/v2-l-web.log; echo; echo "LINT_WEB_EXIT=$rc"
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+
+
+LINT_WEB_EXIT=0
