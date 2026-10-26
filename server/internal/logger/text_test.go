@@ -144,6 +144,24 @@ func TestTextMessageQuoting(t *testing.T) {
 	if strings.Contains(chatLine, `"chat:`) {
 		t.Fatalf("chat message quoted: %q", chatLine)
 	}
+	for _, tc := range []struct {
+		msg      string
+		forbid   string
+		contains string
+	}{
+		{"", `""`, " INF "},
+		{`a\b`, `"a\\b"`, `a\b`},
+		{"a=b", `"a=b"`, "a=b"},
+		{`say "hi"`, `"say \"hi\""`, `say "hi"`},
+	} {
+		got := render(t, false, slog.LevelInfo, tc.msg)
+		if tc.forbid != "" && strings.Contains(got, tc.forbid) {
+			t.Fatalf("msg %q quoted as %q: %q", tc.msg, tc.forbid, got)
+		}
+		if tc.contains != "" && !strings.Contains(got, tc.contains) {
+			t.Fatalf("msg %q missing %q: %q", tc.msg, tc.contains, got)
+		}
+	}
 	for _, color := range []bool{false, true} {
 		msgNL := render(t, color, slog.LevelInfo, "line\nbreak")
 		if strings.Count(msgNL, "\n") != 1 || !strings.Contains(stripANSI(msgNL), `"line\nbreak"`) {
@@ -302,10 +320,92 @@ func TestTextGroupPrefixesKeys(t *testing.T) {
 	if !strings.Contains(got, "component=server") || !strings.Contains(got, "g.method=GET") {
 		t.Fatalf("with attrs then group: %s", got)
 	}
+	if strings.Contains(got, "g.component") {
+		t.Fatalf("prefixed earlier attr: %s", got)
+	}
 	comp := strings.Index(got, "component=server")
 	gmeth := strings.Index(got, "g.method=GET")
 	if comp < 0 || gmeth < comp {
 		t.Fatalf("order: %s", got)
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, false)
+	r = fixedRecord(slog.LevelInfo, "anon group")
+	r.AddAttrs(slog.Group("", slog.String("method", "GET")))
+	if err := h.Handle(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	got = buf.String()
+	if !strings.Contains(got, "method=GET") || strings.Contains(got, ".method=") {
+		t.Fatalf("empty group name: %s", got)
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, false)
+	r = fixedRecord(slog.LevelInfo, "empty group", "room_id", "r1")
+	r.AddAttrs(slog.Group("empty"))
+	if err := h.Handle(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	got = buf.String()
+	if strings.Contains(got, "empty=") || !strings.Contains(got, "room_id=r1") {
+		t.Fatalf("empty named group: %s", got)
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, false)
+	r = fixedRecord(slog.LevelInfo, "zero in group")
+	r.AddAttrs(slog.Group("g", slog.Attr{}, slog.String("method", "GET")))
+	if err := h.Handle(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	got = buf.String()
+	if !strings.Contains(got, "g.method=GET") || strings.Contains(got, "g.=") {
+		t.Fatalf("zero attr in group: %s", got)
+	}
+
+	buf.Reset()
+	h = newTextHandler(&buf, slog.LevelDebug, true).WithGroup("g")
+	if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "scoped dim",
+		"request_id", "01H", "organization_id", "org")); err != nil {
+		t.Fatal(err)
+	}
+	got = buf.String()
+	if !strings.Contains(got, "\x1b[2mg.request_id=\x1b[0m") {
+		t.Fatalf("group-prefixed request_id tint: %q", got)
+	}
+	if strings.Contains(got, "\x1b[2mg.request_id=01H") {
+		t.Fatalf("value must not stay faint: %q", got)
+	}
+	req := strings.Index(got, "g.request_id")
+	org := strings.Index(got, "organization_id")
+	if req < 0 || org < 0 || req >= org {
+		t.Fatalf("order g.request_id before organization_id: %q", got)
+	}
+}
+
+type groupLogValuer struct{}
+
+func (groupLogValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("method", "GET"))
+}
+
+type panicLogValuer struct{}
+
+func (panicLogValuer) LogValue() slog.Value {
+	panic("nope")
+}
+
+func TestTextLogValuerGroupAndPanic(t *testing.T) {
+	got := render(t, false, slog.LevelInfo, "valuer group", slog.Any("g", groupLogValuer{}))
+	if !strings.Contains(got, "g.method=GET") {
+		t.Fatalf("group valuer: %s", got)
+	}
+	got = render(t, false, slog.LevelError, "valuer panic",
+		slog.Any("bad", panicLogValuer{}), "room_id", "r1")
+	if !strings.Contains(got, "bad=!PANIC") || !strings.Contains(got, "room_id=r1") {
+		t.Fatalf("panic valuer: %s", got)
 	}
 }
 

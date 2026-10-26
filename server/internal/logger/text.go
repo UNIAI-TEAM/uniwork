@@ -122,6 +122,31 @@ func (h *textHandler) collect(r slog.Record) []slog.Attr {
 	return out
 }
 
+// logFormatPanic makes formatValue emit !PANIC when slog.Resolve already absorbed a LogValue panic.
+type logFormatPanic struct{}
+
+func (logFormatPanic) Error() string { panic("nope") }
+
+func logValueResolveFailed(v slog.Value) bool {
+	if v.Kind() != slog.KindAny {
+		return false
+	}
+	err, ok := v.Any().(error)
+	if !ok {
+		return false
+	}
+	var msg string
+	func() {
+		defer func() {
+			if recover() != nil {
+				msg = ""
+			}
+		}()
+		msg = err.Error()
+	}()
+	return strings.HasPrefix(msg, "LogValue panicked")
+}
+
 func joinPrefix(prefix, key string) string {
 	if prefix == "" {
 		return key
@@ -138,27 +163,36 @@ func flattenAttrs(prefix string, attrs []slog.Attr) []slog.Attr {
 		if a.Equal(slog.Attr{}) {
 			continue
 		}
-		if kind, ok := safeKind(a.Value); ok && kind == slog.KindGroup {
-			children := a.Value.Group()
+		key := joinPrefix(prefix, a.Key)
+		var resolved slog.Value
+		resolveOK := true
+		func() {
+			defer func() {
+				if recover() != nil {
+					resolveOK = false
+				}
+			}()
+			resolved = a.Value.Resolve()
+		}()
+		if !resolveOK {
+			out = append(out, slog.Attr{Key: key, Value: a.Value})
+			continue
+		}
+		if logValueResolveFailed(resolved) {
+			out = append(out, slog.Attr{Key: key, Value: slog.AnyValue(logFormatPanic{})})
+			continue
+		}
+		if resolved.Kind() == slog.KindGroup {
+			children := resolved.Group()
 			if len(children) == 0 {
 				continue
 			}
-			childPrefix := joinPrefix(prefix, a.Key)
-			out = append(out, flattenAttrs(childPrefix, children)...)
+			out = append(out, flattenAttrs(joinPrefix(prefix, a.Key), children)...)
 			continue
 		}
-		out = append(out, slog.Attr{Key: joinPrefix(prefix, a.Key), Value: a.Value})
+		out = append(out, slog.Attr{Key: key, Value: resolved})
 	}
 	return out
-}
-
-func safeKind(v slog.Value) (k slog.Kind, ok bool) {
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
-	return v.Resolve().Kind(), true
 }
 
 func attrBaseKey(key string) string {
