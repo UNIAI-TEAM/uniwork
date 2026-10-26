@@ -1,0 +1,8 @@
+$ cd server; go test -p 1 ./internal/zipbound/... ./internal/files/... ./internal/document/... ./internal/attachtext/... -count=1 > /tmp/u2215-leaf.log 2>&1; rc=$?; grep -E "^\s*--- FAIL|^(FAIL|ok|panic)|_test.go:[0-9]+:" /tmp/u2215-leaf.log | cut -c1-400 | head -40; echo; echo "GO_LEAF_EXIT=$rc"
+ok  	github.com/unicomhub/uniwork/server/internal/zipbound	0.012s
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.015s
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.016s
+ok  	github.com/unicomhub/uniwork/server/internal/document	6.611s
+ok  	github.com/unicomhub/uniwork/server/internal/attachtext	4.744s
+
+GO_LEAF_EXIT=0

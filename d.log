@@ -1,0 +1,4 @@
+$ cd server; go test -p 1 ./internal/ -count=1 > /tmp/u2215-arch.log 2>&1; rc=$?; tail -5 /tmp/u2215-arch.log; go build ./cmd/... > /tmp/u2215-build.log 2>&1; rc2=$?; tail -5 /tmp/u2215-build.log; echo; echo "GO_ARCH_EXIT=$rc GO_BUILD_EXIT=$rc2"
+ok  	github.com/unicomhub/uniwork/server/internal	2.432s
+
+GO_ARCH_EXIT=0 GO_BUILD_EXIT=0
