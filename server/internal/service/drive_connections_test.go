@@ -259,6 +259,32 @@ func TestGoogleDriveProviderOIDCAndRevoke(t *testing.T) {
 		t.Fatal("expected wrong audience to fail VerifyIDToken")
 	}
 
+	// Wrong issuer must be rejected by real go-oidc verifier (R1-13).
+	oidcSrv.mu.Lock()
+	oidcSrv.claims["aud"] = "drive-client-id"
+	oidcSrv.claims["iss"] = "https://wrong-issuer.example.com"
+	oidcSrv.mu.Unlock()
+	tokWrongIss, err := p.Exchange(ctx, "code-4", "ver-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.VerifyIDToken(ctx, tokWrongIss.IDToken, "expected-nonce"); err == nil {
+		t.Fatal("expected wrong issuer to fail VerifyIDToken")
+	}
+
+	// Expired id_token must be rejected by real go-oidc verifier (R1-13).
+	oidcSrv.mu.Lock()
+	oidcSrv.claims["iss"] = oidcSrv.srv.URL
+	oidcSrv.claims["exp"] = time.Now().Add(-time.Hour).Unix()
+	oidcSrv.mu.Unlock()
+	tokExpired, err := p.Exchange(ctx, "code-5", "ver-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.VerifyIDToken(ctx, tokExpired.IDToken, "expected-nonce"); err == nil {
+		t.Fatal("expected expired id_token to fail VerifyIDToken")
+	}
+
 	// RevokeToken: 200 OK -> nil; 400 invalid_token -> ErrDriveRevokeAlreadyInvalid; 500 -> error.
 	if err := p.RevokeToken(ctx, "tok-r1"); err != nil {
 		t.Fatalf("RevokeToken 200: %v", err)
@@ -1237,6 +1263,273 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	if err != nil || purged == 0 {
 		t.Fatalf("PurgeExpiredRevocations = %d, err=%v, want > 0", purged, err)
 	}
+
+	// Case 9 (R1-13): Held real worker between count/claim (tx1) and Google call (step 2) ->
+	// callback runs while worker is held -> callback refuses with retry_connect ->
+	// worker is released -> calls Google revoke and resolves cleanly.
+	now = now.Add(5 * time.Second)
+	cHeldBetween := connectSub(fx.user, fx.work.ID, "heldbetween")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cHeldBetween); err != nil {
+		t.Fatal(err)
+	}
+	workerHeldAfterClaim := make(chan struct{})
+	releaseWorkerToGoogle := make(chan struct{})
+	fx.svc.testAfterRevocationClaimTx = func(sub string, _ db.DriveGrantRevocation) {
+		if sub == "fake-sub-heldbetween" {
+			close(workerHeldAfterClaim)
+			<-releaseWorkerToGoogle
+		}
+	}
+	workerDoneCh := make(chan bool, 1)
+	go func() {
+		workerDoneCh <- fx.svc.ProcessOneRevocation(ctx, "fake-sub-heldbetween")
+	}()
+	<-workerHeldAfterClaim
+
+	uHB, nonceHB, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stHB, _ := extractStateFromAuthURL(t, uHB)
+	if got := fx.svc.CompleteOAuth(ctx, stHB, "heldbetween", "", "", nonceHB); got != DriveOAuthRetryConnect {
+		t.Fatalf("CompleteOAuth while worker is held between count/claim and Google call = %q, want %q", got, DriveOAuthRetryConnect)
+	}
+	close(releaseWorkerToGoogle)
+	if !<-workerDoneCh {
+		t.Fatal("held worker must finish revocation after release")
+	}
+	fx.svc.testAfterRevocationClaimTx = nil
+
+	// Case 10 (R1-13): Exact timeline t1 claim -> t2 callback exchange -> t3 Google revoke ->
+	// t4 resolve -> t5 callback save rejection (retry_connect).
+	now = now.Add(5 * time.Second)
+	cExactT15 := connectSub(fx.user, fx.work.ID, "exactt15")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cExactT15); err != nil {
+		t.Fatal(err)
+	}
+	uT15, nonceT15, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stT15, _ := extractStateFromAuthURL(t, uT15)
+
+	var seq []string
+	var seqMu sync.Mutex
+	recordStep := func(s string) {
+		seqMu.Lock()
+		seq = append(seq, s)
+		seqMu.Unlock()
+	}
+	t1Claimed := make(chan struct{})
+	t2Exchanged := make(chan struct{})
+	t4Resolved := make(chan struct{})
+
+	fx.svc.testAfterRevocationClaimTx = func(sub string, _ db.DriveGrantRevocation) {
+		if sub == "fake-sub-exactt15" {
+			recordStep("t1_claim")
+			now = now.Add(time.Second)
+			close(t1Claimed)
+			<-t2Exchanged
+		}
+	}
+	fx.fake.SetExchange(func(_ context.Context, code, _ string) (DriveTokenResponse, error) {
+		if code == "exactt15" {
+			recordStep("t2_exchange")
+			now = now.Add(time.Second)
+		}
+		return DriveTokenResponse{
+			AccessToken:  "fake-drive-access-" + code,
+			RefreshToken: "fake-drive-refresh-" + code,
+			Expiry:       now.Add(time.Hour),
+			IDToken:      "fake-id-token:" + code,
+			Scopes:       "openid email " + DriveGoogleScope,
+		}, nil
+	})
+	fx.fake.SetRevoke(func(_ context.Context, token string) error {
+		if token == "fake-drive-refresh-exactt15" {
+			recordStep("t3_revoke")
+			now = now.Add(time.Second)
+		}
+		return nil
+	})
+	fx.svc.testBeforeCallbackTx = func(sub string) {
+		if sub == "fake-sub-exactt15" {
+			close(t2Exchanged)
+			<-t4Resolved
+			recordStep("t5_save_attempt")
+		}
+	}
+
+	t15WorkerDone := make(chan bool, 1)
+	go func() {
+		ok := fx.svc.ProcessOneRevocation(ctx, "fake-sub-exactt15")
+		recordStep("t4_resolve")
+		now = now.Add(time.Second)
+		close(t4Resolved)
+		t15WorkerDone <- ok
+	}()
+	<-t1Claimed
+
+	gotT15 := fx.svc.CompleteOAuth(ctx, stT15, "exactt15", "", "", nonceT15)
+	if !<-t15WorkerDone {
+		t.Fatal("t1..t5 worker did not resolve")
+	}
+	fx.svc.testAfterRevocationClaimTx = nil
+	fx.svc.testBeforeCallbackTx = nil
+	fx.fake.SetExchange(nil)
+	fx.fake.SetRevoke(nil)
+	if gotT15 != DriveOAuthRetryConnect {
+		t.Fatalf("exact t1..t5 CompleteOAuth = %q, want %q", gotT15, DriveOAuthRetryConnect)
+	}
+	wantSeq := "t1_claim,t2_exchange,t3_revoke,t4_resolve,t5_save_attempt"
+	if gotSeq := strings.Join(seq, ","); gotSeq != wantSeq {
+		t.Fatalf("t1..t5 sequence = %q, want %q", gotSeq, wantSeq)
+	}
+
+	// Case 11 (R1-13): Two real concurrent worker goroutines race to claim the same
+	// pending row -> exactly one claims and calls Google; the second sees it leased
+	// and does nothing.
+	now = now.Add(5 * time.Second)
+	cTwoWorkers := connectSub(fx.user, fx.work.ID, "twoworkers")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cTwoWorkers); err != nil {
+		t.Fatal(err)
+	}
+	var wClaims atomic.Int32
+	firstClaimedCh := make(chan struct{})
+	releaseFirstWorker := make(chan struct{})
+	fx.svc.testAfterRevocationClaimTx = func(sub string, _ db.DriveGrantRevocation) {
+		if sub == "fake-sub-twoworkers" {
+			if wClaims.Add(1) == 1 {
+				close(firstClaimedCh)
+				<-releaseFirstWorker
+			}
+		}
+	}
+	w1Done := make(chan bool, 1)
+	w2Done := make(chan bool, 1)
+	go func() {
+		w1Done <- fx.svc.ProcessOneRevocation(ctx, "fake-sub-twoworkers")
+	}()
+	<-firstClaimedCh
+	go func() {
+		w2Done <- fx.svc.ProcessOneRevocation(ctx, "fake-sub-twoworkers")
+	}()
+	// Wait for w2 to finish its claim check (returns false because w1 holds the lease).
+	res2 := <-w2Done
+	close(releaseFirstWorker)
+	res1 := <-w1Done
+	fx.svc.testAfterRevocationClaimTx = nil
+	if !res1 || res2 || wClaims.Load() != 1 {
+		t.Fatalf("two competing workers: res1=%v res2=%v claims=%d, want res1=true res2=false claims=1", res1, res2, wClaims.Load())
+	}
+
+	// Case 12 (R1-13): Late worker 1 held with retained old (generation=1, attempt_id=a1) ->
+	// lease expires -> worker 2 claims and resolves gen 1 -> user reconnects ->
+	// user disconnects again (gen 2) -> worker 3 claims gen 2 (attempt_id=a3) and is held ->
+	// worker 1 wakes up and runs its resolve transaction with its retained (gen 1, a1) pair ->
+	// worker 1's late result cannot settle gen 2; worker 3 then resolves gen 2!
+	now = now.Add(5 * time.Second)
+	cThreeW := connectSub(fx.user, fx.work.ID, "threeworkers")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cThreeW); err != nil {
+		t.Fatal(err)
+	}
+	w1HeldBeforeResolve := make(chan db.DriveGrantRevocation, 1)
+	releaseW1Resolve := make(chan struct{})
+	w3HeldAfterClaim := make(chan db.DriveGrantRevocation, 1)
+	releaseW3 := make(chan struct{})
+
+	var w1AttemptID string
+	var w1Once sync.Once
+	fx.svc.testAfterRevokeGoogle = func(sub string, attempt db.DriveGrantRevocation, revokeErr error) error {
+		if sub == "fake-sub-threeworkers" {
+			w1Once.Do(func() {
+				w1AttemptID = attempt.AttemptID.String
+				w1HeldBeforeResolve <- attempt
+				<-releaseW1Resolve
+			})
+		}
+		return revokeErr
+	}
+	w1LateDone := make(chan bool, 1)
+	go func() {
+		w1LateDone <- fx.svc.ProcessOneRevocation(ctx, "fake-sub-threeworkers")
+	}()
+	w1ClaimedRow := <-w1HeldBeforeResolve
+
+	// Advance past 2m lease so worker 2 reclaims and resolves generation 1.
+	now = now.Add(driveRevocationLeaseTTL + time.Second)
+	if !fx.svc.ProcessOneRevocation(ctx, "fake-sub-threeworkers") {
+		t.Fatal("worker 2 must reclaim and resolve generation 1")
+	}
+	// User reconnects and disconnects again -> advances row to generation 2!
+	now = now.Add(2 * time.Second)
+	_ = connectSub(fx.user, fx.work.ID, "threeworkers")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cThreeW); err != nil {
+		t.Fatal(err)
+	}
+	// Worker 3 claims generation 2 and is held before resolving.
+	fx.svc.testAfterRevocationClaimTx = func(sub string, attempt db.DriveGrantRevocation) {
+		if sub == "fake-sub-threeworkers" && attempt.Generation == w1ClaimedRow.Generation+1 {
+			w3HeldAfterClaim <- attempt
+			<-releaseW3
+		}
+	}
+	w3Done := make(chan bool, 1)
+	go func() {
+		w3Done <- fx.svc.ProcessOneRevocation(ctx, "fake-sub-threeworkers")
+	}()
+	w3ClaimedRow := <-w3HeldAfterClaim
+	if w3ClaimedRow.Generation != w1ClaimedRow.Generation+1 || w3ClaimedRow.AttemptID.String == w1AttemptID {
+		t.Fatalf("worker 3 claimed %+v, want gen %d != attempt %s", w3ClaimedRow, w1ClaimedRow.Generation+1, w1AttemptID)
+	}
+
+	// Now release worker 1 so it executes resolveRevocationAttempt with its retained (gen 1, w1AttemptID) pair!
+	close(releaseW1Resolve)
+	<-w1LateDone
+
+	// Verify generation 2 is STILL open and owned by worker 3's attempt!
+	gen2AfterLateW1, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-threeworkers")
+	if err != nil || gen2AfterLateW1.ResolvedAt.Valid || !gen2AfterLateW1.RefreshTokenEnc.Valid ||
+		gen2AfterLateW1.Generation != w3ClaimedRow.Generation || gen2AfterLateW1.AttemptID.String != w3ClaimedRow.AttemptID.String {
+		t.Fatalf("late worker 1 with retained old (gen, attempt_id) must not settle gen 2: %+v, err=%v", gen2AfterLateW1, err)
+	}
+	// Release worker 3 -> settles generation 2 cleanly.
+	close(releaseW3)
+	if !<-w3Done {
+		t.Fatal("worker 3 must settle generation 2")
+	}
+	fx.svc.testAfterRevokeGoogle = nil
+	fx.svc.testAfterRevocationClaimTx = nil
+
+	// Case 13 (R1-13): Cross-organization callback/revocation interleaving:
+	// User 1 in org 1 disconnects shared sub `xorg-race` (no other holder left) ->
+	// User 2 in org 2 starts connecting the same Google sub `xorg-race` ->
+	// while User 2's callback exchanges its code, the revocation worker revokes
+	// `xorg-race` -> User 2's callback in org 2 is refused with retry_connect!
+	now = now.Add(5 * time.Second)
+	cXOrg1 := connectSub(fx.user, fx.work.ID, "xorg-race")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, cXOrg1); err != nil {
+		t.Fatal(err)
+	}
+	uXOrg2, nonceXOrg2, err := fx.svc.StartOAuth(ctx, Human(user2.ID), ws2View.Workspace.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stXOrg2, _ := extractStateFromAuthURL(t, uXOrg2)
+	fx.svc.testBeforeCallbackTx = func(sub string) {
+		if sub == "fake-sub-xorg-race" {
+			now = now.Add(time.Second)
+			if !fx.svc.ProcessOneRevocation(ctx, sub) {
+				t.Errorf("expected worker to process revocation for %s", sub)
+			}
+			now = now.Add(time.Second)
+		}
+	}
+	gotXOrg2 := fx.svc.CompleteOAuth(ctx, stXOrg2, "xorg-race", "", "", nonceXOrg2)
+	fx.svc.testBeforeCallbackTx = nil
+	if gotXOrg2 != DriveOAuthRetryConnect {
+		t.Fatalf("cross-org CompleteOAuth in org2 when org1's revocation overlapped = %q, want %q", gotXOrg2, DriveOAuthRetryConnect)
+	}
 }
 
 type testDriveMetrics struct {
@@ -1268,6 +1561,87 @@ func TestDriveConnectionLifecycleAndMultiOrgIsolation(t *testing.T) {
 
 	// Create a second organization and add fx.user to it directly (legacy multi-org account, ADR 0032).
 	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as.SetDrive(fx.svc)
+	fx.ws.SetDrive(fx.svc)
+	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
+	memberSvc.SetDrive(fx.svc)
+
+	connectInWS := func(userID, wsID, code string) string {
+		u, nonce, err := fx.svc.StartOAuth(ctx, Human(userID), wsID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, _ := extractStateFromAuthURL(t, u)
+		if got := fx.svc.CompleteOAuth(ctx, st, code, "", "", nonce); got != DriveOAuthConnected && got != DriveOAuthReconnected {
+			t.Fatalf("CompleteOAuth(%s) = %q", code, got)
+		}
+		list, err := fx.svc.List(ctx, Human(userID), wsID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range list {
+			if c.GoogleEmail == "drive-"+code+"@example.com" {
+				return c.ID
+			}
+		}
+		t.Fatalf("connection %s not found", code)
+		return ""
+	}
+
+	assertDisconnectedArtifacts := func(orgID, connID, googleSub, googleEmail, wantReason string, expectResolvedByPostCommit bool) {
+		t.Helper()
+		// 1. Token fencing: disconnected_at set, refresh_token_enc & access_token_enc cleared, credential_version bumped (>= 2).
+		var refreshEnc, accessEnc string
+		var credVer int64
+		var isDisc bool
+		if err := fx.pool.QueryRow(ctx, `
+			SELECT refresh_token_enc, access_token_enc, credential_version, (disconnected_at IS NOT NULL)
+			FROM drive_connections WHERE id = $1 AND organization_id = $2`, connID, orgID).Scan(&refreshEnc, &accessEnc, &credVer, &isDisc); err != nil {
+			t.Fatalf("read drive_connection %s: %v", connID, err)
+		}
+		if !isDisc || refreshEnc != "" || accessEnc != "" || credVer < 2 {
+			t.Fatalf("connection %s not fenced on %s: isDisc=%v refresh=%q access=%q credVer=%d", connID, wantReason, isDisc, refreshEnc, accessEnc, credVer)
+		}
+		// 2. Audit row: drive_connection.disconnected with google_email, google_sub, reason.
+		var rawMeta string
+		if err := fx.pool.QueryRow(ctx, `
+			SELECT metadata::text FROM audit_events
+			WHERE organization_id = $1 AND action = 'drive_connection.disconnected' AND resource_id = $2
+			ORDER BY created_at DESC LIMIT 1`, orgID, connID).Scan(&rawMeta); err != nil {
+			t.Fatalf("missing drive_connection.disconnected audit row for %s (%s): %v", connID, wantReason, err)
+		}
+		var meta map[string]any
+		_ = json.Unmarshal([]byte(rawMeta), &meta)
+		if meta["google_sub"] != googleSub || meta["google_email"] != googleEmail || meta["reason"] != wantReason {
+			t.Fatalf("audit metadata for %s = %v, want sub=%s email=%s reason=%s", connID, meta, googleSub, googleEmail, wantReason)
+		}
+		// 3. Outbox row: drive_connection.changed naming connection_id.
+		var outboxCount int
+		if err := fx.pool.QueryRow(ctx, `
+			SELECT count(*) FROM outbox_events
+			WHERE organization_id = $1 AND topic = 'drive_connection.changed' AND payload::text LIKE '%' || $2 || '%'`,
+			orgID, connID).Scan(&outboxCount); err != nil || outboxCount == 0 {
+			t.Fatalf("missing drive_connection.changed outbox row for %s (%s): count=%d err=%v", connID, wantReason, outboxCount, err)
+		}
+		// 4. Durable revoke queue row in drive_grant_revocations.
+		rev, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, googleSub)
+		if err != nil {
+			t.Fatalf("missing drive_grant_revocations row for %s (%s): %v", googleSub, wantReason, err)
+		}
+		if expectResolvedByPostCommit {
+			if !rev.ResolvedAt.Valid || rev.RefreshTokenEnc.Valid {
+				t.Fatalf("expected %s resolved by post-commit cleanup (%s), got %+v", googleSub, wantReason, rev)
+			}
+		} else {
+			if !rev.RefreshTokenEnc.Valid || rev.ResolvedAt.Valid {
+				t.Fatalf("expected %s pending with encrypted token in queue (%s), got %+v", googleSub, wantReason, rev)
+			}
+		}
+	}
+
+	// Scenario 1: Legacy two-org account (seeded by raw SQL exactly as TestIsolationMatrix.joinAsMember
+	// does at server/internal/handler/isolation_matrix_test.go:486-492) + Deactivate in one org +
+	// non-owner Account Deletion across both legacy memberships!
 	ownerB := registerVerified(t, fx.q, as, "drive-ownerb-"+util.NewID()+"@example.com", "OwnerB")
 	orgB, err := fx.orgs.Create(ctx, ownerB.ID, "Org B", "drive-orgb-"+strings.ToLower(util.NewID()[:8]))
 	if err != nil {
@@ -1278,166 +1652,153 @@ func TestDriveConnectionLifecycleAndMultiOrgIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	wsB := wsBView.Workspace
-	if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
-		OrganizationID: orgB.ID,
-		UserID:         fx.user.ID,
-		Role:           OrgRoleMember,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID:    wsB.ID,
-		UserID:         fx.user.ID,
-		Role:           OrgRoleMember,
-		OrganizationID: orgB.ID,
-	}); err != nil {
-		t.Fatal(err)
-	}
 
-	connectInWS := func(userID, wsID, code string) {
-		u, nonce, err := fx.svc.StartOAuth(ctx, Human(userID), wsID, "")
-		if err != nil {
+	legacyUser := registerVerified(t, fx.q, as, "drive-legacy-"+util.NewID()+"@example.com", "LegacyTwoOrg")
+	for _, target := range []struct {
+		orgID string
+		wsID  string
+	}{
+		{fx.org.ID, fx.work.ID},
+		{orgB.ID, wsB.ID},
+	} {
+		if _, err := fx.pool.Exec(ctx, `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+			target.orgID, legacyUser.ID); err != nil {
 			t.Fatal(err)
 		}
-		st, _ := extractStateFromAuthURL(t, u)
-		if got := fx.svc.CompleteOAuth(ctx, st, code, "", "", nonce); got != DriveOAuthConnected {
-			t.Fatalf("CompleteOAuth(%s) = %q", code, got)
+		if _, err := fx.pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role, organization_id) VALUES ($1, $2, 'member', $3)`,
+			target.wsID, legacyUser.ID, target.orgID); err != nil {
+			t.Fatal(err)
 		}
 	}
 
-	connectInWS(fx.user.ID, fx.work.ID, "orga-acct")
-	connectInWS(fx.user.ID, wsB.ID, "orgb-acct")
+	connLegacyA := connectInWS(legacyUser.ID, fx.work.ID, "orga-acct")
+	connLegacyB := connectInWS(legacyUser.ID, wsB.ID, "orgb-acct")
 
-	// Listing in fx.work only shows orga-acct; listing in wsB only shows orgb-acct.
-	listA, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID)
-	if err != nil || len(listA) != 1 || listA[0].GoogleEmail != "drive-orga-acct@example.com" {
+	// Legacy two-org account sees only the path organization's connections.
+	listA, err := fx.svc.List(ctx, Human(legacyUser.ID), fx.work.ID)
+	if err != nil || len(listA) != 1 || listA[0].ID != connLegacyA || listA[0].GoogleEmail != "drive-orga-acct@example.com" {
 		t.Fatalf("List(wsA) = %+v, err=%v", listA, err)
 	}
-	listB, err := fx.svc.List(ctx, Human(fx.user.ID), wsB.ID)
-	if err != nil || len(listB) != 1 || listB[0].GoogleEmail != "drive-orgb-acct@example.com" {
+	listB, err := fx.svc.List(ctx, Human(legacyUser.ID), wsB.ID)
+	if err != nil || len(listB) != 1 || listB[0].ID != connLegacyB || listB[0].GoogleEmail != "drive-orgb-acct@example.com" {
 		t.Fatalf("List(wsB) = %+v, err=%v", listB, err)
 	}
 
-	// OwnerB deactivates fx.user in orgB -> orgB connection is disconnected and queued for revocation; orgA connection stays active!
-	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
-	if _, err := memberSvc.Deactivate(ctx, ownerB.ID, orgB.ID, fx.user.ID); err != nil {
+	// Deactivate legacyUser in orgB -> fences connLegacyB, writes audit + outbox + durable revoke queue; orgA stays active!
+	if _, err := memberSvc.Deactivate(ctx, ownerB.ID, orgB.ID, legacyUser.ID); err != nil {
 		t.Fatalf("Deactivate: %v", err)
 	}
-	listAAfterDeact, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID)
-	if err != nil || len(listAAfterDeact) != 1 {
+	assertDisconnectedArtifacts(orgB.ID, connLegacyB, "fake-sub-orgb-acct", "drive-orgb-acct@example.com", "member_deactivated", false)
+	listAAfterDeact, err := fx.svc.List(ctx, Human(legacyUser.ID), fx.work.ID)
+	if err != nil || len(listAAfterDeact) != 1 || listAAfterDeact[0].ID != connLegacyA {
 		t.Fatalf("List(wsA) after orgB deactivate = %+v, err=%v", listAAfterDeact, err)
 	}
-	revOrgB, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-orgb-acct")
-	if err != nil || !revOrgB.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued for orgb-acct on deactivate: %+v, err=%v", revOrgB, err)
-	}
 
-	// Have fx.user Leave orgA -> disconnects orgA connection (orgB is deactivated so Leave(orgA) is allowed; fx.user transfers ownership of orgA first).
-	memberA := registerVerified(t, fx.q, as, "drive-membera-"+util.NewID()+"@example.com", "MemberA")
-	if err := fx.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
-		OrganizationID: fx.org.ID,
-		UserID:         memberA.ID,
-		Role:           OrgRoleAdmin,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := memberSvc.TransferOwnership(ctx, fx.user.ID, fx.org.ID, memberA.ID, "password123"); err != nil {
-		t.Fatalf("TransferOwnership: %v", err)
-	}
-	if err := memberSvc.Leave(ctx, fx.user.ID, fx.org.ID); err != nil {
-		t.Fatalf("Leave(orgA): %v", err)
-	}
-	revOrgAAfterLeave, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-orga-acct")
-	if err != nil || !revOrgAAfterLeave.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued on Leave: %+v, err=%v", revOrgAAfterLeave, err)
-	}
-	_ = fx.svc.ProcessOneRevocation(ctx, "fake-sub-orga-acct")
-
-	// Now fx.user has no active orgs -> Reactivate fx.user in orgB succeeds, reconnect orgb-acct, then Leave orgB -> disconnects orgB connection!
-	if _, err := memberSvc.Reactivate(ctx, ownerB.ID, orgB.ID, fx.user.ID); err != nil {
-		t.Fatalf("Reactivate: %v", err)
-	}
-	_ = fx.svc.ProcessOneRevocation(ctx, "fake-sub-orgb-acct")
-	uRe, nonceRe, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), wsB.ID, "")
+	// Re-add a third org membership (orgD) by raw SQL so legacyUser has two active non-owner
+	// memberships (fx.org and orgD) when DeleteAccount runs -> disconnects across all organizations!
+	ownerD := registerVerified(t, fx.q, as, "drive-ownerd-"+util.NewID()+"@example.com", "OwnerD")
+	orgD, err := fx.orgs.Create(ctx, ownerD.ID, "Org D", "drive-orgd-"+strings.ToLower(util.NewID()[:8]))
 	if err != nil {
 		t.Fatal(err)
 	}
-	stRe, _ := extractStateFromAuthURL(t, uRe)
-	if got := fx.svc.CompleteOAuth(ctx, stRe, "orgb-acct", "", "", nonceRe); got != DriveOAuthReconnected {
-		t.Fatalf("CompleteOAuth reconnect orgb = %q", got)
+	wsDView, err := fx.ws.CreateInOrg(ctx, ownerD.ID, orgD.ID, "WS D", "ws-d")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := memberSvc.Leave(ctx, fx.user.ID, orgB.ID); err != nil {
+	if _, err := fx.pool.Exec(ctx, `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+		orgD.ID, legacyUser.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role, organization_id) VALUES ($1, $2, 'member', $3)`,
+		wsDView.Workspace.ID, legacyUser.ID, orgD.ID); err != nil {
+		t.Fatal(err)
+	}
+	connLegacyD := connectInWS(legacyUser.ID, wsDView.Workspace.ID, "orgd-acct")
+
+	if err := as.DeleteAccount(ctx, legacyUser.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatalf("DeleteAccount across legacy memberships: %v", err)
+	}
+	assertDisconnectedArtifacts(fx.org.ID, connLegacyA, "fake-sub-orga-acct", "drive-orga-acct@example.com", "account_deleted", true)
+	assertDisconnectedArtifacts(orgD.ID, connLegacyD, "fake-sub-orgd-acct", "drive-orgd-acct@example.com", "account_deleted", true)
+
+	// Scenario 2: Single-org member Leave + Deactivate -> Reactivate -> does not auto-reconnect -> reconnect -> Leave.
+	leaver := registerVerified(t, fx.q, as, "drive-leaver-"+util.NewID()+"@example.com", "Leaver")
+	if _, err := fx.pool.Exec(ctx, `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+		orgB.ID, leaver.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role, organization_id) VALUES ($1, $2, 'member', $3)`,
+		wsB.ID, leaver.ID, orgB.ID); err != nil {
+		t.Fatal(err)
+	}
+	connLeave1 := connectInWS(leaver.ID, wsB.ID, "leave-acct")
+	if _, err := memberSvc.Deactivate(ctx, ownerB.ID, orgB.ID, leaver.ID); err != nil {
+		t.Fatalf("Deactivate leaver: %v", err)
+	}
+	assertDisconnectedArtifacts(orgB.ID, connLeave1, "fake-sub-leave-acct", "drive-leave-acct@example.com", "member_deactivated", false)
+	_ = fx.svc.ProcessOneRevocation(ctx, "fake-sub-leave-acct")
+	// Reactivate in orgB (leaver belongs to no other active org under ADR 0032): does NOT auto-reconnect!
+	if _, err := memberSvc.Reactivate(ctx, ownerB.ID, orgB.ID, leaver.ID); err != nil {
+		t.Fatalf("Reactivate leaver: %v", err)
+	}
+	listAfterReact, err := fx.svc.List(ctx, Human(leaver.ID), wsB.ID)
+	if err != nil || len(listAfterReact) != 0 {
+		t.Fatalf("Reactivate must not auto-reconnect Drive: got %+v, err=%v", listAfterReact, err)
+	}
+	connLeave2 := connectInWS(leaver.ID, wsB.ID, "leave-acct")
+	if connLeave2 != connLeave1 {
+		t.Fatalf("reconnect after reactivation = %s, want revived ID %s", connLeave2, connLeave1)
+	}
+	if err := memberSvc.Leave(ctx, leaver.ID, orgB.ID); err != nil {
 		t.Fatalf("Leave(orgB): %v", err)
 	}
-	revOrgBAfterLeave, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-orgb-acct")
-	if err != nil || !revOrgBAfterLeave.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued on Leave: %+v, err=%v", revOrgBAfterLeave, err)
-	}
+	assertDisconnectedArtifacts(orgB.ID, connLeave2, "fake-sub-leave-acct", "drive-leave-acct@example.com", "member_left", false)
 
-	// Invitation switch (Close sole-owner orgC when accepting invitation into orgB).
-	orgC, err := fx.orgs.Create(ctx, fx.user.ID, "Org C", "drive-orgc-"+strings.ToLower(util.NewID()[:8]))
+	// Scenario 3: Sole-owner direct Close and invitation-switch Close (closeQ).
+	soleOwner1 := registerVerified(t, fx.q, as, "drive-sole1-"+util.NewID()+"@example.com", "SoleOwner1")
+	orgSole1, err := fx.orgs.Create(ctx, soleOwner1.ID, "Sole 1", "drive-sole1-"+strings.ToLower(util.NewID()[:8]))
 	if err != nil {
 		t.Fatal(err)
 	}
-	wsCView, err := fx.ws.CreateInOrg(ctx, fx.user.ID, orgC.ID, "WS C", "ws-c")
+	wsSole1View, err := fx.ws.CreateInOrg(ctx, soleOwner1.ID, orgSole1.ID, "WS Sole 1", "ws-sole-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	connectInWS(fx.user.ID, wsCView.Workspace.ID, "orgc-acct")
-	outbox := &fakeOutbox{}
-	memberSvc.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, outbox)
-	inv, _, err := memberSvc.InviteToOrg(ctx, ownerB.ID, orgB.ID, []string{fx.user.Email}, OrgRoleMember, nil)
+	connSole1 := connectInWS(soleOwner1.ID, wsSole1View.Workspace.ID, "sole1-acct")
+	if err := memberSvc.Close(ctx, soleOwner1.ID, orgSole1.ID, orgSole1.Slug); err != nil {
+		t.Fatalf("direct Close: %v", err)
+	}
+	assertDisconnectedArtifacts(orgSole1.ID, connSole1, "fake-sub-sole1-acct", "drive-sole1-acct@example.com", "organization_closed", true)
+
+	// Sole-owner invitation switch (SwitchActionClose via closeQ).
+	orgSole2, err := fx.orgs.Create(ctx, soleOwner1.ID, "Sole 2", "drive-sole2-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsSole2View, err := fx.ws.CreateInOrg(ctx, soleOwner1.ID, orgSole2.ID, "WS Sole 2", "ws-sole-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connSole2 := connectInWS(soleOwner1.ID, wsSole2View.Workspace.ID, "sole2-acct")
+	memberSvc.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	inv, _, err := memberSvc.InviteToOrg(ctx, ownerB.ID, orgB.ID, []string{soleOwner1.Email}, OrgRoleMember, nil)
 	if err != nil || len(inv) != 1 {
 		t.Fatalf("InviteToOrg: %v", err)
 	}
-	if _, err := fx.ws.AcceptInvite(ctx, fx.user.ID, inv[0].Token, []SwitchResolution{{OrganizationID: orgC.ID, Action: SwitchActionClose, ConfirmSlug: orgC.Slug}}); err != nil {
+	if _, err := fx.ws.AcceptInvite(ctx, soleOwner1.ID, inv[0].Token, []SwitchResolution{{OrganizationID: orgSole2.ID, Action: SwitchActionClose, ConfirmSlug: orgSole2.Slug}}); err != nil {
 		t.Fatalf("AcceptInvite with SwitchActionClose: %v", err)
 	}
-	revOrgC, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-orgc-acct")
-	if err != nil || !revOrgC.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued on sole-owner org close: %+v, err=%v", revOrgC, err)
-	}
+	assertDisconnectedArtifacts(orgSole2.ID, connSole2, "fake-sub-sole2-acct", "drive-sole2-acct@example.com", "organization_closed", true)
 
-	// Account deletion: fx.user connects a Drive account in orgB (where fx.user is a member), and ownerB leaves orgB after transferring or fx.user deletes their UniWork account -> disconnects across all orgs and queues revocation.
-	if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID:    wsB.ID,
-		UserID:         fx.user.ID,
-		Role:           OrgRoleMember,
-		OrganizationID: orgB.ID,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	connectInWS(fx.user.ID, wsB.ID, "del-acct")
+	// Scenario 4: Sole-owner DeleteAccount with CloseOrganization.
+	connOwnerA := connectInWS(fx.user.ID, fx.work.ID, "ownera-acct")
 	if err := as.DeleteAccount(ctx, fx.user.ID, DeleteAccountInput{
-		Password: "password123",
-	}); err != nil {
-		t.Fatalf("DeleteAccount: %v", err)
-	}
-	revDel, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-del-acct")
-	if err != nil || !revDel.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued on DeleteAccount: %+v, err=%v", revDel, err)
-	}
-
-	// Also verify sole-owner DeleteAccount with CloseOrganization: memberA (now sole active owner of fx.org after fx.user left) connects a Drive account in fx.work and deletes their account with CloseOrganization.
-	if err := fx.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
-		WorkspaceID:    fx.work.ID,
-		UserID:         memberA.ID,
-		Role:           OrgRoleOwner,
-		OrganizationID: fx.org.ID,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	connectInWS(memberA.ID, fx.work.ID, "ownera-acct")
-	if err := as.DeleteAccount(ctx, memberA.ID, DeleteAccountInput{
 		Password:          "password123",
 		CloseOrganization: fx.org.Slug,
 	}); err != nil {
 		t.Fatalf("DeleteAccount sole owner with CloseOrganization: %v", err)
 	}
-	revOwnerA, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-ownera-acct")
-	if err != nil || !revOwnerA.RefreshTokenEnc.Valid {
-		t.Fatalf("expected revocation queued on sole-owner DeleteAccount: %+v, err=%v", revOwnerA, err)
-	}
+	assertDisconnectedArtifacts(fx.org.ID, connOwnerA, "fake-sub-ownera-acct", "drive-ownera-acct@example.com", "organization_closed", true)
 }
 
 // TestDriveOAuthCallbackRefusedAfterLifecycle (R1-1) holds the callback right
