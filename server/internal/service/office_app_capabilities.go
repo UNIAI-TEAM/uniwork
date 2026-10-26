@@ -40,6 +40,7 @@ type OfficeAppCapabilities struct {
 	OfflineLibrary   bool
 	AIUniwork        bool
 	AIUniworkFormats []string
+	DriveConnector   bool
 	TTLSeconds       int
 }
 
@@ -51,10 +52,23 @@ type OfficeAppCapabilities struct {
 type OfficeCapabilitiesService struct {
 	orgs  *OrganizationService
 	flags *featureflag.Service
+	drive interface {
+		AvailableForContext(ctx context.Context) bool
+	}
 }
 
 func NewOfficeCapabilitiesService(orgs *OrganizationService, flags *featureflag.Service) *OfficeCapabilitiesService {
 	return &OfficeCapabilitiesService{orgs: orgs, flags: flags}
+}
+
+// SetDrive wires the Google Drive connector availability source (spec §17.1,
+// plan B10); nil reads as false and never panics.
+func (s *OfficeCapabilitiesService) SetDrive(d interface {
+	AvailableForContext(ctx context.Context) bool
+}) {
+	if s != nil {
+		s.drive = d
+	}
 }
 
 // Get resolves the capability for userID in organizationID. Membership is the
@@ -72,6 +86,7 @@ func (s *OfficeCapabilitiesService) Get(ctx context.Context, userID, orgID strin
 		SyncWrite:      s.enabled(ctx, officeSyncWriteFlag),
 		OfflineLibrary: s.enabled(ctx, officeOfflineLibraryFlag),
 		AIUniwork:      s.enabled(ctx, officeAIUniworkFlag),
+		DriveConnector: s.driveConnectorEnabled(ctx),
 		TTLSeconds:     OfficeCapabilitiesTTLSeconds,
 	}
 	// A format is listed only when UniWork AI is on as a whole and that
@@ -97,4 +112,8 @@ func (s *OfficeCapabilitiesService) enabled(ctx context.Context, key string) boo
 		def = f.Default
 	}
 	return s.flags.IsEnabled(ctx, key, def)
+}
+
+func (s *OfficeCapabilitiesService) driveConnectorEnabled(ctx context.Context) bool {
+	return s.drive != nil && s.drive.AvailableForContext(ctx)
 }
