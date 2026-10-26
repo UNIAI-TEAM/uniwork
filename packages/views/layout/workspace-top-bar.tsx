@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { Ellipsis, Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
+import { BriefcasePlus, Ellipsis, Languages, Monitor, Moon, Sun } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
@@ -258,7 +258,7 @@ export function WorkspaceTopBar({
             />
           }
         >
-          <Plus aria-hidden />
+          <BriefcasePlus aria-hidden />
         </TooltipTrigger>
         <TooltipContent side="bottom">{createLabel}</TooltipContent>
       </Tooltip>
