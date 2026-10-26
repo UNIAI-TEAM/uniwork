@@ -38,6 +38,8 @@ export function ActionItemsSelectionBar({
   return (
     <div
       ref={ref}
+      role="region"
+      aria-label={t("meetings.panel.actions.selectedRegion")}
       className="sticky bottom-3 z-10 flex items-center gap-2 rounded-2xl bg-foreground py-2 pr-2 pl-3.5 text-background shadow-lg"
     >
       <span className="text-label font-semibold tabular-nums">{t("meetings.panel.actions.selected", { count })}</span>

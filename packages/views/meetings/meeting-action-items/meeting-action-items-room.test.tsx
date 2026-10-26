@@ -30,7 +30,7 @@ const pendingAI = {
   suggested_due_date: "2026-09-25",
   status: "PENDING",
 };
-const pendingManual = { id: "a1", source: "MANUAL", title: "Đặt phòng", status: "PENDING" };
+const pendingManual = { id: "a1", source: "MANUAL", title: "Đặt phòng", owner_text: "anh Hùng", due_text: "tuần sau", status: "PENDING" };
 const pendingLive = { id: "a4", source: "LIVE", title: "Gửi báo giá", status: "PENDING", created_at: "2026-10-21T03:42:00Z" };
 const converted = {
   id: "a2",
@@ -45,15 +45,21 @@ const list = {
   counts: { pending: 3, converted: 1, dismissed: 1, tasks_done: 0, tasks_overdue: 0 },
 };
 
-function respond() {
+/** `dismissMoves`: once a dismiss lands, the server answers with that item dismissed. */
+function respond(opts: { dismissMoves?: boolean } = {}) {
+  let current = list;
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
     const p = String(path);
     if (p.endsWith("/action-items/convert") && init?.method === "POST") {
       return Promise.resolve({ links: [{ action_item_id: "a0", task_id: "t1" }, { action_item_id: "a1", task_id: "t2" }] });
     }
+    if (p.endsWith("/dismiss") && opts.dismissMoves) {
+      const id = p.split("/").at(-2);
+      current = { ...list, items: list.items.map((item) => (item.id === id ? { ...item, status: "DISMISSED" } : item)) };
+    }
     if (init?.method === "POST") return Promise.resolve({ status: "ok" });
-    if (p.endsWith("/action-items")) return Promise.resolve(list);
+    if (p.endsWith("/action-items")) return Promise.resolve(current);
     if (p.endsWith("/members")) {
       return Promise.resolve({
         members: [{ workspace_id: "w1", user_id: "u-mai", role: "member", email: "mai@x.com", display_name: "Mai Anh" }],
@@ -99,14 +105,15 @@ describe("MeetingActionItemsSection in the room", () => {
     renderRoom({ onSelectionChange });
     fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Đặt phòng" }));
-    expect(screen.getByText("2 đã chọn")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Giao 2 việc" })).toBeInTheDocument();
+    const bar = screen.getByRole("region", { name: "Việc đã chọn" });
+    expect(within(bar).getByText("2 đã chọn")).toBeInTheDocument();
+    expect(within(bar).getByRole("button", { name: "Giao 2 việc" })).toBeInTheDocument();
     expect(onSelectionChange).toHaveBeenLastCalledWith(2);
     // Ticked rows wear the brand tint.
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản" }).closest("li")).toHaveClass("bg-brand-subtle/50");
 
     fireEvent.click(screen.getByRole("button", { name: "Bỏ chọn" }));
-    expect(screen.queryByText("2 đã chọn")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Việc đã chọn" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Giao \d việc$/ })).not.toBeInTheDocument();
     expect(onSelectionChange).toHaveBeenLastCalledWith(0);
   });
@@ -126,7 +133,11 @@ describe("MeetingActionItemsSection in the room", () => {
   it("ticks every pending item at once from the group heading", async () => {
     renderRoom();
     const all = await screen.findByRole("checkbox", { name: "Chọn tất cả việc chờ xử lý" });
-    expect(screen.getByRole("heading", { name: "Chờ xử lý (3)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chờ xử lý · 3" })).toBeInTheDocument();
+    expect(all).not.toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Đặt phòng" }));
+    // One of three: the box says "some" (aria-checked="mixed"), and a click ticks the rest.
+    expect(all).toBePartiallyChecked();
     fireEvent.click(all);
     expect(screen.getByText("3 đã chọn")).toBeInTheDocument();
     expect(all).toBeChecked();
@@ -137,15 +148,20 @@ describe("MeetingActionItemsSection in the room", () => {
   it("shows who and when as chips, and the scribe's mark with the time on what it heard", async () => {
     renderRoom();
     const row = (await screen.findByRole("checkbox", { name: "Gửi biên bản" })).closest("li")!;
-    expect(await within(row).findByText("Mai Anh")).toBeInTheDocument();
-    expect(within(row).getByText(/^Thứ Sáu/)).toBeInTheDocument();
+    // A filled chip shows the value and says it opens the editor.
+    expect(await within(row).findByRole("button", { name: "Mai Anh — Sửa & giao" })).toHaveTextContent("Mai Anh");
+    expect(within(row).getByRole("button", { name: /^Thứ Sáu.* — Sửa & giao$/ })).toBeInTheDocument();
     const bare = screen.getByRole("checkbox", { name: "Đặt phòng" }).closest("li")!;
     expect(within(bare).getByRole("button", { name: "Giao cho" })).toBeInTheDocument();
     expect(within(bare).getByRole("button", { name: "+ Hạn" })).toBeInTheDocument();
+    // What was said stays beside the empty chips, as the feed shows it.
+    expect(within(bare).getByText("anh Hùng")).toBeInTheDocument();
+    expect(within(bare).getByText("tuần sau")).toBeInTheDocument();
     expect(within(bare).queryByTitle("Thư ký UNI")).not.toBeInTheDocument();
     const live = screen.getByRole("checkbox", { name: "Gửi báo giá" }).closest("li")!;
     expect(within(live).getByTitle("Thư ký UNI")).toBeInTheDocument();
-    expect(within(live).getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(within(live).getByText(/^\d{2}:\d{2}$/)).toHaveAttribute("aria-hidden");
+    expect(within(live).getByText(/^Ghi lúc \d{2}:\d{2}$/)).toHaveClass("sr-only");
   });
 
   it("opens the composer from a row's pencil and dismisses from its cross, asking the reason", async () => {
@@ -156,9 +172,19 @@ describe("MeetingActionItemsSection in the room", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bỏ qua việc" }));
     await waitFor(() => expect(posts("/a1/dismiss")).toEqual([{ reason: "Trùng" }]));
 
-    fireEvent.click(within(row).getByRole("button", { name: "Sửa & giao" }));
+    fireEvent.click(within(row).getByRole("button", { name: 'Sửa & giao "Đặt phòng"' }));
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(within(dialog).getByRole("textbox", { name: "Tiêu đề issue" })).toHaveValue("Đặt phòng"));
+  });
+
+  it("moves focus to the next pending row once a dismissed one leaves the list", async () => {
+    respond({ dismissMoves: true });
+    renderRoom();
+    const row = (await screen.findByRole("checkbox", { name: "Đặt phòng" })).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Gửi báo giá" })).toHaveFocus());
+    expect(screen.queryByRole("checkbox", { name: "Đặt phòng" })).not.toBeInTheDocument();
   });
 
   it("opens Add item's composer from the end of the pending group", async () => {
@@ -170,9 +196,13 @@ describe("MeetingActionItemsSection in the room", () => {
 
   it("lists what was assigned with a tick, the person and a way to open the task", async () => {
     renderRoom();
-    expect(await screen.findByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Đã giao · 1" })).toBeInTheDocument();
     const open = screen.getByRole("link", { name: 'Mở việc "Báo khách hàng"' });
     expect(open).toHaveAttribute("href", expect.stringContaining("t9"));
+    // The face is aria-hidden: the name is said beside it and shown on hover.
+    const row = open.closest("li")!;
+    expect(await within(row).findByText("Mai Anh")).toHaveClass("sr-only");
+    expect(within(row).getByTitle("Mai Anh")).toBeInTheDocument();
     expect(screen.queryByText("In tài liệu")).not.toBeInTheDocument();
   });
 

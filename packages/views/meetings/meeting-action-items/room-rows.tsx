@@ -9,6 +9,7 @@ import { AppLink } from "../../navigation";
 import { formatMeetingClock, meetingLocale } from "../meeting-datetime";
 import { MeetingPersonAvatar } from "../meeting-person";
 import { ScribeSign } from "../scribe-sign";
+import { TOUCH_TARGET } from "../touch-target";
 import { formatDueDate } from "./action-item-rows";
 
 /** A workspace member on a row: name and photo. */
@@ -17,14 +18,11 @@ interface RoomPerson {
   avatar_url?: unknown;
 }
 
-// A 44px-tall target on touch through ::after, whatever the control's own height.
-const TOUCH =
-  "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2";
 const CHIP = "inline-flex h-6 items-center rounded-full text-caption font-medium";
 const SOLID_CHIP = `${CHIP} bg-surface text-foreground inset-ring inset-ring-border`;
-const DASHED_CHIP = `${CHIP} ${TOUCH} gap-1 border border-dashed border-border px-2 text-muted-foreground hover:text-foreground`;
+const DASHED_CHIP = `${CHIP} ${TOUCH_TARGET} gap-1 border border-dashed border-border px-2 text-muted-foreground hover:text-foreground`;
 
-/** A group's heading in the room ("Chờ xử lý (3)"); the pending one carries the clerk's select-all box. */
+/** A group's heading in the room ("Chờ xử lý · 3"); the pending one carries the clerk's select-all box. */
 export function RoomGroupHeading({
   children,
   pick,
@@ -52,7 +50,8 @@ export function RoomGroupHeading({
 /**
  * A pending item as the clerk works it in the room: tick, title, who and when
  * as chips (a clerk's empty one opens the composer to fill it in), the
- * scribe's mark and time on what it heard, and two icon commands. Everyone
+ * scribe's mark and time on what it heard, and two icon commands. What was
+ * said (owner, due) stays beside a chip the suggestion leaves empty. Everyone
  * else reads the same row without the box, the commands or the empty chips.
  */
 export function RoomPendingRow({
@@ -80,8 +79,13 @@ export function RoomPendingRow({
   const due = item.suggested_due_date ? formatDueDate(item.suggested_due_date, locale) : null;
   const createdMs = item.source === "LIVE" && item.created_at ? Date.parse(item.created_at) : NaN;
   const heardAt = Number.isFinite(createdMs) ? formatMeetingClock(createdMs, locale) : null;
+  const saidOwner = assignee ? null : item.owner_text?.trim();
+  const saidDue = due ? null : item.due_text?.trim();
   const Chip = onEdit ? "button" : "span";
-  const chipProps = onEdit ? { type: "button" as const, onClick: onEdit } : {};
+  // A filled chip opens the composer too: its name says so, its text stays the value.
+  const chipProps = (value: string) =>
+    onEdit ? { type: "button" as const, onClick: onEdit, "aria-label": `${value} — ${t("meetings.actionItemsSection.editAssign")}` } : {};
+  const said = (text: string | null | undefined) => (text ? <span className="text-caption text-muted-foreground">{text}</span> : null);
   return (
     <li
       data-action-item={item.id}
@@ -105,7 +109,7 @@ export function RoomPendingRow({
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {assignee ? (
-            <Chip {...chipProps} className={cn(SOLID_CHIP, onEdit && TOUCH, "gap-1.25 pr-2 pl-0.75")}>
+            <Chip {...chipProps(assignee.display_name)} className={cn(SOLID_CHIP, onEdit && TOUCH_TARGET, "gap-1.25 pr-2 pl-0.75")}>
               <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} size={18} />
               {assignee.display_name}
             </Chip>
@@ -115,8 +119,9 @@ export function RoomPendingRow({
               {t("meetings.assignTaskTo")}
             </button>
           ) : null}
+          {said(saidOwner)}
           {due ? (
-            <Chip {...chipProps} className={cn(SOLID_CHIP, onEdit && TOUCH, "gap-1 px-2")}>
+            <Chip {...chipProps(due)} className={cn(SOLID_CHIP, onEdit && TOUCH_TARGET, "gap-1 px-2")}>
               <Clock aria-hidden className="size-3 text-muted-foreground" />
               {due}
             </Chip>
@@ -125,10 +130,12 @@ export function RoomPendingRow({
               {t("meetings.panel.feed.addDue")}
             </button>
           ) : null}
+          {said(saidDue)}
           {heardAt ? (
             <span className="inline-flex items-center text-caption text-faint-foreground tabular-nums">
               <ScribeSign className="mr-1 [&_svg]:size-3" />
-              {heardAt}
+              <span aria-hidden>{heardAt}</span>
+              <span className="sr-only">{t("meetings.actionItemsSection.sourceLiveAt", { time: heardAt })}</span>
             </span>
           ) : null}
           {evidence}
@@ -157,12 +164,18 @@ export function RoomConvertedRow({
         <Check aria-hidden className="size-3" />
       </span>
       <span className="min-w-0 flex-1 text-body text-pretty text-foreground">{title}</span>
-      {assignee ? <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} size={20} /> : null}
+      {assignee ? (
+        // The face is aria-hidden: the name is said beside it and shown on hover.
+        <span title={assignee.display_name} className="inline-flex shrink-0">
+          <MeetingPersonAvatar name={assignee.display_name} avatarUrl={assignee.avatar_url} size={20} />
+          <span className="sr-only">{assignee.display_name}</span>
+        </span>
+      ) : null}
       {taskHref ? (
         <AppLink
           href={taskHref}
           aria-label={t("meetings.actionItemsSection.openTask", { title })}
-          className={cn(TOUCH, "grid size-7 shrink-0 place-items-center rounded-md text-faint-foreground hover:bg-surface-hover hover:text-foreground")}
+          className={cn(TOUCH_TARGET, "grid size-7 shrink-0 place-items-center rounded-md text-faint-foreground hover:bg-surface-hover hover:text-foreground")}
         >
           <Maximize2 aria-hidden className="size-3.5" />
         </AppLink>

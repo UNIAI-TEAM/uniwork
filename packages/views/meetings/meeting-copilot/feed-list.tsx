@@ -8,14 +8,11 @@ import { formatDueDate } from "../meeting-action-items/action-item-rows";
 import { meetingLocale } from "../meeting-datetime";
 import { MeetingPersonAvatar } from "../meeting-person";
 import { MeetingRecordingDialog } from "../meeting-recording-dialog";
+import { TOUCH_TARGET } from "../touch-target";
 import { useMemberIndex } from "../use-member-index";
 import { FeedKindMark } from "./feed-filter-chips";
 
 type MemberOf = ReturnType<typeof useMemberIndex>["memberOf"];
-
-// A 44px-tall target on touch through ::after, whatever the control's own height.
-const TOUCH =
-  "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2";
 
 /**
  * What the meeting produced, as the UNI tab's feed: one row per entry in the
@@ -109,7 +106,7 @@ function FeedRow({
         {recording ? (
           <button
             type="button"
-            className={`${TOUCH} text-body font-medium text-foreground hover:underline`}
+            className={`${TOUCH_TARGET} text-body font-medium text-foreground hover:underline`}
             onClick={() => onPlay(recording.id)}
           >
             {t("meetings.panel.feed.playRecording")}
@@ -135,7 +132,7 @@ function FeedRow({
           <button
             type="button"
             aria-label={t("meetings.panel.feed.jumpToLine", { time })}
-            className={`${TOUCH} hover:text-foreground hover:underline`}
+            className={`${TOUCH_TARGET} hover:text-foreground hover:underline`}
             onClick={() => onJumpToSegment(segmentId)}
           >
             {time}
@@ -184,7 +181,7 @@ function TaskMeta({
       ) : addDue ? (
         <button
           type="button"
-          className={`${TOUCH} inline-flex h-5 items-center rounded-md border border-dashed border-border px-1.75 text-micro font-medium text-muted-foreground hover:text-foreground`}
+          className={`${TOUCH_TARGET} inline-flex h-5 items-center rounded-md border border-dashed border-border px-1.75 text-micro font-medium text-muted-foreground hover:text-foreground`}
           onClick={() => onEditItem(item.id)}
         >
           {t("meetings.panel.feed.addDue")}

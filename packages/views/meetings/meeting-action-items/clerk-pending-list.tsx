@@ -140,7 +140,7 @@ export function ClerkPendingList({
                       size="icon-sm"
                       variant="ghost"
                       className="text-muted-foreground"
-                      aria-label={t("meetings.actionItemsSection.editAssign")}
+                      aria-label={t("meetings.panel.actions.editLabel", { title: item.title })}
                       onClick={edit}
                     >
                       <PencilLine aria-hidden />

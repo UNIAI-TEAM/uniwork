@@ -202,7 +202,7 @@ export function MeetingActionItemsSection({
                   : undefined
               }
             >
-              {t("meetings.actionItemsSection.pendingGroup", { count: pending.length })}
+              {t("meetings.panel.actions.pending", { count: pending.length })}
             </RoomGroupHeading>
           ) : pending.length > 0 ? (
             <GroupHeading>{t("meetings.actionItemsSection.pendingGroup", { count: pending.length })}</GroupHeading>
@@ -238,7 +238,7 @@ export function MeetingActionItemsSection({
       {converted.length > 0 ? (
         <section>
           {room ? (
-            <RoomGroupHeading>{t("meetings.actionItemsSection.convertedGroup", { count: converted.length })}</RoomGroupHeading>
+            <RoomGroupHeading>{t("meetings.panel.actions.converted", { count: converted.length })}</RoomGroupHeading>
           ) : (
             <GroupHeading>{t("meetings.actionItemsSection.convertedGroup", { count: converted.length })}</GroupHeading>
           )}

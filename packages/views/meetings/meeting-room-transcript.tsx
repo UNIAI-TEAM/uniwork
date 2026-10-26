@@ -16,6 +16,7 @@ import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
+import { TOUCH_TARGET } from "./touch-target";
 import { transcriptSpeaker } from "./transcript/transcript-speaker";
 import { useNow } from "./use-now";
 
@@ -25,10 +26,6 @@ const STICK_PX = 48;
 const LIVE_MS = 10_000;
 // How long a line the reader jumped to stays marked.
 const FLASH_MS = 2_000;
-
-// A 44px-tall target on touch through ::after, whatever the control's own height.
-const TOUCH =
-  "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2";
 
 type Range = readonly [start: number, end: number];
 type Line = { segment: MeetingTranscriptSegment; matches: readonly Range[] };
@@ -369,7 +366,7 @@ function LinkChip({ link, onOpenLink }: { link: SegmentLink; onOpenLink: GroupPr
     </>
   );
   return onOpenLink ? (
-    <button type="button" className={cn(className, TOUCH, "hover:underline")} onClick={() => onOpenLink(link.kind)}>
+    <button type="button" className={cn(className, TOUCH_TARGET, "hover:underline")} onClick={() => onOpenLink(link.kind)}>
       {body}
     </button>
   ) : (

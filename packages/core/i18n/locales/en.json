@@ -5194,7 +5194,11 @@
         "selected_one": "{{count}} selected",
         "selected_other": "{{count}} selected",
         "clear": "Clear",
-        "carried": "From earlier meetings · {{count}}"
+        "carried": "From earlier meetings · {{count}}",
+        "pending": "Pending · {{count}}",
+        "converted": "Assigned · {{count}}",
+        "editLabel": "Edit & assign \"{{title}}\"",
+        "selectedRegion": "Selected items"
       }
     }
   },

@@ -5193,7 +5193,11 @@
         "selected_one": "{{count}} đã chọn",
         "selected_other": "{{count}} đã chọn",
         "clear": "Bỏ chọn",
-        "carried": "Từ lần họp trước · {{count}}"
+        "carried": "Từ lần họp trước · {{count}}",
+        "pending": "Chờ xử lý · {{count}}",
+        "converted": "Đã giao · {{count}}",
+        "editLabel": "Sửa & giao \"{{title}}\"",
+        "selectedRegion": "Việc đã chọn"
       }
     }
   },
