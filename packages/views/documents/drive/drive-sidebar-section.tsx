@@ -1,0 +1,88 @@
+"use client";
+
+import { TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { cn } from "@uniwork/ui/lib/utils";
+import { GoogleDriveMark } from "../../common/provider-icons";
+import type { LibraryView } from "../documents-sidebar";
+import type { DriveConnectionSummary } from "./use-drive-library-connections";
+
+export interface DriveSidebarSectionProps {
+  connections: readonly DriveConnectionSummary[];
+  /** Total linked Drive files across the caller's connections; defaults to the sum of connection counts. */
+  totalCount?: number | null;
+  view: LibraryView;
+  onSelect: (account: string | null) => void;
+}
+
+/**
+ * Sidebar section for Documents › Google Drive (spec §7.6, 4.1).
+ * Renders "Google Drive" right under "Thư mục của tôi" with the total count,
+ * followed by one child row per connected account ("Drive: <email>").
+ * Hidden when the viewer has no connection. Never renders "Người khác liên kết" (Q6).
+ */
+export function DriveSidebarSection({
+  connections,
+  totalCount,
+  view,
+  onSelect,
+}: DriveSidebarSectionProps) {
+  const { t } = useTranslation();
+
+  if (connections.length === 0) {
+    return null;
+  }
+
+  const sumCount = connections.reduce((sum, conn) => sum + Math.max(0, conn.linked_file_count), 0);
+  const resolvedTotal = typeof totalCount === "number" ? totalCount : sumCount;
+  const isAllCurrent = view.kind === "drive" && !view.account;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        aria-current={isAllCurrent ? "page" : undefined}
+        onClick={() => onSelect(null)}
+        className={cn(
+          "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+          isAllCurrent && "bg-accent font-medium",
+        )}
+      >
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          <GoogleDriveMark className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{t("driveLibrary.sidebar.google_drive")}</span>
+        <span className="font-mono text-caption tabular-nums text-muted-foreground">{resolvedTotal}</span>
+      </button>
+
+      {connections.map((conn) => {
+        const isCurrent = view.kind === "drive" && view.account === conn.id;
+        return (
+          <button
+            key={conn.id}
+            type="button"
+            aria-current={isCurrent ? "page" : undefined}
+            onClick={() => onSelect(conn.id)}
+            className={cn(
+              "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md pl-8 pr-2 text-left text-caption text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+              isCurrent && "bg-accent font-medium",
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {t("driveLibrary.sidebar.account_row", { email: conn.google_email })}
+            </span>
+            {conn.needs_reconnect ? (
+              <span className="inline-flex shrink-0 items-center gap-1 text-caption text-warning">
+                <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+                <span>{t("driveLibrary.sidebar.disconnected")}</span>
+              </span>
+            ) : null}
+            <span className="font-mono text-caption tabular-nums text-muted-foreground">
+              {conn.linked_file_count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

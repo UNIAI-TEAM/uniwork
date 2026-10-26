@@ -124,6 +124,14 @@ export const paths = {
         folderId
           ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
           : `${base}/documents/access-report`,
+      // The caller's Google Drive list in Documents (4.1), optionally narrowed to one connected account.
+      documentsDrive: (accountId?: string | null) =>
+        accountId
+          ? `${base}/documents?view=drive&account=${encodeURIComponent(accountId)}`
+          : `${base}/documents?view=drive`,
+      // Detail page of a linked Google Drive file reference (4.2).
+      documentsDriveFile: (driveFileId: string) =>
+        `${base}/documents/drive/${encodeURIComponent(driveFileId)}`,
       document: (id: string) => `${base}/documents/${id}`,
       // The document page with its version history open (a chat card's
       // "Lịch sử phiên bản"); the page drops the parameter once it opens.

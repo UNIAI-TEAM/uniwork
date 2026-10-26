@@ -19,8 +19,9 @@ import { moduleTone, type ModuleKey } from "../layout/module-tones";
 import { AppLink } from "../navigation";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentTree } from "./document-tree";
+import { DriveSidebarSection } from "./drive/drive-sidebar-section";
+import type { DriveConnectionSummary } from "./drive/use-drive-library-connections";
 import { FolderNameDialog } from "./folder-name-dialog";
-
 /** What the library shows: a collection, or one module's files (null = every module). */
 export type LibraryView =
   | { kind: "home" }
@@ -30,7 +31,8 @@ export type LibraryView =
   | { kind: "sharedByMe" }
   | { kind: "shelved" }
   | { kind: "archived" }
-  | { kind: "sources"; source: DocumentSourceKind | null };
+  | { kind: "sources"; source: DocumentSourceKind | null }
+  | { kind: "drive"; account: string | null };
 
 export const SOURCE_KINDS: readonly DocumentSourceKind[] = ["chat", "meeting", "email", "task"];
 
@@ -68,6 +70,10 @@ export interface DocumentsSidebarProps {
   className?: string;
   /** A host may supply its own folder tree while reusing the collection navigation. */
   folderTree?: ReactNode;
+  /** Connected Google Drive accounts of the caller; empty/absent hides the Google Drive section. */
+  driveConnections?: readonly DriveConnectionSummary[];
+  /** Total linked Drive files across the caller's connections (overrides the sum of connection counts when loaded). */
+  driveTotalCount?: number | null;
 }
 
 function NavItem({
@@ -162,6 +168,8 @@ export function DocumentsSidebar({
   onNewFolder,
   className,
   folderTree,
+  driveConnections = [],
+  driveTotalCount,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
   const [createOpen, setCreateOpen] = useState(false);
@@ -214,6 +222,12 @@ export function DocumentsSidebar({
           onClick={onMyFolder}
         />
       ) : null}
+      <DriveSidebarSection
+        connections={driveConnections}
+        totalCount={driveTotalCount}
+        view={view}
+        onSelect={(account) => onView({ kind: "drive", account })}
+      />
       {folderTree ?? <DocumentTree
         wsId={wsId}
         folders
