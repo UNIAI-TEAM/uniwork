@@ -261,7 +261,8 @@ export function DriveFileDetailView({
         nav.push(driveLibraryHref);
       }
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? t("driveLibrary.detail.unlink.failed"));
+      const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
+      toast.error(msg ?? t("driveLibrary.detail.unlink.failed"));
     }
   };
 
@@ -428,7 +429,7 @@ export function DriveFileDetailView({
                   {t("driveLibrary.detail.props.viewer_account")}
                 </span>
                 <span className="font-medium text-foreground">
-                  {file.viewer_account_email || file.bound_account_email}
+                  {file.viewer_account_email || t("driveLibrary.list.no_account_value")}
                 </span>
                 <span className="text-caption text-muted-foreground">
                   {t("driveLibrary.detail.props.viewer_account_hint")}

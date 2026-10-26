@@ -13,18 +13,19 @@ import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
 import { DocumentTypeIcon } from "../document-type-icon";
-import type { DriveConnectionSummary } from "./use-drive-library-connections";
+import {
+  useDriveLibraryConnections,
+  type DriveConnectionSummary,
+} from "./use-drive-library-connections";
 
 export interface DriveLibraryListViewProps {
   wsId: string;
   accountId: string | null;
-  connections: readonly DriveConnectionSummary[];
+  connections?: readonly DriveConnectionSummary[];
   /** Optional mobile sidebar opener button rendered in the header. */
   navButton?: ReactNode;
   /** Seam for W3 Picker: opens Picker for all connections (`null`) or the selected account. */
   onAddFromDrive?: (connectionId: string | null) => void;
-  /** Optional reconnect callback for a broken account row; defaults to Settings › Integrations link. */
-  onReconnect?: (connectionId: string) => void;
 }
 
 function formatSharingBadge(
@@ -82,12 +83,13 @@ function formatUsedIn(
 export function DriveLibraryListView({
   wsId,
   accountId,
-  connections,
+  connections: connectionsProp,
   navButton,
   onAddFromDrive,
-  onReconnect,
 }: DriveLibraryListViewProps) {
   const { t } = useTranslation();
+  const { connections: defaultConnections } = useDriveLibraryConnections(wsId);
+  const connections = connectionsProp ?? defaultConnections;
   const context = useOptionalWorkspace();
   const { searchParams, replace } = useNavigation();
   const addBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -101,11 +103,11 @@ export function DriveLibraryListView({
   const selectedConnection = accountId
     ? connections.find((c) => c.id === accountId) ?? null
     : null;
+  const effectiveAccountId = selectedConnection ? selectedConnection.id : null;
   const brokenAccount = Boolean(selectedConnection?.needs_reconnect);
 
-  const query = useDriveFiles(wsId, { connectionId: accountId });
+  const query = useDriveFiles(wsId, { connectionId: effectiveAccountId });
   const files = query.data?.pages.flatMap((p) => p.files) ?? [];
-
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
   // It never opens the Picker automatically.
   const pickParam = searchParams.get("pick") === "1";
@@ -134,6 +136,8 @@ export function DriveLibraryListView({
 
   const addDisabled = brokenAccount || !onAddFromDrive;
   const addHint = !onAddFromDrive && !brokenAccount ? t("driveLibrary.list.add_unavailable_hint") : undefined;
+  const headerAddHintId = addHint ? "drive-library-add-hint-header" : undefined;
+  const emptyAddHintId = addHint ? "drive-library-add-hint-empty" : undefined;
 
   const addButton = (
     <Button
@@ -141,10 +145,10 @@ export function DriveLibraryListView({
       type="button"
       size="sm"
       aria-disabled={addDisabled || undefined}
-      title={addHint}
+      aria-describedby={headerAddHintId}
       onClick={() => {
         if (addDisabled || !onAddFromDrive) return;
-        onAddFromDrive(accountId);
+        onAddFromDrive(effectiveAccountId);
       }}
     >
       <Plus aria-hidden className="size-4" />
@@ -161,20 +165,32 @@ export function DriveLibraryListView({
           <h1 className="truncate text-title font-semibold">{title}</h1>
           <p className="text-caption text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <AppLink
-            href={settingsIntegrationsHref}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            {t("driveLibrary.list.manage_connections")}
-          </AppLink>
-          {addButton}
-          {navButton}
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <AppLink
+              href={settingsIntegrationsHref}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {t("driveLibrary.list.manage_connections")}
+            </AppLink>
+            {addButton}
+            {navButton}
+          </div>
+          {addHint ? (
+            <p id={headerAddHintId} className="text-caption text-muted-foreground">
+              {addHint}
+            </p>
+          ) : null}
         </div>
       </div>
 
       {query.isPending ? (
-        <div className="space-y-2" aria-busy="true" aria-label={t("documents.library.loading")}>
+        <div
+          role="status"
+          className="space-y-2"
+          aria-busy="true"
+          aria-label={t("documents.library.loading")}
+        >
           {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton key={index} className="h-11 w-full rounded-md" />
           ))}
@@ -200,20 +216,27 @@ export function DriveLibraryListView({
           description={t("driveLibrary.list.empty_description")}
           actions={
             !brokenAccount ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-disabled={addDisabled || undefined}
-                title={addHint}
-                onClick={() => {
-                  if (addDisabled || !onAddFromDrive) return;
-                  onAddFromDrive(accountId);
-                }}
-              >
-                <Plus aria-hidden className="size-4" />
-                {addLabel}
-              </Button>
+              <div className="flex flex-col items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-disabled={addDisabled || undefined}
+                  aria-describedby={emptyAddHintId}
+                  onClick={() => {
+                    if (addDisabled || !onAddFromDrive) return;
+                    onAddFromDrive(effectiveAccountId);
+                  }}
+                >
+                  <Plus aria-hidden className="size-4" />
+                  {addLabel}
+                </Button>
+                {addHint ? (
+                  <p id={emptyAddHintId} className="text-caption text-muted-foreground">
+                    {addHint}
+                  </p>
+                ) : null}
+              </div>
             ) : undefined
           }
         />
@@ -248,7 +271,8 @@ export function DriveLibraryListView({
                     : undefined;
                   const rowNeedsReconnect =
                     file.viewer_access === "connection_lost" || Boolean(viewerConn?.needs_reconnect);
-                  const accountEmail = file.viewer_account_email || file.bound_account_email;
+                  const accountEmail =
+                    file.viewer_account_email || t("driveLibrary.list.no_account_value");
                   const createdCount = file.tasks_created?.count ?? 0;
 
                   return (
@@ -268,24 +292,13 @@ export function DriveLibraryListView({
                         <div className="flex flex-col gap-0.5">
                           <span className="text-caption text-foreground">{accountEmail}</span>
                           {rowNeedsReconnect ? (
-                            onReconnect && file.viewer_connection_id ? (
-                              <button
-                                type="button"
-                                onClick={() => onReconnect(file.viewer_connection_id!)}
-                                className="inline-flex items-center gap-1 text-left text-caption text-warning hover:underline"
-                              >
-                                <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                                <span>{t("driveLibrary.list.reconnect_inline")}</span>
-                              </button>
-                            ) : (
-                              <AppLink
-                                href={settingsIntegrationsHref}
-                                className="inline-flex items-center gap-1 text-caption text-warning hover:underline"
-                              >
-                                <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                                <span>{t("driveLibrary.list.reconnect_inline")}</span>
-                              </AppLink>
-                            )
+                            <AppLink
+                              href={settingsIntegrationsHref}
+                              className="inline-flex items-center gap-1 text-caption text-warning hover:underline"
+                            >
+                              <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+                              <span>{t("driveLibrary.list.reconnect_inline")}</span>
+                            </AppLink>
                           ) : null}
                         </div>
                       </td>
@@ -314,7 +327,23 @@ export function DriveLibraryListView({
             </table>
           </div>
 
-          {query.hasNextPage ? (
+          {query.isFetchNextPageError ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-caption text-destructive"
+            >
+              <span>{t("driveLibrary.list.error_title")}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void query.fetchNextPage()}
+              >
+                <RefreshCw aria-hidden className="size-3.5" />
+                {t("driveLibrary.list.retry")}
+              </Button>
+            </div>
+          ) : query.hasNextPage ? (
             <div className="flex justify-center">
               <Button
                 type="button"

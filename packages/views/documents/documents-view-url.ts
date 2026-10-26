@@ -52,3 +52,12 @@ export function buildDocumentsViewUrl(
   }
   return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
 }
+
+/** True when two `LibraryView` values name the same sidebar destination. */
+export function sameDocumentsView(a: LibraryView, b: LibraryView): boolean {
+  return (
+    a.kind === b.kind &&
+    (a.kind !== "sources" || b.kind !== "sources" || a.source === b.source) &&
+    (a.kind !== "drive" || b.kind !== "drive" || a.account === b.account)
+  );
+}

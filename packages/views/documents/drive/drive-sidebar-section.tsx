@@ -5,16 +5,17 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { GoogleDriveMark } from "../../common/provider-icons";
 import type { LibraryView } from "../documents-sidebar";
-import type { DriveConnectionSummary } from "./use-drive-library-connections";
+import {
+  useDriveLibraryConnections,
+  type DriveConnectionSummary,
+} from "./use-drive-library-connections";
 
 export interface DriveSidebarSectionProps {
-  connections: readonly DriveConnectionSummary[];
-  /** Total linked Drive files across the caller's connections; defaults to the sum of connection counts. */
-  totalCount?: number | null;
+  wsId: string;
+  connections?: readonly DriveConnectionSummary[];
   view: LibraryView;
   onSelect: (account: string | null) => void;
 }
-
 /**
  * Sidebar section for Documents › Google Drive (spec §7.6, 4.1).
  * Renders "Google Drive" right under "Thư mục của tôi" with the total count,
@@ -22,19 +23,20 @@ export interface DriveSidebarSectionProps {
  * Hidden when the viewer has no connection. Never renders "Người khác liên kết" (Q6).
  */
 export function DriveSidebarSection({
-  connections,
-  totalCount,
+  wsId,
+  connections: connectionsProp,
   view,
   onSelect,
 }: DriveSidebarSectionProps) {
   const { t } = useTranslation();
+  const { connections: defaultConnections } = useDriveLibraryConnections(wsId);
+  const connections = connectionsProp ?? defaultConnections;
 
   if (connections.length === 0) {
     return null;
   }
 
-  const sumCount = connections.reduce((sum, conn) => sum + Math.max(0, conn.linked_file_count), 0);
-  const resolvedTotal = typeof totalCount === "number" ? totalCount : sumCount;
+  const resolvedTotal = connections.reduce((sum, conn) => sum + Math.max(0, conn.linked_file_count), 0);
   const isAllCurrent = view.kind === "drive" && !view.account;
 
   return (

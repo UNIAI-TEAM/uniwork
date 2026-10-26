@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import {
@@ -150,6 +151,20 @@ describe("DriveFileDetailView (4.2)", () => {
               correlation_id: "c1",
               occurred_at: "2026-10-26T09:58:00Z",
             },
+            {
+              id: "ev2",
+              organization_id: "org1",
+              workspace_id: WS,
+              actor_kind: "human",
+              actor_id: "u_unknown",
+              action: "drive_file.linked",
+              resource_type: "drive_file",
+              resource_id: FILE_ID,
+              changes: {},
+              metadata: {},
+              correlation_id: "c2",
+              occurred_at: "2026-10-26T08:15:00Z",
+            },
           ],
         });
       }
@@ -195,8 +210,9 @@ describe("DriveFileDetailView (4.2)", () => {
       "/acme/doi/tasks/t3",
     );
 
-    // Activity in UniWork via useResourceHistory(wsId, "drive_file", id)
+    // Activity in UniWork via useResourceHistory(wsId, "drive_file", id) including unknown actor fallback
     expect(await screen.findByText(/Bạn đã tạo 4 việc từ đề xuất của UNI/)).toBeInTheDocument();
+    expect(screen.getByText(/Một thành viên đã liên kết tệp từ Google Drive/)).toBeInTheDocument();
   });
 
   it("renders the §7.4 block instead of 'Bạn mở bằng' when viewer_access is unknown, lost, or connection_lost", async () => {
@@ -268,7 +284,7 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(backLink).toHaveAttribute("href", "/acme/doi/documents?view=drive");
   });
 
-  it("confirms unlink with the §7.7 alertdialog copy, calls DELETE, and navigates to ?view=drive", async () => {
+  it("confirms unlink with the §7.7 AlertDialog, moves focus into the dialog and back to trigger on cancel, calls DELETE without a second GET of detail, and navigates to ?view=drive", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === DETAIL_URL && opts?.method === "DELETE") {
         return Promise.resolve({ status: "ok" });
@@ -283,24 +299,43 @@ describe("DriveFileDetailView (4.2)", () => {
     render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />, true, nav));
 
     const unlinkBtn = await screen.findByRole("button", { name: t("driveLibrary.detail.unlink.button") });
+    unlinkBtn.focus();
     fireEvent.click(unlinkBtn);
 
-    const dialog = screen.getByRole("alertdialog");
+    const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Bỏ liên kết khỏi 5 việc?")).toBeInTheDocument();
     expect(within(dialog).getByText(t("driveLibrary.detail.unlink.confirm_body"))).toBeInTheDocument();
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
 
-    fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.unlink.confirm") }));
+    // Cancel returns focus to the trigger button
+    fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.unlink.keep") }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(unlinkBtn));
+
+    // Re-open and confirm unlink
+    fireEvent.click(unlinkBtn);
+    const dialogAgain = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialogAgain).getByRole("button", { name: t("driveLibrary.detail.unlink.confirm") }));
 
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=drive"));
-    expect(
-      requestMock.mock.calls.some(
-        ([path, opts]) => path === DETAIL_URL && (opts as { method?: string } | undefined)?.method === "DELETE",
-      ),
-    ).toBe(true);
+    const detailCalls = requestMock.mock.calls.filter(([path]) => path === DETAIL_URL);
+    const getDetailCalls = detailCalls.filter(
+      ([, opts]) =>
+        !opts ||
+        typeof opts !== "object" ||
+        !("method" in opts) ||
+        !opts.method ||
+        opts.method === "GET",
+    );
+    const deleteDetailCalls = detailCalls.filter(
+      ([, opts]) => Boolean(opts && typeof opts === "object" && "method" in opts && opts.method === "DELETE"),
+    );
+    expect(deleteDetailCalls).toHaveLength(1);
+    expect(getDetailCalls).toHaveLength(1);
   });
 
-  it("shows rebind only when can_rebind and (access_lost_at or bound_connection_lost), and calls POST .../rebind", async () => {
-    // 1. Healthy bound connection -> no rebind button
+  it("shows rebind only when onRebind is passed, can_rebind is true, and (access_lost_at or bound_connection_lost), and calls POST .../rebind", async () => {
+    // 1. Healthy bound connection -> no rebind button even when onRebind is passed
     requestMock.mockImplementation((path: string) => {
       if (path === DETAIL_URL) {
         return Promise.resolve({
@@ -310,12 +345,29 @@ describe("DriveFileDetailView (4.2)", () => {
       return Promise.resolve({ events: [] });
     });
     const { unmount } = render(
-      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
+      withFlag(
+        <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} onRebind={vi.fn()} />,
+      ),
     );
     await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
     expect(screen.queryByRole("button", { name: t("driveLibrary.detail.rebind.button") })).toBeNull();
     unmount();
 
+    // 1b. Broken bound connection but no onRebind prop -> rebind button stays hidden (seam rule)
+    requestMock.mockImplementation((path: string) => {
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({ can_rebind: true, bound_connection_lost: true, access_lost_at: "2026-10-26T09:00:00Z" }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+    const noSeamRender = render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    expect(screen.queryByRole("button", { name: t("driveLibrary.detail.rebind.button") })).toBeNull();
+    noSeamRender.unmount();
     // 2. access_lost_at set -> rebind button visible, opens dialog and posts rebind
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (path === `${DETAIL_URL}/rebind` && opts?.method === "POST") {
@@ -356,7 +408,7 @@ describe("DriveFileDetailView (4.2)", () => {
     fireEvent.click(rebindBtn);
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("uni-work2@gmail.com")).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: "uni-work2@gmail.com" })).toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
 
     await waitFor(() => expect(onRebindSeam).toHaveBeenCalledWith("conn2"));
@@ -457,5 +509,62 @@ describe("DriveFileDetailView (4.2)", () => {
     await waitFor(() => expect(onPropose).toHaveBeenCalledTimes(1));
     expect(onAsk).toHaveBeenCalledTimes(1);
     expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);
+  });
+
+  it("uses localized failure toasts on non-ApiError unlink/rebind failures and never falls back to bound_account_email when viewer_account_email is absent", async () => {
+    const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === DETAIL_URL && opts?.method === "DELETE") {
+        return Promise.reject(new Error("internal English transport error"));
+      }
+      if (path === `${DETAIL_URL}/rebind` && opts?.method === "POST") {
+        return Promise.resolve({ file: null });
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            bound_account_email: "other-member@gmail.com",
+            viewer_account_email: undefined,
+            viewer_access: "granted",
+            can_rebind: true,
+            access_lost_at: "2026-10-26T09:00:00Z",
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    render(
+      withFlag(
+        <DriveFileDetailView
+          wsId={WS}
+          driveFileId={FILE_ID}
+          connections={connections}
+          onRebind={vi.fn()}
+        />,
+      ),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    // Viewer account shows "—", not other-member@gmail.com twice, and explainer uses no-account variant
+    expect(screen.getAllByText("other-member@gmail.com")).toHaveLength(1);
+    expect(screen.getByText(t("driveLibrary.list.no_account_value"))).toBeInTheDocument();
+    expect(screen.getByText(t("driveLibrary.detail.explainer_no_account"))).toBeInTheDocument();
+
+    // Unlink failure with plain Error uses localized unlink.failed
+    fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.detail.unlink.button") }));
+    const alertDialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(alertDialog).getByRole("button", { name: t("driveLibrary.detail.unlink.confirm") }));
+    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith(t("driveLibrary.detail.unlink.failed")));
+    fireEvent.click(within(alertDialog).getByRole("button", { name: t("driveLibrary.detail.unlink.keep") }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+
+    // Rebind failure with malformed 200 uses localized rebind.failed
+    toastErrorSpy.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.detail.rebind.button") }));
+    const rebindDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(rebindDialog).getByRole("button", { name: t("driveLibrary.detail.rebind.submit") }));
+    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith(t("driveLibrary.detail.rebind.failed")));
+    toastErrorSpy.mockRestore();
   });
 });

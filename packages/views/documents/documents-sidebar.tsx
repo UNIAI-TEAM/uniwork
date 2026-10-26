@@ -22,6 +22,7 @@ import { DocumentTree } from "./document-tree";
 import { DriveSidebarSection } from "./drive/drive-sidebar-section";
 import type { DriveConnectionSummary } from "./drive/use-drive-library-connections";
 import { FolderNameDialog } from "./folder-name-dialog";
+
 /** What the library shows: a collection, or one module's files (null = every module). */
 export type LibraryView =
   | { kind: "home" }
@@ -72,8 +73,6 @@ export interface DocumentsSidebarProps {
   folderTree?: ReactNode;
   /** Connected Google Drive accounts of the caller; empty/absent hides the Google Drive section. */
   driveConnections?: readonly DriveConnectionSummary[];
-  /** Total linked Drive files across the caller's connections (overrides the sum of connection counts when loaded). */
-  driveTotalCount?: number | null;
 }
 
 function NavItem({
@@ -168,8 +167,7 @@ export function DocumentsSidebar({
   onNewFolder,
   className,
   folderTree,
-  driveConnections = [],
-  driveTotalCount,
+  driveConnections,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
   const [createOpen, setCreateOpen] = useState(false);
@@ -223,8 +221,8 @@ export function DocumentsSidebar({
         />
       ) : null}
       <DriveSidebarSection
+        wsId={wsId}
         connections={driveConnections}
-        totalCount={driveTotalCount}
         view={view}
         onSelect={(account) => onView({ kind: "drive", account })}
       />

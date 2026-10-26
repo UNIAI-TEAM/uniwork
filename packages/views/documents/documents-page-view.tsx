@@ -51,9 +51,8 @@ import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
-import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
-import { DriveLibraryListView } from "./drive/drive-library-list-view";
-import { useDriveLibraryConnections, type DriveConnectionSummary } from "./drive/use-drive-library-connections";
+import { buildDocumentsViewUrl, sameDocumentsView, viewFromSearchParams } from "./documents-view-url";
+import { buildDocumentsDriveBranch, type DriveConnectionSummary } from "./drive/documents-drive-branch";
 
 // Thùng rác has no filter bar: its library reads no type.
 const NO_TYPES: DocumentTypeFilter[] = [];
@@ -82,8 +81,6 @@ export interface DocumentsPageViewProps {
  * create, upload and save await the server.
  */
 export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion, driveConnections, onAddFromDrive }: DocumentsPageViewProps) {
-  const { connections: defaultDriveConnections } = useDriveLibraryConnections(wsId);
-  const resolvedDriveConnections = driveConnections ?? defaultDriveConnections;
   const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
@@ -117,14 +114,28 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
-  const wsPaths = useMemo(() => paths.workspace(context?.workspace.organization_slug || "org", context?.workspace.slug || wsId), [context?.workspace.organization_slug, context?.workspace.slug, wsId]);
+  const wsPaths = useMemo(
+    () => paths.workspace(context?.workspace.organization_slug || "org", context?.workspace.slug || wsId),
+    [context?.workspace.organization_slug, context?.workspace.slug, wsId],
+  );
 
   // Every list screen but Thùng rác shows the filter bar (UNI-2045 W10).
   const members = useMembers(enabled ? wsId : "");
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
-  const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, types: view.kind === "archived" ? NO_TYPES : types, editorNames: names });
+  const library = useDocumentsLibrary({
+    wsId,
+    orgId,
+    enabled,
+    view,
+    folderId,
+    types: view.kind === "archived" ? NO_TYPES : types,
+    editorNames: names,
+  });
   const search = useDocumentsSearch(wsId, enabled);
-  const folder = useDocument(wsId, folderId ?? "", { enabled: enabled && !!folderId, retry: shouldRetryFolderDetail });
+  const folder = useDocument(wsId, folderId ?? "", {
+    enabled: enabled && !!folderId,
+    retry: shouldRetryFolderDetail,
+  });
   const ensureMyFolder = useEnsureMyFolder(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
@@ -141,7 +152,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       failedCopy: t("documents.home.row.download_failed"),
     });
 
-  const officeViewer = useSourceOfficeViewer({ wsId, organizationId: context?.workspace.organization_id, frameVersion: officeFrameVersion ?? (() => ""), onDownload: (source) => downloadFile(source.id) });
+  const officeViewer = useSourceOfficeViewer({
+    wsId,
+    organizationId: context?.workspace.organization_id,
+    frameVersion: officeFrameVersion ?? (() => ""),
+    onDownload: (source) => downloadFile(source.id),
+  });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
 
@@ -173,7 +189,21 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const parentForCreate = view.kind === "home" ? folderId : null;
   const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
-  const uploads = useDocumentsUploads({ wsId, limits, canUpload: enabled && canCreate && !folderInvalid, parentId: parentForCreate, folderDoc, folderTitle: openFolderTitle, tree: library.tree, myFolderId, resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id, parentShared, onOpen, onOpenFolder: (id) => goHome({ kind: "home" }, id), officeHome });
+  const uploads = useDocumentsUploads({
+    wsId,
+    limits,
+    canUpload: enabled && canCreate && !folderInvalid,
+    parentId: parentForCreate,
+    folderDoc,
+    folderTitle: openFolderTitle,
+    tree: library.tree,
+    myFolderId,
+    resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
+    parentShared,
+    onOpen,
+    onOpenFolder: (id) => goHome({ kind: "home" }, id),
+    officeHome,
+  });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
   const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
@@ -199,11 +229,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     setNavOpen(false);
     const targetFolder = next.kind === "home" ? nextFolder : null;
     const currentView = viewFromSearchParams(searchParams);
-    const sameDestination =
-      targetFolder === urlFolderId &&
-      currentView.kind === next.kind &&
-      (currentView.kind !== "sources" || next.kind !== "sources" || currentView.source === next.source) &&
-      (currentView.kind !== "drive" || next.kind !== "drive" || currentView.account === next.account);
+    const sameDestination = targetFolder === urlFolderId && sameDocumentsView(currentView, next);
     if (!sameDestination) {
       push(buildDocumentsViewUrl(wsPaths, next, targetFolder));
     }
@@ -287,16 +313,47 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // UNI-1994: folders on screen but no loose root document is not an empty workspace.
   const outsideFolders = !folderId && !filtered && subfolders.length > 0;
   const rootEmpty = outsideFolders ? "outside_folders_" : "";
+  const { renderDriveView, sectionZoneProps, sidebarDriveProps } = buildDocumentsDriveBranch({ wsId, view, driveConnections, onAddFromDrive, zoneProps: uploads.zoneProps });
   const emptyCopy = homeView
     ? {
         title: folderId ? t("documents.home.empty.folder_title") : t(`documents.home.empty.${rootEmpty}title`),
         description: canCreate ? t(`documents.home.empty.${rootEmpty}description`) : t("documents.home.empty.view_only"),
-        actions: folderId && canCreate ? <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}><FolderPlus aria-hidden className="size-3.5" />{t("documents.home.folders.create_title")}</Button> : undefined,
+        actions:
+          folderId && canCreate ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>
+              <FolderPlus aria-hidden className="size-3.5" />
+              {t("documents.home.folders.create_title")}
+            </Button>
+          ) : undefined,
       }
-    : view.kind === "drive" ? { title: "", description: "" } : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
+    : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
-  const sidebar = { wsId, view, folderId, myFolderId, myFolderPending: ensureMyFolder.isPending, starredCount: library.starredCount, sourcesAvailable: library.sourcesAvailable, canCreate: !folderId || canCreate, newFolderPending: creator.folderPending, accessReportHref: wsPaths.documentsAccessReport(), driveConnections: resolvedDriveConnections, onView: (next: LibraryView) => goHome(next), onFolder: (id: string) => goHome({ kind: "home" }, id), onMyFolder: openMyFolder, onNewFolder: (title?: string) => newRootFolder(title) };
-  const createProps = { pending: creator.pending, unavailable: creator.unavailable, recentType: creator.lastType, onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate), onUpload: uploads.openUpload, onUploadFolder: uploads.openFolderUpload, onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined };
+  const sidebar = {
+    wsId,
+    view,
+    folderId,
+    myFolderId,
+    myFolderPending: ensureMyFolder.isPending,
+    starredCount: library.starredCount,
+    sourcesAvailable: library.sourcesAvailable,
+    canCreate: !folderId || canCreate,
+    newFolderPending: creator.folderPending,
+    accessReportHref: wsPaths.documentsAccessReport(),
+    ...sidebarDriveProps,
+    onView: (next: LibraryView) => goHome(next),
+    onFolder: (id: string) => goHome({ kind: "home" }, id),
+    onMyFolder: openMyFolder,
+    onNewFolder: (title?: string) => newRootFolder(title),
+  };
+  const createProps = {
+    pending: creator.pending,
+    unavailable: creator.unavailable,
+    recentType: creator.lastType,
+    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    onUpload: uploads.openUpload,
+    onUploadFolder: uploads.openFolderUpload,
+    onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
+  };
 
   const navButton = (
     <Button type="button" variant="outline" size="sm" className="shrink-0 xl:hidden" onClick={() => setNavOpen(true)}>
@@ -339,7 +396,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       empty={emptyCopy}
     />
   );
-  const toolbar = { types, onTypes: setTypes, editor: library.editor, onEditor: library.setEditor, members: members.data, updated: library.updated, onUpdated: library.setUpdated };
+  const toolbar = {
+    types,
+    onTypes: setTypes,
+    editor: library.editor,
+    onEditor: library.setEditor,
+    members: members.data,
+    updated: library.updated,
+    onUpdated: library.setUpdated,
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -360,7 +425,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           <section
             className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
             aria-label={t("documents.page.title")}
-            {...(view.kind === "drive" ? {} : uploads.zoneProps)}
+            {...sectionZoneProps}
           >
             {homeView ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
@@ -418,9 +483,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   </AppLink>
                 }
               />
-            ) : view.kind === "drive" ? (
-              <DriveLibraryListView wsId={wsId} accountId={view.account} connections={resolvedDriveConnections} navButton={navButton} onAddFromDrive={onAddFromDrive} />
-            ) : view.kind === "archived" ? (
+            ) : renderDriveView(navButton) ?? (view.kind === "archived" ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
@@ -489,7 +552,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 />
                 {libraryList}
               </div>
-            )}
+            ))}
             {uploads.dropActive ? <DocumentsDropOverlay /> : null}
           </section>
         </div>

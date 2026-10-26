@@ -4,9 +4,19 @@ import { useState } from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useRebindDriveFile, type DriveFile } from "@uniwork/core/drive-library";
 import type { AuditEvent } from "@uniwork/core/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -16,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { EventTime, useAuditLabels } from "../../audit/event-presenter";
 import { AppLink } from "../../navigation";
@@ -47,7 +58,7 @@ export function DriveViewerAccessBlock({
   }
 
   if (file.viewer_access === "lost") {
-    const email = file.viewer_account_email || file.bound_account_email;
+    const email = file.viewer_account_email;
     return (
       <div
         role="status"
@@ -55,7 +66,11 @@ export function DriveViewerAccessBlock({
       >
         <div className="flex items-start gap-2">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
-          <p>{t("driveLibrary.detail.viewer_access.lost_body", { email })}</p>
+          <p>
+            {email
+              ? t("driveLibrary.detail.viewer_access.lost_body", { email })
+              : t("driveLibrary.detail.viewer_access.lost_body_no_email")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {onGrantAccess ? (
@@ -73,7 +88,7 @@ export function DriveViewerAccessBlock({
   }
 
   if (file.viewer_access === "connection_lost") {
-    const email = file.viewer_account_email || file.bound_account_email;
+    const email = file.viewer_account_email;
     return (
       <div
         role="status"
@@ -81,7 +96,11 @@ export function DriveViewerAccessBlock({
       >
         <div className="flex items-start gap-2">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
-          <p>{t("driveLibrary.detail.viewer_access.connection_lost_body", { email })}</p>
+          <p>
+            {email
+              ? t("driveLibrary.detail.viewer_access.connection_lost_body", { email })
+              : t("driveLibrary.detail.viewer_access.connection_lost_body_no_email")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {onReconnect && file.viewer_connection_id ? (
@@ -138,7 +157,7 @@ export interface DriveUnlinkConfirmSectionProps {
 }
 
 /**
- * §7.7 inline alertdialog confirmation for unlinking a Drive file from the workspace.
+ * §7.7 AlertDialog confirmation for unlinking a Drive file from the workspace.
  */
 export function DriveUnlinkConfirmSection({
   usedInCount,
@@ -148,8 +167,13 @@ export function DriveUnlinkConfirmSection({
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
 
-  if (!confirming) {
-    return (
+  const title =
+    usedInCount > 0
+      ? t("driveLibrary.detail.unlink.confirm_title", { count: usedInCount })
+      : t("driveLibrary.detail.unlink.confirm_title_zero");
+
+  return (
+    <>
       <Button
         type="button"
         variant="outline"
@@ -158,46 +182,37 @@ export function DriveUnlinkConfirmSection({
       >
         {t("driveLibrary.detail.unlink.button")}
       </Button>
-    );
-  }
-
-  const title =
-    usedInCount > 0
-      ? t("driveLibrary.detail.unlink.confirm_title", { count: usedInCount })
-      : t("driveLibrary.detail.unlink.confirm_title_zero");
-
-  return (
-    <div
-      role="alertdialog"
-      aria-labelledby="drive-unlink-heading"
-      className="flex flex-col gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4"
-    >
-      <div id="drive-unlink-heading" className="text-body font-semibold text-destructive">
-        {title}
-      </div>
-      <p className="text-caption text-foreground">{t("driveLibrary.detail.unlink.confirm_body")}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() => setConfirming(false)}
-        >
-          {t("driveLibrary.detail.unlink.keep")}
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={pending}
-          aria-busy={pending || undefined}
-          onClick={onConfirm}
-        >
-          {t(pending ? "driveLibrary.detail.unlink.submitting" : "driveLibrary.detail.unlink.confirm")}
-        </Button>
-      </div>
-    </div>
+      <AlertDialog
+        open={confirming}
+        onOpenChange={(next) => (!next && !pending ? setConfirming(false) : undefined)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("driveLibrary.detail.unlink.confirm_body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>
+              {t("driveLibrary.detail.unlink.keep")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={pending}
+              aria-busy={pending || undefined}
+              onClick={onConfirm}
+            >
+              {t(
+                pending
+                  ? "driveLibrary.detail.unlink.submitting"
+                  : "driveLibrary.detail.unlink.confirm",
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -205,13 +220,13 @@ export interface DriveRebindSectionProps {
   wsId: string;
   file: DriveFile;
   connections: readonly DriveConnectionSummary[];
-  /** Seam for W3 Picker before calling `rebindDriveFile`; when omitted, calls `useRebindDriveFile` directly. */
+  /** Seam for W3 Picker before calling `rebindDriveFile`; rendered only when `onRebind` is passed. */
   onRebind?: (connectionId: string) => Promise<void> | void;
 }
 
 /**
  * §7.7 "Liên kết lại bằng tài khoản khác" button + account picker dialog.
- * Visible only when `can_rebind` and (`Boolean(access_lost_at)` or `bound_connection_lost`).
+ * Visible only when `onRebind` is passed, `can_rebind` is true, and (`Boolean(access_lost_at)` or `bound_connection_lost`).
  */
 export function DriveRebindSection({
   wsId,
@@ -231,8 +246,10 @@ export function DriveRebindSection({
   const [selectedId, setSelectedId] = useState<string>(defaultConnectionId);
 
   const showRebind =
-    file.can_rebind && (Boolean(file.access_lost_at) || file.bound_connection_lost);
-  if (!showRebind) {
+    Boolean(onRebind) &&
+    file.can_rebind &&
+    (Boolean(file.access_lost_at) || file.bound_connection_lost);
+  if (!showRebind || !onRebind) {
     return null;
   }
 
@@ -242,16 +259,14 @@ export function DriveRebindSection({
   const handleSubmit = async () => {
     if (!resolvedConnectionId) return;
     try {
-      if (onRebind) {
-        await onRebind(resolvedConnectionId);
-      }
+      await onRebind(resolvedConnectionId);
       await rebindMutation.mutateAsync({ connection_id: resolvedConnectionId });
       setOpen(false);
     } catch (error) {
-      toast.error(apiErrorMessage(error) ?? t("driveLibrary.detail.rebind.failed"));
+      const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
+      toast.error(msg ?? t("driveLibrary.detail.rebind.failed"));
     }
   };
-
   return (
     <>
       <Button
@@ -280,25 +295,27 @@ export function DriveRebindSection({
             </p>
           ) : (
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 text-caption font-medium text-foreground">
+              <legend id="drive-rebind-account-legend" className="mb-1 text-caption font-medium text-foreground">
                 {t("driveLibrary.detail.rebind.account_label")}
               </legend>
-              {activeConnections.map((conn) => (
-                <label
-                  key={conn.id}
-                  className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-body hover:bg-accent/50"
-                >
-                  <input
-                    type="radio"
-                    name="rebind-connection"
-                    value={conn.id}
-                    checked={resolvedConnectionId === conn.id}
-                    onChange={() => setSelectedId(conn.id)}
-                    className="size-4"
-                  />
-                  <span className="truncate">{conn.google_email}</span>
-                </label>
-              ))}
+              <RadioGroup
+                aria-labelledby="drive-rebind-account-legend"
+                value={resolvedConnectionId}
+                onValueChange={(value) => {
+                  if (typeof value === "string" && value) setSelectedId(value);
+                }}
+              >
+                {activeConnections.map((conn) => (
+                  <label
+                    key={conn.id}
+                    htmlFor={`rebind-connection-${conn.id}`}
+                    className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-body hover:bg-accent/50"
+                  >
+                    <RadioGroupItem id={`rebind-connection-${conn.id}`} value={conn.id} />
+                    <span className="truncate">{conn.google_email}</span>
+                  </label>
+                ))}
+              </RadioGroup>
             </fieldset>
           )}
 
@@ -340,10 +357,7 @@ function formatActivityLine(
   const actor =
     currentUserId && event.actor_id === currentUserId
       ? t("driveLibrary.detail.activity.actor_you")
-      : memberNames.get(event.actor_id) ??
-        (typeof event.metadata?.actor_name === "string" ? event.metadata.actor_name : "") ??
-        t("driveLibrary.detail.activity.actor_you");
-
+      : memberNames.get(event.actor_id) || t("driveLibrary.detail.activity.actor_unknown");
   switch (event.action) {
     case "drive_task_proposal.tasks_created": {
       const rawCount = event.metadata?.count;

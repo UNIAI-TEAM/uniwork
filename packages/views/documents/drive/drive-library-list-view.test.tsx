@@ -246,8 +246,9 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
             sharing_state: "shared",
             shared_user_count: undefined,
             viewer_connection_id: "conn3",
-            viewer_account_email: "uni-work3@gmail.com",
             viewer_access: "connection_lost",
+            viewer_account_email: undefined,
+            bound_account_email: "other-member@gmail.com",
             used_in_count: 0,
             used_in_tasks: [],
             tasks_created: { count: 0 },
@@ -280,6 +281,9 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(within(table).getByText(t("driveLibrary.list.access.shared"))).toBeInTheDocument();
     expect(within(table).getByText(t("driveLibrary.list.used_in.none"))).toBeInTheDocument();
     expect(within(table).getByText(t("driveLibrary.list.reconnect_inline"))).toBeInTheDocument();
+    // No fallback to bound_account_email when viewer_account_email is absent
+    expect(within(table).getByText(t("driveLibrary.list.no_account_value"))).toBeInTheDocument();
+    expect(within(table).queryByText("other-member@gmail.com")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.list.load_more") }));
     expect(await within(table).findByText("Tài liệu Bộ nhớ chung")).toBeInTheDocument();
@@ -318,7 +322,8 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const { unmount } = render(
       withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
     );
-    expect(screen.getByLabelText(t("documents.library.loading"))).toHaveAttribute("aria-busy", "true");
+    const loadingStatus = screen.getByRole("status", { name: t("documents.library.loading") });
+    expect(loadingStatus).toHaveAttribute("aria-busy", "true");
     unmount();
 
     // 2. Empty state
@@ -327,6 +332,14 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
     );
     expect(await screen.findByText(t("driveLibrary.list.empty_title"))).toBeInTheDocument();
+    // Disabled 'Thêm từ…' buttons link to visible text-caption hints via aria-describedby (W8-R1-10)
+    const disabledAddBtns = screen.getAllByRole("button", { name: t("driveLibrary.list.add_all") });
+    for (const btn of disabledAddBtns) {
+      expect(btn).toHaveAttribute("aria-disabled", "true");
+      const descId = btn.getAttribute("aria-describedby");
+      expect(descId).toBeTruthy();
+      expect(document.getElementById(descId!)).toHaveTextContent(t("driveLibrary.list.add_unavailable_hint"));
+    }
     emptyRender.unmount();
 
     // 3. Error + Retry
@@ -366,5 +379,50 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     await waitFor(() => expect(document.activeElement).toBe(headerAddBtn));
     expect(nav.replace).toHaveBeenCalledWith("/acme/doi/documents?view=drive");
     expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("treats an unknown account id as null for the query and title, and shows inline error + retry on failed load more (W8-R1-14)", async () => {
+    let page2Attempt = 0;
+    requestMock.mockImplementation((path: string) => {
+      const q = new URLSearchParams(path.split("?")[1] ?? "");
+      if (q.get("cursor") === "page2") {
+        page2Attempt += 1;
+        if (page2Attempt === 1) {
+          return Promise.reject(new ApiError("boom", "internal", 500));
+        }
+        return Promise.resolve({
+          files: [driveFile({ id: "df2", name: "Trang 2 thành công" })],
+          total_count: 2,
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({
+        files: [driveFile({ id: "df1", name: "Trang 1" })],
+        total_count: 2,
+        next_cursor: "page2",
+      });
+    });
+
+    render(
+      withFlag(
+        <DriveLibraryListView wsId={WS} accountId="stale-conn-id" connections={connections} />,
+      ),
+    );
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: t("driveLibrary.list.title_all") }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Trang 1")).toBeInTheDocument();
+    // First request did not include connection_id=stale-conn-id
+    expect(requestMock.mock.calls[0]?.[0]).toBe(`/api/v1/workspaces/${WS}/drive-files?limit=50`);
+
+    // Trigger load more -> fails on first attempt, shows inline alert + retry
+    fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.list.load_more") }));
+    const alertBox = await screen.findByRole("alert");
+    expect(within(alertBox).getByText(t("driveLibrary.list.error_title"))).toBeInTheDocument();
+
+    // Retry load more -> succeeds
+    fireEvent.click(within(alertBox).getByRole("button", { name: t("driveLibrary.list.retry") }));
+    expect(await screen.findByText("Trang 2 thành công")).toBeInTheDocument();
   });
 });
