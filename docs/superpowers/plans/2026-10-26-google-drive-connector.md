@@ -91,19 +91,19 @@
 ## Pha 1 — Server
 
 ### B1 — Migration + sqlc: kết nối và chính sách tổ chức — 1d
-- `drive_connections` (§6.1; unique không điều kiện `(organization_id, user_id, google_sub)`, index `google_sub` một phần), cột chính sách trên `organizations` (§6.7), `drive_grant_revocations` (§6.8, `tenantExemptTables` có lý do); mỗi index một file `CONCURRENTLY`.
+- `drive_connections` (§6.1; unique không điều kiện `(organization_id, user_id, google_sub)`, index `google_sub` một phần), cột chính sách trên `organizations` (§6.7), `drive_grant_revocations` (§6.8, có `refresh_token_enc`, `attempt_started_at`, `resolved_at`; `tenantExemptTables` có lý do); mỗi index một file `CONCURRENTLY`.
 - Query `server/pkg/db/queries/drive_connections.sql` ràng buộc `organization_id` bằng tham số.
 - Test: `server/migrations/lint_test.go`, `TestEveryQueryNamesItsTenant`.
 
-### B2 — OAuth kết nối, refresh, ngắt, chính sách, vòng đời (1.1–1.3, QĐ 4, 13) — 4,5d
+### B2 — OAuth kết nối, refresh, ngắt, chính sách, vòng đời (1.1–1.3, QĐ 4, 13) — 5d
 - `server/internal/service/drive_connections.go` (Start, Complete, List, Disconnect), `drive_oauth_refresh.go` (mẫu `email_hub_oauth_refresh.go:19-128`), `drive_policy.go` (miền + dùng chung, `requireOrgAdmin`).
 - Start/list theo workspace (`RequireMember` → tổ chức, spec §5.2); state niêm phong có nonce OIDC, `target_connection_id`, `expected_sub`.
-- Callback: ngoài nhóm có phiên nhưng đăng ký qua wrapper `api` với `apiOp` (HTML) và limiter credential, như `registerEmailHubCallback` (`handler/router/email_hub.go:200-216`); xác minh id_token bằng `go-oidc` như `server/internal/auth/google.go:24-73` (issuer, audience = client Drive, hạn, nonce, `email_verified`); từ chối thiếu `drive.file` (`scope_not_granted`), sai tài khoản khi kết nối lại (`account_mismatch`); hồi sinh dòng cũ theo `(org, user, sub)`; **không thu hồi token khi thay**; ngắt kết nối rào token trong transaction và ghi `drive_grant_revocations`; job thu hồi và callback điều phối bằng khóa toàn cục `drive_grant:<google_sub>`, callback trả `retry_connect` khi một lần thu hồi chen giữa (spec §5.3, §5.3b).
+- Callback: ngoài nhóm có phiên nhưng đăng ký qua wrapper `api` với `apiOp` (HTML) và limiter credential, như `registerEmailHubCallback` (`handler/router/email_hub.go:200-216`); xác minh id_token bằng `go-oidc` như `server/internal/auth/google.go:24-73` (issuer, audience = client Drive, hạn, nonce, `email_verified`); từ chối thiếu `drive.file` (`scope_not_granted`), sai tài khoản khi kết nối lại (`account_mismatch`); hồi sinh dòng cũ theo `(org, user, sub)`; **không thu hồi token khi thay**; ngắt kết nối chuyển refresh token mã hóa sang `drive_grant_revocations` trong transaction; job thu hồi ba trạng thái (chờ → đang thu hồi → xong) và callback điều phối bằng khóa toàn cục `drive_grant:<google_sub>`; callback trả `retry_connect` khi yêu cầu đang thu hồi hoặc xong sau lúc nó bắt đầu đổi code, và không bao giờ xóa yêu cầu đã bắt đầu gọi Google; bỏ cuộc sau 24 giờ có cảnh báo `DriveRevocationAbandoned` + runbook (spec §5.3, §5.3b, §6.8).
 - Vòng đời §5.3a: ngắt trong transaction rời tổ chức, vô hiệu hóa, xóa tài khoản; trong transaction đóng tổ chức và `closeQ` dùng cho chuyển tổ chức (`organization_close.go:19-47`), thu hồi sau commit (`:106-128`).
 - Route: `POST /workspaces/{workspaceID}/drive-connections/google/start`, `GET /drive-connections/google/callback`, `GET /workspaces/{workspaceID}/drive-connections`, `DELETE /workspaces/{workspaceID}/drive-connections/{driveConnectionID}`, `GET|PUT /orgs/{orgID}/drive-policy`, `DELETE /orgs/{orgID}/drive-connections/{driveConnectionID}` (admin ngắt).
 - Config + env (5 biến) + `.env.example`; flag `drive_connector` (`keys.go`, `review_at` 2027-04-30); `GET /api/v1/config` báo `drive.available`.
 - Audit + outbox: `drive_connection.connected|reconnected|refused|auth_failed|disconnected`, `organization.drive_policy_changed`; `drive_connection.changed` (ScopeUser) vào ba catalogue.
-- Test: fake Google token + JWKS endpoint (nonce cookie/OIDC sai, issuer/audience/hạn sai, không refresh token, thiếu scope, `hd` sai, `sub` của người khác có/không cho phép, `admin_policy_enforced`, sai tài khoản khi kết nối lại), kết nối lại cùng `sub` không gọi revoke, ngắt khi còn/không còn chủ sống khác, tranh chấp thu hồi ↔ callback cùng `sub` (cùng và khác tổ chức; thu hồi bị giữ giữa lúc đếm và gọi Google; callback đổi code trước rồi thu hồi chen giữa), ngắt → kết nối lại giữ id, refresh fence hai goroutine, `invalid_grant`; mỗi sự kiện vòng đời; tài khoản cũ thuộc hai tổ chức chỉ thấy kết nối của tổ chức trong đường dẫn; `audit_coverage_test.go`; `isoRoutes` (callback `isoPublic`/`reasonProvider`); rate limit trong `router_test`.
+- Test: fake Google token + JWKS endpoint (nonce cookie/OIDC sai, issuer/audience/hạn sai, không refresh token, thiếu scope, `hd` sai, `sub` của người khác có/không cho phép, `admin_policy_enforced`, sai tài khoản khi kết nối lại), kết nối lại cùng `sub` không gọi revoke, ngắt khi còn/không còn chủ sống khác, tranh chấp thu hồi ↔ callback cùng `sub` (cùng và khác tổ chức; thu hồi bị giữ giữa lúc đếm và gọi Google; callback đổi code trước rồi thu hồi chen giữa; Google xử lý revoke rồi mất phản hồi; Google thành công rồi transaction ghi kết quả lỗi), ngắt → khởi động lại → worker thu hồi bằng token đã lưu, hủy yêu cầu khi còn chủ sống xóa token, `TestDriveRevocationTokenOnlyRevokes`, ngắt → kết nối lại giữ id, refresh fence hai goroutine, `invalid_grant`; mỗi sự kiện vòng đời; tài khoản cũ thuộc hai tổ chức chỉ thấy kết nối của tổ chức trong đường dẫn; `audit_coverage_test.go`; `isoRoutes` (callback `isoPublic`/`reasonProvider`); rate limit trong `router_test`.
 
 ### B3 — Client Drive REST, ánh xạ lỗi, đọc nội dung — 1d
 - `server/internal/service/drive_api.go`: `filesGet`, `revoke`, ánh xạ lỗi theo `reason` (spec §5.7: `appNotAuthorizedToFile` → `drive_grant_required`, `domainPolicy` → admin chặn, mất quyền → `drive_file_not_accessible` + ghi `lost`, hạn mức/5xx → `drive_unavailable` không đổi trạng thái); client 15 s, không theo redirect ra ngoài host Google.
@@ -244,10 +244,10 @@
 | Pha | Ngày-người |
 | --- | --- |
 | Spike S1–S5 | 2,5 |
-| Server B1–B10 | 20,25 |
+| Server B1–B10 | 20,75 |
 | Web W1–W10 | 24,25 |
 | Desktop D1–D4 (lane fork) | 6,5 |
 | Kiểm thử/ra mắt Q1–Q3 | 3 |
-| **Tổng** | **56,5** |
+| **Tổng** | **57** |
 
 E1 không tính (công 0,5d + thời gian chờ Google). Với một lane `uniwork` hai người (BE + FE) và một lane fork, lịch khoảng 5–6 tuần; đường găng ở mục Phụ thuộc.
