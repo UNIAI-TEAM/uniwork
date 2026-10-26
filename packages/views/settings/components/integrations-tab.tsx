@@ -12,11 +12,16 @@ import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
+import { DriveIntegrationRow } from "./drive-integration-row";
 import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
  * Only integrations the roadmap actually commits to; each cites its line.
  * Nothing here is clickable until it ships.
+ *
+ * Google Drive shipped into the available list with UNI-2186
+ * (docs/roadmap/FEATURE_ROADMAP.md C-20 / UNI-2172;
+ * docs/superpowers/specs/2026-10-26-google-drive-connector-design.md §5.2).
  */
 const PLANNED = [
   // docs/roadmap/FEATURE_ROADMAP.md A-07 (Webhook ký HMAC + SDK TypeScript),
@@ -78,6 +83,7 @@ export function IntegrationsTab() {
     <SettingsTab title={t("page.tabs.integrations")} description={t("integrations.description")}>
       <SettingsSection title={t("integrations.available")}>
         <SettingsList aria-label={t("integrations.available")}>
+          <DriveIntegrationRow />
           <EmailHubRow />
         </SettingsList>
       </SettingsSection>

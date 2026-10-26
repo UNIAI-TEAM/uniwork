@@ -872,6 +872,72 @@
       "webhooks": {
         "title": "Webhook",
         "meta": "Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi"
+      },
+      "drive": {
+        "title": "Google Drive",
+        "meta": "Liên kết tài liệu Google Drive vào việc. UNI đọc tài liệu và đề xuất việc để bạn duyệt. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
+        "consent_note": "UniWork không thấy các tệp khác trên Google Drive. Mỗi lần liên kết, bạn tự chọn tệp. UniWork không xóa tệp của bạn.",
+        "not_connected": "Chưa kết nối",
+        "new_badge": "Mới",
+        "connect": "Kết nối Google Drive",
+        "connecting": "Đang kết nối…",
+        "add_account": "Kết nối thêm tài khoản",
+        "connected_one": "Đã kết nối {{count}} tài khoản",
+        "connected_other": "Đã kết nối {{count}} tài khoản",
+        "needs_reconnect_one": " · {{count}} mất kết nối",
+        "needs_reconnect_other": " · {{count}} mất kết nối",
+        "load_error": "Không tải được",
+        "retry": "Thử lại",
+        "oauth_pending": "Hoàn tất đăng nhập trong cửa sổ vừa mở.",
+        "oauth_show_window": "Mở lại cửa sổ",
+        "oauth_closed": "Cửa sổ đăng nhập đã đóng trước khi kết nối xong. Thử lại.",
+        "popup_blocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Cho phép cửa sổ bật lên (pop-up) với UniWork rồi thử lại.",
+        "scope_label": "Phạm vi quyền",
+        "scope_value": "Chỉ tệp bạn chọn",
+        "linked_count_label": "Tài liệu đã liên kết",
+        "linked_count_one": "{{count}} tài liệu đã liên kết",
+        "linked_count_other": "{{count}} tài liệu đã liên kết",
+        "storage_label": "UniWork lưu",
+        "storage_value": "Chỉ liên kết, không lưu nội dung",
+        "uni_permissions": {
+          "title": "UNI được làm gì với tài liệu đã liên kết",
+          "read": "Đọc khi bạn hỏi, bằng quyền Google Drive của chính bạn",
+          "propose": "Đề xuất việc từ nội dung tài liệu",
+          "confirm_only": "Chỉ tạo việc sau khi bạn duyệt",
+          "never": "Không tự sửa, không xóa tệp, không lưu bản sao"
+        },
+        "account": {
+          "connected_at": "Kết nối {{when}}",
+          "status_active": "Đang hoạt động",
+          "status_lost": "Mất kết nối",
+          "lost_reconnect": "Mất kết nối · kết nối lại",
+          "reconnect": "Kết nối lại",
+          "reconnect_aria": "Kết nối lại {{email}}",
+          "disconnect": "Ngắt kết nối",
+          "disconnect_aria": "Ngắt kết nối {{email}}"
+        },
+        "disconnect_dialog": {
+          "title": "Ngắt kết nối {{email}}?",
+          "description": "UniWork sẽ ngừng đọc tệp Google Drive qua tài khoản này. Các tệp đã liên kết vẫn ở lại trong việc với trạng thái mất kết nối; tệp trên Google Drive giữ nguyên.",
+          "confirm": "Ngắt kết nối",
+          "cancel": "Hủy",
+          "success": "Đã ngắt kết nối {{email}}",
+          "error": "Chưa ngắt được kết nối. Thử lại."
+        },
+        "callback": {
+          "connected": "Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc.",
+          "reconnected": "Đã kết nối lại Google Drive.",
+          "consent_required": "Google chưa cấp quyền truy cập lâu dài. Thử lại và cho phép quyền UniWork yêu cầu.",
+          "scope_not_granted": "Bạn chưa cấp quyền chọn tệp Google Drive cho UniWork. Kết nối lại và đánh dấu quyền truy cập tệp khi Google hỏi.",
+          "account_mismatch": "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản {{email}} hoặc dùng \"Kết nối thêm tài khoản\".",
+          "account_mismatch_generic": "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản cần kết nối lại hoặc dùng \"Kết nối thêm tài khoản\".",
+          "state_invalid": "Phiên kết nối đã hết hạn hoặc được mở ở trình duyệt khác. Thử lại từ cửa sổ này.",
+          "retry_connect": "Kết nối vừa bị ngắt ở nơi khác, hãy thử lại sau ít phút.",
+          "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive. Hãy nhờ quản trị viên Google Workspace cho phép ứng dụng UniWork.",
+          "access_denied": "Bạn đã hủy đăng nhập hoặc từ chối cấp quyền cho UniWork.",
+          "provider_error": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+          "unknown": "Không hoàn tất được kết nối Google Drive. Thử lại."
+        }
       }
     },
     "billing": {
@@ -12352,5 +12418,18 @@
     "data": "Dữ liệu và AI",
     "privacy": "Chính sách quyền riêng tư",
     "terms": "Điều khoản sử dụng"
+  },
+  "drive": {
+    "title": "Google Drive",
+    "terms": {
+      "link": "Liên kết",
+      "unlink": "Bỏ liên kết",
+      "bound_account": "Tài khoản gắn",
+      "opens_with": "Mở bằng tài khoản",
+      "connection": "Kết nối",
+      "disconnected_reconnect": "Mất kết nối · kết nối lại",
+      "tasks_created": "Việc đã tạo từ tài liệu",
+      "grant_read": "Cho UniWork đọc tệp"
+    }
   }
 }

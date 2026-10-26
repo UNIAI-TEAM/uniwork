@@ -137,6 +137,7 @@ const ALL_TABS = GROUPS.flatMap((group) => group.tabs);
 const VALID_TABS = new Set(ALL_TABS.map((tab) => tab.value));
 const DEFAULT_TAB = "profile";
 const TAB_QUERY_KEY = "tab";
+const CONNECT_QUERY_KEY = "connect";
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 // Line-variant TabsTrigger zeroes active background; force surface-selected
@@ -182,7 +183,13 @@ export function SettingsPage() {
   const hidden = useHiddenGates();
 
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
-  const activeTab = tabFromUrl && VALID_TABS.has(tabFromUrl) ? tabFromUrl : DEFAULT_TAB;
+  const connectFromUrl = navigation.searchParams.get(CONNECT_QUERY_KEY);
+  const activeTab =
+    tabFromUrl && VALID_TABS.has(tabFromUrl)
+      ? tabFromUrl
+      : connectFromUrl === "drive"
+        ? "integrations"
+        : DEFAULT_TAB;
 
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);

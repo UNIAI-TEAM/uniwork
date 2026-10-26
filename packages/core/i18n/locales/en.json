@@ -873,6 +873,72 @@
       "webhooks": {
         "title": "Webhooks",
         "meta": "Send UniWork events to your own systems, signed so you can verify the sender"
+      },
+      "drive": {
+        "title": "Google Drive",
+        "meta": "Link Google Drive documents to tasks. UNI reads documents and proposes tasks for you to review. UniWork stores only links; content stays on Google Drive.",
+        "consent_note": "UniWork cannot see other files on your Google Drive. Each time you link, you pick the file yourself. UniWork never deletes your files.",
+        "not_connected": "Not connected",
+        "new_badge": "New",
+        "connect": "Connect Google Drive",
+        "connecting": "Connecting…",
+        "add_account": "Connect another account",
+        "connected_one": "{{count}} account connected",
+        "connected_other": "{{count}} accounts connected",
+        "needs_reconnect_one": " · {{count}} disconnected",
+        "needs_reconnect_other": " · {{count}} disconnected",
+        "load_error": "Couldn't load",
+        "retry": "Retry",
+        "oauth_pending": "Finish signing in in the window that just opened.",
+        "oauth_show_window": "Show the window",
+        "oauth_closed": "The sign-in window closed before connecting. Try again.",
+        "popup_blocked": "Your browser blocked the sign-in window. Allow pop-ups for UniWork, then try again.",
+        "scope_label": "Permission scope",
+        "scope_value": "Only files you pick",
+        "linked_count_label": "Linked documents",
+        "linked_count_one": "{{count}} linked document",
+        "linked_count_other": "{{count}} linked documents",
+        "storage_label": "UniWork stores",
+        "storage_value": "Links only, no content stored",
+        "uni_permissions": {
+          "title": "What UNI can do with linked documents",
+          "read": "Read when you ask, using your own Google Drive access",
+          "propose": "Propose tasks from document content",
+          "confirm_only": "Create tasks only after you approve",
+          "never": "Never edits, deletes files, or stores a copy"
+        },
+        "account": {
+          "connected_at": "Connected {{when}}",
+          "status_active": "Active",
+          "status_lost": "Disconnected",
+          "lost_reconnect": "Disconnected · Reconnect",
+          "reconnect": "Reconnect",
+          "reconnect_aria": "Reconnect {{email}}",
+          "disconnect": "Disconnect",
+          "disconnect_aria": "Disconnect {{email}}"
+        },
+        "disconnect_dialog": {
+          "title": "Disconnect {{email}}?",
+          "description": "UniWork will stop reading Google Drive files through this account. Linked files stay on their tasks as disconnected; files on Google Drive are untouched.",
+          "confirm": "Disconnect",
+          "cancel": "Cancel",
+          "success": "Disconnected {{email}}",
+          "error": "Couldn't disconnect the account. Try again."
+        },
+        "callback": {
+          "connected": "Connected Google Drive. You can now link documents to tasks.",
+          "reconnected": "Reconnected Google Drive.",
+          "consent_required": "Google didn't grant lasting access. Try again and allow the permission UniWork asks for.",
+          "scope_not_granted": "You didn't grant UniWork permission to access selected Google Drive files. Connect again and check the file access permission when Google asks.",
+          "account_mismatch": "You signed in with a different Google account than the one being reconnected. Sign in with {{email}} or use \"Connect another account\".",
+          "account_mismatch_generic": "You signed in with a different Google account than the one being reconnected. Sign in with the account being reconnected or use \"Connect another account\".",
+          "state_invalid": "The connection session expired or was opened in another browser. Try again from this window.",
+          "retry_connect": "This connection was just disconnected elsewhere. Try again in a few minutes.",
+          "blocked_by_workspace_admin": "Your organization's Google Workspace administrator hasn't allowed UniWork to access Google Drive. Ask your Google Workspace administrator to allow the UniWork app.",
+          "access_denied": "You cancelled sign-in or declined to grant UniWork access.",
+          "provider_error": "Google Drive did not respond in time. Try again in a few minutes.",
+          "unknown": "Couldn't finish connecting Google Drive. Try again."
+        }
       }
     },
     "billing": {
@@ -12371,5 +12437,18 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "drive": {
+    "title": "Google Drive",
+    "terms": {
+      "link": "Link",
+      "unlink": "Unlink",
+      "bound_account": "Bound account",
+      "opens_with": "Opens with",
+      "connection": "Connection",
+      "disconnected_reconnect": "Disconnected · Reconnect",
+      "tasks_created": "Tasks created from this document",
+      "grant_read": "Let UniWork read this file"
+    }
   }
 }
