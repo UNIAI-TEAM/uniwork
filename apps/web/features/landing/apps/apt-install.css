@@ -1,24 +1,43 @@
 /*
- * "Install with apt" on /apps/office (UNI-2097). Tokens only; the selectors carry
- * .marketing-site so they outrank marketing-pages.css's page-wide heading and paragraph rules.
+ * "Install with apt" on /apps/office (UNI-2097), drawn as the Download section's Linux inset
+ * (UNI-2098 r6). Tokens only; the selectors carry .marketing-site so they outrank
+ * marketing-pages.css's page-wide heading and paragraph rules. Where it sits is download.css's call.
  */
-.marketing-site .apt-install { display: flex; flex-direction: column; gap: 16px; margin-top: 40px; padding: 28px 32px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-raised); }
-.marketing-site .apt-install h3 { margin: 0; font-size: var(--text-title); font-weight: 700; color: var(--foreground); }
-.marketing-site .apt-intro { margin: 0; max-width: 62ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
-.apt-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.apt-block-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
-.marketing-site .apt-block-head h4 { margin: 0; font-size: var(--text-body); font-weight: 600; color: var(--foreground); }
-.apt-head-end { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.apt-status { font-size: var(--text-caption); color: var(--success-soft-foreground); }
-.apt-block-head button { min-width: 44px; min-height: 44px; }
-.apt-code { margin: 0; padding: 14px 16px; overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--muted); color: var(--foreground); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.6; }
-.apt-status.is-failed { font-size: var(--text-caption); color: var(--destructive-soft-foreground); }
-.apt-manual { border-top: 1px solid var(--border); padding-top: 4px; }
-.apt-manual summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: var(--text-body); font-weight: 600; color: var(--foreground); }
-.apt-chevron { flex: none; width: 16px; height: 16px; color: var(--muted-foreground); transition: transform 150ms ease; }
-.apt-manual[open] .apt-chevron { transform: rotate(90deg); }
-@media (prefers-reduced-motion: reduce) { .apt-chevron { transition: none; } }
-.apt-manual-body { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; min-width: 0; }
+.marketing-site .apt-install { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: color-mix(in srgb, var(--muted) 55%, var(--surface-raised)); }
+.apt-head { display: flex; align-items: center; gap: 8px; }
+.apt-head svg { width: 18px; height: 18px; flex: none; color: var(--muted-foreground); }
+.marketing-site .apt-head h4 { margin: 0; font-size: var(--text-body); font-weight: 700; color: var(--foreground); }
+.marketing-site .apt-intro { margin: 0; font-size: var(--text-caption); line-height: 1.55; color: var(--muted-foreground); }
+
+/* Two equal ways in: stacked, side by side with a vertical "hoặc" from 1100 px. */
+.apt-ways { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.marketing-site .apt-or { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-caption); color: var(--muted-foreground); }
+.apt-or::before, .apt-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.apt-block { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.apt-block-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.marketing-site .apt-block-head h5 { margin: 0; font-size: var(--text-body); font-weight: 600; color: var(--foreground); }
+.marketing-site .apt-copy { flex: none; min-height: 44px; border-color: var(--input); background: var(--background); }
+.apt-copy svg { width: 15px; height: 15px; }
+.apt-copy[data-copied] { color: var(--success-soft-foreground); }
+/* A command wraps only at a space or after "/" (the <wbr> the block inserts); anything longer scrolls inside its own box. */
+.apt-code { margin: 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: var(--foreground); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.65; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; }
+.apt-code code { font: inherit; }
+.marketing-site .apt-status { margin: 0; font-size: var(--text-caption); color: var(--success-soft-foreground); }
+.marketing-site .apt-status.is-failed { color: var(--destructive-soft-foreground); }
+
+/* Manual setup: folded under a quiet link-like summary. */
+.apt-manual summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: -6px 0 -6px -8px; padding: 0 8px; list-style: none; cursor: pointer; color: var(--brand); font-size: var(--text-body); font-weight: 600; }
+.apt-manual summary::-webkit-details-marker { display: none; }
+.apt-chevron { flex: none; width: 16px; height: 16px; transition: transform 200ms ease; }
+.apt-manual[open] .apt-chevron { transform: rotate(180deg); }
+.apt-manual-body { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; min-width: 0; }
 .marketing-site .apt-note { margin: 0; max-width: 62ch; font-size: var(--text-caption); line-height: 1.6; color: var(--muted-foreground); }
 .apt-note code { font-family: var(--font-mono); color: var(--foreground); overflow-wrap: anywhere; }
-@media (max-width: 640px) { .marketing-site .apt-install { padding: 20px 16px; } }
+
+@media (min-width: 1100px) {
+  .apt-ways { flex-direction: row; align-items: stretch; gap: 20px; }
+  .apt-ways > .apt-block { flex: 1; }
+  .marketing-site .apt-or { flex-direction: column; }
+  .apt-or::before, .apt-or::after { width: 1px; height: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .apt-chevron { transition: none; } }

@@ -9511,42 +9511,21 @@
           "notice": "Có phiên bản mới {{version}} ở kênh {{channel}}.",
           "action": "Tải lại",
           "dismiss": "Bỏ qua thông báo"
-        },
-        "apt": {
-          "title": "Cài qua apt",
-          "line": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách.",
-          "copy": "Sao chép",
-          "or": "hoặc",
-          "script": {
-            "label": "Dùng script cài đặt",
-            "copyAria": "Sao chép lệnh script cài đặt"
-          },
-          "deb": {
-            "label": "Tải và cài gói .deb",
-            "copyAria": "Sao chép lệnh tải và cài gói .deb"
-          },
-          "manual": "Cài thủ công",
-          "step1": "Thêm khóa ký",
-          "step2": "Thêm nguồn apt (kênh {{suite}})",
-          "step3": "Cập nhật danh sách và cài",
-          "copyStep": "Sao chép lệnh: {{title}}",
-          "copyAll": "Sao chép cả ba bước",
-          "keyAsc": "Cần khóa dạng văn bản? Tải key.asc"
         }
       },
       "apt": {
         "title": "Cài qua apt",
-        "intro": "Trên Ubuntu và Debian (amd64), cài theo cách nào cũng được; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
-        "script": "Cách 1: script cài đặt",
-        "scriptNote": "Script thêm kho apt của UniWork Office rồi cài ứng dụng.",
-        "quick": "Cách 2: tải gói .deb",
-        "quickNote": "Gói tự thêm kho, nên các phiên bản sau đến qua apt.",
+        "intro": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách.",
+        "script": "Dùng script cài đặt",
+        "or": "hoặc",
+        "quick": "Tải và cài gói .deb",
+        "copy": "Sao chép",
+        "copyStep": "Sao chép lệnh: {{step}}",
+        "copied": "Đã sao chép",
+        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
         "manual": "Cài thủ công",
         "setup": "1. Thêm kho",
         "install": "2. Cài đặt",
-        "copy": "Sao chép lệnh: {{step}}",
-        "copied": "Đã sao chép",
-        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
         "deb": "Nếu bạn đã cài tệp .deb, tệp này đã có sẵn và bạn có thể bỏ qua bước 1.",
         "fingerprint": "Dấu vân tay của khóa"
       },

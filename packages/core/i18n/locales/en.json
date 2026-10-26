@@ -9521,42 +9521,21 @@
           "notice": "A new version, {{version}}, is out on the {{channel}} channel.",
           "action": "Reload",
           "dismiss": "Dismiss notice"
-        },
-        "apt": {
-          "title": "Install with apt",
-          "line": "Install on Ubuntu or Debian either way.",
-          "copy": "Copy",
-          "or": "or",
-          "script": {
-            "label": "Use the install script",
-            "copyAria": "Copy the install script command"
-          },
-          "deb": {
-            "label": "Download and install the .deb",
-            "copyAria": "Copy the download and install command for the .deb"
-          },
-          "manual": "Manual setup",
-          "step1": "Add the signing key",
-          "step2": "Add the apt source ({{suite}} suite)",
-          "step3": "Update the package list and install",
-          "copyStep": "Copy command: {{title}}",
-          "copyAll": "Copy all three steps",
-          "keyAsc": "Need the text key? Download key.asc"
         }
       },
       "apt": {
         "title": "Install with apt",
-        "intro": "On Ubuntu and Debian (amd64), install either way; later versions then arrive through sudo apt update && sudo apt upgrade.",
-        "script": "Option 1: install script",
-        "scriptNote": "The script adds the UniWork Office apt repository, then installs the app.",
-        "quick": "Option 2: download the .deb",
-        "quickNote": "The package adds the repository itself, so later versions arrive through apt.",
+        "intro": "Install on Ubuntu or Debian either way.",
+        "script": "Use the install script",
+        "or": "or",
+        "quick": "Download and install the .deb",
+        "copy": "Copy",
+        "copyStep": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
         "manual": "Manual setup",
         "setup": "1. Add the repository",
         "install": "2. Install",
-        "copy": "Copy command: {{step}}",
-        "copied": "Copied",
-        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
         "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
         "fingerprint": "Key fingerprint"
       },

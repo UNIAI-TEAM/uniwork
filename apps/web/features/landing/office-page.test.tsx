@@ -5,8 +5,9 @@ import { setLocale } from "@uniwork/core/i18n";
 import { paths } from "@uniwork/core/paths";
 import { QueryProvider } from "@uniwork/core/provider";
 
-// The transport is the only mock (the real config schema reads the answer); the shell is a
-// pass-through because header, footer and closing banner have their own coverage.
+// The transports are the only mocks (the real schemas read the answers): the API for the
+// public config, `fetch` for the release manifest. The shell is a pass-through because
+// header, footer and closing banner have their own coverage.
 const request = vi.hoisted(() => vi.fn());
 vi.mock("@uniwork/core/api/http", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/http")>()),
@@ -26,11 +27,13 @@ vi.mock("./faq", async () => {
 
 import { OfficePage } from "./office-page";
 import { AptInstall } from "./apps/apt-install";
+import { assetUrl, jsonResponse, manifestUrls, testManifest } from "./office-download/test-manifest";
 import viMessages from "@uniwork/core/i18n/locales/vi.json";
 import enMessages from "@uniwork/core/i18n/locales/en.json";
 
 const EDITORS = ["docs", "sheets", "slides", "pdf", "html", "markdown"] as const;
-const tabs = () => [...container.querySelectorAll<HTMLElement>("[role=tab]")];
+// The editor tabs only: the Download section has its own channel tabs.
+const tabs = () => [...container.querySelectorAll<HTMLElement>("#office-editors [role=tab]")];
 const shots = () => [...container.querySelectorAll<HTMLImageElement>(".office-tabs img")].map(img => new URL(img.src).pathname);
 
 const url = (name: string) => `https://downloads.uniwork.test/office/${name}`;
@@ -58,9 +61,20 @@ async function render(config: unknown): Promise<void> {
 }
 const hrefs = (selector: string) => [...container.querySelectorAll<HTMLAnchorElement>(selector)].map((a) => a.getAttribute("href"));
 const tick = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+const fetchMock = vi.fn();
+const settle = () => act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+const click = (element: Element | null | undefined) => act(async () => { (element as HTMLElement | null | undefined)?.click(); });
+const radios = (group: string) => [...container.querySelectorAll<HTMLElement>(`${group} [role=radio]`)];
+async function pickLinux() {
+  await click(container.querySelector(".office-dl-others-trigger"));
+  await click(radios(".office-dl-tiles").find((radio) => radio.getAttribute("aria-label") === "Linux"));
+}
+const WINDOWS_BETA = assetUrl("beta", "0.10.0-beta.1", "UniWork-Office_0.10.0-beta.1_unsigned_win32_x64-setup.exe");
 
 beforeEach(async () => {
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS);
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockImplementation(async () => jsonResponse(testManifest()));
   Element.prototype.scrollIntoView = scrollIntoView;
   await setLocale("vi");
   container = document.createElement("div");
@@ -69,7 +83,8 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
-
+  vi.unstubAllGlobals();
+  fetchMock.mockReset();
   act(() => root.unmount());
   container.remove();
   request.mockReset();
@@ -81,49 +96,47 @@ describe("the Office page", () => {
   it("keeps one editor selector and the selected example, without a second use-case grid", async () => {
     await render({ flags: {}, office_installers: installers });
     expect(container.querySelector("h1")?.textContent).toBe("UniOffice");
-    expect(container.querySelectorAll("[role=tab]")).toHaveLength(6);
-    expect(container.querySelectorAll("[role=tabpanel]")).toHaveLength(1);
+    expect(tabs()).toHaveLength(6);
+    expect(container.querySelectorAll("#office-editors [role=tabpanel]")).toHaveLength(1);
     expect(container.querySelector(".office-editor-example")?.getAttribute("data-office-example")).toBe("draft");
     expect(container.querySelectorAll(".office-task, .office-trust, .office-editions")).toHaveLength(0);
     expect(container.querySelector("[data-faq]")?.getAttribute("data-count")).toBe("6");
   });
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("offers every published variant in the catalogue, without guessed download links", async () => {
+  it("offers the builds the release manifest lists, the visitor's first, without guessed download links", async () => {
     await render({ flags: {}, office_installers: installers });
-    // The visitor's Windows build leads; every other published variant follows as a chip.
-    expect(hrefs("#office-download [data-featured=windows] a[download]")).toEqual([installers.stable[2]!.url]);
-    expect(hrefs("#office-download .app-dl-chip")).toEqual([installers.stable[0]!.url, installers.stable[1]!.url, installers.stable[3]!.url]);
+    // The visitor's Windows build leads, on the most stable channel the manifest publishes.
+    expect(hrefs("#office-download .office-dl-spot a[download]")).toEqual([WINDOWS_BETA]);
+    expect(container.querySelector("#office-download .office-dl-spot-meta")?.textContent).toContain("Phiên bản 0.10.0-beta.1");
+    const listed = manifestUrls(testManifest());
+    for (const href of hrefs("#office-download a[download]")) expect(listed.has(href ?? "")).toBe(true);
     expect(container.querySelector(".office-hero-actions a")?.getAttribute("href")).toBe("#office-download");
     expect(hrefs(".office-hero-actions a")).toContain("/request-demo");
-    expect(container.querySelector("#office-download .app-dl-notes")?.textContent).toBe(viMessages.landing.office.download.unsigned);
-    expect(container.querySelector("#office-download [data-featured] .app-dl-sub")?.textContent).toContain("Phiên bản 1.2.0");
   });
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("keeps the page usable when no installers are published", async () => {
+  it("keeps the page usable when the manifest publishes nothing", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ schema: 1, channels: {} }));
     await render({ flags: {}, office_installers: { stable: [] } });
     expect(container.querySelectorAll("[download]")).toHaveLength(0);
-    expect(container.querySelectorAll("[role=status]")).toHaveLength(1);
-    expect(container.textContent).toContain(viMessages.landing.office.download.unavailable);
+    expect(container.querySelectorAll("#office-download [role=status]")).toHaveLength(1);
+    expect(container.querySelector("#office-download [role=status] h3")?.textContent).toBe(viMessages.landing.office.download.states.emptyTitle);
   });
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("degrades to the same state when the config answer drifts", async () => {
+  it("degrades to the quiet fallback when both the manifest and the config answer drift", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ unexpected: true }));
     await render({ unexpected: true });
+    await settle();
     expect(container.querySelectorAll("[download]")).toHaveLength(0);
+    expect(container.querySelector("#office-download [role=alert]")?.textContent).toContain(viMessages.landing.office.download.states.error);
     expect(container.querySelector("h1")?.textContent).toBe("UniOffice");
   });
 
   it("changes the example, capabilities and media together when an editor is selected", async () => {
     await render({ flags: {}, office_installers: installers });
-    await act(async () => { container.querySelectorAll<HTMLButtonElement>("[role=tab]")[1]?.click(); });
-    expect(container.querySelector("[role=tab][aria-selected=true]")?.textContent).toBe("Bảng tính");
+    await act(async () => { tabs()[1]?.click(); });
+    expect(container.querySelector("#office-editors [role=tab][aria-selected=true]")?.textContent).toBe("Bảng tính");
     expect(container.querySelector(".office-editor-example")?.getAttribute("data-office-example")).toBe("data");
-    expect(container.querySelector("[role=tabpanel]")?.textContent).toContain(viMessages.landing.office.tasks.data.description);
+    expect(container.querySelector("#office-editors [role=tabpanel]")?.textContent).toContain(viMessages.landing.office.tasks.data.description);
     expect(container.querySelector("#office-editor-summary-title")?.textContent).toBe(viMessages.landing.office.editors.sheets.title);
     expect(new URL(container.querySelector<HTMLImageElement>(".office-shot img")!.src).pathname).toBe("/landing/office/sheets.vi.webp");
   });
@@ -146,33 +159,33 @@ describe("the Office page", () => {
     expect(container.textContent).not.toMatch(/github|genspark|genoffice|open[- ]source|mã nguồn mở|miễn phí|ad-free|không quảng cáo|image generation|tạo ảnh|sinh ảnh|data stays in your workspace|dữ liệu vẫn ở workspace|only sent to AI|chỉ được gửi cho AI/i);
   });
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("keeps the catalogue's loading shell until the config arrives", async () => {
-    let resolve: (value: unknown) => void = () => undefined;
-    request.mockReturnValue(new Promise(done => { resolve = done; }));
-    await act(async () => { root.render(createElement(QueryProvider, null, createElement(OfficePage))); });
-    await tick();
-    expect(container.querySelectorAll("#office-download .app-dl[aria-busy] .app-dl-featured.is-skeleton")).toHaveLength(1);
-    expect(container.querySelectorAll("[download], [role=alert], [role=status]")).toHaveLength(0);
-    await act(async () => { resolve({ flags: {}, office_installers: installers }); });
-    await tick();
-    expect(container.querySelector("#office-download .app-dl")?.hasAttribute("aria-busy")).toBe(false);
-    expect(container.querySelectorAll("[download]")).toHaveLength(4);
+  it("keeps the section's loading shell until the manifest arrives", async () => {
+    let resolve: (value: Response) => void = () => undefined;
+    fetchMock.mockReturnValue(new Promise<Response>((done) => { resolve = done; }));
+    await render({ flags: {}, office_installers: installers });
+    await settle();
+    expect(container.querySelectorAll("#office-download .office-dl-skeleton[aria-busy=true] .office-dl-spot.is-skeleton")).toHaveLength(1);
+    expect(container.querySelectorAll("#office-download [download], #office-download [role=alert]")).toHaveLength(0);
+    await act(async () => { resolve(jsonResponse(testManifest())); });
+    await settle();
+    expect(container.querySelector("#office-download .office-dl-skeleton")).toBeNull();
+    expect(hrefs("#office-download a[download]")).toEqual([WINDOWS_BETA]);
   });
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("recovers the installer catalogue through its visible retry", async () => {
-    request.mockRejectedValueOnce(new Error("offline"));
+  it("falls back to the published installers and recovers the manifest through its visible retry", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await render({ flags: {}, office_installers: installers });
-    expect(container.querySelectorAll("[download]")).toHaveLength(0);
-    expect(container.querySelectorAll("[role=alert]")).toHaveLength(1);
-    expect(container.querySelector("[role=alert]")?.textContent).toContain("Không tải được danh sách bản cài đặt");
+    await settle();
+    expect(container.querySelectorAll("#office-download [role=alert]")).toHaveLength(1);
+    expect(container.querySelector("[role=alert]")?.textContent).toContain("Không tải được danh sách phiên bản");
+    // Today's catalogue, never a guessed link: the visitor's Windows installer.
+    expect(hrefs("#office-download a[download]")).toEqual([installers.stable[2]!.url]);
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async () => jsonResponse(testManifest()));
     await act(async () => { container.querySelector<HTMLButtonElement>("[role=alert] button")?.click(); });
-    await tick();
+    await settle();
     expect(container.querySelectorAll("[role=alert]")).toHaveLength(0);
-    expect(container.querySelectorAll("[download]")).toHaveLength(4);
+    expect(hrefs("#office-download a[download]")).toEqual([WINDOWS_BETA]);
   });
 
   it("keeps editor details available after a failed image, then recovers on tab change", async () => {
@@ -180,7 +193,7 @@ describe("the Office page", () => {
     await act(async () => { container.querySelector(".office-shot img")?.dispatchEvent(new Event("error")); });
     expect(container.querySelector(".office-preview-error")?.textContent).toBe(viMessages.landing.office.editors.imageUnavailable);
     expect(container.querySelector(".office-editor-example")?.textContent).toContain(viMessages.landing.office.tasks.draft.description);
-    await act(async () => { container.querySelectorAll<HTMLButtonElement>("[role=tab]")[1]?.click(); });
+    await act(async () => { tabs()[1]?.click(); });
     expect(container.querySelector(".office-preview-error")).toBeNull();
     expect(container.querySelectorAll(".office-shot img")).toHaveLength(2);
   });
@@ -213,119 +226,123 @@ describe("the Office page", () => {
   });
 
 
-  // DESIGN-ONLY (UNI-2098 r2): the Download section reads the fixture manifest, so this assertion about the real
-  // catalogue is rewritten against the manifest and the fallback in Step 2.
-  it.skip("lists every published Linux format and leaves out the one that is not published", async () => {
-    const both = [...installers.stable, { platform: "linux-x64-appimage", kind: ".AppImage", url: url("UniWork-Office-1.2.0.AppImage"), version: "1.2.0" }];
-    await render({ flags: {}, office_installers: { stable: both } });
-    expect(hrefs(".app-dl-chip[data-office-os=linux]")).toEqual([url("UniWork-Office-1.2.0-amd64.deb"), url("UniWork-Office-1.2.0.AppImage")]);
+  it("lists every published Linux format and leaves out the one that is not published", async () => {
+    await render({ flags: {}, office_installers: installers });
+    await pickLinux();
+    const chips = () => radios(".office-dl-chip-row").map((radio) => radio.getAttribute("aria-label"));
+    expect(chips()).toEqual([".deb", ".AppImage"]);
+    expect(hrefs(".office-dl-picker-button")).toEqual([assetUrl("beta", "0.10.0-beta.1", "uniwork-office_0.10.0-beta.1_linux_x64.deb")]);
     act(() => root.unmount());
     root = createRoot(container);
-    await render({ flags: {}, office_installers: { stable: both.filter((row) => row.platform !== "linux-x64-deb") } });
-    expect(hrefs(".app-dl-chip[data-office-os=linux]")).toEqual([url("UniWork-Office-1.2.0.AppImage")]);
+    fetchMock.mockImplementation(async () => jsonResponse(testManifest({ skip: ["deb"] })));
+    await render({ flags: {}, office_installers: installers });
+    await pickLinux();
+    expect(chips()).toEqual([".AppImage"]);
+    expect(hrefs(".office-dl-picker-button")).toEqual([assetUrl("beta", "0.10.0-beta.1", "UniWork-Office_0.10.0-beta.1_linux_x64.AppImage")]);
   });
-
 
   describe("the apt install block", () => {
     const mirror = (channel: string, name: string) => `https://uniworkos.com/downloads/office/${channel}/1.2.0/${name}`;
     const deb = (channel: string) => ({ platform: "linux-x64-deb", kind: ".deb", url: mirror(channel, "UniWork-Office-1.2.0-amd64.deb"), version: "1.2.0" });
     const onDownloads = { dev: [{ platform: "win32-x64", kind: ".exe", url: mirror("dev", "UniWork-Office-1.2.0-x64.exe"), version: "1.2.0" }, deb("dev")] };
-    const commands = () => [...container.querySelectorAll("#office-download .apt-code")].map((pre) => pre.textContent);
+    const commands = () => [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+    // The block on its own: the Download section decides where it sits and which suite it gets.
+    async function renderApt(config: unknown, suite?: "dev" | "beta" | "stable") {
+      request.mockResolvedValue(config);
+      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, suite ? { suite } : {}))); });
+      await tick();
+    }
     afterEach(() => { Reflect.deleteProperty(navigator, "clipboard"); });
 
-    it("is always shown, with the suite of the channel the page selects and dev when none is published", async () => {
+    it("sits in the Linux part of the Download section, on the channel the section shows", async () => {
       await render({ flags: {}, office_installers: installers });
-      expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
+      // A Windows visitor: no apt until Linux is picked among the other systems.
+      expect(container.querySelector("#office-download .apt-install")).toBeNull();
+      await pickLinux();
+      expect(container.querySelector("#office-download .office-dl-picker .apt-install")).not.toBeNull();
+      expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
+      expect(commands()[1]).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
+      expect(commands()[2]).toContain("Suites: beta\n");
+    });
+
+    it("takes the catalogue's most stable channel without a suite prop, and dev when none is published", async () => {
+      await renderApt({ flags: {}, office_installers: installers });
       expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh");
       expect(commands()[1]).toContain("/apt/latest/uniwork-office_amd64.deb");
       expect(commands()[1]).not.toContain("/apt/latest/stable/");
       expect(commands()[2]).toContain("Suites: stable\n");
       act(() => root.unmount());
       root = createRoot(container);
-      await render({ unexpected: true });
-      expect(container.querySelector("#office-download .apt-install")).not.toBeNull();
+      await renderApt({ unexpected: true });
       expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
       expect(commands()[1]).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
       expect(commands()[2]).toContain("Suites: dev\n");
     });
 
     it("never shows a stable line for a stable suite prop while the catalogue publishes no stable", async () => {
-      request.mockResolvedValue({ flags: {}, office_installers: onDownloads });
-      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
-      await tick();
-      const [script, quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      await renderApt({ flags: {}, office_installers: onDownloads }, "stable");
+      const [script, quick, setup] = commands();
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
       expect(quick).toContain("/apt/latest/dev/uniwork-office_amd64.deb");
       expect(setup).toContain("Suites: dev\n");
       expect(container.querySelector(".apt-install")?.textContent).not.toMatch(/stable/);
       act(() => root.unmount());
       root = createRoot(container);
-      request.mockResolvedValue({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
-      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
-      await tick();
-      const beta = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      await renderApt({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } }, "stable");
+      const beta = commands();
       expect(beta[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
       expect(beta[1]).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
     });
 
     it("keeps a stable suite prop while the catalogue publishes stable", async () => {
-      request.mockResolvedValue({ flags: {}, office_installers: installers });
-      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "stable" }))); });
-      await tick();
-      const [script, quick] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+      await renderApt({ flags: {}, office_installers: installers }, "stable");
+      const [script, quick] = commands();
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh");
       expect(quick).toContain("/apt/latest/uniwork-office_amd64.deb");
     });
 
-    it("takes the suite from its prop, so another page can reuse the block", async () => {
-      request.mockResolvedValue({ flags: {}, office_installers: installers });
-      await act(async () => { root.render(createElement(QueryProvider, null, createElement(AptInstall, { suite: "beta" }))); });
-      const [script, quick, setup] = [...container.querySelectorAll(".apt-code")].map((pre) => pre.textContent);
+    it("takes the suite from its prop", async () => {
+      await renderApt({ flags: {}, office_installers: installers }, "beta");
+      const [script, quick, setup] = commands();
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
       expect(quick).toContain("/apt/latest/beta/uniwork-office_amd64.deb");
       expect(setup).toContain("Suites: beta\n");
     });
 
-    it.each(["vi", "en"] as const)("shows the key, the source with the catalogue's channel, the install line and the fingerprint in %s", async (language) => {
+    it.each(["vi", "en"] as const)("shows two ways in, the key, the source, the install line and the fingerprint in %s", async (language) => {
       await setLocale(language);
-      await render({ flags: {}, office_installers: onDownloads });
+      await renderApt({ flags: {}, office_installers: onDownloads });
       const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
-      expect(container.querySelector(".apt-install h3")?.textContent).toBe(apt.title);
+      expect(container.querySelector(".apt-install h4")?.textContent).toBe(apt.title);
       const [script, quick, setup, install] = commands();
       expect(script).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- dev");
       expect(quick).toBe("wget -nv -O /tmp/uniwork-office.deb https://uniworkos.com/downloads/office/apt/latest/dev/uniwork-office_amd64.deb && sudo apt install /tmp/uniwork-office.deb");
       expect(setup).toContain("sudo curl -fsSL -o /usr/share/keyrings/uniwork-office-archive-keyring.gpg https://uniworkos.com/downloads/office/apt/key.gpg &&\nsudo tee /etc/apt/sources.list.d/uniwork-office.sources > /dev/null <<'EOF'");
-      expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
       expect(setup).toContain("<<'EOF'\n# managed by uniwork-office\nTypes: deb\nURIs: https://uniworkos.com/downloads/office/apt\nSuites: dev\nComponents: main");
       expect(setup).toContain("Signed-By: /usr/share/keyrings/uniwork-office-archive-keyring.gpg");
       expect(install).toBe("sudo apt update && sudo apt install uniwork-office");
       const text = container.querySelector(".apt-install")?.textContent ?? "";
       expect(text).toContain("58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831");
       expect(text).toContain(apt.deb);
-      expect(text).toContain(apt.intro);
-      const blocks = container.querySelectorAll(".apt-install > .apt-block");
-      expect(blocks[0]?.querySelector("h4")?.textContent).toBe(apt.script);
-      expect(blocks[0]?.querySelector(".apt-note")?.textContent).toBe(apt.scriptNote);
-      expect(blocks[1]?.querySelector("h4")?.textContent).toBe(apt.quick);
-      expect(blocks[1]?.querySelector(".apt-note")?.textContent).toBe(apt.quickNote);
-      expect(text).not.toMatch(/recommended|fastest|verified|khuyên|nhanh nhất|xác minh/i);
+      expect(container.querySelector(".apt-intro")?.textContent).toBe(apt.intro);
+      // The two ways side by side, "or" between them, each with its label and a visible copy button.
+      const ways = container.querySelectorAll(".apt-ways > .apt-block");
+      expect(ways).toHaveLength(2);
+      expect(ways[0]?.querySelector("h5")?.textContent).toBe(apt.script);
+      expect(ways[1]?.querySelector("h5")?.textContent).toBe(apt.quick);
+      expect(container.querySelector(".apt-ways > .apt-or")?.textContent).toBe(apt.or);
+      expect(ways[0]?.querySelector("button")?.textContent).toBe(apt.copy);
+      expect(text).not.toMatch(/recommended|fastest|verified|khuyên|nhanh nhất|xác minh|apt upgrade|tự cập nhật|later versions|phiên bản sau/i);
       expect(text).not.toMatch(/github|landing\./i);
     });
 
-    it("writes the suite of the most stable published channel", async () => {
-      await render({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
-      expect(commands()[0]).toBe("curl -fsSL https://uniworkos.com/downloads/office/install.sh | sudo sh -s -- beta");
-      expect(commands()[1]).toContain("/apt/latest/beta/");
-      expect(commands()[2]).toContain("Suites: beta\n");
-    });
-
     it("folds the manual steps and the fingerprint into a disclosure that starts collapsed", async () => {
-      await render({ flags: {}, office_installers: onDownloads });
+      await renderApt({ flags: {}, office_installers: onDownloads });
       const details = container.querySelector<HTMLDetailsElement>(".apt-install details");
       expect(details).not.toBeNull();
       expect(details?.open).toBe(false);
       expect(details?.querySelector("summary")?.textContent).toBe(viMessages.landing.office.apt.manual);
-      // A visible open/closed cue that assistive tech skips; CSS rotates it under details[open].
+      // A visible open/closed cue that assistive tech skips; CSS turns it under details[open].
       expect(details?.querySelector("summary > svg.apt-chevron")?.getAttribute("aria-hidden")).toBe("true");
       const inside = [...(details?.querySelectorAll(".apt-code") ?? [])].map((pre) => pre.textContent);
       expect(inside).toEqual([commands()[2], commands()[3]]);
@@ -338,26 +355,29 @@ describe("the Office page", () => {
 
     it.each(["vi", "en"] as const)("gives every copy button its own name in %s", async (language) => {
       await setLocale(language);
-      await render({ flags: {}, office_installers: onDownloads });
-      const names = [...container.querySelectorAll(".apt-install button")].map((button) => button.getAttribute("aria-label"));
+      await renderApt({ flags: {}, office_installers: onDownloads });
+      const buttons = [...container.querySelectorAll(".apt-install button")];
+      const names = buttons.map((button) => button.getAttribute("aria-label"));
       const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
       expect(names).toHaveLength(4);
       expect(new Set(names).size).toBe(4);
       expect(names[0]).toContain(apt.script);
       expect(names[1]).toContain(apt.quick);
+      // The visible label is part of the name.
+      for (const [index, button] of buttons.entries()) expect(names[index]).toContain(button.textContent);
     });
 
     it("copies a block and says so, or says it could not", async () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-      await render({ flags: {}, office_installers: onDownloads });
+      await renderApt({ flags: {}, office_installers: onDownloads });
       const buttons = container.querySelectorAll<HTMLButtonElement>(".apt-block button");
       const statuses = container.querySelectorAll(".apt-block [aria-live]");
       await act(async () => { buttons[0]?.click(); });
       expect(writeText).toHaveBeenCalledWith(commands()[0]);
+      // "Copied" is the button's own visible text, and it is announced.
+      expect(buttons[0]?.textContent).toBe(viMessages.landing.office.apt.copied);
       expect(statuses[0]?.textContent).toBe(viMessages.landing.office.apt.copied);
-      // The status is visible text beside the button, not only a screen-reader announcement.
-      expect(statuses[0]?.classList.contains("sr-only")).toBe(false);
       await act(async () => { buttons[1]?.click(); });
       expect(writeText).toHaveBeenLastCalledWith(commands()[1]);
       expect(commands()[1]).toContain("wget -nv -O /tmp/uniwork-office.deb");
@@ -367,7 +387,9 @@ describe("the Office page", () => {
       if (!("execCommand" in document)) Object.defineProperty(document, "execCommand", { configurable: true, writable: true, value: () => false });
       const execCommand = vi.spyOn(document, "execCommand").mockReturnValue(false);
       await act(async () => { buttons[2]?.click(); });
+      // A failure is visible text, not only an announcement.
       expect(statuses[2]?.textContent).toBe(viMessages.landing.office.apt.copyFailed);
+      expect(statuses[2]?.classList.contains("sr-only")).toBe(false);
       execCommand.mockRestore();
     });
 
@@ -375,7 +397,7 @@ describe("the Office page", () => {
       request.mockResolvedValue({ flags: {}, office_installers: installers });
       await act(async () => { root.render(createElement(QueryProvider, null, createElement("div", null, createElement(AptInstall), createElement(AptInstall, { suite: "beta" })))); });
       const sections = [...container.querySelectorAll(".apt-install")];
-      const ids = sections.map((section) => section.querySelector("h3")?.id);
+      const ids = sections.map((section) => section.querySelector("h4")?.id);
       expect(sections).toHaveLength(2);
       expect(ids[0]).toBeTruthy();
       expect(ids[0]).not.toBe(ids[1]);

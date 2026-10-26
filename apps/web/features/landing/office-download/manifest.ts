@@ -1,53 +1,21 @@
-import { DESKTOP_INSTALLER_KINDS, type DesktopOS, type DesktopPlatform, type OfficeInstallerOption } from "@uniwork/core/office";
+import { DESKTOP_INSTALLER_KINDS, type DesktopOS, type DesktopPlatform, type OfficeChannel, type OfficeInstallerOption } from "@uniwork/core/office";
+import type { OfficeRelease, OfficeReleaseChannel, OfficeReleases } from "@uniwork/core/api/endpoints/office-releases";
 
-/** The public release manifest, schema v1 (`/downloads/office/releases.json`). */
-export type ReleaseChannel = "dev" | "beta" | "stable";
+// The manifest's types and the endpoint live in @uniwork/core; these helpers
+// stay here because the office page is the only reader of the manifest.
+export type ReleaseChannel = OfficeChannel;
 export const RELEASE_CHANNELS: readonly ReleaseChannel[] = ["stable", "beta", "dev"];
 
-export interface ReleaseAsset {
-  platform: "win32" | "darwin" | "linux" | "all";
-  arch: "x64" | "arm64" | "all";
-  kind: "nsis" | "dmg" | "deb" | "appimage" | "checksums";
-  file: string;
-  url: string;
-  size: number;
-  sha256: string;
-  signed: boolean;
-}
-
-export interface Release {
-  version: string;
-  channel: ReleaseChannel;
-  tag: string;
-  published_at: string;
-  git_sha: string;
-  /** Untrusted markdown: rendered only through `ReleaseNotes`. */
-  notes_markdown: string | null;
-  notes_url: null;
-  signed: { windows: boolean; macos: boolean; linux: boolean };
-  apt: { suite: string; package: string; version: string } | null;
-  assets: ReleaseAsset[];
-}
-
-export interface ChannelEntry { latest: string; apt_suite: string; releases: Release[] }
-export interface ReleasesManifest {
-  schema: 1;
-  generated_at: string;
-  base_url: string;
-  /** A channel that was never published is absent (stable, today). */
-  channels: Partial<Record<ReleaseChannel, ChannelEntry>>;
-}
-
 /** The most stable channel that has a release; the section opens on it. */
-export function defaultChannel(manifest: ReleasesManifest): ReleaseChannel | null {
-  return RELEASE_CHANNELS.find((channel) => (manifest.channels[channel]?.releases.length ?? 0) > 0) ?? null;
+export function defaultChannel(manifest: OfficeReleases): ReleaseChannel | null {
+  return RELEASE_CHANNELS.find((channel) => manifest.channels[channel]) ?? null;
 }
 
-export function latestRelease(entry: ChannelEntry): Release | undefined {
+export function latestRelease(entry: OfficeReleaseChannel): OfficeRelease | undefined {
   return entry.releases.find((release) => release.version === entry.latest) ?? entry.releases[0];
 }
 
-export const channelLatests = (manifest: ReleasesManifest): Record<string, string> =>
+export const channelLatests = (manifest: OfficeReleases): Record<string, string> =>
   Object.fromEntries(RELEASE_CHANNELS.flatMap((channel) => { const entry = manifest.channels[channel]; return entry ? [[channel, entry.latest]] : []; }));
 
 /**
@@ -61,23 +29,28 @@ export interface DlFile { id: FileId; os: DesktopOS; url: string; size?: number 
 export const FILE_OS: Record<FileId, DesktopOS> = { win: "windows", mac_arm: "macos", mac_intel: "macos", deb: "linux", appimage: "linux" };
 const FILE_ORDER: readonly FileId[] = ["win", "mac_arm", "mac_intel", "deb", "appimage"];
 const BY_PLATFORM: Partial<Record<DesktopPlatform, FileId>> = { "win32-x64": "win", "darwin-arm64": "mac_arm", "darwin-x64": "mac_intel", "linux-x64-deb": "deb", "linux-x64-appimage": "appimage" };
-const sortFiles = (files: DlFile[]): DlFile[] => files.sort((a, b) => FILE_ORDER.indexOf(a.id) - FILE_ORDER.indexOf(b.id));
+/** The manifest's (platform, arch, kind) of every build the page offers; any other row (checksums, a new arch) is not offered. */
+const BY_ASSET: Record<string, FileId> = { "win32/x64/nsis": "win", "darwin/arm64/dmg": "mac_arm", "darwin/x64/dmg": "mac_intel", "linux/x64/deb": "deb", "linux/x64/appimage": "appimage" };
 
-export function releaseFiles(release: Release): DlFile[] {
-  const files = release.assets.flatMap((asset): DlFile[] => {
-    const id: FileId | null = asset.kind === "nsis" ? "win" : asset.kind === "deb" ? "deb" : asset.kind === "appimage" ? "appimage" : asset.kind === "dmg" ? (asset.arch === "arm64" ? "mac_arm" : "mac_intel") : null;
+/** Fixed order, one file per build: a repeated row keeps the first link. */
+function uniqueSorted(files: DlFile[]): DlFile[] {
+  const seen = new Set<FileId>();
+  return files.filter((file) => !seen.has(file.id) && seen.add(file.id)).sort((a, b) => FILE_ORDER.indexOf(a.id) - FILE_ORDER.indexOf(b.id));
+}
+
+export function releaseFiles(release: OfficeRelease): DlFile[] {
+  return uniqueSorted(release.assets.flatMap((asset): DlFile[] => {
+    const id = BY_ASSET[`${asset.platform}/${asset.arch}/${asset.kind}`];
     return id ? [{ id, os: FILE_OS[id], url: asset.url, size: asset.size }] : [];
-  });
-  return sortFiles(files);
+  }));
 }
 
 /** The fallback: today's `office_installers` rows (a portable ZIP is not offered here). */
 export function installerFiles(installers: readonly OfficeInstallerOption[]): DlFile[] {
-  const files = installers.flatMap((row): DlFile[] => {
+  return uniqueSorted(installers.flatMap((row): DlFile[] => {
     const id = BY_PLATFORM[row.platform];
     return id ? [{ id, os: DESKTOP_INSTALLER_KINDS[row.platform].os, url: row.url, size: row.size_bytes }] : [];
-  });
-  return sortFiles(files);
+  }));
 }
 
 /** Fixed group order, so the page never reshuffles; the visitor's own group is marked, not moved (on a phone CSS moves it first). */

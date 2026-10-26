@@ -4,7 +4,8 @@ import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { OsMark } from "../apps/os-marks";
-import { OS_ORDER, releaseFiles, type DlFile, type Release } from "./manifest";
+import type { OfficeRelease } from "@uniwork/core/api/endpoints/office-releases";
+import { OS_ORDER, releaseFiles, type DlFile } from "./manifest";
 import { ReleaseNotes } from "./notes";
 import { useReleaseDate } from "./whats-new";
 
@@ -24,7 +25,7 @@ function PastBuilds({ files, labelledBy }: { files: readonly DlFile[]; labelledB
   </dl>;
 }
 
-function HistoryRow({ release }: { release: Release }) {
+function HistoryRow({ release }: { release: OfficeRelease }) {
   const { t } = useTranslation();
   const date = useReleaseDate();
   const id = useId();
@@ -32,7 +33,7 @@ function HistoryRow({ release }: { release: Release }) {
     <Collapsible>
       <CollapsibleTrigger className="office-dl-history-trigger" aria-label={t("landing.office.download.history.open", { version: release.version })}>
         <strong>{release.version}</strong>
-        <time dateTime={release.published_at}>{date(release.published_at)}</time>
+        {release.published_at && <time dateTime={release.published_at}>{date(release.published_at)}</time>}
         <ChevronDown aria-hidden />
       </CollapsibleTrigger>
       <CollapsibleContent className="office-dl-history-panel">
@@ -46,7 +47,7 @@ function HistoryRow({ release }: { release: Release }) {
 }
 
 /** Older versions of the channel, each collapsed to one line until opened. */
-export function History({ releases }: { releases: readonly Release[] }) {
+export function History({ releases }: { releases: readonly OfficeRelease[] }) {
   const { t } = useTranslation();
   return <section className="office-dl-history" aria-labelledby="office-dl-history-title">
     <h3 id="office-dl-history-title">{t("landing.office.download.history.title")}</h3>

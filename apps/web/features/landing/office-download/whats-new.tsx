@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import type { Release } from "./manifest";
+import type { OfficeRelease } from "@uniwork/core/api/endpoints/office-releases";
 import { ReleaseNotes } from "./notes";
 
 /** Notes longer than this many lines start folded, with a "show more" to open them. */
@@ -14,7 +14,7 @@ export function useReleaseDate(): (iso: string) => string {
 }
 
 /** The latest version's notes: short, and folded when long. */
-export function WhatsNew({ release }: { release: Release }) {
+export function WhatsNew({ release }: { release: OfficeRelease }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const bodyId = useId();

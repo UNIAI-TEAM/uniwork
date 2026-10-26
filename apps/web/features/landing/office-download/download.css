@@ -1,5 +1,5 @@
 /*
- * The Download section of /apps/office (UNI-2098 r5). Tokens only; selectors carry
+ * The Download section of /apps/office (UNI-2098 r6). Tokens only; selectors carry
  * .office-site .office-dl so they outrank marketing-pages.css's page-wide heading,
  * paragraph and list rules. It extends office.css / apps.css (.app-dl-*), it adds no new look.
  */
@@ -38,6 +38,7 @@
 .office-site .office-dl-build.has-caption { min-height: 60px; padding-block: 8px; }
 .office-site .office-dl-build-text { display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.25; }
 .office-site .office-dl-build-text small { font-size: var(--text-caption); font-weight: 400; opacity: .85; }
+.office-site .office-dl-size { white-space: nowrap; }
 /* Brand-filled hero: fill, label, icon and hint line are all the semantic pair (--brand on --brand-foreground), the hint at full strength. */
 .office-site .office-dl-build.is-hero { border-color: var(--brand); background-color: var(--brand); color: var(--brand-foreground); }
 .office-site .office-dl-build.is-hero:hover { background-color: color-mix(in srgb, var(--brand) 90%, var(--background)); color: var(--brand-foreground); }
@@ -72,7 +73,7 @@
 .dark .office-site .office-dl-spot { background: radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--landing-cyan) 90%, transparent), transparent 62%), radial-gradient(70% 90% at 0% 0%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 60%), var(--surface-raised); }
 .office-site .office-dl-spot.has-extra .office-dl-spot-media { padding-bottom: 28px; }
 .office-site .office-dl-spot.has-extra .office-dl-window { border-bottom: 1px solid var(--border); border-radius: 16px 0 0 16px; }
-.office-site .office-dl-spot > .office-dl-apt { grid-column: 1 / -1; margin: 0 28px 28px; }
+.office-site .office-dl-spot > .apt-install { grid-column: 1 / -1; margin: 0 28px 28px; }
 @keyframes office-dl-rise { from { opacity: 0; transform: translateY(18px); } }
 
 /* Other systems: one closed row; opened, the OS picker (tiles, chips, one info box, one outline button). */
@@ -104,8 +105,9 @@
 .office-site .office-dl-picker-info .office-dl-picker-version { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .office-site .office-dl-picker-button { width: 100%; min-height: 60px; padding-inline: 22px; border-radius: 14px; border-width: 2px; border-color: var(--foreground); font-size: var(--text-title-sm); font-weight: 600; }
 .office-site .office-dl-picker-button svg { width: 20px; height: 20px; }
-.office-site .office-dl-picker > .office-dl-apt { grid-column: 1 / -1; padding: 20px 24px; }
-.office-site .office-dl-others > .office-dl-apt { padding: 20px 24px; }
+/* apt: inside the Linux spotlight, the picker when Linux is picked, or under the three cards. */
+.office-site .office-dl-picker > .apt-install { grid-column: 1 / -1; padding: 20px 24px; }
+.office-site .office-dl-others > .apt-install { padding: 20px 24px; }
 
 /* What's new: short, folded when long. */
 .office-site .office-dl-whatsnew { margin-top: 24px; padding: 28px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
@@ -123,36 +125,6 @@
 .office-site .office-dl-notes-md li::marker { color: var(--faint-foreground); }
 .office-site .office-dl-notes-md code { padding: 1px 6px; border-radius: 6px; background: var(--background); font-family: var(--font-mono); font-size: .88em; }
 .office-site .office-dl-notes-md a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
-
-/* apt, inside the Linux group: an inset with two equal ways in, the manual steps folded. */
-.office-site .office-dl-apt { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: color-mix(in srgb, var(--muted) 55%, var(--surface-raised)); }
-.office-site .office-dl-apt-head { display: flex; align-items: center; gap: 8px; }
-.office-site .office-dl-apt-head svg { width: 18px; height: 18px; flex: none; color: var(--muted-foreground); }
-.office-site .office-dl-apt-head h4 { margin: 0; font-size: var(--text-body); font-weight: 700; }
-.office-site .office-dl-apt-line { margin: 0; font-size: var(--text-caption); line-height: 1.55; color: var(--muted-foreground); }
-.office-site .office-dl-apt-ways { display: flex; flex-direction: column; gap: 10px; }
-.office-site .office-dl-apt-way { display: flex; flex-direction: column; gap: 6px; }
-.office-site .office-dl-apt-way-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.office-site .office-dl-apt-way-head h5 { margin: 0; font-size: var(--text-body); font-weight: 600; }
-.office-site .office-dl-apt-or { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-caption); color: var(--muted-foreground); }
-.office-site .office-dl-apt-or::before, .office-site .office-dl-apt-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
-.office-site .office-dl-apt .office-dl-code { background: var(--background); }
-.office-site .office-dl-code { margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.office-site .office-dl-code code { font: inherit; }
-.office-site .office-dl-copy-cmd, .office-site .office-dl-copy-all { flex: none; min-height: 44px; border: 1px solid var(--input); background: var(--background); }
-.office-site .office-dl-copy svg { width: 15px; height: 15px; }
-.office-site .office-dl-copy[data-copied] { color: var(--success-soft-foreground); }
-.office-site .office-dl-manual-trigger { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 44px; margin: -6px 0 -6px -8px; padding: 0 8px; border: 0; background: none; color: var(--brand); font-size: var(--text-body); font-weight: 600; cursor: pointer; }
-.office-site .office-dl-manual-trigger svg { width: 16px; height: 16px; transition: transform .2s; }
-.office-site .office-dl-manual-trigger[data-panel-open] svg { transform: rotate(180deg); }
-.office-site .office-dl-manual-panel { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; }
-.office-site .office-dl-apt-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
-.office-site .office-dl-apt-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.office-site .office-dl-apt-step-head h4 { margin: 0 auto 0 0; font-size: var(--text-body); font-weight: 600; }
-.office-site .office-dl-apt-n { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 999px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); font-size: var(--text-caption); font-weight: 700; }
-.office-site .office-dl-apt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: var(--text-body); }
-.office-site .office-dl-apt-foot a { color: var(--brand); font-weight: 500; }
-.office-site .office-dl-apt-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* Earlier versions: one line each until opened. */
 .office-site .office-dl-history { margin-top: 16px; }
@@ -203,12 +175,6 @@
 .office-site .office-dl-notice-dot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--brand); }
 .office-site .office-dl-notice button { flex: none; }
 
-@media (min-width: 1100px) {
-  .office-site .office-dl-apt-ways { flex-direction: row; align-items: stretch; gap: 20px; }
-  .office-site .office-dl-apt-way { flex: 1; min-width: 0; }
-  .office-site .office-dl-apt-or { flex-direction: column; }
-  .office-site .office-dl-apt-or::before, .office-site .office-dl-apt-or::after { width: 1px; height: auto; }
-}
 @media (max-width: 1099px) {
   .office-site .office-dl-spot { grid-template-columns: minmax(0, 1fr); }
   .office-site .office-dl-picker { grid-template-columns: minmax(0, 1fr); padding: 24px; }
@@ -247,15 +213,15 @@
   .office-site .office-dl-spot { border-radius: 24px; }
   .office-site .office-dl-spot-copy { padding: 28px 20px 28px; }
   .office-site .office-dl-spot-media { display: none; }
-  .office-site .office-dl-spot > .office-dl-apt { margin: 0 12px 12px; }
+  .office-site .office-dl-spot > .apt-install { margin: 0 12px 12px; }
   .office-site .office-dl-others.is-secondary { border-radius: 20px; }
   .office-site .office-dl-others-trigger { padding: 0 16px; gap: 12px; border-radius: 19px; }
   .office-site .office-dl-others-trigger[data-panel-open] { border-radius: 19px 19px 0 0; }
   .office-site .office-dl-picker { padding: 20px 16px 24px; gap: 20px; }
   .office-site .office-dl-tiles { gap: 8px; }
   .office-site .office-dl-tile { min-height: 104px; }
-  .office-site .office-dl-picker > .office-dl-apt { padding: 14px; }
-  .office-site .office-dl-others > .office-dl-apt { padding: 14px; }
+  .office-site .office-dl-picker > .apt-install { padding: 14px; }
+  .office-site .office-dl-others > .apt-install { padding: 14px; }
 }
 @media (max-width: 479px) {
   /* A long label ("Download for macOS Apple Silicon") wraps inside its button instead of being clipped. */
@@ -266,6 +232,6 @@
   .office-site .office-dl-spot-builds { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-manual-trigger svg, .office-site .office-dl-others-trigger > svg { transition: none; }
+  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-others-trigger > svg { transition: none; }
   .office-site .office-dl-window { animation: none; }
 }

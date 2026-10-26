@@ -40,7 +40,9 @@ export function BuildButton({ file, primary, hero = false, hint = true, classNam
   const { t } = useTranslation();
   const size = useSize();
   const hinted = hint ? HINT[file.id] : undefined;
-  const caption = [hinted ? t(hinted) : null, size(file)].filter(Boolean).join(" · ");
+  const bytes = size(file);
+  // The size and its unit never part ("118,3 MB" stays on one line at 390 px).
+  const caption = hinted || bytes ? <>{hinted && t(hinted)}{hinted && bytes && " · "}{bytes && <span className="office-dl-size">{bytes}</span>}</> : null;
   return <a className={cn(buttonVariants({ variant: primary ? "brand" : "outline", size: "lg" }), "app-dl-button office-dl-build", caption && "has-caption", hero && "is-hero", className)} href={file.url} download data-file={file.id}>
     <Download aria-hidden />
     <span className="office-dl-build-text"><span>{t("landing.office.download.cta", { label: t(`landing.office.download.chip.${file.id}`) })}</span>{caption && <small>{caption}</small>}</span>
