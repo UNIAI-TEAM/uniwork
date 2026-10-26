@@ -1350,7 +1350,11 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	t1Claimed := make(chan struct{})
 	t2Exchanged := make(chan struct{})
 	t4Resolved := make(chan struct{})
+	var exchangeTimeMu sync.Mutex
+	var latestNowUTC time.Time
+	var nowCallsSinceStart int
 	var t2ExchangeAt time.Time
+	var t2ExchangeNowCall int
 
 	fx.svc.testAfterRevocationClaimTx = func(sub string, _ db.DriveGrantRevocation) {
 		if sub == "fake-sub-exactt15" {
@@ -1361,6 +1365,10 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	}
 	fx.fake.SetExchange(func(_ context.Context, code, _ string) (DriveTokenResponse, error) {
 		if code == "exactt15" {
+			exchangeTimeMu.Lock()
+			t2ExchangeAt = latestNowUTC
+			t2ExchangeNowCall = nowCallsSinceStart
+			exchangeTimeMu.Unlock()
 			recordStep("t2_exchange")
 		}
 		return DriveTokenResponse{
@@ -1384,19 +1392,18 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 			recordStep("t5_save_attempt")
 		}
 	}
-	var exchangeTimeMu sync.Mutex
 	prevNow := fx.svc.now
 	fx.svc.now = func() time.Time {
 		tNow := prevNow()
 		exchangeTimeMu.Lock()
-		if t2ExchangeAt.IsZero() {
-			t2ExchangeAt = tNow.UTC()
-		}
+		nowCallsSinceStart++
+		latestNowUTC = tNow.UTC()
 		exchangeTimeMu.Unlock()
 		return tNow
 	}
-	// Capture the exact exchangeStartedAt timestamp read at CompleteOAuth :527 by
-	// resetting t2ExchangeAt right before CompleteOAuth runs.
+	// Capture the exact exchangeStartedAt timestamp read at CompleteOAuth :527
+	// (the second s.nowUTC() call in CompleteOAuth, after openOAuthState at :462
+	// and immediately before s.provider.Exchange at :531).
 
 	t15WorkerDone := make(chan bool, 1)
 	go func() {
@@ -1407,13 +1414,16 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	}()
 	<-t1Claimed
 	exchangeTimeMu.Lock()
+	nowCallsSinceStart = 0
+	latestNowUTC = time.Time{}
 	t2ExchangeAt = time.Time{}
+	t2ExchangeNowCall = 0
 	exchangeTimeMu.Unlock()
 	gotT15 := fx.svc.CompleteOAuth(ctx, stT15, "exactt15", "", "", nonceT15)
-	fx.svc.now = prevNow
 	if !<-t15WorkerDone {
 		t.Fatal("t1..t5 worker did not resolve")
 	}
+	fx.svc.now = prevNow
 	fx.svc.testAfterRevocationClaimTx = nil
 	fx.svc.testBeforeCallbackTx = nil
 	fx.fake.SetExchange(nil)
@@ -1428,6 +1438,9 @@ func TestDriveRevocationProtocol53bMatrix(t *testing.T) {
 	revT15, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-exactt15")
 	if err != nil || !revT15.LastAttemptStartedAt.Valid || !revT15.LastResolvedAt.Valid {
 		t.Fatalf("read revT15 evidence timestamps: %+v, err=%v", revT15, err)
+	}
+	if t2ExchangeNowCall != 2 || t2ExchangeAt.IsZero() {
+		t.Fatalf("captured exchangeStartedAt call index = %d (time=%v), want 2nd nowUTC call in CompleteOAuth (:527)", t2ExchangeNowCall, t2ExchangeAt)
 	}
 	if !revT15.LastAttemptStartedAt.Time.Before(t2ExchangeAt) || !t2ExchangeAt.Before(revT15.LastResolvedAt.Time) {
 		t.Fatalf("persisted evidence timestamps out of order: t1_claim=%v t2_exchange=%v t4_resolve=%v",
@@ -2172,11 +2185,33 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	}
 
 	discErrCh := make(chan error, 1)
+	leaveErrCh := make(chan error, 1)
+	var releaseDiscOnce sync.Once
+	safeReleaseDisc := func() { releaseDiscOnce.Do(func() { close(releaseDisc) }) }
+	var startedDisc, startedLeave bool
+	var joinedPart1 bool
+	t.Cleanup(func() {
+		if joinedPart1 {
+			return
+		}
+		safeReleaseDisc()
+		if startedDisc {
+			select {
+			case <-discErrCh:
+			case <-time.After(5 * time.Second):
+			}
+		}
+		if startedLeave {
+			select {
+			case <-leaveErrCh:
+			case <-time.After(5 * time.Second):
+			}
+		}
+	})
+	startedDisc = true
 	go func() {
 		discErrCh <- fx.svc.Disconnect(ctx, Human(mem.ID), fx.work.ID, connIDB)
 	}()
-	var releaseDiscOnce sync.Once
-	safeReleaseDisc := func() { releaseDiscOnce.Do(func() { close(releaseDisc) }) }
 	waitCh(discHeld, "Disconnect to hold drive_grant:fake-sub-lock-b", safeReleaseDisc)
 
 	// Use testAfterHelperFirstDriveSub to prove Leave has entered SQL and acquired
@@ -2191,23 +2226,25 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 			close(leaveAcquiredSubA)
 		}
 	}
-	leaveErrCh := make(chan error, 1)
+	startedLeave = true
 	go func() {
 		leaveErrCh <- memberSvc.Leave(ctx, mem.ID, fx.org.ID)
 	}()
 	waitCh(leaveAcquiredSubA, "Leave to acquire drive_grant:fake-sub-lock-a", safeReleaseDisc)
 	waitForBackendOnAdvisoryLock("fake-sub-lock-b", "fake-sub-lock-a", safeReleaseDisc)
-	testAfterHelperFirstDriveSub = nil
-	// Release manual Disconnect so it finishes and releases drive_grant:fake-sub-lock-b.
+	// Release manual Disconnect, receive both results, and only then clear the hooks (R4-1).
 	safeReleaseDisc()
-
-	if err := waitErrCh(discErrCh, "Disconnect completion"); err != nil && !errors.Is(err, ErrNotFound) {
-		t.Fatalf("Disconnect error: %v", err)
-	}
-	if err := waitErrCh(leaveErrCh, "Leave completion"); err != nil {
-		t.Fatalf("Leave error (must not deadlock): %v", err)
-	}
+	discErr := waitErrCh(discErrCh, "Disconnect completion")
+	leaveErr := waitErrCh(leaveErrCh, "Leave completion")
+	joinedPart1 = true
 	fx.svc.testBeforeDisconnectRow = nil
+	testAfterHelperFirstDriveSub = nil
+	if discErr != nil && !errors.Is(discErr, ErrNotFound) {
+		t.Fatalf("Disconnect error: %v", discErr)
+	}
+	if leaveErr != nil {
+		t.Fatalf("Leave error (must not deadlock): %v", leaveErr)
+	}
 
 	for _, sub := range []string{"fake-sub-lock-a", "fake-sub-lock-b"} {
 		cnt, err := fx.q.CountActiveDriveConnectionsBySub(ctx, sub)
@@ -2299,6 +2336,27 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 
 	errCycleA := make(chan error, 1)
 	errCycleB := make(chan error, 1)
+	var startedCycleA, startedCycleB bool
+	var joinedPart2 bool
+	t.Cleanup(func() {
+		if joinedPart2 {
+			return
+		}
+		safeReleaseA()
+		if startedCycleA {
+			select {
+			case <-errCycleA:
+			case <-time.After(5 * time.Second):
+			}
+		}
+		if startedCycleB {
+			select {
+			case <-errCycleB:
+			case <-time.After(5 * time.Second):
+			}
+		}
+	})
+	startedCycleA = true
 	go func() {
 		errCycleA <- as.DeleteAccount(ctx, userCycleA.ID, DeleteAccountInput{
 			Password:          "password123",
@@ -2306,6 +2364,7 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		})
 	}()
 	waitCh(aAtCloseOrg, "userCycleA to reach closeOrganizationQ", safeReleaseA)
+	startedCycleB = true
 	go func() {
 		errCycleB <- as.DeleteAccount(ctx, userCycleB.ID, DeleteAccountInput{
 			Password:          "password123",
@@ -2343,16 +2402,20 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	// Release User A, receive BOTH DeleteAccount results, and only then clear the hook (R4-1).
 	safeReleaseA()
+	errA := waitErrCh(errCycleA, "userCycleA DeleteAccount")
+	errB := waitErrCh(errCycleB, "userCycleB DeleteAccount")
+	joinedPart2 = true
 	testAfterCloseOrgRowLock = nil
 	if !observedCycleWait {
 		t.Fatalf("did not observe userCycleB waiting on drive_grant:fake-sub-cycle-a held by userCycleA (lastErr=%v)", cycleWaitErr)
 	}
-	if err := waitErrCh(errCycleA, "userCycleA DeleteAccount"); err != nil {
-		t.Fatalf("DeleteAccount userCycleA error: %v", err)
+	if errA != nil {
+		t.Fatalf("DeleteAccount userCycleA error: %v", errA)
 	}
-	if err := waitErrCh(errCycleB, "userCycleB DeleteAccount"); err != nil {
-		t.Fatalf("DeleteAccount userCycleB error: %v", err)
+	if errB != nil {
+		t.Fatalf("DeleteAccount userCycleB error: %v", errB)
 	}
 
 	// Part 3 (R3-1): Shared Google sub between User A (sole owner of Org X executing
@@ -2427,6 +2490,28 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 	}
 	acceptErrCh := make(chan error, 1)
+	delXErrCh := make(chan error, 1)
+	var startedAcceptB, startedDelX bool
+	var joinedPart3 bool
+	t.Cleanup(func() {
+		if joinedPart3 {
+			return
+		}
+		safeReleaseB()
+		if startedAcceptB {
+			select {
+			case <-acceptErrCh:
+			case <-time.After(5 * time.Second):
+			}
+		}
+		if startedDelX {
+			select {
+			case <-delXErrCh:
+			case <-time.After(5 * time.Second):
+			}
+		}
+	})
+	startedAcceptB = true
 	go func() {
 		_, err := fx.ws.AcceptInvite(ctx, joinerB.ID, invX[0].Token, []SwitchResolution{
 			{OrganizationID: orgY.ID, Action: SwitchActionLeave},
@@ -2435,7 +2520,7 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 	}()
 	waitCh(bHeldGrant, "joinerB AcceptInvite to hold Org X FOR SHARE and drive_grant:fake-sub-r31-shared", safeReleaseB)
 
-	delXErrCh := make(chan error, 1)
+	startedDelX = true
 	go func() {
 		delXErrCh <- as.DeleteAccount(ctx, ownerX.ID, DeleteAccountInput{
 			Password:          "password123",
@@ -2462,21 +2547,24 @@ func TestDriveGrantAndRowLockOrderNoDeadlock(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	// Release User B, receive BOTH results, and only then clear the hook (R4-1).
 	safeReleaseB()
+	acceptErr := waitErrCh(acceptErrCh, "joinerB AcceptInvite completion")
+	delXErr := waitErrCh(delXErrCh, "ownerX DeleteAccount completion")
+	joinedPart3 = true
 	testAfterLifecycleGrantLocks = nil
 	if !observedR31Wait {
 		t.Fatalf("did not observe ownerX DeleteAccount waiting on LockOrganizationForUpdate before grant prelock (lastErr=%v)", r31WaitErr)
 	}
-	if err := waitErrCh(acceptErrCh, "joinerB AcceptInvite completion"); err != nil {
-		t.Fatalf("joinerB AcceptInvite error: %v", err)
+	if acceptErr != nil {
+		t.Fatalf("joinerB AcceptInvite error: %v", acceptErr)
 	}
-	delXErr := waitErrCh(delXErrCh, "ownerX DeleteAccount completion")
 	var pgErr *pgconn.PgError
 	if errors.As(delXErr, &pgErr) && pgErr.Code == "40P01" {
 		t.Fatalf("DeleteAccount vs AcceptInvite deadlocked with 40P01: %v", delXErr)
 	}
-	if !errors.Is(delXErr, ErrConflict) {
-		t.Fatalf("DeleteAccount after joinerB joined Org X = %v, want clean business refusal (ErrConflict)", delXErr)
+	if !errors.Is(delXErr, ErrOrganizationHasMembers) {
+		t.Fatalf("DeleteAccount after joinerB joined Org X = %v, want ErrOrganizationHasMembers", delXErr)
 	}
 }
 
@@ -2706,7 +2794,7 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	// when the provider-lane dispatcher starts (R3-3).
 	if _, err := fx.pool.Exec(ctx, `
 		UPDATE outbox_events
-		SET status = 'DONE', processed_at = now()
+		SET status = 'DONE', completed_at = now(), done_at = now()
 		WHERE organization_id = $1 AND topic = 'drive_connection.changed'`, fx.org.ID); err != nil {
 		t.Fatalf("drain setup connect outbox events: %v", err)
 	}
@@ -2781,7 +2869,7 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 		t.Fatalf("queue row after consumer failure must stay unresolved with token: %+v, err=%v", revAfterFail, err)
 	}
 
-	// Make both the queue lease and outbox next_attempt_at immediately eligible so the
+	// Make both the queue lease and outbox available_at immediately eligible so the
 	// next provider-lane pass retries and resolves deterministically via a completion channel.
 	if _, err := fx.pool.Exec(ctx, `
 		UPDATE drive_grant_revocations
@@ -2984,5 +3072,76 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	revTotalB, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-total-b")
 	if err != nil || revTotalB.ResolvedAt.Valid || revTotalB.AttemptID.Valid || !revTotalB.RefreshTokenEnc.Valid {
 		t.Fatalf("sub B after total post-commit budget expired must stay pending with token for sweep: %+v, err=%v", revTotalB, err)
+	}
+
+	// 5. R4-3: Google revoke succeeds for sub 1, then the total cleanup budget expires
+	// while resolveRevocationAttempt waits on a held drive_grant:<sub> advisory lock
+	// (with default 15s resolveTimeout preserved, so only detachedStepContext's inherited
+	// deadline bounds resolve): cleanup returns within the total budget, sub 1's token and
+	// attempt stay retryable, and sub 2 stays untouched/pending.
+	ownerResTotal := registerVerified(t, fx.q, as, "r4-3-res-"+util.NewID()+"@example.com", "OwnerResTotal")
+	orgResTotal, err := fx.orgs.Create(ctx, ownerResTotal.ID, "Resolve Total Org", "r4-3-res-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsResTotalView, err := fx.ws.CreateInOrg(ctx, ownerResTotal.ID, orgResTotal.ID, "WS Res Total", "ws-res-total")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = connectInWS(ownerResTotal.ID, wsResTotalView.Workspace.ID, "res-bgt-a")
+	_ = connectInWS(ownerResTotal.ID, wsResTotalView.Workspace.ID, "res-bgt-b")
+	fx.svc.postCommitTimeout = 120 * time.Millisecond
+	fx.svc.resolveTimeout = 0
+
+	resHoldReady := make(chan struct{})
+	releaseResHold := make(chan struct{})
+	resHoldDone := make(chan struct{})
+	var googleRevokeSucceeded bool
+	fx.svc.testAfterRevokeGoogle = func(sub string, _ db.DriveGrantRevocation, revokeErr error) error {
+		if sub == "fake-sub-res-bgt-a" && revokeErr == nil {
+			googleRevokeSucceeded = true
+			go func() {
+				defer close(resHoldDone)
+				holdTx, err := fx.pool.Begin(ctx)
+				if err != nil {
+					close(resHoldReady)
+					return
+				}
+				defer func() { _ = holdTx.Rollback(ctx) }()
+				_ = fx.q.WithTx(holdTx).LockDriveGrantSub(ctx, "fake-sub-res-bgt-a")
+				close(resHoldReady)
+				select {
+				case <-releaseResHold:
+				case <-time.After(2 * time.Second):
+				}
+			}()
+			<-resHoldReady
+		}
+		return revokeErr
+	}
+
+	startResTotal := time.Now()
+	if err := memberSvc.Close(ctx, ownerResTotal.ID, orgResTotal.ID, orgResTotal.Slug); err != nil {
+		t.Fatalf("Close with held resolve grant lock: %v", err)
+	}
+	resTotalElapsed := time.Since(startResTotal)
+	close(releaseResHold)
+	<-resHoldDone
+	fx.svc.testAfterRevokeGoogle = nil
+	fx.svc.postCommitTimeout = 0
+
+	if !googleRevokeSucceeded {
+		t.Fatal("expected Google revoke to succeed for fake-sub-res-bgt-a before resolve waited on held grant")
+	}
+	if resTotalElapsed > 1500*time.Millisecond {
+		t.Fatalf("post-commit cleanup with blocked resolve took %v, expected return near 120ms total budget", resTotalElapsed)
+	}
+	revResA, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-res-bgt-a")
+	if err != nil || revResA.ResolvedAt.Valid || !revResA.AttemptID.Valid || !revResA.RefreshTokenEnc.Valid {
+		t.Fatalf("sub 1 after resolve budget expiry must keep token and attempt retryable: %+v, err=%v", revResA, err)
+	}
+	revResB, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-res-bgt-b")
+	if err != nil || revResB.ResolvedAt.Valid || revResB.AttemptID.Valid || !revResB.RefreshTokenEnc.Valid {
+		t.Fatalf("sub 2 after resolve budget expiry must stay untouched/pending: %+v, err=%v", revResB, err)
 	}
 }
