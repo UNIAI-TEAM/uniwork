@@ -96,7 +96,8 @@ export function AskAnswerCard({
               </AppLink>
             )}
             inlineToken={{ pattern: CITE_TOKEN, render: () => null }}
-            className="break-words leading-[21px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5"
+            // 14/21 lines, as the UniAsk board: SafeMarkdown sets its own leading on p and li.
+            className="break-words [&_li]:leading-[21px] [&_p]:leading-[21px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5"
           >
             {text}
           </SafeMarkdown>
