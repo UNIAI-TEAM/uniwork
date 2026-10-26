@@ -21,6 +21,8 @@
 
 /* OS cards: all three systems when the visitor's is unknown, fixed order; the picker below is the other case. */
 .office-site .office-dl-others { display: flex; flex-direction: column; gap: 14px; }
+/* "Nền tảng khác": one container; the row is its header and the opened picker its body (no gap, one border, one radius). */
+.office-site .office-dl-others.is-secondary { gap: 0; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
 .office-site .office-dl-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .office-site .office-dl-others.is-secondary .office-dl-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .office-site .office-dl-group, .office-site .office-dl-group-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
@@ -36,6 +38,10 @@
 .office-site .office-dl-build.has-caption { min-height: 60px; padding-block: 8px; }
 .office-site .office-dl-build-text { display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.25; }
 .office-site .office-dl-build-text small { font-size: var(--text-caption); font-weight: 400; opacity: .85; }
+/* Brand-filled hero: fill, label, icon and hint line are all the semantic pair (--brand on --brand-foreground), the hint at full strength. */
+.office-site .office-dl-build.is-hero { border-color: var(--brand); background-color: var(--brand); color: var(--brand-foreground); }
+.office-site .office-dl-build.is-hero:hover { background-color: color-mix(in srgb, var(--brand) 90%, var(--background)); color: var(--brand-foreground); }
+.office-site .office-dl-build.is-hero small { opacity: 1; color: var(--brand-foreground); }
 .office-site .office-dl-phone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 18px 22px; border: 1px solid var(--input); border-radius: 18px; background: var(--surface-raised); }
 .office-site .office-dl-phone p { margin: 0; font-size: var(--text-body); line-height: 1.5; }
 
@@ -71,13 +77,14 @@
 
 /* Other systems: one closed row; opened, the OS picker (tiles, chips, one info box, one outline button). */
 .office-site .office-dl-others-title { margin: 0; font-size: inherit; }
-.office-site .office-dl-others-trigger { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 24px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface-raised); color: var(--foreground); font-size: var(--text-title-sm); font-weight: 700; text-align: left; cursor: pointer; }
+.office-site .office-dl-others-trigger { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 24px; border: 0; border-radius: 23px; background: transparent; color: var(--foreground); font-size: var(--text-title-sm); font-weight: 700; text-align: left; cursor: pointer; }
 .office-site .office-dl-others-trigger:hover { background: var(--surface-hover); }
+.office-site .office-dl-others-trigger[data-panel-open] { border-radius: 23px 23px 0 0; }
 .office-site .office-dl-others-marks { display: inline-flex; align-items: center; gap: 12px; margin-right: auto; color: var(--muted-foreground); }
 .office-site .office-dl-others-marks svg { width: 18px; height: 18px; }
 .office-site .office-dl-others-trigger > svg { width: 20px; height: 20px; flex: none; color: var(--muted-foreground); transition: transform .2s; }
 .office-site .office-dl-others-trigger[data-panel-open] > svg { transform: rotate(180deg); }
-.office-site .office-dl-picker { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px 44px; padding: 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
+.office-site .office-dl-picker { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px 44px; padding: 28px 32px 32px; border-top: 1px solid var(--border); }
 .office-site .office-dl-picker-pick { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .office-site .office-dl-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 10px; }
 .office-site .office-dl-tile { position: relative; min-height: 112px; min-width: 0; cursor: pointer; }
@@ -234,6 +241,29 @@
   .office-site .office-dl-notice { inset-inline: 12px; bottom: 12px; width: auto; max-width: none; flex-wrap: wrap; padding: 14px; }
   .office-site .office-dl-notice p { flex: 1 1 calc(100% - 32px); }
   .office-site .office-dl-notice > button:nth-of-type(1) { flex: 1; }
+}
+/* Phone: the editor capture is illegible at this width and only crops badly, so the spotlight is copy + the one button; the apt block gets the room. */
+@media (max-width: 639px) {
+  .office-site .office-dl-spot { border-radius: 24px; }
+  .office-site .office-dl-spot-copy { padding: 28px 20px 28px; }
+  .office-site .office-dl-spot-media { display: none; }
+  .office-site .office-dl-spot > .office-dl-apt { margin: 0 12px 12px; }
+  .office-site .office-dl-others.is-secondary { border-radius: 20px; }
+  .office-site .office-dl-others-trigger { padding: 0 16px; gap: 12px; border-radius: 19px; }
+  .office-site .office-dl-others-trigger[data-panel-open] { border-radius: 19px 19px 0 0; }
+  .office-site .office-dl-picker { padding: 20px 16px 24px; gap: 20px; }
+  .office-site .office-dl-tiles { gap: 8px; }
+  .office-site .office-dl-tile { min-height: 104px; }
+  .office-site .office-dl-picker > .office-dl-apt { padding: 14px; }
+  .office-site .office-dl-others > .office-dl-apt { padding: 14px; }
+}
+@media (max-width: 479px) {
+  /* A long label ("Download for macOS Apple Silicon") wraps inside its button instead of being clipped. */
+  .office-site .office-dl-build { height: auto; white-space: normal; }
+  .office-site .office-dl-build-text { min-width: 0; overflow-wrap: anywhere; }
+  .office-site .office-dl-build.is-hero { padding-inline: 20px; font-size: var(--text-body-lg); }
+  .office-site .office-dl-chip-pick { flex: 1 1 100%; min-width: 0; }
+  .office-site .office-dl-spot-builds { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .office-site .office-dl-history-trigger > svg, .office-site .office-dl-manual-trigger svg, .office-site .office-dl-others-trigger > svg { transition: none; }
