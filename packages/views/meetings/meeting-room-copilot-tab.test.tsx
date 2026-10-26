@@ -494,6 +494,18 @@ describe("MeetingRoomCopilotTab › loading and empty", () => {
     expect(await within(await findFeed()).findByText("Báo khách hàng")).toBeInTheDocument();
   });
 
+  it("says the recordings failed and retries them like the other sources", async () => {
+    serve({ recordings: failed });
+    renderTab();
+    expect(await screen.findByText("Không tải được bản ghi của cuộc họp.")).toBeInTheDocument();
+    expect(await within(await findFeed()).findByText("Báo khách hàng")).toBeInTheDocument();
+    serve();
+    const before = calls("/meetings/m1/recordings").length;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(calls("/meetings/m1/recordings").length).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByText("Không tải được bản ghi của cuộc họp.")).not.toBeInTheDocument());
+  });
+
   it("names a note's author in words, never by a raw id", async () => {
     serve({ notes: ok({ notes: [{ id: "n1", meeting_id: "m1", author_id: "01JA0000000000000000000000", body: "Gửi lịch" }] }) });
     renderTab();

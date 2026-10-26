@@ -82,7 +82,8 @@ export function MeetingRoomCopilotTab({
   const { summary, summaryQuery, transcriptQuery, chatQuery, notesQuery } = gen;
   // Action items are for members only.
   const itemsQuery = useMeetingActionItems(workspaceId ? meetingId : "");
-  const { data: recordings } = useRecordings(meetingId);
+  const recordingsQuery = useRecordings(meetingId);
+  const recordings = recordingsQuery.data;
   const transcript = transcriptQuery.data;
   const actionItems = itemsQuery.data?.items;
   const entries = useMemo(
@@ -99,14 +100,16 @@ export function MeetingRoomCopilotTab({
   const links = useMemo(() => transcriptLinks({ actionItems: actionItems ?? [], summary }), [actionItems, summary]);
   const suggestions = useMeetingSuggestions(entries.length > 0);
   // The empty state reads every source, so it waits for all of them.
-  const sources = [summaryQuery, transcriptQuery, chatQuery, notesQuery, ...(workspaceId ? [itemsQuery] : [])];
-  const failedOf = (q: (typeof sources)[number]) => q.isError && !q.data;
-  // Said even when the feed has other things: a missing summary or notes would otherwise pass for none.
+  const sources = [summaryQuery, transcriptQuery, chatQuery, notesQuery, recordingsQuery, ...(workspaceId ? [itemsQuery] : [])];
+  const failedOf = (q: { isError: boolean; data?: unknown }) => q.isError && !q.data;
+  // Said even when the feed has other things: a missing summary, notes or recordings would otherwise pass for none.
   const loadError = failedOf(notesQuery)
     ? t("meetings.notesLoadFailed")
-    : sources.some(failedOf)
+    : sources.some((q) => q !== recordingsQuery && failedOf(q))
       ? t("meetings.summaryLoadFailed")
-      : null;
+      : failedOf(recordingsQuery)
+        ? t("meetings.recordingsLoadFailed")
+        : null;
   const retry = () => {
     for (const q of sources) if (q.isError) void q.refetch();
   };
