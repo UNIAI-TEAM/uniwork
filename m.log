@@ -1,0 +1,297 @@
+$ rc=$(cat /tmp/sync1-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/sync1-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/sync1-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/sync1-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘   6 files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent (15.9s)
+  ✘   9 meetings-governance.spec.ts:155:1 › votes: the secretary opens a drafted item from the strip, votes and closes it; the result reaches the overview and the history (10.9s)
+  ✘  40 tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on (8.5s)
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toHaveCount(expected) failed
+  3 failed
+  2 skipped
+  1 did not run
+  47 passed (3.9m)
+
+      47 |   await expect(page.getByTestId("task-mode-board")).toBeVisible();
+      48 |   await expect(page.getByTestId("task-mode-swimlane")).toBeVisible();
+    > 49 |   await expect(page.getByTestId("task-mode-table")).toHaveCount(0);
+         |                                                     ^
+      50 |   // The mode menu is modal: close it before reaching for the toolbar again.
+      51 |   await page.keyboard.press("Escape");
+      52 |   await expect(page.getByTestId("task-mode-list")).toBeHidden();
+        at /workspace/e2e/tasks-collection-parity-smoke.spec.ts:49:53
+
+    Error Context: test-results/tasks-collection-parity-sm-29048-ite-mode-controls-always-on/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/tasks-collection-parity-sm-29048-ite-mode-controls-always-on/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/tasks-collection-parity-sm-29048-ite-mode-controls-always-on/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent 
+    meetings-governance.spec.ts:155:1 › votes: the secretary opens a drafted item from the strip, votes and closes it; the result reaches the overview and the history 
+    tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on ───
+  2 skipped
+  1 did not run
+  47 passed (3.9m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=8/8`
+Exit status 1
+===== e2e/test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: files-chat.spec.ts >> chat file and voice messages >> an unsupported file type is refused before it is sent
+- Location: files-chat.spec.ts:323:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByText('Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.')
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for getByText('Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Tep Chat 1792998424426, Team Files 1792998424426: chuyển workspace"': Team Files 1792998424426
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "chat-owner, chat-owner-1792998424426@example.com: tài khoản"': C
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426
+    - listitem:
+      - link "Hộp việc":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Trò chuyện" [level=1]
+  - complementary:
+    - navigation "Tin nhắn hay kênh":
+      - link "Tin nhắn":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/chat?view=messages
+      - link "Kênh":
+        - /url: /tep-chat-1792998424426/team-files-1792998424426/chat?view=channels
+    - heading "T===== e2e/test-results/meetings-governance-votes--44a3d-he-overview-and-the-history/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: meetings-governance.spec.ts >> votes: the secretary opens a drafted item from the strip, votes and closes it; the result reaches the overview and the history
+- Location: meetings-governance.spec.ts:155:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('region', { name: 'Quyết định' }).getByText('2 tán thành · 0 không tán thành · 0 không ý kiến')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByRole('region', { name: 'Quyết định' }).getByText('2 tán thành · 0 không tán thành · 0 không ý kiến')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Org gov-host, WS gov-host: chuyển workspace"': WS gov-host
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "1 thông báo chưa đọc"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "gov-member, gov-member-1792998459011@example.com: tài khoản"': G
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892
+    - listitem:
+      - link "Hộp việc 1 thông báo chưa đọc":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/inbox
+        - text: Hộp việc 1
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792998458892/rec-ws-1792998458892/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - link "Cuộc họp":
+    - /url: /rec-org-1792998458892/rec-ws-1792998458892/meetings
+  - text: Họp biểu quyết gov
+  - heading "Họp biểu quyết gov" [level=1]
+  - text: Đã kết thúc Thứ Hai 26/10
+  - time: 07:07–07:07 (UT===== e2e/test-results/tasks-collection-parity-sm-29048-ite-mode-controls-always-on/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: tasks-collection-parity-smoke.spec.ts >> tasks collection: suite mode controls always on
+- Location: tasks-collection-parity-smoke.spec.ts:34:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveCount(expected) failed
+
+Locator:  getByTestId('task-mode-table')
+Expected: 0
+Received: 1
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveCount" with timeout 5000ms
+  - waiting for getByTestId('task-mode-table')
+    14 × locator resolved to 1 element
+       - unexpected value "1"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f2e4]:
+      - 'button "Org Parity 1792998554293, Đội Parity 1792998554293: chuyển workspace" [ref=f2e6] [cursor=pointer]':
+        - generic [ref=f2e7]: Đ
+        - generic "Org Parity 1792998554293 › Đội Parity 1792998554293" [ref=f2e9]: Đội Parity 1792998554293
+      - generic [ref=f2e10]:
+        - button "Tìm kiếm…" [ref=f2e11] [cursor=pointer]:
+          - generic: Ctrl+K
+        - button "Hỏi UNI" [ref=f2e13] [cursor=pointer]
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]:
+          - button "Thông báo" [ref=f2e16] [cursor=pointer]
+          - button "Tạo việc" [ref=f2e17] [cursor=pointer]
+          - button "Giao diện" [ref=f2e18] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f2e19] [cursor=pointer]
+        - 'button "Parity Smoke, parity-1792998554293@example.com: tài khoản" [ref=f2e20] [cursor=pointer]':
+          - generic [ref=f2e21]: P
+    - generic [ref=f2e22]:
+      - generic [ref=f2e25]:
+        - navigation "Điều hướng workspace" [ref=f2e27]:
+          - list [ref=f2e30]:
+            - listitem [ref=f2e31]:
+              - link "Trang chủ" [ref=f2e32] [cursor=pointer]:
+                - /url: /org-parity-1792998554293/doi-parity-1792998554293
+            - listitem [ref=f2e38]:
+              - link "Hộp việc" [ref=f2e39] [cursor=pointer]:
+                - /url: /org-parity-1792998554293/doi-parity-1792998554293/inbox
+          - generic [ref=f2e45]:
+            - generic [ref=f2e46]: Làm việc
+            - list "Làm việc" [ref=f2e48]:
+              - listitem [ref=f2e49]:
+                - link "Công việc" [ref=f2e50] [cursor=pointer]:
+                  - /url: /org-parity-1792998554293/doi-parity-1792998554293/tasks
+              - listitem [ref=f2e56]:
+                - link "Việc của tôi" [ref=f2e57] [cursor=pointer]:
+                  - /url: /org-parity-1792998554293/doi-parity-1792998554293/my-tasks
+              - listitem [ref=f2e63]:
+                - link "Dự án" [ref=f2e64] [cursor=pointer]:
+                  - /url: /org-parity-1792998554293/doi-parity-1792998554293/projects
+              - listit
+E2E_EXIT=1
