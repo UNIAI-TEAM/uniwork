@@ -1,0 +1,4 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18572 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18572 DEV_VERIFICATION_CODE=123456; pnpm --filter @uniwork/e2e exec playwright test e2e/onboarding-contrast.spec.ts e2e/onboarding-focus.spec.ts e2e/onboarding-mobile.spec.ts e2e/onboarding-shell.spec.ts e2e/onboarding-smoke.spec.ts --reporter=list > /tmp/v2e-onb.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/v2e-onb.log | grep -A40 -E "^\s+[0-9]+\) " | head -n 200; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/v2e-onb.log; echo; echo "E2E_ONBOARDING_EXIT=$rc"
+  12 passed (20.2s)
+
+E2E_ONBOARDING_EXIT=0

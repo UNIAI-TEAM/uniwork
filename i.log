@@ -1,0 +1,4 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18572 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18572 DEV_VERIFICATION_CODE=123456; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/landing-office-design.spec.ts e2e/landing-office-editions.spec.ts e2e/landing-office-releases.spec.ts e2e/landing-opening.spec.ts e2e/seo.spec.ts --reporter=list > /tmp/v2e-landing.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/v2e-landing.log | grep -A40 -E "^\s+[0-9]+\) " | head -n 300; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/v2e-landing.log; echo; echo "E2E_LANDING_EXIT=$rc"
+  27 passed (1.4m)
+
+E2E_LANDING_EXIT=0

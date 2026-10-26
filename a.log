@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^6e2833c5c" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=6e2833c5c777573d40ad820dabf0b251d2a3a6fa
+6e2833c5c test(office): make the office download e2e deterministic and cover the manifest path
+f73997e1e chore(office): un-export what only its own file uses
+3cc73e312 fix(office): wrap apt commands only at spaces and path names, and keep the copy button one width
+6e2c36b6f fix(office): make the manifest fallback note a polite status, and pin the notice and failure paths
