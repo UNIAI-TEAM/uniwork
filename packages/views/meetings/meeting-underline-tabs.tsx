@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useScrollEdges } from "../notifications/use-scroll-edges";
+import { tablistKeyTarget } from "./tablist-keys";
 
 export function MeetingUnderlineTabs<T extends string>({
   tabs,
@@ -50,27 +51,10 @@ export function MeetingUnderlineTabs<T extends string>({
     }
   }, [value, edges.ref]);
 
-  // WAI-ARIA tabs pattern, automatic activation: arrows/Home/End move focus
-  // and select in one step; only the active tab sits in the Tab order.
+  // Only the active tab sits in the Tab order; arrows/Home/End move focus and select in one step.
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const last = tabs.length - 1;
-    let next: number;
-    switch (event.key) {
-      case "ArrowRight":
-        next = index === last ? 0 : index + 1;
-        break;
-      case "ArrowLeft":
-        next = index === 0 ? last : index - 1;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = last;
-        break;
-      default:
-        return;
-    }
+    const next = tablistKeyTarget(event.key, index, tabs.length);
+    if (next === null) return;
     event.preventDefault();
     const target = tabs[next];
     if (target === undefined) return;

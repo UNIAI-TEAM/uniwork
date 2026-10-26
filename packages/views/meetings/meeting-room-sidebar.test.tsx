@@ -34,10 +34,9 @@ const openMotion = {
 const PENDING = "Có nội dung đang chờ bạn bỏ phiếu";
 let motions: unknown[] = [];
 
-/** The visible label of each tab, without its badge (button > span > span). */
-function tabLabels(): (string | null | undefined)[] {
-  // The label is the first span: an icon (an svg) may lead it, a badge may follow it.
-  return screen.getAllByRole("tab").map((el) => el.firstElementChild?.querySelector("span")?.textContent);
+/** Each tab's label, without the badge meaning its name carries after ", ". */
+function tabLabels(): (string | undefined)[] {
+  return screen.getAllByRole("tab").map((el) => el.getAttribute("aria-label")?.split(", ")[0]);
 }
 
 beforeAll(() => {
@@ -133,19 +132,24 @@ describe("MeetingRoomSidebar", () => {
     expect(screen.getByRole("tab", { name: /^UNI\W+2 việc UNI mới ghi$/ })).toBeInTheDocument();
   });
 
-  it("names the recordings tab for what it lists", async () => {
-    const onTabChange = vi.fn();
-    const { rerender } = render(
-      wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={onTabChange} guestMode />),
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Bản ghi" }));
-    expect(onTabChange).toHaveBeenCalledWith("recordings");
-    rerender(
-      wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="recordings" onTabChange={onTabChange} guestMode />),
-    );
-    expect(await screen.findByText(/Chưa có bản ghi/)).toBeInTheDocument();
-    expect(screen.queryByText(/Tệp được chia sẻ/)).not.toBeInTheDocument();
+  it("has no recordings tab any more", () => {
+    render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
+    expect(screen.queryByRole("tab", { name: /^Bản ghi/ })).not.toBeInTheDocument();
   });
+
+  it("offers a collapse button beside the tabs when the panel can collapse", () => {
+    const onCollapse = vi.fn();
+    const { rerender } = render(
+      wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />),
+    );
+    expect(screen.queryByRole("button", { name: "Thu gọn bảng" })).not.toBeInTheDocument();
+    rerender(
+      wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode onCollapse={onCollapse} />),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Thu gọn bảng" }));
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
+
   it("hides the votes tab from a guest while nothing has been opened", async () => {
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     await waitFor(() =>
@@ -156,7 +160,7 @@ describe("MeetingRoomSidebar", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(screen.queryByRole("tab", { name: /^Biểu quyết/ })).not.toBeInTheDocument();
-    expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người", "Bản ghi"]);
+    expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người"]);
   });
 
   it("shows the votes tab once an item is open, with a badge while my vote is due", async () => {
@@ -164,7 +168,7 @@ describe("MeetingRoomSidebar", () => {
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     const tab = await screen.findByRole("tab", { name: /^Biểu quyết/ });
     expect(tab).toHaveAccessibleName(new RegExp(PENDING));
-    expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
+    expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người", "Biểu quyết"]);
   });
 
   it("drops the badge once the vote is cast", async () => {
@@ -183,7 +187,7 @@ describe("MeetingRoomSidebar", () => {
     expect(screen.getByRole("tab", { name: "Biểu quyết" })).not.toHaveAccessibleName(new RegExp(PENDING));
   });
 
-  it("always shows the votes tab to a clerk, between people and recordings", async () => {
+  it("always shows the votes tab to a clerk, after people", async () => {
     setSessionUser(me);
     const onTabChange = vi.fn();
     render(
@@ -192,7 +196,7 @@ describe("MeetingRoomSidebar", () => {
       ),
     );
     const tab = await screen.findByRole("tab", { name: "Biểu quyết" });
-    expect(tabLabels()).toEqual(["UNI", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
+    expect(tabLabels()).toEqual(["UNI", "Trò chuyện", "Mọi người", "Biểu quyết"]);
     fireEvent.click(tab);
     expect(onTabChange).toHaveBeenCalledWith("motions");
   });

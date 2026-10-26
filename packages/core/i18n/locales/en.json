@@ -5099,6 +5099,9 @@
       "reinvite": "Invite again",
       "scribeOffFailed": "Could not turn off UNI Scribe. UNI Scribe is transcribing.",
       "scribeOnFailed": "Could not turn on UNI Scribe. This meeting is not being transcribed."
+    },
+    "panel": {
+      "collapse": "Collapse panel"
     }
   },
   "calendar": {

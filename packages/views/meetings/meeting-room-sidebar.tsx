@@ -1,23 +1,24 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { Sparkles } from "lucide-react";
+import { MessageCircle, PanelRightClose, Users, Vote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { motionsTabState, useMeetingMotions } from "@uniwork/core/meetings/motions";
 import type { Meeting } from "@uniwork/core/types";
+import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 import { MeetingRoomCopilotTab, type CopilotSection } from "./meeting-room-copilot-tab";
-import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
-import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { RoomPanelNavigation } from "./room-panel-navigation";
+import { RoomPanelTabs, type RoomPanelBadge } from "./room-panel-tabs";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
-export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions" | "recordings";
+export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions";
 
-const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions", "recordings"];
+const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions"];
 
 const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-3";
 
@@ -75,6 +76,7 @@ export function MeetingRoomSidebar({
   scribeOn = false,
   liveItemsUnseen = 0,
   onCopilotSectionChange,
+  onCollapse,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -96,6 +98,8 @@ export function MeetingRoomSidebar({
   /** Live items the scribe wrote that this viewer has not had on screen. */
   liveItemsUnseen?: number;
   onCopilotSectionChange?: (section: CopilotSection) => void;
+  /** Folds the docked panel away; draws the collapse button at the end of the tab row. */
+  onCollapse?: () => void;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -117,9 +121,35 @@ export function MeetingRoomSidebar({
         return t("meetings.people");
       case "motions":
         return t("meetings.governance.motionsTab");
-      case "recordings":
-        return t("meetings.recordingsTab");
     }
+  }
+
+  function tabIcon(id: MeetingSidebarTab): ReactNode {
+    switch (id) {
+      case "copilot":
+        return <ScribeMark size={18} state={scribeOn ? "live" : "idle"} />;
+      case "chat":
+        return <MessageCircle aria-hidden className="size-4" />;
+      case "participants":
+        return <Users aria-hidden className="size-4" />;
+      case "motions":
+        return <Vote aria-hidden className="size-4" />;
+    }
+  }
+
+  function tabBadge(id: MeetingSidebarTab): RoomPanelBadge | null {
+    if (id === "participants" && pendingJoinCount > 0) {
+      return { tone: "attention", count: pendingJoinCount, srLabel: t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount }) };
+    }
+    if (id === "chat" && chatUnread > 0) {
+      return { tone: "info", count: chatUnread, srLabel: t("meetings.chatUnread", { count: chatUnread }) };
+    }
+    if (id === "copilot" && liveItemsUnseen > 0) {
+      return { tone: "info", count: liveItemsUnseen, srLabel: t("meetings.liveItemsUnseen", { count: liveItemsUnseen }) };
+    }
+    // At most one item is open at a time: a dot, not a count.
+    if (id === "motions" && motionsTab.pending) return { tone: "attention", srLabel: t("meetings.governance.votePending") };
+    return null;
   }
 
   const panelId = (id: MeetingSidebarTab) => `${baseId}-panel-${id}`;
@@ -171,50 +201,41 @@ export function MeetingRoomSidebar({
             />
           </div>
         ) : null;
-      case "recordings":
-        return meetingId ? (
-          <MeetingRoomFilesTab meetingId={meetingId} />
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
-            <p className="text-label text-pretty text-muted-foreground">{t("meetings.recordingsEmpty")}</p>
-          </div>
-        );
     }
   }
 
   return (
     <aside className={cn("flex min-h-0 min-w-0 w-full flex-col bg-surface", className)}>
-      <div className="relative z-10 flex shrink-0 items-start gap-1 px-2 pt-2 pb-0">
-        <div className="min-w-0 flex-1">
-          <MeetingUnderlineTabs
-            tabs={sidebarTabs}
-            value={activeTab}
-            onChange={onTabChange}
-            label={tabLabel}
-            ariaLabel={t("meetings.roomPanel")}
-            icon={(id) => (id === "copilot" ? <Sparkles aria-hidden className="size-3.5 shrink-0" /> : null)}
-            panelId={panelId}
-            badge={(id) =>
-              id === "participants" && pendingJoinCount > 0 ? (
-                <MeetingUnderlineTabBadge srLabel={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}>
-                  {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
-                </MeetingUnderlineTabBadge>
-              ) : id === "chat" && chatUnread > 0 ? (
-                <MeetingUnderlineTabBadge srLabel={t("meetings.chatUnread", { count: chatUnread })}>
-                  {chatUnread > 9 ? "9+" : chatUnread}
-                </MeetingUnderlineTabBadge>
-              ) : id === "copilot" && liveItemsUnseen > 0 ? (
-                <MeetingUnderlineTabBadge srLabel={t("meetings.liveItemsUnseen", { count: liveItemsUnseen })}>
-                  {liveItemsUnseen > 9 ? "9+" : liveItemsUnseen}
-                </MeetingUnderlineTabBadge>
-              ) : id === "motions" && motionsTab.pending ? (
-                // At most one item is open at a time, so the count is always one.
-                <MeetingUnderlineTabBadge srLabel={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
-              ) : null
-            }
-          />
-        </div>
-        {tabsEnd}
+      <div className="relative z-10 shrink-0 border-b border-border py-2.5 pr-2.5 pl-3">
+        <RoomPanelTabs
+          tabs={sidebarTabs}
+          value={activeTab}
+          onChange={onTabChange}
+          label={tabLabel}
+          ariaLabel={t("meetings.roomPanel")}
+          icon={tabIcon}
+          badge={tabBadge}
+          panelId={panelId}
+          end={
+            onCollapse || tabsEnd ? (
+              <>
+                {onCollapse ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8.5 rounded-[9px] text-muted-foreground"
+                    aria-label={t("meetings.panel.collapse")}
+                    onClick={onCollapse}
+                  >
+                    <PanelRightClose aria-hidden />
+                  </Button>
+                ) : null}
+                {tabsEnd}
+              </>
+            ) : undefined
+          }
+        />
       </div>
 
       <div

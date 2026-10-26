@@ -5098,6 +5098,9 @@
       "reinvite": "Mời lại",
       "scribeOffFailed": "Chưa tắt được Thư ký UNI. Thư ký UNI đang ghi lời thoại.",
       "scribeOnFailed": "Chưa bật được Thư ký UNI. Cuộc họp này chưa được ghi lời thoại."
+    },
+    "panel": {
+      "collapse": "Thu gọn bảng"
     }
   },
   "calendar": {
