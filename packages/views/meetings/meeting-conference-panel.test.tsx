@@ -149,6 +149,10 @@ describe("MeetingConference side panel", () => {
 
     const sidebar = await screen.findByTestId("room-sidebar");
     expect(sidebar.closest("[data-side]")).toHaveAttribute("data-side", "bottom");
+    // The room stays in sight behind it: no blur, no dim (Phone board).
+    const backdrop = document.querySelector('[data-slot="sheet-overlay"]');
+    expect(backdrop).toHaveClass("bg-transparent", "supports-backdrop-filter:backdrop-blur-none");
+    expect(backdrop).not.toHaveClass("supports-backdrop-filter:backdrop-blur-xs");
     expect(screen.queryByRole("button", { name: "collapse" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
 

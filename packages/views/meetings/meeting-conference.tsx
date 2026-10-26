@@ -431,6 +431,8 @@ function ConferenceStage({
           {/* Rises from the bottom over the stage, leaving its top in view. */}
           <SheetContent
             side="bottom"
+            // The room stays in sight behind the sheet, neither blurred nor dimmed (Phone board).
+            overlayClassName="bg-transparent supports-backdrop-filter:backdrop-blur-none"
             className="gap-0 overflow-hidden rounded-t-[22px] border-t-0 bg-surface p-0 data-[side=bottom]:h-[72dvh]"
             showCloseButton={false}
           >

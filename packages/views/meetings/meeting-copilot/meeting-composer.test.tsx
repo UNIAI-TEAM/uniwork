@@ -240,6 +240,18 @@ describe("MeetingComposer — asking UNI", () => {
     await waitFor(() => expect(box.textContent).toBe("@"));
   });
 
+  it("asks in fewer words on a phone", async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      render(wrapWithNav(<Room />));
+      await editor();
+      expect(document.querySelector('[data-placeholder="Hỏi riêng UNI…"]')).not.toBeNull();
+    } finally {
+      window.innerWidth = width;
+    }
+  });
+
   it("offers suggestions while the box is empty, and a pick asks it at once", async () => {
     render(wrapWithNav(<Room hasItems />));
     await editor();

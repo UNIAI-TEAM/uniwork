@@ -11,6 +11,7 @@ import { isImeComposing } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "../../ai/ask-uni-editor";
 import { noticeText, resolveErrorKey } from "../../ai/ask-uni-legacy-panel";
@@ -113,6 +114,8 @@ export function MeetingComposer({
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "ai" });
   const tc = (key: string, opts?: Record<string, unknown>) => t(`meetings.panel.composer.${key}`, opts);
   const qc = useQueryClient();
+  // A phone's box is narrow: the Phone board asks in fewer words.
+  const phone = useIsMobile();
   const { data: caps } = useAiCapabilities(workspaceId);
   const ask = useAskUni(workspaceId);
   const addNote = useAddNote(meetingId);
@@ -285,7 +288,7 @@ export function MeetingComposer({
                 ref={box}
                 wsId={workspaceId}
                 label={tc("askLabel")}
-                placeholder={conversationId ? tc("followupPlaceholder") : tc("askPlaceholder")}
+                placeholder={conversationId ? tc("followupPlaceholder") : phone ? tc("askPlaceholderShort") : tc("askPlaceholder")}
                 maxMentions={MAX_MENTIONS}
                 className={INPUT_TYPE}
                 disabled={!!blocked}
