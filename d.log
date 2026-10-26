@@ -1,0 +1,3 @@
+$ cd server && go tool staticcheck ./internal/handler/... ./internal/service/... > /tmp/mv1-sc.log 2>&1; rc=$?; tail -20 /tmp/mv1-sc.log; echo; echo "STATICCHECK_EXIT=$rc"
+
+STATICCHECK_EXIT=0

@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; cd server && go test -count=1 ./internal/handler/dto/sdo ./internal/ -run '.' > /tmp/mv1-arch.log 2>&1; rc=$?; tail -20 /tmp/mv1-arch.log; echo; echo "GO_SDO_ARCH_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.022s
+ok  	github.com/unicomhub/uniwork/server/internal	1.307s
+
+GO_SDO_ARCH_EXIT=0

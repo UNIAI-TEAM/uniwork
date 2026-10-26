@@ -1,0 +1,10 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -count=1 -v ./internal/handler -run '^(TestDocumentDownloadIntent|TestDocument.*|TestDocumentsAPI.*|TestSwaggerSpecFollowsChiRoutesAndSDI)$' -timeout 30m > /tmp/mv1-h.log 2>&1; rc=$?; grep -E "^(=== RUN|--- (PASS|FAIL|SKIP)|ok|FAIL|panic)" /tmp/mv1-h.log | grep -vE "^=== RUN" | grep -E "FAIL|SKIP|^ok|panic|TestDocumentDownloadIntent" | head -80; grep -c -- "--- PASS" /tmp/mv1-h.log; echo; echo "GO_HANDLER_DOCS_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- FAIL: TestDocumentDownloadIntent (0.26s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	24.934s
+FAIL
+109
+
+GO_HANDLER_DOCS_EXIT=1
