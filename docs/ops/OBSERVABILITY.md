@@ -53,7 +53,9 @@ và `docker run --rm -v "$PWD/deploy:/etc/prometheus:ro" --entrypoint promtool p
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng = không export | OTLP/gRPC, ví dụ `http://otel-collector:4317`. Rỗng thì không ghi span nào và không mở kết nối, nhưng mọi request vẫn có trace id (`X-Trace-Id`, `correlation_id`) |
 | `OTEL_SERVICE_NAME` | `uniwork-api` | Tên service trong backend trace |
 | `OTEL_TRACES_SAMPLER_ARG` | rỗng = `1.0` | Tỷ lệ sampling parent-based 0..1. Xem mục sampling |
-| `LOG_FORMAT` | text | `json` ở production; gì khác là text màu cho terminal |
+| `LOG_FORMAT` | text | `json` ở production: một object mỗi dòng, không ANSI, thứ tự field không đổi. Giá trị khác là handler text cho log dev |
+| `LOG_COLOR` | bật | `always` (mặc định, kể cả pipe của Docker), `auto` (chỉ khi stderr là terminal), `never` tắt màu. So sánh không phân biệt hoa thường |
+| `NO_COLOR` | trống | Khác rỗng thì tắt màu và thắng `LOG_COLOR=always`. Trống không tắt |
 | `LOG_LEVEL` | `debug` | `debug` / `info` / `warn` / `error`; production dùng `info` |
 | `FEATURE_FLAGS_FILE` | rỗng | YAML flag tĩnh; override theo tổ chức nằm ở DB (`/admin/flags`) |
 | `RUM_SAMPLE_RATE` | `0.2` | Tỷ lệ trình duyệt gửi web-vitals về `/api/v1/rum`; client đọc qua `GET /api/v1/config`. Flag `rum_sampling` tắt hẳn |

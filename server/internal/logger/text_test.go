@@ -501,3 +501,75 @@ func TestTextHandleReturnsWriteError(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestBuildHandlerTextColorsAPipe(t *testing.T) {
+	t.Setenv("LOG_FORMAT", "")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("LOG_COLOR", "")
+	t.Setenv("NO_COLOR", "")
+	var buf bytes.Buffer
+	h := buildHandler(&buf, false)
+	if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "http request",
+		"method", "GET", "status", 200, "trace_id", "tid")); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "\x1b[92mINF\x1b[0m") || !strings.Contains(got, "\x1b[2mtrace_id=tid\x1b[0m") {
+		t.Fatalf("pipe was not coloured: %q", got)
+	}
+	if !strings.Contains(got, "method=GET") || strings.Index(got, "method=GET") > strings.Index(got, "trace_id=tid") {
+		t.Fatalf("order: %s", stripANSI(got))
+	}
+}
+
+func TestBuildHandlerNeverAndNoColorStripANSI(t *testing.T) {
+	for _, tc := range []struct{ color, no string }{
+		{color: "never", no: ""},
+		{color: "always", no: "1"},
+	} {
+		t.Run(tc.color+"/"+tc.no, func(t *testing.T) {
+			t.Setenv("LOG_FORMAT", "text")
+			t.Setenv("LOG_LEVEL", "debug")
+			t.Setenv("LOG_COLOR", tc.color)
+			t.Setenv("NO_COLOR", tc.no)
+			var buf bytes.Buffer
+			h := buildHandler(&buf, true)
+			if err := h.Handle(context.Background(), fixedRecord(slog.LevelInfo, "http request", "method", "GET", "trace_id", "tid")); err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(buf.Bytes(), []byte{0x1b}) {
+				t.Fatalf("ANSI leaked: %q", buf.String())
+			}
+			if !strings.Contains(buf.String(), "method=GET") || strings.Index(buf.String(), "method=GET") > strings.Index(buf.String(), "trace_id=tid") {
+				t.Fatalf("order: %s", buf.String())
+			}
+		})
+	}
+}
+
+func TestBuildHandlerJSONSkipsTheTextLayout(t *testing.T) {
+	t.Setenv("LOG_FORMAT", " JSON ")
+	t.Setenv("LOG_LEVEL", "warn")
+	t.Setenv("LOG_COLOR", "")
+	t.Setenv("NO_COLOR", "")
+	var buf bytes.Buffer
+	h := buildHandler(&buf, false)
+	log := slog.New(h)
+	log.Info("http request", "method", "GET", "trace_id", "tid")
+	if buf.Len() != 0 {
+		t.Fatalf("info was written at warn: %s", buf.String())
+	}
+	log.Warn("http request", "method", "GET", "trace_id", "tid")
+	line := buf.Bytes()
+	if bytes.Contains(line, []byte{0x1b}) {
+		t.Fatalf("json contained ANSI: %s", line)
+	}
+	if !bytes.HasPrefix(bytes.TrimSpace(line), []byte("{")) {
+		t.Fatalf("not json: %s", line)
+	}
+	method := bytes.Index(line, []byte(`"method"`))
+	trace := bytes.Index(line, []byte(`"trace_id"`))
+	if method < 0 || trace < method {
+		t.Fatalf("json field order changed: %s", line)
+	}
+}
