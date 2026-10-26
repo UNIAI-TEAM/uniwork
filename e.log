@@ -1,0 +1,5 @@
+$ pnpm exec turbo typecheck --filter=@uniwork/core --filter=@uniwork/views --filter=@uniwork/web > /tmp/c5-tc.log 2>&1; rc=$?; grep -E "error TS|Tasks:|Failed" /tmp/c5-tc.log | head -30; echo; echo "TYPECHECK_EXIT=$rc"
+ Tasks:    2 successful, 3 total
+Failed:    @uniwork/views#typecheck
+
+TYPECHECK_EXIT=134

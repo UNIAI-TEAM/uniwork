@@ -1,0 +1,5 @@
+$ pnpm exec turbo lint --filter=@uniwork/core > /tmp/c5-lint.log 2>&1; rc=$?; grep -E "error|warning|Tasks:|Failed" /tmp/c5-lint.log | head -30; echo; echo "LINT_EXIT=$rc"
+@uniwork/core:lint: > eslint . --max-warnings 0
+ Tasks:    1 successful, 1 total
+
+LINT_EXIT=0

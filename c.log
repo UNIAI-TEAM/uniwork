@@ -1,0 +1,3 @@
+$ cd server; go build ./cmd/... > /tmp/c5-build.log 2>&1; rc=$?; tail -5 /tmp/c5-build.log; test -z "$(gofmt -l internal pkg cmd migrations)"; f=$?; gofmt -l internal pkg cmd migrations | head; go vet ./internal/service/... ./internal/handler/... ./migrations/... ./pkg/db/... ./cmd/server/ > /tmp/c5-vet.log 2>&1; v=$?; go tool staticcheck ./internal/service/... ./internal/handler/... ./migrations/... ./pkg/db/... ./cmd/server/ >> /tmp/c5-vet.log 2>&1; s=$?; tail -20 /tmp/c5-vet.log; echo; echo "GO_BUILD_EXIT=$rc GOFMT_EXIT=$f VET_EXIT=$v STATICCHECK_EXIT=$s"
+
+GO_BUILD_EXIT=0 GOFMT_EXIT=0 VET_EXIT=0 STATICCHECK_EXIT=0

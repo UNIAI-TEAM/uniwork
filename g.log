@@ -1,0 +1,9 @@
+$ pnpm exec turbo test --filter=@uniwork/core > /tmp/c5-vt.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|ERROR|threshold|Coverage" /tmp/c5-vt.log | head -60; echo; echo "VITEST_CORE_EXIT=$rc"
+@uniwork/core:test:       Coverage enabled with v8
+@uniwork/core:test:  ✓ billing/quota-threshold-bus.test.ts (1 test) 4ms
+@uniwork/core:test:  Test Files  356 passed (356)
+@uniwork/core:test:       Tests  4088 passed (4088)
+@uniwork/core:test:  % Coverage report from v8
+@uniwork/core:test: =============================== Coverage summary ===============================
+
+VITEST_CORE_EXIT=0
