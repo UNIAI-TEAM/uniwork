@@ -706,7 +706,7 @@ func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, 
 // underlying converted_version row when v restores a converted version.
 func (s *DocumentService) restoredConvertedVersion(ctx context.Context, doc db.Document, v db.DocumentVersion) (db.DocumentVersion, bool) {
 	cur := v
-	for hops := 0; hops < 16 && cur.RestoredFrom.Valid && cur.RestoredFrom.Int32 > 0 && cur.RestoredFrom.Int32 < cur.Version; hops++ {
+	for cur.RestoredFrom.Valid && cur.RestoredFrom.Int32 > 0 && cur.RestoredFrom.Int32 < cur.Version {
 		src, err := s.q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 			DocumentID: doc.ID, Version: cur.RestoredFrom.Int32,
