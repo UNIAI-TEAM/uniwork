@@ -21,19 +21,19 @@ const ROOM_CHOICE: Record<BallotChoice, { icon: LucideIcon; radio: string; text:
     icon: ThumbsUp,
     radio: "data-checked:border-success-solid data-checked:bg-success-soft/50 dark:data-checked:bg-success-soft/50",
     text: "text-success",
-    tick: "bg-success-solid",
+    tick: "bg-success-solid text-on-solid",
   },
   NO: {
     icon: ThumbsDown,
     radio: "data-checked:border-destructive data-checked:bg-destructive/5 dark:data-checked:bg-destructive/5",
     text: "text-destructive",
-    tick: "bg-destructive",
+    tick: "bg-destructive text-on-solid",
   },
   ABSTAIN: {
     icon: CircleMinus,
     radio: "data-checked:border-foreground data-checked:bg-surface dark:data-checked:bg-surface",
     text: "text-foreground",
-    tick: "bg-foreground",
+    tick: "bg-foreground text-background",
   },
 };
 // The radio is the whole row (its dot hidden), so the row is the hit area and the focus ring.
@@ -109,7 +109,7 @@ export function MeetingMotionBallot({
                   <Icon className="size-5 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{label}</span>
                   {picked ? (
-                    <span className={cn("grid size-[22px] shrink-0 place-items-center rounded-full text-background", look.tick)}>
+                    <span className={cn("grid size-[22px] shrink-0 place-items-center rounded-full", look.tick)}>
                       <Check className="size-3" />
                     </span>
                   ) : null}
