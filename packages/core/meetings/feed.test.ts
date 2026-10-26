@@ -135,11 +135,13 @@ describe("buildMeetingFeed", () => {
 });
 
 describe("transcriptLinks", () => {
-  it("links each line to the decisions and the undismissed tasks resting on it", () => {
+  it("links each line to the decisions and the tasks the feed shows resting on it", () => {
     const links = transcriptLinks({
       actionItems: [
         item({ id: "a1", owner_text: "Minh", evidence: [{ kind: "segment", id: "s2" }] }),
         item({ id: "a2", status: "DISMISSED", owner_text: "Lan", evidence: [{ kind: "segment", id: "s1" }] }),
+        // A status the feed does not show gets no chip either, so a chip never points at a missing entry.
+        item({ id: "a3", status: "ARCHIVED", owner_text: "Hà", evidence: [{ kind: "segment", id: "s4" }] }),
       ],
       summary: summary({
         decisions: [{ text: "D", evidence: [{ kind: "segment", id: "s1" }, { kind: "note", id: "n1" }] }],

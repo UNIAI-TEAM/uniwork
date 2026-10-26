@@ -27,7 +27,7 @@ export interface MeetingFeedEntry {
 /** What a transcript line became: a decision, or a task with its owner phrase. */
 export type SegmentLink = { kind: "decision" } | { kind: "task"; owner: string | null };
 
-/** Items the feed and the transcript chips show: a dismissed or unknown status is not one. */
+/** Items the feed shows, and so the only ones a transcript chip may point at: a dismissed or unknown status is neither. */
 const isLiveItem = (item: MeetingActionItem): boolean => item.status === "PENDING" || item.status === "CONVERTED";
 
 const segmentIds = (evidence: readonly MeetingEvidenceRef[]): string[] =>
@@ -112,7 +112,7 @@ export function countFeed(entries: readonly MeetingFeedEntry[]): Record<MeetingF
   return counts;
 }
 
-/** Per transcript line, what it became: each decision and undismissed task resting on it, once each. */
+/** Per transcript line, what it became: each decision and each task the feed shows resting on it, once each. */
 export function transcriptLinks(input: {
   actionItems: readonly MeetingActionItem[];
   summary: MeetingSummary | null | undefined;
@@ -129,7 +129,7 @@ export function transcriptLinks(input: {
     for (const id of segmentIds(d.evidence)) add(id, { kind: "decision" });
   }
   for (const item of input.actionItems) {
-    if (item.status === "DISMISSED") continue;
+    if (!isLiveItem(item)) continue;
     for (const id of segmentIds(item.evidence)) add(id, { kind: "task", owner: item.owner_text || null });
   }
   return links;
