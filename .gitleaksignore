@@ -54,3 +54,12 @@ a06ec2f47eae0845a2a72de4f0c343e1c8522710:server/internal/notification/push_apns_
 c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/chat_call_voip_test.go:generic-api-key:67
 c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/chat_call_voip_test.go:generic-api-key:248
 c6f478d6696a1829634d45575b8b7a736f16f0fb:server/internal/notification/push_apns_test.go:generic-api-key:30
+
+# Fake OAuth values in tests on the Drive lane branches (UNI-2178 f07ff3170,
+# UNI-2186 ca0d7b4e7). gitleaks scans every fetched branch, so these failed the
+# secrets job on every PR. The lanes replace the values before their squash
+# reaches develop.
+ca0d7b4e71b10af3e003598438844da0ec692b03:packages/core/drive/hooks.test.tsx:generic-api-key:108
+f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:216
+f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:240
+f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:253
