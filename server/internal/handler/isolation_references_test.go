@@ -36,6 +36,18 @@ type isoReference struct {
 	// meetingKey does the same for {meetingID} (a meeting held without a
 	// room, for the transcription case).
 	meetingKey string
+	// driveFileKey names the fixture Drive file the path's {driveFileID}
+	// should name instead of the owner-bound default (for PUT /access, a
+	// file bound by another member on which the owner holds granted access).
+	driveFileKey string
+	// controlBody, when non-nil, is used instead of body in referenceControls
+	// (e.g. when the own-rows control switches to the caller's second
+	// connection while the attack names A's primary connection).
+	controlBody any
+	// wantAttackStatus, when non-zero, requires the cross-tenant and
+	// member-of-both reference attacks to answer with this exact HTTP status
+	// rather than any 4xx.
+	wantAttackStatus int
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -138,6 +150,9 @@ func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	path, ok := isoPath(t, c.pattern, tn)
 	if ok && c.meetingKey != "" {
 		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
+	}
+	if ok && c.driveFileKey != "" {
+		path = strings.Replace(path, tn.ids["driveFile"], tn.get(t, c.driveFileKey), 1)
 	}
 	if !ok || c.docKey == "" {
 		return path, ok
@@ -563,9 +578,12 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
 		"connection_id": isoRef("driveConnection")},
 		covers: []string{"GrantDriveFileAccessSDI.connection_id"}},
-	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
-		"connection_id": isoRef("driveConnection")},
-		noControl: "B's owner is bound_by on the seeded file, so their own PUT answers 409 use_rebind; POST /access and POST /rebind run the owner control"},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection",
+		driveFileKey:     "peerBoundDriveFile",
+		body:             map[string]any{"connection_id": isoRef("driveConnection")},
+		controlBody:      map[string]any{"connection_id": isoOwn("driveConnection2")},
+		wantAttackStatus: 404,
+		covers:           []string{"GrantDriveFileAccessSDI.connection_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
 		"connection_id": isoRef("driveConnection")},
 		covers: []string{"RebindDriveFileSDI.connection_id"}},
@@ -584,7 +602,11 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		if !ok {
 			continue
 		}
-		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
+		ctrl := c
+		if c.controlBody != nil {
+			ctrl.body = c.controlBody
+		}
+		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, ctrl.build(w, w.bravo, w.bravo))
 		if status < 200 || status >= 300 {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
 		} else if c.afterControl != nil {

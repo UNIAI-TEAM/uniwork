@@ -105,6 +105,24 @@ func (h *handlers) LinkDriveFiles(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.DriveFileLinkResultsSDO{Results: items})
 }
 
+// parseListDriveFilesLimit parses and clamps the optional ?limit= query
+// parameter of GET /api/v1/workspaces/{workspaceID}/drive-files before
+// narrowing int to int32 (B4b-F06).
+func parseListDriveFilesLimit(raw string) (int32, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, true
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	if n > 100 {
+		n = 100
+	}
+	return int32(n), true
+}
+
 // ListDriveFiles lists the caller's own Google Drive file references in the
 // workspace (GET /api/v1/workspaces/{workspaceID}/drive-files; spec §7.6).
 func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
@@ -113,17 +131,10 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	var limit int32
-	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n <= 0 {
-			respondError(w, http.StatusBadRequest, "invalid_request", "limit phải là số nguyên dương")
-			return
-		}
-		if n > 100 {
-			n = 100
-		}
-		limit = int32(n)
+	limit, ok := parseListDriveFilesLimit(q.Get("limit"))
+	if !ok {
+		respondError(w, http.StatusBadRequest, "invalid_request", "limit phải là số nguyên dương")
+		return
 	}
 	res, err := h.DriveFiles.ListMine(
 		r.Context(),

@@ -1259,6 +1259,43 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["task"], tn.userID); err != nil {
 		t.Fatalf("drive file task link: %v", err)
 	}
+	// A second connection for the owner and a peer-bound Drive file on which the
+	// owner holds a granted drive_file_access row (B4b-F03): exercises PUT
+	// /workspaces/{workspaceID}/drive-files/{driveFileID}/access in
+	// isoReferences past the bound_by use_rebind gate and past the granted-access
+	// gate, so the control (switching to driveConnection2) answers 200 and the
+	// attack (naming A's driveConnection) reaches requireCallerConnection -> 404.
+	tn.ids["driveConnection2"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["driveConnection2"], tn.orgID, tn.userID, "sub-2-"+strings.ToLower(m), strings.ToLower(m)+"-drive2@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("drive connection 2: %v", err)
+	}
+	tn.ids["peerDriveConnection"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["peerDriveConnection"], tn.orgID, tn.peerID, "sub-peer-"+strings.ToLower(m), strings.ToLower(m)+"-peer-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("peer drive connection: %v", err)
+	}
+	tn.ids["peerBoundDriveFile"] = util.NewID()
+	peerExtFileID := "ext-drive-peer-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
+		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
+		        $8, $9, 'shared', now())`,
+		tn.ids["peerBoundDriveFile"], tn.orgID, tn.wsID, peerExtFileID, tn.ids["peerDriveConnection"], tn.peerID,
+		m+" Peer Drive Doc", "https://docs.google.com/document/d/"+peerExtFileID+"/edit", m+" Peer Owner"); err != nil {
+		t.Fatalf("peer bound drive file: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["peerBoundDriveFile"], tn.userID, tn.ids["driveConnection"]); err != nil {
+		t.Fatalf("owner access on peer bound drive file: %v", err)
+	}
 }
 
 // buildWorkspaceAliases leaves an old task prefix and an old slug on record and

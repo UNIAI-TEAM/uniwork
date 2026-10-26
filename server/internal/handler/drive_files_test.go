@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -18,6 +21,29 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
+
+// auditQueryCountingDBTX wraps a db.DBTX and counts executions of
+// ListResourceAuditEvents so TestDriveResourceHistoryGate can prove that
+// denied Drive resource history requests never run the resource audit SELECT.
+type auditQueryCountingDBTX struct {
+	inner           db.DBTX
+	resourceSelects atomic.Int64
+}
+
+func (c *auditQueryCountingDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return c.inner.Exec(ctx, sql, args...)
+}
+
+func (c *auditQueryCountingDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if strings.Contains(sql, "ListResourceAuditEvents") {
+		c.resourceSelects.Add(1)
+	}
+	return c.inner.Query(ctx, sql, args...)
+}
+
+func (c *auditQueryCountingDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return c.inner.QueryRow(ctx, sql, args...)
+}
 
 type driveHTTPTestEnv struct {
 	deps    Deps
@@ -34,16 +60,18 @@ type driveHTTPTestEnv struct {
 	thirdID string
 	thirdTk string
 
-	mu          sync.Mutex
-	googleError map[string]int
+	mu           sync.Mutex
+	googleError  map[string]int
+	auditCounter *auditQueryCountingDBTX
 }
 
 func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	box := testDriveSecretBox(t)
+	auditCounter := &auditQueryCountingDBTX{inner: pool}
 	q := db.New(pool)
-
+	d.Audit = service.NewAuditService(pool, db.New(auditCounter), d.Organizations, d.Workspaces)
 	sp := featureflag.NewStaticProvider()
 	sp.Set("drive_connector", featureflag.Rule{Default: true})
 	d.FeatureFlags = featureflag.NewService(sp)
@@ -59,11 +87,12 @@ func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 	d.DriveConnections.SetFlags(d.FeatureFlags)
 
 	env := &driveHTTPTestEnv{
-		deps:        d,
-		pool:        pool,
-		q:           q,
-		box:         box,
-		googleError: make(map[string]int),
+		deps:         d,
+		pool:         pool,
+		q:            q,
+		box:          box,
+		googleError:  make(map[string]int),
+		auditCounter: auditCounter,
 	}
 
 	googleFake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -277,8 +306,8 @@ func TestDriveFilesHTTPLifecycleVisibilityAndPermissions(t *testing.T) {
 		t.Fatalf("r0 outcome = %v, want linked: %v", r0["outcome"], r0)
 	}
 	driveFileID := r0["file"].(map[string]any)["id"].(string)
-	if r1["outcome"] != "error" || r1["error_code"] != "not_found_or_not_shared" {
-		t.Fatalf("r1 = %v, want outcome=error error_code=not_found_or_not_shared", r1)
+	if r1["outcome"] != "error" || r1["error_code"] != "drive_file_not_accessible" {
+		t.Fatalf("r1 = %v, want outcome=error error_code=drive_file_not_accessible", r1)
 	}
 
 	// 2. Visibility gate on list and detail before task attachment:
@@ -443,8 +472,12 @@ func TestCreateTaskWithDriveFilesAtomicRollbackAndErrorFields(t *testing.T) {
 // GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history:
 //   - drive_file: visible to a member who can Get the file (404 to another
 //     member with neither drive_file_access nor a visible linked task)
-//   - drive_connection: 404 to everyone (contains google_email and google_sub)
+//   - drive_connection: visible only to the connection owner (200 to owner;
+//     indistinguishable 404 to another workspace member and for an unknown or
+//     foreign connection ID)
 //   - drive_task_proposal: visible only to requested_by (404 to other members)
+//   - Every denied Drive history request returns 404 BEFORE executing the
+//     ListResourceAuditEvents SELECT query, while authorized requests execute it.
 func TestDriveResourceHistoryGate(t *testing.T) {
 	e := newDriveHTTPTestEnv(t)
 	ownerConn := e.seedConnection(t, e.ownerID, "sub-owner-hist", "owner-hist@example.com")
@@ -458,29 +491,73 @@ func TestDriveResourceHistoryGate(t *testing.T) {
 	}
 	driveFileID := jsonArrayAt(t, linkOut, "results")[0].(map[string]any)["file"].(map[string]any)["id"].(string)
 
-	// 1. drive_file history: owner gets 200 with at least the drive_file.linked event;
-	// peer (who has no drive_file_access and no task link) gets 404.
+	// 1. drive_file history: owner gets 200 with at least the drive_file.linked event
+	// (and runs ListResourceAuditEvents); peer (who has no drive_file_access and no task
+	// link) gets 404 without running ListResourceAuditEvents.
 	fileHistPath := "/api/v1/workspaces/" + e.wsID + "/resources/drive_file/" + driveFileID + "/history"
+	beforeSelects := e.auditCounter.resourceSelects.Load()
 	ownerHistRes, ownerHistOut := doJSON(t, e.srv, "GET", fileHistPath, e.ownerTk, nil)
 	if ownerHistRes.StatusCode != http.StatusOK || len(jsonArrayAt(t, ownerHistOut, "events")) == 0 {
 		t.Fatalf("owner drive_file history = %d %v, want 200 with events", ownerHistRes.StatusCode, ownerHistOut)
 	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects+1 {
+		t.Fatalf("owner drive_file history resourceSelects = %d, want %d", got, beforeSelects+1)
+	}
+
+	beforeSelects = e.auditCounter.resourceSelects.Load()
 	peerHistRes, _ := doJSON(t, e.srv, "GET", fileHistPath, e.peerTk, nil)
 	if peerHistRes.StatusCode != http.StatusNotFound {
 		t.Fatalf("peer drive_file history without visibility = %d, want 404", peerHistRes.StatusCode)
 	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied peer drive_file history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	}
 
-	// 2. drive_connection history: 404 even to the connection owner (spec §11).
+	// 2. drive_connection history (spec §7.6a, plan B4): seed a connection audit event;
+	// owner gets 200 with the event (and runs ListResourceAuditEvents), while another
+	// member and an unknown/foreign connection get identical 404s without running the
+	// resource audit SELECT.
+	_, err := e.pool.Exec(context.Background(), `INSERT INTO audit_events
+		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, 'drive_connection', $7, '{}')`,
+		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_connection.connected", ownerConn)
+	if err != nil {
+		t.Fatalf("seed connection audit event: %v", err)
+	}
 	connHistPath := "/api/v1/workspaces/" + e.wsID + "/resources/drive_connection/" + ownerConn + "/history"
-	connHistRes, _ := doJSON(t, e.srv, "GET", connHistPath, e.ownerTk, nil)
-	if connHistRes.StatusCode != http.StatusNotFound {
-		t.Fatalf("drive_connection history = %d, want 404", connHistRes.StatusCode)
+	beforeSelects = e.auditCounter.resourceSelects.Load()
+	connOwnerRes, connOwnerOut := doJSON(t, e.srv, "GET", connHistPath, e.ownerTk, nil)
+	if connOwnerRes.StatusCode != http.StatusOK || len(jsonArrayAt(t, connOwnerOut, "events")) == 0 {
+		t.Fatalf("owner drive_connection history = %d %v, want 200 with events", connOwnerRes.StatusCode, connOwnerOut)
+	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects+1 {
+		t.Fatalf("owner drive_connection history resourceSelects = %d, want %d", got, beforeSelects+1)
+	}
+
+	beforeSelects = e.auditCounter.resourceSelects.Load()
+	connPeerRes, connPeerOut := doJSON(t, e.srv, "GET", connHistPath, e.peerTk, nil)
+	if connPeerRes.StatusCode != http.StatusNotFound {
+		t.Fatalf("peer drive_connection history = %d, want 404", connPeerRes.StatusCode)
+	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied peer drive_connection history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	}
+
+	unknownConnHistPath := "/api/v1/workspaces/" + e.wsID + "/resources/drive_connection/" + util.NewID() + "/history"
+	beforeSelects = e.auditCounter.resourceSelects.Load()
+	connUnknownRes, connUnknownOut := doJSON(t, e.srv, "GET", unknownConnHistPath, e.peerTk, nil)
+	if connUnknownRes.StatusCode != http.StatusNotFound || errorCode(connPeerOut) != errorCode(connUnknownOut) {
+		t.Fatalf("unknown drive_connection history = %d %v vs peer %d %v, want identical 404", connUnknownRes.StatusCode, connUnknownOut, connPeerRes.StatusCode, connPeerOut)
+	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied unknown drive_connection history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
 	}
 
 	// 3. drive_task_proposal history: seed an audit event for a proposal requested by owner
-	// and verify owner gets 200 while peer gets 404 (or 404 when proposal row does not exist).
+	// and verify owner gets 200 while peer gets 404 (or 404 before authorizer is wired),
+	// and denied requests never run ListResourceAuditEvents.
 	proposalID := util.NewID()
-	_, err := e.pool.Exec(context.Background(), `INSERT INTO audit_events
+	_, err = e.pool.Exec(context.Background(), `INSERT INTO audit_events
 		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, 'drive_task_proposal', $7, '{}')`,
 		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_task_proposal.created", proposalID)
@@ -488,27 +565,72 @@ func TestDriveResourceHistoryGate(t *testing.T) {
 		t.Fatalf("seed proposal audit event: %v", err)
 	}
 	propHistPath := "/api/v1/workspaces/" + e.wsID + "/resources/drive_task_proposal/" + proposalID + "/history"
-	// Without a proposal row (or for another member), history returns 404.
+	beforeSelects = e.auditCounter.resourceSelects.Load()
 	propPeerRes, _ := doJSON(t, e.srv, "GET", propHistPath, e.peerTk, nil)
 	if propPeerRes.StatusCode != http.StatusNotFound {
 		t.Fatalf("peer drive_task_proposal history = %d, want 404", propPeerRes.StatusCode)
 	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied peer drive_task_proposal history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	}
+
+	beforeSelects = e.auditCounter.resourceSelects.Load()
 	propOwnerNoRowRes, _ := doJSON(t, e.srv, "GET", propHistPath, e.ownerTk, nil)
 	if propOwnerNoRowRes.StatusCode != http.StatusNotFound {
 		t.Fatalf("owner drive_task_proposal history before proposal authorizer wired = %d, want 404", propOwnerNoRowRes.StatusCode)
 	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied unwired drive_task_proposal history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	}
+
 	e.deps.Audit.SetDriveProposalHistoryAuthorizer(func(_ context.Context, uID, wsID, pID string) error {
 		if wsID == e.wsID && pID == proposalID && uID == e.ownerID {
 			return nil
 		}
 		return service.ErrNotFound
 	})
+	beforeSelects = e.auditCounter.resourceSelects.Load()
 	propOwnerRes, propOwnerOut := doJSON(t, e.srv, "GET", propHistPath, e.ownerTk, nil)
 	if propOwnerRes.StatusCode != http.StatusOK || len(jsonArrayAt(t, propOwnerOut, "events")) == 0 {
 		t.Fatalf("owner drive_task_proposal history with authorizer = %d %v, want 200 with events", propOwnerRes.StatusCode, propOwnerOut)
 	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects+1 {
+		t.Fatalf("owner drive_task_proposal history resourceSelects = %d, want %d", got, beforeSelects+1)
+	}
+
+	beforeSelects = e.auditCounter.resourceSelects.Load()
 	propPeerAfterRes, _ := doJSON(t, e.srv, "GET", propHistPath, e.peerTk, nil)
 	if propPeerAfterRes.StatusCode != http.StatusNotFound {
 		t.Fatalf("peer drive_task_proposal history with authorizer = %d, want 404", propPeerAfterRes.StatusCode)
+	}
+	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+		t.Fatalf("denied peer drive_task_proposal history with authorizer executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	}
+}
+
+// TestParseListDriveFilesLimitClampsBeforeInt32Narrowing (B4b-F06) verifies
+// without a database that positive limit values exceeding 100 (including values
+// like 2147483648 that overflow a signed 32-bit int) are clamped to 100 before
+// narrowing to int32 instead of overflowing negative and falling back to 50.
+func TestParseListDriveFilesLimitClampsBeforeInt32Narrowing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		raw  string
+		want int32
+		ok   bool
+	}{
+		{raw: "", want: 0, ok: true},
+		{raw: "25", want: 25, ok: true},
+		{raw: "100", want: 100, ok: true},
+		{raw: "101", want: 100, ok: true},
+		{raw: "2147483648", want: 100, ok: true},
+		{raw: "0", want: 0, ok: false},
+		{raw: "-5", want: 0, ok: false},
+		{raw: "abc", want: 0, ok: false},
+	} {
+		got, ok := parseListDriveFilesLimit(tc.raw)
+		if ok != tc.ok || got != tc.want {
+			t.Fatalf("parseListDriveFilesLimit(%q) = (%d, %v), want (%d, %v)", tc.raw, got, ok, tc.want, tc.ok)
+		}
 	}
 }

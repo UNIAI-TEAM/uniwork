@@ -218,7 +218,9 @@ func TestIsolationMatrix(t *testing.T) {
 				continue
 			}
 			refused := func(status int, _ []byte) bool { return status >= 400 && status < 500 }
-			if c.allow2xx {
+			if c.wantAttackStatus != 0 {
+				refused = func(status int, _ []byte) bool { return status == c.wantAttackStatus }
+			} else if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
 			label := "references " + c.method + " " + c.pattern + " " + c.what
@@ -262,7 +264,9 @@ func TestIsolationMatrix(t *testing.T) {
 				continue
 			}
 			refused := func(status int, _ []byte) bool { return status >= 400 && status < 500 }
-			if c.allow2xx {
+			if c.wantAttackStatus != 0 {
+				refused = func(status int, _ []byte) bool { return status == c.wantAttackStatus }
+			} else if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
 			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
