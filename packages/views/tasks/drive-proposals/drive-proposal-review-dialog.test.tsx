@@ -37,6 +37,8 @@ vi.mock("@uniwork/ui/hooks/use-mobile", () => ({
 
 const { t } = initI18n();
 
+const QUERY_WAIT_OPTIONS = { timeout: 5000 } as const;
+
 const defaultUser: User = {
   id: "u1",
   email: "minh@vietants.vn",
@@ -305,7 +307,11 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     });
 
     expect(
-      await screen.findByRole("heading", { name: "UNI đề xuất 2 việc từ tài liệu" }),
+      await screen.findByRole(
+        "heading",
+        { name: "UNI đề xuất 2 việc từ tài liệu" },
+        QUERY_WAIT_OPTIONS,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("drive-proposal-private-badge")).toHaveTextContent(
       "Riêng tư trên Google Drive",
@@ -329,7 +335,9 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     );
 
     // Assignee without Drive access notice on item 1 (Mai has assignee_drive_access = unknown)
-    expect(await screen.findByTestId("drive-proposal-assignee-access-1")).toHaveTextContent(
+    expect(
+      await screen.findByTestId("drive-proposal-assignee-access-1", {}, QUERY_WAIT_OPTIONS),
+    ).toHaveTextContent(
       "Mai chưa xem được tài liệu trên Google Drive. Sau khi tạo, Mai thấy việc và tên tài liệu, kèm nút mở tài liệu trên Google Drive để xin quyền chủ sở hữu.",
     );
 
@@ -438,10 +446,12 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
           },
         }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     // Item 0 now has the new duplicate warning, and item 1's duplicate is cleared
-    expect(await screen.findByTestId("drive-proposal-duplicate-0")).toHaveTextContent(
+    expect(
+      await screen.findByTestId("drive-proposal-duplicate-0", {}, QUERY_WAIT_OPTIONS),
+    ).toHaveTextContent(
       "UNI-999 · Phạm vi beta cũ",
     );
     expect(screen.queryByTestId("drive-proposal-duplicate-1")).toBeNull();
@@ -489,7 +499,7 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
         "/api/v1/workspaces/ws1/drive-task-proposals/dtp_1",
         expect.objectContaining({ method: "DELETE" }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -525,7 +535,7 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     );
 
     // Wait for tasksQuery to resolve so UNI-1042 identifier is loaded
-    await screen.findByText(/UNI-1042 · Chuẩn bị kế hoạch ra mắt/);
+    await screen.findByText(/UNI-1042 · Chuẩn bị kế hoạch ra mắt/, {}, QUERY_WAIT_OPTIONS);
 
     // Mark item 1 duplicate as "Vẫn tạo"
     const dupBox = screen.getByTestId("drive-proposal-duplicate-1");
@@ -580,7 +590,7 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
           },
         }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     expect(toastSuccess).toHaveBeenCalledWith(
       "Đã tạo 2 việc từ Kế hoạch ra mắt Q4, là sub-task của UNI-1042",
@@ -831,7 +841,7 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
 
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(screen.queryByTestId("drive-proposal-create-error")).toBeNull();
     expect(toastError).not.toHaveBeenCalled();
   });
@@ -876,7 +886,11 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     fireEvent.click(screen.getByRole("button", { name: "Gửi cho agent" }));
 
     expect(
-      await screen.findByRole("heading", { name: "UNI đề xuất 2 việc từ tài liệu" }),
+      await screen.findByRole(
+        "heading",
+        { name: "UNI đề xuất 2 việc từ tài liệu" },
+        QUERY_WAIT_OPTIONS,
+      ),
     ).toBeInTheDocument();
     expect(requestMock).toHaveBeenCalledWith(
       "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",

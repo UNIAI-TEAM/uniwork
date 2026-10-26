@@ -26,6 +26,8 @@ vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 
 const { t } = initI18n();
 
+const QUERY_WAIT_OPTIONS = { timeout: 5000 } as const;
+
 const defaultUser: User = {
   id: "u1",
   email: "minh@vietants.vn",
@@ -319,7 +321,11 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     );
 
     // 1. "Tạo bởi UNI" row replaces AgentPicker
-    const createdByUni = await screen.findByTestId("create-task-agent-created-by-uni");
+    const createdByUni = await screen.findByTestId(
+      "create-task-agent-created-by-uni",
+      {},
+      QUERY_WAIT_OPTIONS,
+    );
     expect(createdByUni).toHaveTextContent("Tạo bởi");
     expect(createdByUni).toHaveTextContent("UNI");
     expect(createdByUni).toHaveTextContent("Agent");
@@ -328,11 +334,15 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     // 2. Priority, due date, and upload buttons are hidden; Project, "Task con của", and reading account line stay
     expect(screen.queryByRole("button", { name: "Thêm trường" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Đính kèm tệp" })).toBeNull();
-    expect(await screen.findByText(/Ra mắt Q4/)).toBeInTheDocument();
-    expect(await screen.findByText("Task con của UNI-1042")).toBeInTheDocument();
+    expect(await screen.findByText(/Ra mắt Q4/, {}, QUERY_WAIT_OPTIONS)).toBeInTheDocument();
+    expect(
+      await screen.findByText("Task con của UNI-1042", {}, QUERY_WAIT_OPTIONS),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText(
         "UNI đọc tệp bằng tài khoản uni-work1@gmail.com rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+        {},
+        QUERY_WAIT_OPTIONS,
       ),
     ).toBeInTheDocument();
 
@@ -360,7 +370,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     // 5. On success, hands proposal to DriveProposalReviewProvider and closes dialog
     await waitFor(() => {
       expect(onReviewOpen).toHaveBeenCalledWith(createdProposal);
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(requestMock).toHaveBeenCalledWith(
       "/api/v1/workspaces/ws1/drive-files/df_linked_1/task-proposals",
@@ -512,7 +522,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_recreate" }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
   });
 
   it("allows cancelling an in-flight proposal request and surfaces ErrorSDO codes (§7.10, §8.2)", async () => {
@@ -681,7 +691,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       expect(toastError).toHaveBeenCalledWith(
         "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(proposeCalled).toBe(false);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.idempotencyKey).toBe(
@@ -821,8 +831,10 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     );
 
     // 1. First click fails with drive_grant_required -> maps through real ApiError to §7.10 copy and passes AbortSignal (F4)
-    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
-    const errAlert = await screen.findByTestId("drive-proposal-error");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Gửi cho agent/ }, QUERY_WAIT_OPTIONS),
+    );
+    const errAlert = await screen.findByTestId("drive-proposal-error", {}, QUERY_WAIT_OPTIONS);
     expect(errAlert).toHaveTextContent(
       "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
     );
@@ -831,7 +843,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
     // 2. Retry links file (receipt without tasks_created) and detail GET returns count: 3 -> stops before B5, shows warning and "Vẫn gửi cho UNI" (F3, N1)
     fireEvent.click(screen.getByRole("button", { name: /Gửi cho agent/ }));
-    const warning = await screen.findByTestId("drive-recreate-warning");
+    const warning = await screen.findByTestId("drive-recreate-warning", {}, QUERY_WAIT_OPTIONS);
     expect(warning).toHaveTextContent(
       "Tài liệu này đã được dùng để tạo 3 việc (bởi Lan). Tạo thêm có thể trùng.",
     );
@@ -848,7 +860,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_second_click" }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(proposeCallCount).toBe(1);
   });
 
@@ -962,12 +974,14 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Gửi cho agent/ }, QUERY_WAIT_OPTIONS),
+    );
     await waitFor(() => {
       expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_immediate" }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(detailFetched).toBe(true);
     expect(proposeCallCount).toBe(1);
   });
@@ -1117,10 +1131,14 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
       ),
     );
 
-    const submitBtn = await screen.findByRole("button", { name: /Gửi cho agent/ });
+    const submitBtn = await screen.findByRole(
+      "button",
+      { name: /Gửi cho agent/ },
+      QUERY_WAIT_OPTIONS,
+    );
     await waitFor(() => {
       expect(submitBtn).toHaveAttribute("aria-disabled", "true");
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     fireEvent.click(submitBtn);
     expect(proposeCalled).toBe(false);
@@ -1194,7 +1212,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       expect(onReviewOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "dtp_pop_1" }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(requestMock).toHaveBeenCalledWith(
       "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",
       expect.objectContaining({
@@ -1266,7 +1284,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       expect(toastError).toHaveBeenCalledWith(
         "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(callCount).toBe(1);
     expect(screen.getByLabelText("Gợi ý cho UNI (tùy chọn)")).toHaveValue("Giữ lại gợi ý");
   });

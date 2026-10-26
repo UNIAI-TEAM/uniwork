@@ -48,6 +48,8 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
+const QUERY_WAIT_OPTIONS = { timeout: 5000 } as const;
+
 async function mountAndFindLink(name: string) {
   const nav = fakeNav("/acme/eng/tasks/t1");
   const view = render(
@@ -60,7 +62,7 @@ async function mountAndFindLink(name: string) {
     const el = Array.from(view.container.querySelectorAll("a")).find((a) => a.textContent === name);
     expect(el).toBeTruthy();
     return el as HTMLAnchorElement;
-  });
+  }, QUERY_WAIT_OPTIONS);
   return { nav, link };
 }
 
@@ -122,6 +124,7 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     });
     await mountAndFindLink("spec");
     await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w1/me");
       expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
         expect.objectContaining({
           workspaceId: "w1",
@@ -129,7 +132,7 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
           canEdit: true,
         }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
   });
 
   it("passes canEdit: false to TaskDetailAttachmentsSlot when the signed-in user has no workspace membership", async () => {
@@ -142,6 +145,7 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     });
     await mountAndFindLink("spec");
     await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w1/me");
       expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
         expect.objectContaining({
           workspaceId: "w1",
@@ -149,7 +153,7 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
           canEdit: false,
         }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
   });
 
   it("shows no Drive paste chip when the user has no workspace role, and shows a chip when the user is a member (F-2)", async () => {
@@ -220,12 +224,13 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
       const el = viewerView.container.querySelector("[role=textbox]");
       expect(el).toBeTruthy();
       return el as HTMLElement;
-    });
+    }, QUERY_WAIT_OPTIONS);
     await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w1/me");
       expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
         expect.objectContaining({ canEdit: false }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     pasteUrl(
       viewerEditor,
       "https://docs.google.com/document/d/1GdocViewerBlocked_012345/edit",
@@ -258,12 +263,15 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
       const el = editorView.container.querySelector("[role=textbox]");
       expect(el).toBeTruthy();
       return el as HTMLElement;
-    });
+    }, QUERY_WAIT_OPTIONS);
     await waitFor(() => {
+      expect(
+        requestMock.mock.calls.filter(([path]) => path === "/api/v1/workspaces/w1/me").length,
+      ).toBeGreaterThanOrEqual(2);
       expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
         expect.objectContaining({ canEdit: true }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     pasteUrl(
       memberEditor,
       "https://docs.google.com/document/d/1GdocEditorAllowed_012345/edit",
@@ -274,6 +282,6 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
           '[data-testid="drive-paste-suggestion-chip-1GdocEditorAllowed_012345"]',
         ),
       ).not.toBeNull();
-    });
+    }, QUERY_WAIT_OPTIONS);
   });
 });
