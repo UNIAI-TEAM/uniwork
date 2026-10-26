@@ -12,22 +12,22 @@ import { cn } from "@uniwork/ui/lib/utils";
 export type SettingsSaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function SettingsTab({
-  title,
-  description,
-  actions,
-  children,
+  title, description, actions, headingRef, children,
 }: {
   title: ReactNode;
   description?: ReactNode;
   /** Tab-wide controls (a save state, a reset) aligned with the title. */
   actions?: ReactNode;
+  headingRef?: Ref<HTMLHeadingElement>;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-8">
       <header className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-title-lg font-semibold tracking-tight text-balance">{title}</h2>
+          <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className={cn("text-title-lg font-semibold tracking-tight text-balance", headingRef && "rounded-sm")}>
+            {title}
+          </h2>
           {description ? (
             <p className="mt-1 max-w-[68ch] text-body leading-6 text-pretty text-muted-foreground">{description}</p>
           ) : null}
@@ -188,17 +188,7 @@ export function SettingsList({
 }
 
 export function SettingsListItem({
-  leading,
-  title,
-  meta,
-  badge,
-  actions,
-  className,
-  muted = false,
-  align = "center",
-  rowRef,
-  tabIndex,
-  "data-testid": testId,
+  leading, title, meta, badge, actions, className, muted = false, align = "center", wrapTitle = false, rowRef, tabIndex, "data-testid": testId,
 }: {
   /** An avatar, an IconTile or a device glyph. */
   leading?: ReactNode;
@@ -208,19 +198,25 @@ export function SettingsListItem({
   badge?: ReactNode;
   actions?: ReactNode;
   className?: string;
-  /** Quiets an inactive entry (deactivated, not shipped yet). */
+  /**
+   * Quiets an inactive entry (deactivated, not shipped yet). Only the glyph is
+   * faded; the text drops to muted-foreground, which still meets AA, where an
+   * opacity on the text would not.
+   */
   muted?: boolean;
-  /** Top-aligns leading and actions with the title line on multi-line rows. */
+  /** Top-aligns leading and actions with the title block on multi-line rows. */
   align?: "center" | "start";
+  /** Wraps long badges onto the next line instead of squeezing the title. */
+  wrapTitle?: boolean;
   rowRef?: Ref<HTMLLIElement>;
   tabIndex?: number;
   "data-testid"?: string;
 }) {
   return (
-    <li ref={rowRef} tabIndex={tabIndex} data-testid={testId} className={cn("flex min-h-14 flex-wrap gap-3 rounded-sm px-4 py-2.5 sm:flex-nowrap", align === "start" ? "items-start" : "items-center", className)}>
+    <li ref={rowRef} tabIndex={tabIndex} data-testid={testId} className={cn("flex min-h-14 flex-wrap gap-3 px-4 py-2.5 sm:flex-nowrap", align === "start" ? "items-start" : "items-center", className)}>
       {leading ? <div className={cn("shrink-0", align === "start" && "mt-0.5", muted && "opacity-60")}>{leading}</div> : null}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div className={cn("flex min-w-0 items-center", wrapTitle ? "flex-wrap gap-x-2 gap-y-1" : "gap-2")}>
           <span className={cn("truncate text-body font-medium", muted ? "text-muted-foreground" : "text-foreground")}>
             {title}
           </span>
@@ -229,7 +225,7 @@ export function SettingsListItem({
         {meta ? <div className="truncate text-caption text-muted-foreground">{meta}</div> : null}
       </div>
       {actions ? (
-        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">{actions}</div>
+        <div className={cn("flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto", align === "start" && "mt-0.5")}>{actions}</div>
       ) : null}
     </li>
   );

@@ -291,7 +291,16 @@ export function SettingsPage() {
                     ) : null}
                   </div>
                   {group.tabs.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className={SETTINGS_TAB_TRIGGER_CLASS}
+                      onClick={() => {
+                        if (tab.value === activeTab && navigation.searchParams.has(INTEGRATION_QUERY_KEY)) {
+                          handleTabChange(tab.value);
+                        }
+                      }}
+                    >
                       <tab.icon className="size-4" aria-hidden />
                       {t(`page.tabs.${tab.label}`)}
                     </TabsTrigger>

@@ -182,9 +182,13 @@ function DriveAccountCard({
  */
 export function DriveIntegrationView({
   initialNotice = null,
+  focusHeading = false,
+  onHeadingFocused,
   onBack,
 }: {
   initialNotice?: CallbackNotice | null;
+  focusHeading?: boolean;
+  onHeadingFocused?: () => void;
   onBack: () => void;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
@@ -198,6 +202,7 @@ export function DriveIntegrationView({
   const startConnect = useStartDriveConnect(workspace.id);
   const disconnect = useDisconnectDriveConnection(workspace.id);
 
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const reconnectTargetRef = useRef<DriveConnection | null>(null);
   const lastDisconnectEmailRef = useRef("");
   const [notice, setNotice] = useState<CallbackNotice | null>(initialNotice);
@@ -208,6 +213,12 @@ export function DriveIntegrationView({
       setNotice(initialNotice);
     }
   }, [initialNotice]);
+
+  useEffect(() => {
+    if (!driveAvailable || !focusHeading) return;
+    headingRef.current?.focus();
+    onHeadingFocused?.();
+  }, [driveAvailable, focusHeading, onHeadingFocused]);
 
   const onPopupOutcome = (outcome: OAuthPopupOutcome) => {
     const targetEmail = reconnectTargetRef.current?.google_email;
@@ -288,6 +299,7 @@ export function DriveIntegrationView({
       </nav>
 
       <SettingsTab
+        headingRef={headingRef}
         title={t("title")}
         description={t("meta")}
         actions={
@@ -306,7 +318,9 @@ export function DriveIntegrationView({
         }
       >
         <div className="space-y-6">
-          {notice ? <DriveCallbackAlert notice={notice} /> : null}
+          {notice && !(connectionsQuery.isFetching && connections.length === 0) ? (
+            <DriveCallbackAlert notice={notice} />
+          ) : null}
 
           {popup.pending ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
@@ -318,7 +332,7 @@ export function DriveIntegrationView({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto px-0"
+                className="h-auto px-0 focus-visible:-outline-offset-2"
                 onClick={popup.focus}
               >
                 {t("oauth_show_window")}
@@ -327,7 +341,7 @@ export function DriveIntegrationView({
           ) : null}
 
           <SettingsSection title={t("view.accounts_title")}>
-            {connectionsQuery.isLoading ? (
+            {connectionsQuery.isLoading || (connectionsQuery.isFetching && connections.length === 0) ? (
               <SettingsSkeletonRows rows={2} />
             ) : connectionsQuery.isError ? (
               <SettingsCard>

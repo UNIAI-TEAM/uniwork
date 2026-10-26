@@ -237,12 +237,14 @@ describe("IntegrationsTab", () => {
       expect(within(rowEl).getByText("Chưa kết nối")).toBeInTheDocument();
     });
 
-    it("shows the compact Google Drive row with one merged caption line when not connected (1.1, R1, M5, N1)", async () => {
+    it("shows the compact Google Drive row with one merged caption line and inset focus ring when not connected (1.1, R1, M5, N1, R4-1)", async () => {
       renderTab([], { driveFlag: true, driveAvailable: true });
       const available = screen.getByRole("list", { name: "Dùng được" });
       const rowEl = await within(available).findByTestId("drive-integration-row");
       expect(rowEl.tagName).toBe("LI");
       expect(rowEl).toHaveAttribute("tabindex", "-1");
+      expect(rowEl).toHaveClass("rounded-sm", "focus-visible:-outline-offset-2");
+      expect(rowEl).not.toHaveClass("outline-none");
       expect(within(rowEl).getByText("Google Drive")).toBeInTheDocument();
       expect(await within(rowEl).findByText("Chưa kết nối")).toBeInTheDocument();
       expect(within(rowEl).getByText("Mới")).toBeInTheDocument();
@@ -255,7 +257,7 @@ describe("IntegrationsTab", () => {
       expect(await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" })).toBeInTheDocument();
     });
 
-    it("shows 'Quản lý' on the connected row (with warning badge when an account is lost) and opens the Drive view on click", async () => {
+    it("shows 'Quản lý' on the connected row, opens the Drive view with push (focusing heading), and returns focus to 'Quản lý' on close (R4-5)", async () => {
       const activeConn = {
         id: "dc_1",
         provider: "google",
@@ -294,10 +296,22 @@ describe("IntegrationsTab", () => {
       const manageBtn = within(rowEl).getByRole("button", { name: "Quản lý" });
       fireEvent.click(manageBtn);
 
-      expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
+      expect(nav.push).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
       const viewEl = await screen.findByTestId("drive-integration-view");
+      const viewHeading = within(viewEl).getByRole("heading", { name: "Google Drive", level: 2 });
+      await waitFor(() => expect(document.activeElement).toBe(viewHeading));
       expect(within(viewEl).getByText("uni-work1@gmail.com")).toBeInTheDocument();
       expect(within(viewEl).getByText("uni-work2@gmail.com")).toBeInTheDocument();
+
+      // Closing via breadcrumb replaces back to the list and focuses "Quản lý"
+      const backBtn = within(
+        within(viewEl).getByRole("navigation", { name: "Tích hợp" }),
+      ).getByRole("button", { name: "Tích hợp" });
+      fireEvent.click(backBtn);
+      expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      const rowAgain = await screen.findByTestId("drive-integration-row");
+      const manageAgain = within(rowAgain).getByRole("button", { name: "Quản lý" });
+      await waitFor(() => expect(document.activeElement).toBe(manageAgain));
     });
 
     it("shows the popup blocked message on the row when window.open returns null", async () => {
@@ -352,7 +366,7 @@ describe("IntegrationsTab", () => {
       postDriveOAuthMessage(popup, ok, code);
       expect(await screen.findByText(expectedText)).toBeInTheDocument();
       if (ok) {
-        expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
+        expect(nav.push).toHaveBeenCalledWith("/acme/team/settings?tab=integrations&integration=drive");
         expect(screen.getByTestId("drive-integration-view")).toBeInTheDocument();
       } else {
         expect(screen.getByTestId("drive-integration-row")).toBeInTheDocument();
@@ -456,7 +470,7 @@ describe("IntegrationsTab", () => {
       expect(screen.getByText("Chưa kết nối")).toBeInTheDocument();
     });
 
-    it("marks the connect button aria-disabled while busy and blocks a second click", async () => {
+    it("marks the connect button aria-disabled while busy, insets the pending window link outline (R4-10), and blocks a second click", async () => {
       const { popup } = setupFakePopup();
       renderTab([], { driveFlag: true, driveAvailable: true });
 
@@ -466,6 +480,10 @@ describe("IntegrationsTab", () => {
 
       const busyBtn = screen.getByRole("button", { name: "Đang kết nối…" });
       expect(busyBtn).toHaveAttribute("aria-disabled", "true");
+
+      const showWindowBtn = screen.getByRole("button", { name: "Mở lại cửa sổ" });
+      expect(showWindowBtn).toHaveClass("focus-visible:-outline-offset-2");
+      expect(showWindowBtn).not.toHaveClass("outline-none");
 
       fireEvent.click(busyBtn);
       const startCalls = requestMock.mock.calls.filter(
@@ -682,6 +700,186 @@ describe("IntegrationsTab", () => {
       expect(await within(viewEl).findByText("uni-work1@gmail.com")).toBeInTheDocument();
     });
 
+    it("shows skeleton while config loads on ?tab=integrations&integration=drive, and drops integration param to show the list when flag is off or drive.available is false (R4-2, R4-11)", async () => {
+      // Case 1: config is loading while flag is on -> shows SettingsTabSkeleton, then reveals view when available
+      const { promise: configPromise, resolve: resolveConfig } = Promise.withResolvers<unknown>();
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") return configPromise;
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") return Promise.resolve({ accounts: [] });
+        if (path === "/api/v1/workspaces/ws1/drive-connections") return Promise.resolve({ connections: [] });
+        return Promise.resolve({});
+      });
+
+      const navLoading = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
+      const serviceOn = new FeatureFlagService(new StaticProvider({ drive_connector: { default: true } }));
+      const { container, unmount: unmountLoading } = render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={serviceOn}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          navLoading,
+        ),
+      );
+
+      // Skeleton shown while /api/v1/config is in flight, never a blank tab
+      expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      expect(navLoading.replace).not.toHaveBeenCalled();
+
+      // Resolve config with drive.available: false -> drops integration=drive via replace and shows list
+      await act(async () => {
+        resolveConfig({
+          flags: { drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: false },
+        });
+      });
+
+      expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      expect(navLoading.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      unmountLoading();
+
+      // Case 2: flag is off -> immediately drops integration=drive via replace and renders the list
+      requestMock.mockClear();
+      const navFlagOff = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
+      renderTab([], {
+        driveFlag: false,
+        driveAvailable: true,
+        navAdapter: navFlagOff,
+      });
+
+      expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      expect(navFlagOff.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+    });
+
+    it("shows skeleton instead of 'connected' above an empty list while first-connect refetch is in flight (R4-6)", async () => {
+      const { popup } = setupFakePopup();
+      let fetchCount = 0;
+      const { promise: refetchPromise, resolve: resolveRefetch } = Promise.withResolvers<unknown>();
+
+      requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
+        if (path === "/api/v1/config") {
+          return Promise.resolve({
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          fetchCount += 1;
+          if (fetchCount === 1) {
+            return Promise.resolve({ connections: [] });
+          }
+          return refetchPromise;
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections/google/start" && init?.method === "POST") {
+          return Promise.resolve({ authorization_url: AUTH_URL });
+        }
+        return Promise.resolve({});
+      });
+
+      const service = new FeatureFlagService(new StaticProvider({ drive_connector: { default: true } }));
+      const nav = fakeNav("/acme/team/settings?tab=integrations");
+      render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          nav,
+        ),
+      );
+
+      const connectBtn = await screen.findByRole("button", { name: "Kết nối Google Drive" });
+      fireEvent.click(connectBtn);
+      await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+
+      postDriveOAuthMessage(popup, true, "connected");
+
+      const viewEl = await screen.findByTestId("drive-integration-view");
+      // While refetch is in flight and connections is still empty, show skeleton and hide contradictory empty state & connected banner
+      expect(viewEl.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(within(viewEl).queryByText("Chưa có tài khoản Google Drive nào được kết nối.")).not.toBeInTheDocument();
+      expect(
+        within(viewEl).queryByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        resolveRefetch({
+          connections: [
+            {
+              id: "dc_new",
+              provider: "google",
+              google_email: "first@gmail.com",
+              status: "active",
+              needs_reconnect: false,
+              linked_file_count: 1,
+              connected_at: "2026-10-26T09:42:00Z",
+              updated_at: "2026-10-26T09:42:00Z",
+            },
+          ],
+        });
+      });
+
+      expect(await within(viewEl).findByText("first@gmail.com")).toBeInTheDocument();
+      expect(
+        within(viewEl).getByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
+      ).toBeInTheDocument();
+    });
+
+    it("exits the Drive sub-view when clicking the active 'Tích hợp' tab in SettingsPage (R4-5)", async () => {
+      const nav = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") {
+          return Promise.resolve({
+            flags: { drive_connector: true },
+            rum_sample_rate: 0,
+            drive: { available: true },
+          });
+        }
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return Promise.resolve({ connections: [] });
+        }
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") {
+          return Promise.resolve({ accounts: [] });
+        }
+        return Promise.resolve({});
+      });
+
+      const service = new FeatureFlagService(
+        new StaticProvider({ drive_connector: { default: true } }),
+      );
+
+      render(
+        wrapWithNav(
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SettingsPage />
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>,
+          nav,
+        ),
+      );
+
+      expect(await screen.findByTestId("drive-integration-view")).toBeInTheDocument();
+      const integrationsTab = screen.getByRole("tab", { name: "Tích hợp" });
+      expect(integrationsTab).toHaveAttribute("aria-selected", "true");
+
+      fireEvent.click(integrationsTab);
+      expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      expect(await screen.findByTestId("drive-integration-row")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+    });
     it("?connect=drive selects the Integrations tab, focuses the Drive row (even if integration=drive was set), removes connect, and never opens a popup or calls start", async () => {
       openSpy.mockReturnValue(null);
       const nav = fakeNav("/acme/team/settings?connect=drive&integration=drive");

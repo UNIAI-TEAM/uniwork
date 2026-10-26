@@ -41,13 +41,37 @@ describe("SettingsFieldError", () => {
 });
 
 describe("SettingsListItem", () => {
-  it("wraps badges below the title and supports top alignment and row focus refs", () => {
+  it("keeps default non-wrapping title and center alignment unless opted in", () => {
+    render(
+      <SettingsList aria-label="Items">
+        <SettingsListItem
+          data-testid="default-row"
+          leading={<span>DefaultIcon</span>}
+          title="Email Hub"
+          badge={<span>Badge</span>}
+          actions={<button type="button">Open</button>}
+        />
+      </SettingsList>,
+    );
+    const defaultRow = screen.getByTestId("default-row");
+    expect(defaultRow.tagName).toBe("LI");
+    expect(defaultRow).toHaveClass("items-center");
+    expect(defaultRow).not.toHaveClass("items-start", "rounded-sm");
+    expect(screen.getByText("Email Hub").parentElement).toHaveClass("gap-2");
+    expect(screen.getByText("Email Hub").parentElement).not.toHaveClass("flex-wrap", "gap-y-1");
+    expect(screen.getByText("DefaultIcon").parentElement).not.toHaveClass("mt-0.5");
+    expect(screen.getByRole("button", { name: "Open" }).parentElement).not.toHaveClass("mt-0.5");
+  });
+
+  it("wraps badges below the title and top-aligns leading and actions with identical offset when opted in", () => {
     render(
       <SettingsList aria-label="Items">
         <SettingsListItem
           align="start"
+          wrapTitle
           tabIndex={-1}
           data-testid="item-row"
+          className="rounded-sm focus-visible:-outline-offset-2"
           leading={<span>Icon</span>}
           title="Google Drive"
           badge={<span>Badge</span>}
@@ -57,8 +81,11 @@ describe("SettingsListItem", () => {
     );
     const row = screen.getByTestId("item-row");
     expect(row.tagName).toBe("LI");
-    expect(row).toHaveClass("items-start");
+    expect(row).toHaveClass("items-start", "rounded-sm", "focus-visible:-outline-offset-2");
+    expect(row).not.toHaveClass("outline-none");
     expect(row).toHaveAttribute("tabindex", "-1");
-    expect(screen.getByText("Google Drive").parentElement).toHaveClass("flex-wrap");
+    expect(screen.getByText("Google Drive").parentElement).toHaveClass("flex-wrap", "gap-x-2", "gap-y-1");
+    expect(screen.getByText("Icon").parentElement).toHaveClass("mt-0.5");
+    expect(screen.getByRole("button", { name: "Action" }).parentElement).toHaveClass("mt-0.5");
   });
 });
